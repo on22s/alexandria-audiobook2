@@ -33,8 +33,10 @@ class VoiceRosterDropdownTests(unittest.TestCase):
         self.run_js(r'''
 const html=context.buildSpeakerSelect({id:2,speaker:'Unknown <&>'});assert.equal((html.match(/<option/g)||[]).length,1);assert(html.includes('Unknown &lt;&amp;&gt; (custom)'));
 const s=select('speaker','Unknown <&>');ensure(s);assert.equal(s.value,'Unknown <&>');assert.deepEqual(s.options.map(o=>o.value),['Unknown <&>','Alice','Bob','Zed']);
-assert(context.buildSpeakerSelect({id:2,speaker:''}).includes('value="Alice"'));
-context.window._voicesNames=[];assert(!context.buildSpeakerSelect({id:2,speaker:''}).includes('<option'));
+assert(context.buildSpeakerSelect({id:2,speaker:''}).includes('value="" selected>-- No speaker selected --'));
+const blank=select('speaker','');ensure(blank);assert.equal(blank.value,'');assert.equal(blank.selected,0);assert.deepEqual(blank.options.map(o=>o.value),['','Alice','Bob','Zed']);
+context.window._voicesNames=[];assert(context.buildSpeakerSelect({id:2,speaker:''}).includes('value="" selected>-- No speaker selected --'));
+ensure(blank);assert.deepEqual(blank.options.map(o=>o.value),['']);assert.equal(blank.selected,0);
 ''')
 
     def test_alias_save_without_opening_and_self_exclusion(self):

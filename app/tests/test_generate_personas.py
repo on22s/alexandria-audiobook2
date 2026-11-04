@@ -221,11 +221,32 @@ class ResolutionTest(unittest.TestCase):
             _resolve_to_canonical("NOT-SATELLA", ["Not-Satella"]),
             "Not-Satella")
 
-    def test_a_bare_surname_still_resolves_on_an_ambiguous_roster(self):
-        """'Darcy' alone is genuinely ambiguous; resolving it to one of them is
-        the existing behaviour and not what this fix is about. Asserted so a
-        future change to it is deliberate."""
-        self.assertIn(_resolve_to_canonical("Darcy", self.COUPLE), self.COUPLE)
+    def test_a_bare_surname_is_unresolved_on_an_ambiguous_roster(self):
+        for roster in (self.COUPLE, list(reversed(self.COUPLE))):
+            self.assertIsNone(_resolve_to_canonical("Darcy", roster))
+
+    def test_ambiguous_matching_tiers_are_order_independent(self):
+        for raw, roster in (("Ann", ["ANNA", "ANNE"]),
+                            ("Alice Grey", ["ALICE ROSE GREY", "ALICE MAY GREY"]),
+                            ("Emilia", ["EMILIA", "Emilia"])):
+            with self.subTest(raw=raw):
+                forward = _resolve_to_canonical(raw, roster)
+                backward = _resolve_to_canonical(raw, list(reversed(roster)))
+                self.assertEqual(forward, backward)
+                if raw == "Emilia":
+                    self.assertEqual(forward, "EMILIA")
+                else:
+                    self.assertIsNone(forward)
+
+    def test_unambiguous_matching_tiers_keep_safe_matches(self):
+        cases = (("Ann", ["ANNA"], "ANNA"),
+                 ("Alice Grey", ["ALICE ROSE GREY"], "ALICE ROSE GREY"),
+                 ("Alice Rose", ["ALICE ROSE GREY", "ALICE MAY GREY"], "ALICE ROSE GREY"),
+                 ("Darcy", ["DARCY", "MR DARCY", "MRS DARCY"], "DARCY"))
+        for raw, roster, expected in cases:
+            with self.subTest(raw=raw, roster=roster):
+                self.assertEqual(expected, _resolve_to_canonical(raw, roster))
+                self.assertEqual(expected, _resolve_to_canonical(raw, list(reversed(roster))))
 
     def test_unrelated_names_do_not_match(self):
         self.assertIsNone(_resolve_to_canonical("Subaru", ["EMILIA", "FELT"]))

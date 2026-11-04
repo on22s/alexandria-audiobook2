@@ -19,7 +19,7 @@
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
     let s = {voices: [], marks: {}, skipped: [], view: 'cards', shown: PAGE, chips: new Set(), epoch: 0, bound: false,
-             speakers: [], review: null, playing: null, queue: null, variant: '', collections: [], shared: [],
+             speakers: [], speakerRequest: 0, review: null, playing: null, queue: null, variant: '', collections: [], shared: [],
              collectionEpoch: 0, research: null, playSeconds: 8, playFull: false, playToken: 0, timer: null};
 
     // ---- pure helpers (also used by the tests) ----
@@ -544,11 +544,18 @@
         }
     }
     async function loadSpeakers() {
+        const request = ++s.speakerRequest, epoch = s.epoch, selection = window._bookSelectionEpoch;
+        const book = typeof currentBookFilename === 'string' ? currentBookFilename : '';
+        const current = () => request === s.speakerRequest && epoch === s.epoch
+            && selection === window._bookSelectionEpoch
+            && book === (typeof currentBookFilename === 'string' ? currentBookFilename : '');
         try {
             const snapshot = await API.get('/api/voice_config/snapshot');
+            if (!current()) { return null; }
             s.speakers = (snapshot.voices || []).map(v => v.name).filter(n => typeof n === 'string');
             return snapshot;
         } catch (error) {
+            if (!current()) { return null; }
             s.speakers = [];
             return null;
         }

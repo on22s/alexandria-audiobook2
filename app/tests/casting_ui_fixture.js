@@ -225,5 +225,74 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     releaseConfirm(true); await settle();
     ok(!env.calls.some(call => call[1] === '/api/voice_library/apply'), 'changing collection during confirmation invalidates the review');
 
+    const failures = [];
+    const deferredSpeakers = env => {
+        const pending = [], get = env.w.API.get;
+        env.w.API.get = url => url === '/api/voice_config/snapshot'
+            ? new Promise((resolve, reject) => pending.push({resolve, reject})) : get(url);
+        return pending;
+    };
+    const reply = name => ({book_token: TOKEN, voices: [{name}]});
+    const check = async (name, run) => {
+        try { await run(); } catch (error) { failures.push(name + ': ' + error.message); }
+    };
+    for (const mode of ['book success', 'book failure', 'same book success', 'same book failure']) {
+        await check(mode, async () => {
+            const race = setup(), pending = deferredSpeakers(race);
+            race.w.currentBookFilename = 'old.json'; race.w._bookSelectionEpoch = 1;
+            const old = race.w.loadCastingLibrary();
+            if (mode.startsWith('book')) {
+                race.w.currentBookFilename = 'new.json'; race.w._bookSelectionEpoch++;
+            }
+            const latest = race.w.loadCastingLibrary();
+            pending[1].resolve(reply('CURRENT')); await latest;
+            if (mode.endsWith('failure')) { pending[0].reject(new Error('old failed')); }
+            else { pending[0].resolve(reply('OLD')); }
+            await old;
+            eq(race.w.CastingLibrary.state().speakers, ['CURRENT'], mode);
+            const choices = race.get('results').querySelectorAll('select')
+                .find(select => select.attrs['aria-label'] === 'Character to use ABEL for');
+            eq(choices.querySelectorAll('option').map(option => option.value), ['', 'CURRENT']);
+        });
+    }
+    for (const mode of ['selection', 'filename', 'reload']) {
+        await check('context invalidation: ' + mode, async () => {
+            const race = setup(); await race.w.loadCastingLibrary();
+            race.w.currentBookFilename = 'old.json'; race.w._bookSelectionEpoch = 1;
+            const pending = deferredSpeakers(race), old = race.w.loadCastingLibrary();
+            if (mode === 'selection') { race.w._bookSelectionEpoch++; }
+            if (mode === 'filename') { race.w.currentBookFilename = 'new.json'; }
+            if (mode === 'reload') { race.w._bookSelectionEpoch++; }
+            pending[0].resolve(reply('OLD')); await old;
+            eq(race.w.CastingLibrary.state().speakers, ['ADAM', 'EVE']);
+        });
+    }
+    await check('current failure clears roster', async () => {
+        const race = setup(); await race.w.loadCastingLibrary();
+        const pending = deferredSpeakers(race), load = race.w.loadCastingLibrary();
+        pending[0].reject(new Error('current failed')); await load;
+        eq(race.w.CastingLibrary.state().speakers, []);
+    });
+    for (const castFirst of [false, true]) {
+        await check('load/cast overlap: cast first=' + castFirst, async () => {
+            const race = setup(); await race.w.loadCastingLibrary();
+            const pending = deferredSpeakers(race);
+            const choose = () => {
+                const select = race.get('results').querySelectorAll('select')
+                    .find(select => select.attrs['aria-label'] === 'Character to use ABEL for');
+                select.value = 'ADAM'; select.parentElement.querySelector('button').click();
+            };
+            let load;
+            if (castFirst) { choose(); await settle(); load = race.w.loadCastingLibrary(); }
+            else { load = race.w.loadCastingLibrary(); choose(); await settle(); }
+            pending[1].resolve(reply('ADAM')); await settle();
+            pending[0].resolve(reply(castFirst ? 'ADAM' : 'EVE')); await load; await settle();
+            eq(race.w.CastingLibrary.state().speakers, ['ADAM']);
+            const writes = race.calls.filter(call => call[0] === 'POST');
+            eq(writes.length, castFirst ? 0 : 2, 'superseded cast preflight cannot authorize writes');
+            for (const write of writes) { eq(write[2].book_token, TOKEN); }
+        });
+    }
+    assert.deepStrictEqual(failures, []);
     console.log(JSON.stringify({passed: true, assertions}));
 })().catch(error => { console.error(error); process.exit(1); });

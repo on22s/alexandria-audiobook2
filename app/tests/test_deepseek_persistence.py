@@ -70,7 +70,9 @@ class PersistenceTests(unittest.TestCase):
                 original={'type':'custom','voice':'Ryan','alias_of':'BOB','ready':True,'versions':{'v1':{'voice':'Jenny'}},'candidates':[{'voice':'Ryan'}],'style_timeline':[{'from_index':0,'character_style':'old'}],'version_timeline':[{'from_index':0,'version_id':'v1'}]}
                 path.write_text(json.dumps({'ALICE':original}));stack.enter_context(patch.object(voices,'VOICE_CONFIG_PATH',str(path)));stack.enter_context(patch.object(voices,'SCRIPT_PATH',str(script)));app=FastAPI();app.include_router(voices.router);client=stack.enter_context(TestClient(app))
                 def save(changes):
-                    if not guarded:return client.post('/api/save_voice_config',json=changes)
+                    if not guarded:
+                        snapshot=client.get('/api/voice_config/snapshot').json()
+                        return client.post('/api/save_voice_config',params={k:snapshot[k] for k in ('revision','book_token')},json=changes)
                     snapshot=client.get('/api/voice_config/snapshot').json();return client.post('/api/voice_config/save',json={'revision':snapshot['revision'],'book_token':snapshot['book_token'],'voices':changes})
                 response=save({'ALICE':{'voice':'Aiden'}});self.assertEqual(200,response.status_code,response.text);current=json.loads(path.read_text())['ALICE'];self.assertEqual('Aiden',current['voice'])
                 for key in ('alias_of','ready','versions','candidates','style_timeline','version_timeline'):self.assertEqual(original[key],current[key])

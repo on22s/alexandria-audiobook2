@@ -1,7 +1,9 @@
 import contextlib
 import importlib.util
 import io
+import json
 import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +15,184 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ModelDownloadPublicationTests(unittest.TestCase):
+    def prepare_recovery(self, root):
+        target = root / 'models/whisper-base'
+        target.mkdir(parents=True)
+        (target / 'old').write_bytes(b'prior bundle')
+        module = self.load(root)
+        backup = target.parent / '.whisper-base.previous'
+        receipt = target.parent / '.whisper-base-replacement.json'
+        receipt.write_text(json.dumps(module.get_recovery_identity(target)))
+        os.replace(target, backup)
+        return module, target, backup, receipt
+
+    def test_recovery_allows_canonical_script_root_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            module, target, backup, receipt = self.prepare_recovery(root)
+            alias = root / 'root-alias'
+            module.__file__ = str(alias / 'download_model.py')
+            realpath = os.path.realpath
+            def canonical(path, *args, **kwargs):
+                source = Path(path)
+                if source == alias or alias in source.parents:
+                    source = root / source.relative_to(alias)
+                return realpath(source, *args, **kwargs)
+            with patch.object(module.os.path, 'realpath', side_effect=canonical), \
+                    patch.object(module, 'snapshot_download', side_effect=OSError('offline')) as download, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            download.assert_called_once()
+            self.assertEqual(b'prior bundle', (target / 'old').read_bytes())
+            self.assertFalse(backup.exists())
+            self.assertFalse(receipt.exists())
+
+    def test_recovery_failure_preserves_bytes_and_receipt_without_downloading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+            output = io.StringIO()
+            with patch.object(module.os, 'replace', side_effect=PermissionError('restore blocked')), \
+                    patch.object(module, 'snapshot_download') as download, \
+                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            download.assert_not_called()
+            self.assertFalse(target.exists())
+            self.assertTrue(receipt.exists())
+            self.assertEqual(b'prior bundle', (backup / 'old').read_bytes())
+            self.assertIn(str(backup), output.getvalue())
+            self.assertIn('keep all remnants', output.getvalue())
+
+    def test_pending_recovery_never_overwrites_an_installed_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+            target.mkdir()
+            (target / 'current').write_bytes(b'current bundle')
+            with patch.object(module, 'snapshot_download') as download, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            download.assert_not_called()
+            self.assertEqual(b'current bundle', (target / 'current').read_bytes())
+            self.assertEqual(b'prior bundle', (backup / 'old').read_bytes())
+            self.assertTrue(receipt.exists())
+
+    def test_receipt_before_first_rename_or_after_restore_is_consumed_safely(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+            os.replace(backup, target)
+            with patch.object(module, 'snapshot_download', side_effect=OSError('offline')) as download, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            download.assert_called_once()
+            self.assertEqual(b'prior bundle', (target / 'old').read_bytes())
+            self.assertFalse(receipt.exists())
+            self.assertFalse(backup.exists())
+
+    def test_consumed_recovery_cannot_resurrect_an_intentionally_removed_install(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+            with patch.object(module, 'snapshot_download', side_effect=OSError('offline')), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+                self.assertEqual(b'prior bundle', (target / 'old').read_bytes())
+                module.shutil.rmtree(target)
+                self.assertEqual(1, module.download_model())
+            self.assertFalse(target.exists())
+            self.assertFalse(backup.exists())
+            self.assertFalse(receipt.exists())
+
+    def test_unidentified_ambiguous_or_mismatched_remnants_are_preserved(self):
+        for kind in ('unmarked', 'legacy', 'multiple', 'mismatch', 'malformed'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+                if kind in ('unmarked', 'legacy', 'multiple'):
+                    receipt.unlink()
+                if kind in ('legacy', 'multiple'):
+                    backup.rename(target.parent / '.whisper-base-download-unrelated.previous')
+                if kind == 'multiple':
+                    (target.parent / '.whisper-base-download-other.previous').mkdir()
+                if kind == 'mismatch':
+                    receipt.write_text('[0, 1]')
+                if kind == 'malformed':
+                    receipt.write_text('{')
+                before = {str(p.relative_to(target.parent)): p.read_bytes()
+                          for p in target.parent.rglob('*') if p.is_file()}
+                with patch.object(module, 'snapshot_download') as download, \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(1, module.download_model())
+                download.assert_not_called()
+                self.assertFalse(target.exists())
+                self.assertEqual(before, {str(p.relative_to(target.parent)): p.read_bytes()
+                                         for p in target.parent.rglob('*') if p.is_file()})
+
+    def test_partial_stage_without_receipt_is_never_restored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stage = root / 'models/.whisper-base-download-partial'
+            stage.mkdir(parents=True)
+            (stage / 'config.json').write_text('partial')
+            module = self.load(root)
+            with patch.object(module, 'snapshot_download', side_effect=OSError('offline')), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            self.assertFalse((root / 'models/whisper-base').exists())
+            self.assertEqual('partial', (stage / 'config.json').read_text())
+
+    def test_recovery_rejects_reparse_entries_without_renaming(self):
+        for linked_entry in ('backup', 'receipt'):
+            with self.subTest(linked_entry=linked_entry), tempfile.TemporaryDirectory() as tmp:
+                module, target, backup, receipt = self.prepare_recovery(Path(tmp))
+                linked_path = backup if linked_entry == 'backup' else receipt
+                original = os.lstat
+                def lstat(path, *args, **kwargs):
+                    info = original(path, *args, **kwargs)
+                    if Path(path) == linked_path:
+                        return types.SimpleNamespace(st_mode=info.st_mode, st_file_attributes=0x400)
+                    return info
+                with patch.object(module.os, 'lstat', side_effect=lstat), \
+                        patch.object(module.os, 'replace') as rename, \
+                        patch.object(module, 'snapshot_download') as download, \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(1, module.download_model())
+                rename.assert_not_called()
+                download.assert_not_called()
+                self.assertEqual(b'prior bundle', (backup / 'old').read_bytes())
+                self.assertTrue(receipt.exists())
+
+    def test_process_death_then_offline_retry_restores_previous_before_download(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'models/whisper-base'
+            target.mkdir(parents=True)
+            (target / 'old').write_bytes(b'prior bundle')
+            child = '''import os, sys
+from pathlib import Path
+from tests.test_model_download_publication import ModelDownloadPublicationTests
+module = ModelDownloadPublicationTests().load(Path(sys.argv[1]))
+replace = os.replace
+def crash(source, destination):
+    replace(source, destination)
+    if str(destination).endswith('.previous'):
+        os._exit(77)
+module.os.replace = crash
+module.download_model()
+'''
+            result = subprocess.run([sys.executable, '-B', '-c', child, str(root)],
+                                    cwd=ROOT / 'app', capture_output=True, text=True, timeout=20)
+            self.assertEqual(77, result.returncode, result.stderr)
+            self.assertFalse(target.exists())
+            backups = list((root / 'models').glob('*.previous'))
+            self.assertEqual(1, len(backups))
+            self.assertEqual(b'prior bundle', (backups[0] / 'old').read_bytes())
+            module = self.load(root)
+            def offline(**kwargs):
+                self.assertEqual(b'prior bundle', (target / 'old').read_bytes())
+                raise OSError('synthetic offline')
+            with patch.object(module, 'snapshot_download', side_effect=offline) as download, \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(1, module.download_model())
+            download.assert_called_once()
+            self.assertEqual(b'prior bundle', (target / 'old').read_bytes())
+
     def test_post_publish_backup_cleanup_failure_warns_without_false_download_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

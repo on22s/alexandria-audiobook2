@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 import zipfile
+import wave
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -284,6 +285,100 @@ class BatchProcessorPreflightTests(unittest.TestCase):
             self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
         self.assertEqual("Already processed (use --force to reprocess)",
                          processor.results["skipped"][-1]["reason"])
+
+    def make_audio_completion(self):
+        audio = self.root / 'synthetic.wav'
+        self.write_synthetic_wav(audio, 1)
+        output = self.root / 'dataset.zip'
+        with zipfile.ZipFile(output, 'w') as archive:
+            archive.writestr('metadata.jsonl', '{"audio_filepath":"train/clip.wav"}\n')
+            archive.writestr('train/clip.wav', audio.read_bytes())
+        identity = batch.get_source_identity(audio)
+        self.assertEqual([str(output)], batch.ensure_completed_volume_receipt(
+            str(audio), str(output), {}, identity, None, None))
+        return audio, output, identity
+
+    def write_synthetic_wav(self, path, sample):
+        with wave.open(str(path), 'wb') as audio:
+            audio.setnchannels(1)
+            audio.setsampwidth(2)
+            audio.setframerate(16000)
+            audio.writeframes(sample.to_bytes(2, 'little') * 1600)
+
+    def test_same_metadata_audio_replacement_invalidates_real_resume(self):
+        audio, output, _ = self.make_audio_completion()
+        processor = batch.BatchProcessor(str(self.model))
+        with patch.object(batch, 'get_output_name', return_value=str(output)):
+            self.assertEqual([], processor.validate_files([str(audio)]))
+            before, stat = audio.read_bytes(), audio.stat()
+            self.write_synthetic_wav(audio, 2)
+            os.utime(audio, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            self.assertNotEqual(before, audio.read_bytes())
+            self.assertEqual(stat.st_size, audio.stat().st_size)
+            self.assertEqual(stat.st_mtime_ns, audio.stat().st_mtime_ns)
+            with wave.open(str(audio), 'rb') as replacement:
+                self.assertEqual(1600, replacement.getnframes())
+            self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
+        self.assertTrue(batch.is_complete_dataset_zip(str(output)))
+
+    def test_legacy_audio_receipt_reprocesses_without_removing_outputs(self):
+        audio, output, identity = self.make_audio_completion()
+        marker = Path(str(output) + '.complete.json')
+        identity.pop('sha256')
+        batch.save_batch_receipt(str(marker), {'source': identity, 'volumes': [str(output)]})
+        previous = output.read_bytes(), marker.read_bytes()
+        processor = batch.BatchProcessor(str(self.model))
+        with patch.object(batch, 'get_output_name', return_value=str(output)):
+            self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
+        self.assertEqual(previous, (output.read_bytes(), marker.read_bytes()))
+
+    def test_force_bypasses_valid_completion(self):
+        audio, output, _ = self.make_audio_completion()
+        processor = batch.BatchProcessor(str(self.model), force=True)
+        with patch.object(batch, 'get_output_name', return_value=str(output)), \
+                patch.object(batch, 'get_completed_volumes') as reader:
+            self.assertEqual([str(audio)], processor.validate_files([str(audio)]))
+        reader.assert_not_called()
+
+    def test_audio_change_before_publication_preserves_zip_without_receipt(self):
+        audio, output, identity = self.make_audio_completion()
+        marker = Path(str(output) + '.complete.json')
+        marker.unlink()
+        previous, stat = output.read_bytes(), audio.stat()
+        self.write_synthetic_wav(audio, 2)
+        os.utime(audio, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        self.assertEqual([], batch.ensure_completed_volume_receipt(
+            str(audio), str(output), {}, identity, None, None))
+        self.assertFalse(marker.exists())
+        self.assertEqual(previous, output.read_bytes())
+
+    def test_missing_or_unreadable_audio_cannot_resume(self):
+        audio, output, _ = self.make_audio_completion()
+        def read_source(path, *args, **kwargs):
+            if Path(path) == audio:
+                raise PermissionError('synthetic denial')
+            return open(path, *args, **kwargs)
+        with patch.object(batch, 'open', side_effect=read_source):
+            self.assertEqual([], batch.get_completed_volumes(str(audio), str(output)))
+            with self.assertRaises(PermissionError):
+                batch.get_source_identity(audio)
+        audio.unlink()
+        self.assertEqual([], batch.get_completed_volumes(str(audio), str(output)))
+        with self.assertRaises(FileNotFoundError):
+            batch.get_source_identity(audio)
+
+    def test_text_identity_uses_one_streamed_content_read(self):
+        source = self.root / 'source.txt'
+        source.write_text('synthetic text', encoding='utf-8')
+        identity = batch.get_source_identity(source)
+        with patch.object(batch, 'open', wraps=open) as opened:
+            self.assertEqual(identity, batch.get_text_source_identity(source))
+        opened.assert_called_once_with(source, 'rb')
+        self.assertIsNone(batch.get_text_source_identity(None))
+        with patch.object(batch, '_get_source_metadata', side_effect=[
+                identity, {**identity, 'mtime_ns': identity['mtime_ns'] + 1}]):
+            with self.assertRaisesRegex(ValueError, 'changed while hashing'):
+                batch.get_source_identity(source)
 
     def test_source_guided_completion_rejects_changed_text_even_with_same_stat(self):
         audio=self.root/'book.wav';audio.touch()

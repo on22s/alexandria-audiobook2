@@ -18,6 +18,44 @@ class BookRuntimeEstimateTests(unittest.TestCase):
     # Every synthetic row pins pause_after to 0 so the speech arithmetic stays exact;
     # test_pauses_between_chunks_follow_the_export_rule covers the pauses themselves.
 
+    def test_configured_pauses_and_overrides(self):
+        chunks = [
+            {'id': i, 'speaker': speaker, 'text': 'a' * 14}
+            for i, speaker in enumerate(['ANNA', 'ANNA', 'BEN', 'ANNA'])
+        ]
+        for overrides, silence in [({}, 5.0), ({0: 0, 1: 1500}, 3.5)]:
+            with self.subTest(overrides=overrides):
+                rows = [{**row, **({'pause_after': overrides[i]} if i in overrides else {})}
+                        for i, row in enumerate(chunks)]
+                estimate = runtime_estimate.get_book_runtime_estimate(rows, {}, 2000, 1000)
+                self.assertEqual(estimate['pause_seconds'], silence)
+                for field in ('total_seconds', 'low_seconds', 'high_seconds'):
+                    self.assertEqual(estimate[field], 4 + silence)
+                self.assertEqual(estimate['wav_bytes'], (4 + silence) * 48000)
+                self.assertEqual(estimate['mp3_bytes'], (4 + silence) * 16000)
+        for rows, expected in [([], 0), ([chunks[0]], 1),
+                               ([chunks[0], None, chunks[1], 'odd', chunks[2]], 6)]:
+            with self.subTest(rows=rows):
+                self.assertEqual(runtime_estimate.get_book_runtime_estimate(
+                    rows, {}, 2000, 1000)['total_seconds'], expected)
+
+    def test_measured_speech_with_configured_pauses(self):
+        chunks = [
+            {'id': i, 'speaker': speaker, 'text': 'a' * chars, 'status': status}
+            for i, (speaker, chars, status) in enumerate([
+                ('ANNA', 30, 'done'), ('ANNA', 60, 'done'),
+                ('BEN', 30, 'done'), ('ANNA', 140, 'pending')])
+        ]
+        estimate = runtime_estimate.get_book_runtime_estimate(
+            chunks, {0: 3.0, 1: 3.0, 2: 1.0}, 2000, 1000)
+        self.assertEqual(estimate['basis'], 'measured')
+        self.assertEqual(estimate['pause_seconds'], 5.0)
+        self.assertEqual(estimate['total_seconds'], 19.0)
+        self.assertEqual(estimate['low_seconds'], 16.7)
+        self.assertEqual(estimate['high_seconds'], 26.0)
+        self.assertEqual(estimate['wav_bytes'], 912000)
+        self.assertEqual(estimate['mp3_bytes'], 304000)
+
     def test_pauses_between_chunks_follow_the_export_rule(self):
         chunks = [
             {'id': 0, 'speaker': 'ANNA', 'text': 'a' * 14, 'status': 'pending'},
@@ -95,6 +133,39 @@ class BookRuntimeEstimateTests(unittest.TestCase):
 
 
 class AudioEstimateEndpointTests(unittest.TestCase):
+    def test_endpoint_uses_configured_pauses_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = ProjectManager(tmp)
+            (root / 'state.json').write_text(json.dumps(
+                {'active_book_id': 'A', 'book_generation': 'one'}))
+            (root / 'config.json').write_text(json.dumps({'tts': {
+                'pause_between_speakers_ms': 2000, 'pause_same_speaker_ms': 1000}}))
+            manager.save_chunks([
+                {'id': i, 'uid': f'row-{i}', 'speaker': speaker,
+                 'text': 'a' * 14, 'status': 'pending'}
+                for i, speaker in enumerate(['ANNA', 'ANNA', 'BEN'])])
+            before = {name: (root / name).read_bytes()
+                      for name in ('state.json', 'config.json', 'chunks.json')}
+            api = FastAPI()
+            api.include_router(editor.router)
+            with patch.object(editor, 'project_manager', manager), patch.object(
+                    editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')), patch.object(
+                    manager, '_load_pause_defaults', wraps=manager._load_pause_defaults) as load, patch.object(
+                    manager, 'save_chunks', side_effect=AssertionError('estimate wrote chunks')), patch.object(
+                    manager, 'get_engine', side_effect=AssertionError('estimate requested inference')), TestClient(api) as client:
+                response = client.get('/api/audio/estimate')
+            self.assertEqual(response.status_code, 200)
+            estimate = response.json()
+            self.assertEqual(estimate['pause_seconds'], 3.0)
+            for field in ('total_seconds', 'low_seconds', 'high_seconds'):
+                self.assertEqual(estimate[field], 6.0)
+            self.assertEqual(estimate['wav_bytes'], 288000)
+            self.assertEqual(estimate['mp3_bytes'], 96000)
+            self.assertEqual(estimate['unreadable'], 0)
+            load.assert_called_once_with()
+            self.assertEqual(before, {name: (root / name).read_bytes() for name in before})
+
     def test_endpoint_counts_unreadable_audio(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

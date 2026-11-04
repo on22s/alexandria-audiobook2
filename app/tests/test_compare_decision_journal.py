@@ -105,6 +105,50 @@ class CompareDecisionJournalTests(unittest.TestCase):
         rows=[json.loads(line) for line in log.read_text().splitlines()]
         self.assertEqual([0,1,2],[row['entry_idx'] for row in rows])
 
+    def test_invalid_only_targeted_reset_preserves_all_persisted_state(self):
+        Path(self.jsonl).write_bytes(b'{"text":"one"}\n')
+        output = self.root / 'out.jsonl'
+        output.write_bytes(b'{"text":"edited"}\n')
+        log = self.root / 'log.jsonl'
+        log.write_bytes(b'{"entry_idx":-1}\n{"entry_idx":9999}\n')
+        generation = self.start({'0': self.decision}, 3)
+        self.append(generation, '1', dict(self.decision, text='journal'), 6)
+        paths = [Path(self.jsonl), output, log, compare.checkpoint_path(self.jsonl),
+                 compare.checkpoint_journal_path(self.jsonl)]
+        before = {path: path.read_bytes() for path in paths}
+        for indices in ({-1}, {9999}, {-1, 9999}):
+            with self.subTest(indices=indices), contextlib.redirect_stdout(io.StringIO()):
+                compare.apply_targeted_reset(self.jsonl, str(output), log, indices, True, self.identity)
+                self.assertEqual(before, {path: path.read_bytes() for path in paths})
+                self.assertEqual(6, self.load()['cursor'])
+                self.assertEqual({'0', '1'}, set(self.load()['decisions']))
+
+    def test_invalid_only_targeted_reset_does_not_create_output(self):
+        Path(self.jsonl).write_bytes(b'{"text":"one"}\n')
+        output = self.root / 'out.jsonl'
+        with contextlib.redirect_stdout(io.StringIO()):
+            compare.apply_targeted_reset(self.jsonl, str(output), self.root / 'log',
+                                         {-1, 9999}, True, self.identity)
+        self.assertFalse(output.exists())
+        self.assertFalse(compare.checkpoint_path(self.jsonl).exists())
+
+    def test_mixed_targeted_reset_rewinds_only_from_valid_indices(self):
+        Path(self.jsonl).write_bytes(b'{"text":"one"}\n{"text":"two"}\n')
+        output = self.root / 'out.jsonl'
+        output.write_bytes(b'{"text":"one"}\n{"text":"edited"}\n')
+        log = self.root / 'log.jsonl'
+        log.write_bytes(b'{"entry_idx":-1}\n{"entry_idx":1}\n{"entry_idx":9999}\n')
+        first = dict(self.decision, action='keep', text='one', cursor_after=1)
+        generation = self.start({'0': first}, 1)
+        self.append(generation, '1', dict(self.decision, cursor_after=2), 2)
+        with contextlib.redirect_stdout(io.StringIO()):
+            compare.apply_targeted_reset(self.jsonl, str(output), log, {-1, 1, 9999}, True, self.identity)
+        self.assertEqual([{'text': 'one'}, {'text': 'two'}], compare.load_jsonl(str(output)))
+        self.assertEqual({'0': first}, self.load()['decisions'])
+        self.assertEqual(1, self.load()['cursor'])
+        self.assertFalse(compare.checkpoint_journal_path(self.jsonl).exists())
+        self.assertEqual('{"entry_idx":-1}\n{"entry_idx":9999}\n', log.read_text(encoding='utf-8'))
+
     def test_targeted_reset_replays_journal_and_rewinds_before_discarding_selected_decision(self):
         entries=[{'text':'one'},{'text':'two'}]
         Path(self.jsonl).write_text(''.join(json.dumps(e)+'\n' for e in entries))

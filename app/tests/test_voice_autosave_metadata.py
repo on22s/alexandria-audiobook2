@@ -19,7 +19,8 @@ class VoiceAutosaveMetadataTests(unittest.TestCase):
             path.write_text(json.dumps(original))
             app=FastAPI();app.include_router(voices.router)
             with patch.object(voices,'VOICE_CONFIG_PATH',str(path)),TestClient(app) as client:
-                response=client.post('/api/save_voice_config',json={'ALICE':{'type':'custom','voice':'Aiden','alias_of':None}})
+                snapshot=client.get('/api/voice_config/snapshot').json()
+                response=client.post('/api/save_voice_config',params={k:snapshot[k] for k in ('revision','book_token')},json={'ALICE':{'type':'custom','voice':'Aiden','alias_of':None}})
                 self.assertEqual(200,response.status_code,response.text)
             saved=json.loads(path.read_text());self.assertEqual('Aiden',saved['ALICE']['voice'])
             for key in ('persona_voice_audit','persona_ref','future_metadata'):self.assertEqual(original['ALICE'][key],saved['ALICE'][key])
@@ -31,7 +32,8 @@ class VoiceAutosaveMetadataTests(unittest.TestCase):
             app=FastAPI();app.include_router(voices.router)
             with patch.object(voices,'VOICE_CONFIG_PATH',str(path)),patch.object(voices,'SCRIPT_PATH',str(script)),TestClient(app) as client:
                 before=client.get('/api/voices').json();self.assertTrue(before[0]['persona_pending'])
-                result=client.post('/api/save_voice_config',json={'ALICE':{'type':'custom','voice':'Ryan','seed':'0','character_style':''}});self.assertEqual(200,result.status_code,result.text)
+                snapshot=client.get('/api/voice_config/snapshot').json()
+                result=client.post('/api/save_voice_config',params={k:snapshot[k] for k in ('revision','book_token')},json={'ALICE':{'type':'custom','voice':'Ryan','seed':'0','character_style':''}});self.assertEqual(200,result.status_code,result.text)
                 after=client.get('/api/voices').json();self.assertTrue(after[0]['persona_pending']);self.assertEqual('0',after[0]['config']['seed'])
                 from tts import voice_is_set
                 self.assertFalse(voice_is_set(after[0]['config']))

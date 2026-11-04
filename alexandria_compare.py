@@ -355,35 +355,36 @@ def apply_targeted_reset(
     cp_path = checkpoint_path(jsonl_path)
     cp = load_checkpoint(jsonl_path, identity) if (cp_path.exists() or checkpoint_journal_path(jsonl_path).exists()) else None
 
-    restored, out_of_range = 0, []
+    valid_indices, out_of_range = set(), []
     for idx in sorted(indices):
         if 0 <= idx < len(orig_entries):
             cur_entries[idx] = orig_entries[idx]
-            restored += 1
+            valid_indices.add(idx)
         else:
             out_of_range.append(idx)
 
-    write_jsonl_atomic(cur_entries, out_path)
+    if valid_indices:
+        write_jsonl_atomic(cur_entries, out_path)
 
     # Drop decisions; rewind cursor to the lowest reset index so the next
     # run re-anchors before that point instead of skipping ahead.
     popped = 0
-    if cp is not None:
+    if cp is not None and valid_indices:
         decisions = cp.get('decisions', {})
-        for idx in indices:
+        for idx in valid_indices:
             if decisions.pop(str(idx), None) is not None:
                 popped += 1
-        if indices:
-            min_idx = min(indices)
+        if valid_indices:
+            min_idx = min(valid_indices)
             # cursor_after of the entry just before min_idx, if present
             prev = decisions.get(str(min_idx - 1)) if min_idx > 0 else None
             cp['cursor'] = prev['cursor_after'] if (prev and 'cursor_after' in prev) else 0
         save_checkpoint(jsonl_path, decisions, cp.get('cursor', 0), identity)
 
-    log_removed = remove_log_entries(log_path, indices) if also_clear_log and log_path.exists() else 0
+    log_removed = remove_log_entries(log_path, valid_indices) if valid_indices and also_clear_log and log_path.exists() else 0
 
     print(f"Reset {len(indices)} target(s):")
-    print(f"  {restored} JSONL entry/entries restored from {get_terminal_text(jsonl_path)}")
+    print(f"  {len(valid_indices)} JSONL entry/entries restored from {get_terminal_text(jsonl_path)}")
     print(f"  {popped} checkpoint decision(s) removed")
     if also_clear_log:
         print(f"  {log_removed} review log record(s) removed")

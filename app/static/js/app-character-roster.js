@@ -111,12 +111,18 @@
         if (s.mapping) { for (const [id, target] of Object.entries(s.mapping)) { if (s.selected.has(target)) { s.mapping[id] = keep.id; } } }
         s.origins[keep.id] = origins; s.selected.clear(); invalidate('Merged in the draft. Review the identities and aliases before approval.'); render();
     }
+    function ensureImportedTargetsRetained(removed) {
+        if (s.mapping && Object.values(s.mapping).some(id => removed.has(id))) {
+            throw new Error('Cannot remove an imported identity target. Split while keeping its identity, or merge into an explicitly chosen survivor. To remap, cancel this import (discards changes made after it) and import again.');
+        }
+    }
     function split() {
         const rows = s.rows.filter(r => s.selected.has(r.id)), name = el('split-name').value.trim();
         if (rows.length !== 1 || !name) { throw new Error('Select one character and enter the new character name.'); }
         const old = rows[0], origins = s.origins[old.id];
         if (origins.length > 1) { throw new Error('Approve this merge before splitting the merged identity.'); }
         if (s.rows.length >= 200) { throw new Error('A review supports at most 200 characters.'); }
+        if (el('split-new').checked) { ensureImportedTargetsRetained(new Set([old.id])); }
         const added = {id: newId(), canonical_name: name, aliases: [], evidence: [{source_quote: '', start_char: null, end_char: null}]};
         if (el('split-new').checked) { const first = {...copy(old), id: newId()}; s.rows = s.rows.map(r => r.id === old.id ? first : r); s.origins[first.id] = [...origins]; }
         s.rows.push(added); s.origins[added.id] = [...origins]; s.selected.clear(); invalidate('Split in the draft. Check each character’s names and source quotes.'); render();
@@ -277,7 +283,7 @@
     }
     function safe(action) { try { const result = action(); if (result?.catch) { result.catch(error => status(error.message)); } } catch (error) { status(error.message); } }
     el('load').onclick = () => load(); el('add').onclick = () => safe(addCharacter); el('merge').onclick = () => safe(merge); el('split').onclick = () => safe(split);
-    el('retire').onclick = () => safe(() => { s.rows = s.rows.filter(r => !s.selected.has(r.id)); s.selected.clear(); invalidate('Retired in the draft. Review before approval.'); render(); });
+    el('retire').onclick = () => safe(() => { ensureImportedTargetsRetained(s.selected); s.rows = s.rows.filter(r => !s.selected.has(r.id)); s.selected.clear(); invalidate('Retired in the draft. Review before approval.'); render(); });
     el('seed').onclick = () => safe(() => { if (s.rows.length || s.base) { throw new Error('Start with an empty draft to use the current cast.'); } if (s.meta.cast.length > 200) { throw new Error('Add a reviewed subset of this cast; the roster supports 200 characters.'); } setRows(null, s.meta.cast.map(r => ({id: newId(), canonical_name: r.name, aliases: [...r.aliases], evidence: [{source_quote: '', start_char: null, end_char: null}]}))); invalidate(); render(); });
     el('previous').onclick = () => { s.page--; render(); }; el('next').onclick = () => { s.page++; render(); };
     el('import').onchange = importFile; el('preview').onclick = () => safe(preview); el('consent').onchange = sync;

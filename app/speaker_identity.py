@@ -316,6 +316,7 @@ def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatt
     current = get_validated_alias_graph({} if existing_aliases is None else existing_aliases)
     human_roots, _ = _get_alias_roots(current)
     human_keys = {_identity_key(variant) for variant in current}
+    human_keys.update(_identity_key(root) for root in human_roots.values())
     choices, conflicts = {}, set()
     for proposals in proposal_maps:
         for variant, canonical in get_validated_alias_map(proposals).items():

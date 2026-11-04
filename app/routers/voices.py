@@ -1127,9 +1127,17 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
 
 
 @router.post("/api/save_voice_config")
-async def save_voice_config(config_data: Dict[str, VoiceConfigItem]):
+async def save_voice_config(config_data: Dict[str, VoiceConfigItem],
+                            revision: Optional[str] = None, book_token: Optional[str] = None):
+    """Accept legacy raw maps only with explicitly supplied snapshot query guards."""
+    if not revision or not book_token:
+        raise HTTPException(status_code=409, detail=(
+            "Legacy voice saves require revision and book_token query parameters from "
+            "/api/voice_config/snapshot; migrate to /api/voice_config/save with those guards."))
     try:
-        await asyncio.to_thread(_apply_voice_save, config_data)
+        await asyncio.to_thread(_apply_voice_save, config_data, revision, book_token)
+    except VoiceConfigConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
     return {"status": "saved"}

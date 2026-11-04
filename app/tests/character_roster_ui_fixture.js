@@ -44,9 +44,17 @@ function fresh() {
             w.calls.push({url, method: 'POST', body: clone(body)});
             if (url.endsWith('/source')) { if (w.holdQuote) { await new Promise(resolve => { w.resolveQuote = resolve; }); } const quote = body.quote; return {matches: [{source_quote: quote, start_char: 5, end_char: 5 + [...quote].length, before: '', after: ''}], next_offset: null}; }
             if (url.endsWith('/preview')) {
+                let importReview = null;
+                if (process.argv[3] && body.imported_roster) {
+                    const reconciled = require('child_process').spawnSync(process.argv[4], ['-B', '-c',
+                        'import json,sys; from character_roster_import import get_roster_import_reconciliation; body=json.load(sys.stdin); print(json.dumps(get_roster_import_reconciliation(body["imported_roster"], body["import_id_mapping"], body["proposal"]["entries"])))'],
+                        {cwd: path.join(root, 'app'), input: JSON.stringify(body), encoding: 'utf8'});
+                    if (reconciled.status !== 0) { throw Error(reconciled.stderr); }
+                    importReview = JSON.parse(reconciled.stdout);
+                }
                 if (w.holdPreview) { await new Promise(resolve => { w.resolvePreview = resolve; }); }
                 return {context_revision: body.context_revision, revision: '4'.repeat(64), undo_available: false, cast_changed: true,
-                    review: {can_approve: w.canApprove, decisions: body.proposal.decisions, import_review: null,
+                    review: {can_approve: w.canApprove, decisions: body.proposal.decisions, import_review: importReview,
                         evidence: {entries: body.proposal.entries.map(r => ({...r, evidence: r.evidence.map(e => ({...e, status: 'exact'}))}))}}};
             }
             if (url.endsWith('/apply')) {
@@ -63,7 +71,52 @@ function fresh() {
 }
 async function load(w) { await press(w, 'load'); check(!get(w, 'fields').disabled, 'loaded draft is editable'); }
 async function consent(w) { await press(w, 'preview'); get(w, 'consent').checked = true; get(w, 'consent').dispatchEvent({type: 'change'}); }
+async function checkImportMutation(action) {
+    const w = fresh(); await load(w); text(w, 1, 1, 'BEFORE IMPORT');
+    const imported = {schema: 1, source_sha256: '2'.repeat(64), source_characters: 100,
+        entries: [entry(C, 'IMPORTED ALICE')], retired_ids: []};
+    get(w, 'import').files = [{size: 1000, text: async () => JSON.stringify(imported)}];
+    get(w, 'import').dispatchEvent({type: 'change'}); await settle();
+    const mapping = get(w, 'import-review').querySelector('select');
+    mapping.value = A; mapping.dispatchEvent({type: 'change'});
+    get(w, 'import-review').querySelector('button').click(); await settle();
+    text(w, 1, 0, 'UNSAVED BOB'); select(w, 0);
+    if (action === 'retire') { select(w, 1); }
+    get(w, 'split-name').value = 'TWIN'; get(w, 'split-new').checked = true;
+    await consent(w);
+    check(!get(w, 'approve').disabled, 'real backend reconciliation accepts initial mapping');
+    const before = clone(w.calls.findLast(call => call.url.endsWith('/preview')).body);
+    const originalRows = [...boxes(w)], review = get(w, 'review').textContent;
+    await press(w, action);
+    check(get(w, 'status').textContent.includes('imported identity target'), action + ' refuses removal of a mapped identity');
+    check(get(w, 'status').textContent.includes('cancel') && get(w, 'status').textContent.includes('import again'), 'refusal explains explicit remapping recovery');
+    assert.deepEqual([...boxes(w)], originalRows, 'refusal does not rerender or mutate row state');
+    check(boxes(w)[0].querySelector('input').checked && (action !== 'retire' || boxes(w)[1].querySelector('input').checked), 'selection remains unchanged');
+    check(!get(w, 'approve').disabled && get(w, 'consent').checked && get(w, 'review').textContent === review, 'refusal preserves preview and consent');
+    await press(w, 'preview');
+    assert.deepEqual(w.calls.findLast(call => call.url.endsWith('/preview')).body, before, 'refusal preserves rows, origins and provenance');
+    if (action === 'split') {
+        get(w, 'split-new').checked = false; await press(w, 'split');
+        text(w, 2, 2, 'TWIN'); await press(w, 'preview');
+        const request = w.calls.findLast(call => call.url.endsWith('/preview')).body;
+        check(request.import_id_mapping[C] === A && request.proposal.entries.length === 3, 'split-keep retains the reviewed target');
+        check(request.proposal.decisions.some(decision => decision.action === 'split' && decision.to_ids.includes(A)), 'split-keep retains identity decision');
+    } else {
+        get(w, 'survivor').value = B; await press(w, 'merge'); await press(w, 'preview');
+        const request = w.calls.findLast(call => call.url.endsWith('/preview')).body;
+        check(request.import_id_mapping[C] === B && request.proposal.entries.length === 1, 'explicit merge rebinds mapping to chosen survivor');
+    }
+    check(!get(w, 'consent').disabled && !get(w, 'status').textContent.includes('failed'), 'safe follow-up preview passes real backend reconciliation');
+    const cancel = get(w, 'import-review').querySelector('button');
+    check(cancel.textContent.includes('Cancel this import'), 'existing import cancellation remains available');
+    cancel.click(); await settle(); await press(w, 'preview');
+    const restored = w.calls.findLast(call => call.url.endsWith('/preview')).body;
+    check(restored.imported_roster === null && restored.import_id_mapping === null, 'explicit cancellation restores pre-import provenance');
+    check(restored.proposal.entries[1].canonical_name === 'BOB' && restored.proposal.entries[1].aliases.includes('BEFORE IMPORT'), 'backup retains unrelated pre-import edits');
+    w.close(); console.log(JSON.stringify({passed: true, assertions}));
+}
 (async () => {
+    if (process.argv[3]) { await checkImportMutation(process.argv[3]); return; }
     let w = fresh(); check(w.calls.length === 0, 'opening module makes no request'); await load(w);
     select(w, 0); select(w, 1); get(w, 'survivor').value = A; await press(w, 'merge'); await press(w, 'preview');
     let request = w.calls.findLast(c => c.url.endsWith('/preview')).body;

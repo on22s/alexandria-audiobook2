@@ -27,9 +27,66 @@ function client(){
  return{context,row,controls,calls,errors,gates,gets,batches,setHold:x=>hold=x,setFail:x=>fail=x,holdNextRead:()=>holdRead=true,releaseRead:()=>readRelease(),getReadRelease:()=>readRelease};
 }
 let finished=false;process.on('beforeExit',()=>assert(finished,'Editor barrier assertions must finish'));
+function nativeSelect(markup){
+ const options=Array.from(markup.matchAll(/<option value="([^"]*)"([^>]*)>([^<]*)<\/option>/g),match=>({value:match[1],textContent:match[3],selected:/\bselected\b/.test(match[2])}));
+ const select={dataset:{voiceRoster:'speaker',rosterBook:'book-token'},options,selectedIndex:-1,
+  getAttribute:()=>markup.match(/onchange="([^"]*)"/)[1],
+  replaceChildren(fragment){this.options=fragment.children;this.selectedIndex=this.options.length?0:-1;}};
+ select.selectedIndex=options.findLastIndex(option=>option.selected);
+ if(select.selectedIndex<0&&options.length){select.selectedIndex=0;}
+ Object.defineProperty(select,'value',{get(){return this.options[this.selectedIndex]?.value||'';},set(value){this.selectedIndex=this.options.findIndex(option=>option.value===value);}});
+ return select;
+}
+function speakerClient(speaker,names=['ALICE','BOB']){
+ const app=client();app.setHold(false);
+ const saved={id:7,uid:'row-7',text:'',speaker,instruct:'',pause_after:null,status:'done',audio_path:'prior.wav'};
+ fs.writeFileSync(artifact,JSON.stringify([saved]));vm.runInContext('cachedChunks='+JSON.stringify([saved]),app.context);
+ Object.assign(app.controls,{text:'',speaker,instruct:'',pause_after:''});
+ Object.assign(app.context,{escapeHtml:String,_voicesNames:names,_voiceRosterBookToken:'book-token',_voiceRosterFilename:'fixture-book'});
+ app.context.document.createElement=()=>({value:'',textContent:''});
+ app.context.document.getElementById=()=>null;
+ app.context.document.createDocumentFragment=()=>({children:[],appendChild(option){this.children.push(option);}});
+ vm.runInContext(source.slice(source.indexOf('// Voice roster dropdowns:'),source.indexOf('// End voice roster dropdowns.')),app.context);
+ vm.runInContext(source.slice(source.indexOf('function buildSpeakerSelect('),source.indexOf('// Check if any audio')),app.context);
+ const select=nativeSelect(app.context.buildSpeakerSelect(saved));
+ const originalInputs=app.row.querySelectorAll;
+ app.row.querySelectorAll=()=>originalInputs().filter(input=>!input.getAttribute().includes("'speaker'")).concat(select);
+ return {...app,select};
+}
 '''
 
 class EditorRenderBarrierTests(unittest.TestCase):
+    def test_generated_blank_speaker_preserves_artifact_through_render_barrier(self):
+        self.run_node(r'''
+(async()=>{for(const names of [['ALICE','BOB'],[]]){
+ const app=speakerClient('',names),before=fs.readFileSync(artifact,'utf8');
+ await app.context.ensureEditorRenderSnapshot();
+ assert.strictEqual(fs.readFileSync(artifact,'utf8'),before,'untouched blank speaker must not change persisted artifact');
+ assert.strictEqual(app.calls.length,0);assert.strictEqual(app.select.value,'');
+ assert(app.select.selectedIndex>=0,'blank must be a selected option, not an unmatched value');
+ assert.match(app.select.options[app.select.selectedIndex].textContent,/speaker/i);
+}finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_generated_speaker_lazy_options_and_explicit_selection_pass_same_barrier(self):
+        self.run_node(r'''
+(async()=>{
+ assert.strictEqual(nativeSelect('<select onchange="x"><option value="ALICE">ALICE</option></select>').value,'ALICE');
+ const unmatched=nativeSelect('<select onchange="x"><option value="ALICE">ALICE</option></select>');unmatched.value='';assert.strictEqual(unmatched.selectedIndex,-1);
+ for(const speaker of ['', 'ALICE', 'CUSTOM']){
+  const app=speakerClient(speaker),before=fs.readFileSync(artifact,'utf8');
+  app.context.ensureVoiceRosterOptions(app.select);
+  assert.strictEqual(app.select.value,speaker);assert(app.select.selectedIndex>=0);
+  await app.context.ensureEditorRenderSnapshot();assert.strictEqual(fs.readFileSync(artifact,'utf8'),before);assert.strictEqual(app.calls.length,0);
+  app.select.value='BOB';assert(app.select.selectedIndex>=0);
+  const handler=app.select.getAttribute('onchange');vm.runInContext('(function(){'+handler+'})',app.context).call(app.select);
+  await app.context.ensureEditorRenderSnapshot();
+  assert.strictEqual(JSON.parse(fs.readFileSync(artifact))[0].speaker,'BOB');assert.strictEqual(app.errors.length,0);
+  const writes=app.calls.length;await app.context.ensureEditorRenderSnapshot();assert.strictEqual(app.calls.length,writes);
+ }finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
     def test_gap_suggestion_confirms_without_rendering_and_refuses_book_switch(self):
         self.run_node(r'''
 (async()=>{for(const scenario of ['apply','cancel','none','book','stale']){

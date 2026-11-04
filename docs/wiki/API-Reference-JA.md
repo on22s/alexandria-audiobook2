@@ -1,5 +1,11 @@
 # API ガイド
 
+**音声保存 API の移行:** `/api/save_voice_config` の未バインドのリクエストは
+409 になります。編集前に `/api/voice_config/snapshot` を取得し、その
+`revision` と `book_token` をクエリパラメータとして明示してください。
+現在の UI と同じ `/api/voice_config/save` の利用を推奨します。
+詳細は [English migration notice](API-Reference.md) を参照してください。
+
 [日本語ホーム](Home-JA.md) · [English](API-Reference.md)
 
 UI の操作は HTTP API からも実行できます。このページは基本の流れを日本語で案内します。声の全フィールド、ペルソナの状態指定、Dataset Builder、学習、Python / JavaScript の本全体の処理例は[英語の完全なガイド](API-Reference.md)、全ルートは[英語 README](../../README.md#api-reference)を参照してください。起動中のアプリの `/docs` は対話式ドキュメント、`/openapi.json` はスキーマです。

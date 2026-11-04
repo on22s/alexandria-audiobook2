@@ -286,25 +286,28 @@ def get_output_name(audio_file):
     return f"alexandria_dataset_{audio_path.stem}_{source_id}.zip"
 
 
-def get_source_identity(audio_file):
-    path = Path(audio_file)
+def _get_source_metadata(path):
+    path = Path(path)
     stat = path.stat()
     return {"path": os.path.realpath(path), "size": stat.st_size,
             "mtime_ns": stat.st_mtime_ns}
 
 
 
-def get_text_source_identity(path):
-    if path is None:
-        return None
-    identity = get_source_identity(path)
+def get_source_identity(path):
+    """Bind a source to streamed contents; reject observable changes during the read."""
+    identity = _get_source_metadata(path)
     digest = hashlib.sha256()
     with open(path, "rb") as source:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
-    if identity != get_source_identity(path):
-        raise ValueError("Text source changed while hashing")
+    if identity != _get_source_metadata(path):
+        raise ValueError("Source changed while hashing")
     return {**identity, "sha256": digest.hexdigest()}
+
+
+def get_text_source_identity(path):
+    return None if path is None else get_source_identity(path)
 
 def get_output_volumes(output_name):
     """Find the base archive and any speaker/style/volume-suffixed archives."""

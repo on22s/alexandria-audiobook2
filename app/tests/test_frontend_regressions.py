@@ -708,12 +708,13 @@ console.log(JSON.stringify(results));
         app = FastAPI()
         app.include_router(voices.router)
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp, "voices.json")
+            path = Path(tmp, "voice_config.json")
             untouched = {"type": "custom", "voice": "Ryan"}
             path.write_text(json.dumps({"OTHER": untouched}))
             with patch.object(voices, "VOICE_CONFIG_PATH", str(path)), TestClient(app) as client:
                 for config in configs:
-                    response = client.post("/api/save_voice_config", json=config)
+                    snapshot = client.get('/api/voice_config/snapshot').json()
+                    response = client.post("/api/save_voice_config", json=config, params={k: snapshot[k] for k in ('revision', 'book_token')})
                     self.assertEqual(200, response.status_code, response.text)
                     saved = json.loads(path.read_text())
                     self.assertEqual(config["ALICE"]["adapter_path"], saved["ALICE"]["adapter_path"])

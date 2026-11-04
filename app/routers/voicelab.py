@@ -313,6 +313,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
         finding(warnings, "candidate_duplicate", "A one-epoch candidate will match production and be discarded.")
 
     stable = {"stages": stages, "zips_dir": zips_dir, "narrators": narrator_count,
+              "rocm_python": rocm if needs_rocm else None,
               "zips": zip_count, "deduped": deduped_count, "interpreter_ok": interpreter_ok,
               "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
               "cuda_available": cuda_available, "mps_available": mps_available,

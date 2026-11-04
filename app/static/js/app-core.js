@@ -36,6 +36,7 @@
                 option.value = value; option.textContent = label; fragment.appendChild(option);
             };
             if (kind === 'alias') { append('', '-- None --'); }
+            if (kind === 'speaker' && !current) { append('', '-- No speaker selected --'); }
             if (current && !names.includes(current)) { append(current, `${current} (custom)`); }
             for (const name of names) { append(name, name); }
             select.replaceChildren(fragment);
@@ -6932,9 +6933,9 @@
 
         function buildSpeakerSelect(chunk) {
             const roster = ensureVoiceRosterCache();
-            const current = (chunk.speaker || '').trim() || roster.editorNames[0] || '';
+            const current = (chunk.speaker || '').trim();
             const label = current && !roster.editorSet.has(current) ? `${current} (custom)` : current;
-            const option = current ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(label)}</option>` : '';
+            const option = `<option value="${escapeHtml(current)}" selected>${escapeHtml(label || '-- No speaker selected --')}</option>`;
             return `<select class="form-select form-select-sm" data-voice-roster="speaker" data-roster-book="${escapeHtml(roster.book)}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)">${option}</select>`;
         }
 

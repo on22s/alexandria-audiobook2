@@ -1275,7 +1275,7 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/generate_personas` | Generate LLM-derived voice persona descriptions and VoiceDesign previews |
 | `POST` | `/api/cancel_persona` | cancel persona |
 | `POST` | `/api/persona/recover` | Validate and save one externally generated persona without rerunning the batch |
-| `POST` | `/api/save_voice_config` | save voice config |
+| `POST` | `/api/save_voice_config` | legacy raw-map save; requires originating snapshot `revision` and `book_token` query parameters; prefer `/api/voice_config/save` |
 | `POST` | `/api/suggest_voices` | Suggest the best-matching downloaded LoRA voice for each character based on |
 | `POST` | `/api/suggest_voices/apply` | apply voice suggestion |
 | `POST` | `/api/suggest_voices/apply_bulk` | apply voice suggestions bulk |
