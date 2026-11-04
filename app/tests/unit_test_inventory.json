@@ -1850,7 +1850,8 @@
     "tests.test_casting_api.CastingApiTests.test_collection_refusals_preserve_library",
     "tests.test_casting_api.CastingApiTests.test_collection_saves_clone_and_applies_through_existing_book_fence",
     "tests.test_casting_api.CastingApiTests.test_library_lists_voices_and_only_their_marks",
-    "tests.test_casting_api.CastingApiTests.test_mark_round_trip_and_refusals"
+    "tests.test_casting_api.CastingApiTests.test_mark_round_trip_and_refusals",
+    "tests.test_casting_api.CastingApiTests.test_mark_tag_colors_round_trip_and_refusals"
   ],
   "test_casting_catalog": [
     "tests.test_casting_catalog.CastingCatalogTests.test_audio_is_only_trusted_at_its_own_folder",
@@ -1874,14 +1875,18 @@
     "tests.test_casting_research.CastingBatchTests.test_activity_keeps_only_the_latest_hundred_events",
     "tests.test_casting_research.CastingBatchTests.test_batch_clears_one_array_without_touching_the_rest",
     "tests.test_casting_research.CastingBatchTests.test_batch_is_all_or_none_for_invalid_missing_stale_and_duplicate_changes",
+    "tests.test_casting_research.CastingBatchTests.test_batch_legacy_tags_only_patch_prunes_colours_and_writes_nothing_on_refusal",
     "tests.test_casting_research.CastingBatchTests.test_batch_returns_full_marks_and_preserves_everything_else",
+    "tests.test_casting_research.CastingBatchTests.test_batch_tag_colors_follow_tags_and_refuse_stale_values",
     "tests.test_casting_research.CastingBatchTests.test_concurrent_nonconflicting_writers_lose_nothing",
     "tests.test_casting_research.CastingBatchTests.test_invalid_action_writes_nothing",
     "tests.test_casting_research.CastingBatchTests.test_library_returns_activity_and_never_metadata_as_a_mark",
     "tests.test_casting_research.CastingBatchTests.test_malformed_marks_or_metadata_fail_loudly_and_are_not_overwritten",
     "tests.test_casting_research.CastingMarkSchemaTests.test_legacy_marks_fill_canonical_defaults_without_mutating_them",
     "tests.test_casting_research.CastingMarkSchemaTests.test_marks_are_independent_and_arrays_clear_selectively",
-    "tests.test_casting_research.CastingMarkSchemaTests.test_stars_circles_and_collections_are_validated_and_deduplicated"
+    "tests.test_casting_research.CastingMarkSchemaTests.test_stars_circles_and_collections_are_validated_and_deduplicated",
+    "tests.test_casting_research.CastingMarkSchemaTests.test_tag_color_validation_refuses_bad_maps_and_absent_tags",
+    "tests.test_casting_research.CastingMarkSchemaTests.test_tag_colors_persist_and_are_pruned_with_their_tags"
   ],
   "test_casting_research_js": [
     "tests.test_casting_research_js.CastingResearchJsTests.test_app_casting_still_works_without_the_research_module",
