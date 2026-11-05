@@ -1085,8 +1085,8 @@ class VoiceListShapeTests(unittest.TestCase):
                 response = client.get('/api/voices')
             self.assertEqual(200, response.status_code)
             # Narrator first, then most lines (owner 2026-10-09); these rows have no text, so 0 lines.
-            self.assertEqual([{'name': 'Narrator', 'config': {}, 'line_count': 0, 'persona_pending': True},
-                {'name': 'Hero', 'config': voice, 'line_count': 0, 'persona_pending': False}], response.json())
+            self.assertEqual([{'name': 'Narrator', 'config': {}, 'line_count': 0, 'persona_pending': True, 'single_voice_asset': None},
+                {'name': 'Hero', 'config': voice, 'line_count': 0, 'persona_pending': False, 'single_voice_asset': {'type': 'lora', 'voice': None, 'ref_audio': None, 'ref_text': None, 'adapter_id': 'a', 'adapter_path': 'lora_models/a', 'members': None}}], response.json())
             self.assertEqual(original_script, script.read_bytes())
             self.assertEqual(original_config, config.read_bytes())
 
@@ -1109,7 +1109,7 @@ class VoiceListShapeTests(unittest.TestCase):
                         response = client.get('/api/voices')
                         self.assertEqual(200, response.status_code)
                         self.assertEqual([{'name': 'Hero', 'config': {}, 'line_count': 0,
-                            'persona_pending': True}], response.json())
+                            'persona_pending': True, 'single_voice_asset': None}], response.json())
                         self.assertEqual(original_script, script.read_bytes())
                         self.assertEqual(original_config, config.read_bytes())
 

@@ -1840,6 +1840,7 @@
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
             window.resetM4bPublicationBook?.();
+            window.resetSingleVoiceBook?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();
@@ -4861,6 +4862,7 @@
             ensureVoiceRosterCache();
             window._voicesByName = Object.fromEntries(voices.map(v => [v.name, v]));
             renderVoiceDrafts();
+            if (typeof refreshSingleVoiceSpeakers === 'function') { refreshSingleVoiceSpeakers(); }
             return voices;
         }
 

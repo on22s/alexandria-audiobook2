@@ -41,6 +41,62 @@ const TASK_GUIDES = [
     ]
   },
   {
+    "id": "single-narrator",
+    "title": "Single narrator audiobook",
+    "summary": "One voice for the whole book, using the existing screens.",
+    "image": "book",
+    "steps": [
+      [
+        "Import and confirm your source",
+        "script",
+        "script-single-area",
+        "Import the book if you have not yet. In the source preview, read the actual extracted text (filename, encoding and excerpt limits are shown; it is the original extracted text, before annotation/preparation), then explicitly confirm the current text. Annotation still runs later and speaker attribution still occurs — this checklist never rewrites dialogue or source words.",
+        "You have explicitly confirmed the extracted text for this book.",
+        "Opening this step loads no model. Confirming the preview writes nothing."
+      ],
+      [
+        "Generate and review the script",
+        "script",
+        "script-tab",
+        "Generate the annotated script with the existing Generate control. Turn on Preserve source words only through its existing checkbox if you want it. Review speakers against the source before moving on.",
+        "A saved script with the intended words and speakers.",
+        "Script generation uses your LLM; remote providers may charge."
+      ],
+      [
+        "Choose one voice and apply it book-wide",
+        "voices",
+        "voices-tab",
+        "Pick one existing voice on any card (built-in, LoRA, clone or saved-designed — all use the normal Voices resources), then use 'Use this speaker's voice for the book': review every affected speaker and line count, confirm explicitly, and check the ready state in Voices afterwards. Full-cast workflows stay available for other books.",
+        "Every speaker uses the one chosen voice, ready only after your explicit mark.",
+        "Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice. Confirming applies one guarded voice save; listening/sample playback is separate."
+      ],
+      [
+        "Generate and listen to one sample line",
+        "editor",
+        "editor-tab",
+        "Press one ordinary row Generate control on a short line, listen with the row player, then mark readiness with the existing Voices Ready controls. A sample is one line only — the remaining lines are generated in the next step. This guide never plays or approves audio for you.",
+        "One listened-to sample for the chosen voice.",
+        "One row Generate uses TTS. Start one GPU job at a time."
+      ],
+      [
+        "Generate the remaining line audio",
+        "editor",
+        "btn-batch-fast",
+        "Press Render Pending yourself to generate audio for every line that is not done yet (it never replaces finished lines; Regenerate All under Whole-book actions is only for replacing everything). Wait for the Batch complete/incomplete result, then check every line's status. If you press Cancel while it runs or lines fail, fix the cause and press Render Pending again — a cancelled or failed batch is not finished audio. Merge All in the next step only combines chunks that already have audio.",
+        "Every line has generated audio, or any failures are known and being fixed.",
+        "Render Pending uses TTS/GPU and can take a long time. Cancel with the Cancel button; review saved progress before retrying. The guide never starts it for you."
+      ],
+      [
+        "Merge, export and verify",
+        "audio",
+        "audio-tab",
+        "Press Merge All yourself in Editor (Whole-book actions) after checking line audio and source-match warnings, and wait for the merged result — reaching this step does not mean a merge has happened. Then choose M4B, MP3/WAV chapters or Audacity in Audio, wait for the explicit completion result, download, and play the beginning and ending. An earlier downloaded audiobook will not update itself.",
+        "A downloaded file you have actually checked.",
+        "Merging uses CPU and temporary disk space; export has its own Cancel control. A failed or cancelled job is not a finished audiobook. The guide does not press Merge All for you."
+      ]
+    ]
+  },
+  {
     "id": "repair",
     "title": "Repair a character’s audio",
     "summary": "Change the affected lines while keeping the rest.",

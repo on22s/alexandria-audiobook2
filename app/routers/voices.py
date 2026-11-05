@@ -51,7 +51,7 @@ from core import (
     run_process,
 )
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
-from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows
+from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows, validate_adapter_name
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_library_age_group,
                             get_entry_speaker, get_normalized_age_group, get_normalized_gender,
@@ -120,6 +120,10 @@ class VoiceConfigItem(BaseModel):
     # (ProjectManager._resolve_alias). Undeclared, the field was dropped by
     # model_dump() on every save, so no alias set in the UI ever took effect.
     alias_of: Optional[str] = None
+    # NOTE: the legacy "alias" key is deliberately NOT a writable field here.
+    # tts.get_resolved_speaker honors it as a fallback, but the guarded save
+    # merge clears it whenever alias_of is explicitly provided (see
+    # _apply_voice_save), so no public alias bypass is introduced (#1724 C020).
     # Character approved by the user for this book (#522 17.1); a UI flag,
     # nothing downstream reads it.
     ready: bool = False
@@ -459,8 +463,13 @@ def get_voice_rows(script_data, voice_config):
     state_targets = get_persona_state_targets(script_data)
     rows = []
     for name in roster:
+        try:
+            single_voice_asset = _direct_source_asset(name, voice_config.get(name))
+        except HTTPException:
+            single_voice_asset = None
         row = {"name": name, "config": voice_config.get(name, {}), "line_count": line_counts.get(name, 0),
-               "persona_pending": not voice_is_set(voice_config.get(name))}
+               "persona_pending": not voice_is_set(voice_config.get(name)),
+               "single_voice_asset": single_voice_asset}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
         if name in state_targets and not row["config"].get("alias_of"):
@@ -1117,6 +1126,14 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                     if key in fields:
                         fields[key] = config.model_dump()[key]
                 candidate = {**metadata, **fields}
+                # One canonical seam for the legacy alias key (#1724 C020):
+                # whenever alias_of is explicitly provided (set or cleared),
+                # the legacy fallback key is removed, because
+                # tts.get_resolved_speaker would otherwise resurrect it the
+                # moment alias_of becomes empty. Saves that do not mention
+                # alias_of leave a legacy alias untouched.
+                if 'alias_of' in fields:
+                    candidate.pop('alias', None)
                 get_validated_voice_changes(voice_name, metadata, candidate, allow_state_removal=book_token is not None)
                 updated[voice_name] = candidate
             return updated
@@ -1180,6 +1197,226 @@ async def save_guarded_voice_config(request: GuardedVoiceSaveRequest):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+
+
+class SingleVoicePreviewRequest(BaseModel):
+    source_speaker: str = Field(min_length=1, max_length=200)
+    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+def _direct_source_asset(source_speaker, source_config):
+    """Return the asset fields of a direct base voice, or refuse clearly.
+
+    An alias, ensemble or dynamically versioned/strategised entry is not
+    one direct voice, so there is no hidden source voice to guess: the
+    caller is directed to choose a direct base asset instead.
+    """
+    if not isinstance(source_config, dict):
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' has a malformed voice entry (not an object). "
+            "Choose a speaker with a direct base voice, then use its voice for the book."))
+    alias = (source_config or {}).get("alias_of") or (source_config or {}).get("alias")
+    if isinstance(alias, str) and alias.strip():
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' is an alias of '{alias.strip()}'. "
+            "Choose a speaker with a direct base voice, then use its voice for the book."))
+    if (source_config or {}).get("active_version"):
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' speaks with a selected version. "
+            "Choose a speaker whose base voice is direct, then use its voice for the book."))
+    if (source_config or {}).get("version_timeline"):
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' has a version timeline. "
+            "Choose a speaker whose base voice is direct, then use its voice for the book."))
+    strategy = (source_config or {}).get("narrator_strategy")
+    if strategy not in (None, "global"):
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' uses an active narrator strategy ('{strategy}'). "
+            "Choose a speaker whose base voice is direct, then use its voice for the book."))
+    voice_type = (source_config or {}).get("type") or "custom"
+    if voice_type == "design":
+        # A raw design description asks for a NEW voice; choosing an existing
+        # asset must never create one implicitly. Saved designed voices are
+        # stored as clone references (designed_voices/<file> + sample text)
+        # via onDesignedVoiceSelect, so they arrive as type 'clone' above.
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' holds a Voice Design description, which would create a "
+            "new voice. Choose a speaker whose saved asset is direct (custom, LoRA, clone or "
+            "saved designed reference), then use its voice for the book."))
+    if voice_category(source_config or {}) == "ensemble":
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' is an ensemble. "
+            "Choose a speaker with one direct base voice, then use its voice for the book."))
+    def _text(key):
+        value = (source_config or {}).get(key)
+        return value if isinstance(value, str) else ""
+    if voice_type == "custom":
+        if not _text("voice").strip():
+            raise HTTPException(status_code=422, detail=(
+                f"Speaker '{source_speaker}' has no custom voice selected. "
+                "Pick a voice on its card first, then use its voice for the book."))
+        # No "description" in the patch: each target's own persona
+        # description is preserved by the exclude_unset merge (#1724 C014).
+        return {"type": "custom", "voice": _text("voice"), "ref_audio": None, "ref_text": None,
+                "adapter_id": None, "adapter_path": None, "members": None}
+    if voice_type == "clone":
+        if not _text("ref_audio").strip() or not _text("ref_text").strip():
+            raise HTTPException(status_code=422, detail=(
+                f"Speaker '{source_speaker}' is a clone voice without reference audio and text. "
+                "Choose a complete direct base asset, then use its voice for the book."))
+        return {"type": "clone", "voice": None, "ref_audio": _text("ref_audio"),
+                "ref_text": _text("ref_text"), "adapter_id": None, "adapter_path": None,
+                "members": None}
+    if voice_type in ("lora", "builtin_lora"):
+        if not _text("adapter_id").strip():
+            raise HTTPException(status_code=422, detail=(
+                f"Speaker '{source_speaker}' is a LoRA voice without an adapter identity. "
+                "Choose a complete direct base asset, then use its voice for the book."))
+        # Canonical representation: keep a stored path when present;
+        # otherwise reuse the one fallback rule already owned by
+        # get_library_voice_config (builtin_lora/{id} / lora_models/{id}).
+        # TTS requires adapter_path (tts.get_lora_voice_request returns None
+        # without it), so an adapter_id-only source must still resolve to a
+        # renderable path; reusing the library helper keeps one formula (#1724 C068).
+        try:
+            validate_adapter_name(_text("adapter_id"))
+        except ValueError:
+            raise HTTPException(status_code=422, detail=(
+                f"Speaker '{source_speaker}' has an unsafe adapter identity. "
+                "Choose a complete direct base asset, then use its voice for the book."))
+        adapter_path = _text("adapter_path") or get_library_voice_config(
+            {"type": voice_type, "adapter_id": _text("adapter_id")})["adapter_path"]
+        return {"type": voice_type, "voice": None, "ref_audio": None, "ref_text": None,
+                "adapter_id": _text("adapter_id"), "adapter_path": adapter_path,
+                "members": None}
+    raise HTTPException(status_code=422, detail=(
+        f"Speaker '{source_speaker}' uses unsupported voice type '{voice_type}'. "
+        "Choose a speaker with a direct base voice, then use its voice for the book."))
+
+
+def _voice_asset_summary(config):
+    data = config if isinstance(config, dict) else {}
+    timeline = data.get("version_timeline")
+    return {"type": data.get("type") or "custom", "voice": data.get("voice"),
+            "ref_audio": data.get("ref_audio"), "ref_text": data.get("ref_text"),
+            "adapter_id": data.get("adapter_id"), "adapter_path": data.get("adapter_path"),
+            "description": data.get("description"), "members": data.get("members"),
+            "alias_of": data.get("alias_of") or data.get("alias"),
+            "alias": data.get("alias"), "active_version": data.get("active_version"),
+            # A malformed (non-list) timeline passes through untouched so the
+            # change detection sees it instead of a list of characters (#1724 C045).
+            "version_timeline": list(timeline) if isinstance(timeline, list)
+            else ([] if timeline is None else timeline),
+            # None and "global" are the same effective strategy (#1724 C007).
+            "narrator_strategy": data.get("narrator_strategy") or "global",
+            "ready": bool(data.get("ready"))}
+
+
+def build_single_voice_proposal(voices, script, source_speaker):
+    """Build patch-only proposals for the ACTIVE script speakers, read-only.
+
+    Pure with respect to its inputs: the caller owns the book snapshot
+    lock and revision/token guards. Returns one patch per active speaker
+    (asset fields, explicit override clears, ready=False) so the client
+    can apply exactly the previewed scope through the ordinary guarded
+    save queue. Unrelated metadata (seeds, styles, versions, persona,
+    inactive/legacy entries) is never sent: the server's exclude_unset
+    merge preserves it, and untouched entries are not revalidated.
+    Readiness is cleared for ALL affected speakers on a confirmed apply,
+    because clearing an active version/timeline/strategy can change the
+    effective voice even when the base asset already matches.
+    """
+    if not isinstance(script, list):
+        raise HTTPException(status_code=400, detail="Active script must contain an entry list.")
+    # A non-dict source entry is a clear 422 before the roster build touches
+    # it (get_voice_rows/voice_is_set assume dict entries) (#1724 C002).
+    if isinstance(voices, dict) and source_speaker in voices and not isinstance(voices[source_speaker], dict):
+        raise HTTPException(status_code=422, detail=(
+            f"Speaker '{source_speaker}' has a malformed voice entry (not an object). "
+            "Choose a speaker with a direct base voice, then use its voice for the book."))
+    rows = get_voice_rows(script, voices if isinstance(voices, dict) else {})
+    names = [row["name"] for row in rows]
+    if source_speaker not in names:
+        raise HTTPException(status_code=404, detail=f"Speaker '{source_speaker}' is not in the active script.")
+    source_config = (voices or {}).get(source_speaker)
+    if source_config is None:
+        source_config = {}
+    asset = _direct_source_asset(source_speaker, source_config)
+    patch_template = dict(asset)
+    # alias_of: None is explicit in the patch, so the guarded save merge
+    # clears BOTH alias keys at its one seam (#1724 C020) — the legacy
+    # "alias" key is never sent as a writable field.
+    patch_template.update({"alias_of": None, "version_timeline": [],
+                           "active_version": None, "narrator_strategy": "global",
+                           "ready": False})
+    # The patch is identical for every speaker: validate it once (#1724 C105).
+    VoiceConfigItem(**patch_template)
+    proposed = {}
+    speakers = []
+    after_summary = _voice_asset_summary(patch_template)
+    for row in rows:
+        name = row["name"]
+        before = (voices or {}).get(name)
+        patch = dict(patch_template)
+        proposed[name] = patch
+        changes = []
+        before_summary = _voice_asset_summary(before) if isinstance(before, dict) else _voice_asset_summary({})
+        # Persona description is preserved per target, not part of the
+        # applied asset: exclude it from the "voice changed" comparison.
+        comparable_before = {**before_summary, "description": None,
+                             "ready": after_summary["ready"]}
+        if comparable_before != {**after_summary, "description": None}:
+            changes.append("voice changed")
+        if isinstance(before, dict) and (before.get("alias_of") or before.get("alias")):
+            changes.append("alias cleared")
+        if isinstance(before, dict) and (before.get("version_timeline") or before.get("active_version")):
+            changes.append("version timeline/active version cleared")
+        if isinstance(before, dict) and before.get("narrator_strategy") not in (None, "global"):
+            changes.append("narrator strategy reset to global")
+        if isinstance(before, dict) and bool(before.get("ready")):
+            changes.append("ready reset (needs new listening approval)")
+        # The client renders only name/line_count/changes; before/after
+        # summaries and a top-level asset copy are dead payload (#1724 C096/C097).
+        speakers.append({"name": name, "line_count": row.get("line_count", 0), "changes": changes})
+    return {"source_speaker": source_speaker,
+            "speakers": speakers,
+            "affected_speakers": len(speakers),
+            "affected_lines": sum(int(item["line_count"]) for item in speakers),
+            "voices": proposed}
+
+
+def _ensure_single_voice_preview(request):
+    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_CONFIG_PATH):
+        snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
+        if get_book_snapshot_token(snapshot) != request.book_token:
+            raise VoiceConfigConflict("Active book changed; reload voices before previewing")
+        script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
+        config = snapshot["voices"]
+        if get_voice_config_revision(config) != request.revision:
+            raise VoiceConfigConflict("Voice configuration changed; reload it before previewing")
+        proposal = build_single_voice_proposal(config, script, request.source_speaker)
+        proposal.update({"book_token": request.book_token, "revision": request.revision,
+                         "book_id": snapshot["book_id"]})
+        return proposal
+
+
+@router.post("/api/voice_config/single-voice-preview")
+async def preview_single_voice(request: SingleVoicePreviewRequest):
+    try:
+        return await asyncio.to_thread(_ensure_single_voice_preview, request)
+    except VoiceConfigConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        # Corrupt script/voice JSON or book state (JSONDecodeError and
+        # UnicodeDecodeError both subclass ValueError) is a clear refusal,
+        # never an unhandled 500 (#1724 C004).
+        raise HTTPException(status_code=400, detail=(
+            "Active book data is corrupt and cannot be previewed. "
+            "Restore the book state or reload the script, then preview again.")) from exc
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+
 
 
 class VoiceSeedRepairRequest(BaseModel):

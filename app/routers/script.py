@@ -2,7 +2,7 @@ from book_state_transaction import ensure_saved_book_state
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
-                                    apply_book_state_locked)
+                                    apply_book_state_locked, get_book_operation_token)
 import asyncio
 import contextlib
 import copy
@@ -70,7 +70,7 @@ from pass_quality import (split_outer_quote_regions, validate_attribution,
                           validate_instruct, validate_segment_quality)
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
-from utils import file_lock
+from utils import file_lock, is_path_inside
 from alexandria_alignment import validate_epub_archive
 from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
@@ -908,6 +908,166 @@ async def select_existing_upload(request: ExistingUploadRequest):
     path, token = await asyncio.to_thread(_select_upload, request.filename, include_identity=True)
     return {"status": "selected", "stored_filename": os.path.basename(path), "path": path,
             "book_identity_token": token}
+
+
+SINGLE_NARRATOR_PREVIEW_CHARS = 4000
+
+
+def _get_single_narrator_source_preview():
+    """Bounded, book-bound source preview for the single-narrator guide (#1724).
+
+    Read-only: takes no path input, reads only the active book's recorded
+    source (state.json input_file_path), applies the existing ownership/size
+    controls, and never writes. Returns a truncated excerpt plus the source
+    digest and book token so the client can bind inspection to this source.
+
+    The read is descriptor-confined via project_scope_files.capture_scope_file
+    (both for DOCX groups and for plain TXT/MD sources): a realpath/lstat
+    check followed by open() is not sufficient here because a swapped source
+    parent (e.g. a junction substituted after the check) would otherwise
+    feed outside bytes under the trusted pathname. capture_scope_file opens
+    via os.open and freezes the file version before/after the read, so any
+    swap mid-read fails instead of returning outside bytes.
+    """
+    from docx_publication import capture_docx_group
+    from project_scope_files import capture_scope_file
+    from source_encoding import get_decoded_source_text
+
+    def load_book_state():
+        # A corrupt state.json is a distinct refusal from a missing one:
+        # safe_load_json folds both into {}, which would misreport a corrupt
+        # book as "No input file selected" (#1724 C044).
+        state_path = os.path.join(DATA_DIR, "state.json")
+        if not os.path.exists(state_path):
+            return {}
+        try:
+            with open(state_path, encoding="utf-8") as handle:
+                state = json.load(handle)
+        except (ValueError, UnicodeDecodeError):
+            raise HTTPException(status_code=409, detail=(
+                "Active book state is corrupt; restore it before previewing the source."))
+        if not isinstance(state, dict):
+            raise HTTPException(status_code=400, detail="Selected book state must be an object.")
+        return state
+
+    with ensure_book_state(DATA_DIR):
+        state = load_book_state()
+        source_path = state.get("input_file_path")
+        if not isinstance(source_path, str) or not source_path:
+            raise HTTPException(status_code=400, detail="No input file selected for the active book.")
+        # Confine to DATA_DIR by spelling (no trust yet); the descriptor
+        # capture below re-checks containment and freezes file identity.
+        root_abs = Path(os.path.abspath(DATA_DIR))
+        if os.path.isabs(source_path):
+            source_abs = Path(os.path.abspath(source_path))
+        else:
+            source_abs = Path(os.path.abspath(os.path.join(DATA_DIR, source_path)))
+        try:
+            relative = source_abs.relative_to(root_abs)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        if not relative.parts:
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        # No dot-part check: both operands are abspath-normalized, so a
+        # successful relative_to() can never yield '.'/'..'/'' parts (#1724 C082).
+        resolved = os.path.realpath(source_abs)
+        if not is_path_inside(resolved, os.path.realpath(DATA_DIR)):
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        try:
+            group = capture_docx_group(source_abs, owning_root=DATA_DIR)
+        except ValueError:
+            raise HTTPException(status_code=409, detail=(
+                "Active source could not be verified; inspect it in Script instead."))
+        except OSError:
+            # A member deleted/made unreadable mid-capture is a clear refusal,
+            # never an unhandled 500 (#1724 C028).
+            raise HTTPException(status_code=409, detail=(
+                "Active source could not be verified; inspect it in Script instead."))
+        if group is not None:
+            raw = group["text_bytes"]
+            if not isinstance(raw, bytes):
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
+            # Reuse the capture proof digest instead of re-hashing (#1724 C065).
+            source_sha256 = group["proofs"]["text"]["sha256"]
+        else:
+            extension = os.path.splitext(str(source_abs))[1].lower()
+            if extension in (".docx", ".epub"):
+                # Raw zip bytes are never source text: only the retained
+                # DOCX group's text or an EPUB-derived extracted file previews.
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this file format; inspect the "
+                    "extracted text in Script instead."))
+            # .json is a retained script source (get_source_preparation handles
+            # it), so its text previews like TXT/MD instead of stranding
+            # JSON-imported books before guide step 1 (#1724 C130).
+            if extension not in SELECTABLE_SOURCE_EXTENSIONS and extension != ".json":
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this file format; inspect the "
+                    "extracted text in Script instead."))
+            try:
+                proof, raw = capture_scope_file(DATA_DIR, relative.as_posix(),
+                    limit=MAX_SCRIPT_UPLOAD_BYTES + 1, include_bytes=True)
+            except ValueError as exc:
+                message = str(exc)
+                # The shared capture helper raises untyped ValueErrors with a
+                # single conflated message for oversize/non-regular/hard-link;
+                # only the hard-link/integrity wording is a current
+                # misclassification (400 size vs 409 integrity, #1724 C003).
+                if 'hard links' in message:
+                    raise HTTPException(status_code=409, detail=(
+                        "Active source could not be verified; inspect it in Script instead."))
+                if 'bounded' in message or 'needs a nonempty' in message:
+                    raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+                if ('inside the project' in message or 'confined' in message
+                        or 'does not accept' in message or 'existing project directory' in message):
+                    raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+                raise HTTPException(status_code=409, detail="Source changed while reading the preview.")
+            except OSError:
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            if not proof.get('exists'):
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            if not isinstance(raw, bytes):
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            source_sha256 = proof["sha256"]
+        # One size/empty/source_name policy for both branches (#1724 C062).
+        if len(raw) > MAX_SCRIPT_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+        if not raw:
+            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+        source_name = Path(source_abs).name
+        try:
+            text, encoding = get_decoded_source_text(raw)
+        except Exception:
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
+        if encoding == "utf-8/replace":
+            # The decoder's last-resort replacement would show garbled text as
+            # a confirmable excerpt; fail loud instead (#1724 C034).
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+        book_token = get_book_operation_token(DATA_DIR)
+        # Re-read state identity after the read so a concurrent selection cannot
+        # bind this excerpt to a different book than the one returned.
+        state_after = load_book_state()
+        if state_after.get("input_file_path") != source_path:
+            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+        if get_book_operation_token(DATA_DIR) != book_token:
+            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+        return {"book_token": book_token, "source_name": source_name,
+                "source_sha256": source_sha256, "encoding": encoding,
+                "total_chars": len(text), "truncated": len(text) > SINGLE_NARRATOR_PREVIEW_CHARS,
+                "text_start": text[:SINGLE_NARRATOR_PREVIEW_CHARS]}
+
+
+@router.get("/api/single-narrator/source-preview")
+async def get_single_narrator_source_preview():
+    try:
+        return await asyncio.to_thread(_get_single_narrator_source_preview)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Book state is busy; retry the preview shortly.") from None
 
 
 
