@@ -3,6 +3,7 @@
 The caller holds the book operation lock. Opening this view must not create
 chunks, repair corrupt data, generate audio or certify unbound output files.
 """
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -11,7 +12,7 @@ from audio_validation import is_audio_file_present
 from book_state_transaction import get_book_operation_token, get_book_snapshot
 from chunk_status_journal import ChunkStatusJournal
 from editor_review_facts import get_editor_review_facts
-from export_quality_session import get_session_evidence
+from export_quality_session import get_export_input_revision, get_session_evidence
 from project_scope_exports import is_scope_export_historical
 from script_recovery_facts import get_saved_script_recovery_manifest, three_pass_manifest_path
 
@@ -91,9 +92,20 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
         except OSError:
             status = 'unavailable'
         outputs.append({'format': label, 'status': status})
-    export_review = {'status': 'unavailable'}
+    export_review = {'status': 'unavailable', 'attempts': [], 'reports': [],
+                     'current_input_revision': None, 'source_scope': 'unknown'}
     if export_states is not None:
         evidence = get_session_evidence(str(root), export_states, book_token)
+        # Current input revision under the caller's book lock. Unknown
+        # capture stays None/unknown so old receipts remain historical.
+        current_revision, current_scope = None, 'unknown'
+        try:
+            info = get_export_input_revision(str(root), book_token)
+            if isinstance(info, dict):
+                current_revision = info.get('revision')
+                current_scope = info.get('scope', 'unknown') if info.get('revision') is not None else 'unknown'
+        except Exception:
+            current_revision, current_scope = None, 'unknown'
         export_review = {
             'status': 'observed', 'identity_check': evidence['identity_check'],
             'history_scope': evidence['history_scope'],
@@ -102,6 +114,24 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
             'unavailable': evidence['unavailable'],
             'failed_attempts': len(evidence['rejected_attempts']),
             'running': sum(row.get('status') == 'running' for row in evidence['attempts']),
+            'attempt_statuses': [row.get('status') for row in evidence['attempts']],
+            # Retain per-task timing so the overview can order attempts
+            # chronologically instead of by fixed task order.
+            'attempts': [{'task': row.get('task'), 'status': row.get('status'),
+                          'started_at': row.get('started_at'),
+                          'input_revision': row.get('input_revision'),
+                          'input_binding': row.get('input_binding'),
+                          'source_scope': row.get('source_scope')}
+                         for row in evidence['attempts']],
+            'reports': [{'task': row.get('task'), 'file': row.get('file'),
+                         'status': row.get('status'),
+                         'input_revision': row.get('input_revision'),
+                         'input_binding': row.get('input_binding'),
+                         'attempt_started_at': row.get('attempt_started_at'),
+                         'source_scope': row.get('source_scope')}
+                        for row in evidence['reports']],
+            'current_input_revision': current_revision,
+            'source_scope': current_scope,
             # A selected-book token survives edits inside that book. These
             # receipts describe completed checks, not current script/voice proof.
             'current_inputs': 'not_rechecked'}
@@ -130,6 +160,11 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
         raise ValueError('Selected book changed while reading workspace facts')
     return {'book_token': book_token, 'name': name or ('Current book (unnamed)' if entries else 'No book selected'),
             'script': {'status': 'available' if entries else 'not_started', 'entries': len(entries),
-                       'recovery': script_recovery},
-            'cast': {'total': len(voice_rows), 'pending': pending}, 'audio': audio,
+                       'recovery': script_recovery,
+                       'sha256': hashlib.sha256(raw).hexdigest() if raw is not None else None},
+            'cast': {'total': len(voice_rows), 'pending': pending},
+            'voice_sha256': hashlib.sha256(json.dumps(
+                snapshot['voices'], sort_keys=True, ensure_ascii=False,
+                separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest(),
+            'audio': audio,
             'outputs': outputs, 'export_review': export_review, 'next': next_step}

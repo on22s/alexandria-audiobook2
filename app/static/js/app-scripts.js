@@ -107,7 +107,7 @@
             }
         }
 
-        async function loadScript(name) {
+        async function loadScript(name, expectedRevision = null) {
             if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`, {title: 'Replace active book?', actionLabel: 'Load book', danger: true})) { return; }
             let request;
             let loading;
@@ -122,7 +122,8 @@
                 window._existingUploadSelectionRequest = request;
                 loading = enqueueBookSelection(request, async () => {
                     if (!isCurrent()) { return; }
-                    const loaded = await API.post('/api/scripts/load', { name });
+                    const body = expectedRevision ? { name, expected_revision: expectedRevision } : { name };
+                    const loaded = await API.post('/api/scripts/load', body);
                     if (!isCurrent()) { return; }
                     applyCurrentBookFilename(`${loaded.name}.json`);
                     document.getElementById('cast-list-panel').style.display = 'none';
