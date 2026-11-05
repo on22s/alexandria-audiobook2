@@ -1050,24 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T14:03:57",
+  "written": "2026-11-05T14:16:36",
   "host": "RealMitch",
   "git": {
-   "commit": "c8264a2aa1d1ef97476ac6a9c0edfa0af6aefa05",
+   "commit": "112cc90cc7b2e9debd53861bda5bff04888d4671",
    "branch": "feat/1724-single-narrator-crouton",
    "dirty": true,
-   "source_state": "dirty:a43c666efa61",
+   "source_state": "dirty:f44a9cedc29b",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/routers/script.py",
-    "M  app/routers/voices.py",
-    "M  app/static/index.html",
     "M  app/static/js/app-core.js",
-    "M  app/static/js/app-guides.js",
-    "M  app/static/js/app-scripts.js",
-    "M  app/static/js/app-single-voice.js",
-    "A  app/tests/test_1724_r2_regressions.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/test_1724_r2_regressions.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

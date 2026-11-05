@@ -18,7 +18,9 @@
     "tests.test_1724_r2_regressions.LoadFencingJsTests.test_old_last_never_publishes",
     "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_generated_map_roundtrip_invariant",
     "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_reserved_names_roundtrip_http",
-    "tests.test_1724_r2_regressions.SourceIdentityJsTests.test_selected_upload_authoritative_over_stale_snapshot"
+    "tests.test_1724_r2_regressions.SourceIdentityJsTests.test_selected_upload_authoritative_over_stale_snapshot",
+    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_legitimate_when_no_newer",
+    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_obsolete_does_not_supersede_newer"
   ],
   "test_action_error_guidance_js": [
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_designer_preview_failure_keeps_inputs_and_escapes_diagnostics",

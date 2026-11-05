@@ -5013,7 +5013,24 @@
                 if (loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
                 // Never reuse another identity's pending render: wait for it
                 // to settle, then fall through to a fresh load for this identity.
+                // Capture the generation/context BEFORE waiting: if a newer
+                // forced request claims ownership (or the book/epoch changes)
+                // during the wait, this waiter is obsolete and must abort
+                // WITHOUT incrementing generation or publishing anything —
+                // otherwise a stale waiter resuming after its await would
+                // supersede the truly newer load.
+                const generationAtWait = loadVoices.generation || 0;
                 try { await loadVoices.pending; } catch (e) { /* fall through to fresh load */ }
+                if ((loadVoices.generation || 0) !== generationAtWait) {
+                    throw new Error('A newer voice load superseded this request; existing edits were preserved.');
+                }
+                if (rosterFilename !== currentBookFilename || selectionEpoch !== window._bookSelectionEpoch
+                        || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                // A slot may have opened for an identical identity while we
+                // waited (compatible coalescing): reuse it instead of claiming.
+                if (loadVoices.pending && loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
             }
             // Request ownership: a forced/newer load increments the
             // generation and fences every older load's side effects

@@ -492,21 +492,115 @@ console.log(JSON.stringify({duringApplying,duringDisabled}));
         self.assertTrue(out['writes'])
 
 
-class LoadFencingJsTests(unittest.TestCase):
-    def test_old_last_never_publishes(self):
-        # Reuse the real client harness pattern from test_voice_load_requests_js
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            'vl', Path(__file__).parent / 'test_voice_load_requests_js.py')
-        # Instead of importing (which would run nothing), inline minimal:
+class WaitingLoadTests(unittest.TestCase):
+    def _run(self, code):
+        result = subprocess.run(['node', '-e', code, str(CORE)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn('FINISHED-OK', result.stdout, 'pending Promise must fail, never count as green')
+
+    def test_waiting_obsolete_does_not_supersede_newer(self):
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+let finished=false;process.on('beforeExit',()=>assert(finished,'pending Promise must fail, never count as green'));
 const turn=()=>new Promise(setImmediate);
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
-const fields={},gates=new Map(),draws=[];let saveGate=deferred();
+const fields={},draws=[];let saveGate=deferred();const snapGates=[];
+const el=id=>fields[id]||(fields[id]={value:'',innerHTML:'old cards',style:{}});
+const ctx={currentBookFilename:'bookA.txt',ensureVoiceRosterCache:()=>{},performance:{now:()=>0},document:{getElementById:el},console:{debug(){}},
+ API:{get:url=>{if(url==='/api/voice_config/snapshot'){const g=deferred();snapGates.push(g);return g.promise;}return Promise.resolve([]);}},
+ voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){},
+ createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
+ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
+ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
+vm.createContext(ctx);
+const load=(a,b)=>{const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),ctx);};
+load('function getVoiceCardMetadata(', 'function createVoiceCard(');
+load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves()', 'async function discardVoiceEditsAndReload()');
+vm.runInContext('let _voiceSaveSnapshot=null;let _voiceRecoveryDrafts=[];',ctx);
+ctx.loadCastLibrary=async()=>{};
+const mkSnap=name=>({revision:'0'.repeat(64),book_token:'b'.repeat(64),book_identity_token:'b'.repeat(64),voices:[{name,config:{type:'custom',voice:'Ryan'}}],seed_changes:[]});
+(async()=>{
+  saveGate.resolve();
+  // A(true) pending
+  const pA=ctx.loadVoices(true);pA.catch(()=>{});await turn();await turn();
+  assert.strictEqual(snapGates.length,1,'A snapshot pending');
+  // Select B epoch2, B(false) waits on A
+  ctx.currentBookFilename='bookB.txt';ctx.window._bookSelectionEpoch=2;
+  const genBeforeB=ctx.loadVoices.generation;
+  const pB=ctx.loadVoices(false);pB.catch(()=>{});await turn();
+  // Select C epoch3, C(true) forced newer
+  ctx.currentBookFilename='bookC.txt';ctx.window._bookSelectionEpoch=3;
+  const pC=ctx.loadVoices(true);pC.catch(()=>{});await turn();await turn();
+  assert.strictEqual(snapGates.length,2,'C snapshot pending');
+  const genAfterC=ctx.loadVoices.generation;
+  // Finish A -> waiting B resumes; must NOT increment generation
+  snapGates[0].resolve(mkSnap('A'));
+  await turn();await turn();
+  assert.strictEqual(ctx.loadVoices.generation,genAfterC,'obsolete waiter must not increment generation');
+  await assert.rejects(pB,/superseded|changed/);
+  // Finish C -> C must succeed and render C cards
+  snapGates[1].resolve(mkSnap('C'));
+  await pC;
+  assert.strictEqual(el('voices-list').innerHTML,'<card>C</card>','newer C must render, not be superseded by B');
+  await pA.catch(()=>{});
+  finished=true;console.log('FINISHED-OK');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+'''
+        self._run(code)
+
+    def test_waiting_legitimate_when_no_newer(self):
+        code = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+let finished=false;process.on('beforeExit',()=>assert(finished,'pending Promise must fail, never count as green'));
+const turn=()=>new Promise(setImmediate);
+function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
+const fields={},draws=[];let saveGate=deferred();const snapGates=[];
+const el=id=>fields[id]||(fields[id]={value:'',innerHTML:'old cards',style:{}});
+const ctx={currentBookFilename:'bookA.txt',ensureVoiceRosterCache:()=>{},performance:{now:()=>0},document:{getElementById:el},console:{debug(){}},
+ API:{get:url=>{if(url==='/api/voice_config/snapshot'){const g=deferred();snapGates.push(g);return g.promise;}return Promise.resolve([]);}},
+ voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){},
+ createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
+ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
+ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
+vm.createContext(ctx);
+const load=(a,b)=>{const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),ctx);};
+load('function getVoiceCardMetadata(', 'function createVoiceCard(');
+load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves()', 'async function discardVoiceEditsAndReload()');
+vm.runInContext('let _voiceSaveSnapshot=null;let _voiceRecoveryDrafts=[];',ctx);
+ctx.loadCastLibrary=async()=>{};
+const mkSnap=name=>({revision:'0'.repeat(64),book_token:'b'.repeat(64),book_identity_token:'b'.repeat(64),voices:[{name,config:{type:'custom',voice:'Ryan'}}],seed_changes:[]});
+(async()=>{
+  saveGate.resolve();
+  const pA=ctx.loadVoices(true);pA.catch(()=>{});await turn();await turn();
+  ctx.currentBookFilename='bookB.txt';ctx.window._bookSelectionEpoch=2;
+  const pB=ctx.loadVoices(false);pB.catch(()=>{});await turn();
+  snapGates[0].resolve(mkSnap('A'));
+  await turn();await turn();await turn();
+  assert.strictEqual(snapGates.length,2,'B must claim fresh load after A settles');
+  snapGates[1].resolve(mkSnap('B'));
+  await pB;
+  assert.strictEqual(el('voices-list').innerHTML,'<card>B</card>');
+  await pA.catch(()=>{});
+  finished=true;console.log('FINISHED-OK');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+'''
+        self._run(code)
+
+
+class LoadFencingJsTests(unittest.TestCase):
+    def test_old_last_never_publishes(self):
+        # Separate gate arrays per load (not one shared Map): old load gates
+        # 0..3, new load gates 4..7. Finish NEW first, then OLD last; both
+        # must actually complete and assert final cards AND caches stay new.
+        code = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+let finished=false;process.on('beforeExit',()=>assert(finished,'pending Promise must fail, never count as green'));
+const turn=()=>new Promise(setImmediate);
+function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
+const fields={},gates=[],draws=[];let saveGate=deferred();
 const el=id=>fields[id]||(fields[id]={value:'',innerHTML:'old',style:{}});
 const ctx={currentBookFilename:'book.txt',ensureVoiceRosterCache:()=>{},performance:{now:()=>0},document:{getElementById:el},console:{debug(){}},
- API:{get:url=>{const gate=deferred();gates.set(url,gate);return gate.promise;}},
+ API:{get:url=>{const gate=deferred();gate.url=url;gates.push(gate);return gate.promise;}},
  voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){},
  createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
@@ -521,25 +615,28 @@ ctx.window._bookSelectionEpoch=1;
 saveGate.resolve();
 const mkSnap=name=>({revision:'0'.repeat(64),book_token:'b'.repeat(64),book_identity_token:'b'.repeat(64),voices:[{name,config:{type:'custom',voice:'Ryan'}}],seed_changes:[]});
 (async()=>{
-  const oldLoad=ctx.loadVoices(true);await turn();
-  // Newer forced load for same book context supersedes old
-  const newLoad=ctx.loadVoices(true);await turn();
-  // Finish NEWER first
-  for(const [url,gate] of [...gates]){gate.resolve(url==='/api/voice_config/snapshot'?mkSnap('Newer'):[{id:url}]);}
+  const oldLoad=ctx.loadVoices(true);oldLoad.catch(()=>{});await turn();await turn();
+  assert.strictEqual(gates.length,4,'old load must have 4 pending gates (snapshot+3 resources)');
+  const oldGates=gates.slice(0,4);
+  const newLoad=ctx.loadVoices(true);newLoad.catch(()=>{});await turn();await turn();
+  assert.strictEqual(gates.length,8,'new load must have its own 4 gates');
+  const newGates=gates.slice(4,8);
+  // Finish NEW first with new-* resource ids
+  for(const gate of newGates){gate.resolve(gate.url==='/api/voice_config/snapshot'?mkSnap('Newer'):[{id:'new-'+gate.url}]);}
   await newLoad;
   assert.strictEqual(el('voices-list').innerHTML,'<card>Newer</card>');
-  // Now finish OLDER (its gates were overwritten? gates map holds newer gates;
-  // old load's snapshot gate is same map entry - resolve again is no-op.
-  // To simulate old-last, we assert oldLoad either rejected or did not overwrite:
-  // oldLoad shares the same resolved gates, so it may complete; generation
-  // fencing must prevent it from overwriting Newer cards.
+  assert.strictEqual(ctx.window._loraModelsCache[0].id,'new-/api/lora/models','new cache must publish');
+  // Finish OLD last with old-* resource ids; must not overwrite cards or caches
+  for(const gate of oldGates){gate.resolve(gate.url==='/api/voice_config/snapshot'?mkSnap('Older'):[{id:'old-'+gate.url}]);}
   await oldLoad.catch(()=>{});
   assert.strictEqual(el('voices-list').innerHTML,'<card>Newer</card>','older load must not overwrite newer cards');
-  console.log('ok');
+  assert.strictEqual(ctx.window._loraModelsCache[0].id,'new-/api/lora/models','older load must not overwrite newer caches');
+  finished=true;console.log('FINISHED-OK');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 '''
         result = subprocess.run(['node', '-e', code, str(CORE)], capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn('FINISHED-OK', result.stdout)
 
 
 if __name__ == '__main__':
