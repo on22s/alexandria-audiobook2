@@ -1050,20 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T11:45:08",
+  "written": "2026-11-05T11:52:04",
   "host": "RealMitch",
   "git": {
-   "commit": "14638f97762ed51511dcf9ea8b55dfbe43f25a6d",
+   "commit": "23fa213ada35c7aaab053af56338e713b09cbe60",
    "branch": "fix/1532-card-notes",
-   "dirty": true,
-   "source_state": "dirty:4e612c5418e8",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/static/css/casting.css",
-    "M  app/static/js/app-casting-research.js",
-    "M  app/static/js/app-casting.js",
-    "M  app/tests/casting_research_fixture.js"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
