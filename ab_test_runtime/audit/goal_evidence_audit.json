@@ -1050,17 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-04T15:34:22",
+  "written": "2026-11-05T03:05:46",
   "host": "RealMitch",
   "git": {
-   "commit": "890acdcb4d1ae03613af8e18bce5a541a7e8d0ed",
-   "branch": "fix/crouton-confirmed-bugs-1756-1767",
-   "dirty": true,
-   "source_state": "dirty:587045a5e253",
+   "commit": "fff2a5878fa812ae29126ffc6f6a9f465a9e074d",
+   "branch": "HEAD",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/tests/test_voicelab_health.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
