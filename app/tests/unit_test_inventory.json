@@ -6804,6 +6804,7 @@
     "tests.test_lora_evaluation.CandidateReferencePairingTests.test_candidate_uses_and_hashes_its_own_paired_reference",
     "tests.test_lora_evaluation.CandidateReferencePairingTests.test_incomplete_candidate_cannot_borrow_parent_reference_before_inference",
     "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_actual_evaluator_rebuilds_malformed_cache_then_resumes_verified_replacement",
+    "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_cli_reuses_only_evidence_matching_observed_serving_mode",
     "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_malformed_json_probe_containers_are_incomplete_without_mutating_artifacts",
     "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_pre_bf16_serving_change_evidence_is_not_current",
     "tests.test_lora_evaluation.EvaluationCleanupResumeTests.test_actual_pending_cleanup_is_finished_and_next_run_skips",
@@ -6856,7 +6857,30 @@
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_bfloat16_serves_unmerged_peft_with_autocast_and_no_merge_stamp",
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_float32_still_merges_and_stamps_recovery_identity",
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_merged_talker_still_exposes_config_for_the_vram_estimator",
-    "tests.test_lora_merge_into_talker.LoraMergeTests.test_served_talker_is_the_merged_module_not_the_peft_wrapper"
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_observed_serving_identity_tracks_loader_without_runtime_queries",
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_served_talker_is_the_merged_module_not_the_peft_wrapper",
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_serving_identity_is_unknown_without_waiting_for_model_load"
+  ],
+  "test_lora_observed_serving": [
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_cli_failure_cleanup_tracks_report_publication",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_comparison_hashes_each_evaluation_once",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_evaluator_refuses_mid_probe_serving_drift",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_explicit_expected_identity_enforces_matching_without_a_second_flag",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_failed_attempt_cleanup_does_not_leak_own_audio_with_malformed_report",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_http_promotion_survives_owned_claim_model_release",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_identity_validation_refuses_malformed_records_and_copies_valid_records",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_malformed_retained_records_refuse_without_changes",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_matching_observed_mode_permits_real_promotion_and_retains_backup",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_missing_evaluation_and_engine_are_historical_without_settings_diagnosis",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_old_evidence_is_auditionable_but_unknown_and_mismatched_modes_cannot_promote",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_probe_cleanup_error_is_reported_without_aborting_remaining_adapters",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_stale_engine_settings_and_tampered_identity_are_not_current",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unknown_accessors_never_construct_or_query_runtime",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unknown_evaluation_remains_integrity_valid_but_never_current",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unobserved_candidate_report_resumes_after_production_publication_failure",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unobserved_cli_publishes_historical_probes_without_ranking_or_cleanup",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unobserved_replacement_requires_explicit_overwrite",
+    "tests.test_lora_observed_serving.ObservedServingEvidenceTests.test_unsafe_recommendations_and_symlinks_refuse_without_mutation"
   ],
   "test_lora_only_arm": [
     "tests.test_lora_only_arm.LoraOnlyArm.test_both_modes_at_once_is_refused",
@@ -12907,6 +12931,7 @@
     "tests.test_training_model_refresh_js.TrainingModelRefreshTests.test_comparison_latest_request_owns_results_and_errors",
     "tests.test_training_model_refresh_js.TrainingModelRefreshTests.test_download_restores_button_after_success_even_when_real_list_refresh_fails",
     "tests.test_training_model_refresh_js.TrainingModelRefreshTests.test_favorite_updates_existing_button_and_cache_without_gets_or_replacing_table",
+    "tests.test_training_model_refresh_js.TrainingModelRefreshTests.test_historical_evidence_stays_auditionable_without_current_badges_or_promotion",
     "tests.test_training_model_refresh_js.TrainingModelRefreshTests.test_independent_requests_start_before_either_settles_and_backup_failure_is_optional"
   ],
   "test_training_numbers_js": [
