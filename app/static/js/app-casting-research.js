@@ -641,6 +641,27 @@
             for (const key of keys) { delete colors[key]; }
             return colors;
         }
+        function matchingTag(mark, value) {
+            return (mark.tags || []).find(tag => tag.toLowerCase() === value.toLowerCase());
+        }
+        function colorsWithTag(colors, tag, color) {
+            const next = copyTagColors(colors);
+            for (const key of Object.keys(next)) {
+                if (key.toLowerCase() === tag.toLowerCase()) { delete next[key]; }
+            }
+            if (color) {
+                Object.defineProperty(next, tag, {value: color, enumerable: true, writable: true, configurable: true});
+            }
+            return next;
+        }
+        function getSharedTagColor(value) {
+            for (const voice of state().voices) {
+                const mark = getMark(voice.id), tag = matchingTag(mark, value);
+                const color = tag && tagColorOf(mark, tag);
+                if (color) { return color; }
+            }
+            return '';
+        }
         function changeMembership(voice, field, value, adding) {
             const action = (adding ? 'Add ' : 'Remove ') + (field === 'tags' ? 'tag' : 'research collection membership');
             return applyBulk(action, [voice.id], mark => {
@@ -657,6 +678,10 @@
                     const colors = tagPatchWithout(mark, value);
                     if (colors) { patch.tag_colors = colors; }
                 }
+                if (field === 'tags' && adding) {
+                    const color = getSharedTagColor(value);
+                    if (color) { patch.tag_colors = colorsWithTag(mark.tag_colors, value, color); }
+                }
                 return patch;
             });
         }
@@ -665,18 +690,16 @@
                 notify('info', 'That tag colour is not in the casting palette.');
                 return Promise.resolve({ok: false});
             }
-            return applyBulk('Set tag colour', [voice.id], mark => {
-                if (!(mark.tags || []).includes(tag)) {
-                    notify('info', 'That tag is no longer on this voice.');
+            // One tag name has one colour: every voice carrying it changes in the same atomic write.
+            const others = state().voices.filter(item => item.id !== voice.id && matchingTag(getMark(item.id), tag));
+            return applyBulk('Set tag colour', [voice.id, ...others.map(item => item.id)], (mark, id) => {
+                const key = matchingTag(mark, tag);
+                if (!key) {
+                    if (id === voice.id) { notify('info', 'That tag is no longer on this voice.'); }
                     return null;
                 }
-                const colors = copyTagColors(mark.tag_colors);
-                if (color) {
-                    Object.defineProperty(colors, tag, {value: color, enumerable: true, writable: true, configurable: true});
-                } else {
-                    delete colors[tag];
-                }
-                return {tags: [...mark.tags], tag_colors: colors};
+                if (tagColorOf(mark, key) === (color || '')) { return null; }
+                return {tags: [...mark.tags], tag_colors: colorsWithTag(mark.tag_colors, key, color)};
             });
         }
 
@@ -882,7 +905,9 @@
                 if (mode === 'add') {
                     if (tags.some(tag => tag.toLowerCase() === raw.toLowerCase())) { return null; }
                     if (tags.length >= MAX_TAGS) { return null; }
-                    return {tags: [...tags, raw]};
+                    const color = getSharedTagColor(raw);
+                    return color ? {tags: [...tags, raw], tag_colors: colorsWithTag(mark.tag_colors, raw, color)}
+                        : {tags: [...tags, raw]};
                 }
                 if (!tags.some(tag => tag.toLowerCase() === raw.toLowerCase())) { return null; }
                 const patch = {tags: tags.filter(tag => tag.toLowerCase() !== raw.toLowerCase())};
@@ -1426,15 +1451,17 @@
         function cardMarkControls(voice) {
             const wrap = node('div', undefined, 'mt-2 border-top pt-2');
             const organization = node('details', undefined, 'mt-2');
+            organization.dataset.castingPanel = JSON.stringify([voice.id, 'research']);
             organization.append(node('summary', 'Tags & research collections', 'small'), tagEditor(voice), collectionEditor(voice));
             wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true), organization);
             return wrap;
         }
         function tableMarkControls(voice) {
             const wrap = node('div', undefined, 'small');
-            wrap.append(markRow(voice, 'stars'), markRow(voice, 'circles'));
-            const tags = (getMark(voice.id).tags || []);
-            if (tags.length) { wrap.append(node('div', tags.join(', '), 'text-muted')); }
+            wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true));
+            const mark = getMark(voice.id), tags = node('div', undefined, 'd-flex flex-wrap');
+            tags.append(...(mark.tags || []).map(tag => options.helpers.customTagBadge(mark, tag)));
+            if (tags.children.length) { wrap.append(tags); }
             return wrap;
         }
         function selectionBox(voice) {

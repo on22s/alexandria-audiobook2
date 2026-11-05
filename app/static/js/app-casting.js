@@ -18,6 +18,7 @@
     const HEALTH = {missing_audio: 'Missing audio', no_description: 'No description', duplicate_names: 'Duplicate names', no_sample: 'No sample line', skipped: 'Skipped folders'};
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
+    const panelStates = new Map();
     let s = {voices: [], marks: {}, skipped: [], view: 'cards', shown: PAGE, chips: new Set(), epoch: 0, bound: false,
              speakers: [], speakerRequest: 0, review: null, playing: null, queue: null, variant: '', collections: [], shared: [],
              collectionEpoch: 0, research: null, playSeconds: 8, playFull: false, playToken: 0, timer: null};
@@ -266,14 +267,17 @@
         }
         for (const tag of (mark && mark.tags) || []) {
             if (typeof tag !== 'string' || !tag) { continue; }
-            const color = tagColorOf(mark, tag);
-            const badge = node('span', tag, 'badge me-1 casting-custom-tag '
-                + (color ? tagColorClass(color) : NEUTRAL_TAG_CLASS));
-            badge.dataset.castingCustomTag = tag;
-            badge.setAttribute('title', color ? 'Custom tag · ' + color : 'Custom tag');
-            wrap.append(badge);
+            wrap.append(customTagBadge(mark, tag));
         }
         return wrap;
+    }
+    function customTagBadge(mark, tag) {
+        const color = tagColorOf(mark, tag);
+        const badge = node('span', tag, 'badge me-1 casting-custom-tag '
+            + (color ? tagColorClass(color) : NEUTRAL_TAG_CLASS));
+        badge.dataset.castingCustomTag = tag;
+        badge.setAttribute('title', color ? 'Custom tag · ' + color : 'Custom tag');
+        return badge;
     }
     function statusBar(voice, mark) {
         const bar = node('div', undefined, 'd-flex gap-1 mb-2 casting-status-bar');
@@ -356,6 +360,7 @@
         }));
         foot.append(...markControls(voice));
         const assignment = node('details', undefined, 'mt-2');
+        assignment.dataset.castingPanel = JSON.stringify([voice.id, 'assignment']);
         assignment.append(node('summary', 'Use this voice', 'small'), castControls(voice), collectionControls(voice));
         foot.append(assignment);
         if (s.research) { foot.append(s.research.cardMarkControls(voice)); }
@@ -406,6 +411,7 @@
             if (candidate && candidate.dataset && candidate.dataset.castingFocus === key
                 && typeof candidate.focus === 'function') {
                 for (let parent = candidate.parentElement; parent; parent = parent.parentElement) {
+                    if (parent.dataset && parent.dataset.castingPanel && !parent.open) { return; }
                     if (String(parent.tagName).toUpperCase() === 'DETAILS') { parent.open = true; }
                 }
                 candidate.focus(); return;
@@ -415,6 +421,9 @@
     function render() {
         const list = visible(), page = s.research ? s.research.pageSlice(list) : list.slice(0, s.shown);
         const focus = captureFocus();
+        for (const panel of el('results').querySelectorAll('[data-casting-panel]')) {
+            panelStates.set(panel.dataset.castingPanel, !!panel.open);
+        }
         renderChips(list);
         renderCoverage(list);
         el('skipped').replaceChildren();
@@ -441,6 +450,9 @@
         const more = el('more');
         if (more && !s.research) { more.hidden = list.length <= s.shown; }
         if (s.variant) { el('summary').textContent += ' | Name group: ' + s.variant; }
+        for (const panel of el('results').querySelectorAll('[data-casting-panel]')) {
+            panel.open = panelStates.get(panel.dataset.castingPanel) === true;
+        }
         restoreFocus(focus);
         if (s.research) { s.research.afterRender(list, page); }
     }
@@ -757,7 +769,7 @@
             state: () => s,
             visible,
             render,
-            helpers: {markOf: id => markOf(s.marks, id), fieldValues, countValues},
+            helpers: {markOf: id => markOf(s.marks, id), fieldValues, countValues, customTagBadge},
             getMark: id => markOf(s.marks, id),
             confirm: (message, optionsList) => typeof showConfirm === 'function'
                 ? showConfirm(message, optionsList) : Promise.resolve(false),

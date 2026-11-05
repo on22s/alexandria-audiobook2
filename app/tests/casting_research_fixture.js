@@ -424,7 +424,9 @@ const firstBatch = env => batchCalls(env)[0];
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'green'));
     eq(env.serverMarks['persona/dh/abel'].stars, []);
     await click(env, $(env, 'view-table'));
-    eq(markButton(env, 'persona/dh/abel', 'stars', 'green').textContent, 'green', 'table controls retain their labels');
+    eq(markButton(env, 'persona/dh/abel', 'stars', 'green').textContent, '', 'table marks display symbols only');
+    includes(markButton(env, 'persona/dh/abel', 'stars', 'green').attrs['aria-label'], 'Star green for ABEL',
+             'table marks keep their accessible names');
     await click(env, $(env, 'view-cards'));
     eq(markButton(env, 'persona/dh/abel', 'stars', 'green').textContent, '', 'card controls remain symbol-only after changing views');
     const tagInput = $(env, 'results').querySelectorAll('input').find(node => node.attrs['aria-label'] === 'New tag for ABEL');
@@ -471,6 +473,9 @@ const firstBatch = env => batchCalls(env)[0];
        'custom tags sit beside the original voice tags');
     let colourPicker = selectByLabel(env, 'Colour for tag scene:one on ABEL');
     ok(colourPicker, 'the Tags & collection editor offers a colour for each tag');
+    let colourPanel = colourPicker.parentElement;
+    while (colourPanel.tagName.toUpperCase() !== 'DETAILS') { colourPanel = colourPanel.parentElement; }
+    colourPanel.open = true;
     colourPicker.focus();
     await change(env, colourPicker, 'red');
     batch = batchCalls(env).at(-1);
@@ -493,6 +498,61 @@ const firstBatch = env => batchCalls(env)[0];
        'undo restores the neutral colour');
     await click(env, $(env, 'research-redo'));
     eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'red'});
+
+    // One tag name has one colour across every card, including voices hidden by a filter.
+    const addCardTag = async (name, id, tag) => {
+        const box = $(env, 'results').querySelectorAll('input').find(node => node.attrs['aria-label'] === 'New tag for ' + name);
+        box.value = tag;
+        await click(env, $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Add tag to ' + name));
+        return env.serverMarks[id];
+    };
+    eq((await addCardTag('AICHEL', 'persona/dh/aichel', 'SCENE:ONE')).tag_colors, {'SCENE:ONE': 'red'},
+       'a tag added to another voice inherits the shared colour, whatever its case');
+    eq((await addCardTag('ECHO', 'persona/dh/echo', 'unrelated')).tag_colors, {}, 'an unused tag name stays neutral');
+    input($(env, 'search'), 'name:ABEL'); await settle();
+    eq(labels(env), ['ABEL'], 'the other carrier of the tag is filtered out');
+    const syncCalls = batchCalls(env).length;
+    await change(env, selectByLabel(env, 'Colour for tag scene:one on ABEL'), 'blue');
+    eq(batchCalls(env).length, syncCalls + 1, 'the colour syncs in one atomic write');
+    eq(batchCalls(env).at(-1)[2].changes.map(item => item.voice_id), ['persona/dh/abel', 'persona/dh/aichel']);
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'blue'});
+    eq(env.serverMarks['persona/dh/aichel'].tag_colors, {'SCENE:ONE': 'blue'}, 'the hidden voice follows too');
+    eq(env.serverMarks['persona/dh/echo'].tag_colors, {}, 'voices without the tag are not touched');
+    input($(env, 'search'), ''); await settle();
+    includes($(env, 'results').querySelector('[data-casting-custom-tag="SCENE:ONE"]').className, 'bg-primary',
+             'the other card shows the new colour');
+    await click(env, $(env, 'research-undo'));
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {'scene:one': 'red'});
+    eq(env.serverMarks['persona/dh/aichel'].tag_colors, {'SCENE:ONE': 'red'}, 'undo restores every voice');
+    await change(env, selectByLabel(env, 'Colour for tag SCENE:ONE on AICHEL'), '');
+    eq(env.serverMarks['persona/dh/abel'].tag_colors, {}, 'clearing from any card clears the shared colour');
+    eq(env.serverMarks['persona/dh/aichel'].tag_colors, {});
+    env.serverMarks['persona/dh/aichel'].tag_colors = {'SCENE:ONE': 'green'};
+    await env.w.loadCastingLibrary(); await settle();
+    eq(selectByLabel(env, 'Colour for tag scene:one on ABEL').value, '', 'older data can still differ until the next change');
+    await change(env, selectByLabel(env, 'Colour for tag scene:one on ABEL'), 'red');
+    eq(env.serverMarks['persona/dh/aichel'].tag_colors, {'SCENE:ONE': 'red'}, 'the next change reconciles older data');
+    await click(env, $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Remove tag SCENE:ONE from AICHEL'));
+    await click(env, $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Remove tag unrelated from ECHO'));
+
+    await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+    $(env, 'research-bulk-tag').value = 'Scene:One';
+    await click(env, $(env, 'research-bulk-tag-add'));
+    eq(env.serverMarks['persona/dh/echo'].tag_colors, {'Scene:One': 'red'}, 'bulk add inherits the shared colour too');
+    await click(env, $(env, 'results').querySelectorAll('button').find(node => node.attrs['aria-label'] === 'Remove tag Scene:One from ECHO'));
+    await change(env, cardCheckbox(env, 'persona/dh/echo'), false);
+
+    // Table marks match the cards: symbols only, and a custom tag is recognisably a tag.
+    await click(env, $(env, 'view-table'));
+    const tableMark = markButton(env, 'persona/dh/abel', 'stars', 'red');
+    eq(tableMark.textContent.trim(), '', 'table mark buttons carry no colour word');
+    includes(tableMark.attrs['aria-label'], 'red', 'the accessible name keeps the colour');
+    const tableMarksCell = tableMark.parentElement.parentElement;
+    ok(!tableMarksCell.textContent.includes('Stars') && !tableMarksCell.textContent.includes('Circles'), 'no shape words either');
+    const tableTag = tableMarksCell.querySelector('[data-casting-custom-tag="scene:one"]');
+    ok(tableTag, 'a custom tag in the table is a badge, not loose text');
+    includes(tableTag.className, 'bg-danger', 'and it shows the shared colour');
+    await click(env, $(env, 'view-cards'));
 
     const colourRemove = $(env, 'results').querySelectorAll('button')
         .find(node => node.attrs['aria-label'] === 'Remove tag scene:one from ABEL');
@@ -872,6 +932,34 @@ const firstBatch = env => batchCalls(env)[0];
     eq(cardBar.children.map(node => node.textContent), ['Callback', 'High priority']);
     includes(cardBar.children[0].className, 'bg-warning');
     includes(cardBar.children[1].className, 'bg-danger');
+    function panelFor(name, summary) {
+        let card = selectByLabel(env, 'Review status for ' + name).parentElement;
+        while (card && !String(card.className).split(' ').includes('card')) { card = card.parentElement; }
+        return card.querySelectorAll('details').find(panel => panel.children[0].textContent === summary);
+    }
+    panelFor('ABEL', 'Tags & research collections').open = true;
+    panelFor('AICHEL', 'Tags & research collections').open = true;
+    panelFor('ABEL', 'Use this voice').open = true;
+    await click(env, markButton(env, 'persona/dh/abel', 'stars', 'amber'));
+    ok(panelFor('ABEL', 'Tags & research collections').open, 'first panel survives unrelated actions');
+    ok(panelFor('AICHEL', 'Tags & research collections').open, 'second panel survives independently');
+    ok(panelFor('ABEL', 'Use this voice').open, 'assignment panel survives too');
+    const closedPanel = panelFor('ABEL', 'Tags & research collections');
+    closedPanel.querySelector('input').focus();
+    closedPanel.open = false;
+    await click(env, markButton(env, 'persona/dh/abel', 'stars', 'amber'));
+    ok(!panelFor('ABEL', 'Tags & research collections').open, 'focus does not reopen a manually closed panel');
+    ok(panelFor('AICHEL', 'Tags & research collections').open, 'closing one panel does not close another');
+    input($(env, 'search'), 'name:ABEL'); await settle();
+    eq(labels(env), ['ABEL'], 'filter really removes the second panel');
+    input($(env, 'search'), ''); await settle();
+    ok(panelFor('AICHEL', 'Tags & research collections').open, 'filtered-out state survives absence');
+    ok(!panelFor('ABEL', 'Tags & research collections').open, 'closed state survives filtering');
+    await click(env, $(env, 'view-table'));
+    await click(env, $(env, 'view-cards'));
+    ok(panelFor('AICHEL', 'Tags & research collections').open, 'panel state survives switching views');
+    await change(env, cardCheckbox(env, 'persona/dh/aichel'), true);
+    ok(panelFor('AICHEL', 'Tags & research collections').open, 'selection preserves panel state');
     const focusSelect = selectByLabel(env, 'Review status for ABEL');
     focusSelect.focus();
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'red'));
