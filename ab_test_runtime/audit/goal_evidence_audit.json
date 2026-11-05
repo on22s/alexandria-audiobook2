@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T12:15:08",
+  "written": "2026-11-05T12:37:49",
   "host": "RealMitch",
   "git": {
-   "commit": "a066589e5611037c783a2da818823dc38230a6a9",
-   "branch": "fix/1710-evaluation-device",
+   "commit": "2e8c5078e85a17e0296d07fb1680e23df0826f0c",
+   "branch": "feat/1724-single-narrator-crouton",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,
