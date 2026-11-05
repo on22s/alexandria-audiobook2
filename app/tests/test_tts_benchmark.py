@@ -284,6 +284,7 @@ class LoraBenchmarkLoadTimingTests(unittest.TestCase):
             return SimpleNamespace(merge_and_unload=lambda: talker)
         fake_torch = ModuleType("torch")
         fake_torch.manual_seed = Mock()
+        fake_torch.bfloat16 = object()
         fake_qwen = ModuleType("qwen_tts")
         fake_qwen.Qwen3TTSModel = object()
         fake_peft = ModuleType("peft")

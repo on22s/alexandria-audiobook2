@@ -260,6 +260,19 @@ class EvaluationCacheShapeTests(unittest.TestCase):
         self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
         return adapter, valid, PcmEngine
 
+    def test_pre_bf16_serving_change_evidence_is_not_current(self):
+        from lora_evidence import get_evidence_error
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter, current, _engine = self.make_valid_evidence(Path(tmp))
+            previous = copy.deepcopy(current)
+            previous['version'] = 3
+            files = {path.name: path.read_bytes() for path in adapter.iterdir()}
+            self.assertFalse(evaluation.is_complete_evaluation(previous, str(adapter)))
+            self.assertIn('version', get_evidence_error(previous, str(adapter)))
+            self.assertTrue(evaluation.is_complete_evaluation(current, str(adapter)))
+            self.assertEqual(files, {path.name: path.read_bytes() for path in adapter.iterdir()})
+
+
     def test_malformed_json_probe_containers_are_incomplete_without_mutating_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
             adapter, valid, _engine = self.make_valid_evidence(Path(tmp))

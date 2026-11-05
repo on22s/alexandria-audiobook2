@@ -125,6 +125,11 @@ class RecoveryServingTests(unittest.TestCase):
         # dispatch/serving guard; no native provider or merge is executed.
         with patch.object(engine, '_ensure_local_lora_generation', loader), patch.object(tts, '_RAW_LORA_METHODS', expected), patch.object(serving, '_ensure_class', side_effect=lambda value, *args: value), patch.object(serving, 'get_native_custom_code_sha256', side_effect=project), patch.object(serving, '_get_runtime_build', return_value={'fixture': 'cpu'}), patch.object(serving, '_get_aa2_loaded_code', return_value={}), patch.object(serving, 'get_native_lora_merge_sha256', return_value=first) as merge, patch.object(serving, 'capture_native_custom_serving_identity', side_effect=AssertionError('wrong dispatch')):
             identity = serving.capture_native_lora_serving_identity(engine, request)
+            wrapper._aa2_recovery_lora_unmerged = True
+            with self.assertRaisesRegex(RecoveryIdentityUnavailable,
+                                        "unqualified_unmerged_lora_serving"):
+                serving.capture_native_lora_serving_identity(engine, request)
+            del wrapper._aa2_recovery_lora_unmerged
             with serving.ensure_native_recovery_serving(engine, identity):
                 serving.ensure_native_recovery_serving_current(engine, request)
                 merge.return_value = 'e'*64

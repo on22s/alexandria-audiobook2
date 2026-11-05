@@ -2720,9 +2720,11 @@ Evidence: `ab_test_runtime/experiments/time_split__warm_baritone_30s_m_1_generat
 **Metric** — generation seconds ÷ audio seconds. LOWER is better.
 **Target — median ≤ 0.90x, worst case ≤ 1.50x.**
 
-**Current — OPEN.** Single-adapter timings meet the target, but the real
-multi-voice run required below remains unverified. This goal belongs in Part I;
-its historical use of “MET” is not its current verdict.
+**Current — OPEN.** The current bf16 LoRA path does not meet the target:
+the bounded 2026-11-05 native-Windows ROCm run measured median 2.2745x
+generation/audio time, versus 1.2713x for its merged control (+78.9%). Neither
+arm meets the median target. Real multi-voice throughput remains unverified.
+This goal belongs in Part I; historical “MET” entries are not its current verdict.
 
 **Open — demoted from met on 2026-09-04.** The goal recorded median
 0.91x / 0.98x / 0.97x, slowest 1.21x, and called itself "MET, barely". That
@@ -2796,10 +2798,28 @@ Evidence: `ab_test_runtime/experiments/lora_merge_speed_probe__9070xt-20260912.j
 (six lines),
 `lora_merge_speed_probe__9070xt-20260912-fixed.json` (one line), `app/experiments/lora_merge_speed_probe.py`.
 
+**Current serving update — 2026-11-05 (#1710).** bf16 serving now retains
+the unmerged PEFT wrapper with fp32 adapters; fp32 serving still merges.
+[Bounded native-Windows ROCm batch-one evidence](fork-adoption-evidence/1710/rocm-20261105/README.md)
+finds lower adapter-induced logit error but 64.3% higher median per-line wall
+time and 78.9% higher median generation/audio time than bf16 merge on six
+texts/two seeds. The serving switch is dtype-wide, including CUDA and Linux
+ROCm, but only one native-Windows RX 9070 XT was measured; there is no serving
+mode opt-out. CUDA, Linux ROCm and multi-voice throughput are unqualified.
+Unmerged recovery certificates/window-cache reuse are unavailable; new bf16
+LoRA renders produce audition-only take history, with guarded Restore unavailable.
+Evaluation evidence v3 predates this serving change and must be rerun as v4;
+old artifacts are retained, not silently relabelled. Version 4 still binds
+configured device settings, not resolved dtype/serving mode: CPU/fp32 merged
+evaluation can validate for GPU/bf16 unmerged serving under `device: auto`.
+Cross-device/mode evaluation currency remains unresolved. #1710 stays open.
+The following entries are historical merged-path results.
+
 **The merge is shipped; the goal stays open until re-measured — 2026-09-12.**
-`tts._init_local_lora` now calls `merge_and_unload` on the PEFT wrapper and
-serves the plain talker (test: `app/tests/test_lora_merge_into_talker.py`,
-which fails against the unmerged code). The audio check the previous entry
+At that historical revision, `tts._init_local_lora` called `merge_and_unload`
+and served the plain talker. The then-current regression rejected unmerged
+serving; `app/tests/test_lora_merge_into_talker.py` now distinguishes retained
+bf16 adapters from fp32 merging. The audio check the previous entry
 asked for, on the probe's kept wavs: each arm reproduces itself bit-for-bit
 (sample correlation 1.000 warm-up vs run), and merged vs unmerged is a
 different waveform — sample correlation ≈ 0, envelope correlation 0.82,

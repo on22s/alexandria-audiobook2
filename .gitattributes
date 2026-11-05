@@ -33,6 +33,10 @@ tools/listening_lab/*.cjs                       -text
 tools/listening_lab/*.html                      -text
 tools/listening_lab/*.py                        -text
 
+# Preserve the exact scripts/protocol bytes hashed by the #1710 measurement.
+fork-adoption-evidence/1710/rocm-20261105/**      text eol=lf
+fork-adoption-evidence/1710/rocm-20261105/*.npz   -text
+
 # Audit inputs, gold fixtures, audit outputs and experiment Python sources
 # are pinned by sha256, so their checkout bytes
 # must not depend on the committer's core.autocrlf. On a checkout with

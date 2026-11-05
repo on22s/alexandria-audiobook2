@@ -62,10 +62,13 @@ class ModelLifecycleTests(unittest.TestCase):
             if probe_error:
                 raise RuntimeError('simulated missing driver telemetry')
             return capacity - len(live) * 5e9, capacity
+        def load_adapter(model, path, **kwargs):
+            self.assertEqual({"autocast_adapter_dtype": True}, kwargs)
+            return model
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.dict(sys.modules, {
                 'qwen_tts': NS(Qwen3TTSModel=Provider),
-                'peft': NS(PeftModel=NS(from_pretrained=lambda model, path: NS(merge_and_unload=lambda: model))),
+                'peft': NS(PeftModel=NS(from_pretrained=load_adapter)),
             }))
             stack.enter_context(patch.object(engine, '_resolve_device', return_value='cuda:1'))
             stack.enter_context(patch.object(engine, '_enable_rocm_optimizations'))

@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T04:17:10",
+  "written": "2026-11-05T07:05:56",
   "host": "RealMitch",
   "git": {
-   "commit": "b9aa39d110a1c6c6dda170648c0db1297fb8bd04",
-   "branch": "feat/1725-collection-overview",
+   "commit": "9cf8578de0ab9c8b9ef6cb97955ad7de785325ef",
+   "branch": "fix/1710-lora-bf16",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,
