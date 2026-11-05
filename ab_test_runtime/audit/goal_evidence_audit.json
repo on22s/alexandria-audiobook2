@@ -1050,15 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T16:45:09",
+  "written": "2026-11-05T16:55:43",
   "host": "RealMitch",
   "git": {
-   "commit": "a009eb6fceb09b4c77d825ea5950e88cf6b6c385",
+   "commit": "ac1ce232576271927d2e4ec871359daebb6a23b4",
    "branch": "feat/1724-single-narrator-reviewed",
-   "dirty": false,
-   "source_state": "clean",
+   "dirty": true,
+   "source_state": "dirty:3ded91c5cb43",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/routers/voices.py",
+    "M  app/tests/test_1724_deepseek_repairs_v3.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"

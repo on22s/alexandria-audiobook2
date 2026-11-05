@@ -282,6 +282,20 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
     with admit_take_history_edit(root), manager._chunks_lock, file_lock(chunks_path):
         def update(current):
             updated = transform(current)
+            # Pre-invalidation strict-map validation (DS3021 remainder):
+            # the canonical revision digest (allow_nan=False) runs on
+            # the FINAL proposed map BEFORE any audio invalidation side
+            # effect, so a nonfinite/invalid payload is an all-file
+            # no-write refusal. Valid updates keep the crucial order:
+            # invalidation fences old/in-flight audio BEFORE the config
+            # publish inside apply_voice_config_update (which
+            # re-validates before writing), preserving conservative
+            # fencing on publication I/O failure.
+            try:
+                get_voice_config_revision(updated)
+            except (ValueError, TypeError, RecursionError) as exc:
+                raise ValueError(
+                    "Voice configuration values must be finite JSON values") from exc
             manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
             return updated
         return apply_voice_config_update(config_path, update, expected_revision=expected_revision,

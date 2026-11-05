@@ -249,6 +249,35 @@ class DeepSeekRepairsV3BackendTests(unittest.TestCase):
             self.assertNotIn('alias', saved['BOB'])
             self.assertFalse(saved['BOB'].get('alias_of'))
 
+    def test_invalid_map_refuses_before_audio_invalidation(self):
+        # DS3021 remainder: a valid voice change carrying nonfinite data
+        # must refuse BEFORE any chunks/journal/audio invalidation.
+        from tests.test_suggestion_audio_invalidation import SuggestionAudioInvalidationTests
+        case = SuggestionAudioInvalidationTests()
+        with case.fixture() as (root, client, manager):
+            import copy as _copy
+            before_chunks = _copy.deepcopy(manager.load_chunks())
+            config = json.loads((root / 'voices.json').read_bytes())
+            body = {'revision': get_voice_config_revision(config),
+                    'book_token': get_book_snapshot_token(
+                        get_book_snapshot(str(root), include_voices=False)),
+                    'voices': {'Hero': {'type': 'custom', 'voice': 'Serena',
+                                        'versions': {'unused': {'n': float('nan')}}}}}
+            before = {p: p.read_bytes() for p in (root / 'voices.json', root / 'chunks.json')}
+            reply = client.post('/api/voice_config/save', content=json.dumps(body),
+                                headers={'content-type': 'application/json'})
+            self.assertEqual(400, reply.status_code, reply.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (root / 'voices.json', root / 'chunks.json')},
+                             'invalid payload must leave config and chunks untouched')
+            self.assertEqual(before_chunks, manager.load_chunks(),
+                             'no audio row may be invalidated by a refused payload')
+            # Finite valid control still persists and invalidates.
+            body['voices'] = {'Hero': {'type': 'custom', 'voice': 'Serena'}}
+            body['revision'] = get_voice_config_revision(config)
+            reply = client.post('/api/voice_config/save', json=body)
+            self.assertEqual(200, reply.status_code, reply.text)
+            self.assertEqual('Serena', json.loads((root / 'voices.json').read_text())['Hero']['voice'])
+
     # --- DS3010 other-writer pin clearing -------------------------------
     def test_suggestions_writer_clears_unrelated_pin_only_on_replacement(self):
         import core

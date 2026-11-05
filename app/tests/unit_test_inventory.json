@@ -4,6 +4,7 @@
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_corrupt_listing_refuses_both_files_without_writing",
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_explicit_pin_and_null_always_win",
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_filesystem_oserror_is_honest_refusal_not_500",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_invalid_map_refuses_before_audio_invalidation",
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_null_means_absent_but_list_refuses",
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_string_refuses_on_preview_too",
     "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_omitted_pin_genuine_replacement_clears_p",
