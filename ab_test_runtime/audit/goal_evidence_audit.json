@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T07:05:56",
+  "written": "2026-11-05T11:04:25",
   "host": "RealMitch",
   "git": {
-   "commit": "9cf8578de0ab9c8b9ef6cb97955ad7de785325ef",
-   "branch": "fix/1710-lora-bf16",
+   "commit": "aa3a1eb2fc89421daf983d5ff0cc0e94fce45b21",
+   "branch": "t3/sentence-gap-report",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

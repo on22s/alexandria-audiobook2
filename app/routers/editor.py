@@ -88,10 +88,14 @@ def build_zip_download(members, filename):
                         background=BackgroundTask(os.unlink, path))
 
 
-class WordTimingRequest(BaseModel):
+class SelectedTakeRequest(BaseModel):
     expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_uid: str = Field(min_length=1, max_length=128)
     expected_audio_revision: Optional[str] = Field(default=None, max_length=128)
+
+
+class WordTimingRequest(SelectedTakeRequest):
+    analyze_sentence_gaps: bool = Field(default=False, strict=True)
 
 
 @router.post("/api/chunks/{index}/word_timing")
@@ -108,13 +112,15 @@ async def create_chunk_word_timing(index: int, request: WordTimingRequest):
     runtime = {**runtime, **{key: str(Path(runtime[key]).resolve()) for key in ('binary', 'model')}}
     def run():
         state = process_state['word_timing']
-        state['logs'] = ['Word timing: one selected chunk, cached English provider, CPU only.']
+        state['logs'] = [('Sentence-gap analysis' if request.analyze_sentence_gaps else 'Word timing')
+                         + ': one selected chunk, cached English provider, CPU only.']
         try:
             for key in ('binary', 'model'):
                 _validate_voicelab_path(runtime[key], 'Word-timing ' + key)
             result = publish_word_timing(project_manager, index, request, runtime,
                 check_chunk_identity, lambda: state.get('cancel', False))
-            state['logs'].append('Timing ready. ASR spans do not certify pronunciation.')
+            state['logs'].append('Sentence-gap report ready. Audio unchanged.' if request.analyze_sentence_gaps
+                                 else 'Timing ready. ASR spans do not certify pronunciation.')
             return result
         except (ValueError, OSError, KeyError, TypeError) as error:
             state['logs'].append('Timing failed: ' + str(error))
@@ -166,7 +172,7 @@ async def change_take_history_policy_endpoint(request: TakeHistoryPolicyRequest)
         raise HTTPException(status_code=409, detail=str(error)) from error
 
 
-class TakeSnapshotRequest(WordTimingRequest):
+class TakeSnapshotRequest(SelectedTakeRequest):
     pass
 
 
@@ -179,7 +185,7 @@ class TakeHistoryAction(BaseModel):
     action: str = Field(pattern=r"^(protect|unprotect|delete|undo|purge)$")
 
 
-class TakeRestoreRequest(WordTimingRequest):
+class TakeRestoreRequest(SelectedTakeRequest):
     source_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
     version: str = Field(pattern=r"^[0-9a-f]{32}$")
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

@@ -14,7 +14,7 @@ Element.prototype.focus=function(){document.activeElement=this;};
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(v){if(v){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Object.defineProperty(Element.prototype,'classList',{get(){const n=this;return {contains:value=>n.className.split(/\s+/).includes(value),toggle(value,on){const values=new Set(n.className.split(/\s+/));if(on){values.add(value);}else{values.delete(value);}n.className=[...values].join(' ');}};}});
 document.createTextNode=text=>{const n=new Element('span');n.textContent=text;return n;};
-for(const id of ['editor-word-spans','editor-word-status','editor-word-timing','editor-word-cancel']){body.appendChild(new Element('div',{id}));}
+for(const id of ['editor-word-spans','editor-word-status','editor-word-timing','editor-word-cancel','editor-sentence-gap-analyze','editor-sentence-gaps']){body.appendChild(new Element('div',{id}));}
 const row=new Element('tr'),audio=row.appendChild(new Element('audio',{class:'chunk-audio'}));audio.currentTime=0;audio.ended=false;audio.pause=()=>{};audio.load=()=>{audio.loaded=true;};
 let selected={chunk:{id:0,uid:'u',text:'🌟 Amber arrives.',speaker:'Hero',audio_path:'line.wav',audio_revision:'take1'},row};
 context.chunkSnapshotBookToken='a'.repeat(64);context.getEditorReviewTarget=()=>selected;
@@ -64,4 +64,62 @@ assert(document.getElementById('editor-word-status').textContent.includes('saved
 const own=context.createEditorWordTiming();await tick();posts[0].resolve(result());await own;
 const readyStatus=document.getElementById('editor-word-status').textContent;context.applyWordTimingTaskActivity(true);context.applyWordTimingTaskActivity(false);
 assert.equal(document.getElementById('editor-word-status').textContent,readyStatus);assert(document.getElementById('editor-word-spans').children.length>0);
+''')
+
+    def test_sentence_gap_action_shows_real_fields_and_shares_timing_task_controls(self):
+        self.run_js(r'''
+const pending=context.analyzeEditorSentenceGaps();await tick();
+assert.equal(posts.length,1);assert.equal(posts[0].url,'/api/chunks/0/word_timing');assert.equal(posts[0].body.analyze_sentence_gaps,true);
+assert(document.getElementById('editor-word-timing').disabled);assert(document.getElementById('editor-sentence-gap-analyze').disabled);assert(!document.getElementById('editor-word-cancel').disabled);
+await context.createEditorWordTiming();assert.equal(posts.length,1);
+const response=result();response.display_text='Amber arrives. <img src=x> Dawn waits.';
+response.sentence_gap_report={kind:'sentence_gap_report_only',mutates_audio:false,authorizes_edit:false,provenance:{file_sha256:'b'.repeat(64)},proposals:[
+ {status:'proposal',original_coordinates:{left_sentence:{char_start:0,char_end:14},right_sentence:{char_start:15,char_end:38}},proposed_extension_ms:540,measured_quiet_interval:{start:.6,end:1.2},safe_quiet_interval:{start:.63,end:1.17}},
+ {status:'skipped',original_coordinates:{left_sentence:{char_start:0,char_end:14},right_sentence:{char_start:15,char_end:38}},skip_reason:'unmatched_observed_speech_in_search_window',measured_quiet_interval:null,safe_quiet_interval:null} ]};
+posts[0].resolve(response);await pending;
+const area=document.getElementById('editor-sentence-gaps');assert.equal(area.hidden,false);assert.equal(area.querySelectorAll('li').length,2);assert.equal(area.querySelectorAll('button').length,0);assert.equal(area.querySelectorAll('img').length,0);
+assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('<img src=x>'));assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('540 ms'));assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('0.60–1.20'));assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('0.63–1.17'));assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('Unmatched speech'));assert(document.getElementById('editor-word-status').textContent.includes('1 sentence-gap suggestion(s), 1 skipped'));
+selected={...selected,chunk:{...selected.chunk,audio_revision:'new'}};context.applyWordTimingInspector();assert.equal(area.hidden,true);assert.equal(area.children.length,0);
+''')
+
+    def test_sentence_gap_report_wrong_file_or_late_response_is_not_displayed(self):
+        self.run_js(r'''
+const response=()=>({...result(),sentence_gap_report:{kind:'sentence_gap_report_only',mutates_audio:false,authorizes_edit:false,provenance:{file_sha256:'c'.repeat(64)},proposals:[]}});
+let pending=context.analyzeEditorSentenceGaps();await tick();posts[0].resolve(response());await pending;assert.equal(document.getElementById('editor-sentence-gaps').children.length,0);assert.equal(errors.length,1);
+pending=context.analyzeEditorSentenceGaps();await tick();selected={...selected,chunk:{...selected.chunk,uid:'other'}};context.applyWordTimingInspector();posts[1].resolve(response());await pending;assert.equal(document.getElementById('editor-sentence-gaps').children.length,0);
+context.applyWordTimingTaskActivity(true);assert(document.getElementById('editor-sentence-gap-analyze').disabled);await context.analyzeEditorSentenceGaps();assert.equal(posts.length,2);
+const cancel=context.cancelEditorWordTiming();await tick();assert.equal(posts[2].url,'/api/word_timing/cancel');posts[2].resolve({});await cancel;assert(document.getElementById('editor-sentence-gap-analyze').disabled);
+context.applyWordTimingTaskActivity(false);assert(!document.getElementById('editor-sentence-gap-analyze').disabled);
+''')
+
+    def test_sentence_gap_empty_result_is_explained_and_listening_never_displays_extra_report(self):
+        self.run_js(r'''
+const response=()=>({...result(),sentence_gap_report:{kind:'sentence_gap_report_only',mutates_audio:false,authorizes_edit:false,provenance:{file_sha256:'b'.repeat(64)},proposals:[]}});
+let pending=context.analyzeEditorSentenceGaps();await tick();posts[0].resolve(response());await pending;const area=document.getElementById('editor-sentence-gaps');assert(area.querySelectorAll('p').map(p=>p.textContent).join(' ').includes('No internal sentence breaks'));
+pending=context.createEditorWordTiming();await tick();assert.equal(posts[1].body.analyze_sentence_gaps,false);posts[1].resolve(response());await pending;assert(area.hidden);assert.equal(area.children.length,0);
+''')
+
+    def test_editor_markup_exposes_analysis_and_accessible_results(self):
+        from html.parser import HTMLParser
+        class Controls(HTMLParser):
+            def __init__(self): super().__init__(); self.items = {}
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if attrs.get('id'): self.items[attrs['id']] = (tag, attrs)
+        markup = Controls()
+        markup.feed((SOURCE.parents[1] / 'index.html').read_text(encoding='utf-8'))
+        tag, button = markup.items['editor-sentence-gap-analyze']
+        self.assertEqual('button', tag)
+        self.assertEqual('analyzeEditorSentenceGaps()', button['onclick'])
+        tag, region = markup.items['editor-sentence-gaps']
+        self.assertEqual('section', tag)
+        self.assertIn('aria-label', region)
+        self.assertIn('hidden', region)
+        self.assertEqual('status', markup.items['editor-word-status'][1]['role'])
+
+    def test_sentence_gap_report_requires_a_file_identity_even_when_both_hashes_are_missing(self):
+        self.run_js(r'''
+const pending=context.analyzeEditorSentenceGaps();await tick();const response=result();delete response.binding.audio_sha256;
+response.sentence_gap_report={kind:'sentence_gap_report_only',mutates_audio:false,authorizes_edit:false,provenance:{},proposals:[]};
+posts[0].resolve(response);await pending;assert.equal(errors.length,1);assert.equal(document.getElementById('editor-sentence-gaps').children.length,0);
 ''')

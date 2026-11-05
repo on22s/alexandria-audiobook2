@@ -89,7 +89,7 @@ class WordTimingTests(unittest.TestCase):
 
     def render(self, _audio, _runtime, text, _cancel, _directory):
         rows = [{'word': 'Amber', 'start': .1, 'end': .5}, {'word': 'arrives', 'start': .7, 'end': 1.2}]
-        return {'display_text': text, 'spans': get_validated_word_spans(text, rows, 2),
+        return {'display_text': text, 'spans': get_validated_word_spans(text, rows, 2), 'segments': rows,
                 'duration': 2, 'notice': 'Estimate', 'provider': 'fixture', 'language': 'en'}
 
     def run_case(self):
@@ -224,3 +224,157 @@ class WordTimingTests(unittest.TestCase):
             stream.close()
         with self.assertRaisesRegex(ValueError, 'bytes changed'):
             open_verified_word_audio(self.pm, 0, 'a'*64, 'row', 'take1', digest, self.check)
+
+    def prepare_gap_take(self):
+        import numpy as np
+        import soundfile as sf
+        rows = self.pm.load_chunks()
+        rows[0]['text'] = 'Amber arrives. Dawn waits.'
+        rows[0]['pause_after'] = 900
+        self.pm.save_chunks(rows)
+        pcm = .2 * np.sin(np.arange(32000) * .17)
+        pcm[9600:19200] = 0
+        sf.write(str(self.audio), pcm, 16000, subtype='PCM_16')
+
+    def render_gap_take(self, _audio, _runtime, text, _cancel, _directory):
+        segments = [{'word': word, 'start': start, 'end': end} for word, start, end in [
+            ('Amber', .1, .3), ('arrives', .3, .6), ('Dawn', 1.2, 1.5), ('waits', 1.5, 1.8)]]
+        return {'display_text': text, 'spans': get_validated_word_spans(text, segments, 2),
+                'segments': segments, 'duration': 2, 'provider': 'fixture', 'language': 'en', 'notice': 'Estimate'}
+
+    def test_sentence_gap_analysis_refreshes_legacy_cache_then_reuses_observations(self):
+        import hashlib
+        self.prepare_gap_take()
+        original = self.audio.read_bytes()
+        script = Path(self.pm.chunks_path).read_bytes()
+        with patch('editor_word_timing.render_word_timing', side_effect=self.render_gap_take) as render:
+            self.run_case()
+            cache = get_timing_cache_path(self.pm, 'a'*64, 'row')
+            legacy = json.loads(cache.read_text(encoding='utf-8'))
+            legacy.pop('segments')
+            cache.write_text(json.dumps(legacy), encoding='utf-8')
+            self.assertTrue(self.run_case()['cached'])
+            self.assertEqual(1, render.call_count)
+            self.request.analyze_sentence_gaps = True
+            first = self.run_case()
+            self.assertFalse(first['cached'])
+            self.assertEqual(2, render.call_count)
+            report = first['sentence_gap_report']
+            self.assertEqual('sentence_gap_report_only', report['kind'])
+            self.assertFalse(report['mutates_audio'])
+            self.assertFalse(report['authorizes_edit'])
+            self.assertEqual(hashlib.sha256(original).hexdigest(), report['provenance']['file_sha256'])
+            proposal, = report['proposals']
+            self.assertEqual('proposal', proposal['status'])
+            self.assertGreater(proposal['proposed_extension_ms'], 0)
+            self.assertEqual(.63, proposal['safe_quiet_interval']['start'])
+            self.assertNotIn('sentence_gap_report', json.loads(cache.read_text(encoding='utf-8')))
+            # A cached report is never trusted, even if a previous version wrote one.
+            poisoned = json.loads(cache.read_text(encoding='utf-8'))
+            poisoned['sentence_gap_report'] = {'kind': 'stale'}
+            cache.write_text(json.dumps(poisoned), encoding='utf-8')
+            second = self.run_case()
+            self.assertTrue(second['cached'])
+            self.assertEqual(report, second['sentence_gap_report'])
+            self.assertEqual(2, render.call_count)
+        self.assertEqual(original, self.audio.read_bytes())
+        self.assertEqual(script, Path(self.pm.chunks_path).read_bytes())
+
+    def test_sentence_gap_analysis_refuses_stale_or_cancelled_publication(self):
+        from sentence_gap_report import get_sentence_gap_report_for_take
+        self.prepare_gap_take()
+        self.request.analyze_sentence_gaps = True
+        with patch('editor_word_timing.render_word_timing', side_effect=self.render_gap_take):
+            self.run_case()
+        cache = get_timing_cache_path(self.pm, 'a'*64, 'row')
+        previous = cache.read_bytes()
+        for action in ('change_take', 'cancel'):
+            cancelled = False
+            def build(**kwargs):
+                nonlocal cancelled
+                report = get_sentence_gap_report_for_take(**kwargs)
+                if action == 'change_take':
+                    rows = self.pm.load_chunks(); rows[0]['audio_revision'] = 'take2'; self.pm.save_chunks(rows)
+                else:
+                    cancelled = True
+                return report
+            with patch('sentence_gap_report.get_sentence_gap_report_for_take', side_effect=build):
+                with self.assertRaises(ValueError):
+                    publish_word_timing(self.pm, 0, self.request, self.runtime, self.check, lambda: cancelled)
+            self.assertEqual(previous, cache.read_bytes())
+            rows = self.pm.load_chunks(); rows[0]['audio_revision'] = 'take1'; self.pm.save_chunks(rows)
+
+    def test_sentence_gap_file_bridge_rejects_wrong_bytes_before_decode(self):
+        from sentence_gap_report import get_sentence_gap_report_for_take
+        with patch('soundfile.SoundFile') as decode:
+            with self.assertRaisesRegex(ValueError, 'audio identity'):
+                get_sentence_gap_report_for_take(audio_path=self.audio, expected_file_sha256='0'*64,
+                    text='Amber arrives.', segments=[], provider='fixture')
+        decode.assert_not_called()
+
+    def test_sentence_gap_api_uses_real_report_and_preserves_book_and_take(self):
+        import copy
+        import core
+        from contextlib import ExitStack
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import editor
+        from tests.test_support import use_private_cpu_fixture_lock
+        self.assertNotIn('analyze_sentence_gaps', editor.TakeSnapshotRequest.model_fields)
+        self.assertNotIn('analyze_sentence_gaps', editor.TakeRestoreRequest.model_fields)
+        self.prepare_gap_take()
+        original = self.audio.read_bytes()
+        script = Path(self.pm.chunks_path).read_bytes()
+        @use_private_cpu_fixture_lock()
+        def check():
+            state = copy.deepcopy(core.process_state)
+            for row in state.values(): row['running'] = False
+            with ExitStack() as stack:
+                for module, name, value in [
+                    (core, 'process_state', state), (editor, 'process_state', state),
+                    (core, '_task_claims', {}), (core, '_gpu_leases', {}),
+                    (editor, 'project_manager', self.pm),
+                    (editor, 'SCRIPT_PATH', str(self.root / 'annotated_script.json'))]:
+                    stack.enter_context(patch.object(module, name, value))
+                stack.enter_context(patch('whisper_cpp_runtime.get_whisper_cpp_runtime',
+                    return_value={**self.runtime, 'available': True}))
+                def render(*args):
+                    self.assertTrue(core._task_claims['word_timing']['cpu_only'])
+                    return self.render_gap_take(*args)
+                engine = stack.enter_context(patch('editor_word_timing.render_word_timing', side_effect=render))
+                api = FastAPI(); api.include_router(editor.router)
+                client = stack.enter_context(TestClient(api))
+                body = {'expected_book_token': editor.get_snapshot_digest(editor.get_editor_book_identity(str(self.root))),
+                        'expected_uid': 'row', 'expected_audio_revision': 'take1', 'analyze_sentence_gaps': True}
+                for cached in (False, True):
+                    response = client.post('/api/chunks/0/word_timing', json=body)
+                    self.assertEqual(200, response.status_code, response.text)
+                    result = response.json()
+                    self.assertEqual(cached, result['cached'])
+                    self.assertEqual('proposal', result['sentence_gap_report']['proposals'][0]['status'])
+                    self.assertEqual(result['binding']['audio_sha256'], result['sentence_gap_report']['provenance']['file_sha256'])
+                    self.assertFalse(state['word_timing']['running'])
+                    self.assertNotIn('word_timing', core._task_claims)
+                self.assertEqual(1, engine.call_count)
+                invalid = client.post('/api/chunks/0/word_timing', json={**body, 'analyze_sentence_gaps': 'true'})
+                self.assertEqual(422, invalid.status_code)
+                stale = client.post('/api/chunks/0/word_timing', json={**body, 'expected_uid': 'other'})
+                self.assertEqual(409, stale.status_code)
+                self.assertEqual(1, engine.call_count)
+        check()
+        self.assertEqual(original, self.audio.read_bytes())
+        self.assertEqual(script, Path(self.pm.chunks_path).read_bytes())
+
+    def test_sentence_gap_cache_keeps_unmatched_observed_speech_instead_of_inventing_words(self):
+        self.prepare_gap_take()
+        self.request.analyze_sentence_gaps = True
+        with patch('editor_word_timing.render_word_timing', side_effect=self.render_gap_take) as render:
+            self.run_case()
+            cache = get_timing_cache_path(self.pm, 'a'*64, 'row')
+            saved = json.loads(cache.read_text(encoding='utf-8'))
+            saved['segments'].insert(2, {'word': 'unexpected', 'start': .8, 'end': .9})
+            cache.write_text(json.dumps(saved), encoding='utf-8')
+            report = self.run_case()['sentence_gap_report']
+            self.assertEqual('unmatched_observed_speech_in_search_window', report['proposals'][0]['skip_reason'])
+            self.assertEqual([], report['coordinate_map']['insertions'])
+            self.assertEqual(1, render.call_count)

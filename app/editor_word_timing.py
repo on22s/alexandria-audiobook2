@@ -100,7 +100,7 @@ def get_timing_cache_path(manager, book_token, uid):
     return Path(manager.root_dir) / 'reports' / 'word_timing' / (key + '.json')
 
 
-def get_cached_word_timing(path, binding):
+def get_cached_word_timing(path, binding, require_observed_segments=False):
     if not path.is_file():
         return None
     if path.stat().st_size > MAX_RESULT_BYTES:
@@ -114,11 +114,17 @@ def get_cached_word_timing(path, binding):
     display = result['display_text']
     if display != binding['prepared_text']:
         raise ValueError('Saved timing text does not match the selected take.')
-    segments = [{'word': display[s['from']:s['to']], 'start': s['start'], 'end': s['end']}
-                for s in result['spans']]
+    if require_observed_segments and 'segments' not in result:
+        return None
+    # Legacy caches remain usable for listening, but cannot supply observations
+    # for acoustic analysis. Never invent observed words from authored offsets.
+    segments = result.get('segments') if 'segments' in result else [
+        {'word': display[s['from']:s['to']], 'start': s['start'], 'end': s['end']}
+        for s in result['spans']]
     verified = get_validated_word_spans(display, segments, result['duration'])
     if verified != result['spans']:
         raise ValueError('Saved word spans are invalid or ambiguous.')
+    result.pop('sentence_gap_report', None)
     return result
 
 
@@ -131,14 +137,16 @@ def publish_word_timing(manager, index, request, runtime, check_identity, cancel
     with ensure_book_state(manager.root_dir):
         binding, path = capture_locked()
     cache = get_timing_cache_path(manager, request.expected_book_token, request.expected_uid)
-    cached = get_cached_word_timing(cache, binding)
-    if cached is not None:
+    analyze_gaps = getattr(request, 'analyze_sentence_gaps', False)
+    cached = get_cached_word_timing(cache, binding, require_observed_segments=analyze_gaps)
+    if cached is not None and not analyze_gaps:
         with ensure_book_state(manager.root_dir):
             current, _ = capture_locked()
             if cancel_check() or current != binding:
                 raise ValueError('Timing inputs changed. Refresh Editor.')
             return {**cached, 'cached': True}
-    # Cached hits above do not contend for the provider. Native supported hosts
+    # Listening cache hits do not contend for the provider. Analysis captures
+    # fresh file bytes even when it can reuse real observed words. Native hosts
     # share one retained lease across timing and verification, across books and
     # worktrees. Other platforms retain their existing timing implementation.
     scratch = (CPUASRScratch() if is_close_owned_cpu_asr_supported() else
@@ -161,9 +169,18 @@ def publish_word_timing(manager, index, request, runtime, check_identity, cancel
             captured_digest = get_regular_file_hash(snapshot, MAX_AUDIO_BYTES)
         if captured_digest != binding['audio_sha256']:
             raise ValueError('Audio changed while capturing the selected take.')
-        result = render_word_timing(snapshot, runtime, binding['prepared_text'], cancel_check, directory)
+        result = cached if cached is not None else render_word_timing(
+            snapshot, runtime, binding['prepared_text'], cancel_check, directory)
+        report = None
+        if analyze_gaps:
+            from sentence_gap_report import get_sentence_gap_report_for_take
+            report = get_sentence_gap_report_for_take(audio_path=snapshot,
+                expected_file_sha256=binding['audio_sha256'], text=binding['prepared_text'],
+                segments=result['segments'], provider=result['provider'],
+                language=result['language'], cancel_check=cancel_check)
         result = {**result, 'binding': binding, 'fingerprint': get_timing_fingerprint(binding)}
-        if len(json.dumps(result, ensure_ascii=False).encode()) > MAX_RESULT_BYTES:
+        response = {**result, 'sentence_gap_report': report} if analyze_gaps else result
+        if len(json.dumps(response, ensure_ascii=False).encode()) > MAX_RESULT_BYTES:
             raise ValueError('Word timing result exceeds its size limit.')
     # Provider descendants and scratch are gone before readmitting book state.
     with ensure_book_state(manager.root_dir):
@@ -177,4 +194,4 @@ def publish_word_timing(manager, index, request, runtime, check_identity, cancel
                         key=lambda p: p.stat().st_mtime, reverse=True)
         for old in others[127:]:
             old.unlink()
-    return {**result, 'cached': False}
+    return {**response, 'cached': cached is not None}
