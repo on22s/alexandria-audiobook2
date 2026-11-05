@@ -89,7 +89,7 @@ class OccurrenceGenerationTests(unittest.TestCase):
                     engine._next_external_url = lambda: 'fixture'
                     def predict(*args, **kwargs):
                         seen.append(kwargs['text'] if kind == 'custom' else args[2]); return (str(root/'provider.wav'),)
-                    engine._external_endpoint = lambda ep: (SimpleNamespace(predict=predict), threading.Lock())
+                    engine._external_endpoint = lambda ep: (SimpleNamespace(predict_compatible=predict), threading.Lock())
                     voices = {'A': {'type': kind, 'voice': 'Ryan', 'ref_audio': str(root/'reference.wav'),
                                     'ref_text': 'Reference.', 'seed': 0},
                               'GROUP': {'type': 'ensemble', 'members': ['A']}}

@@ -873,12 +873,14 @@ class TTSEngine:
         # evidence identity returned by get_model_settings.
         self._synthesis_recovery = get_enabled_synthesis_recovery_settings(tts_config.get("synthesis_recovery"))
         self._speech_verification = get_enabled_speech_verification_settings(tts_config.get('speech_verification'))
-        self._url = tts_config.get("url", "http://127.0.0.1:7860")
+        from external_tts_client import get_external_tts_urls, get_external_tts_settings
+        external_settings = get_external_tts_settings(tts_config)
+        self._url = external_settings['url']
         # Each endpoint has one lazily created client per configured worker.
         # Every client keeps its own lock: gradio_client cannot be shared
         # concurrently. `url` alone is the one-endpoint pool.
-        self._external_urls = [u.strip() for u in (tts_config.get("external_urls") or []) if u and u.strip()] or [self._url]
-        self._external_timeout = int(tts_config.get("external_timeout_seconds", 300) or 300)
+        self._external_urls = get_external_tts_urls(external_settings)
+        self._external_timeout = external_settings['external_timeout_seconds']
         self._external_parallel_workers = max(1, int(tts_config.get("parallel_workers", 2) or 1))
         self._device = model_settings["device"]
         self._compile_codec_enabled = model_settings["compile_codec"]
@@ -3687,7 +3689,7 @@ class TTSEngine:
                 if cancelled and cancelled.is_set():
                     return False
                 with measure_tts_stage_time("external_request"):
-                    result = client.predict(
+                    result = client.predict_compatible(
                         text=text,
                         language=self._language,
                         speaker=voice,
@@ -3759,7 +3761,7 @@ class TTSEngine:
                     if cancelled and cancelled.is_set():
                         return False
                     with measure_tts_stage_time("external_request"):
-                        result = client.predict(
+                        result = client.predict_compatible(
                             handle_file(reference_path),
                             ref_text,
                             text,

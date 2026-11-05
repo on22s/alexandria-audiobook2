@@ -81,7 +81,7 @@ class TtsReviewRegressions(unittest.TestCase):
                 captured.append(args)
                 return (str(reference),)
             engine = tts.TTSEngine({'tts': {'mode': 'external', 'language': 'Japanese'}})
-            client = NS(predict=predict)
+            client = NS(predict_compatible=predict)
             with patch.dict('sys.modules', {'gradio_client': NS(handle_file=lambda path: path)}), \
                  patch.object(engine, '_external_endpoint', return_value=(client, threading.Lock())):
                 self.assertTrue(engine._external_generate_clone('こんにちは', 'A',

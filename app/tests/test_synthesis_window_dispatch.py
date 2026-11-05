@@ -154,7 +154,7 @@ class SynthesisWindowDispatchTests(unittest.TestCase):
                         def predict(*args, **kwargs):
                             calls.append(kwargs['text'] if kind == 'custom' else args[2])
                             return (str(root/'provider.wav'),)
-                        engine._external_endpoint = lambda endpoint: (SimpleNamespace(predict=predict), threading.Lock())
+                        engine._external_endpoint = lambda endpoint: (SimpleNamespace(predict_compatible=predict), threading.Lock())
                         voices = {'A': dict(type=kind, voice='Aiden', seed=0,
                             ref_audio=str(root/'reference.wav'), ref_text='Synthetic reference.'),
                             'GROUP': dict(type='ensemble', members=['A'])}

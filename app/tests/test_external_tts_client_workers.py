@@ -37,7 +37,7 @@ class ExternalTTSClientWorkerTests(unittest.TestCase):
                 def __init__(self,url):
                     self.url=url;self.active=0;self.peak=0;self.count=0
                     with guard:self.index=len(clients);clients.append(self)
-                def predict(self,**kwargs):
+                def predict_compatible(self,**kwargs):
                     with guard:
                         self.active+=1;self.peak=max(self.peak,self.active);self.count+=1;number=self.count
                     try:

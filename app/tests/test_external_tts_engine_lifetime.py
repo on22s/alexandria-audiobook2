@@ -69,9 +69,11 @@ class ExternalEngineLifetimeTests(unittest.TestCase):
                 previous = output.read_bytes()
                 executor = self.engine._external_executor
                 client = next(iter(self.engine._gradio_clients.values()))
-                self.engine._external_timeout = .3
+                self.engine._external_timeout = 1
                 before = len(self.events())
+                started = time.monotonic()
                 success, output = self.render(kind, 'hang')
+                self.assertLess(time.monotonic() - started, 4)
                 self.assertFalse(success)
                 self.assertEqual(previous, output.read_bytes())
                 events = self.events()[before:]
@@ -85,8 +87,32 @@ class ExternalEngineLifetimeTests(unittest.TestCase):
                 self.assertEqual(1, len(executor._threads))
                 with wave.open(str(output), 'rb') as audio:
                     self.assertEqual((24000, 2400), (audio.getframerate(), audio.getnframes()))
-                self.assertEqual([], list(Path(client._resources.directory.name).glob('request-*')))
+                self.assertIsNone(client._resources.process)
+                self.assertIsNone(client._resources.directory)
                 self.assertEqual([], list(self.root.glob('*.pending.*')))
+
+    def test_tight_submission_budget_includes_fresh_constructor(self):
+        self.engine._external_urls = ['http://fixture/constructor-hang']
+        self.engine._external_timeout = .3
+        output = self.root / 'audio.wav'
+        with wave.open(str(output), 'wb') as audio:
+            audio.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+            audio.writeframes(b'\0\0' * 2400)
+        previous = output.read_bytes()
+        started = time.monotonic()
+        success, _output = self.render('single', 'must not predict')
+        self.assertFalse(success)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertEqual(previous, output.read_bytes())
+        self.assertFalse(any(row['event'] == 'call' for row in self.events()))
+        clients = list(self.engine._gradio_clients.values())
+        pids = {client._resources.process.pid for client in clients if client._resources.process is not None}
+        self.engine.close_external()
+        self.assertLess(time.monotonic() - started, 4)
+        self.assert_stopped(pids | {row['pid'] for row in self.events()})
+        for client in clients:
+            self.assertIsNone(client._resources.process)
+            self.assertIsNone(client._resources.directory)
 
     def test_engine_reset_stops_actual_active_sdk_and_preserves_prior_audio(self):
         self.assertTrue(self.render('single', 'warm')[0])
@@ -122,6 +148,18 @@ class ExternalEngineLifetimeTests(unittest.TestCase):
         first.failure = False
         manager.reset_engine()
         self.assertIsNone(manager.engine)
+
+    def test_completed_audio_is_not_published_when_owned_worker_cleanup_fails(self):
+        self.assertTrue(self.render('single', 'prior')[0])
+        output = self.root / 'audio.wav'
+        previous = output.read_bytes()
+        with patch('external_tts_client.stop_external_client_worker', side_effect=OSError('synthetic cleanup failure')):
+            self.assertFalse(self.render('single', 'replacement')[0])
+            self.assertEqual(previous, output.read_bytes())
+            self.assertTrue(any(client._resources.pending_cleanup for client in self.engine._gradio_clients.values()))
+        self.engine.close_external()
+        self.assert_stopped({row['pid'] for row in self.events()})
+        self.assertEqual(previous, output.read_bytes())
 
     def test_close_waits_for_worker_diagnostics_after_owned_sdk_stops(self):
         self.assertTrue(self.render('single', 'warm')[0])
@@ -192,7 +230,8 @@ class ExternalEngineLifetimeTests(unittest.TestCase):
         output = self.root / 'clone.wav'
         self.assertTrue(self.engine.generate_clone_voice('Clone speech', 'A', config, str(output)))
         client = next(iter(self.engine._gradio_clients.values()))
-        self.assertEqual([], list(Path(client._resources.directory.name).glob('request-*')))
+        self.assertIsNone(client._resources.process)
+        self.assertIsNone(client._resources.directory)
         calls = [row for row in self.events() if row['event'] == 'call']
         self.assertEqual(1, len(calls))
         self.assertEqual(reference.read_bytes().hex(), calls[0]['reference'])

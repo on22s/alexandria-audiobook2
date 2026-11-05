@@ -32,6 +32,12 @@ class Client:
             def blocked():
                 record(event='blocked-constructor');threading.Event().wait()
             self.executor.submit(blocked).result()
+    def view_api(self, return_format=None, print_info=False):
+        from external_tts_capabilities import CUSTOM_PARAMETERS, CLONE_PARAMETERS, EXPECTED_KINDS
+        return {'named_endpoints': {endpoint: {'parameters': [
+            {'parameter_name': name, 'python_type': {'type': EXPECTED_KINDS[name]}}
+            for name in names]} for endpoint, names in (
+            ('/generate_custom_voice', CUSTOM_PARAMETERS), ('/generate_voice_clone', CLONE_PARAMETERS))}}
     def predict(self,*args,**kwargs):
         self.count+=1;text=kwargs.get('text',args[2] if len(args)>2 else '')
         reference=None
