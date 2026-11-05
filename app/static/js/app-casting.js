@@ -350,6 +350,9 @@
             sampleNode.dataset.castingVisibility = 'sample';
             body.append(sampleNode);
         }
+        if (mark.notes) {
+            body.append(node('p', mark.notes, 'small mb-2 casting-note'));
+        }
         const foot = node('div', undefined, 'mt-auto');
         const count = (groups.get(getNameKey(voice.name)) || []).length;
         foot.append(button(count + ' variants', 'btn btn-sm btn-outline-secondary mb-2', () => {
@@ -358,12 +361,14 @@
             if (s.research) { s.research.clearFilters(); }
             s.variant = getNameKey(voice.name); rerender();
         }));
-        foot.append(...markControls(voice));
+        const [statusControls, notes] = markControls(voice);
+        foot.append(statusControls);
+        if (!s.research) { foot.append(notes); }
         const assignment = node('details', undefined, 'mt-2');
         assignment.dataset.castingPanel = JSON.stringify([voice.id, 'assignment']);
         assignment.append(node('summary', 'Use this voice', 'small'), castControls(voice), collectionControls(voice));
         foot.append(assignment);
-        if (s.research) { foot.append(s.research.cardMarkControls(voice)); }
+        if (s.research) { foot.append(s.research.cardMarkControls(voice, notes)); }
         body.append(foot);
         c.append(body); col.append(c);
         return col;

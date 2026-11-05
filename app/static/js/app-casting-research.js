@@ -1448,11 +1448,14 @@
             wrap.append(row);
             return wrap;
         }
-        function cardMarkControls(voice) {
+        function cardMarkControls(voice, notes) {
             const wrap = node('div', undefined, 'mt-2 border-top pt-2');
             const organization = node('details', undefined, 'mt-2');
             organization.dataset.castingPanel = JSON.stringify([voice.id, 'research']);
-            organization.append(node('summary', 'Tags & research collections', 'small'), tagEditor(voice), collectionEditor(voice));
+            const notesLabel = node('label', 'Notes', 'small d-block mt-2');
+            notesLabel.append(notes);
+            organization.append(node('summary', 'Tags, research collections & notes', 'small'),
+                tagEditor(voice), collectionEditor(voice), notesLabel);
             wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true), organization);
             return wrap;
         }
