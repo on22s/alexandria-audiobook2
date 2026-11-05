@@ -21,7 +21,7 @@ vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function show
 const bookStart=core.indexOf('let currentBookFilename =');vm.runInContext(core.slice(bookStart,core.indexOf('async function loadConfig()',bookStart)),context);
 const start=core.indexOf('let characterAliasesLoaded'),end=core.indexOf('// One-line "N changes:',start);
 assert(start>=0&&end>start);vm.runInContext(core.slice(start,end),context);
-const begin=scripts.indexOf('async function loadScript(name)'),stop=scripts.indexOf('async function deleteScript(name)',begin);
+const begin=scripts.indexOf('async function loadScript('),stop=scripts.indexOf('async function deleteScript(name)',begin);
 vm.runInContext(scripts.slice(begin,stop),context);
 async function initial(){const read=context.loadCharacterAliases(true);gets.at(-1).resolve({OLD:'ALICE'});await read;}
 const tick=()=>new Promise(setImmediate);

@@ -19,6 +19,8 @@ let workspacePreviousRunning = false;
 const workspaceTaskViews = new Map();
 let workspaceLibrarySignature = null;
 let collectionOverviewRequest = 0;
+let collectionOverviewPending = null;
+let collectionOverviewLimit = 50;
 
 function isWorkspaceVisible() {
     return currentTabName === 'home' && document.visibilityState !== 'hidden';
@@ -109,9 +111,13 @@ function collectionSelectedNames() {
         .filter(box => box.checked).map(box => box.getAttribute('data-collection-select'));
 }
 
+function isCollectionDigest(value) {
+    return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+}
+
 function isCollectionRowValid(row) {
     const stages = [row?.script, row?.review, row?.voices, row?.render];
-    const revisionValid = row && (row.revision === null || /^[0-9a-f]{64}$/.test(row.revision || ''));
+    const revisionValid = row && (row.revision === null || isCollectionDigest(row.revision));
     return !!row && typeof row.name === 'string' && typeof row.book_id === 'string'
         && typeof row.is_active === 'boolean' && typeof row.overall === 'string'
         && stages.every(stage => stage && typeof stage.status === 'string' && typeof stage.evidence === 'string')
@@ -120,9 +126,8 @@ function isCollectionRowValid(row) {
 }
 
 function isCollectionRowLoadable(row) {
-    return !!row && typeof row.revision === 'string' && /^[0-9a-f]{64}$/.test(row.revision)
-        && row.script?.script_sha256 && /^[0-9a-f]{64}$/.test(row.script.script_sha256)
-        && row.script?.status !== 'missing';
+    return !!row && isCollectionDigest(row.revision) && isCollectionDigest(row.script?.script_sha256)
+        && row.script?.status !== 'missing' && row.loadable !== false;
 }
 
 function renderCollectionOverview(rows) {
@@ -148,7 +153,7 @@ function renderCollectionOverview(rows) {
         bookTitle.textContent = row.name;
         const bookId = document.createElement('div');
         bookId.className = 'small text-muted';
-        bookId.textContent = `ID ${row.book_id}${row.is_active ? ' · active' : ''} · revision ${row.script?.script_sha256 ? row.script.script_sha256.slice(0, 12) : 'unknown'}`;
+        bookId.textContent = `ID ${row.book_id}${row.is_active ? ' · active' : ''} · revision ${isCollectionDigest(row.revision) ? row.revision.slice(0, 12) : 'unknown'}`;
         bookCell.append(bookTitle, bookId);
         const stageCell = document.createElement('td');
         stageCell.textContent = row.overall;
@@ -172,7 +177,8 @@ function renderCollectionOverview(rows) {
         open.setAttribute('data-help-key', 'openWorkspaceSavedBook');
         if (!isCollectionRowLoadable(row)) {
             open.disabled = true;
-            open.title = 'No valid revision proof for this book; show the overview again before loading.';
+            open.title = row.loadable === false ? row.script.evidence
+                : 'No valid revision proof for this book; show the overview again before loading.';
         }
         open.addEventListener('click', () => openCollectionBook(row, open));
         openCell.appendChild(open);
@@ -184,9 +190,11 @@ function renderCollectionOverview(rows) {
 }
 
 async function showCollectionOverview() {
-    const request = ++collectionOverviewRequest;
     const selectionEpoch = window._bookSelectionEpoch || 0;
     const names = collectionSelectedNames();
+    const signature = JSON.stringify([selectionEpoch, names]);
+    if (collectionOverviewPending?.signature === signature) { return null; }
+    const request = ++collectionOverviewRequest;
     const feedback = document.getElementById('workspace-collection-feedback');
     const container = document.getElementById('workspace-collection');
     container.replaceChildren();
@@ -194,11 +202,15 @@ async function showCollectionOverview() {
         feedback.textContent = 'Select at least one saved book above first.';
         return null;
     }
-    if (names.length > 50) {
-        feedback.textContent = 'Select at most 50 books for the collection overview; deselect some books and try again.';
+    if (names.length > collectionOverviewLimit) {
+        feedback.textContent = `Select at most ${collectionOverviewLimit} books for the collection overview; deselect some books and try again.`;
         return null;
     }
     feedback.textContent = 'Reading the selected books…';
+    const pending = { signature };
+    collectionOverviewPending = pending;
+    const show = document.getElementById('workspace-collection-show');
+    if (show) { show.disabled = true; }
     try {
         const rows = await API.post('/api/collection/overview', { names });
         if (request !== collectionOverviewRequest) { return null; }
@@ -219,36 +231,23 @@ async function showCollectionOverview() {
         if (request !== collectionOverviewRequest) { return null; }
         feedback.textContent = `Collection overview could not be read: ${error.message || 'request failed'}. No book was switched.`;
         return null;
+    } finally {
+        if (collectionOverviewPending === pending) {
+            collectionOverviewPending = null;
+            if (show) { show.disabled = false; }
+        }
     }
 }
 
 async function openCollectionBook(row, button) {
-    const feedback = document.getElementById('workspace-collection-feedback');
-    const selectionEpoch = window._bookSelectionEpoch || 0;
     if (!isCollectionRowLoadable(row)) {
-        feedback.textContent = 'This book has no valid revision proof. Nothing was loaded; show the overview again before loading.';
+        document.getElementById('workspace-collection-feedback').textContent =
+            row.loadable === false ? row.script.evidence
+                : 'This book has no valid revision proof. Nothing was loaded; show the overview again before loading.';
         return;
     }
-    button.disabled = true;
-    try {
-        const fresh = await API.post('/api/collection/overview', { names: [row.name] });
-        const current = Array.isArray(fresh) ? fresh.find(item => item?.name === row.name) : null;
-        if (!current || !isCollectionRowValid(current) || !isCollectionRowLoadable(current)) {
-            feedback.textContent = 'The book could not be rechecked. Nothing was loaded.';
-            return;
-        }
-        if (selectionEpoch !== (window._bookSelectionEpoch || 0) || JSON.stringify(current) !== JSON.stringify(row)) {
-            ++collectionOverviewRequest;
-            document.getElementById('workspace-collection').replaceChildren();
-            feedback.textContent = 'The book or its evidence changed since this overview was shown. Nothing was loaded. Show the overview again before loading.';
-            return;
-        }
-        await openWorkspaceSavedBook(row.name, button, current.revision);
-    } catch (error) {
-        feedback.textContent = 'The book could not be rechecked. Nothing was loaded; show the overview again before trying Load.';
-    } finally {
-        button.disabled = false;
-    }
+    // The confirmed load rechecks this proof under admission before publishing.
+    await openWorkspaceSavedBook(row.name, button, row.revision);
 }
 
 function isWorkspaceSnapshotValid(data) {
@@ -306,6 +305,9 @@ async function refreshBookWorkspace() {
         return null;
     }
     workspaceBookSnapshot = data;
+    if (Number.isSafeInteger(data.collection_overview_limit) && data.collection_overview_limit > 0) {
+        collectionOverviewLimit = data.collection_overview_limit;
+    }
     renderBookWorkspace(data);
     document.getElementById('workspace-feedback').textContent = `Book status updated at ${new Date().toLocaleTimeString()}.`;
     return data;
@@ -426,6 +428,10 @@ window.refreshWorkspaceView = function () {
     refreshWorkspaceMonitor();
 };
 window.invalidateBookWorkspace = function () {
+    ++collectionOverviewRequest;
+    document.getElementById('workspace-collection')?.replaceChildren();
+    const feedback = document.getElementById('workspace-collection-feedback');
+    if (feedback) { feedback.textContent = 'The active book changed. Show the collection overview again.'; }
     workspaceBookRequest++;
     workspaceBookSnapshot = null;
     document.getElementById('workspace-continue').disabled = true;

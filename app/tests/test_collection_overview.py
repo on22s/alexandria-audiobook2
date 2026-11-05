@@ -130,8 +130,10 @@ class CollectionOverviewTests(unittest.TestCase):
         path = self.save_book('Corrupt')
         path.write_text('{')
         before = self.files()
-        with self.assertRaises(ValueError):
-            self.overview(['Corrupt'])
+        row = self.overview(['Corrupt'])[0]
+        self.assertEqual('unavailable', row['script']['status'])
+        self.assertEqual('unknown', row['overall'])
+        self.assertFalse(row['loadable'])
         self.assertEqual(before, self.files())
 
     def _activate(self, name, path):
@@ -146,7 +148,7 @@ class CollectionOverviewTests(unittest.TestCase):
         return get_book_workspace(str(self.root), {'MP3': self.root / 'cloned_audiobook.mp3',
                                                    'M4B': self.root / 'audiobook.m4b'},
                                   get_voice_rows, self.manager.get_chunk_audio_path,
-                                  export_states=self._states)
+                                  export_states=self._states, include_input_revision=True)
 
     def test_active_cancel_restart_and_replaced_export(self):
         from book_state_transaction import get_book_operation_token
@@ -168,10 +170,15 @@ class CollectionOverviewTests(unittest.TestCase):
         output.write_bytes(b'synthetic completed export')
         self._states = {name: {} for name in TASKS}
         token = get_book_operation_token(str(self.root))
+        import hashlib
+        script_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        voice_hash = hashlib.sha256(json.dumps(READY_VOICES).encode()).hexdigest()
 
         def overview():
             return self.overview(['ActiveBook'], active_workspace=self._workspace(),
-                                 active_book_id='ActiveBook')[0]
+                                 active_saved_name='ActiveBook',
+                                 active_script_sha256=script_hash,
+                                 active_voice_sha256=voice_hash)[0]
 
         row = overview()
         self.assertTrue(row['is_active'])
@@ -185,7 +192,7 @@ class CollectionOverviewTests(unittest.TestCase):
         self.assertEqual('cancelled', row['overall'])
 
         attempt = ExportQualityAttempt(self._states['audio'], token)
-        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
                              file_version=get_export_file_version(output)))
         attempt.finish(True, 'done')
         row = overview()
@@ -217,10 +224,19 @@ class CollectionOverviewTests(unittest.TestCase):
                 response = client.post('/api/collection/overview', json={'names': ['Good']})
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual('recorded', response.json()[0]['review']['status'])
-                self.assertEqual(409, client.post(
-                    '/api/collection/overview', json={'names': ['Bad']}).status_code)
+                # One unreadable book is reported per-row; healthy rows stay
+                # intact and invalid names are still rejected.
+                bad_response = client.post('/api/collection/overview', json={'names': ['Bad', 'Good']})
+                self.assertEqual(bad_response.status_code, 200, bad_response.text)
+                rows = {row['name']: row for row in bad_response.json()}
+                self.assertEqual('unavailable', rows['Bad']['script']['status'])
+                self.assertEqual('unknown', rows['Bad']['overall'])
+                self.assertEqual('recorded', rows['Good']['review']['status'])
                 self.assertEqual(400, client.post(
                     '/api/collection/overview', json={'names': ['../escape']}).status_code)
+                workspace = client.get('/api/workspace')
+                self.assertEqual(workspace.status_code, 200, workspace.text)
+                self.assertEqual(50, workspace.json()['collection_overview_limit'])
         self.assertEqual(before, self.files())
 
 
@@ -272,7 +288,7 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
         self._states = {name: {} for name in TASKS}
         workspace = get_book_workspace(str(self.root), {'MP3': self.root / 'out.mp3'},
                                        get_voice_rows, self.manager.get_chunk_audio_path,
-                                       export_states=self._states)
+                                       export_states=self._states, include_input_revision=True)
         script_hash, voice_hash = self.active_hashes('B')
         rows = {row['name']: row for row in self.overview(
             ['A', 'B'], active_workspace=workspace, active_saved_name='B',
@@ -295,7 +311,7 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
         self._states = {name: {} for name in TASKS}
         workspace = get_book_workspace(str(self.root), {'MP3': self.root / 'out.mp3'},
                                        get_voice_rows, self.manager.get_chunk_audio_path,
-                                       export_states=self._states)
+                                       export_states=self._states, include_input_revision=True)
         script_hash, voice_hash = self.active_hashes('ActiveBook')
         # Mutate the active copy after the snapshot was taken.
         (self.root / 'annotated_script.json').write_text(
@@ -444,7 +460,7 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
         self._states = {name: {} for name in TASKS}
         workspace = get_book_workspace(str(self.root), {'MP3': self.root / 'out.mp3'},
                                        get_voice_rows, self.manager.get_chunk_audio_path,
-                                       export_states=self._states)
+                                       export_states=self._states, include_input_revision=True)
         script_hash, voice_hash = self.active_hashes('ActiveAudio')
         row = self.overview(['ActiveAudio'], active_workspace=workspace,
                             active_saved_name='ActiveAudio',
@@ -456,7 +472,7 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
         (self.root / 'chunks.json').write_text('{')
         workspace = get_book_workspace(str(self.root), {'MP3': self.root / 'out.mp3'},
                                        get_voice_rows, self.manager.get_chunk_audio_path,
-                                       export_states=self._states)
+                                       export_states=self._states, include_input_revision=True)
         row = self.overview(['ActiveAudio'], active_workspace=workspace,
                             active_saved_name='ActiveAudio',
                             active_script_sha256=script_hash,
@@ -493,7 +509,7 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
             from book_workspace import get_book_workspace
             workspace = get_book_workspace(str(self.root), {'MP3': output, 'M4B': self.root / 'out.m4b'},
                                            get_voice_rows, self.manager.get_chunk_audio_path,
-                                           export_states=self._states)
+                                           export_states=self._states, include_input_revision=True)
             script_hash, voice_hash = self.active_hashes('ActiveExport')
             return self.overview(['ActiveExport'], active_workspace=workspace,
                                  active_saved_name='ActiveExport',
@@ -539,8 +555,10 @@ class CollectionOverviewEvidenceTests(unittest.TestCase):
         import collection_overview
         self.save_book('Oversize')
         with patch.object(collection_overview, 'MAX_SCRIPT_BYTES', 10):
-            with self.assertRaises(ValueError):
-                self.overview(['Oversize'])
+            row = self.overview(['Oversize'])[0]
+            self.assertEqual('unavailable', row['script']['status'])
+            self.assertEqual('unknown', row['overall'])
+            self.assertFalse(row['loadable'])
 
     def test_real_active_route_and_load_proof(self):
         from collection_overview import compute_saved_book_revision
@@ -651,7 +669,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
         workspace = get_book_workspace(
             str(self.root),
             {'MP3': self.root / 'cloned_audiobook.mp3', 'M4B': self.root / 'audiobook.m4b'},
-            get_voice_rows, self.manager.get_chunk_audio_path, export_states=self._states)
+            get_voice_rows, self.manager.get_chunk_audio_path, export_states=self._states, include_input_revision=True)
         script_hash = hashlib.sha256((self.library / f'{name}.json').read_bytes()).hexdigest()
         voice_path = self.library / f'{name}.voice_config.json'
         voice_hash = hashlib.sha256(voice_path.read_bytes()).hexdigest() if voice_path.exists() else None
@@ -697,7 +715,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
         with patch.object(editor, 'DATA_DIR', str(self.root)), \
                 patch.object(editor, 'SCRIPT_PATH', str(self.root / 'annotated_script.json')):
             attempt = editor.get_export_quality_attempt(None, self._states['audio'])
-            attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+            attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
                                  file_version=get_export_file_version(output)))
             attempt.finish(True, 'done')
         return output
@@ -771,7 +789,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
                 with patch.object(editor, 'DATA_DIR', str(root)), \
                         patch.object(editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')):
                     attempt = editor.get_export_quality_attempt(None, states['audio'])
-                    attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+                    attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
                                          file_version=get_export_file_version(output)))
                     attempt.finish(True, 'done')
                 # Mutate the chosen input.
@@ -803,7 +821,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
                     str(root),
                     {'MP3': root / 'cloned_audiobook.mp3', 'M4B': root / 'audiobook.m4b'},
                     get_voice_rows, ProjectManager(str(root)).get_chunk_audio_path,
-                    export_states=states)
+                    export_states=states, include_input_revision=True)
                 row = get_collection_overview(
                     str(library), ['Whole'], get_voice_rows, active_workspace=workspace,
                     active_saved_name='Whole',
@@ -829,7 +847,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
         self._states = {task_name: {} for task_name in TASKS}
         token = get_book_operation_token(str(self.root))
         attempt = ExportQualityAttempt(self._states['audio'], token)
-        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
                              file_version=get_export_file_version(output)))
         attempt.finish(True, 'done')
         row = self._active_row('Whole')
@@ -853,7 +871,7 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
         attempt = ExportQualityAttempt(self._states['audio'], token,
                                        data_dir=str(self.root), capture=broken)
         self.assertEqual('unavailable', attempt.attempt['input_binding'])
-        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
                              file_version=get_export_file_version(output)))
         attempt.finish(True, 'done')
         report = self._states['audio']['export_quality_reports'][0]
@@ -969,6 +987,250 @@ class CollectionOverviewCompletionTests(unittest.TestCase):
         after = {str(p.relative_to(self.root)): p.read_bytes()
                  for p in self.root.rglob('*') if p.is_file() and not p.name.endswith('.lock')}
         self.assertEqual(before, after)
+
+
+class CollectionOverviewBackendRepairTests(unittest.TestCase):
+    """Repair regressions: skipped chunks, generation misclassified, late
+    review, partial audio visibility, lock-safe publication (e-2/b-1/e-1/
+    a-5/a-4/b-6/e-8)."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.library = self.root / 'scripts'
+        self.library.mkdir()
+        self.manager = ProjectManager(str(self.root))
+
+    def save_book(self, name, entries=ENTRIES, voices=READY_VOICES, book_id=None):
+        path = self.library / f'{name}.json'
+        path.write_text(json.dumps(entries))
+        (self.library / f'{name}.meta.json').write_text(json.dumps({'book_id': book_id or name}))
+        if voices is not None:
+            (self.library / f'{name}.voice_config.json').write_text(json.dumps(voices))
+        return path
+
+    def complete_review(self, path, entries=ENTRIES):
+        digest = get_review_entries_fingerprint(entries)
+        save_completed_review_receipt(str(path), str(path), digest, digest, 'synthetic-settings')
+
+    def overview(self, names, **kwargs):
+        return get_collection_overview(str(self.library), names, get_voice_rows, **kwargs)
+
+    # --- e-2: skipped-chunk false completion ---
+    def test_skipped_chunks_receipt_cannot_complete(self):
+        from book_state_transaction import get_book_operation_token
+        from export_quality import get_export_file_version
+        from export_quality_session import ExportQualityAttempt, TASKS
+        from routers import editor
+        path = self.save_book('SkipCheck')
+        self.complete_review(path)
+        (self.root / 'state.json').write_text(json.dumps({
+            'active_book_id': 'SkipCheck', 'book_generation': 'one',
+            'input_file_path': str(path)}))
+        (self.root / 'annotated_script.json').write_bytes(path.read_bytes())
+        (self.root / 'voice_config.json').write_text(json.dumps(READY_VOICES))
+        (self.root / 'one.wav').write_bytes(b'synthetic audio')
+        (self.root / 'chunks.json').write_text(json.dumps(
+            [{'uid': 'one', 'id': 0, 'status': 'done', 'text': 'Synthetic line.',
+              'speaker': 'ALICE', 'instruct': '', 'audio_revision': 'take',
+              'audio_path': 'one.wav'}]))
+        from chunk_status_journal import ChunkStatusJournal
+        ChunkStatusJournal(self.root / 'chunks.json',
+                           {'active_book_id': 'SkipCheck', 'book_generation': 'one'}).apply_update(
+            'one', {'status': 'done', 'audio_path': 'one.wav'})
+        output = self.root / 'cloned_audiobook.mp3'
+        output.write_bytes(b'synthetic completed export')
+        states = {task_name: {} for task_name in TASKS}
+        with patch.object(editor, 'DATA_DIR', str(self.root)), \
+                patch.object(editor, 'SCRIPT_PATH', str(self.root / 'annotated_script.json')):
+            attempt = editor.get_export_quality_attempt(None, states['audio'])
+            attempt.publish(dict(status='verified', file='cloned_audiobook.mp3',
+                                 skipped_chunks=1,
+                                 file_version=get_export_file_version(output)))
+            attempt.finish(True, 'done')
+        import hashlib
+        from book_workspace import get_book_workspace
+        workspace = get_book_workspace(str(self.root),
+                                       {'MP3': output, 'M4B': self.root / 'audiobook.m4b'},
+                                       get_voice_rows, self.manager.get_chunk_audio_path,
+                                       export_states=states, include_input_revision=True)
+        row = self.overview(['SkipCheck'], active_workspace=workspace,
+                            active_saved_name='SkipCheck',
+                            active_script_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                            active_voice_sha256=hashlib.sha256(
+                                (self.library / 'SkipCheck.voice_config.json').read_bytes()).hexdigest())[0]
+        self.assertNotEqual('complete', row['render']['status'])
+        self.assertNotEqual('completed', row['overall'])
+
+    # --- b-1/e-1: generation classification ---
+    def test_completed_generation_manifest_is_available(self):
+        import hashlib
+        path = self.save_book('GenDone')
+        self.complete_review(path)
+        script_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        (self.library / 'GenDone.json.generation_quality.json').write_text(json.dumps(
+            {'status': 'complete', 'completion_artifact': {'version': 1, 'output_sha256': script_sha}}))
+        row = self.overview(['GenDone'])[0]
+        self.assertEqual('available', row['script']['status'])
+
+    def test_script_changed_after_completed_generation_is_not_unfinished(self):
+        # review_script publishes new bytes and a receipt but leaves the
+        # generation manifest bound to the bytes generation wrote.
+        reviewed = self.save_book('Reviewed')
+        self.complete_review(reviewed)
+        edited = self.save_book('Edited')
+        unfinished = self.save_book('Unfinished')
+        self.complete_review(unfinished)
+        manifest = json.dumps({'status': 'complete', 'completion_artifact': {
+            'version': 1, 'output_sha256': 'f' * 64}})
+        for name in ('Reviewed', 'Edited', 'Unfinished'):
+            (self.library / f'{name}.json.generation_quality.json').write_text(manifest)
+        (self.library / 'Unfinished.json.generation_checkpoint.json').write_text('{}')
+        rows = {row['name']: row for row in self.overview(['Reviewed', 'Edited', 'Unfinished'])}
+        self.assertEqual('available', rows['Reviewed']['script']['status'])
+        self.assertIn('changed after', rows['Reviewed']['script']['evidence'])
+        self.assertEqual('ready_for_audio', rows['Reviewed']['overall'])
+        # No review receipt covers the edit, so it still cannot look ready.
+        self.assertEqual('available', rows['Edited']['script']['status'])
+        self.assertNotEqual('ready_for_audio', rows['Edited']['overall'])
+        # A live checkpoint still outranks the older completed manifest.
+        self.assertEqual('incomplete', rows['Unfinished']['script']['status'])
+
+    def test_failed_generation_quality_is_failed_and_unreadable_is_unavailable(self):
+        self.save_book('GenFailed')
+        (self.library / 'GenFailed.json.generation_quality.json').write_text(
+            json.dumps({'status': 'failed'}))
+        self.save_book('GenCorrupt')
+        (self.library / 'GenCorrupt.json.generation_quality.json').write_text('{')
+        rows = {row['name']: row for row in self.overview(['GenFailed', 'GenCorrupt'])}
+        self.assertEqual('failed', rows['GenFailed']['script']['status'])
+        self.assertEqual('failed', rows['GenFailed']['overall'])
+        self.assertEqual('unavailable', rows['GenCorrupt']['script']['status'])
+        self.assertEqual('unknown', rows['GenCorrupt']['overall'])
+
+    def test_threepass_done_with_complete_manifest_is_available(self):
+        path = self.save_book('ThreeDone')
+        self.complete_review(path)
+        (self.library / 'ThreeDone.json.threepass_manifest.json').write_text(
+            json.dumps({'status': 'complete'}))
+        (self.library / 'ThreeDone.json.threepass_checkpoint.json').write_text(
+            json.dumps({'fingerprint': 'x', 'stage': 'done', 'chunks_done': 1}))
+        row = self.overview(['ThreeDone'])[0]
+        self.assertEqual('available', row['script']['status'])
+        # A non-done stage stays incomplete.
+        (self.library / 'ThreeDone.json.threepass_checkpoint.json').write_text(
+            json.dumps({'fingerprint': 'x', 'stage': 'segment', 'chunks_done': 0}))
+        self.assertEqual('incomplete', self.overview(['ThreeDone'])[0]['script']['status'])
+
+    def test_finished_checkpoint_requires_complete_unambiguous_json(self):
+        self.save_book('StrictDone')
+        (self.library / 'StrictDone.json.threepass_manifest.json').write_text(
+            json.dumps({'status': 'complete'}))
+        checkpoint = self.library / 'StrictDone.json.threepass_checkpoint.json'
+        for raw in ('{"fingerprint":"x","stage":"done",',
+                    '{"fingerprint":{"stage":"done"},"stage":"attribute"}',
+                    '{"stage":"done","stage":"attribute"}'):
+            with self.subTest(raw=raw):
+                checkpoint.write_text(raw)
+                self.assertEqual('incomplete', self.overview(['StrictDone'])[0]['script']['status'])
+        checkpoint.write_text(json.dumps({'stage': 'done'}))
+        legacy = self.library / 'StrictDone.threepass_checkpoint.json'
+        legacy.write_text(json.dumps({'stage': 'attribute'}))
+        self.assertEqual('incomplete', self.overview(['StrictDone'])[0]['script']['status'])
+        legacy.unlink()
+        # An indexed base is not the final compact document and can have later deltas.
+        checkpoint.write_text(json.dumps({'storage': 'indexed-checkpoint-deltas-v1', 'base': {'stage': 'done'}}))
+        self.assertEqual('incomplete', self.overview(['StrictDone'])[0]['script']['status'])
+
+    # --- a-5: later full-output review blocks older verified complete ---
+    def test_later_review_receipt_blocks_completed(self):
+        from export_quality import get_export_file_version
+        from export_quality_session import ExportQualityAttempt, TASKS
+        from routers import editor
+        path = self.save_book('LateReview')
+        self.complete_review(path)
+        (self.root / 'state.json').write_text(json.dumps({
+            'active_book_id': 'LateReview', 'book_generation': 'one',
+            'input_file_path': str(path)}))
+        (self.root / 'annotated_script.json').write_bytes(path.read_bytes())
+        (self.root / 'voice_config.json').write_text(json.dumps(READY_VOICES))
+        (self.root / 'one.wav').write_bytes(b'synthetic audio')
+        (self.root / 'chunks.json').write_text(json.dumps(
+            [{'uid': 'one', 'id': 0, 'status': 'done', 'text': 'Synthetic line.',
+              'speaker': 'ALICE', 'instruct': '', 'audio_revision': 'take',
+              'audio_path': 'one.wav'}]))
+        from chunk_status_journal import ChunkStatusJournal
+        ChunkStatusJournal(self.root / 'chunks.json',
+                           {'active_book_id': 'LateReview', 'book_generation': 'one'}).apply_update(
+            'one', {'status': 'done', 'audio_path': 'one.wav'})
+        output = self.root / 'cloned_audiobook.mp3'
+        output.write_bytes(b'synthetic completed export')
+        m4b = self.root / 'audiobook.m4b'
+        m4b.write_bytes(b'synthetic m4b export')
+        states = {task_name: {} for task_name in TASKS}
+        with patch.object(editor, 'DATA_DIR', str(self.root)), \
+                patch.object(editor, 'SCRIPT_PATH', str(self.root / 'annotated_script.json')):
+            first = editor.get_export_quality_attempt(None, states['audio'])
+            first.publish(dict(status='verified', file='cloned_audiobook.mp3',
+                               skipped_chunks=0,
+                               file_version=get_export_file_version(output)))
+            first.finish(True, 'done')
+            second = editor.get_export_quality_attempt(None, states['m4b_export'])
+            second.publish(dict(status='review', file='audiobook.m4b',
+                                skipped_chunks=0,
+                                file_version=get_export_file_version(m4b)))
+            second.finish(True, 'done')
+        import hashlib
+        from book_workspace import get_book_workspace
+        workspace = get_book_workspace(str(self.root),
+                                       {'MP3': output, 'M4B': m4b},
+                                       get_voice_rows, self.manager.get_chunk_audio_path,
+                                       export_states=states, include_input_revision=True)
+        row = self.overview(['LateReview'], active_workspace=workspace,
+                            active_saved_name='LateReview',
+                            active_script_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                            active_voice_sha256=hashlib.sha256(
+                                (self.library / 'LateReview.voice_config.json').read_bytes()).hexdigest())[0]
+        self.assertNotEqual('complete', row['render']['status'])
+        self.assertNotEqual('completed', row['overall'])
+
+    # --- b-6/e-8: start capture failure then publish success stays unavailable ---
+    def test_start_capture_failure_then_publish_success_stays_unavailable(self):
+        from book_state_transaction import get_book_operation_token
+        from export_quality import get_export_file_version
+        from export_quality_session import ExportQualityAttempt, TASKS
+        path = self.save_book('LateCapture')
+        self.complete_review(path)
+        (self.root / 'state.json').write_text(json.dumps({
+            'active_book_id': 'LateCapture', 'book_generation': 'one',
+            'input_file_path': str(path)}))
+        (self.root / 'annotated_script.json').write_bytes(path.read_bytes())
+        (self.root / 'voice_config.json').write_text(json.dumps(READY_VOICES))
+        output = self.root / 'cloned_audiobook.mp3'
+        output.write_bytes(b'synthetic completed export')
+        states = {task_name: {} for task_name in TASKS}
+        token = get_book_operation_token(str(self.root))
+        calls = []
+
+        def flaky(relative, limit, include_bytes):
+            from project_scope_files import capture_scope_file
+            calls.append(relative)
+            if len(calls) <= 4:
+                raise ValueError('synthetic first-capture failure')
+            return capture_scope_file(str(self.root), relative, limit=limit,
+                                      include_bytes=include_bytes)
+
+        attempt = ExportQualityAttempt(states['audio'], token,
+                                       data_dir=str(self.root), capture=flaky)
+        self.assertEqual('unavailable', attempt.attempt['input_binding'])
+        attempt.publish(dict(status='verified', file='cloned_audiobook.mp3', skipped_chunks=0,
+                             file_version=get_export_file_version(output)))
+        attempt.finish(True, 'done')
+        report = states['audio']['export_quality_reports'][0]
+        self.assertEqual('unavailable', report['input_binding'])
+        self.assertIsNone(report['input_revision'])
+        self.assertEqual('unknown', report['source_scope'])
 
 
 if __name__ == '__main__':

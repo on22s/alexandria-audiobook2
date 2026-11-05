@@ -3,8 +3,8 @@
 The caller holds the book operation lock. Opening this view must not create
 chunks, repair corrupt data, generate audio or certify unbound output files.
 """
-import hashlib
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 
@@ -15,6 +15,8 @@ from editor_review_facts import get_editor_review_facts
 from export_quality_session import get_export_input_revision, get_session_evidence
 from project_scope_exports import is_scope_export_historical
 from script_recovery_facts import get_saved_script_recovery_manifest, three_pass_manifest_path
+
+logger = logging.getLogger('AlexandriaUI')
 
 
 def _get_audio_review(chunks, get_audio_path, book_token, voices):
@@ -37,7 +39,7 @@ def _get_audio_review(chunks, get_audio_path, book_token, voices):
             'unknown_speakers': sum('unknown' in row['issues'] for row in facts)}
 
 
-def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *, export_states=None):
+def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *, export_states=None, include_input_revision=False):
     root = Path(data_dir)
     book_token = get_book_operation_token(data_dir)
     snapshot = get_book_snapshot(data_dir, allow_missing_script=True)
@@ -96,16 +98,28 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
                      'current_input_revision': None, 'source_scope': 'unknown'}
     if export_states is not None:
         evidence = get_session_evidence(str(root), export_states, book_token)
-        # Current input revision under the caller's book lock. Unknown
+        # Current input revision under the caller's book lock. This capture
+        # hashes the full input set, so it is opt-in (efficiency-5): only
+        # the collection overview needs it; the regular workspace view keeps
+        # None/unknown so Home refreshes never pay the capture. Unknown
         # capture stays None/unknown so old receipts remain historical.
         current_revision, current_scope = None, 'unknown'
-        try:
-            info = get_export_input_revision(str(root), book_token)
-            if isinstance(info, dict):
-                current_revision = info.get('revision')
-                current_scope = info.get('scope', 'unknown') if info.get('revision') is not None else 'unknown'
-        except Exception:
-            current_revision, current_scope = None, 'unknown'
+        input_hashes = {'script': None, 'voice': None}
+        if include_input_revision:
+            try:
+                info = get_export_input_revision(str(root), book_token)
+                if isinstance(info, dict):
+                    current_revision = info.get('revision')
+                    current_scope = info.get('scope', 'unknown') if info.get('revision') is not None else 'unknown'
+                    script_sha = info.get('script_sha256')
+                    voice_sha = info.get('voice_sha256')
+                    input_hashes = {
+                        'script': script_sha if isinstance(script_sha, str) else None,
+                        'voice': voice_sha if isinstance(voice_sha, str) else None,
+                    }
+            except Exception:
+                logger.warning('Book workspace input revision capture failed', exc_info=True)
+                current_revision, current_scope = None, 'unknown'
         export_review = {
             'status': 'observed', 'identity_check': evidence['identity_check'],
             'history_scope': evidence['history_scope'],
@@ -114,8 +128,7 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
             'unavailable': evidence['unavailable'],
             'failed_attempts': len(evidence['rejected_attempts']),
             'running': sum(row.get('status') == 'running' for row in evidence['attempts']),
-            'attempt_statuses': [row.get('status') for row in evidence['attempts']],
-            # Retain per-task timing so the overview can order attempts
+            # Per-task timing is retained so the overview can order attempts
             # chronologically instead of by fixed task order.
             'attempts': [{'task': row.get('task'), 'status': row.get('status'),
                           'started_at': row.get('started_at'),
@@ -128,9 +141,11 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
                          'input_revision': row.get('input_revision'),
                          'input_binding': row.get('input_binding'),
                          'attempt_started_at': row.get('attempt_started_at'),
+                         'skipped_chunks': row.get('skipped_chunks'),
                          'source_scope': row.get('source_scope')}
                         for row in evidence['reports']],
             'current_input_revision': current_revision,
+            'input_hashes': input_hashes,
             'source_scope': current_scope,
             # A selected-book token survives edits inside that book. These
             # receipts describe completed checks, not current script/voice proof.
@@ -161,10 +176,7 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
     return {'book_token': book_token, 'name': name or ('Current book (unnamed)' if entries else 'No book selected'),
             'script': {'status': 'available' if entries else 'not_started', 'entries': len(entries),
                        'recovery': script_recovery,
-                       'sha256': hashlib.sha256(raw).hexdigest() if raw is not None else None},
+                       'sha256': snapshot['script_sha256']},
             'cast': {'total': len(voice_rows), 'pending': pending},
-            'voice_sha256': hashlib.sha256(json.dumps(
-                snapshot['voices'], sort_keys=True, ensure_ascii=False,
-                separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest(),
             'audio': audio,
             'outputs': outputs, 'export_review': export_review, 'next': next_step}

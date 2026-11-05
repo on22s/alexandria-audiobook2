@@ -97,24 +97,22 @@ class CollectionOverviewJsTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
-    def test_stale_row_load_is_refused_after_revision_change(self):
+    def test_load_uses_displayed_proof_without_repeating_overview(self):
         self.run_js(r'''
 (async()=>{
  await context.refreshBookWorkspace();
  const boxes=[...elements('workspace-library').querySelectorAll('input[data-collection-select]')];
  boxes[0].checked=true;
- responses['POST /api/collection/overview']=[crow('Alpha','a'.repeat(64))];
+ const row=crow('Alpha','a'.repeat(64));row.revision='b'.repeat(64);
+ responses['POST /api/collection/overview']=[row];
  await context.showCollectionOverview();
- const open=elements('workspace-collection').querySelectorAll('tbody')[0].children[0].children[4].children[0];
+ const cells=elements('workspace-collection').querySelectorAll('tbody')[0].children[0].children;
+ assert(cells[0].children[1].textContent.includes('revision bbbbbbbbbbbb'));
+ const calls=[];context.loadScript=async(name,revision)=>calls.push([name,revision]);
  const before=posts.length;
- responses['POST /api/collection/overview']=[crow('Alpha','c'.repeat(64))];
- await context.openCollectionBook(crow('Alpha','a'.repeat(64)),open);
- assert(!requests.some(p=>p.startsWith('confirmed-loader')));
- assert(elements('workspace-collection-feedback').textContent.includes('changed since'));
- // With a matching fresh revision, the existing confirmed loader is used.
- responses['POST /api/collection/overview']=[crow('Alpha','a'.repeat(64))];
- await context.openCollectionBook(crow('Alpha','a'.repeat(64)),open);
- assert(requests.includes('confirmed-loader:Alpha'));
+ await context.openCollectionBook(row,cells[4].children[0]);
+ assert.equal(posts.length,before,'load must use server admission without another overview scan');
+ assert.equal(JSON.stringify(calls),JSON.stringify([['Alpha','b'.repeat(64)]]));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
@@ -269,5 +267,63 @@ class CollectionOverviewJsTests(unittest.TestCase):
  assert(cells[0].children[2].children[0].children[3].textContent.includes('Render/export: unknown'));
  assert.equal(cells[1].children[1].textContent,'completed');
  assert(cells[1].children[2].children[0].children[3].textContent.includes('Render/export: complete'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_duplicate_show_does_not_repeat_pending_scan(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshBookWorkspace();
+ [...elements('workspace-library').querySelectorAll('input[data-collection-select]')][0].checked=true;
+ let release;responses['POST /api/collection/overview']=()=>new Promise(resolve=>{release=resolve;});
+ const first=context.showCollectionOverview();
+ assert.equal(elements('workspace-collection-show').disabled,true);
+ await context.showCollectionOverview();assert.equal(posts.length,1);
+ release([crow('Alpha','a'.repeat(64))]);await first;
+ assert.equal(elements('workspace-collection-show').disabled,false);
+ assert.equal(elements('workspace-collection').querySelectorAll('tbody')[0].children.length,1);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_binding_refusal_disables_load_with_explanation(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshBookWorkspace();
+ const row=crow('Alpha','a'.repeat(64));row.loadable=false;
+ row.script.status='unavailable';row.script.evidence='Saved selection binding does not match.';
+ context.renderCollectionOverview([row]);
+ const button=elements('workspace-collection').querySelectorAll('tbody')[0].children[0].children[4].children[0];
+ assert.equal(button.disabled,true);assert.equal(button.title,row.script.evidence);
+ await context.openCollectionBook(row,button);
+ assert(!requests.some(p=>p.startsWith('confirmed-loader')));
+ // Unavailable generation evidence alone must not prevent ordinary loading.
+ row.loadable=true;assert.equal(context.isCollectionRowLoadable(row),true);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_book_invalidation_clears_rows_and_rejects_inflight_reply(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshBookWorkspace();
+ [...elements('workspace-library').querySelectorAll('input[data-collection-select]')][0].checked=true;
+ let release;responses['POST /api/collection/overview']=()=>new Promise(resolve=>{release=resolve;});
+ context.renderCollectionOverview([crow('Alpha','a'.repeat(64))]);
+ const pending=context.showCollectionOverview();
+ context.invalidateBookWorkspace();
+ assert.equal(elements('workspace-collection').children.length,0);
+ release([crow('Alpha','a'.repeat(64))]);await pending;
+ assert.equal(elements('workspace-collection').children.length,0);
+ assert(elements('workspace-collection-feedback').textContent.includes('active book changed'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_server_selection_limit_is_used(self):
+        self.run_js(r'''
+(async()=>{
+ responses['/api/workspace']={...snapshot(),collection_overview_limit:1};
+ await context.refreshBookWorkspace();
+ [...elements('workspace-library').querySelectorAll('input[data-collection-select]')].forEach(box=>{box.checked=true;});
+ await context.showCollectionOverview();assert.equal(posts.length,0);
+ assert(elements('workspace-collection-feedback').textContent.includes('at most 1'));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')

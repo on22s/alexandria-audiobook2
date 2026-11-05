@@ -35,7 +35,7 @@ el('existing-upload-select').value='Book.One.txt';await ctx.selectExistingScript
 el('upload-status').innerHTML='<span>Unrelated restyled status</span>';assert.strictEqual(ctx._keepCastName(),'Book.One');
 selectedFilename='Book.Two.txt';el('file-upload').files=[{}];await handlers['file-upload:change']();assert.strictEqual(ctx._keepCastName(),'Book.Two');
 refuse=true;await ctx.selectExistingScriptUpload();assert.strictEqual(ctx._keepCastName(),'Book.Two');refuse=false;
-const a=scripts.indexOf('async function loadScript(name)'),b=scripts.indexOf('async function deleteScript(name)',a);run(scripts.slice(a,b));ctx.API.post=async()=>({status:'loaded',name:'Saga.vol.2'});await ctx.loadScript('Saga.vol.2');assert.strictEqual(ctx._keepCastName(),'Saga.vol.2');
+const a=scripts.indexOf('async function loadScript('),b=scripts.indexOf('async function deleteScript(name)',a);run(scripts.slice(a,b));ctx.API.post=async()=>({status:'loaded',name:'Saga.vol.2'});await ctx.loadScript('Saga.vol.2');assert.strictEqual(ctx._keepCastName(),'Saga.vol.2');
 ctx.window._selectedCast='Explicit cast';assert.strictEqual(ctx._keepCastName(),'Explicit cast');
 ''')
 

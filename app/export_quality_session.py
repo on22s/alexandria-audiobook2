@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 from itertools import islice
+import logging
 import math
 import os
 import stat
@@ -10,7 +11,10 @@ from pathlib import Path
 import time
 
 from export_quality import MAX_DIAGNOSTICS, get_export_file_version
+from project_scope_files import MAX_SCRIPT_BYTES
+from script_selection_binding import BINDING_NAME, MAX_BINDING_BYTES
 
+logger = logging.getLogger('AlexandriaUI')
 REPORT_LIMIT = 32
 REJECTION_LIMIT = 16
 TASKS = ('audio', 'm4b_export', 'chapter_export', 'audacity_export')
@@ -23,7 +27,7 @@ FIELDS = ('version', 'status', 'stage', 'reason', 'format', 'expected_format',
     'unexpected_silence_ranges', 'longest_unexpected_silence', 'diagnostics',
     'diagnostics_abbreviated', 'chapters_checked', 'tags_checked', 'tracks_checked',
     'members_checked', 'track_summaries', 'track_summaries_abbreviated', 'seconds', 'member',
-    'input_revision', 'input_binding', 'attempt_started_at', 'source_scope')
+    'input_revision', 'input_binding', 'attempt_started_at', 'source_scope', 'skipped_chunks')
 
 
 def _bounded(value, depth=0):
@@ -45,9 +49,10 @@ def get_report_summary(report):
     return {key: _bounded(report[key]) for key in FIELDS if key in report}
 
 
-_MAX_INPUT_TAKES = 4096
+# One take entry per chunk row; the row cap below is the coherent bound.
+_MAX_INPUT_TAKES = 10000
 _MAX_INPUT_ROWS = 10000
-_MAX_SCRIPT_CAPTURE = 512 * 1024**2
+_MAX_SCRIPT_CAPTURE = MAX_SCRIPT_BYTES
 _MAX_METADATA_CAPTURE = 64 * 1024**2
 
 
@@ -55,10 +60,11 @@ def get_export_input_revision(root, book_token, capture=None):
     """Pure read: bound the active input revision without decoding audio.
 
     Returns ``{'revision': hex|None, 'scope': 'full'|'scoped'|'unknown',
-    'scope_sha256': hex|None, 'reason': str}``. ``revision is None`` is
-    explicit unbound evidence (caller must never certify current input from
-    it); this helper never raises for capture/parsing failure and never
-    weakens export validation. The caller holds the existing book lock.
+    'scope_sha256': hex|None, 'reason': str, 'script_sha256': hex|None,
+    'voice_sha256': hex|None}``. ``revision is None`` is explicit unbound
+    evidence (caller must never certify current input from it); this helper
+    never raises for capture/parsing failure and never weakens export
+    validation. The caller holds the existing book lock.
 
     ``capture`` is an optional constructor-boundary callback
     ``capture(relative, limit, include_bytes) -> (info, raw)`` with the same
@@ -69,8 +75,12 @@ def get_export_input_revision(root, book_token, capture=None):
     metadata only — no opening, decoding or hashing of take audio, and no
     full output rehash. Metadata identity does not prove content if an edit
     preserves all metadata; that limit is disclosed in overview evidence.
+    The component ``script_sha256``/``voice_sha256`` digests are the already
+    captured fenced raw-byte hashes, exposed so callers need not re-read
+    and re-hash the active script/voice (efficiency-4).
     """
     unavailable = {'revision': None, 'scope': 'unknown', 'scope_sha256': None,
+                   'script_sha256': None, 'voice_sha256': None,
                    'reason': 'Input revision could not be captured; treat export evidence as unbound.'}
     if not isinstance(book_token, str) or not book_token or root is None:
         return unavailable
@@ -122,7 +132,7 @@ def get_export_input_revision(root, book_token, capture=None):
 
     script_sha = _file_sha('annotated_script.json', _MAX_SCRIPT_CAPTURE)
     voice_sha = _file_sha('voice_config.json', _MAX_SCRIPT_CAPTURE)
-    binding_sha = _file_sha('annotated_script.selection_binding.json', 4096)
+    binding_sha = _file_sha(BINDING_NAME, MAX_BINDING_BYTES)
     if script_sha is None or any(value == 'unavailable' for value in (script_sha, voice_sha, binding_sha)):
         return unavailable
     try:
@@ -150,27 +160,28 @@ def get_export_input_revision(root, book_token, capture=None):
 
     takes = []
     try:
+        from audio_take_history import _version
+        root_real = os.path.realpath(root_path)
         for row in rows:
             audio_path = row.get('audio_path')
             if not isinstance(audio_path, str) or not audio_path:
-                takes.append([None, None])
-                continue
-            if ('\\' in audio_path or '\0' in audio_path
+                entry = [None, None]
+            elif ('\\' in audio_path or '\0' in audio_path
                     or Path(audio_path).is_absolute() or '..' in Path(audio_path).parts):
-                takes.append([audio_path, None])
-                continue
-            candidate = root_path / audio_path
-            try:
-                info = os.lstat(candidate)
-                if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
-                    takes.append([audio_path, None])
-                elif os.path.commonpath((os.path.realpath(root_path), os.path.realpath(candidate))) != os.path.realpath(root_path):
-                    takes.append([audio_path, None])
-                else:
-                    takes.append([audio_path, [info.st_dev, info.st_ino, info.st_size,
-                                                info.st_mtime_ns, info.st_ctime_ns]])
-            except OSError:
-                takes.append([audio_path, None])
+                entry = [audio_path, None]
+            else:
+                candidate = root_path / audio_path
+                try:
+                    info = os.lstat(candidate)
+                    if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                        entry = [audio_path, None]
+                    elif os.path.commonpath((root_real, os.path.realpath(candidate))) != root_real:
+                        entry = [audio_path, None]
+                    else:
+                        entry = [audio_path, list(_version(info))]
+                except OSError:
+                    entry = [audio_path, None]
+            takes.append(entry)
             if len(takes) > _MAX_INPUT_TAKES:
                 return unavailable
     except (OSError, ValueError, TypeError, RecursionError):
@@ -189,7 +200,9 @@ def get_export_input_revision(root, book_token, capture=None):
     except (TypeError, ValueError):
         return unavailable
     return {'revision': hashlib.sha256(raw).hexdigest(), 'scope': scope,
-            'scope_sha256': scope_sha, 'reason': ''}
+            'scope_sha256': scope_sha, 'reason': '',
+            'script_sha256': script_sha if isinstance(script_sha, str) else None,
+            'voice_sha256': voice_sha if isinstance(voice_sha, str) else None}
 
 
 class ExportQualityAttempt:
@@ -200,18 +213,18 @@ class ExportQualityAttempt:
         self.data_dir, self.capture = data_dir, capture
         started_at = time.time()
         self.started_at = started_at
-        self.start_info = None
         self.start_revision = None
         input_binding, source_scope = 'unbound', 'unknown'
         if data_dir is not None:
             try:
-                self.start_info = get_export_input_revision(data_dir, book_token, capture)
+                info = get_export_input_revision(data_dir, book_token, capture)
             except Exception:
-                self.start_info = None
-            if self.start_info is not None and self.start_info.get('revision') is not None:
-                self.start_revision = self.start_info['revision']
+                logger.warning('Export input revision capture failed', exc_info=True)
+                info = None
+            if info is not None and info.get('revision') is not None:
+                self.start_revision = info['revision']
                 input_binding = 'current'
-                source_scope = self.start_info.get('scope', 'unknown')
+                source_scope = info.get('scope', 'unknown')
             else:
                 input_binding = 'unavailable'
         self.attempt = dict(book_token=book_token, status='running', completed_files=0,
@@ -223,6 +236,25 @@ class ExportQualityAttempt:
         if not audacity and options is not None:
             self.kwargs['export_quality'] = options
 
+    def _capture_bound(self):
+        """Recapture the input revision without nested book admission (e-8).
+
+        The caller already holds book admission on the export path; taking
+        the non-reentrant lock again would deadlock. Reuse the live
+        admission when present, otherwise take it once with recover=False
+        and recheck the book token inside it. Any failure is explicit
+        unbound evidence, never ``current``.
+        """
+        from contextlib import nullcontext
+        from book_state_transaction import (ensure_book_state,
+                                            get_book_operation_token,
+                                            is_book_state_admitted)
+        scope = (nullcontext() if is_book_state_admitted(self.data_dir)
+                 else ensure_book_state(self.data_dir, recover=False))
+        with scope:
+            return (get_export_input_revision(self.data_dir, self.book_token, self.capture)
+                    if get_book_operation_token(self.data_dir) == self.book_token else None)
+
     def publish(self, report):
         if report.get('status') not in ('verified', 'review'):
             raise ValueError('Only completed export evidence can be published.')
@@ -231,14 +263,20 @@ class ExportQualityAttempt:
         # Failed/unknown capture is explicit unbound evidence; publish
         # never raises for capture failure and never reclassifies the
         # export-quality verdict itself.
-        if self.data_dir is None:
+        # Chapter/Audacity deliveries never certify full-book completion,
+        # so they skip the per-output recapture (altitude-4) and stay
+        # explicitly historical instead of paying a full revision capture
+        # per chapter.
+        full_book = summary.get('file') in ('cloned_audiobook.mp3', 'audiobook.m4b')
+        if self.data_dir is None or not full_book:
             summary.update(input_revision=None, input_binding='unbound',
                            attempt_started_at=self.started_at, source_scope='unknown')
         else:
             bound = None
             try:
-                bound = get_export_input_revision(self.data_dir, self.book_token, self.capture)
+                bound = self._capture_bound()
             except Exception:
+                logger.warning('Export input revision capture failed', exc_info=True)
                 bound = None
             if (bound is not None and self.start_revision is not None
                     and bound.get('revision') == self.start_revision):
@@ -246,7 +284,7 @@ class ExportQualityAttempt:
                                input_binding='current',
                                attempt_started_at=self.started_at,
                                source_scope=bound.get('scope', 'unknown'))
-            elif bound is None or bound.get('revision') is None:
+            elif bound is None or bound.get('revision') is None or self.start_revision is None:
                 summary.update(input_revision=None, input_binding='unavailable',
                                attempt_started_at=self.started_at, source_scope='unknown')
             else:

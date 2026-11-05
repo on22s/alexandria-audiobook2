@@ -2652,6 +2652,14 @@
     "tests.test_collect_audit_snapshot.CollectorSnapshotTests.test_native_report_preserves_group_order_scored_rows_and_legacy_precedence"
   ],
   "test_collection_overview": [
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_completed_generation_manifest_is_available",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_failed_generation_quality_is_failed_and_unreadable_is_unavailable",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_finished_checkpoint_requires_complete_unambiguous_json",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_later_review_receipt_blocks_completed",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_script_changed_after_completed_generation_is_not_unfinished",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_skipped_chunks_receipt_cannot_complete",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_start_capture_failure_then_publish_success_stays_unavailable",
+    "tests.test_collection_overview.CollectionOverviewBackendRepairTests.test_threepass_done_with_complete_manifest_is_available",
     "tests.test_collection_overview.CollectionOverviewCompletionTests.test_a_recorded_review_readiness_inactive_and_active_without_audio",
     "tests.test_collection_overview.CollectionOverviewCompletionTests.test_b_bound_full_export_via_editor_constructor_completes",
     "tests.test_collection_overview.CollectionOverviewCompletionTests.test_c_any_input_mutation_invalidates_completion",
@@ -2683,8 +2691,12 @@
     "tests.test_collection_overview.CollectionOverviewTests.test_source_edit_invalidates_review_receipt"
   ],
   "test_collection_overview_js": [
+    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_binding_refusal_disables_load_with_explanation",
+    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_book_invalidation_clears_rows_and_rejects_inflight_reply",
+    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_duplicate_show_does_not_repeat_pending_scan",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_empty_show_invalidates_inflight_request",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_hostile_book_names_are_text_only",
+    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_load_uses_displayed_proof_without_repeating_overview",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_malformed_overview_is_rejected_without_loading",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_missing_row_shows_but_disables_load",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_no_selection_and_stale_reply_are_refused",
@@ -2693,7 +2705,7 @@
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_revision_proof_is_transported_to_load",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_selection_renders_distinct_rows_with_evidence_and_no_mutating_calls",
     "tests.test_collection_overview_js.CollectionOverviewJsTests.test_selection_survives_library_refresh_and_error_shows_detail",
-    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_stale_row_load_is_refused_after_revision_change"
+    "tests.test_collection_overview_js.CollectionOverviewJsTests.test_server_selection_limit_is_used"
   ],
   "test_comma_pauses": [
     "tests.test_comma_pauses.BookCommaReportTests.test_only_chunks_with_a_mid_line_mark_are_eligible",
@@ -8525,6 +8537,7 @@
     "tests.test_project_export_quality.ProjectExportQualityTests.test_late_cancel_keeps_previous_delivery_and_postcommit_reporter_cannot_fail_success",
     "tests.test_project_export_quality.ProjectExportQualityTests.test_missing_transport_checks_valid_bytes_and_unplanned_gap_policy_preserves_prior",
     "tests.test_project_export_quality.ProjectExportQualityTests.test_native_legacy_and_mastered_mp3_have_one_actual_decode_and_current_evidence",
+    "tests.test_project_export_quality.ProjectExportQualityTests.test_two_chunk_corrupt_audio_reports_skipped_chunks",
     "tests.test_project_export_quality.ProjectExportQualityTests.test_zero_exit_short_output_without_encoder_receipt_is_refused_by_project"
   ],
   "test_project_export_staging": [

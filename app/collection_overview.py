@@ -43,17 +43,29 @@ from completed_review_receipt import (VERSION as REVIEW_RECEIPT_VERSION,
                                       get_review_entries_fingerprint,
                                       get_review_receipt_path)
 from script_recovery_facts import three_pass_manifest_path
-from script_selection_binding import (MAX_BINDING_BYTES, parse_script_binding)
-from project_scope_files import (MAX_SCOPE_METADATA_BYTES,
+from script_selection_binding import (MAX_BINDING_BYTES, parse_script_binding,
+                                      saved_binding_matches)
+from project_scope_files import (MAX_SCRIPT_BYTES, MAX_SCOPE_METADATA_BYTES,
                                  capture_scope_file)
+from editor_poll_snapshot import get_snapshot_digest
 from utils import secure_filename
 
 MAX_OVERVIEW_BOOKS = 50
 
-# Existing sibling limits: script bytes cap used by load/save/repair.
-MAX_SCRIPT_BYTES = 512 * 1024**2
 
-_REVISION_HEX = re.compile(r'^[0-9a-f]{64}$')
+def _checkpoint_groups(name):
+    """Checkpoint/quality basenames by family (single source; canonical+legacy)."""
+    return {
+        'generation': [f'{name}.json.generation_checkpoint.json',
+                       f'{name}.generation_checkpoint.json'],
+        'review': [f'{name}.json.review_checkpoint.json',
+                   f'{name}.review_checkpoint.json'],
+        'threepass': [f'{name}.json.threepass_checkpoint.json',
+                      f'{name}.threepass_checkpoint.json'],
+        'jsonl': [f'{name}.json.checkpoint.jsonl', f'{name}.checkpoint.jsonl'],
+        'quality': [f'{name}.json.generation_quality.json',
+                    f'{name}.generation_quality.json'],
+    }
 
 
 def _parse_json_bytes(raw):
@@ -80,7 +92,7 @@ def _checkpoint_index(scripts_dir):
         with os.scandir(scripts_dir) as entries:
             for entry in entries:
                 index['names'].add(entry.name)
-                marker = entry.name.find('.parts-')
+                marker = entry.name.rfind('.parts-')
                 if marker == -1:
                     continue
                 suffix = entry.name[marker + len('.parts-'):]
@@ -98,24 +110,23 @@ def _checkpoint_index(scripts_dir):
 
 
 def _checkpoint_facts(scripts_dir, name, index):
-    """Presence + validity facts for one book (no sorted globs)."""
-    generation = [f'{name}.json.generation_checkpoint.json',
-                  f'{name}.generation_checkpoint.json']
-    review = [f'{name}.json.review_checkpoint.json',
-              f'{name}.review_checkpoint.json']
-    threepass = [f'{name}.json.threepass_checkpoint.json',
-                 f'{name}.threepass_checkpoint.json']
-    jsonl = [f'{name}.json.checkpoint.jsonl', f'{name}.checkpoint.jsonl']
-    quality = [f'{name}.json.generation_quality.json',
-               f'{name}.generation_quality.json']
-    headers = generation + review + threepass
+    """Presence + validity facts for one book (no sorted globs).
+
+    Generation-quality manifests are completion evidence, not residual
+    checkpoints, so they never contribute to ``has_any`` (e-1). A
+    three-pass checkpoint left with stage ``done`` beside a complete
+    manifest is classified separately in ``_script_stage`` (b-1).
+    """
+    groups = _checkpoint_groups(name)
+    headers = groups['generation'] + groups['review'] + groups['threepass']
+    jsonl = groups['jsonl']
     if index is not None:
         names = index['names']
         shards = index['shards']
-        has_any = any(base in names for base in headers + jsonl + quality) or any(
+        has_any = any(base in names for base in headers + jsonl) or any(
             base in shards for base in headers)
-        has_review = any(base in names for base in review) or any(
-            base in shards for base in review)
+        has_review = any(base in names for base in groups['review']) or any(
+            base in shards for base in groups['review'])
         invalid = any(valid is False for base in headers
                       for valid in shards.get(base, ()))
         return has_any, has_review, invalid
@@ -126,8 +137,8 @@ def _checkpoint_facts(scripts_dir, name, index):
     def present(basenames):
         return any((root / base).is_file() for base in basenames)
 
-    has_any = present(headers + jsonl + quality)
-    has_review = present(review)
+    has_any = present(headers + jsonl)
+    has_review = present(groups['review'])
     invalid = False
     try:
         for base in headers:
@@ -153,39 +164,36 @@ def _manifest_basenames(name):
 
 
 def _checkpoint_basenames(name):
-    generation = [f'{name}.json.generation_checkpoint.json',
-                  f'{name}.generation_checkpoint.json']
-    review = [f'{name}.json.review_checkpoint.json',
-              f'{name}.review_checkpoint.json']
-    threepass = [f'{name}.json.threepass_checkpoint.json',
-                 f'{name}.threepass_checkpoint.json']
-    jsonl = [f'{name}.json.checkpoint.jsonl', f'{name}.checkpoint.jsonl']
-    quality = [f'{name}.json.generation_quality.json',
-               f'{name}.generation_quality.json']
-    return list(dict.fromkeys(generation + review + threepass + jsonl + quality))
+    """Revision inventory: every checkpoint/quality basename (bytes hashed)."""
+    groups = _checkpoint_groups(name)
+    return list(dict.fromkeys(groups['generation'] + groups['review']
+                              + groups['threepass'] + groups['jsonl']
+                              + groups['quality']))
 
 
-def _capture_snapshot(scripts_dir, name, *, script_bytes=None):
+def _capture_snapshot(scripts_dir, name, *, script_bytes=None, script_sha256=None):
     """Capture every saved companion exactly once (bounded, read-only).
 
-    Returns a dict ``basename -> {'exists', 'raw', 'sha'}`` plus
-    ``'_script_exists'``. ``raw`` bytes are retained only where parsing is
-    needed (script/meta/voice/binding/receipt/manifests); hashes for
-    checkpoint headers, publication and sound-design companions are
-    streaming hashes without retaining bytes. ``sha`` is ``'unavailable'``
-    on bounded-capture failure (per-book, never a huge allocation) and
-    ``None`` when truly absent. ``script_bytes`` reuses caller-captured
-    bytes (load path) instead of rereading the script.
+    Returns a dict ``basename -> {'exists', 'raw', 'sha'}``. ``raw`` bytes
+    are retained only where parsing is needed (script/meta/voice/binding/
+    receipt/manifests/generation-quality); hashes for checkpoint headers,
+    publication and sound-design companions are streaming hashes without
+    retaining bytes. ``sha`` is ``'unavailable'`` on bounded-capture failure
+    (per-book, never a huge allocation) and ``None`` when truly absent.
+    ``script_bytes`` reuses caller-captured bytes (load path) instead of
+    rereading the script; ``script_sha256`` additionally reuses the
+    caller-captured digest instead of re-hashing the preset bytes.
     """
     snapshot = {}
 
-    def record(basename, limit, need_bytes, preset_raw=None, preset_exists=None):
+    def record(basename, limit, need_bytes, preset_raw=None, preset_exists=None, preset_sha=None):
         if basename in snapshot:
             return snapshot[basename]
         if preset_exists is not None:
             raw = preset_raw
-            entry = {'exists': preset_exists, 'raw': raw,
-                     'sha': hashlib.sha256(raw).hexdigest() if raw is not None else None}
+            sha = (preset_sha if isinstance(preset_sha, str) and len(preset_sha) == 64
+                   else hashlib.sha256(raw).hexdigest()) if raw is not None else None
+            entry = {'exists': preset_exists, 'raw': raw, 'sha': sha}
             snapshot[basename] = entry
             return entry
         try:
@@ -199,8 +207,10 @@ def _capture_snapshot(scripts_dir, name, *, script_bytes=None):
         if not exists:
             entry = {'exists': False, 'raw': None, 'sha': None}
         elif need_bytes:
+            sha = info.get('sha256')
             entry = {'exists': True, 'raw': raw,
-                     'sha': hashlib.sha256(raw).hexdigest() if raw is not None else 'unavailable'}
+                     'sha': sha if isinstance(sha, str)
+                            else (hashlib.sha256(raw).hexdigest() if raw is not None else 'unavailable')}
         else:
             sha = info.get('sha256')
             entry = {'exists': True, 'raw': None,
@@ -212,7 +222,7 @@ def _capture_snapshot(scripts_dir, name, *, script_bytes=None):
     # separately so missing vs unavailable stays distinct.
     if script_bytes is not None:
         record(f'{name}.json', MAX_SCRIPT_BYTES, True,
-               preset_raw=script_bytes, preset_exists=True)
+               preset_raw=script_bytes, preset_exists=True, preset_sha=script_sha256)
     else:
         record(f'{name}.json', MAX_SCRIPT_BYTES, True)
     record(f'{name}.meta.json', MAX_SCOPE_METADATA_BYTES, True)
@@ -222,8 +232,17 @@ def _capture_snapshot(scripts_dir, name, *, script_bytes=None):
     record(receipt_name, MAX_SCOPE_METADATA_BYTES, True)
     for basename in _manifest_basenames(name):
         record(basename, MAX_SCOPE_METADATA_BYTES, True)
-    for basename in _checkpoint_basenames(name):
+    groups = _checkpoint_groups(name)
+    for basename in groups['generation'] + groups['review'] + groups['jsonl']:
         record(basename, MAX_SCOPE_METADATA_BYTES, False)
+    # A completed checkpoint must be valid JSON from this same bounded
+    # capture; a matching prefix in truncated data is not completion proof.
+    for basename in groups['threepass']:
+        record(basename, MAX_SCOPE_METADATA_BYTES, True)
+    # Generation-quality manifests are parsed for their status (e-1), so
+    # their bounded bytes are retained under the metadata cap.
+    for basename in groups['quality']:
+        record(basename, MAX_SCOPE_METADATA_BYTES, True)
     try:
         from publication_source import (MAX_PUBLICATION_SOURCE_BYTES,
                                         get_publication_source_path)
@@ -273,9 +292,7 @@ def _revision_from_snapshot(name, book_id, snapshot):
         payload['sound_renditions'] = sha(os.path.basename(get_saved_sound_renditions_path(f'{name}.json')))
     except (ImportError, OSError, ValueError, TypeError):
         pass
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False,
-                     separators=(',', ':'), allow_nan=False).encode('utf-8')
-    return hashlib.sha256(raw).hexdigest()
+    return get_snapshot_digest(payload)
 
 
 def _manifest_status_from_snapshot(snapshot, name):
@@ -302,10 +319,99 @@ def _manifest_status_from_snapshot(snapshot, name):
     if not isinstance(manifest, dict):
         return 'unreadable'
     status = manifest.get('status')
+    if not isinstance(status, str):
+        return 'unreadable'
     return status if status in {'failed', 'incomplete', 'publishing', 'complete'} else 'not_reported'
 
 
-def _review_stage_from_entry(entry, scripts_dir, name, entries):
+def _generation_quality_status(snapshot, name):
+    """Single-pass completion-manifest status (e-1).
+
+    Returns ``'absent'`` when no quality file exists, the manifest's
+    string status when a readable JSON object is present, ``'unreadable'``
+    when a present file cannot be parsed as an object, and
+    ``'changed_after_completion'`` for a ``complete`` manifest whose bound
+    output digest disagrees with the saved script bytes already captured in
+    the snapshot. Review and script edits publish new bytes without touching
+    this manifest, so that is a finished run followed by a later change, not
+    an unfinished run; the review receipt decides whether the change is
+    reviewed.
+    """
+    for basename in _checkpoint_groups(name)['quality']:
+        entry = snapshot.get(basename)
+        if entry is None:
+            continue
+        if entry.get('sha') == 'unavailable':
+            return 'unreadable'
+        if not entry.get('exists'):
+            continue
+        raw = entry.get('raw')
+        if raw is None:
+            return 'unreadable'
+        try:
+            manifest = _parse_json_bytes(raw)
+        except (OSError, ValueError, TypeError, RecursionError):
+            return 'unreadable'
+        if not isinstance(manifest, dict):
+            return 'unreadable'
+        status = manifest.get('status')
+        if not isinstance(status, str):
+            return 'unreadable'
+        if status != 'complete':
+            return status
+        artifact = manifest.get('completion_artifact')
+        script_entry = snapshot.get(f'{name}.json') or {}
+        bound = artifact.get('output_sha256') if isinstance(artifact, dict) else None
+        if not isinstance(bound, str) or bound != script_entry.get('sha'):
+            return 'changed_after_completion'
+        return 'complete'
+    return 'absent'
+
+
+def _has_finished_threepass_checkpoint(snapshot, name):
+    """Recognize the compact final document written by save('done').
+
+    Successful publication compacts the indexed checkpoint into ordinary
+    JSON. An indexed base may have later shard deltas, so its base stage
+    cannot establish completion. Every present canonical/legacy checkpoint
+    must be a readable compact document with top-level stage 'done'.
+    """
+    found = False
+    for basename in _checkpoint_groups(name)['threepass']:
+        entry = snapshot.get(basename) or {}
+        if not entry.get('exists'):
+            continue
+        found = True
+        if entry.get('raw') is None or entry.get('sha') == 'unavailable':
+            return False
+        try:
+            checkpoint = _parse_json_bytes(entry['raw'])
+        except (OSError, ValueError, TypeError, RecursionError):
+            return False
+        if (not isinstance(checkpoint, dict) or 'storage' in checkpoint
+                or checkpoint.get('stage') != 'done'):
+            return False
+    return found
+
+
+def _has_other_residual(scripts_dir, name, index):
+    """Generation/review/jsonl checkpoint presence (three-pass excluded).
+
+    Used to decide whether a ``done`` three-pass checkpoint beside a
+    complete manifest may be excused: only when no *other* residual
+    checkpoint family remains.
+    """
+    groups = _checkpoint_groups(name)
+    others = groups['generation'] + groups['review'] + groups['jsonl']
+    if index is not None:
+        names, shards = index['names'], index['shards']
+        return any(base in names for base in others) or any(
+            base in shards for base in others)
+    root = Path(scripts_dir)
+    return any((root / base).is_file() for base in others)
+
+
+def _review_stage_from_entry(entry, scripts_dir, name, entries, *, entries_fingerprint=None):
     if entry is None or entry.get('sha') == 'unavailable':
         return {'status': 'unavailable', 'current_settings': 'not_rechecked',
                 'evidence': 'The completed-review receipt could not be read.'}
@@ -327,7 +433,9 @@ def _review_stage_from_entry(entry, scripts_dir, name, entries):
     if type(receipt.get('version')) is not int or receipt.get('version') != REVIEW_RECEIPT_VERSION:
         return {'status': 'stale', 'current_settings': 'not_rechecked',
                 'evidence': 'The completed-review receipt version is unsupported.'}
-    if receipt.get('output_sha256') != get_review_entries_fingerprint(entries):
+    fingerprint = (entries_fingerprint() if entries_fingerprint is not None
+                   else get_review_entries_fingerprint(entries))
+    if receipt.get('output_sha256') != fingerprint:
         return {'status': 'stale', 'current_settings': 'not_rechecked',
                 'evidence': 'The receipt output no longer matches the current script entries; the script was edited after review.'}
     script_path = str(Path(scripts_dir) / f'{name}.json')
@@ -365,7 +473,7 @@ def _voices_stage_from_entry(entry, entries, get_voice_rows):
                 'evidence': 'The saved voice settings contain a non-object entry.'}
     try:
         rows = get_voice_rows(entries, voices)
-    except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+    except (OSError, ValueError, TypeError, AttributeError, KeyError, RecursionError):
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
                 'evidence': 'The saved voice settings could not be read.'}
     pending = sum(bool(row.get('persona_pending') or row.get('persona_states_pending')) for row in rows)
@@ -377,7 +485,8 @@ def _voices_stage_from_entry(entry, entries, get_voice_rows):
 
 
 def _script_stage(script_sha256, manifest, has_checkpoint, invalid_shard,
-                  binding_ok, binding_note, entries_count):
+                  binding_ok, binding_note, entries_count, *,
+                  quality_status='absent', finished_checkpoint=False):
     if invalid_shard:
         return {'status': 'unavailable', 'entries': entries_count,
                 'script_sha256': script_sha256,
@@ -395,12 +504,22 @@ def _script_stage(script_sha256, manifest, has_checkpoint, invalid_shard,
     if manifest == 'unreadable':
         return {'status': 'unavailable', 'entries': entries_count, 'script_sha256': script_sha256,
                 'evidence': 'The three-pass manifest could not be read.'}
-    if has_checkpoint:
+    if quality_status == 'unreadable':
+        return {'status': 'unavailable', 'entries': entries_count, 'script_sha256': script_sha256,
+                'evidence': 'The saved generation completion manifest could not be read.'}
+    if quality_status not in ('absent', 'complete', 'changed_after_completion'):
+        return {'status': 'failed', 'entries': entries_count, 'script_sha256': script_sha256,
+                'evidence': 'The last single-pass generation run did not complete.'}
+    if has_checkpoint and not finished_checkpoint:
         return {'status': 'incomplete', 'entries': entries_count, 'script_sha256': script_sha256,
                 'evidence': 'A generation/review checkpoint remains; the last script or review run did not publish a final script.'}
     if not entries_count:
         return {'status': 'not_started', 'entries': 0, 'script_sha256': script_sha256,
                 'evidence': 'The saved script has no entries.'}
+    if quality_status == 'changed_after_completion':
+        return {'status': 'available', 'entries': entries_count, 'script_sha256': script_sha256,
+                'evidence': ('Saved script entries are present; the script changed after its '
+                             'single-pass generation completed (a later review or edit).')}
     return {'status': 'available', 'entries': entries_count, 'script_sha256': script_sha256,
             'evidence': 'Saved script entries are present with no failed or incomplete run marker.'}
 
@@ -416,11 +535,7 @@ def _latest_attempt(attempts):
         failed = 1 if item.get('status') == 'failed' else 0
         return (started, failed)
     latest = max(attempts, key=sort_key)
-    return {'task': latest.get('task'), 'status': latest.get('status'),
-            'started_at': latest.get('started_at') if type(latest.get('started_at')) in (int, float) else 0,
-            'input_revision': latest.get('input_revision'),
-            'input_binding': latest.get('input_binding'),
-            'source_scope': latest.get('source_scope')}
+    return latest
 
 
 # Full-book deliveries only: task -> exact output filename. Chapter files
@@ -445,19 +560,10 @@ def _active_render_stage(workspace):
     attempts = []
     reports_raw = []
     if isinstance(exported, dict) and exported.get('status') == 'observed':
-        attempts = exported.get('attempts') or exported.get('attempt_statuses') or []
-        normalized = []
-        for item in attempts:
-            if isinstance(item, dict):
-                normalized.append(item)
-            elif isinstance(item, str):
-                normalized.append({'task': None, 'status': item, 'started_at': 0})
-        attempts = normalized
-        for item in exported.get('reports') or []:
-            if isinstance(item, dict):
-                reports_raw.append(item)
-            elif isinstance(item, str):
-                reports_raw.append({'task': None, 'file': item, 'status': 'verified'})
+        attempts = [item for item in (exported.get('attempts') or [])
+                    if isinstance(item, dict)]
+        reports_raw = [item for item in (exported.get('reports') or [])
+                       if isinstance(item, dict)]
     outputs = workspace.get('outputs', [])
     output_statuses = {row.get('status') for row in outputs if isinstance(row, dict)}
     output_labels = {row.get('format'): row.get('status') for row in outputs if isinstance(row, dict)}
@@ -501,6 +607,11 @@ def _active_render_stage(workspace):
             expected_file = _FULL_OUTPUTS.get(task)
             if expected_file is None or row.get('file') != expected_file:
                 continue
+            # Skipped-chunk exports are partial deliveries, never complete.
+            # The count must be an explicit integer zero; a legacy receipt
+            # without the field fails closed.
+            if type(row.get('skipped_chunks')) is not int or row['skipped_chunks'] != 0:
+                continue
             if row.get('input_binding') != 'current' or row.get('input_revision') != current_revision:
                 continue
             if row.get('source_scope') != 'full':
@@ -511,6 +622,16 @@ def _active_render_stage(workspace):
             if attempt.get('input_revision') != current_revision or attempt.get('input_binding') != 'current':
                 continue
             if attempt.get('source_scope') != 'full':
+                continue
+            # A later full-output review receipt outranks this older
+            # verified receipt (a-5): the latest delivery needs attention.
+            matched_started = attempt.get('started_at')
+            if type(matched_started) in (int, float) and any(
+                    other.get('status') == 'review'
+                    and other.get('file') == _FULL_OUTPUTS.get(other.get('task'))
+                    and type(other.get('attempt_started_at')) in (int, float)
+                    and other.get('attempt_started_at') > matched_started
+                    for other in reports_raw):
                 continue
             label = _FULL_LABELS.get(task)
             output_status = output_labels.get(label) if output_labels else None
@@ -523,6 +644,14 @@ def _active_render_stage(workspace):
                                  'scope (metadata-only: output file version/size/mtime, no full rehash, '
                                  'decode or listening check; audio quality still needs listening).')}
     verified = isinstance(exported, dict) and exported.get('status') == 'observed' and exported.get('verified_at_export')
+    # Incomplete chunk audio outranks a historical receipt (a-4): partial
+    # or missing takes stay render_incomplete, never recorded/complete.
+    if audio.get('status') == 'needs_attention' or (
+            audio.get('total') and audio.get('present') != audio.get('total')
+            and audio.get('status') != 'files_present'):
+        return {'status': 'incomplete',
+                'evidence': (f"{audio.get('present', 0)} of {audio.get('total', 0)} chunk audio files are present; "
+                             f"{audio.get('failed', 0)} failed and {audio.get('missing', 0)} done rows are missing audio.")}
     if verified:
         # Verified receipts for other formats (Audacity/chapter) or unbound
         # full receipts must not certify the attached MP3/M4B outputs.
@@ -554,9 +683,6 @@ def _active_render_stage(workspace):
                     'evidence': 'All chunk audio files are present and an output file exists, but no verified export receipt binds it to this book.'}
         return {'status': 'export_needed',
                 'evidence': 'All chunk audio files are present; no output file was found.'}
-    if audio.get('status') == 'unavailable':
-        return {'status': 'unavailable',
-                'evidence': 'Saved audio progress could not be read; open Editor to inspect it before preparing new audio.'}
     if audio.get('total'):
         return {'status': 'incomplete',
                 'evidence': (f"{audio.get('present', 0)} of {audio.get('total', 0)} chunk audio files are present; "
@@ -565,7 +691,40 @@ def _active_render_stage(workspace):
             'evidence': 'No chunk audio has been prepared for the active book.'}
 
 
-def compute_saved_book_revision(scripts_dir, name, *, script_bytes=None):
+def _validated_saved_entries(raw):
+    """Parse + shape-check saved script bytes (single source; reuse-1)."""
+    try:
+        entries = _parse_json_bytes(raw)
+    except (OSError, ValueError, TypeError, RecursionError) as error:
+        raise ValueError('The saved script must be an array of entries') from error
+    if not isinstance(entries, list) or any(not isinstance(row, dict) for row in entries):
+        raise ValueError('The saved script must be an array of entries')
+    return entries
+
+
+def _saved_book_identity_from_snapshot(snapshot, name):
+    """Resolve ``(book_id, meta_status)`` from the meta companion (reuse-1)."""
+    meta_entry = snapshot.get(f'{name}.meta.json') or {}
+    if meta_entry.get('sha') == 'unavailable':
+        return name, 'unavailable'
+    if not meta_entry.get('exists'):
+        return name, 'missing'
+    try:
+        meta = _parse_json_bytes(meta_entry.get('raw'))
+    except (OSError, ValueError, TypeError, RecursionError):
+        return name, 'unavailable'
+    if not isinstance(meta, dict):
+        return name, 'unavailable'
+    value = meta.get('book_id')
+    if value is not None and not isinstance(value, str):
+        return name, 'unavailable'
+    if isinstance(value, str) and value:
+        return secure_filename(value), 'present'
+    return name, 'present'
+
+
+def compute_saved_book_revision(scripts_dir, name, *, script_bytes=None,
+                                script_sha256=None, script_entries=None):
     """Deterministic revision token for one saved book (read-only).
 
     One bounded snapshot capture: script (or caller-supplied bytes),
@@ -573,30 +732,24 @@ def compute_saved_book_revision(scripts_dir, name, *, script_bytes=None):
     variants of every checkpoint/quality header, publication and
     sound-design companions — all by exact byte hash. Editing any of
     those bytes changes the proof. ``script_bytes`` reuses load-path
-    captured bytes instead of rereading the script.
+    captured bytes instead of rereading the script. ``script_sha256`` and
+    ``script_entries`` reuse caller-validated values instead of
+    re-hashing/re-parsing the same bytes (efficiency-6).
     """
-    snapshot = _capture_snapshot(scripts_dir, name, script_bytes=script_bytes)
+    snapshot = _capture_snapshot(scripts_dir, name, script_bytes=script_bytes,
+                                 script_sha256=script_sha256)
     script_entry = snapshot.get(f'{name}.json')
     if script_entry is None or not script_entry.get('exists'):
         return None
     raw = script_entry.get('raw')
     if raw is None:
         raise ValueError('Saved script identity requires inspection')
-    try:
-        entries = _parse_json_bytes(raw)
-    except (OSError, ValueError, TypeError, RecursionError) as error:
-        raise ValueError('Saved script is malformed') from error
-    if not isinstance(entries, list) or any(not isinstance(row, dict) for row in entries):
+    if script_entries is None:
+        _validated_saved_entries(raw)
+    elif (not isinstance(script_entries, list)
+          or any(not isinstance(row, dict) for row in script_entries)):
         raise ValueError('The saved script must be an array of entries')
-    book_id = name
-    meta_entry = snapshot.get(f'{name}.meta.json') or {}
-    if meta_entry.get('exists') and meta_entry.get('raw') is not None:
-        try:
-            meta = _parse_json_bytes(meta_entry['raw'])
-            if isinstance(meta, dict) and isinstance(meta.get('book_id'), str) and meta.get('book_id'):
-                book_id = secure_filename(meta['book_id'])
-        except (OSError, ValueError, TypeError, RecursionError):
-            pass
+    book_id, _meta_status = _saved_book_identity_from_snapshot(snapshot, name)
     return _revision_from_snapshot(name, book_id, snapshot)
 
 
@@ -611,43 +764,21 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     DATA_DIR script/voice bytes exactly match this saved snapshot
     (``active_script_sha256``/``active_voice_sha256``). Same book_id under
     two saved names is normal and never copies the workspace to the name
-    that is not the loaded source.
+    that is not the loaded source. ``active_book_id`` is retained for
+    backward compatibility with direct test callers and is ignored: the
+    name+byte fence is the only publication authority.
     """
-    root = Path(scripts_dir)
     # One snapshot serves projection + revision (bounded, single pass).
     snapshot = _capture_snapshot(scripts_dir, name)
     # --- Meta (book_id) ---
-    meta_status = 'missing'
-    book_id = name
-    meta_sha = None
-    meta_entry = snapshot.get(f'{name}.meta.json') or {}
-    if meta_entry.get('sha') == 'unavailable':
-        meta_status = 'unavailable'
-        meta_sha = 'unavailable'
-    elif meta_entry.get('exists'):
-        meta_sha = meta_entry.get('sha')
-        try:
-            meta = _parse_json_bytes(meta_entry.get('raw'))
-        except (OSError, ValueError, TypeError, RecursionError):
-            meta_status = 'unavailable'
-        else:
-            if not isinstance(meta, dict):
-                meta_status = 'unavailable'
-            else:
-                value = meta.get('book_id')
-                if value is not None and not isinstance(value, str):
-                    meta_status = 'unavailable'
-                elif isinstance(value, str) and value:
-                    book_id = secure_filename(value)
-                    meta_status = 'present'
-                else:
-                    meta_status = 'present'
+    book_id, meta_status = _saved_book_identity_from_snapshot(snapshot, name)
     # --- Script ---
     script_entry = snapshot.get(f'{name}.json') or {}
     if script_entry.get('sha') == 'unavailable':
         raise ValueError('Saved script identity requires inspection')
     if not script_entry.get('exists'):
         return {'name': name, 'book_id': book_id, 'is_active': False,
+                'loadable': False,
                 'meta': {'status': meta_status,
                          'evidence': 'Book metadata is missing.' if meta_status == 'missing' else 'Book metadata could not be read.'},
                 'script': {'status': 'missing', 'entries': 0, 'script_sha256': None,
@@ -664,13 +795,18 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     raw = script_entry.get('raw')
     if raw is None:
         raise ValueError('Saved script identity requires inspection')
-    try:
-        entries = _parse_json_bytes(raw)
-    except (OSError, ValueError, TypeError, RecursionError) as error:
-        raise ValueError('The saved script must be an array of entries') from error
-    if not isinstance(entries, list) or any(not isinstance(row, dict) for row in entries):
-        raise ValueError('The saved script must be an array of entries')
-    script_sha256 = hashlib.sha256(raw).hexdigest()
+    entries = _validated_saved_entries(raw)
+    script_sha256 = script_entry.get('sha')
+    if not isinstance(script_sha256, str) or len(script_sha256) != 64:
+        raise ValueError('Saved script identity requires inspection')
+    # One canonical fingerprint serves both the binding and the receipt
+    # check (lazy: rows whose evidence short-circuits pay nothing).
+    fingerprint_cache = []
+
+    def entries_fingerprint():
+        if not fingerprint_cache:
+            fingerprint_cache.append(get_review_entries_fingerprint(entries))
+        return fingerprint_cache[0]
     # --- Companions (from the same snapshot) ---
     manifest = _manifest_status_from_snapshot(snapshot, name)
     index = checkpoint_index if checkpoint_index is not None else _checkpoint_index(scripts_dir)
@@ -693,14 +829,21 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
             binding_ok = False
             binding_note = 'The saved selection binding could not be read; loading this book will be refused until its identity is inspected/restored.'
         else:
-            if (binding['published_script_sha256'] != script_sha256
-                    or binding['published_entries_sha256'] != get_review_entries_fingerprint(entries)):
+            if not saved_binding_matches(binding, script_sha256=script_sha256,
+                                         entries_sha256=entries_fingerprint()):
                 binding_ok = False
                 binding_note = 'The saved selection binding does not match the current script; loading this book will be refused until its identity is inspected/restored.'
+    quality_status = _generation_quality_status(snapshot, name)
+    finished_checkpoint = (manifest == 'complete'
+                           and _has_finished_threepass_checkpoint(snapshot, name)
+                           and not _has_other_residual(scripts_dir, name, index))
     script = _script_stage(script_sha256, manifest, has_checkpoint, invalid_shard,
-                           binding_ok, binding_note, len(entries))
+                           binding_ok, binding_note, len(entries),
+                           quality_status=quality_status,
+                           finished_checkpoint=finished_checkpoint)
     receipt_entry = snapshot.get(os.path.basename(get_review_receipt_path(f'{name}.json')))
-    review = _review_stage_from_entry(receipt_entry, scripts_dir, name, entries)
+    review = _review_stage_from_entry(receipt_entry, scripts_dir, name, entries,
+                                      entries_fingerprint=entries_fingerprint)
     if has_review_checkpoint and review['status'] not in ('unavailable',):
         review = {'status': 'incomplete', 'current_settings': 'not_rechecked',
                   'evidence': 'An incomplete review checkpoint remains beside the receipt.'}
@@ -712,17 +855,11 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     # The router supplies active byte hashes (None = active file missing)
     # whenever active_saved_name is set. Same book_id under two names
     # never attaches: only the named row can match.
-    legacy_active = active_saved_name is None and active_book_id is not None and book_id == active_book_id
-    matched_name = (active_saved_name is not None and name == active_saved_name) or legacy_active
+    matched_name = active_saved_name is not None and name == active_saved_name
     active_bytes_match = True
     if matched_name and active_workspace is not None:
-        if active_saved_name is not None:
-            if script_sha256 != active_script_sha256 or voice_sha != active_voice_sha256:
-                active_bytes_match = False
-        elif isinstance(active_workspace, dict):
-            workspace_script = (active_workspace.get('script') or {}).get('sha256')
-            if workspace_script is not None and workspace_script != script_sha256:
-                active_bytes_match = False
+        if script_sha256 != active_script_sha256 or voice_sha != active_voice_sha256:
+            active_bytes_match = False
     is_active = bool(active_workspace is not None and matched_name and active_bytes_match)
     # is_active means "workspace attached identity"; bytes mismatch is
     # reported through render evidence while is_active stays about name.
@@ -748,14 +885,14 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     cancelled = [item for item in stages if item[1]['status'] == 'cancelled']
     incomplete = [item for item in stages if item[1]['status'] == 'incomplete']
     in_progress = [item for item in stages if item[1]['status'] == 'in_progress']
-    # Stage -> next-step tab for the affected stage.
+    # Stage -> next-step tab for the affected stage (script is the only
+    # label mapping that reaches a next step; render/export overrides it).
     stage_tab = {'script': 'script', 'review': 'script', 'voices': 'voices', 'render': 'editor'}
-    stage_label = {'script': 'Inspect script recovery', 'review': 'Continue with Script review',
-                   'voices': 'Continue with Voices', 'render': 'Continue in Editor'}
+    stage_label = {'script': 'Inspect script recovery'}
     if failed:
         overall = 'failed'
         affected = failed[0][0]
-        next_step = {'tab': stage_tab[affected], 'label': stage_label[affected],
+        next_step = {'tab': stage_tab[affected], 'label': stage_label.get(affected, 'Inspect saved book'),
                      'reason': (failed[0][1]['evidence'] if affected == 'script'
                                 else 'A script or export run failed; inspect its saved evidence before retrying.')}
         if affected == 'render':
@@ -766,9 +903,6 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
         affected = unavailable[0][0]
         next_step = {'tab': stage_tab[affected], 'label': 'Inspect saved book',
                      'reason': unavailable[0][1]['evidence']}
-        if affected == 'voices':
-            next_step = {'tab': 'voices', 'label': 'Inspect saved book',
-                         'reason': unavailable[0][1]['evidence']}
     elif cancelled:
         overall = 'cancelled'
         next_step = {'tab': 'editor', 'label': 'Continue in Editor',
@@ -792,10 +926,6 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
         overall = 'needs_script'
         next_step = {'tab': 'script', 'label': 'Continue with Script',
                      'reason': 'The saved script has no entries yet.'}
-    elif script['status'] not in ('available',):
-        overall = 'unknown'
-        next_step = {'tab': 'script', 'label': 'Inspect saved book',
-                     'reason': 'Render/export evidence is not bound to this saved book; load it to inspect.'}
     elif review['status'] != 'recorded':
         # Only a same-revision recorded receipt satisfies the planning
         # milestone (current_settings stays not_rechecked; an actually
@@ -813,7 +943,7 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
         # is ready for (navigator-guided) audio even when render state
         # is unknown, e.g. an inactive book. Render stays unknown;
         # no take/audio completion is invented.
-        if is_active or name_is_active:
+        if name_is_active:
             # Active bytes mismatch: navigation still points at loading,
             # but do not present unbounded render as ready when the
             # active copy differs from this snapshot.
@@ -835,10 +965,6 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
         overall = 'ready_for_audio'
         next_step = {'tab': 'editor', 'label': 'Continue in Editor',
                      'reason': 'Script, recorded review and voices are ready; chunk audio has not been prepared.'}
-    elif render['status'] == 'incomplete':
-        overall = 'render_incomplete'
-        next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                     'reason': 'Chunk audio is only partially present.'}
     elif render['status'] == 'export_needed':
         overall = 'export_needed'
         next_step = {'tab': 'audio', 'label': 'Review output files',
@@ -861,16 +987,48 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
                      'present': 'Saved book metadata names this book identity.',
                      'unavailable': 'Saved book metadata could not be read; book_id falls back to the saved name.'}
     return {'name': name, 'book_id': book_id, 'is_active': name_is_active,
+            'loadable': bool(binding_ok),
             'meta': {'status': meta_status, 'evidence': meta_evidence.get(meta_status, '')},
             'script': script, 'review': review, 'voices': voices, 'render': render,
             'revision': revision,
             'overall': overall, 'next': next_step}
 
 
+def _unreadable_book_row(scripts_dir, name, error):
+    """Per-row unavailable projection for one unreadable saved book.
+
+    Healthy rows are unaffected; the failing row reports its own
+    diagnostic without refusing the whole collection (altitude-3).
+    """
+    evidence = f'The saved book could not be read ({type(error).__name__}); inspect it before loading.'
+    return {'name': name, 'book_id': name, 'is_active': False,
+            'loadable': False,
+            'meta': {'status': 'unavailable',
+                     'evidence': 'Saved book metadata could not be read; book_id falls back to the saved name.'},
+            'script': {'status': 'unavailable', 'entries': 0, 'script_sha256': None,
+                       'evidence': evidence},
+            'review': {'status': 'unavailable', 'current_settings': 'not_rechecked',
+                       'evidence': 'No script to review.'},
+            'voices': {'status': 'unavailable', 'total': 0, 'pending': 0,
+                       'evidence': 'No script to cast.'},
+            'render': {'status': 'unknown',
+                       'evidence': 'The saved book could not be read; render state cannot be assessed.'},
+            'revision': None,
+            'overall': 'unknown',
+            'next': {'tab': 'script', 'label': 'Inspect saved book',
+                     'reason': evidence}}
+
+
 def get_collection_overview(scripts_dir, names, get_voice_rows, *, active_workspace=None,
                             active_saved_name=None, active_script_sha256=None,
                             active_voice_sha256=None, active_book_id=None):
-    """Overview rows for an explicitly selected set of saved books, in order."""
+    """Overview rows for an explicitly selected set of saved books, in order.
+
+    One unreadable book never aborts the others: its row reports
+    ``unavailable`` with its own diagnostic. Only failures outside
+    per-book projection (bad selection, oversize selection, listing
+    failure) propagate to the route.
+    """
     seen = []
     for name in names:
         if name not in seen:
@@ -878,10 +1036,16 @@ def get_collection_overview(scripts_dir, names, get_voice_rows, *, active_worksp
     if len(seen) > MAX_OVERVIEW_BOOKS:
         raise ValueError(f'Select at most {MAX_OVERVIEW_BOOKS} books for the collection overview')
     index = _checkpoint_index(scripts_dir)
-    return [get_saved_book_overview(scripts_dir, name, get_voice_rows,
-                                     active_workspace=active_workspace,
-                                     active_saved_name=active_saved_name,
-                                     active_script_sha256=active_script_sha256,
-                                     active_voice_sha256=active_voice_sha256,
-                                     checkpoint_index=index,
-                                     active_book_id=active_book_id) for name in seen]
+    rows = []
+    for name in seen:
+        try:
+            rows.append(get_saved_book_overview(scripts_dir, name, get_voice_rows,
+                                                active_workspace=active_workspace,
+                                                active_saved_name=active_saved_name,
+                                                active_script_sha256=active_script_sha256,
+                                                active_voice_sha256=active_voice_sha256,
+                                                checkpoint_index=index,
+                                                active_book_id=active_book_id))
+        except (OSError, ValueError, TypeError, RecursionError, AttributeError, KeyError) as error:
+            rows.append(_unreadable_book_row(scripts_dir, name, error))
+    return rows

@@ -44,8 +44,8 @@ from script_preflight import audit_script
 from script_repair import build_deterministic_repair
 from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
     capture_generation_selection, check_binding_source, parse_script_binding,
-    make_script_selection_binding, updated_saved_binding, _read_selection_state,
-    saved_script_is_active_source)
+    make_script_selection_binding, saved_binding_matches, updated_saved_binding,
+    _read_selection_state, saved_script_is_active_source)
 from editor_poll_snapshot import get_snapshot_digest
 from completed_review_receipt import get_review_entries_fingerprint
 from speaker_repair import apply_speaker_selections, build_speaker_review
@@ -54,7 +54,7 @@ from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
                    get_timestamped_backup_path, is_generic_speaker, safe_load_json)
 from sound_design_registry import (ACTIVE_CUES, get_saved_sound_design_path,
                                    MAX_REGISTRY_BYTES)
-from project_scope_files import capture_scope_file
+from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
 from collection_overview import MAX_OVERVIEW_BOOKS
 from speech_numbers import STATE_KEY as DATE_ORDER_KEY, DATE_ORDER_CHOICES
 from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditions_path,
@@ -63,7 +63,6 @@ from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditio
 
 logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
-MAX_SCRIPT_BYTES = 512 * 1024**2
 
 
 def _get_saved_book_companions(path):
@@ -193,10 +192,12 @@ def _get_book_workspace_sync():
 
     try:
         with ensure_book_state(DATA_DIR, recover=False):
-            return get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
-                                      get_voice_rows, project_manager.get_chunk_audio_path, export_states=process_state)
-    except (OSError, ValueError, TypeError) as error:
-        logger.warning("Book workspace inputs could not be read: %s", type(error).__name__)
+            workspace = get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
+                                          get_voice_rows, project_manager.get_chunk_audio_path, export_states=process_state)
+            workspace["collection_overview_limit"] = MAX_OVERVIEW_BOOKS
+            return workspace
+    except (OSError, ValueError, TypeError, RecursionError, AttributeError, KeyError) as error:
+        logger.warning("Book workspace inputs could not be read: %s: %s", type(error).__name__, str(error)[:240])
         raise HTTPException(status_code=409, detail=(
             "Book workspace could not read the saved book. Complete any pending book recovery "
             "or inspect the script and voice settings. No recovery was attempted. "
@@ -216,23 +217,59 @@ class CollectionOverviewRequest(BaseModel):
 def _active_byte_hashes():
     """Exact DATA_DIR script/voice byte hashes for active fencing."""
     try:
-        _, script_raw = capture_scope_file(DATA_DIR, 'annotated_script.json',
-                                           limit=MAX_SCRIPT_BYTES, include_bytes=True)
-    except (OSError, ValueError) as error:
+        script_info, _ = capture_scope_file(DATA_DIR, 'annotated_script.json',
+                                            limit=MAX_SCRIPT_BYTES, include_bytes=False)
+    except (OSError, ValueError, TypeError, RecursionError) as error:
         raise ValueError('Active script identity requires inspection') from error
-    script_hash = (hashlib.sha256(script_raw).hexdigest()
-                   if script_raw is not None else None)
+    script_hash = script_info.get('sha256') if script_info.get('exists') else None
+    if script_info.get('exists') and not isinstance(script_hash, str):
+        raise ValueError('Active script identity requires inspection')
     try:
-        _, voice_raw = capture_scope_file(DATA_DIR, 'voice_config.json',
-                                          limit=MAX_SCRIPT_BYTES, include_bytes=True)
-    except (OSError, ValueError) as error:
+        voice_info, _ = capture_scope_file(DATA_DIR, 'voice_config.json',
+                                          limit=MAX_SCRIPT_BYTES, include_bytes=False)
+    except (OSError, ValueError, TypeError, RecursionError) as error:
         raise ValueError('Active voices identity requires inspection') from error
-    voice_hash = (hashlib.sha256(voice_raw).hexdigest()
-                  if voice_raw is not None else None)
+    voice_hash = voice_info.get('sha256') if voice_info.get('exists') else None
+    if voice_info.get('exists') and not isinstance(voice_hash, str):
+        raise ValueError('Active voices identity requires inspection')
     # None with a missing file must still fence against a present saved
-    # copy; use a sentinel string so callers distinguish "missing" from
-    # "not supplied" (old direct callers pass None).
+    # copy; old direct callers pass None for "not supplied".
     return script_hash, voice_hash
+
+
+def _capture_active_facts(safe_names):
+    """Active workspace + hashes; a failing active read never aborts the rows.
+
+    Returns (workspace, saved_name, script_sha, voice_sha). Uses the fenced
+    component digests already captured by the workspace (efficiency-4)
+    and only falls back to a separate fenced capture when the revision
+    was unavailable.
+    """
+    from book_workspace import get_book_workspace
+    from routers.voices import get_voice_rows
+    from core import project_manager
+    for safe in safe_names:
+        if not saved_script_is_active_source(DATA_DIR, os.path.join(SCRIPTS_DIR, f"{safe}.json")):
+            continue
+        try:
+            workspace = get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
+                                          get_voice_rows, project_manager.get_chunk_audio_path,
+                                          export_states=process_state, include_input_revision=True)
+        except (OSError, ValueError, TypeError, RecursionError, AttributeError, KeyError) as error:
+            logger.warning("Collection overview active book %s could not be read: %s: %s",
+                           safe, type(error).__name__, str(error)[:240])
+            return None, safe, None, None
+        input_hashes = (workspace.get('export_review') or {}).get('input_hashes') or {}
+        script_sha, voice_sha = input_hashes.get('script'), input_hashes.get('voice')
+        if not isinstance(script_sha, str) or (voice_sha is not None and not isinstance(voice_sha, str)):
+            try:
+                script_sha, voice_sha = _active_byte_hashes()
+            except (OSError, ValueError, TypeError, RecursionError) as error:
+                logger.warning("Collection overview active book %s identity requires inspection: %s: %s",
+                               safe, type(error).__name__, str(error)[:240])
+                return None, safe, None, None
+        return workspace, safe, script_sha, voice_sha
+    return None, None, None, None
 
 
 def _get_collection_overview_sync(names):
@@ -243,36 +280,30 @@ def _get_collection_overview_sync(names):
     are attached only to the row that is the active source.
     """
     from collection_overview import get_collection_overview
-    from book_workspace import get_book_workspace
     from routers.voices import get_voice_rows
-    from core import project_manager
     safe_names = []
     for name in names:
         safe = _require_saved_book_name(name)
         if safe not in safe_names:
             safe_names.append(safe)
     try:
+        # The active (DATA_DIR) lock is held only while the bounded active
+        # facts are captured; the per-book saved scan then runs under the
+        # saved-book lock alone so inactive rows never queue behind it
+        # (efficiency-7). Both admissions are recover=False throughout.
         with (ensure_book_state(DATA_DIR, recover=False),
               ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, recover=False)):
-            active_workspace = None
-            active_saved_name = None
-            active_script_sha256 = None
-            active_voice_sha256 = None
-            for safe in safe_names:
-                if saved_script_is_active_source(DATA_DIR, os.path.join(SCRIPTS_DIR, f"{safe}.json")):
-                    active_workspace = get_book_workspace(DATA_DIR, {"MP3": AUDIOBOOK_PATH, "M4B": M4B_PATH},
-                                                          get_voice_rows, project_manager.get_chunk_audio_path,
-                                                          export_states=process_state)
-                    active_saved_name = safe
-                    active_script_sha256, active_voice_sha256 = _active_byte_hashes()
-                    break
+            active_workspace, active_saved_name, active_script_sha256, active_voice_sha256 = \
+                _capture_active_facts(safe_names)
+        with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, recover=False):
             return get_collection_overview(SCRIPTS_DIR, safe_names, get_voice_rows,
                                            active_workspace=active_workspace,
                                            active_saved_name=active_saved_name,
                                            active_script_sha256=active_script_sha256,
                                            active_voice_sha256=active_voice_sha256)
-    except (OSError, ValueError, TypeError, RecursionError, AttributeError) as error:
-        logger.warning("Collection overview could not be read: %s", type(error).__name__)
+    except (OSError, ValueError, TypeError, RecursionError, AttributeError, KeyError) as error:
+        logger.warning("Collection overview could not be read: %s: %s",
+                       type(error).__name__, str(error)[:240])
         raise HTTPException(status_code=409, detail=(
             "Collection overview could not read the selected saved books. "
             "No book was switched and no work was started.")) from error
@@ -532,19 +563,24 @@ def _load_script_sync(request: ScriptLoadRequest):
             raise HTTPException(status_code=409,
                 detail=f"Cannot load a script while these tasks are running: {', '.join(busy)}.")
         try:
-            _, script_bytes = capture_scope_file(SCRIPTS_DIR, os.path.basename(src),
-                                                 limit=MAX_SCRIPT_BYTES, include_bytes=True)
+            script_info, script_bytes = capture_scope_file(SCRIPTS_DIR, os.path.basename(src),
+                                                          limit=MAX_SCRIPT_BYTES, include_bytes=True)
             if script_bytes is None:
                 raise ValueError('Saved script disappeared')
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, TypeError, RecursionError) as error:
             raise HTTPException(status_code=409, detail=(
                 'Saved script identity requires inspection; existing files were preserved.')) from error
         validate_book_json_bytes(script_bytes, list, 400, "Saved script")
+        script_sha256 = script_info.get('sha256') if script_info.get('exists') else None
+        if script_sha256 is None:
+            script_sha256 = hashlib.sha256(script_bytes).hexdigest()
+        load_entries = json.loads(script_bytes)
         if request.expected_revision is not None:
             try:
                 from collection_overview import compute_saved_book_revision
                 current_revision = compute_saved_book_revision(
-                    SCRIPTS_DIR, safe_name, script_bytes=script_bytes)
+                    SCRIPTS_DIR, safe_name, script_bytes=script_bytes,
+                    script_sha256=script_sha256, script_entries=load_entries)
             except (OSError, ValueError, TypeError, RecursionError) as error:
                 raise HTTPException(status_code=409, detail=(
                     'Saved script identity requires inspection; existing files were preserved.')) from error
@@ -557,8 +593,8 @@ def _load_script_sync(request: ScriptLoadRequest):
                                                        limit=MAX_BINDING_BYTES, include_bytes=True)
             if saved_binding_raw is not None:
                 saved_binding = parse_script_binding(saved_binding_raw)
-                if (saved_binding['published_script_sha256'] != hashlib.sha256(script_bytes).hexdigest()
-                        or saved_binding['published_entries_sha256'] != get_review_entries_fingerprint(json.loads(script_bytes))):
+                if not saved_binding_matches(saved_binding, script_sha256=script_sha256,
+                                             entries=load_entries):
                     raise ValueError('Saved script differs from its binding')
         except (OSError, ValueError, TypeError, RecursionError) as error:
             raise HTTPException(status_code=409, detail='Saved script identity requires inspection; existing files were preserved.') from error

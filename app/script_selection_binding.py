@@ -187,6 +187,22 @@ def check_binding_source(raw, book_token, source_sha256, *, source_path):
     return binding['published_script_sha256']
 
 
+def saved_binding_matches(binding, *, script_sha256, entries=None, entries_sha256=None):
+    """Self-consistency predicate for a parsed saved binding (single source).
+
+    Shared by the collection overview, the load path and
+    ``updated_saved_binding`` so the saved-binding rule cannot drift
+    between the view and the gate. ``entries`` is fingerprinted in-place;
+    ``entries_sha256`` reuses an already computed fingerprint (the
+    overview's lazy single computation).
+    """
+    from completed_review_receipt import get_review_entries_fingerprint
+    fingerprint = (entries_sha256 if entries_sha256 is not None
+                   else get_review_entries_fingerprint(entries))
+    return (binding.get('published_script_sha256') == script_sha256
+            and binding.get('published_entries_sha256') == fingerprint)
+
+
 def _binding_for_controlled_edit_locked(data_dir, old_script, new_script):
     """Build an edit binding while book admission and the state lock are held."""
     from project_scope_files import capture_scope_file
@@ -367,8 +383,8 @@ def updated_saved_binding(raw, old_script, new_script):
     if raw is None:
         return None
     binding = parse_script_binding(raw)
-    if (binding['published_script_sha256'] != hashlib.sha256(old_script).hexdigest()
-            or binding['published_entries_sha256'] != get_review_entries_fingerprint(old_entries)):
+    if not saved_binding_matches(binding, script_sha256=hashlib.sha256(old_script).hexdigest(),
+                                 entries=old_entries):
         raise ValueError('Saved script differs from its binding')
     binding['published_script_sha256'] = hashlib.sha256(new_script).hexdigest()
     binding['published_entries_sha256'] = get_review_entries_fingerprint(new_entries)

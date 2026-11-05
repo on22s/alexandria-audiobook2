@@ -24,7 +24,7 @@ function useTimers(c){
 function getSnapshot(c){return vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',c);}
 function loadAction(c){
  vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),c);
- vm.runInContext(scripts.slice(scripts.indexOf('async function loadScript(name)'),scripts.indexOf('async function deleteScript(name)')),c);
+ vm.runInContext(scripts.slice(scripts.indexOf('async function loadScript('),scripts.indexOf('async function deleteScript(name)')),c);
  c.ensureCastListEditsDiscardable=async()=>{throw Error('failed save must block book selection');};
 }
 '''
