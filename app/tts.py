@@ -29,7 +29,7 @@ from tts_diagnostics import (capture_tts_operation, measure_tts_stage, record_tt
 import clone_reference_cache
 from adapter_checkpoint_transaction import (ensure_adapter_generation_snapshot, get_adapter_generation_sha256,
                                             get_adapter_serving_metadata)
-from lora_evidence import get_file_sha256, get_tts_model_settings
+from lora_evidence import get_file_sha256, get_tts_model_settings, SERVING_IDENTITY_POLICY_VERSION
 from audio_validation import GeneratedAudioError, publish_audio_output
 from speech_text import normalize_for_speech, get_speech_preparation
 from audio_generation_owner import (is_audio_generation_cancelled, ensure_audio_generation_active,
@@ -1767,6 +1767,13 @@ class TTSEngine:
             if self._compile_codec_enabled:
                 self._compile_codec(model)
 
+            serving_identity = {
+                "device": device,
+                "dtype": str(dtype).removeprefix("torch."),
+                "merge_mode": "unmerged" if dtype is torch.bfloat16 else "merged",
+                "policy_version": SERVING_IDENTITY_POLICY_VERSION,
+            }
+            model._lora_serving_identity = dict(serving_identity)
             self._local_lora_model = model
             self._local_model_devices["lora"] = device
             self._lora_adapter_path = source_adapter_path
@@ -2013,6 +2020,17 @@ class TTSEngine:
         if getattr(self, "_synthesis_windows", None) is not None:
             settings["synthesis_windows"] = copy.deepcopy(self._synthesis_windows)
         return settings
+
+    def get_lora_serving_identity(self):
+        """Metadata-only copy of the observed serving identity, or None."""
+        if not self._model_lock.acquire(blocking=False):
+            return None
+        try:
+            model = self._local_lora_model
+            identity = getattr(model, "_lora_serving_identity", None)
+            return copy.deepcopy(identity) if isinstance(identity, dict) else None
+        finally:
+            self._model_lock.release()
 
     def get_synthesis_recovery_policy(self):
         return copy.deepcopy(getattr(self, "_synthesis_recovery", None))

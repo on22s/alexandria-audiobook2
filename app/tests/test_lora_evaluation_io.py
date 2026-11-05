@@ -1,4 +1,5 @@
 """CPU PCM evaluation preserves evidence while avoiding repeated production I/O."""
+from tests.test_support import SyntheticEvaluationEngine
 import contextlib
 import io
 import json
@@ -38,7 +39,7 @@ class EvaluationIoTests(unittest.TestCase):
                                         'evidence must identify the captured input, not a later live bundle')
                 result=json.loads((adapter/'evaluation.json').read_text())
                 self.assertEqual(result['evidence']['checkpoint_sha256'],result['checkpoint_sha256'])
-                self.assertTrue(evaluation.is_complete_evaluation(result,str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(result,str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             if cached:self.assertIn('evaluation',json.loads(manifest.read_text())[0])
             if cached_tail:self.assertIn('evaluation',json.loads(manifest.read_text())[-1])
             self.assertEqual(before,(adapter/'adapter_model.safetensors').read_bytes())

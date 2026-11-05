@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import sys
 import time
+import uuid
 
 import librosa
 import numpy as np
@@ -26,7 +27,8 @@ from audio_validation import GeneratedAudioError, remove_stale_audio, validate_f
 from config_settings import load_app_config
 from lora_evidence import (EVALUATION_EVIDENCE_VERSION, get_evidence_error,
                            get_adapter_generation_sha256, get_adapter_generation_file_identity,
-                           get_evaluation_spec_sha256, get_file_sha256, get_tts_model_settings)
+                           get_evaluation_spec_sha256, get_file_sha256, get_tts_model_settings,
+                           validate_serving_identity, get_engine_lora_serving_identity)
 from device_utils import normalize_device, resolve_device
 from tts import TTSEngine
 from utils import atomic_json_write, is_path_inside
@@ -159,7 +161,8 @@ def get_speaker_similarity(model, reference_path: str, probe_path: str,
         return float(torch.nn.functional.cosine_similarity(reference, probe, dim=0).cpu())
 
 
-def is_complete_evaluation(result: dict, adapter_dir: str, synthesis_settings=None) -> bool:
+def is_complete_evaluation(result: dict, adapter_dir: str, synthesis_settings=None,
+                           expected_serving_identity=None) -> bool:
     if not isinstance(result, dict):
         return False
     probes = result.get("probes")
@@ -193,13 +196,16 @@ def is_complete_evaluation(result: dict, adapter_dir: str, synthesis_settings=No
                 candidate_dir = get_evaluation_directory(os.path.join(adapter_dir, "candidates"), recommended)
                 with open(os.path.join(candidate_dir, "evaluation.json"), encoding="utf-8") as handle:
                     candidate_result = json.load(handle)
-                if not is_complete_evaluation(candidate_result, candidate_dir, settings):
+                if not is_complete_evaluation(candidate_result, candidate_dir, settings, expected_serving_identity):
                     return False
         return (
             get_evidence_error(
                 result, adapter_dir,
-                get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS, settings),
-                expected_synthesis_settings=settings) is None
+                get_evaluation_spec_sha256(PROBES, EVALUATION_SEED, THRESHOLDS, settings,
+                                           serving_identity=expected_serving_identity),
+                expected_synthesis_settings=settings,
+                expected_serving_identity=expected_serving_identity,
+                require_current_serving=True) is None
             and [item.get("id") for item in result.get("probes", [])]
             == [probe_id for probe_id, _text in PROBES]
         )
@@ -208,19 +214,42 @@ def is_complete_evaluation(result: dict, adapter_dir: str, synthesis_settings=No
 
 
 @contextlib.contextmanager
-def ensure_evaluation_source(result, adapter_dir, synthesis_settings):
+def ensure_evaluation_source(result, adapter_dir, synthesis_settings,
+                             expected_serving_identity=None, require_current_serving=False):
     """Admit current serving bytes before publishing captured evaluation evidence."""
     with ensure_adapter_checkpoint(adapter_dir) as current:
         validate_adapter_checkpoint_generation(current)
-        error = get_evidence_error(result, str(current), expected_synthesis_settings=synthesis_settings)
+        error = get_evidence_error(
+            result, str(current), expected_synthesis_settings=synthesis_settings,
+            expected_serving_identity=expected_serving_identity,
+            require_current_serving=require_current_serving)
         if error:
             raise ValueError(error)
         yield str(current)
 
 
+class HistoricalEvaluationPreserved(ValueError):
+    pass
+
+
+def remove_unpublished_probe_audio(result, adapter_dir):
+    try:
+        with open(os.path.join(adapter_dir, "evaluation.json"), encoding="utf-8") as handle:
+            published = json.load(handle)
+        retained = {probe["audio_file"] for probe in published["probes"]}
+    except FileNotFoundError:
+        retained = set()
+    except (ValueError, KeyError, TypeError):
+        retained = set()
+    for probe in result["probes"]:
+        if probe["audio_file"] not in retained:
+            remove_stale_audio(os.path.join(adapter_dir, probe["audio_file"]))
+
+
 def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
                      embedding_model, device: str, adapter_dir_override: str | None = None,
-                     *, synthesis_settings=None, expected_generation=None) -> dict:
+                     *, synthesis_settings=None, expected_generation=None,
+                     allow_historical_replacement=False) -> dict:
     adapter_id = entry["id"]
     production_dir = get_evaluation_directory(models_dir, adapter_id)
     adapter_dir = os.path.realpath(adapter_dir_override) if adapter_dir_override else production_dir
@@ -234,10 +263,12 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
             raise ValueError("Evaluation requires declared synthesis settings")
         synthesis_settings = settings_reader()
     settings = get_tts_model_settings({"tts": synthesis_settings})
-    with ensure_adapter_generation_snapshot(adapter_dir, validate=True) as (snapshot, generation):
+    with ensure_adapter_generation_snapshot(adapter_dir, validate=True) as (snapshot, generation), \
+            contextlib.ExitStack() as probe_cleanup:
         if expected_generation is not None and generation != expected_generation:
             raise ValueError("Adapter serving generation changed since evaluation admission")
         reference_path = os.path.join(snapshot, "ref_sample.wav")
+        serving_identity = None
         probe_results = []
         for probe_index, (probe_id, text) in enumerate(PROBES):
             if get_adapter_generation_sha256(snapshot) != generation:
@@ -246,9 +277,9 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
                 raise ValueError("Engine synthesis settings changed during evaluation")
             probe_seed = EVALUATION_SEED + probe_index
             apply_evaluation_seed(probe_seed)
-            filename = f"evaluation_{probe_id}.wav"
+            filename = f"evaluation_{probe_id}_{uuid.uuid4().hex}.wav"
             output_path = os.path.join(adapter_dir, filename)
-            remove_stale_audio(output_path)
+            probe_cleanup.callback(remove_stale_audio, output_path)
             generated = engine.generate_voice(
                 text=text, instruct_text="", speaker="_evaluation_",
                 voice_config={"_evaluation_": {
@@ -259,6 +290,20 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
             )
             if generated is False or not os.path.isfile(output_path):
                 raise RuntimeError(f"probe generation failed: {probe_id}")
+            observed_identity = get_engine_lora_serving_identity(engine)
+            if probe_index == 0:
+                serving_identity = observed_identity
+                if (serving_identity is None and not allow_historical_replacement
+                        and os.path.exists(os.path.join(adapter_dir, "evaluation.json"))):
+                    with open(os.path.join(adapter_dir, "evaluation.json"), encoding="utf-8") as handle:
+                        existing = json.load(handle)
+                    if get_evidence_error(existing, adapter_dir) is None:
+                        raise HistoricalEvaluationPreserved(
+                            "Serving mode unobserved; existing report retained as historical. "
+                            "Use --overwrite explicitly to replace it.")
+                    raise ValueError("Unobserved evaluation cannot replace an existing report without --overwrite")
+            elif observed_identity != serving_identity:
+                raise ValueError("LoRA serving identity changed during evaluation")
             metrics = get_audio_metrics(output_path)
             metrics["speaker_similarity"] = get_speaker_similarity(
                 embedding_model, reference_path, output_path, device)
@@ -271,6 +316,8 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
         if (get_adapter_generation_sha256(snapshot) != generation
                 or (callable(settings_reader) and settings_reader() != settings)):
             raise ValueError("Captured evaluation inputs changed during generation")
+        if get_engine_lora_serving_identity(engine) != serving_identity:
+            raise ValueError("LoRA serving identity changed during evaluation")
         warnings = sorted({warning for probe in probe_results for warning in probe["warnings"]})
         result = {
             "version": EVALUATION_VERSION,
@@ -279,7 +326,8 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
                 "reference_audio_sha256": get_file_sha256(reference_path),
                 "adapter_generation_sha256": generation,
                 "evaluation_spec_sha256": get_evaluation_spec_sha256(
-                    PROBES, EVALUATION_SEED, THRESHOLDS, settings),
+                    PROBES, EVALUATION_SEED, THRESHOLDS, settings,
+                    serving_identity=serving_identity),
                 "evaluator": "evaluate_lora.py",
             },
             "status": "warning" if warnings else "pass",
@@ -290,8 +338,13 @@ def evaluate_adapter(entry: dict, models_dir: str, engine: TTSEngine,
             "evaluated_at": time.time(),
             "probes": probe_results,
         }
-        with ensure_evaluation_source(result, adapter_dir, settings):
+        if serving_identity is not None:
+            result["evidence"]["serving_identity"] = serving_identity
+        with ensure_evaluation_source(result, adapter_dir, settings,
+                                      expected_serving_identity=serving_identity,
+                                      require_current_serving=serving_identity is not None):
             pass
+        probe_cleanup.pop_all()
         return result
 
 
@@ -353,7 +406,7 @@ def main() -> int:
     parser.add_argument("--models-dir", required=True)
     parser.add_argument("--config", required=True)
     parser.add_argument("--device", type=normalize_device, default="auto",
-                        help="Device: auto, cpu, cuda, cuda:N, mps, rocm, or hip")
+                        help="ECAPA scorer device (not TTS serving): auto, cpu, cuda, cuda:N, mps, rocm, or hip")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -375,7 +428,7 @@ def main() -> int:
     engine = TTSEngine(config)
 
     failures = 0
-    manifest_needs_save = True
+    manifest_needs_save = not manifest
     for entry in manifest:
         adapter_id = entry.get("id", "")
         if not adapter_id:
@@ -390,7 +443,9 @@ def main() -> int:
                 existing = json.load(handle)
         except (OSError, json.JSONDecodeError):
             pass
-        if not args.overwrite and is_complete_evaluation(existing, adapter_dir, synthesis_settings):
+        if not args.overwrite and is_complete_evaluation(
+                existing, adapter_dir, synthesis_settings,
+                expected_serving_identity=get_engine_lora_serving_identity(engine)):
             print(f"SKIP {adapter_id} — evaluation complete", flush=True)
             entry["evaluation"] = {key: existing.get(key) for key in
                                    ("version", "status", "warnings", "evaluated_at")}
@@ -403,10 +458,15 @@ def main() -> int:
             manifest_needs_save = True
             continue
         print(f"EVALUATE {adapter_id}", flush=True)
+        probe_attempts = []
+        publication_started = False
         try:
             checkpoint_identity = get_adapter_generation_file_identity(adapter_dir)
             result = evaluate_adapter(entry, args.models_dir, engine, embedding_model, device,
-                                      synthesis_settings=synthesis_settings)
+                                      synthesis_settings=synthesis_settings,
+                                      allow_historical_replacement=args.overwrite)
+            probe_attempts.append((result, adapter_dir))
+            serving_identity = (result.get("evidence") or {}).get("serving_identity")
             evaluations = {"production": result}
             candidates_root = os.path.join(adapter_dir, "candidates")
             production_hash, unique_candidates, duplicate_candidates, skipped_candidates = (
@@ -429,16 +489,54 @@ def main() -> int:
                 print(f"  candidate {candidate_id}", flush=True)
                 candidate_generation = get_adapter_generation_sha256(candidate_dir)
                 admitted_generations[candidate_id] = candidate_generation
-                candidate_result = evaluate_adapter(
-                    entry, args.models_dir, engine, embedding_model, device,
-                    adapter_dir_override=candidate_dir, synthesis_settings=synthesis_settings,
-                    expected_generation=candidate_generation)
+                try:
+                    candidate_result = evaluate_adapter(
+                        entry, args.models_dir, engine, embedding_model, device,
+                        adapter_dir_override=candidate_dir, synthesis_settings=synthesis_settings,
+                        expected_generation=candidate_generation,
+                        allow_historical_replacement=args.overwrite)
+                except HistoricalEvaluationPreserved as preserved:
+                    if serving_identity is not None:
+                        raise
+                    print(f"  candidate {candidate_id} HISTORICAL RETAINED — {preserved}", flush=True)
+                    continue
+                probe_attempts.append((candidate_result, candidate_dir))
                 if candidate_result["evidence"]["checkpoint_sha256"] != candidate_hash:
                     raise ValueError("Candidate weights changed since evaluation admission")
                 candidate_result["checkpoint_sha256"] = candidate_hash
-                with ensure_evaluation_source(candidate_result, candidate_dir, synthesis_settings) as current:
+                if (candidate_result.get("evidence") or {}).get("serving_identity") != serving_identity:
+                    raise ValueError("Evaluation serving identity changed across candidates")
+                with ensure_evaluation_source(
+                        candidate_result, candidate_dir, synthesis_settings,
+                        expected_serving_identity=get_engine_lora_serving_identity(engine),
+                        require_current_serving=serving_identity is not None) as current:
+                    publication_started = True
                     atomic_json_write(candidate_result, os.path.join(current, "evaluation.json"))
                 evaluations[candidate_id] = candidate_result
+            if serving_identity is None:
+                if get_engine_lora_serving_identity(engine) is not None:
+                    raise ValueError("LoRA serving identity changed before historical publication")
+                with ensure_evaluation_source(result, adapter_dir, synthesis_settings) as current:
+                    publication_started = True
+                    atomic_json_write(result, os.path.join(current, "evaluation.json"))
+                entry["evaluation"] = {key: result[key] for key in
+                                       ("version", "status", "warnings", "evaluated_at")}
+                print("  HISTORICAL — serving mode unobserved; ranking, promotion and cleanup unavailable",
+                      flush=True)
+                atomic_json_write(manifest, args.manifest)
+                manifest_needs_save = False
+                continue
+            observed_identities = set()
+            for evaluated in evaluations.values():
+                identity = validate_serving_identity(
+                    (evaluated.get("evidence") or {}).get("serving_identity"))
+                if identity is None:
+                    raise ValueError("Evaluation serving identity is missing or unknown")
+                observed_identities.add(json.dumps(identity, sort_keys=True))
+            if len(observed_identities) != 1:
+                raise ValueError("Evaluation serving identity changed across candidates")
+            if get_engine_lora_serving_identity(engine) != result["evidence"]["serving_identity"]:
+                raise ValueError("LoRA serving identity changed before candidate selection")
             recommendation = get_candidate_recommendation(evaluations)
             keep = (recommendation["recommended"]
                     if recommendation["recommended"] != "production" else None)
@@ -466,13 +564,17 @@ def main() -> int:
             # Persist the comparison and cleanup plan before removing any
             # generated candidate directory. A crash can then be diagnosed and
             # resumed without silently losing the selection evidence.
-            with ensure_evaluation_source(result, adapter_dir, synthesis_settings) as current:
+            with ensure_evaluation_source(
+                    result, adapter_dir, synthesis_settings,
+                    expected_serving_identity=get_engine_lora_serving_identity(engine),
+                    require_current_serving=True) as current:
                 for candidate_id, generation in admitted_generations.items():
                     candidate_dir = get_evaluation_directory(os.path.join(current, "candidates"), candidate_id)
                     validate_adapter_checkpoint_generation(candidate_dir)
                     if get_adapter_generation_sha256(candidate_dir) != generation:
                         raise ValueError("Candidate serving generation changed before evaluation cleanup")
                 current_result_path = os.path.join(current, "evaluation.json")
+                publication_started = True
                 atomic_json_write(result, current_result_path)
                 recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(
                     current, keep, available_candidates)
@@ -486,11 +588,31 @@ def main() -> int:
                 recommendation.get("skipped_candidates", []))
             print(f"  {result['status'].upper()} — {', '.join(result['warnings']) or 'clean'}",
                   flush=True)
+        except HistoricalEvaluationPreserved as preserved:
+            if not probe_attempts:
+                print(f"  HISTORICAL RETAINED — {preserved}", flush=True)
+                continue
+            failures += 1
+            message = "Evaluation serving identity became unobserved across candidates"
+            print(f"  FAILED — {message}", flush=True)
+            if not publication_started:
+                continue
+            entry["evaluation"] = {"version": EVALUATION_VERSION, "status": "failed",
+                                   "warnings": [message], "evaluated_at": time.time()}
         except Exception as error:
             failures += 1
+            print(f"  FAILED — {error}", flush=True)
+            if "evaluation" in entry and not publication_started:
+                continue
             entry["evaluation"] = {"version": EVALUATION_VERSION, "status": "failed",
                                    "warnings": [str(error)], "evaluated_at": time.time()}
-            print(f"  FAILED — {error}", flush=True)
+        finally:
+            for attempt, checkpoint_dir in probe_attempts:
+                try:
+                    remove_unpublished_probe_audio(attempt, checkpoint_dir)
+                except OSError as cleanup_error:
+                    failures += 1
+                    print(f"  PROBE CLEANUP FAILED — {checkpoint_dir}: {cleanup_error}", flush=True)
         atomic_json_write(manifest, args.manifest)
         manifest_needs_save = False
     if manifest_needs_save:

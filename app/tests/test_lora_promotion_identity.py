@@ -28,6 +28,7 @@ class PromotionIdentityTests(unittest.TestCase):
         manifest = models / 'manifest.json'
         manifest.write_text(json.dumps([{'id': 'voice', 'evaluation': {'recommended_candidate': 'epoch_002'},
                                         'evaluation_candidates': [{'id': 'epoch_002'}, {'id': 'epoch_003'}]}]))
+        stack.enter_context(patch.object(lora, "_require_current_candidate_evidence"))
         state = copy.deepcopy(core.process_state)
         for row in state.values():
             row['running'] = False

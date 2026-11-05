@@ -160,6 +160,41 @@ class LoraMergeTests(unittest.TestCase):
         self.assertEqual("merge-sha256", model._aa2_recovery_lora_merge_sha256)
         self.assertFalse(hasattr(model, "_aa2_recovery_lora_unmerged"))
 
+    def test_observed_serving_identity_tracks_loader_without_runtime_queries(self):
+        self.fake_torch.float32 = "torch.float32"
+        self.fake_torch.bfloat16 = "torch.bfloat16"
+        for device, dtype, mode in (
+                ("cpu", self.fake_torch.float32, "merged"),
+                ("cuda", self.fake_torch.bfloat16, "unmerged"),
+                ("cuda:1", self.fake_torch.bfloat16, "unmerged"),
+                ("cuda", self.fake_torch.float32, "merged")):
+            with self.subTest(device=device, dtype=dtype):
+                engine, model = self._load(device=device, dtype=dtype)
+                read_identity = getattr(engine, "get_lora_serving_identity", lambda: None)
+                with patch.object(engine, "_resolve_device", side_effect=AssertionError("runtime query")), \
+                     patch.object(tts_module.device_utils, "compute_dtype",
+                                  side_effect=AssertionError("dtype query")):
+                    identity = read_identity()
+                self.assertEqual({"policy_version": 1, "device": device,
+                                  "dtype": dtype.removeprefix("torch."), "merge_mode": mode}, identity)
+                identity["merge_mode"] = "changed copy"
+                self.assertEqual(mode, read_identity()["merge_mode"])
+                engine._local_lora_model = None
+                self.assertIsNone(read_identity())
+
+    def test_serving_identity_is_unknown_without_waiting_for_model_load(self):
+        import threading
+        engine, model = self._load()
+        observed = []
+        reader = threading.Thread(target=lambda: observed.append(engine.get_lora_serving_identity()))
+        with engine._model_lock:
+            reader.start()
+            reader.join(timeout=1)
+            blocked = reader.is_alive()
+        reader.join(timeout=2)
+        self.assertFalse(blocked, "metadata reads must not wait for a model load")
+        self.assertEqual([None], observed)
+
     def test_merged_talker_still_exposes_config_for_the_vram_estimator(self):
         _, model = self._load()
         self.assertIs(_Talker.config, model.model.talker.config)

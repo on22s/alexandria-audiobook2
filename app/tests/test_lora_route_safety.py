@@ -144,7 +144,16 @@ class LoraRouteSafetyTests(unittest.TestCase):
                     stack.enter_context(patch.object(lora, 'project_manager', manager))
 
                     def operation(*_args, **kwargs):
-                        self.assertEqual({'expected_candidate_id': None} if operation_name == '_promote_lora_candidate' else {}, kwargs)
+                        if operation_name == '_promote_lora_candidate':
+                            self.assertEqual({'expected_candidate_id', 'promotion_observation'}, set(kwargs))
+                            self.assertIsNone(kwargs['expected_candidate_id'])
+                            observation = kwargs['promotion_observation']
+                            self.assertIs(engine, observation['engine'])
+                            self.assertIsNone(observation['identity'])
+                            self.assertEqual(lora.get_tts_model_settings(lora.load_app_config(lora.CONFIG_PATH)),
+                                             observation['settings'])
+                        else:
+                            self.assertEqual({}, kwargs)
                         self.assertTrue(state['lora_training']['running'])
                         if outcome == 'operation_error':
                             raise RuntimeError('checkpoint change failed')

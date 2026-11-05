@@ -69,6 +69,11 @@ def _promotion_fixture(test,models):
 
 
 class LoraCandidatePromotionTests(unittest.TestCase):
+    def setUp(self):
+        admission = patch.object(lora, "_require_current_candidate_evidence")
+        admission.start()
+        self.addCleanup(admission.stop)
+
     def _write_checkpoint(self, root, marker):
         _write_real_checkpoint(root,marker)
 
@@ -446,6 +451,9 @@ class LoraCheckpointSwapRouteClaimTests(unittest.TestCase):
         _write_real_checkpoint(root,marker)
 
     def setUp(self):
+        admission = patch.object(lora, "_require_current_candidate_evidence")
+        admission.start()
+        self.addCleanup(admission.stop)
         self._script_running = process_state["script"]["running"]
         self._lora_training_state = dict(process_state["lora_training"])
 
@@ -522,6 +530,7 @@ class AlteredComparisonSpecTests(unittest.TestCase):
 
 
 class PromotionCleanupFailureTests(unittest.TestCase):
+    setUp = LoraCandidatePromotionTests.setUp
     _write_checkpoint = LoraCandidatePromotionTests._write_checkpoint
     def test_committed_promotion_survives_cleanup_errors(self):
         for failed_cleanup in ("candidate", "backup", "both"):
@@ -595,6 +604,7 @@ class PromotionCleanupFailureTests(unittest.TestCase):
 
 
 class NativeCheckpointHttpArtifactTests(unittest.TestCase):
+    setUp = LoraCandidatePromotionTests.setUp
     _write_checkpoint=staticmethod(_write_real_checkpoint)
 
     def test_real_http_promotion_rollback_and_recovery_preserve_artifacts_and_release_claim(self):

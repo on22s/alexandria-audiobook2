@@ -162,6 +162,9 @@ class SyntheticEvaluationEngine:
     def get_model_settings(self):
         return dict(self._settings)
 
+    def get_lora_serving_identity(self):
+        return {"policy_version": 1, "device": "cpu", "dtype": "float32", "merge_mode": "merged"}
+
 
 def assert_file_lock_released(path):
     """Verify ownership ended by taking the same lock immediately."""

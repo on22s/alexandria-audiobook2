@@ -124,14 +124,14 @@ class ServingEvidenceTests(unittest.TestCase):
                                 ('device', 'cpu'), ('compile_codec', True), ('mode', 'external')):
                 with self.subTest(name=name):
                     requested = {**result['synthesis_settings'], name: value}
-                    self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter), requested))
+                    self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter), requested, expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             for field in ('synthesis_settings', 'adapter_generation_sha256'):
                 with self.subTest(field=field):
                     missing = copy.deepcopy(result)
                     (missing if field == 'synthesis_settings' else missing['evidence']).pop(field)
-                    self.assertFalse(evaluation.is_complete_evaluation(missing, str(adapter)))
+                    self.assertFalse(evaluation.is_complete_evaluation(missing, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             legacy = copy.deepcopy(result);legacy['version'] = 2
-            self.assertFalse(evaluation.is_complete_evaluation(legacy, str(adapter)))
+            self.assertFalse(evaluation.is_complete_evaluation(legacy, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
     def test_config_and_metadata_only_changes_refuse_completed_native_evidence(self):
         for filename, field, value in (('adapter_config.json', 'lora_alpha', 8),
@@ -139,12 +139,12 @@ class ServingEvidenceTests(unittest.TestCase):
             with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tmp:
                 adapter = Path(tmp) / 'voice';write_test_serving_adapter(adapter)
                 result = self.evaluate(adapter)
-                self.assertTrue(evaluation.is_complete_evaluation(result, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(result, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 weights = (adapter / 'adapter_model.safetensors').read_bytes()
                 reference = (adapter / 'ref_sample.wav').read_bytes()
                 data = json.loads((adapter / filename).read_text());data[field] = value
                 (adapter / filename).write_text(json.dumps(data))
-                self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter)))
+                self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 self.assertEqual(weights, (adapter / 'adapter_model.safetensors').read_bytes())
                 self.assertEqual(reference, (adapter / 'ref_sample.wav').read_bytes())
 
@@ -256,7 +256,7 @@ class ServingEvidenceTests(unittest.TestCase):
             self.assertEqual(2, len(engines[0].calls))
             replacement = json.loads((adapter / 'evaluation.json').read_text())
             self.assertEqual(evidence.EVALUATION_EVIDENCE_VERSION, replacement['version'])
-            self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter)))
+            self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
     def test_stale_candidate_before_cleanup_fails_without_removing_captured_or_new_candidates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -290,7 +290,8 @@ class ServingEvidenceTests(unittest.TestCase):
                 config.write_text('{}')
                 cand['thresholds'] = {**cand['thresholds'], 'speaker_similarity_min': .8}
                 cand['evidence']['evaluation_spec_sha256'] = evidence.get_evaluation_spec_sha256(
-                    evaluation.PROBES, evaluation.EVALUATION_SEED, cand['thresholds'], cand['synthesis_settings'])
+                    evaluation.PROBES, evaluation.EVALUATION_SEED, cand['thresholds'], cand['synthesis_settings'],
+                    serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity())
                 (candidate / 'evaluation.json').write_text(json.dumps(cand))
                 with self.assertRaisesRegex(HTTPException, 'specifications'):
                     lora._load_candidate_comparison_full('voice', str(root), str(manifest))
