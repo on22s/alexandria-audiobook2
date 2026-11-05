@@ -547,14 +547,17 @@
                             aliasSelect.appendChild(opt);
                         });
                         const entry = voices.find(v => v.name === voice.name);
-                        if (entry && entry.config && entry.config.alias_of) {
-                            if (!Array.from(aliasSelect.options).some(option => option.value === entry.config.alias_of)) {
+                        const effectiveAlias = typeof getEffectiveVoiceAlias === 'function'
+                            ? getEffectiveVoiceAlias(entry?.config || {})
+                            : (entry?.config?.alias_of || entry?.config?.alias || '');
+                        if (entry && entry.config && effectiveAlias) {
+                            if (!Array.from(aliasSelect.options).some(option => option.value === effectiveAlias)) {
                                 const opt = document.createElement('option');
-                                opt.value = entry.config.alias_of;
-                                opt.text = entry.config.alias_of;
+                                opt.value = effectiveAlias;
+                                opt.text = effectiveAlias;
                                 aliasSelect.appendChild(opt);
                             }
-                            aliasSelect.value = entry.config.alias_of;
+                            aliasSelect.value = effectiveAlias;
                         } else {
                             aliasSelect.value = '';
                         }

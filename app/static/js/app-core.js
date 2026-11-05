@@ -902,56 +902,45 @@
                 if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
                     throw new Error('The request deadline must be a positive finite duration.');
                 }
-                const controller = timeoutMs === null ? null : new AbortController();
-                let timer;
-                const request = async () => {
+                return API._withDeadline(async signal => {
                     const res = await fetch(url, {
-                        ...(controller ? {signal: controller.signal} : {}),
+                        ...(signal ? {signal} : {}),
                     });
                     await API._handleError(res);
                     return res.json();
-                };
-                if (!controller) { return request(); }
-                const deadline = new Promise((resolve, reject) => {
-                    timer = setTimeout(() => {
-                        reject(new Error(timeoutMessage));
-                        controller.abort();
-                    }, timeoutMs);
-                });
-                try {
-                    return await Promise.race([request(), deadline]);
-                } finally {
-                    if (timer !== undefined) { clearTimeout(timer); }
-                }
+                }, timeoutMs, timeoutMessage);
             },
             post: async (url, data, {timeoutMs = null, timeoutMessage = 'The voice save timed out. Your edits are retained; the server save could not be confirmed.'} = {}) => {
                 if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
                     throw new Error('The request deadline must be a positive finite duration.');
                 }
-                const controller = timeoutMs === null ? null : new AbortController();
-                let timer;
-                const request = async () => {
+                return API._withDeadline(async signal => {
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data),
-                        ...(controller ? {signal: controller.signal} : {}),
+                        ...(signal ? {signal} : {}),
                     });
                     await API._handleError(res);
                     return await res.json();
-                };
-                if (!controller) { return request(); }
+                }, timeoutMs, timeoutMessage);
+            },
+            // One fetch-with-deadline seam shared by GET and POST (CR2039):
+            // AbortController aborts fetch and body consumption; timer is
+            // always cleared. Placed after post so the
+            // _handleError..get extraction boundary stays intact.
+            _withDeadline: (requestFactory, timeoutMs, timeoutMessage) => {
+                if (timeoutMs === null) { return requestFactory(null); }
+                const controller = new AbortController();
+                let timer;
                 const deadline = new Promise((resolve, reject) => {
                     timer = setTimeout(() => {
                         reject(new Error(timeoutMessage));
                         controller.abort();
                     }, timeoutMs);
                 });
-                try {
-                    return await Promise.race([request(), deadline]);
-                } finally {
-                    clearTimeout(timer);
-                }
+                return Promise.race([requestFactory(controller.signal), deadline])
+                    .finally(() => { if (timer !== undefined) { clearTimeout(timer); } });
             },
             del: async (url) => {
                 const res = await fetch(url, { method: 'DELETE' });
@@ -4891,6 +4880,17 @@
             if (!Array.isArray(snapshot.voices) || !/^[0-9a-f]{64}$/.test(snapshot.revision) || !/^[0-9a-f]{64}$/.test(snapshot.book_token)) {
                 throw new Error('Invalid voice snapshot; your voice settings were not replaced.');
             }
+            // Owner fencing (CR2005/2007): a stale refresh must never
+            // publish metadata after a newer loadVoices request, a local
+            // book/epoch change, or a same-name generation switch. The
+            // epoch check here also covers unscoped legacy callers that
+            // pass no expected identity.
+            if (window._bookSelectionEpoch !== selectionEpoch || rosterFilename !== currentBookFilename) {
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+            }
+            if (opts.ownerGeneration !== undefined && loadVoices.generation !== opts.ownerGeneration) {
+                throw new Error('A newer voice load superseded this refresh; existing edits were preserved.');
+            }
             _voiceSaveSnapshot = snapshot;
             const voices = snapshot.voices;
             // Cache simple names for alias dropdowns
@@ -5004,13 +5004,27 @@
             const selectionEpoch = window._bookSelectionEpoch;
             const rosterFilename = currentBookFilename;
             const identityKey = expectedSelection ? `sel:${expectedSelection.token}`
-                : (expectedIdentityToken ? `id:${expectedIdentityToken}` : '');
+                : (expectedIdentityToken ? `id:${expectedIdentityToken}`
+                // Legacy unscoped callers bind to the CURRENT book context
+                // (filename+epoch+selection), never a wildcard: a pending
+                // load for book A must not be reused or rendered for B.
+                : `ctx:${rosterFilename}:${selectionEpoch}:${window._selectedUploadIdentity?.token || ''}`);
             if (!refreshResources && loadVoices.pending) {
-                if (!identityKey || loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
+                if (loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
                 // Never reuse another identity's pending render: wait for it
                 // to settle, then fall through to a fresh load for this identity.
                 try { await loadVoices.pending; } catch (e) { /* fall through to fresh load */ }
             }
+            // Request ownership: a forced/newer load increments the
+            // generation and fences every older load's side effects
+            // (snapshot, resource caches, cards), even if the older load's
+            // network responses arrive last.
+            const generation = (loadVoices.generation || 0) + 1;
+            loadVoices.generation = generation;
+            const isOwner = () => generation === loadVoices.generation
+                && rosterFilename === currentBookFilename
+                && selectionEpoch === window._bookSelectionEpoch
+                && (!expectedSelection || window._selectedUploadIdentity === expectedSelection);
             const loading = (async () => {
                 await flushVoiceSaves();
                 const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
@@ -5020,6 +5034,10 @@
                 if (!reuseResources) { _voiceResourcesRefreshedAt = -Infinity; }
                 // Fetch independent lists together; render only after dropdowns and
                 // per-character cast counts are ready. Keep old optional lists on error.
+                // Results are staged locally and published to the caches only
+                // after the owner check below, so a slow stale response can
+                // never overwrite a newer load's caches.
+                const stagedResources = [];
                 const resources = reuseResources ? [] : [
                     ['_designedVoicesCache', '/api/voice_design/list', 'designed-voices'],
                     ['_cloneVoicesCache', '/api/clone_voices/list', 'clone-voices'],
@@ -5028,15 +5046,21 @@
                     try {
                         const list = await API.get(path);
                         if (!Array.isArray(list)) { throw new Error('Voice resource list is malformed'); }
-                        window[key] = list;
-                        refreshedResources.push(path);
+                        stagedResources.push([key, list, path]);
                     }
                     catch (e) { resourcesComplete = false; failedResources.push(path); console.debug(`${label} cache refresh failed`, e); }
                 });
                 const [voices] = await Promise.all([
-                    refreshVoiceMetadata({expectedSelection, expectedIdentityToken: expectedIdentityToken || undefined}), ...resources,
+                    refreshVoiceMetadata({expectedSelection, expectedIdentityToken: expectedIdentityToken || undefined, ownerGeneration: generation}), ...resources,
                     ...(reuseResources ? [] : [loadCastLibrary().catch(e => { resourcesComplete = false; failedResources.push('/api/voice_library'); console.debug('cast library refresh failed', e); })]),
                 ]);
+                if (!isOwner()) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                stagedResources.forEach(([key, list, path]) => {
+                    window[key] = list;
+                    refreshedResources.push(path);
+                });
                 if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
                         || window._bookSelectionEpoch !== selectionEpoch
                         || _voiceSaveSnapshot.book_identity_token !== expectedSelection.token)) {
@@ -5045,6 +5069,9 @@
                 if (expectedIdentityToken && (_voiceSaveSnapshot.book_identity_token !== expectedIdentityToken
                         || window._bookSelectionEpoch !== selectionEpoch
                         || rosterFilename !== currentBookFilename)) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (!isOwner()) {
                     throw new Error('Active book changed while loading voices; voice edits were preserved.');
                 }
                 if (!reuseResources) {
@@ -5772,7 +5799,8 @@
             const request = (window._castLibraryRequest || 0) + 1;
             window._castLibraryRequest = request;
             const book = currentBookFilename;
-            const isCurrent = () => request === window._castLibraryRequest && book === currentBookFilename;
+            const epoch = window._bookSelectionEpoch;
+            const isCurrent = () => request === window._castLibraryRequest && book === currentBookFilename && epoch === window._bookSelectionEpoch;
             let lib;
             try { lib = await API.get('/api/voice_library'); }
             catch (error) { if (!isCurrent()) { return; } throw error; }
@@ -6489,7 +6517,11 @@
 
         function collectVoiceConfig() {
             const cards = document.querySelectorAll('.voice-card');
-            const config = {};
+            // Null-prototype maps: a script-supplied speaker named
+            // "__proto__" (or constructor/toString/...) must become an OWN
+            // serialized entry, not invoke the Object.prototype __proto__
+            // setter and silently drop the assignment.
+            const config = Object.create(null);
             const modelsById = getLoraModelsById();
 
             cards.forEach(card => {
@@ -6574,7 +6606,7 @@
                       config[name].adapter_generation_sha256 = null;
                   } }
             });
-            const merged = {};
+            const merged = Object.create(null);
             cards.forEach(card => {
                 const name = card.dataset.voice;
                 if (!card.dataset.version) { merged[name] = config[getVoiceCardKey(card)]; }
@@ -6778,6 +6810,10 @@
         });
 
         function saveVoicesDebounced() {
+            if (window._singleVoiceApplying) {
+                showToast('A book-wide voice change is being saved; card edits are paused until Voices refreshes.', 'warning');
+                return;
+            }
             if (document.querySelectorAll('.voice-card').length === 0) { return; }
             if (!_voiceSaveSnapshot) {
                 showToast('Wait for voices to finish loading before editing them.', 'warning');

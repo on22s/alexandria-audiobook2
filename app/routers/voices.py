@@ -472,19 +472,21 @@ def get_voice_rows(script_data, voice_config):
             lines[name].append(entry)
     state_targets = get_persona_state_targets(script_data)
     if not isinstance(voice_config, dict):
-        raise HTTPException(status_code=400, detail=(
+        raise ValueError(
             "Saved voice configuration must be an object; "
-            "restore the saved voice configuration before continuing."))
+            "restore the saved voice configuration before continuing.")
     # A present-but-non-object ACTIVE entry is corrupt saved data, not an
     # unconfigured voice: refuse clearly instead of reading it as {} /
     # persona_pending. Absent active keys stay unconfigured; inactive
     # legacy keys are not in the roster, are not validated here, and
-    # are never touched by this read.
+    # are never touched by this read. Domain ValueError (not HTTPException)
+    # so compound callers (book_workspace/collection_overview) can map it
+    # to their unavailable/partial contract; HTTP facades map it to 400.
     for name in roster:
         if name in voice_config and not isinstance(voice_config[name], dict):
-            raise HTTPException(status_code=400, detail=(
+            raise ValueError(
                 f"Speaker '{name}' has a malformed voice entry (not an object); "
-                "restore the saved voice configuration before continuing."))
+                "restore the saved voice configuration before continuing.")
     rows = []
     for name in roster:
         entry = voice_config.get(name, {})
@@ -492,7 +494,7 @@ def get_voice_rows(script_data, voice_config):
                "persona_pending": not voice_is_set(entry)}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
-        if name in state_targets and not row["config"].get("alias_of"):
+        if name in state_targets and not (row["config"].get("alias_of") or row["config"].get("alias")):
             saved = row["config"].get("versions", {})
             # Each state says whether its saved version is current, by the
             # server's own rule, so the cards never re-derive it (C37).
@@ -515,7 +517,10 @@ def _ensure_voice_listing():
     with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
         script_data = safe_load_json(SCRIPT_PATH, default=[]) if os.path.exists(SCRIPT_PATH) else []
         voice_config = safe_load_json(VOICE_CONFIG_PATH, default={}) if os.path.exists(VOICE_CONFIG_PATH) else {}
-        return get_voice_rows(script_data, voice_config)
+        try:
+            return get_voice_rows(script_data, voice_config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/voices/{speaker}/versions")
@@ -1147,9 +1152,14 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                         f"Speaker '{voice_name}' has a malformed voice entry (not an object).")
                 metadata = dict(existing) if isinstance(existing, dict) else {}
                 fields = config.model_dump(exclude_unset=isinstance(existing, dict))
+                # Timeline fields must serialize their full objects (not the
+                # exclude_unset slice): dump once, only when needed.
+                _timeline_dump = None
                 for key in ('style_timeline', 'version_timeline'):
                     if key in fields:
-                        fields[key] = config.model_dump()[key]
+                        if _timeline_dump is None:
+                            _timeline_dump = config.model_dump()
+                        fields[key] = _timeline_dump[key]
                 candidate = {**metadata, **fields}
                 # One canonical seam for the legacy alias key (#1724 C020):
                 # whenever alias_of is explicitly provided (set or cleared),
@@ -1247,11 +1257,25 @@ def _ensure_voice_snapshot():
                 "Active book data is invalid and cannot be read. "
                 "Restore the book state or reload the script, then try again.")) from exc
         config = snapshot["voices"]
-        return {"revision": get_voice_config_revision(config),
-                "book_token": get_book_snapshot_token(snapshot), "book_id": snapshot["book_id"], "config": config,
-                "book_identity_token": get_book_operation_token(os.path.dirname(VOICE_CONFIG_PATH)),
-                "voices": get_voice_rows(script, config),
-                "seed_changes": get_unseeded_voice_seed_changes(config)}
+        # Revision/token/identity/rows are also intended snapshot reads:
+        # nonfinite/corrupt book data (NaN/Infinity via plain loads) makes
+        # the digest helpers raise ValueError, which must be an honest
+        # 400, never 500. The try is narrow to these calls only.
+        try:
+            revision = get_voice_config_revision(config)
+            book_token = get_book_snapshot_token(snapshot)
+            book_identity_token = get_book_operation_token(os.path.dirname(VOICE_CONFIG_PATH))
+            voices = get_voice_rows(script, config)
+            seed_changes = get_unseeded_voice_seed_changes(config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=(
+                "Active book data is invalid and cannot be read. "
+                f"{exc} Restore the book state or reload the script, then try again.")) from exc
+        return {"revision": revision,
+                "book_token": book_token, "book_id": snapshot["book_id"], "config": config,
+                "book_identity_token": book_identity_token,
+                "voices": voices,
+                "seed_changes": seed_changes}
 
 
 @router.get("/api/voice_config/snapshot")
@@ -1277,8 +1301,8 @@ async def save_guarded_voice_config(request: GuardedVoiceSaveRequest):
 
 class SingleVoicePreviewRequest(BaseModel):
     source_speaker: str = Field(min_length=1, max_length=200)
-    revision: str = Field(pattern=r"^[0-9a-f]{64}$")
-    book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+    revision: str = Field(pattern=BOOK_TOKEN_PATTERN)
+    book_token: str = Field(pattern=BOOK_TOKEN_PATTERN)
 
 
 def _direct_source_asset(source_speaker, source_config):
@@ -1292,6 +1316,16 @@ def _direct_source_asset(source_speaker, source_config):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' has a malformed voice entry (not an object). "
             "Choose a speaker with a direct base voice, then use its voice for the book."))
+    # Malformed non-string alias metadata (either key) refuses clearly
+    # instead of bypassing the direct-asset alias refusal and being
+    # silently cleared as a side effect. Canonical runtime alias
+    # resolution (tts.get_resolved_speaker) is unchanged.
+    for alias_key in ("alias_of", "alias"):
+        alias_value = (source_config or {}).get(alias_key)
+        if alias_value is not None and alias_value != "" and not isinstance(alias_value, str):
+            raise HTTPException(status_code=422, detail=(
+                f"Speaker '{source_speaker}' has malformed alias metadata (not text). "
+                "Restore the saved voice configuration before applying it."))
     alias = (source_config or {}).get("alias_of") or (source_config or {}).get("alias")
     if isinstance(alias, str) and alias.strip():
         raise HTTPException(status_code=422, detail=(
@@ -1368,18 +1402,26 @@ def _direct_source_asset(source_speaker, source_config):
         # TTS requires adapter_path (tts.get_lora_voice_request returns None
         # without it), so an adapter_id-only source must still resolve to a
         # renderable path; reusing the library helper keeps one formula (#1724 C068).
+        # Source-local normalization: strip surrounding whitespace BEFORE
+        # validation so ' . ' / ' .. ' are rejected as '.'/'..', and the
+        # canonical stripped id is used for the fallback path/patch. The
+        # shared validate_adapter_name semantics are unchanged (it returns
+        # None; spaced folder identities elsewhere stay as they were).
+        adapter_id = _text("adapter_id").strip()
         try:
-            validate_adapter_name(_text("adapter_id"))
+            validate_adapter_name(adapter_id)
         except ValueError:
             raise HTTPException(status_code=422, detail=(
                 f"Speaker '{source_speaker}' has an unsafe adapter identity. "
                 "Choose a complete direct base asset, then use its voice for the book."))
         adapter_path = _text("adapter_path") or get_library_voice_config(
-            {"type": voice_type, "adapter_id": _text("adapter_id")})["adapter_path"]
+            {"type": voice_type, "adapter_id": adapter_id})["adapter_path"]
         # Transfer the chosen source's pin P unchanged to targets. Never
         # recompute it from current disk Q: TTS must still refuse Q vs P.
+        # The normalized adapter_id is used for the fallback path and the
+        # patch; the pin value itself is never altered by normalization.
         return {"type": voice_type, "voice": None, "ref_audio": None, "ref_text": None,
-                "adapter_id": _text("adapter_id"), "adapter_path": adapter_path,
+                "adapter_id": adapter_id, "adapter_path": adapter_path,
                 "members": None, "adapter_generation_sha256": source_pin}
     raise HTTPException(status_code=422, detail=(
         f"Speaker '{source_speaker}' uses unsupported voice type '{voice_type}'. "
@@ -1433,15 +1475,17 @@ def build_single_voice_proposal(voices, script, source_speaker):
             "Choose a speaker with a direct base voice, then use its voice for the book."))
     # Malformed ACTIVE entries refuse clearly; missing/unconfigured active
     # speakers stay {}. Inactive legacy entries are never validated here.
-    rows = get_voice_rows(script, voices)
-    # Validate every active row's saved entry BEFORE building patches: a
-    # malformed active entry must never be silently replaced by {}.
-    for row in rows:
-        name = row["name"]
-        if name in voices and not isinstance(voices[name], dict):
-            raise HTTPException(status_code=400, detail=(
-                f"Speaker '{name}' has a malformed voice entry (not an object); "
-                "restore the saved voice configuration before continuing."))
+    # get_voice_rows is a domain seam (ValueError); this HTTP proposal
+    # facade maps it to a clear 400, while compound callers of the same
+    # seam keep their unavailable/partial contract.
+    try:
+        rows = get_voice_rows(script, voices)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # No second active-entry loop: get_voice_rows already refused every
+    # present malformed active entry before returning rows, so a loop
+    # here could never trigger. Source-specific 422 above is distinct
+    # (source may be inactive/outside roster) and is preserved.
     names = [row["name"] for row in rows]
     if source_speaker not in names:
         raise HTTPException(status_code=404, detail=f"Speaker '{source_speaker}' is not in the active script.")
@@ -1466,6 +1510,25 @@ def build_single_voice_proposal(voices, script, source_speaker):
     # The patch is identical for every speaker except this per-speaker
     # approval reset, which depends on that speaker's own before-state.
     VoiceConfigItem(**patch_template)
+    # Amplification bound (CR2016/2075): the identical patch is copied once
+    # per active speaker, so estimate the expanded serialized size BEFORE
+    # building the per-speaker map. Reuses the existing scope voice-mapping
+    # budget (MAX_SCOPE_VOICE_MAPPING_BYTES); oversize refuses with no
+    # writes and no massive allocation/serialization.
+    import project_scope_voices
+    # Maximum actual patch includes the optional per-speaker
+    # voice_status='unassigned' augmentation, plus key/separator overhead
+    # per speaker, so a near-budget map cannot exceed the reused budget
+    # after augmentation.
+    _max_patch = {**patch_template, "voice_status": "unassigned"}
+    _patch_bytes = len(json.dumps(_max_patch, ensure_ascii=False, allow_nan=False).encode('utf-8'))
+    _expanded = _patch_bytes * len(rows)
+    for _row in rows:
+        _expanded += len(json.dumps(_row["name"], ensure_ascii=False, allow_nan=False).encode('utf-8')) + 16
+    if _expanded > project_scope_voices.MAX_SCOPE_VOICE_MAPPING_BYTES:
+        raise HTTPException(status_code=422, detail=(
+            "The selected voice is too large to copy to every speaker in this book. "
+            "Choose a speaker with a compact direct voice, then use its voice for the book."))
     proposed = {}
     speakers = []
     after_summary = _voice_asset_summary(patch_template)
@@ -1517,17 +1580,18 @@ def build_single_voice_proposal(voices, script, source_speaker):
 def _ensure_single_voice_preview(request):
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_CONFIG_PATH):
         snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
-        if get_book_snapshot_token(snapshot) != request.book_token:
+        book_token = get_book_snapshot_token(snapshot)
+        if book_token != request.book_token:
             raise VoiceConfigConflict("Active book changed; reload voices before previewing")
         script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
         config = snapshot["voices"]
-        if get_voice_config_revision(config) != request.revision:
+        revision = get_voice_config_revision(config)
+        if revision != request.revision:
             raise VoiceConfigConflict("Voice configuration changed; reload it before previewing")
         proposal = build_single_voice_proposal(config, script, request.source_speaker)
         # Echo the verified guards (recomputed values equal the request's
         # on success, so the echo is exact); no dead book_id payload.
-        proposal.update({"book_token": get_book_snapshot_token(snapshot),
-                         "revision": get_voice_config_revision(config)})
+        proposal.update({"book_token": book_token, "revision": revision})
         return proposal
 
 

@@ -1,4 +1,25 @@
 {
+  "test_1724_r2_regressions": [
+    "tests.test_1724_r2_regressions.AdmissionRouteTests.test_invalid_journal_maps_to_409_no_mutation",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_adapter_id_whitespace_normalized_and_dotdot_refused",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_collection_and_workspace_unavailable_not_500",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_get_voice_rows_domain_error_not_http",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_legacy_alias_suppresses_persona_states",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_nonstring_alias_refused",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_pin_explicit_wins_on_same_id_path_move",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_proposal_amplification_bound_patched_budget",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_proposal_amplification_exact_boundary",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_snapshot_nan_is_400_not_500",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_catalog_failure_warns_after_saved",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_pending_apply_guard_during_await",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_source_preview_B_before_voices",
+    "tests.test_1724_r2_regressions.GuideAndEscapeJsTests.test_escape_label_executed",
+    "tests.test_1724_r2_regressions.GuideAndEscapeJsTests.test_guide_home_to_tab_container",
+    "tests.test_1724_r2_regressions.LoadFencingJsTests.test_old_last_never_publishes",
+    "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_generated_map_roundtrip_invariant",
+    "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_reserved_names_roundtrip_http",
+    "tests.test_1724_r2_regressions.SourceIdentityJsTests.test_selected_upload_authoritative_over_stale_snapshot"
+  ],
   "test_action_error_guidance_js": [
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_designer_preview_failure_keeps_inputs_and_escapes_diagnostics",
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_export_refusal_releases_admission_without_polling_or_false_success",

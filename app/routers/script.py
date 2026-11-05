@@ -1049,20 +1049,35 @@ def _get_single_narrator_source_preview():
         if '\x00' in text:
             raise HTTPException(status_code=409, detail=(
                 "Active source text could not be decoded; inspect it in Script instead."))
-        if not text.strip():
+        # Zero-length check only (CR2068): do not strip-scan the whole
+        # book. The bounded excerpt check below refuses empty, whitespace-
+        # leading and whitespace-only previews honestly without certifying
+        # whole-book emptiness; decoder/BOM/NUL/counts above are unchanged.
+        if not text:
             raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
         if not text[:SINGLE_NARRATOR_PREVIEW_CHARS].strip():
             raise HTTPException(status_code=400, detail=(
-                "Source excerpt is blank in the first 4000 characters; import a book whose beginning is readable before confirming."))
+                "Source excerpt is empty or blank in the first 4000 characters; import a book whose beginning is readable before confirming."))
         # Derive the operation token from the already-loaded state instead
-        # of re-reading state.json for every token use.
-        book_token = get_book_operation_token(DATA_DIR, state=state)
+        # of re-reading state.json for every token use. Token derivation
+        # can raise ValueError (filesystem admission/alias race): map it
+        # to an honest 409, never an unhandled 500. Narrow try only.
+        try:
+            book_token = get_book_operation_token(DATA_DIR, state=state)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading the preview.")) from exc
         # Re-read state identity after the read so a concurrent selection cannot
         # bind this excerpt to a different book than the one returned.
         state_after = load_book_state()
         if state_after.get("input_file_path") != source_path:
             raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
-        if get_book_operation_token(DATA_DIR, state=state_after) != book_token:
+        try:
+            token_after = get_book_operation_token(DATA_DIR, state=state_after)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading the preview.")) from exc
+        if token_after != book_token:
             raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
         return {"book_token": book_token, "source_name": source_name,
                 "source_sha256": source_sha256, "encoding": encoding,
@@ -1076,6 +1091,13 @@ async def get_single_narrator_source_preview():
         return await asyncio.to_thread(_get_single_narrator_source_preview)
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Book state is busy; retry the preview shortly.") from None
+    except (ValueError, OSError) as exc:
+        # Admission/recovery failures (root swap, invalid/legacy journal,
+        # lock-file OSError) from ensure_book_state and token derivation
+        # are honest 409 refusals, never unhandled 500. HTTPException is
+        # not a ValueError/OSError, so inner 400/403/404 refusals pass through.
+        raise HTTPException(status_code=409, detail=(
+            "Active book could not be verified while reading the preview.")) from exc
 
 
 

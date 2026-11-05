@@ -68,7 +68,7 @@ const TASK_GUIDES = [
         "voices-tab",
         "Pick one existing voice on any card (built-in, LoRA, clone or saved-designed — all use the normal Voices resources), then use 'Use this speaker's voice for the book': review every affected speaker and line count, confirm explicitly, and check the ready state in Voices afterwards. Full-cast workflows stay available for other books.",
         "Every speaker uses the one chosen voice, ready only after your explicit mark.",
-        "Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice. Confirming applies one guarded voice save; listening/sample playback is separate."
+        "Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice. Confirming saves the book-wide voice change; listening/sample playback is separate."
       ],
       [
         "Generate and listen to one sample line",
@@ -275,14 +275,21 @@ function openTaskGuideTarget() {
     if (isEditorEditPending()) {
         document.getElementById('task-guide-feedback').textContent = 'Editor edits are pending or failed. Resolve them in Editor before using this guide link.'; return;
     }
-    // A hidden target (e.g. the single-book area in batch mode) must not
-    // look like navigation succeeded: give visible feedback without
-    // changing the book or starting any job.
-    const hidden = target.style && target.style.display === 'none';
-    if (hidden) {
+    // Tab-container targets start display:none, so they must be activated
+    // before judging visibility (Home->tab must work). Descendant targets
+    // hidden by the current mode (e.g. single-book area in batch mode)
+    // keep the pre-activation hidden check so they give feedback without
+    // navigating as success.
+    const isTabContainer = id === `${tab}-tab`;
+    const isHidden = () => (target.style && target.style.display === 'none')
+        || target.hidden === true || (target.closest && target.closest('[hidden]') !== null);
+    if (!isTabContainer && isHidden()) {
         document.getElementById('task-guide-feedback').textContent = `The target “${id}” is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
     }
     if (currentTabName !== tab) { activateTab(tab); }
+    if (isHidden()) {
+        document.getElementById('task-guide-feedback').textContent = `The target “${id}” is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
+    }
     if (!target.matches('button, input, select, textarea, a[href], [tabindex]')) { target.setAttribute('tabindex', '-1'); }
     openConfigField(target);
 }

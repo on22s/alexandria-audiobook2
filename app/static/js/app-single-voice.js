@@ -59,11 +59,15 @@ function singleVoiceIdentityCurrent(identity) {
     if (identity.selection && window._selectedUploadIdentity !== identity.selection) { return false; }
     if (identity.selection && window._bookSelectionEpoch !== identity.epoch) { return false; }
     if (identity.identityToken) {
-        // Once a snapshot for this tab is rendered, its identity must match;
-        // before any snapshot exists only the selection object frames it.
+        // The selected upload is authoritative when present: a stale
+        // rendered voice snapshot from a previous book (A) must not veto a
+        // valid source preview for the newly selected book (B) — the
+        // upload handler sets selection B without refreshing voice
+        // metadata, and the source guide runs before Voices. Only the
+        // saved-script fallback (no selection) is fenced by the snapshot.
         const currentSnapshotToken = (typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
             ? (_voiceSaveSnapshot.book_identity_token || null) : null;
-        if (currentSnapshotToken && currentSnapshotToken !== identity.identityToken) { return false; }
+        if (!identity.selection && currentSnapshotToken && currentSnapshotToken !== identity.identityToken) { return false; }
         if (identity.selection && window._selectedUploadIdentity
                 && window._selectedUploadIdentity.token !== identity.identityToken) { return false; }
     }
@@ -208,6 +212,7 @@ function makeSingleVoicePlaceholder(select) {
 window.resetSingleVoiceBook = function resetSingleVoiceBook() {
     _singleVoiceGeneration += 1;
     _singleVoiceBusy = false;
+    window._singleVoiceApplying = false;
     _singleVoiceSourcePreview = null;
     _singleVoiceSourceBinding = null;
     _singleVoiceSpeakersKey = null;
@@ -248,6 +253,18 @@ function refreshSingleVoiceSpeakers() {
         // silently resetting the select to the placeholder (#1724 C052).
         showToast(`Speaker '${current}' is no longer in this book's roster; choose a speaker again.`, 'warning');
     }
+}
+
+// Show script-supplied speaker labels unambiguously in plain-text modals
+// without changing stored names: control/newline characters become visible
+// escapes so one name cannot masquerade as several lines.
+function singleVoiceEscapeLabel(name) {
+    return String(name).replace(/[\u0000-\u001f\u007f]/g, char => {
+        if (char === '\n') { return '\\n'; }
+        if (char === '\r') { return '\\r'; }
+        if (char === '\t') { return '\\t'; }
+        return '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0');
+    });
 }
 
 async function previewSingleVoiceBook() {
@@ -342,12 +359,12 @@ async function previewSingleVoiceBook() {
             || preview.affected_lines !== preview.speakers.reduce((sum, row) => sum + row.line_count, 0)) {
             throw new Error('Invalid voice preview; nothing was applied.');
         }
-        const lines = preview.speakers.map(row => `${row.name}: ${row.line_count} lines · `
+        const lines = preview.speakers.map(row => `${singleVoiceEscapeLabel(row.name)}: ${row.line_count} lines · `
             + (row.line_count === 0
                 ? '0 lines — voice config will still be updated'
                 : (row.changes.length ? row.changes.join(', ') : 'unchanged'))).join('\n');
         const confirmed = await showConfirm(
-            `Use the ${preview.source_speaker} voice for all ${preview.affected_speakers} speakers `
+            `Use the ${singleVoiceEscapeLabel(preview.source_speaker)} voice for all ${preview.affected_speakers} speakers `
             + `(${preview.affected_lines} lines)?\n${lines}\n\nReady approvals are cleared for every affected speaker on this apply. `
             + `Changed-voice lines become pending for re-render; already rendered take files are retained, not deleted. `
             + `Voice approvals are reset for speakers whose effective voice changes.`,
@@ -399,6 +416,27 @@ async function applySingleVoicePreview(preview, identity, source) {
     if ((select?.value || '') !== source || preview.source_speaker !== source) {
         throw new Error('Speaker selection changed. Nothing was applied; preview again.');
     }
+    // Mass-save transition: while the bulk flush and post-save reload are
+    // pending, the old card DOM is still visible but the CAS revision is
+    // already fresh. An ordinary edit collected from that stale DOM would
+    // re-save pre-bulk voices over the confirmed change. Transiently
+    // disable mutating controls inside #voices-list and fence
+    // saveVoicesDebounced via window._singleVoiceApplying; canonical
+    // recovery (outside the list) stays usable. Released only by this
+    // owning apply, on success and on every failure path.
+    // Preserve each owned control's original disabled state (stale/card/
+    // capability policies may already disable some). Only these captured
+    // elements are restored, and only by the owning same-generation apply:
+    // fresh cards from a successful rerender are new elements and are
+    // never blanket-enabled, and a new-book list is never touched.
+    const voicesList = document.getElementById('voices-list');
+    const ownedControls = [...((voicesList && typeof voicesList.querySelectorAll === 'function')
+        ? voicesList.querySelectorAll('button,input,select,textarea') : [])]
+        .map(control => ({control, wasDisabled: !!control.disabled}));
+    const applyOwner = {generation: identity.generation, controls: ownedControls};
+    window._singleVoiceApplying = applyOwner;
+    ownedControls.forEach(({control}) => { control.disabled = true; });
+    try {
     enqueueVoiceDraft(preview.voices);
     let savedApplied = false;
     try {
@@ -432,11 +470,15 @@ async function applySingleVoicePreview(preview, identity, source) {
         persistedStale.savedApplied = true;
         throw persistedStale;
     }
+    let loadReport = null;
     try {
         // Rerender the actual cards through loadVoices (not just metadata):
         // Ready checkboxes/counters must reflect cleared approvals and a
         // later ordinary card edit must read the new DOM, not revert it.
-        await loadVoices(true, singleVoiceRefreshOpts(identity));
+        // loadVoices(false) still reloads metadata and re-renders when the
+        // revision changed (it does after this save), while reusing fresh
+        // catalogs instead of forcing a full resource refetch (CR2078).
+        loadReport = await loadVoices(false, singleVoiceRefreshOpts(identity));
     } catch (error) {
         // ANY post-save render/refresh error is a persisted save, with the
         // same identity or a changed one: never fall through with a bare
@@ -446,6 +488,28 @@ async function applySingleVoicePreview(preview, identity, source) {
         throw persisted;
     }
     showToast('One voice applied book-wide. Play a sample in Editor and mark Ready in Voices only after listening.', 'success');
+    const failedResources = loadReport?.failedResources || [];
+    if (failedResources.length) {
+        // CR2024: a failed optional catalog refresh is not an exception and
+        // must not be silent. The save DID succeed (no false no-write): warn
+        // visibly with plain catalog labels (no raw endpoint paths in the
+        // normal guide flow); previously loaded lists remain shown.
+        const labels = {'/api/voice_design/list': 'designed voices', '/api/clone_voices/list': 'cloned voices', '/api/lora/models': 'LoRA models', '/api/voice_library': 'cast library'};
+        const names = failedResources.map(path => labels[path] || 'voice catalogs');
+        console.debug('single-voice catalog refresh failed', failedResources);
+        showToast(`Voice saved, but these catalogs could not refresh: ${names.join(', ')}. Previously loaded lists are kept. Reload Voices to retry.`, 'warning');
+    }
+    } finally {
+        // Release only our own ownership: a book switch (resetSingleVoiceBook)
+        // already cleared the flag, and a newer apply owns a different
+        // object — neither must be disturbed by this stale finally.
+        if (window._singleVoiceApplying === applyOwner) {
+            window._singleVoiceApplying = false;
+            if (identity.generation === _singleVoiceGeneration) {
+                applyOwner.controls.forEach(({control, wasDisabled}) => { control.disabled = wasDisabled; });
+            }
+        }
+    }
 }
 
 // A literal-mode change invalidates any earlier source confirmation.
