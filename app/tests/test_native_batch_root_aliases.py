@@ -101,7 +101,7 @@ class NativeBatchRootAliasTests(unittest.TestCase):
                 engine._next_external_url = lambda: 'fixture'
                 def predict(*args, **kwargs):
                     seen.append(kwargs['text'] if kind == 'custom' else args[2]); return (str(root/'provider.wav'),)
-                engine._external_endpoint = lambda ep: (SimpleNamespace(predict=predict), threading.Lock())
+                engine._external_endpoint = lambda ep: (SimpleNamespace(predict_compatible=predict), threading.Lock())
                 voices = {'Alias': {'alias_of': 'Canonical'}, 'Canonical': {'type': kind, 'voice': 'Aiden',
                           'ref_audio': str(root/'ref.wav'), 'ref_text': 'Reference.', 'seed': 0}}
                 rows = [dict(speaker='Alias', text='Ann arrives.', index=0)]

@@ -140,7 +140,7 @@ class TTSSpeechInputTests(unittest.TestCase):
             calls=[]
             def predict(**kwargs):
                 calls.append(kwargs['text']); return (str(source),)
-            with patch.object(engine,'_external_endpoint',side_effect=lambda endpoint=None:(SimpleNamespace(predict=predict),threading.Lock())):
+            with patch.object(engine,'_external_endpoint',side_effect=lambda endpoint=None:(SimpleNamespace(predict_compatible=predict),threading.Lock())):
                 result=engine.generate_voice_result('Actual API words','','A',{'A':{'type':'custom'}},str(root/'single.wav'))
                 self.assertTrue(result.success,result.failure)
                 self.assertEqual('Actual API words.',result.speech_input['text'])
@@ -166,7 +166,7 @@ class TTSSpeechInputTests(unittest.TestCase):
             self.assertFalse(first.success); self.assertIsNone(first.speech_input)
             source=root/'source.wav'; sf.write(source,np.full(2400,.1),24000)
             engine._external_timeout=1
-            with patch.object(engine,'_external_endpoint',side_effect=lambda endpoint=None:(SimpleNamespace(predict=lambda **kw:(str(source),)),threading.Lock())):
+            with patch.object(engine,'_external_endpoint',side_effect=lambda endpoint=None:(SimpleNamespace(predict_compatible=lambda **kw:(str(source),)),threading.Lock())):
                 second=engine.generate_voice_result('Next words','','A',{'A':{'type':'custom'}},str(root/'new.wav'))
             release.set(); self.assertTrue(done.wait(3))
             engine._external_executor.shutdown(wait=True, timeout=3)

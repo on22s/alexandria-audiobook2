@@ -3,6 +3,7 @@ import copy
 import json
 import logging
 import os
+import threading
 import time
 import traceback
 from contextlib import nullcontext
@@ -10,14 +11,16 @@ from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, StrictInt, ValidationError
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
                              load_app_config_result)
 from export_limits import MAX_PAUSE_MS
+from external_tts_client import ExternalTTSClient, get_external_tts_urls, get_external_tts_settings
+from external_tts_capabilities import make_unknown_capability_report, UNAVAILABLE_ERROR
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
 from llm_provider import is_api_key_reference
@@ -111,6 +114,61 @@ def get_tts_diagnostics():
             logger.warning('Support report collector %s unavailable (%s)', name,
                            'missing_dependency' if isinstance(error, ImportError) else 'collection_failed')
     return get_tts_diagnostics_bundle(**values, collection=collection)
+
+
+class ExternalCapabilitiesRequest(BaseModel):
+    server_index: StrictInt = 0
+
+
+_external_capability_check_slot = threading.BoundedSemaphore(1)
+
+
+def ensure_external_capability_check_slot():
+    if not _external_capability_check_slot.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail='A saved server check is already running. Wait for it to finish.')
+    try:
+        yield
+    finally:
+        _external_capability_check_slot.release()
+
+
+def get_external_capability_settings():
+    loaded = load_app_config_result(project_manager.config_path)
+    if loaded.warnings:
+        raise ValueError("Repair saved configuration warnings before checking the server.")
+    settings = get_external_tts_settings(loaded.data.get('tts', {}))
+    return settings, get_external_tts_urls(settings)
+
+
+@router.post("/api/tts/external-capabilities", dependencies=[Depends(ensure_external_capability_check_slot)])
+def get_tts_external_capabilities(request: ExternalCapabilitiesRequest):
+    try:
+        settings, urls = get_external_capability_settings()
+    except (ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail="Repair saved TTS configuration before checking the server.") from error
+    if settings["mode"] != "external":
+        raise HTTPException(status_code=400, detail="Saved TTS mode is not external.")
+    if request.server_index < 0 or request.server_index >= len(urls):
+        raise HTTPException(status_code=400, detail="Saved TTS server index is out of range.")
+    selected_url = urls[request.server_index]
+    external_client = ExternalTTSClient(selected_url, timeout=10)
+    try:
+        try:
+            report = external_client.get_capabilities()
+        except Exception:
+            report = make_unknown_capability_report(selected_url, UNAVAILABLE_ERROR)
+    finally:
+        try:
+            external_client.close()
+        except Exception as error:
+            raise HTTPException(status_code=503, detail="Saved server worker cleanup failed. Resolve it before checking again.") from error
+    try:
+        current_settings, current_urls = get_external_capability_settings()
+    except (ValueError, TypeError) as error:
+        raise HTTPException(status_code=409, detail="Saved TTS settings changed during the check. Run the check again.") from error
+    if current_settings != settings or current_urls != urls:
+        raise HTTPException(status_code=409, detail="Saved TTS settings changed during the check. Run the check again.")
+    return {"server_index": request.server_index, "settings": settings, "capabilities": report}
 
 
 def _builtin_prompt_presets() -> list[dict]:

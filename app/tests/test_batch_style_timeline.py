@@ -111,7 +111,7 @@ class BatchStyleTimelineTests(unittest.TestCase):
             root=Path(tmp)
             def predict(**kwargs):
                 calls.append(kwargs);path=root/(str(len(calls))+'.wav');sf.write(path,np.full(4000,0.1,dtype='float32'),16000);return (str(path),)
-            engine._external_endpoint=lambda endpoint:(SimpleNamespace(predict=predict),lock)
+            engine._external_endpoint=lambda endpoint:(SimpleNamespace(predict_compatible=predict),lock)
             config=get_style_config();chunks=get_chunks();before=copy.deepcopy((chunks,config))
             result=engine.generate_batch(chunks,config,tmp)
             self.assertEqual([],result['failed']);self.assert_outputs(tmp,[2,7,9,10])
@@ -169,7 +169,7 @@ class BatchStyleTimelineTests(unittest.TestCase):
             source=Path(tmp)/'source.wav';sf.write(source,samples,16000)
             def predict(**kwargs):
                 calls.append(kwargs);return (str(source),)
-            engine._external_endpoint=lambda endpoint:(SimpleNamespace(predict=predict),lock)
+            engine._external_endpoint=lambda endpoint:(SimpleNamespace(predict_compatible=predict),lock)
             config=get_style_config();before=copy.deepcopy(config)
             result=engine.generate_batch(get_chunks(),config,tmp)
             self.assertEqual([],result['failed']);self.assert_outputs(tmp,[2,7,9,10])

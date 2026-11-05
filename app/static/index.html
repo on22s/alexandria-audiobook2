@@ -1352,6 +1352,14 @@
 </details>
 <p class="settings-intro">Choose where voices are generated and the language used for synthesis. Assign individual character voices in Voices.</p>
 <p id="tts-capability-summary" class="small border rounded p-2" role="status">Backend capabilities have not loaded. Existing settings are preserved.</p>
+<section id="tts-external-capabilities-panel" class="small border rounded p-2 mt-2" aria-label="Saved external TTS server schema check" hidden>
+    <label class="form-label" for="tts-external-server-number">Saved server number</label>
+    <input type="number" class="form-control" id="tts-external-server-number" min="1" step="1" value="1" title="Number of the saved external TTS server to check. The first or only saved URL is 1. This never dials an unsaved or typed URL.">
+    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="tts-external-capabilities-check" onclick="checkTtsExternalCapabilities()" title="Explicitly ask the saved external server for its declared schema. This does not run on page load, does not save settings, and does not generate audio.">Check saved server</button>
+    <p id="tts-external-capabilities-status" class="small mt-2 mb-1" role="status">No saved server check has run.</p>
+    <div id="tts-external-capabilities-results" class="small text-break"></div>
+    <p class="small mt-2 mb-0">Schema compatibility only. A reported schema does not prove the server is reachable, produce audio, or qualify it live. Generation revalidates every call.</p>
+</section>
 
                         <div class="row mb-3">
                             <div class="col-md-3">

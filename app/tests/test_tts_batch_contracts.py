@@ -120,7 +120,7 @@ class BatchContractsTests(unittest.TestCase):
                         engine._external_urls = ['fixture']; engine._external_timeout = 5; engine._next_external_url = lambda: 'fixture'; calls = []
                         def predict(*args, **kwargs):
                             calls.append(kwargs['seed'] if kind == 'custom' else args[8]); return (str(root / 'provider.wav'),)
-                        engine._external_endpoint = lambda ep: (SimpleNamespace(predict=predict), threading.Lock())
+                        engine._external_endpoint = lambda ep: (SimpleNamespace(predict_compatible=predict), threading.Lock())
                         config = {'VOICE': {'type': kind, 'voice': 'Aiden', 'seed': 17, 'ref_audio': str(root / 'reference.wav'), 'ref_text': 'Synthetic reference'},
                                   'GROUP': {'type': 'ensemble', 'members': ['VOICE']}}
                         before = copy.deepcopy(config)

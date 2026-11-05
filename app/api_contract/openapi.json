@@ -1592,6 +1592,17 @@
         "title": "ExportQualityOptions",
         "type": "object"
       },
+      "ExternalCapabilitiesRequest": {
+        "properties": {
+          "server_index": {
+            "default": 0,
+            "title": "Server Index",
+            "type": "integer"
+          }
+        },
+        "title": "ExternalCapabilitiesRequest",
+        "type": "object"
+      },
       "FrontMatterSelection": {
         "properties": {
           "entry_number": {
@@ -14298,6 +14309,42 @@
           }
         },
         "summary": "Get Tts Diagnostics"
+      }
+    },
+    "/api/tts/external-capabilities": {
+      "post": {
+        "operationId": "get_tts_external_capabilities_api_tts_external_capabilities_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalCapabilitiesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Tts External Capabilities"
       }
     },
     "/api/tts/recovery/clear": {

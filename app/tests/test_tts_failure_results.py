@@ -52,7 +52,7 @@ class TTSFailureResultTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
             root=Path(tmp);engine=tts.TTSEngine({'tts':{'mode':'external'}});barrier=threading.Barrier(2);results={}
             class Client:
-                def predict(self,**kwargs):
+                def predict_compatible(self,**kwargs):
                     barrier.wait(timeout=3)
                     raise OSError(kwargs['text']+' token=private-value')
             def run(name):
@@ -90,7 +90,7 @@ class TTSFailureResultTests(unittest.TestCase):
     def test_external_invalid_audio_preserves_prior_output(self):
         with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
             root=Path(tmp);broken=root/'broken.wav';broken.write_bytes(b'not audio');output=root/'out.wav';sf.write(output,np.zeros(1200),24000);prior=output.read_bytes()
-            engine=tts.TTSEngine({'tts':{'mode':'external'}});client=SimpleNamespace(predict=lambda **kw:(str(broken),))
+            engine=tts.TTSEngine({'tts':{'mode':'external'}});client=SimpleNamespace(predict_compatible=lambda **kw:(str(broken),))
             with patch.object(engine,'_external_endpoint',return_value=(client,threading.Lock())):result=self.get_result(engine,root)
             self.assertFalse(result.success);self.assertIsNotNone(result.failure);self.assertEqual(prior,output.read_bytes());self.assertEqual([],list(root.glob('out.wav.pending.*')))
 

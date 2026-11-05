@@ -166,7 +166,7 @@ class ExternalBatchDeadlineTests(unittest.TestCase):
             with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);source=root/'source.wav';sf.write(source,np.full(240,.2),24000)
                 engine=self.engine();output=root/'temp_batch_0.wav';output.write_bytes(b'prior output')
-                lock=threading.Lock();provider=SimpleNamespace(predict=lambda *args,**kwargs:(str(source),))
+                lock=threading.Lock();provider=SimpleNamespace(predict_compatible=lambda *args,**kwargs:(str(source),))
                 copied=[]
                 def fail_copy(source_path,destination,*args,**kwargs):
                     copied.append(str(destination));Path(destination).write_bytes(b'partial bytes')
