@@ -21,7 +21,8 @@ class LoraArtifactRetentionTests(unittest.TestCase):
                 'evaluation':{'recommended_candidate':'epoch_002'},
                 'evaluation_candidates':[{'id':'epoch_002'},other]}]))
             originals={p.name:p.read_bytes() for p in (adapter/'candidates/epoch_003').iterdir()}
-            result=lora._promote_lora_candidate('voice',tmp,str(manifest))
+            with patch.object(lora, "_require_current_candidate_evidence"):
+                result=lora._promote_lora_candidate('voice',tmp,str(manifest))
             saved=json.loads(manifest.read_text())[0]
             self.assertEqual([other],saved['evaluation_candidates'])
             self.assertEqual(originals,{p.name:p.read_bytes() for p in (adapter/'candidates/epoch_003').iterdir()})

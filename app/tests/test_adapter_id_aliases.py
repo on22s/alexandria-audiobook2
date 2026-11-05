@@ -605,6 +605,7 @@ class AdapterIdAliasTests(unittest.TestCase):
         import tempfile
         from routers import lora
         from tests.test_lora_candidate_promotion import LoraCandidatePromotionTests,_promotion_fixture
+        from unittest.mock import patch
         from tests.test_adapter_naming_transaction import _invoke
         from voice_manifest import get_resolved_adapter_path
         for final in ('rollback','delete-backup'):
@@ -616,7 +617,8 @@ class AdapterIdAliasTests(unittest.TestCase):
                 rows[0]['voice_profile']='Warm baritone in his 30s; best for fantasy.'
                 manifest.write_text(json.dumps(rows));self.assertEqual(0,_invoke(models,'--apply'))
                 current=Path(get_resolved_adapter_path(str(adapter)))
-                result=lora._promote_lora_candidate('voice',str(models),str(manifest))
+                with patch.object(lora, "_require_current_candidate_evidence"):
+                    result=lora._promote_lora_candidate('voice',str(models),str(manifest))
                 self.assertEqual('promoted',result['status'])
                 self.assertEqual(promoted,(current/'adapter_model.safetensors').read_bytes())
                 backup=current/'promotion_backups'/result['backup_id'];self.assertTrue(backup.is_dir())

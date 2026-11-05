@@ -1,3 +1,4 @@
+from tests.test_support import SyntheticEvaluationEngine
 import copy
 import hashlib
 import io
@@ -96,6 +97,7 @@ class FiniteAudioMetricsTests(unittest.TestCase):
                     samples[7] = np.nan
                 payload = self.wav(samples)
                 engine = Mock()
+                engine.get_lora_serving_identity.return_value = SyntheticEvaluationEngine().get_lora_serving_identity()
                 engine.get_model_settings.return_value = evaluation.get_tts_model_settings({})
                 def generate(output_path, **kwargs):
                     Path(output_path).write_bytes(payload)
@@ -126,11 +128,11 @@ class FiniteAudioMetricsTests(unittest.TestCase):
                 with patch.object(evaluation, 'get_speaker_similarity', return_value=.9), \
                      patch.object(evaluation, 'apply_evaluation_seed'):
                     valid = evaluation.evaluate_adapter({'id': 'voice'}, tmp, engine, object(), 'cpu')
-                self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 invalid = copy.deepcopy(valid)
                 invalid['probes'][0]['metrics']['rms'] = float('nan')
-                self.assertFalse(evaluation.is_complete_evaluation(invalid, str(adapter)))
-                self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+                self.assertFalse(evaluation.is_complete_evaluation(invalid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
+                self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
 
     def test_lora_main_rebuilds_nan_cache_and_skips_finite_replacement(self):
@@ -164,7 +166,7 @@ class FiniteAudioMetricsTests(unittest.TestCase):
                 evaluate.assert_called_once()
                 self.assertNotEqual(before, cache.read_bytes())
                 replacement = json.loads(cache.read_text())
-                self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 self.assertEqual('pass', json.loads(manifest.read_text())[0]['evaluation']['status'])
                 evaluate.reset_mock()
                 self.assertEqual(0, evaluation.main())

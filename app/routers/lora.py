@@ -62,7 +62,8 @@ from hf_utils import (
     is_adapter_downloaded,
     get_builtin_manifest_entry,
 )
-from lora_evidence import get_evidence_error, get_tts_model_settings
+from lora_evidence import (get_evidence_error, get_tts_model_settings,
+                           get_engine_lora_serving_identity, get_evaluation_serving_identity_error)
 from train_lora import DEFAULT_LEARNING_RATE
 from utils import atomic_json_write, file_lock, get_unique_id, is_path_inside, secure_filename
 from voice_manifest import get_resolved_adapter_path_locked, validate_adapter_name, get_adapter_asset_snapshot, get_adapter_identity_ids_locked, get_resolved_adapter_ids, validate_adapter_registration_id_locked, get_resolved_adapter_manifest_rows_locked, get_adapter_manifest_rows, get_adapter_identity_read_recovery_command
@@ -301,7 +302,8 @@ def _load_comparison_evaluation(path: str) -> dict:
     return result
 
 
-def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
+def _get_candidate_summary(entry: dict, adapter_dir: str, synthesis_settings=None,
+                           serving_identity=None) -> dict:
     evaluation = entry.get("evaluation") or {}
     promotion = entry.get("promotion") or {}
     retained = entry.get("evaluation_candidates") or []
@@ -311,6 +313,7 @@ def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
     retained = retained if isinstance(retained, list) else []
     skipped = skipped if isinstance(skipped, list) else []
     recommendation = {}
+    stored_evaluation = {}
     try:
         with open(os.path.join(adapter_dir, "evaluation.json"), encoding="utf-8") as handle:
             stored_evaluation = json.load(handle)
@@ -319,6 +322,18 @@ def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
     except (OSError, json.JSONDecodeError):
         pass
     recommendation = recommendation if isinstance(recommendation, dict) else {}
+    settings = synthesis_settings
+    if settings is None:
+        settings = get_tts_model_settings(load_app_config(CONFIG_PATH))
+        serving_identity = get_engine_lora_serving_identity(
+            getattr(project_manager, "engine", None), settings)
+    stored_evaluation = stored_evaluation if isinstance(stored_evaluation, dict) else {}
+    serving_error = get_evaluation_serving_identity_error(
+        stored_evaluation, serving_identity)
+    if not stored_evaluation:
+        serving_error = "evaluation evidence is unavailable"
+    elif stored_evaluation.get("synthesis_settings") != settings:
+        serving_error = "evaluation synthesis settings have changed"
     metrics = recommendation.get("candidate_metrics") or {}
     metrics = metrics if isinstance(metrics, dict) else {}
     evaluated_candidates = [candidate_id for candidate_id, candidate_metrics in metrics.items()
@@ -340,7 +355,7 @@ def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
         state = "rolled_back"
     elif recommended and recommended != "production":
         state = "candidate_recommended"
-    elif evaluation.get("status") in ("pass", "warning"):
+    elif recommended == "production" and evaluation.get("status") in ("pass", "warning"):
         state = "production_recommended"
     elif retained or skipped:
         state = "awaiting_evaluation"
@@ -348,6 +363,9 @@ def _get_candidate_summary(entry: dict, adapter_dir: str) -> dict:
         state = "no_candidates"
     return {
         "state": state,
+        "evidence_state": "historical" if serving_error else "mode_matched",
+        "evidence_reason": serving_error or ("Observed serving mode matches; "
+                                             "comparison and promotion verify full evidence."),
         "evaluated_count": len(evaluated_candidates),
         "retained_count": len(retained),
         "duplicate_count": len(duplicate_ids),
@@ -389,7 +407,7 @@ def _load_candidate_comparison_full(adapter_id: str, models_dir: str,
 
 
 def _load_candidate_comparison_full_locked(adapter_id: str, models_dir: str,
-                                    manifest_path: str) -> tuple:
+                                    manifest_path: str, promotion_observation=None) -> tuple:
     """Comparison payload plus the two integrity-checked evaluation results.
 
     Single loader shared by the advisory comparison endpoint and the human-review
@@ -404,9 +422,11 @@ def _load_candidate_comparison_full_locked(adapter_id: str, models_dir: str,
         raise HTTPException(status_code=404, detail="Adapter not found")
     candidate_id = (entry.get("evaluation") or {}).get("recommended_candidate")
     retained = entry.get("evaluation_candidates") or []
+    _validate_retained_candidates(retained)
     if (not candidate_id or candidate_id == "production"
             or not any(item.get("id") == candidate_id for item in retained)):
         raise HTTPException(status_code=409, detail="No retained candidate is available to compare")
+    _validate_candidate_name(candidate_id)
     candidate_dir = _safe_subpath(os.path.join(adapter_dir, "candidates"), candidate_id)
     production_result = _load_comparison_evaluation(
         os.path.join(adapter_dir, "evaluation.json"))
@@ -444,8 +464,13 @@ def _load_candidate_comparison_full_locked(adapter_id: str, models_dir: str,
             candidate_result["evidence"]["evaluation_spec_sha256"]):
         raise HTTPException(status_code=409, detail="Production and candidate evaluation specifications do not match")
     recommendation = production_result.get("candidate_recommendation") or {}
+    serving_identity = _get_promotion_serving_identity(synthesis_settings, promotion_observation)
+    serving_error = next((error for result in (production_result, candidate_result)
+        if (error := get_evaluation_serving_identity_error(result, serving_identity))), None)
     comparison = {
         "adapter_id": adapter_id,
+        "evidence_state": "historical" if serving_error else "current",
+        "evidence_reason": serving_error or "Observed serving mode matches both evaluations.",
         "candidate_id": candidate_id,
         "advisory_only": True,
         "reason": recommendation.get("reason", ""),
@@ -537,8 +562,45 @@ def _recover_checkpoint_swap(adapter_id: str, models_dir: str,
     return {"status": "recovered", "operation": journal.get("operation", "unknown")}
 
 
+def _validate_retained_candidates(retained):
+    if not isinstance(retained, list) or any(not isinstance(candidate, dict) for candidate in retained):
+        raise HTTPException(status_code=409, detail="Retained candidate records are invalid")
+
+
+def _validate_candidate_name(candidate_id):
+    try:
+        validate_adapter_name(candidate_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail="Recommended candidate identity is invalid") from error
+
+
+def _get_promotion_serving_identity(synthesis_settings, observation):
+    engine = getattr(project_manager, "engine", None)
+    if observation is None:
+        return get_engine_lora_serving_identity(engine, synthesis_settings)
+    if engine is not observation["engine"] or synthesis_settings != observation["settings"]:
+        return None
+    try:
+        if engine.get_model_settings() != synthesis_settings:
+            return None
+    except Exception:
+        return None
+    return observation["identity"]
+
+
+def _require_current_candidate_evidence(adapter_id, models_dir, manifest_path, promotion_observation=None):
+    comparison, _production, _candidate = _load_candidate_comparison_full_locked(
+        adapter_id, models_dir, manifest_path, promotion_observation=promotion_observation)
+    if comparison["evidence_state"] != "current":
+        raise HTTPException(status_code=409, detail=(
+            "Evaluation is historical; generate a LoRA test line in this app and refresh the model list. "
+            "Re-evaluate only if the observed mode or settings differ from the report: "
+            + comparison["evidence_reason"]))
+
+
 def _promote_lora_candidate(adapter_id: str, models_dir: str,
-                            manifest_path: str, expected_candidate_id: Optional[str] = None) -> dict:
+                            manifest_path: str, expected_candidate_id: Optional[str] = None,
+                            *, promotion_observation=None) -> dict:
     with lock_adapter_naming(models_dir, manifest_path):
         adapter_dir = _get_user_adapter_path_locked(models_dir, adapter_id)
         adapter_id = os.path.basename(adapter_dir)
@@ -553,9 +615,16 @@ def _promote_lora_candidate(adapter_id: str, models_dir: str,
                                 detail="The recommended candidate changed; refresh and confirm it again")
         if not recommended or recommended == "production":
             raise HTTPException(status_code=409, detail="No retained candidate is recommended")
+        _validate_candidate_name(recommended)
+        retained = entry.get("evaluation_candidates") or []
+        _validate_retained_candidates(retained)
+        if os.path.islink(os.path.join(adapter_dir, "candidates", recommended)):
+            raise HTTPException(status_code=409, detail="Recommended candidate cannot be a symlink")
         candidate_dir = _safe_subpath(os.path.join(adapter_dir, "candidates"), recommended)
         if not os.path.isdir(candidate_dir):
             raise HTTPException(status_code=409, detail="Recommended candidate is no longer available")
+        _require_current_candidate_evidence(
+            adapter_id, models_dir, manifest_path, promotion_observation=promotion_observation)
 
         promotion_id = f"{int(time.time())}-{recommended}"
         backup_dir = os.path.join(adapter_dir, "promotion_backups", promotion_id)
@@ -567,9 +636,6 @@ def _promote_lora_candidate(adapter_id: str, models_dir: str,
             _copy_promotion_files(stage, os.path.join(stage, "promotion_backups", promotion_id))
             _copy_promotion_files(os.path.join(stage, "candidates", recommended), stage)
 
-        retained = entry.get("evaluation_candidates") or []
-        if not isinstance(retained, list) or any(not isinstance(candidate, dict) for candidate in retained):
-            raise HTTPException(status_code=409, detail="Retained candidate records are invalid")
         entry["evaluation_candidates"] = [candidate for candidate in retained
                                           if candidate.get("id") != recommended]
         entry["evaluation"]["recommended_candidate"] = "production"
@@ -937,6 +1003,9 @@ def ensure_lora_models():
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     models = _load_builtin_lora_manifest() + user_models
+    synthesis_settings = get_tts_model_settings(load_app_config(CONFIG_PATH))
+    serving_identity = get_engine_lora_serving_identity(
+        getattr(project_manager, "engine", None), synthesis_settings)
     for m in models:
         m["favorite"] = m.get("id") in favorites
         is_builtin = m.get("builtin", False)
@@ -960,7 +1029,8 @@ def ensure_lora_models():
                 m["checkpoint_swap"] = ({"status": "recovery_required",
                                           "operation": journal.get("operation", "unknown")}
                                         if journal else None)
-                m["candidate_summary"] = _get_candidate_summary(m, adapter_dir)
+                m["candidate_summary"] = _get_candidate_summary(
+                    m, adapter_dir, synthesis_settings, serving_identity)
 
             # Human-review tally, kept separate from the automated recommendation.
             m["review_summary"] = evaluation_reviews.get_review_summary(ensure_lora_review_history(m['id']))
@@ -1167,10 +1237,17 @@ class LoraPromotionRequest(BaseModel):
 @router.post("/api/lora/models/{adapter_id}/promote")
 async def lora_promote_candidate(adapter_id: str, request: Optional[LoraPromotionRequest] = None):
     """Promote the evaluated recommendation while preserving production for rollback."""
+    def capture_observation():
+        settings = get_tts_model_settings(load_app_config(CONFIG_PATH))
+        engine = getattr(project_manager, "engine", None)
+        return {"engine": engine, "settings": copy.deepcopy(settings),
+                "identity": get_engine_lora_serving_identity(engine, settings)}
+    observation = await asyncio.to_thread(capture_observation)
     def apply_checkpoint_change():
         result = _promote_lora_candidate(
             adapter_id, LORA_MODELS_DIR, LORA_MODELS_MANIFEST,
-            expected_candidate_id=request.expected_candidate_id if request else None)
+            expected_candidate_id=request.expected_candidate_id if request else None,
+            promotion_observation=observation)
         project_manager.engine = None
         gc.collect()
         return result

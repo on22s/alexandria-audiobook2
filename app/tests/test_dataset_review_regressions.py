@@ -82,7 +82,8 @@ class DatasetReviewRegressions(unittest.TestCase):
             preview = adapter / 'preview_sample.wav'
             preview.write_bytes(b'old audition')
             original = (adapter / 'adapter_model.safetensors').read_bytes()
-            lora._promote_lora_candidate('voice', folder, str(manifest))
+            with patch.object(lora, "_require_current_candidate_evidence"):
+                lora._promote_lora_candidate('voice', folder, str(manifest))
             self.assertFalse(preview.exists())
             self.assertNotEqual(original, (adapter / 'adapter_model.safetensors').read_bytes())
             preview.write_bytes(b'candidate audition')

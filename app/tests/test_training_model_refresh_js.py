@@ -6,6 +6,29 @@ from tests import test_training_ui_contract as ui
 class TrainingModelRefreshTests(unittest.TestCase):
     run_js = ui.TrainingUiContractTests.run_js
 
+    def test_historical_evidence_stays_auditionable_without_current_badges_or_promotion(self):
+        self.run_js(r'''
+ctx.API=vm.runInContext("API",ctx);
+const model={id:"voice",name:"Voice",evaluation:{status:"pass",recommended_candidate:"epoch_002"},candidate_summary:{state:"candidate_recommended",evidence_state:"historical",evidence_reason:"Mode <unknown>"}};
+ctx.API.get=async path=>path.endsWith("/models")?[model]:{backups:[]};
+await ctx.loadLoraModels();
+let html=element("lora-models-list").innerHTML;
+assert(html.includes("historical · pass"));assert(!html.includes('badge bg-success'));
+assert(html.includes("openLoraCandidateComparison"));assert(html.includes("openLoraBlindReview"));
+assert(/disabled onclick="promoteLoraCandidate/.test(html));assert(html.includes("Mode &lt;unknown&gt;"));
+model.candidate_summary.evidence_state="mode_matched";
+await ctx.loadLoraModels();html=element("lora-models-list").innerHTML;
+assert(!/disabled onclick="promoteLoraCandidate/.test(html));
+model.evaluation.status="failed";model.evaluation.warnings=["Probe <failed>"];
+await ctx.loadLoraModels();html=element("lora-models-list").innerHTML;
+assert(html.includes("badge bg-danger"));assert(html.includes("Probe &lt;failed&gt;"));
+assert(html.includes("Mode &lt;unknown&gt;"));assert(!html.includes("historical · failed"));
+ctx.API.get=async()=>({candidate_id:"epoch_002",evidence_state:"historical",evidence_reason:"Mode <unknown>",probe_pairs:[]});
+element("lora-comparison-panel").scrollIntoView=()=>{};
+await ctx.openLoraCandidateComparison("voice");html=element("lora-comparison-panel").innerHTML;
+assert(html.includes("Historical evaluation — audition only"));assert(html.includes("Mode &lt;unknown&gt;"));
+''')
+
     def test_comparison_latest_request_owns_results_and_errors(self):
         self.run_js(r'''
 ctx.API=vm.runInContext('API',ctx);const pending=[];ctx.API.get=path=>new Promise((resolve,reject)=>pending.push({path,resolve,reject}));const panel=element('lora-comparison-panel');panel.scrollIntoView=()=>{};

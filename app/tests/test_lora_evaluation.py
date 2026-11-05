@@ -164,6 +164,7 @@ class LoraEvaluationTests(unittest.TestCase):
                       "thresholds": evaluation.THRESHOLDS,
                       "synthesis_settings": evaluation.get_tts_model_settings({}),
                       "evidence": {
+                          "serving_identity": SyntheticEvaluationEngine().get_lora_serving_identity(),
                           "adapter_generation_sha256": evaluation.get_adapter_generation_sha256(tmp),
                           "checkpoint_sha256": evaluation.get_file_sha256(
                               str(Path(tmp, "adapter_model.safetensors"))),
@@ -171,7 +172,7 @@ class LoraEvaluationTests(unittest.TestCase):
                               str(Path(tmp, "ref_sample.wav"))),
                           "evaluation_spec_sha256": evaluation.get_evaluation_spec_sha256(
                               evaluation.PROBES, evaluation.EVALUATION_SEED,
-                              evaluation.THRESHOLDS),
+                              evaluation.THRESHOLDS, serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()),
                       }}
             for index, (probe_id, text) in enumerate(evaluation.PROBES):
                 filename = f"evaluation_{probe_id}.wav"
@@ -180,16 +181,16 @@ class LoraEvaluationTests(unittest.TestCase):
                     "id": probe_id, "text": text, "seed": evaluation.EVALUATION_SEED + index,
                     "audio_file": filename, "audio_sha256": evaluation.get_file_sha256(str(Path(tmp, filename))),
                 })
-            self.assertTrue(evaluation.is_complete_evaluation(result, tmp))
+            self.assertTrue(evaluation.is_complete_evaluation(result, tmp, expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             Path(tmp, "evaluation_dialogue.wav").unlink()
-            self.assertFalse(evaluation.is_complete_evaluation(result, tmp))
+            self.assertFalse(evaluation.is_complete_evaluation(result, tmp, expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
     def test_resume_refuses_legacy_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "adapter_model.safetensors").write_bytes(b"checkpoint")
             Path(tmp, "ref_sample.wav").write_bytes(b"reference")
             legacy = {"version": 1, "probes": []}
-            self.assertFalse(evaluation.is_complete_evaluation(legacy, tmp))
+            self.assertFalse(evaluation.is_complete_evaluation(legacy, tmp, expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
 
 
@@ -210,9 +211,10 @@ class EvaluationSpecIntegrityTests(unittest.TestCase):
                  patch.object(evaluation, 'apply_evaluation_seed'):
                 valid = evaluation.evaluate_adapter({'id':'voice'}, tmp, Engine(), object(), 'cpu')
             expected = evaluation.get_evaluation_spec_sha256(
-                evaluation.PROBES, evaluation.EVALUATION_SEED, evaluation.THRESHOLDS)
+                evaluation.PROBES, evaluation.EVALUATION_SEED, evaluation.THRESHOLDS,
+                serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity())
             self.assertIsNone(get_evidence_error(valid, str(adapter), expected))
-            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             files = {p.name: p.read_bytes() for p in adapter.iterdir()}
             mutations = (
                 lambda r: r['probes'][0].update(text='Different sentence with unchanged WAV hash.'),
@@ -243,6 +245,54 @@ class EvaluationSpecIntegrityTests(unittest.TestCase):
 
 
 class EvaluationCacheShapeTests(unittest.TestCase):
+    def test_cli_reuses_only_evidence_matching_observed_serving_mode(self):
+        import contextlib
+        import io
+        import sys
+        from types import ModuleType, SimpleNamespace
+        from unittest.mock import Mock
+
+        cpu = {"policy_version": 1, "device": "cpu", "dtype": "float32", "merge_mode": "merged"}
+        gpu = {"policy_version": 1, "device": "cuda", "dtype": "bfloat16", "merge_mode": "unmerged"}
+        for observed in (None, gpu, cpu):
+            with self.subTest(observed=observed), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                adapter, valid, engine_type = self.make_valid_evidence(root)
+                valid["evidence"]["serving_identity"] = cpu
+                cache = adapter / "evaluation.json"
+                cache.write_text(json.dumps(valid))
+                original = cache.read_bytes()
+                manifest = root / "manifest.json"
+                manifest.write_text('[{"id":"voice"}]')
+                config = root / "config.json"
+                config.write_text('{}')
+                package = ModuleType('speechbrain')
+                package.__path__ = []
+                inference = ModuleType('speechbrain.inference')
+                inference.__path__ = []
+                speaker = ModuleType('speechbrain.inference.speaker')
+                speaker.EncoderClassifier = SimpleNamespace(from_hparams=Mock(
+                    return_value=SimpleNamespace(eval=Mock())))
+                modules = {'torch': ModuleType('torch'), 'speechbrain': package,
+                           'speechbrain.inference': inference,
+                           'speechbrain.inference.speaker': speaker}
+                argv = ['evaluate_lora.py', '--manifest', str(manifest),
+                        '--models-dir', str(root), '--config', str(config), '--device', 'cpu']
+                with patch.dict(sys.modules, modules), patch.object(sys, 'argv', argv), \
+                     patch.object(evaluation, 'resolve_device', return_value='cpu'), \
+                     patch.object(evaluation, 'TTSEngine', engine_type), \
+                     patch.object(engine_type, 'get_lora_serving_identity',
+                                  return_value=observed, create=True), \
+                     patch.object(evaluation, 'evaluate_adapter',
+                                  side_effect=RuntimeError('re-evaluation instrument')) as evaluate, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(0 if observed == cpu else 1, evaluation.main())
+                if observed == cpu:
+                    evaluate.assert_not_called()
+                else:
+                    evaluate.assert_called_once()
+                self.assertEqual(original, cache.read_bytes())
+
     def make_valid_evidence(self, root):
         adapter = root / 'voice'
         write_test_serving_adapter(adapter)
@@ -257,7 +307,7 @@ class EvaluationCacheShapeTests(unittest.TestCase):
         with patch.object(evaluation, 'get_speaker_similarity', return_value=.9), \
              patch.object(evaluation, 'apply_evaluation_seed'):
             valid = evaluation.evaluate_adapter({'id':'voice'}, str(root), PcmEngine(), object(), 'cpu')
-        self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+        self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
         return adapter, valid, PcmEngine
 
     def test_pre_bf16_serving_change_evidence_is_not_current(self):
@@ -267,9 +317,9 @@ class EvaluationCacheShapeTests(unittest.TestCase):
             previous = copy.deepcopy(current)
             previous['version'] = 3
             files = {path.name: path.read_bytes() for path in adapter.iterdir()}
-            self.assertFalse(evaluation.is_complete_evaluation(previous, str(adapter)))
+            self.assertFalse(evaluation.is_complete_evaluation(previous, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             self.assertIn('version', get_evidence_error(previous, str(adapter)))
-            self.assertTrue(evaluation.is_complete_evaluation(current, str(adapter)))
+            self.assertTrue(evaluation.is_complete_evaluation(current, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             self.assertEqual(files, {path.name: path.read_bytes() for path in adapter.iterdir()})
 
 
@@ -285,14 +335,14 @@ class EvaluationCacheShapeTests(unittest.TestCase):
                     invalid['probes'] = probes
                     cache.write_text(json.dumps(invalid))
                     before = cache.read_bytes()
-                    self.assertFalse(evaluation.is_complete_evaluation(json.loads(before), str(adapter)))
+                    self.assertFalse(evaluation.is_complete_evaluation(json.loads(before), str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                     self.assertEqual(before, cache.read_bytes())
                     for name, raw in files.items():
                         self.assertEqual(raw, (adapter / name).read_bytes())
             for invalid in (None, [], False, 7, 'evaluation'):
                 with self.subTest(outer=invalid):
-                    self.assertFalse(evaluation.is_complete_evaluation(invalid, str(adapter)))
-            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+                    self.assertFalse(evaluation.is_complete_evaluation(invalid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
+            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
     def test_actual_evaluator_rebuilds_malformed_cache_then_resumes_verified_replacement(self):
         import contextlib
@@ -335,7 +385,7 @@ class EvaluationCacheShapeTests(unittest.TestCase):
                 self.assertNotEqual(before, cache.read_bytes())
                 replacement = json.loads(cache.read_text())
                 self.assertEqual(['narration','dialogue'], [item['id'] for item in replacement['probes']])
-                self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(replacement, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 self.assertEqual('complete', replacement['candidate_recommendation']['cleanup']['status'])
                 self.assertEqual('production', json.loads(manifest.read_text())[0]['evaluation']['recommended_candidate'])
                 evaluate.reset_mock()
@@ -365,6 +415,8 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
             with self.subTest(returned=returned), tempfile.TemporaryDirectory() as tmp:
                 adapter = self.make_adapter(tmp)
                 dialogue = (adapter / "evaluation_dialogue.wav").read_bytes()
+                narration = (adapter / "evaluation_narration.wav").read_bytes()
+                filenames = set(adapter.iterdir())
                 engine = Mock()
                 engine.get_model_settings.return_value = evaluation.get_tts_model_settings({})
                 engine.generate_voice.return_value = returned
@@ -376,7 +428,8 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
                 self.assertEqual(1, engine.generate_voice.call_count)
                 metrics.assert_not_called()
                 similarity.assert_not_called()
-                self.assertFalse((adapter / "evaluation_narration.wav").exists())
+                self.assertEqual(narration, (adapter / "evaluation_narration.wav").read_bytes())
+                self.assertEqual(filenames, set(adapter.iterdir()))
                 self.assertEqual(dialogue, (adapter / "evaluation_dialogue.wav").read_bytes())
 
     def test_fresh_real_audio_accepts_legacy_none_and_hashes_new_probe_bytes(self):
@@ -395,19 +448,20 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
                      patch.object(evaluation, "get_speaker_similarity", return_value=.9):
                     result = evaluation.evaluate_adapter({"id": "voice"}, tmp, Engine(), object(), "cpu")
                 self.assertEqual("pass", result["status"])
-                self.assertTrue(evaluation.is_complete_evaluation(result, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(result, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 for probe in result["probes"]:
                     path = adapter / probe["audio_file"]
-                    self.assertNotEqual(original[path.name], path.read_bytes())
+                    self.assertNotIn(path.name, original)
                     self.assertEqual(evaluation.get_file_sha256(str(path)), probe["audio_sha256"])
                     self.assertAlmostEqual(.5, probe["metrics"]["duration_seconds"])
-                for name in ("adapter_model.safetensors", "ref_sample.wav"):
+                for name in original:
                     self.assertEqual(original[name], (adapter / name).read_bytes())
 
     def test_explicit_failure_with_written_audio_and_empty_fresh_audio_are_rejected(self):
         for returned, empty in ((False, False), (None, True)):
             with self.subTest(returned=returned, empty=empty), tempfile.TemporaryDirectory() as tmp:
                 adapter = self.make_adapter(tmp)
+                original = {path.name: path.read_bytes() for path in adapter.iterdir()}
                 class Engine(SyntheticEvaluationEngine):
                     def generate_voice(self, output_path, **_kwargs):
                         sf.write(output_path, np.zeros(0 if empty else 8000), 16000)
@@ -417,7 +471,7 @@ class EvaluationProbeFreshnessTests(unittest.TestCase):
                     with self.assertRaises((RuntimeError, ValueError)):
                         evaluation.evaluate_adapter({"id": "voice"}, tmp, Engine(), object(), "cpu")
                 similarity.assert_not_called()
-                self.assertEqual(0 if empty else 8000, sf.info(adapter / "evaluation_narration.wav").frames)
+                self.assertEqual(original, {path.name: path.read_bytes() for path in adapter.iterdir()})
 
 
 class CandidateReferencePairingTests(unittest.TestCase):
@@ -452,8 +506,8 @@ class CandidateReferencePairingTests(unittest.TestCase):
             digest = evaluation.get_file_sha256(str(candidate / "ref_sample.wav"))
             self.assertEqual(digest, result["evidence"]["reference_audio_sha256"])
             self.assertNotEqual(evaluation.get_file_sha256(str(parent / "ref_sample.wav")), digest)
-            self.assertTrue(evaluation.is_complete_evaluation(result, str(candidate)))
-            self.assertFalse(evaluation.is_complete_evaluation(result, str(parent)))
+            self.assertTrue(evaluation.is_complete_evaluation(result, str(candidate), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
+            self.assertFalse(evaluation.is_complete_evaluation(result, str(parent), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
             for name, data in original.items():
                 self.assertEqual(data, (parent / name).read_bytes())
 
@@ -486,10 +540,10 @@ class EvaluationCleanupResumeTests(unittest.TestCase):
                     result = copy.deepcopy(valid)
                     result["candidate_recommendation"] = {"cleanup": cleanup}
                     before = copy.deepcopy(result)
-                    self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter)))
+                    self.assertFalse(evaluation.is_complete_evaluation(result, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                     self.assertEqual(before, result)
             valid["candidate_recommendation"] = {"recommended": "production", "cleanup": {"status": "complete"}}
-            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter)))
+            self.assertTrue(evaluation.is_complete_evaluation(valid, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
 
     def test_actual_pending_cleanup_is_finished_and_next_run_skips(self):
         import contextlib
@@ -572,7 +626,7 @@ class EvaluationCleanupResumeTests(unittest.TestCase):
                     for p in (adapter / "candidates" / name).rglob("*") if p.is_file()})
                 self.assertEqual(skipped_ids, [item["id"] for item in json.loads(manifest.read_text())[0]
                     ["evaluation_candidates"]])
-                self.assertTrue(evaluation.is_complete_evaluation(completed, str(adapter)))
+                self.assertTrue(evaluation.is_complete_evaluation(completed, str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
                 self.assertEqual("production", json.loads(manifest.read_text())[0]
                     ["evaluation"]["recommended_candidate"])
                 evaluate.reset_mock()
