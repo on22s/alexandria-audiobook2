@@ -1684,4 +1684,4 @@ class BookReaderAdmissionTests(unittest.TestCase):
                     self.assertEqual(200,load.result(timeout=10).status_code)
                     listing=response.result(timeout=10)
                     self.assertEqual(200,listing.status_code)
-                    self.assertEqual([{'name':'NEW','config':{'type':'custom','voice':'Aiden'},'line_count':1,'persona_pending':True,'single_voice_asset':{'type':'custom','voice':'Aiden','ref_audio':None,'ref_text':None,'adapter_id':None,'adapter_path':None,'members':None}}],listing.json())
+                    self.assertEqual([{'name':'NEW','config':{'type':'custom','voice':'Aiden'},'line_count':1,'persona_pending':True}],listing.json())

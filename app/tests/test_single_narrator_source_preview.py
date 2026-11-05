@@ -228,9 +228,9 @@ class SingleNarratorSourcePreviewTests(unittest.TestCase):
             self.assertEqual(409, error.status_code)
             self.assertEqual(sentinel, (outside / 'source.txt').read_bytes(), 'outside fixture must be untouched')
 
-    def test_preview_allows_json_source(self):
-        # #1724 C130: a JSON-imported book's retained source is the JSON file
-        # itself; it must preview so guide step 1 is reachable.
+    def test_preview_refuses_json_source(self):
+        # JSON is a retained annotated script, not original source prose:
+        # refuse honestly with saved-script guidance, never relabel JSON.
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             root = Path(tmp)
             client, source, text = self.fixture(root, stack)
@@ -240,12 +240,8 @@ class SingleNarratorSourcePreviewTests(unittest.TestCase):
                 {"active_book_id": "book", "book_generation": "one",
                  "input_file_path": str(script_json)}))
             response = client.get('/api/single-narrator/source-preview')
-            self.assertEqual(200, response.status_code, response.text)
-            body = response.json()
-            self.assertEqual('book.json', body['source_name'])
-            self.assertIn('Synthetic JSON source line.', body['text_start'])
-            self.assertEqual(hashlib.sha256(script_json.read_bytes()).hexdigest(),
-                             body['source_sha256'])
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('saved script', response.json()['detail'])
 
     def test_preview_refuses_garbled_and_blank_text(self):
         # #1724 C034/C043: undecodable bytes and whitespace-only sources are
@@ -290,6 +286,96 @@ class SingleNarratorSourcePreviewTests(unittest.TestCase):
             response = client.get('/api/single-narrator/source-preview')
             self.assertEqual(409, response.status_code, response.text)
             self.assertIn('could not be verified', response.json()['detail'])
+
+
+    def test_preview_refuses_outside_data_dir(self):
+        # DS064: an input_file_path outside DATA_DIR is a 403 refusal.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            outside_dir = root.parent
+            outside = root.parent / (root.name + '-outside.txt')
+            outside.write_text('Outside synthetic source.', encoding='utf-8')
+            try:
+                client, source, text = self.fixture(root, stack)
+                (root / 'state.json').write_text(json.dumps(
+                    {"active_book_id": "book", "book_generation": "one",
+                     "input_file_path": str(outside)}))
+                response = client.get('/api/single-narrator/source-preview')
+                self.assertEqual(403, response.status_code, response.text)
+                self.assertIn('outside the book data directory', response.json()['detail'])
+            finally:
+                if outside.exists():
+                    outside.unlink()
+
+    def test_preview_accepts_real_canonical_docx_group(self):
+        # DS065: a group produced by the real publish/extract helpers, not
+        # a hand-built receipt. Original source bytes are maintained.
+        from docx_preview import extract_docx_preview
+        from docx_publication import publish_docx_upload
+        from source_upload_publication import create_source_upload_stage
+        from tests.test_docx_preview import archive as docx_archive
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            uploads = root / 'uploads'
+            uploads.mkdir()
+            raw = docx_archive()
+            stage = create_source_upload_stage(root, limit=len(raw))
+            try:
+                stage.write(raw)
+                path, names = publish_docx_upload(stage, extract_docx_preview(raw),
+                    'book.docx', remaining=1000000)
+            finally:
+                stage.close()
+            (root / 'state.json').write_text(json.dumps(
+                {"active_book_id": "book", "book_generation": "one",
+                 "input_file_path": path}))
+            stack.enter_context(patch.object(script_router, 'DATA_DIR', str(root)))
+            body = script_router._get_single_narrator_source_preview()
+            self.assertIn('Synthetic', body['text_start'])
+            self.assertTrue(body['source_sha256'])
+            self.assertEqual(raw, (root / names['original']).read_bytes(),
+                             'original DOCX bytes are retained untouched')
+
+    def test_preview_bom_and_leading_whitespace_policy(self):
+        # Synthetic BOM controls: UTF-8 BOM is represented by the canonical
+        # decoder and previews; UTF-16 BOM / NUL refuse. Leading whitespace
+        # then prose previews; blank excerpt vs empty source are distinct.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            client, source, text = self.fixture(root, stack)
+            # UTF-8 BOM is ordinary text to the canonical decoder.
+            source.write_bytes(b'\xef\xbb\xbf' + 'UTF-8 BOM text.'.encode('utf-8'))
+            body = client.get('/api/single-narrator/source-preview').json()
+            self.assertIn('UTF-8 BOM text', body['text_start'])
+            # UTF-16LE BOM refuses.
+            source.write_bytes(b'\xff\xfe' + 'UTF-16 text.'.encode('utf-16-le'))
+            self.assertEqual(409, client.get('/api/single-narrator/source-preview').status_code)
+            # NUL refuses.
+            source.write_bytes('Contains \x00 NUL.'.encode('utf-8'))
+            self.assertEqual(409, client.get('/api/single-narrator/source-preview').status_code)
+            # Leading whitespace then prose previews.
+            source.write_text('   \n\nLeading whitespace prose here.', encoding='utf-8')
+            body = client.get('/api/single-narrator/source-preview').json()
+            self.assertIn('Leading whitespace prose', body['text_start'])
+            # Blank excerpt (whitespace-only) is distinct from empty file.
+            source.write_text('   \n\n   ', encoding='utf-8')
+            response = client.get('/api/single-narrator/source-preview')
+            self.assertEqual(400, response.status_code)
+            self.assertIn('empty', response.json()['detail'])
+            source.write_bytes(b'')
+            response = client.get('/api/single-narrator/source-preview')
+            self.assertEqual(400, response.status_code)
+
+    def test_preview_refuses_duplicate_or_nonfinite_state(self):
+        # Bounded strict reader: duplicate keys / nonfinite reject as corrupt.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            client, source, text = self.fixture(root, stack)
+            (root / 'state.json').write_bytes(
+                b'{"active_book_id":"book","active_book_id":"book","input_file_path":"x"}')
+            response = client.get('/api/single-narrator/source-preview')
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertIn('corrupt', response.json()['detail'])
 
 
 if __name__ == '__main__':

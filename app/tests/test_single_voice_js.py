@@ -25,6 +25,13 @@ const literalStart=core.indexOf('function _isLiteralSourcePreservingChecked()');
 assert.notStrictEqual(literalStart,-1,'canonical literal accessor must exist in app-core.js');
 const literalEnd=core.indexOf('\n        function ',literalStart+10);
 const literalSlice=core.slice(literalStart,literalEnd);
+// Real loaders/renderer/collector for DS058/DS021: no mock call-count proof.
+const rosterSlice=core.slice(core.indexOf('const emptyVoiceRoster'),core.indexOf('function ensureVoiceRosterOptions('));
+const metaSlice=core.slice(core.indexOf('function getTraitBadgeHtml('),core.indexOf('function getStateVoiceCardsMarkup('));
+const cardsSlice=core.slice(core.indexOf('function getStateVoiceCardsMarkup('),core.indexOf('function getSavedAdapterOption('));
+const collectSlice=core.slice(core.indexOf('function collectVoiceConfig('),core.indexOf('function onVoiceReadyChange('));
+const voiceStateSlice=core.slice(core.indexOf('let _voiceResourcesRefreshedAt'),core.indexOf('function getVoiceSeedRepairMarkup('));
+const loadVoicesSlice=core.slice(core.indexOf('async function loadVoices('),core.indexOf('window.selectVoiceVersion'));
 function makeElement(id){return {id,children:[],checked:false,value:'',textContent:'',listeners:{},
  appendChild(node){this.children.push(node);return node;},
  replaceChildren(...nodes){this.children=[...nodes];
@@ -37,30 +44,36 @@ for(const id of ['source-preview-text','source-preview-meta','source-preview-sta
 }
 const document={getElementById:id=>elements[id]||null,querySelectorAll:()=>[],
  createElement:tag=>makeElement('option-'+tag)};
-const revision=n=>String(n).padStart(64,'0'),book='b'.repeat(64);
+const revision=n=>String(n).padStart(64,'0'),book='b'.repeat(64),snapshotBookToken='e'.repeat(64),otherIdentity='d'.repeat(64),otherSnapshot='c'.repeat(64);
 const customAsset=v=>({type:'custom',voice:v,ref_audio:null,ref_text:null,adapter_id:null,adapter_path:null,members:null});const cloneAsset=(a,tx)=>({type:'clone',voice:null,ref_audio:a,ref_text:tx,adapter_id:null,adapter_path:null,members:null});const loraAsset=(id,pp)=>({type:'lora',voice:null,ref_audio:null,ref_text:null,adapter_id:id,adapter_path:pp,members:null});let serverRevision=0, writes=[], previewPosts=0, snapshotGets=0, confirmAnswer=true, confirmCalls=0;
-let serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Ryan',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Ryan')}];
+let serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false},{name:'BOB',config:{type:'custom',voice:'Ryan',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false}];
 let previewError=null, saveError=null, previewSha='a'.repeat(64);
 let snapshotError=null, saveHook=null, previewVoicesOverride=null, previewSpeakersOverride=null, previewTextOverride=null;
 const context={currentBookFilename:'book.txt',_bookSelectionEpoch:1,document,elements,window:{addEventListener(){},_bookSelectionEpoch:1,
-  localStorage:{setItem(){},getItem(){return null;},removeItem(){}}},
+  localStorage:{setItem(){},getItem(){return null;},removeItem(){}},_loraModelsCache:[],_cloneVoicesCache:[],_designedVoicesCache:[],_voicesNames:[],_voicesByName:{},_lineCounts:null,_voiceSuggestions:null},
  escapeHtml:String,showToast:(...args)=>{context.toasts.push(args);},confirmMessages:[],showConfirm:async message=>{confirmCalls++;context.confirmMessages.push(message);return confirmAnswer;},
  showActionError:(...args)=>{context.actionErrors.push(args);},toasts:[],actionErrors:[],isEditorEditPending:()=>false,
- setTimeout:()=>1,clearTimeout(){},AbortController,console:{error(){}},
+ setTimeout:()=>1,clearTimeout(){},AbortController,console:{error(){}},performance:{now:()=>Date.now()},AVAILABLE_VOICES:[],
+ getLibraryVoiceReference:()=>null,getTraitBadgeHtml:()=>'',getVoiceCandidateMarkup:()=>'',renderStyleTimeline:()=>'',getSavedAdapterOption:()=>'',disableStaleCardControls:s=>s,getLoraModelsById:()=>new Map(),loadCastLibrary:async()=>{},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},saveVoicesDebounced(){},renderVoiceSuggestions(){},getVoicePanelSnapshot:()=>({bookToken:null,panels:[]}),restoreVoicePanels(){},getVoiceListFocusSnapshot:()=>null,restoreVoiceListFocus(){},getVoiceSeedRepairMarkup:()=>'',renderPersonaRecoveryTargets(){},applyTtsCapabilityGuidance(){},
  ensureVoiceRosterCache(){},renderVoiceDrafts(){},
  API:{get:async(url,options)=>{if(url==='/api/single-narrator/source-preview'){return {book_token:book,source_sha256:previewSha,source_name:'book.txt',encoding:'utf-8',total_chars:10,truncated:false,text_start:previewTextOverride ?? 'Synthetic text.'};}
-   if(url==='/api/voice_config/snapshot'){snapshotGets++;if(snapshotError){throw snapshotError;}return {revision:revision(serverRevision),book_token:book,book_id:'book',config:{},voices:serverVoices,seed_changes:[]};}
+   if(url==='/api/voice_config/snapshot'){snapshotGets++;if(snapshotError){throw snapshotError;}return {revision:revision(serverRevision),book_token:snapshotBookToken,book_id:'book',book_identity_token:book,config:{},voices:serverVoices,seed_changes:[]};}
+   if(url==='/api/voice_design/list'||url==='/api/clone_voices/list'||url==='/api/lora/models'){return [];}
    throw new Error('unexpected GET '+url);},
   post:async(url,body)=>{if(url==='/api/voice_config/single-voice-preview'){previewPosts++;if(previewError){throw previewError;}
      const speakers=previewSpeakersOverride ?? [{name:'ALICE',line_count:1,changes:[]},{name:'BOB',line_count:1,changes:['voice changed','ready reset (needs new listening approval)']}];
-     return {book_token:book,revision:body.revision,source_speaker:body.source_speaker,affected_speakers:speakers.length,affected_lines:speakers.reduce((sum,row)=>sum+row.line_count,0),
+     return {book_token:snapshotBookToken,revision:body.revision,source_speaker:body.source_speaker,affected_speakers:speakers.length,affected_lines:speakers.reduce((sum,row)=>sum+row.line_count,0),
       speakers,
       voices:previewVoicesOverride ?? {ALICE:{type:'custom',voice:'Serena',seed:'7',ready:false},BOB:{type:'custom',voice:'Serena',seed:'-1',ready:false}}};}
-   if(url==='/api/voice_config/save'){writes.push(JSON.parse(JSON.stringify(body)));if(saveHook){saveHook();}if(saveError){throw saveError;}
-     serverRevision++;return {book_token:book,revision:revision(serverRevision)};}
+   if(url==='/api/voice_config/save'){writes.push(JSON.parse(JSON.stringify(body)));if(saveHook){saveHook();}if(saveError){
+     const definite=saveError && (saveError.status===400||saveError.status===409||saveError.status===422);
+     if(!definite){serverVoices=serverVoices.map(row=>{const patch=body.voices[row.name];return patch?{...row,config:{...row.config,...patch}}:row;});serverRevision++;}
+     throw saveError;}
+     serverVoices=serverVoices.map(row=>{const patch=body.voices[row.name];return patch?{...row,config:{...row.config,...patch}}:row;});
+     serverRevision++;return {book_token:snapshotBookToken,revision:revision(serverRevision)};}
    throw new Error('unexpected POST '+url);}}};
 vm.createContext(context);
-vm.runInContext(helper+saves+refresh+literalSlice+voice,context);
+vm.runInContext(helper+saves+refresh+literalSlice+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+voice,context);
 context.elements=elements;context.document=document;
 context.voiceSaveQueue=vm.runInContext('voiceSaveQueue',context);
 context.window._bookSelectionEpoch=1;
@@ -219,131 +232,6 @@ assert.strictEqual(context.elements['source-preview-text'].textContent,'No sourc
 assert.strictEqual(context.isSingleVoiceSourceConfirmed(),false);
 ''')
 
-    def test_ready_refuses_preexisting_dirty_queue_and_retains_drafts(self):
-        out = self.run_node(r'''
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-await context.refreshVoiceMetadata();
-vm.runInContext('enqueueVoiceDraft({ALICE:{type:"custom",voice:"Serena",seed:"7"}})',context);
-assert(context.voiceSaveQueue.isDirty(),'precondition: real queue is dirty');
-confirmAnswer=true;
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'preexisting dirty queue must refuse, not flush+approve');
-assert(context.voiceSaveQueue.isDirty(),'drafts must be retained untouched');
-assert(context.toasts.length>=1);
-''')
-        self.assertEqual(0, len(out['writes']))
-
-    def test_ready_ab_a_during_modal_refuses(self):
-        out = self.run_node(r'''
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-confirmAnswer=true;
-context.showConfirm=async()=>{context.currentBookFilename='other.txt';context.window._bookSelectionEpoch=2;
-  context.currentBookFilename='book.txt';context.window._bookSelectionEpoch=3;return true;};
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'A->B->A while the modal is open must refuse');
-assert.strictEqual(context.actionErrors.length,1);
-''')
-        self.assertEqual(0, len(out['writes']))
-
-    def test_ready_cancel_sends_no_write(self):
-        out = self.run_node(r'''
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-confirmAnswer=false;
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'cancel must send 0 writes');
-assert.strictEqual(context.actionErrors.length,0);
-''')
-        self.assertEqual(0, len(out['writes']))
-
-    def test_ready_flush_failure_retains_drafts(self):
-        self.run_node(r'''
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-confirmAnswer=true; saveError=new Error('save refused');
-await context.markSingleVoiceReady();
-assert(context.actionErrors.length>=1);
-assert(context.voiceSaveQueue.isDirty(),'failed flush must retain the ready drafts for retry');
-''')
-
-    def test_ready_action_requires_unanimous_single_voice(self):
-        out = self.run_node(r'''
-await context.refreshVoiceMetadata();
-confirmAnswer=true;
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'mixed voices must not bulk-ready');
-assert.strictEqual(context.actionErrors.length,1);
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,1);
-assert.strictEqual(writes[0].voices.BOB.ready,true);
-''')
-        self.assertEqual(1, len(out['writes']))
-
-    def test_ready_refuses_empty_but_accepts_custom_without_persona(self):
-        # #1724: empty {} (null descriptor) must not bulk-ready; valid custom without persona (descriptor present, persona_pending true) must.
-        out = self.run_node(r'''
-confirmAnswer=true;
-serverVoices=[{name:'ALICE',config:{},persona_pending:true,single_voice_asset:null},{name:'BOB',config:{},persona_pending:true,single_voice_asset:null}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'empty assets must not bulk-ready');
-assert.strictEqual(context.actionErrors.length,1);
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Ryan'},persona_pending:true,single_voice_asset:customAsset('Ryan')},{name:'BOB',config:{type:'custom',voice:'Ryan'},persona_pending:true,single_voice_asset:customAsset('Ryan')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,1,'valid custom without persona text must bulk-ready via descriptor');
-''')
-        self.assertEqual(1, len(out['writes']))
-
-    def test_ready_refuses_legacy_alias_and_corrupt_timeline(self):
-        out = self.run_node(r'''
-confirmAnswer=true;
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.',alias:'CAROL'},persona_pending:false,single_voice_asset:null},{name:'BOB',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.',alias:'CAROL'},persona_pending:false,single_voice_asset:null}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'legacy alias must refuse bulk-ready');
-assert.strictEqual(context.actionErrors.length,1);
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.',version_timeline:'v1'},persona_pending:false,single_voice_asset:null},{name:'BOB',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.',version_timeline:'v1'},persona_pending:false,single_voice_asset:null}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'corrupt (non-array) timeline must refuse bulk-ready');
-assert.strictEqual(context.actionErrors.length,2);
-''')
-        self.assertEqual(0, len(out['writes']))
-
-    def test_ready_ignores_distinct_preserved_descriptions(self):
-        out = self.run_node(r'''
-confirmAnswer=true;
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',description:'Alice persona'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',description:'Bob persona'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,1,'distinct preserved descriptions + SAME custom voice must bulk-ready');
-assert.strictEqual(writes[0].voices.BOB.ready,true);
-serverVoices=[{name:'ALICE',config:{type:'clone',ref_audio:'refs/shared.wav',ref_text:'Synthetic reference text.',description:'Alice persona'},persona_pending:false,single_voice_asset:cloneAsset('refs/shared.wav','Synthetic reference text.')},{name:'BOB',config:{type:'clone',ref_audio:'refs/shared.wav',ref_text:'Synthetic reference text.',description:'Bob persona'},persona_pending:false,single_voice_asset:cloneAsset('refs/shared.wav','Synthetic reference text.')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,2,'distinct descriptions + SAME clone ref pair must bulk-ready');
-serverVoices=[{name:'ALICE',config:{type:'lora',adapter_id:'lora-1',adapter_path:'lora_models/lora-1',description:'Alice persona'},persona_pending:false,single_voice_asset:loraAsset('lora-1','lora_models/lora-1')},{name:'BOB',config:{type:'lora',adapter_id:'lora-1',adapter_path:'lora_models/lora-1',description:'Bob persona'},persona_pending:false,single_voice_asset:loraAsset('lora-1','lora_models/lora-1')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,3,'distinct descriptions + SAME adapter must bulk-ready');
-''')
-        self.assertEqual(3, len(out['writes']))
-
-    def test_ready_still_refuses_distinct_actual_assets(self):
-        out = self.run_node(r'''
-confirmAnswer=true;
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',description:'Alice persona'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Ryan',description:'Bob persona'},persona_pending:false,single_voice_asset:customAsset('Ryan')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'distinct custom voices must refuse');
-assert.strictEqual(context.actionErrors.length,1);
-serverVoices=[{name:'ALICE',config:{type:'clone',ref_audio:'refs/a.wav',ref_text:'Synthetic reference text.',description:'Alice persona'},persona_pending:false,single_voice_asset:cloneAsset('refs/a.wav','Synthetic reference text.')},{name:'BOB',config:{type:'clone',ref_audio:'refs/b.wav',ref_text:'Synthetic reference text.',description:'Bob persona'},persona_pending:false,single_voice_asset:cloneAsset('refs/b.wav','Synthetic reference text.')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'distinct clone references must refuse');
-assert.strictEqual(context.actionErrors.length,2);
-serverVoices=[{name:'ALICE',config:{type:'lora',adapter_id:'lora-1',adapter_path:'lora_models/lora-1',description:'Alice persona'},persona_pending:false,single_voice_asset:loraAsset('lora-1','lora_models/lora-1')},{name:'BOB',config:{type:'lora',adapter_id:'lora-2',adapter_path:'lora_models/lora-2',description:'Bob persona'},persona_pending:false,single_voice_asset:loraAsset('lora-2','lora_models/lora-2')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'distinct adapters must refuse');
-assert.strictEqual(context.actionErrors.length,3);
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',description:'Alice persona'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'lora',adapter_id:'lora-1',adapter_path:'lora_models/lora-1',description:'Bob persona'},persona_pending:false,single_voice_asset:loraAsset('lora-1','lora_models/lora-1')}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'distinct types must refuse');
-assert.strictEqual(context.actionErrors.length,4);
-''')
-        self.assertEqual(0, len(out['writes']))
-
     def test_source_status_describes_snapshot_not_live_state(self):
         self.run_node(r'''
 await context.loadSingleVoiceSourcePreview();
@@ -366,20 +254,6 @@ assert.strictEqual(context.actionErrors.length,1);
 const failure=context.actionErrors[0];
 assert(failure[1].message.includes('saved, but Voices could not be refreshed'),'must not claim nothing was applied after a persisted save');
 assert(failure[2].includes('was saved'),'recovery copy must state the save persisted');
-''')
-        self.assertEqual(1, len(out['writes']))
-
-    def test_ready_saved_then_refresh_fails_reports_saved_truthfully(self):
-        out = self.run_node(r'''
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')},{name:'BOB',config:{type:'custom',voice:'Serena',seed:'-1',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
-confirmAnswer=true;
-// First refresh (pre-modal) succeeds; the refresh after the ready save fails.
-let gets=0; const originalGet=context.API.get;
-context.API.get=async(url,...rest)=>{if(url==='/api/voice_config/snapshot'){gets++;if(gets>=2){throw new Error('snapshot unavailable after save');}}return originalGet(url,...rest);};
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,1,'ready save must have persisted');
-assert.strictEqual(context.actionErrors.length,1);
-assert(context.actionErrors[0][1].message.includes('marked ready, but Voices could not be refreshed'),'must not claim nothing was marked ready after a persisted save');
 ''')
         self.assertEqual(1, len(out['writes']))
 
@@ -412,7 +286,7 @@ assert(context.actionErrors[0][1].message.includes('Active book changed'));
     def test_busy_guard_gives_feedback(self):
         out = self.run_node(r'''
 vm.runInContext('_singleVoiceBusy=true',context);
-await context.markSingleVoiceReady();
+await context.previewSingleVoiceBook();
 assert.strictEqual(writes.length,0);
 assert(context.toasts.length>=1,'busy click must toast instead of silently returning');
 vm.runInContext('_singleVoiceBusy=false',context);
@@ -422,7 +296,7 @@ vm.runInContext('_singleVoiceBusy=false',context);
     def test_dropped_speaker_selection_is_announced(self):
         self.run_node(r'''
 context.elements['single-voice-source'].value='ALICE';
-serverVoices=[{name:'BOB',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.'},persona_pending:false,single_voice_asset:customAsset('Serena')}];
+serverVoices=[{name:'BOB',config:{type:'custom',voice:'Serena',description:'Calm synthetic narrator.'},persona_pending:false}];
 await context.refreshVoiceMetadata();
 assert.strictEqual(context.elements['single-voice-source'].value,'','dropped selection resets to placeholder');
 assert(context.toasts.some(([message])=>String(message).includes('ALICE')),'dropped speaker must be announced');
@@ -472,17 +346,249 @@ assert.strictEqual(context.isSingleVoiceSourceConfirmed(),false,'reload must cle
 ''')
 
 
-    def test_ready_refuses_empty_clone_and_missing_descriptor(self):
-        out = self.run_node(r'''
-confirmAnswer=true;
-serverVoices=[{name:'ALICE',config:{type:'clone'},persona_pending:false,single_voice_asset:null},{name:'BOB',config:{type:'clone'},persona_pending:false,single_voice_asset:null}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'empty clone must send zero saves');
+
+    def test_bulk_readiness_is_absent_and_percard_ready_preserved(self):
+        import pathlib as _p
+        js = (_p.Path(__file__).resolve().parent.parent / 'static/js/app-single-voice.js').read_text(encoding='utf-8')
+        html = (_p.Path(__file__).resolve().parent.parent / 'static/index.html').read_text(encoding='utf-8')
+        core = (_p.Path(__file__).resolve().parent.parent / 'static/js/app-core.js').read_text(encoding='utf-8')
+        self.assertNotIn('markSingleVoiceReady', js)
+        self.assertNotIn('singleVoiceAllMatchSingleAsset', js)
+        self.assertNotIn('markSingleVoiceReady', html)
+        self.assertIn('previewSingleVoiceBook', js)
+        self.assertIn('voice-ready', core)
+        self.assertIn('per-card Ready', html)
+
+    def test_other_tab_source_not_confirmed(self):
+        self.run_node(r'''
+context.window._selectedUploadIdentity={token:book};
+const oldGet=context.API.get;
+context.API.get=async(url,...args)=>{
+ const value=await oldGet(url,...args);
+ return url==='/api/single-narrator/source-preview' ? {...value,book_token:'c'.repeat(64),text_start:'Other book source.'} : value;
+};
+await context.loadSingleVoiceSourcePreview();
 assert.strictEqual(context.actionErrors.length,1);
-serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena'},persona_pending:false},{name:'BOB',config:{type:'custom',voice:'Serena'},persona_pending:false}];
-await context.markSingleVoiceReady();
-assert.strictEqual(writes.length,0,'missing descriptor must fail closed');
-assert.strictEqual(context.actionErrors.length,2);
+assert.strictEqual(context.elements['source-preview-text'].textContent,'No source preview loaded for this book.');
+context.elements['source-preview-confirm'].checked=true;
+context.onSingleVoiceSourceConfirm();
+assert.strictEqual(context.isSingleVoiceSourceConfirmed(),false);
+''')
+
+    def test_other_tab_book_not_bulk_approved(self):
+        out = self.run_node(r'''
+const oldGet=context.API.get;
+context.API.get=async(url,...args)=>{
+ const value=await oldGet(url,...args);
+ if(url==='/api/voice_config/snapshot'){return {...value,book_token:'c'.repeat(64),book_identity_token:'d'.repeat(64)};}
+ return value;
+};
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+const cachedToken=vm.runInContext('_voiceSaveSnapshot.book_token',context);
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,0);
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_token',context),cachedToken);
+assert.strictEqual(context.actionErrors.length,1);
+''')
+        self.assertEqual(0, len(out['writes']))
+
+    def test_stale_source_rejection_after_new_book_success_is_ignored(self):
+        self.run_node(r'''
+const originalGet = context.API.get; let releaseFirst = null;
+let calls = 0;
+context.API.get = (url,...args)=>{ if(url==='/api/single-narrator/source-preview'){ calls++; if(calls===1){ return new Promise((resolve,reject)=>{ releaseFirst=()=>reject(new Error('old load failed')); }); } } return originalGet(url,...args); };
+const firstLoad = context.loadSingleVoiceSourcePreview();
+context.currentBookFilename='other.txt'; context.window._bookSelectionEpoch=2; context.window.resetSingleVoiceBook();
+context.currentBookFilename='book.txt'; context.window._bookSelectionEpoch=3;
+await context.loadSingleVoiceSourcePreview();
+context.elements['source-preview-confirm'].checked=true; context.onSingleVoiceSourceConfirm();
+assert.strictEqual(context.isSingleVoiceSourceConfirmed(),true);
+releaseFirst(); await firstLoad;
+assert.strictEqual(context.isSingleVoiceSourceConfirmed(),true);
+assert(context.elements['source-preview-text'].textContent.includes('Synthetic'));
+''')
+
+    def test_bulk_apply_rerenders_real_cards_and_later_edit_does_not_revert(self):
+        out = self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,1);
+const html = context.elements['voices-list'].innerHTML;
+assert(html && html.includes('Serena'),'loadVoices must rerender real cards with the applied voice');
+assert(vm.runInContext('_voiceCardsBookToken',context)===snapshotBookToken);
+assert(vm.runInContext('_voiceCardsRevision',context)===revision(serverRevision));
+const BOB = vm.runInContext('_voiceSaveSnapshot.voices.find(function(v){return v.name==="BOB"})',context);
+assert.strictEqual(BOB.config.voice,'Serena');
+// Parse the RERENDERED markup into a synthetic DOM (real rendered
+// values, not a hand-written expectation) and run the actual collector
+// + save path over it: a stale DOM would yield Ryan and revert.
+function parseCards(html){
+  const chunks=html.split('<div class="card voice-card');
+  const cards=[];
+  for(let i=1;i<chunks.length;i++){
+    const chunk=chunks[i];
+    const voice=(chunk.match(/data-voice="([^"]+)"/)||[])[1];
+    const voiceSel=(chunk.match(/class="form-select voice-select"[^>]*>(.*?)<\/select>/s)||[])[1]||'';
+    const voiceVal=(voiceSel.match(/value="([^"]*)"[^>]*selected/)||[])[1]||'';
+    const aliasSel=(chunk.match(/alias-select[^>]*>(.*?)<\/select>/s)||[])[1]||'';
+    const aliasVal=(aliasSel.match(/value="([^"]*)"[^>]*selected/)||[])[1]||'';
+    const ready=/voice-ready[^>]*checked/.test(chunk);
+    const styleVal=(chunk.match(/class="form-control character-style"[^>]*value="([^"]*)"/)||[])[1]||'';
+    cards.push({dataset:{voice:voice,version:''},querySelector:function(sel){
+      if(sel==='.alias-select') return {value:aliasVal};
+      if(sel==='.voice-type:checked') return {value:'custom'};
+      if(sel==='.voice-select') return {value:voiceVal};
+      if(sel==='.character-style') return {value:styleVal};
+      if(sel==='.voice-ready') return {checked:ready};
+      if(sel==='.voice-seed') return null;
+      if(sel==='.voice-presentation') return null;
+      return null;
+    }});
+  }
+  return cards;
+}
+const cards=parseCards(html);
+assert.strictEqual(cards.length,2,'parser must find both rerendered cards');
+assert.strictEqual(cards.find(function(c){return c.dataset.voice==='BOB'}).querySelector('.voice-select').value,'Serena');
+document.querySelectorAll=function(selector){return selector==='.voice-card'?cards:[];};
+context.__collected=vm.runInContext('collectVoiceConfig()',context);
+assert.strictEqual(context.__collected.BOB.voice,'Serena','collector must read the rerendered DOM, not stale Ryan');
+vm.runInContext('enqueueVoiceDraft(__collected)',context);
+await vm.runInContext('flushVoiceSaves()',context);
+assert.strictEqual(writes.length,2);
+const snapshot2 = await context.API.get('/api/voice_config/snapshot');
+assert.strictEqual(snapshot2.voices.find(function(v){return v.name==="BOB"}).config.voice,'Serena','later ordinary edit must not revert');
+''')
+        self.assertEqual(2, len(out['writes']))
+
+    def test_legacy_alias_rendered_and_preserved(self):
+        self.run_node(r'''
+vm.runInContext('window._voicesNames=["ALICE","BOB"]',context);
+const markup = vm.runInContext('renderInitialAliasOptions({name:"BOB",config:{alias:"ALICE"}})',context);
+assert(markup.includes('ALICE') && markup.includes('selected'),'render must preselect legacy alias');
+const markupNone = vm.runInContext('renderInitialAliasOptions({name:"BOB",config:{}})',context);
+assert.strictEqual(markupNone,'');
+assert.strictEqual(vm.runInContext('getEffectiveVoiceAlias({alias:"ALICE"})',context),'ALICE');
+// Actual collector path: load a book whose BOB carries only the legacy
+// key, parse the rendered card, collect, and save: alias_of must survive
+// an unrelated autosave (the collector sends it), and choosing None via
+// the select must send alias_of null (the guarded-save seam then clears
+// BOTH keys server-side, covered by the python guard test).
+serverVoices=[{name:'ALICE',config:{type:'custom',voice:'Serena',seed:'7',description:'Calm synthetic narrator.'},persona_pending:false},{name:'BOB',config:{type:'custom',voice:'Ryan',seed:'-1',description:'Calm synthetic narrator.',alias:'ALICE'},persona_pending:false}];
+await vm.runInContext('loadVoices(true)',context);
+const html = context.elements['voices-list'].innerHTML;
+assert(html.includes('ALICE') && html.includes('selected'),'rendered card must show legacy alias selected');
+function parseCards(html){
+  const chunks=html.split('<div class="card voice-card');
+  const cards=[];
+  for(let i=1;i<chunks.length;i++){
+    const chunk=chunks[i];
+    const voice=(chunk.match(/data-voice="([^"]+)"/)||[])[1];
+    const voiceSel=(chunk.match(/class="form-select voice-select"[^>]*>(.*?)<\/select>/s)||[])[1]||'';
+    const voiceVal=(voiceSel.match(/value="([^"]*)"[^>]*selected/)||[])[1]||'';
+    const aliasSel=(chunk.match(/alias-select[^>]*>(.*?)<\/select>/s)||[])[1]||'';
+    const aliasVal=(aliasSel.match(/value="([^"]*)"[^>]*selected/)||[])[1]||'';
+    const ready=/voice-ready[^>]*checked/.test(chunk);
+    cards.push({dataset:{voice:voice,version:''},querySelector:function(sel){
+      if(sel==='.alias-select') return {value:aliasVal};
+      if(sel==='.voice-type:checked') return {value:'custom'};
+      if(sel==='.voice-select') return {value:voiceVal};
+      if(sel==='.character-style') return {value:''};
+      if(sel==='.voice-ready') return {checked:ready};
+      if(sel==='.voice-seed') return null;
+      if(sel==='.voice-presentation') return null;
+      return null;
+    }});
+  }
+  return cards;
+}
+const cards=parseCards(html);
+const bobCard=cards.find(function(c){return c.dataset.voice==='BOB'});
+assert.strictEqual(bobCard.querySelector('.alias-select').value,'ALICE','rendered legacy alias must round-trip through the DOM');
+document.querySelectorAll=function(selector){return selector==='.voice-card'?cards:[];};
+context.__collected=vm.runInContext('collectVoiceConfig()',context);
+assert.strictEqual(context.__collected.BOB.alias_of,'ALICE','collector must preserve the effective legacy alias');
+''')
+
+    def test_lost_response_after_commit_is_unknown_not_nothing(self):
+        out = self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+const err=new Error('The voice save timed out. Your edits were retained; the server save could not be confirmed.');
+saveError=err;
+await context.previewSingleVoiceBook();
+assert.strictEqual(context.actionErrors.length,1);
+const failure=context.actionErrors[0];
+assert(failure[1].message.includes('could not be confirmed') && failure[1].message.includes('timed out'));
+assert(failure[2].includes('may have been saved'));
+assert(context.voiceSaveQueue.isDirty(),'draft retained for canonical recovery');
+// The stub committed on the server despite the lost reply (unknown
+// outcome now, not a definite refusal): a direct snapshot read without
+// a flush proves the persisted state without retrying the ambiguous write.
+const snap = await context.API.get('/api/voice_config/snapshot');
+assert.strictEqual(snap.voices.find(function(v){return v.name==="BOB"}).config.voice,'Serena','server persisted despite lost reply');
+''')
+        self.assertEqual(1, len(out['writes']))
+
+    def test_definite_refusal_preserves_detail(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+const err=new Error('Voice version is applied; select another base version or clear its timeline points first.');
+err.status=409; err.detail=err.message;
+saveError=err;
+await context.previewSingleVoiceBook();
+assert.strictEqual(context.actionErrors.length,1);
+const message=context.actionErrors[0][1];
+assert(message.message.includes('refused by the server') && message.message.includes('Voice version is applied'));
+''')
+
+    def test_5xx_save_is_unknown_not_definite(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+const err=new Error('Bad Gateway');
+err.status=502;
+saveError=err;
+await context.previewSingleVoiceBook();
+assert.strictEqual(context.actionErrors.length,1);
+assert(context.actionErrors[0][1].message.includes('could not be confirmed'));
+assert(context.actionErrors[0][2].includes('may have been saved'));
+''')
+
+    def test_preflush_lost_response_is_unknown(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+vm.runInContext('enqueueVoiceDraft({ALICE:{type:"custom",voice:"Serena",seed:"7"}})',context);
+const err=new Error('The voice save timed out. Your edits were retained; the server save could not be confirmed.');
+saveError=err;
+await context.previewSingleVoiceBook();
+assert.strictEqual(context.actionErrors.length,1);
+assert(context.actionErrors[0][1].message.includes('Pending voice edits could not be confirmed'));
+assert(!context.actionErrors[0][2].includes('Nothing was applied'));
+''')
+
+    def test_post_save_loadvoices_failure_is_persisted(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+context.loadVoices=async()=>{throw new Error('render failed after save');};
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,1);
+assert.strictEqual(context.actionErrors.length,1);
+assert(context.actionErrors[0][1].message.includes('voice was saved'));
+''')
+
+    def test_newer_edit_after_modal_is_preserved_not_flushed(self):
+        out = self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+context.showConfirm=async()=>{vm.runInContext('enqueueVoiceDraft({ALICE:{type:"custom",voice:"Serena",seed:"7"}})',context);return true;};
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,0);
+assert(context.voiceSaveQueue.isDirty());
 ''')
         self.assertEqual(0, len(out['writes']))
 

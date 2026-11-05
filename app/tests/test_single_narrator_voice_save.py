@@ -14,7 +14,20 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import voices
+from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
+from voice_config_store import get_voice_config_revision
 import tts
+
+
+def _canonical_guards(root):
+    """Exact revision/book_token via the canonical snapshot helpers under
+    normal admission, without calling the roster/snapshot HTTP endpoints
+    (which now refuse malformed active data)."""
+    data_dir = str(root)
+    with ensure_book_state(data_dir):
+        snapshot = get_book_snapshot(data_dir, allow_missing_script=True)
+        return {"revision": get_voice_config_revision(snapshot["voices"]),
+                "book_token": get_book_snapshot_token(snapshot)}
 
 ASSET_CASES = [
     ("custom", {"type": "custom", "voice": "Serena"}),
@@ -402,68 +415,281 @@ class SingleVoicePreviewSaveTests(unittest.TestCase):
 
 
 class SingleVoiceAssetDescriptorTests(unittest.TestCase):
-    """get_voice_rows single_voice_asset is the server completeness authority."""
-    def rows(self, config):
+    """Bulk-readiness removal: no single_voice_asset metadata, no bulk action.
+
+    The optional bulk readiness the branch previously added is removed by
+    parent decision. _direct_source_asset stays for proposal validation,
+    and the existing per-card Ready controls stay authoritative.
+    """
+    def test_rows_have_no_single_voice_asset_metadata(self):
         script = [{"speaker": "ALICE", "text": "Synthetic line."}]
-        return voices.get_voice_rows(script, {"ALICE": config})
-
-    def test_valid_custom_without_persona_is_eligible(self):
-        row = self.rows({"type": "custom", "voice": "Serena"})[0]
-        self.assertTrue(row["persona_pending"], "persona_pending stays persona-scoped")
-        self.assertEqual({"type": "custom", "voice": "Serena", "ref_audio": None,
-                          "ref_text": None, "adapter_id": None, "adapter_path": None,
-                          "members": None}, row["single_voice_asset"])
-
-    def test_complete_clone_and_lora_are_eligible(self):
-        clone = self.rows({"type": "clone", "ref_audio": "r.wav", "ref_text": "text"})[0]
-        self.assertEqual({"type": "clone", "voice": None, "ref_audio": "r.wav",
-                          "ref_text": "text", "adapter_id": None, "adapter_path": None,
-                          "members": None}, clone["single_voice_asset"])
-        lora = self.rows({"type": "lora", "adapter_id": "lora-1"})[0]
-        self.assertEqual("lora_models/lora-1", lora["single_voice_asset"]["adapter_path"])
-        builtin = self.rows({"type": "builtin_lora", "adapter_id": "b-1"})[0]
-        self.assertEqual("builtin_lora/b-1", builtin["single_voice_asset"]["adapter_path"])
-
-    def test_empty_clone_lora_and_refusals_have_no_descriptor(self):
-        cases = [
-            {"type": "clone"},
-            {"type": "clone", "ref_audio": "r.wav"},
-            {"type": "lora"},
-            {"type": "lora", "adapter_path": "lora_models/x"},
-            {"type": "custom", "voice": "Serena", "alias_of": "BOB"},
-            {"type": "custom", "voice": "Serena", "alias": "BOB"},
-            {"type": "custom", "voice": "Serena", "active_version": "v1"},
-            {"type": "custom", "voice": "Serena", "version_timeline": [{"from_index": 0, "version_id": "v1"}]},
-            {"type": "custom", "voice": "Serena", "narrator_strategy": "focus"},
-            {"type": "design", "description": "Synthetic design."},
-            {"type": "ensemble", "members": ["A"]},
-            {"type": "custom"},
-            {},
-            None,
-        ]
-        for config in cases:
+        for config in [{}, {"type": "custom", "voice": "Serena"},
+                       {"type": "clone", "ref_audio": "r.wav", "ref_text": "text"},
+                       {"type": "lora", "adapter_id": "lora-1"}]:
             with self.subTest(config=config):
-                row = self.rows(config)[0]
-                self.assertIsNone(row["single_voice_asset"], config)
+                row = voices.get_voice_rows(script, {"ALICE": config})[0]
+                self.assertNotIn("single_voice_asset", row)
+                self.assertNotIn("single_voice_asset", row.get("config", {}))
 
-    def test_snapshot_carries_descriptors_and_preview_apply_is_usable(self):
+    def test_no_bulk_ready_action_or_helper(self):
+        js = (Path(__file__).resolve().parent.parent / 'static/js/app-single-voice.js').read_text(encoding='utf-8')
+        html = (Path(__file__).resolve().parent.parent / 'static/index.html').read_text(encoding='utf-8')
+        self.assertNotIn('markSingleVoiceReady', js)
+        self.assertNotIn('singleVoiceAllMatchSingleAsset', js)
+        self.assertNotIn('markSingleVoiceReady', html)
+        self.assertNotIn('I listened to this voice', html)
+        # Existence/control preservation: the single-voice preview action
+        # and the per-card Ready controls remain.
+        self.assertIn('previewSingleVoiceBook', js)
+        self.assertIn('previewSingleVoiceBook', html)
+        self.assertIn('voice-ready', (Path(__file__).resolve().parent.parent / 'static/js/app-core.js').read_text(encoding='utf-8'))
+
+    def test_direct_source_asset_still_validates_proposals(self):
+        with self.assertRaises(Exception) as cm:
+            voices._direct_source_asset("ALICE", {"type": "custom"})
+        self.assertEqual(422, cm.exception.status_code)
+
+
+class AdapterPinTransferTests(unittest.TestCase):
+    def _proposal(self, voices_map):
+        script = [{"speaker": "ALICE", "text": "Synthetic line."},
+                  {"speaker": "BOB", "text": "Synthetic line."}]
+        return voices.build_single_voice_proposal(voices_map, script, "ALICE")
+
+    def test_source_pin_transfers_to_targets(self):
+        pin = "a" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "lora", "adapter_id": "lora-1",
+                      "adapter_path": "lora_models/lora-1",
+                      "adapter_generation_sha256": pin},
+            "BOB": {"type": "custom", "voice": "Ryan"}})
+        self.assertEqual(pin, proposal["voices"]["BOB"]["adapter_generation_sha256"])
+        self.assertEqual(pin, proposal["voices"]["ALICE"]["adapter_generation_sha256"])
+
+    def test_unpinned_source_explicitly_clears_old_target_pin(self):
+        old_pin = "b" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "custom", "voice": "Serena"},
+            "BOB": {"type": "lora", "adapter_id": "lora-x",
+                    "adapter_path": "lora_models/lora-x",
+                    "adapter_generation_sha256": old_pin}})
+        self.assertIsNone(proposal["voices"]["BOB"]["adapter_generation_sha256"])
+
+    def test_malformed_source_pin_refuses(self):
+        with self.assertRaises(Exception) as cm:
+            self._proposal({
+                "ALICE": {"type": "lora", "adapter_id": "lora-1",
+                          "adapter_path": "lora_models/lora-1",
+                          "adapter_generation_sha256": "not-hex"},
+                "BOB": {"type": "custom", "voice": "Ryan"}})
+        self.assertEqual(422, cm.exception.status_code)
+
+    def test_custom_clone_replacement_clears_old_lora_pin(self):
+        old_pin = "c" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "clone", "ref_audio": "r.wav", "ref_text": "text"},
+            "BOB": {"type": "lora", "adapter_id": "lora-x",
+                    "adapter_path": "lora_models/lora-x",
+                    "adapter_generation_sha256": old_pin}})
+        self.assertIsNone(proposal["voices"]["BOB"]["adapter_generation_sha256"])
+
+    def test_source_lora_with_inactive_voice_stays_pinned(self):
+        # LoRA configs may carry a stale voice=Ryan (inactive for LoRA);
+        # the bulk patch clears voice to None but must keep explicit P.
+        pin = "a" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "lora", "adapter_id": "lora-1",
+                      "adapter_path": "lora_models/lora-1",
+                      "adapter_generation_sha256": pin, "voice": "Ryan"},
+            "BOB": {"type": "lora", "adapter_id": "lora-x",
+                    "adapter_path": "lora_models/lora-x",
+                    "adapter_generation_sha256": "f" * 64, "voice": "Ryan"}})
+        self.assertEqual(pin, proposal["voices"]["BOB"]["adapter_generation_sha256"])
+        self.assertIsNone(proposal["voices"]["BOB"]["voice"])
+
+    def test_target_already_holding_source_pin_preserves_it(self):
+        # Explicit P wins even when it equals the target's old pin.
+        pin = "e" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "lora", "adapter_id": "lora-1",
+                      "adapter_path": "lora_models/lora-1",
+                      "adapter_generation_sha256": pin},
+            "BOB": {"type": "custom", "voice": "Ryan",
+                    "adapter_generation_sha256": pin}})
+        self.assertEqual(pin, proposal["voices"]["BOB"]["adapter_generation_sha256"])
+
+    def test_source_pin_without_stored_path_uses_canonical_fallback(self):
+        # Id-only source: the proposal fills the canonical path and keeps P
+        # (no silent unpin via fallback equality).
+        pin = "9" * 64
+        proposal = self._proposal({
+            "ALICE": {"type": "lora", "adapter_id": "lora-q",
+                      "adapter_generation_sha256": pin},
+            "BOB": {"type": "custom", "voice": "Ryan"}})
+        self.assertEqual("lora_models/lora-q", proposal["voices"]["BOB"]["adapter_path"])
+        self.assertEqual(pin, proposal["voices"]["BOB"]["adapter_generation_sha256"])
+        # And the guarded save of that explicit proposal keeps P.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "lora", "adapter_id": "lora-q",
+                                   "adapter_generation_sha256": pin})
+            _, proposal2, _ = preview_and_save(client, "ALICE")
+            self.assertEqual(pin, proposal2["voices"]["BOB"]["adapter_generation_sha256"])
+            saved = json.loads(path.read_bytes())
+            self.assertEqual(pin, saved["BOB"]["adapter_generation_sha256"])
+
+    def test_runtime_still_refuses_disk_q_against_pin_p(self):
+        # Execute the mismatched-generation gate: admit a synthetic
+        # snapshot whose disk generation is Q while the saved-test pin is
+        # P. The helper must raise before any model/prompt load. No real
+        # GPU or weights are involved.
+        import contextlib
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            (root / "adapter_model.safetensors").write_bytes(b"synthetic")
+            from tts import TTSEngine  # noqa: PLC0415
+            pin_p = "a" * 64
+            disk_q = "b" * 64
+
+            @contextlib.contextmanager
+            def fake_snapshot(adapter_path):
+                yield ("synthetic-snapshot", disk_q)
+
+            engine = object.__new__(TTSEngine)
+            engine._lora_prompt_cache = {}
+            engine._lora_adapter_path = None
+            engine._lora_generation_sha256 = None
+            import threading
+            engine._model_lock = threading.Lock()
+            with patch("tts.ensure_adapter_generation_snapshot", fake_snapshot), \
+                 patch.object(TTSEngine, "_init_local_lora",
+                            side_effect=AssertionError("load must not start on mismatch")):
+                with self.assertRaisesRegex(
+                        ValueError, "Adapter generation changed since benchmark fixture admission"):
+                    engine._ensure_local_lora_generation(str(root), pin_p)
+
+
+class MalformedAndApprovalTests(unittest.TestCase):
+    def test_malformed_active_entry_refuses_without_write(self):
+        # Present non-object ACTIVE entries (incl. null) are corrupt saved
+        # data, not unconfigured voices: every actual HTTP path refuses
+        # clearly (GET listing, GET snapshot, preview, direct POST) with
+        # no file change and no silent {} replacement.
+        for malformed in (None, "not-a-dict", 42, ["bad"]):
+            with self.subTest(malformed=malformed), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+                fixture = SingleVoicePreviewSaveTests()
+                client, path, script, original = fixture.fixture(
+                    Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+                config = json.loads(path.read_bytes())
+                config["BOB"] = malformed
+                path.write_text(json.dumps(config))
+                before = path.read_bytes()
+                listing = client.get("/api/voices")
+                self.assertEqual(400, listing.status_code, (malformed, listing.text))
+                self.assertIn("malformed", listing.json()["detail"])
+                self.assertIn("restore", listing.json()["detail"])
+                self.assertEqual(before, path.read_bytes(), "listing refusal must not write")
+                snapshot_resp = client.get("/api/voice_config/snapshot")
+                self.assertEqual(400, snapshot_resp.status_code, (malformed, snapshot_resp.text))
+                self.assertIn("malformed", snapshot_resp.json()["detail"])
+                self.assertEqual(before, path.read_bytes(), "snapshot refusal must not write")
+                # Preview + direct POST need exact guards, but the snapshot
+                # GET now refuses: derive them canonically under admission.
+                guards = _canonical_guards(Path(tmp))
+                preview = client.post("/api/voice_config/single-voice-preview", json={
+                    "source_speaker": "ALICE", **guards})
+                self.assertEqual(400, preview.status_code, (malformed, preview.text))
+                self.assertIn("malformed", preview.json()["detail"])
+                self.assertEqual(before, path.read_bytes(), "preview refusal must not write")
+                guards = _canonical_guards(Path(tmp))
+                response = client.post("/api/voice_config/save", json={
+                    **guards, "voices": {"BOB": {"voice": "Serena"}}})
+                self.assertEqual(400, response.status_code, (malformed, response.text))
+                self.assertIn("malformed", response.json()["detail"])
+                self.assertEqual(before, path.read_bytes(), "direct POST refusal must not write")
+                self.assertEqual(malformed, json.loads(path.read_bytes())["BOB"],
+                                 "malformed data must not be silently erased/normalized")
+
+    def test_absent_active_and_inactive_malformed_keys_load_and_preserve(self):
+        # Absent active key = normal unconfigured speaker. INACTIVE
+        # malformed legacy key = untouched, does not block the roster.
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             fixture = SingleVoicePreviewSaveTests()
             client, path, script, original = fixture.fixture(
                 Path(tmp), stack, {"type": "custom", "voice": "Serena"})
             config = json.loads(path.read_bytes())
-            config["ALICE"] = {"type": "custom", "voice": "Serena"}
-            config["BOB"] = {"type": "custom", "voice": "Serena"}
-            config["CAROL"] = {"type": "custom", "voice": "Serena"}
+            del config["CAROL"]
+            config["ZED_LEGACY"] = "not-a-dict"
             path.write_text(json.dumps(config))
+            before = path.read_bytes()
+            listing = client.get("/api/voices")
+            self.assertEqual(200, listing.status_code, listing.text)
+            rows = {row["name"]: row for row in listing.json()}
+            self.assertEqual({}, rows["CAROL"]["config"])
+            self.assertTrue(rows["CAROL"]["persona_pending"])
+            self.assertNotIn("ZED_LEGACY", rows)
+            snapshot_resp = client.get("/api/voice_config/snapshot")
+            self.assertEqual(200, snapshot_resp.status_code, snapshot_resp.text)
+            self.assertEqual(before, path.read_bytes(), "reads must not write")
+            self.assertEqual("not-a-dict", json.loads(path.read_bytes())["ZED_LEGACY"],
+                             "inactive malformed key stays byte-preserved")
+
+    def test_top_level_malformed_map_snapshot_refuses_not_500(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            path.write_text(json.dumps("bad-top"))
+            before = path.read_bytes()
+            snapshot_resp = client.get("/api/voice_config/snapshot")
+            self.assertEqual(400, snapshot_resp.status_code, snapshot_resp.text)
+            self.assertNotEqual(500, snapshot_resp.status_code)
+            self.assertIn("invalid", snapshot_resp.json()["detail"].lower())
+            self.assertEqual(before, path.read_bytes(), "refusal must not write")
+
+    def test_voice_approval_reset_only_where_effective_voice_changes(self):
+        script = [{"speaker": "ALICE", "text": "Synthetic line."},
+                  {"speaker": "BOB", "text": "Synthetic line."},
+                  {"speaker": "CAROL", "text": "Synthetic line."}]
+        proposal = voices.build_single_voice_proposal({
+            "ALICE": {"type": "custom", "voice": "Serena",
+                      "voice_status": "approved", "persona_status": "approved",
+                      "seed": "7", "character_style": "calm"},
+            "BOB": {"type": "custom", "voice": "Ryan",
+                    "voice_status": "approved", "persona_status": "approved",
+                    "seed": "-1", "character_style": "steady"},
+            "CAROL": {"type": "custom", "voice": "Serena",
+                      "voice_status": "approved", "persona_status": "approved",
+                      "seed": "-1", "character_style": "calm"}},
+            script, "ALICE")
+        self.assertEqual("unassigned", proposal["voices"]["BOB"]["voice_status"],
+                         "changed voice resets stale approval")
+        self.assertNotIn("voice_status", proposal["voices"]["CAROL"],
+                         "unchanged asset preserves approval (key omitted)")
+        for speaker in ("ALICE", "BOB", "CAROL"):
+            for key in ("seed", "character_style"):
+                self.assertNotIn(key, proposal["voices"][speaker],
+                                 "performance metadata preserved by merge, never sent")
+
+    def test_unchanged_autosave_preserves_pin_byte_identically(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "lora", "adapter_id": "lora-1",
+                                   "adapter_path": "lora_models/lora-1",
+                                   "adapter_generation_sha256": "d" * 64})
             snapshot = client.get("/api/voice_config/snapshot").json()
-            for row in snapshot["voices"]:
-                self.assertIsNotNone(row["single_voice_asset"], row)
-                self.assertTrue(row["persona_pending"], "no persona text still pending")
-            _, proposal, _ = preview_and_save(client, "ALICE")
+            result = client.post("/api/voice_config/save", json={
+                "revision": snapshot["revision"], "book_token": snapshot["book_token"],
+                "voices": {"ALICE": {"adapter_id": "lora-1",
+                                     "adapter_path": "lora_models/lora-1",
+                                     "type": "lora"}}})
+            self.assertEqual(200, result.status_code, result.text)
             saved = json.loads(path.read_bytes())
-            rows = voices.get_voice_rows(json.loads(script.read_bytes()), saved)
-            self.assertTrue(all(r["single_voice_asset"] == rows[0]["single_voice_asset"] for r in rows))
+            self.assertEqual("d" * 64, saved["ALICE"]["adapter_generation_sha256"],
+                             "same-asset autosave preserves the pin")
 
 
 if __name__ == "__main__":

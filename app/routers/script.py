@@ -934,21 +934,20 @@ def _get_single_narrator_source_preview():
     from source_encoding import get_decoded_source_text
 
     def load_book_state():
-        # A corrupt state.json is a distinct refusal from a missing one:
-        # safe_load_json folds both into {}, which would misreport a corrupt
-        # book as "No input file selected" (#1724 C044).
-        state_path = os.path.join(DATA_DIR, "state.json")
-        if not os.path.exists(state_path):
-            return {}
+        # Bounded strict selection-state reader shared with script
+        # generation (duplicate keys, nonfinite numbers, size and
+        # descriptor confinement). Missing is distinct from corrupt or
+        # unreadable: safe_load_json would fold both into {} and
+        # misreport a corrupt book as "No input file selected".
+        from script_selection_binding import _read_selection_state
         try:
-            with open(state_path, encoding="utf-8") as handle:
-                state = json.load(handle)
-        except (ValueError, UnicodeDecodeError):
+            return _read_selection_state(DATA_DIR, required=False)
+        except ValueError:
             raise HTTPException(status_code=409, detail=(
                 "Active book state is corrupt; restore it before previewing the source."))
-        if not isinstance(state, dict):
-            raise HTTPException(status_code=400, detail="Selected book state must be an object.")
-        return state
+        except OSError:
+            raise HTTPException(status_code=409, detail=(
+                "Active book state is unreadable; restore it before previewing the source."))
 
     with ensure_book_state(DATA_DIR):
         state = load_book_state()
@@ -998,33 +997,31 @@ def _get_single_narrator_source_preview():
                 raise HTTPException(status_code=409, detail=(
                     "Source preview is unavailable for this file format; inspect the "
                     "extracted text in Script instead."))
-            # .json is a retained script source (get_source_preparation handles
-            # it), so its text previews like TXT/MD instead of stranding
-            # JSON-imported books before guide step 1 (#1724 C130).
-            if extension not in SELECTABLE_SOURCE_EXTENSIONS and extension != ".json":
+            # JSON is a retained annotated script, not original source
+            # prose: refuse honestly with saved-script guidance instead of
+            # relabelling JSON as the extracted source.
+            if extension == ".json":
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this file format; inspect the "
+                    "saved script in Script instead."))
+            if extension not in SELECTABLE_SOURCE_EXTENSIONS:
                 raise HTTPException(status_code=409, detail=(
                     "Source preview is unavailable for this file format; inspect the "
                     "extracted text in Script instead."))
             try:
                 proof, raw = capture_scope_file(DATA_DIR, relative.as_posix(),
                     limit=MAX_SCRIPT_UPLOAD_BYTES + 1, include_bytes=True)
-            except ValueError as exc:
-                message = str(exc)
-                # The shared capture helper raises untyped ValueErrors with a
-                # single conflated message for oversize/non-regular/hard-link;
-                # only the hard-link/integrity wording is a current
-                # misclassification (400 size vs 409 integrity, #1724 C003).
-                if 'hard links' in message:
-                    raise HTTPException(status_code=409, detail=(
-                        "Active source could not be verified; inspect it in Script instead."))
-                if 'bounded' in message or 'needs a nonempty' in message:
-                    raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
-                if ('inside the project' in message or 'confined' in message
-                        or 'does not accept' in message or 'existing project directory' in message):
-                    raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
-                raise HTTPException(status_code=409, detail="Source changed while reading the preview.")
-            except OSError:
+            except ValueError:
+                # The shared capture helper conflates size/hardlink/type in
+                # untyped messages: use a conservative integrity refusal
+                # instead of fragile English-substring classification.
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
+            except FileNotFoundError:
                 raise HTTPException(status_code=404, detail="Active source file not found.")
+            except OSError:
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
             if not proof.get('exists'):
                 raise HTTPException(status_code=404, detail="Active source file not found.")
             if not isinstance(raw, bytes):
@@ -1036,25 +1033,36 @@ def _get_single_narrator_source_preview():
         if not raw:
             raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
         source_name = Path(source_abs).name
-        try:
-            text, encoding = get_decoded_source_text(raw)
-        except Exception:
+        # Reuse the shared decoder policy; programmer errors (e.g. a
+        # non-bytes raw from an internal defect) propagate instead of being
+        # swallowed as a 409. Only UTF-16/32 BOM and NUL refuse; a UTF-8
+        # BOM that the canonical decoder represents is ordinary text.
+        if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
             raise HTTPException(status_code=409, detail=(
                 "Active source text could not be decoded; inspect it in Script instead."))
+        text, encoding = get_decoded_source_text(raw)
         if encoding == "utf-8/replace":
             # The decoder's last-resort replacement would show garbled text as
             # a confirmable excerpt; fail loud instead (#1724 C034).
             raise HTTPException(status_code=409, detail=(
                 "Active source text could not be decoded; inspect it in Script instead."))
+        if '\x00' in text:
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
         if not text.strip():
             raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
-        book_token = get_book_operation_token(DATA_DIR)
+        if not text[:SINGLE_NARRATOR_PREVIEW_CHARS].strip():
+            raise HTTPException(status_code=400, detail=(
+                "Source excerpt is blank in the first 4000 characters; import a book whose beginning is readable before confirming."))
+        # Derive the operation token from the already-loaded state instead
+        # of re-reading state.json for every token use.
+        book_token = get_book_operation_token(DATA_DIR, state=state)
         # Re-read state identity after the read so a concurrent selection cannot
         # bind this excerpt to a different book than the one returned.
         state_after = load_book_state()
         if state_after.get("input_file_path") != source_path:
             raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
-        if get_book_operation_token(DATA_DIR) != book_token:
+        if get_book_operation_token(DATA_DIR, state=state_after) != book_token:
             raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
         return {"book_token": book_token, "source_name": source_name,
                 "source_sha256": source_sha256, "encoding": encoding,

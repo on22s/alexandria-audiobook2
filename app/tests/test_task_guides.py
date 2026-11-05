@@ -34,8 +34,8 @@ class TaskGuideTests(unittest.TestCase):
         # card edits may be saved by preview (#1724 C126).
         self.assertIn('may save your already-authorized pending card edits', single['steps'][2][5])
         self.assertNotIn('Preview writes nothing', single['steps'][2][5])
-        self.assertEqual(['script','script','voices','editor','editor','audio'],[step[1] for step in single['steps']])
-        self.assertEqual(['script-single-area','script-tab','voices-tab','editor-tab','btn-batch-fast','audio-tab'],[step[2] for step in single['steps']])
+        self.assertEqual(['script','script','voices','editor','editor','editor'],[step[1] for step in single['steps']])
+        self.assertEqual(['script-single-area','script-tab','voices-tab','editor-tab','btn-batch-fast','btn-merge'],[step[2] for step in single['steps']])
         # The flow must be complete and explicit: the sample step says the
         # rest comes next, the batch step names the real Render Pending
         # button and its cancel/failure handling, and Merge All is only
@@ -77,6 +77,7 @@ const merge=document.getElementById('btn-merge');merge.tagName='BUTTON';context.
         # #1724 simplification: the single-narrator checklist uses the generic
         # openTaskGuideTarget path only. No panel opener, no tab interception,
         # no POST/inference, and navigation never writes the literal checkbox.
+        # Final step targets Editor btn-merge (then instructs Audio export).
         self.run_js(r'''
 context.openTaskGuide('single-narrator',0);context.openTaskGuideTarget();
 assert.deepEqual(navigation,['script']);assert.deepEqual(opened,['script-single-area']);
@@ -85,5 +86,18 @@ assert.deepEqual(navigation,['script','home','voices']);assert.deepEqual(opened,
 context.openTaskGuide('single-narrator',4);context.openTaskGuideTarget();
 assert.deepEqual(navigation,['script','home','voices','home','editor']);assert.equal(opened[2],'btn-batch-fast');
 context.openTaskGuide('single-narrator',5);context.openTaskGuideTarget();
-assert.deepEqual(navigation,['script','home','voices','home','editor','home','audio']);assert.equal(opened[3],'audio-tab');
+assert.deepEqual(navigation,['script','home','voices','home','editor','home','editor']);assert.equal(opened[3],'btn-merge');
+''')
+
+    def test_single_narrator_hidden_target_gives_visible_feedback(self):
+        # DS040: in batch mode the single-book area is display:none. The
+        # guide must not silently aim at a hidden pane: it gives visible
+        # feedback with an instruction and does not navigate/changes book.
+        self.run_js(r'''
+document.getElementById('script-single-area').style.display='none';
+context.openTaskGuide('single-narrator',0);context.openTaskGuideTarget();
+assert.deepEqual(navigation,[],'hidden target must not activate a tab as success');
+assert.deepEqual(opened,[],'hidden target must not be opened as success');
+assert(document.getElementById('task-guide-feedback').textContent.includes('hidden'),'feedback must name the hidden pane');
+assert(document.getElementById('task-guide-feedback').textContent.includes('current mode'),'feedback must be a useful instruction');
 ''')

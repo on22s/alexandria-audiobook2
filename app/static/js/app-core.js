@@ -13,9 +13,15 @@
             return voiceRosterCache;
         }
 
+        // One effective-alias rule for rendering: alias_of wins, legacy
+        // alias is the fallback. Do not spread `alias_of || alias` elsewhere.
+        function getEffectiveVoiceAlias(config) {
+            return config?.alias_of || config?.alias || '';
+        }
+
         function renderInitialAliasOptions(voice) {
             const roster = ensureVoiceRosterCache();
-            const alias = voice.config?.alias_of || '';
+            const alias = getEffectiveVoiceAlias(voice.config);
             return alias && alias !== voice.name && roster.nameSet.has(alias)
                 ? `<option value="${escapeHtml(alias)}" selected>${escapeHtml(alias)}</option>` : '';
         }
@@ -892,10 +898,31 @@
                 err.detail = detail; // structured 422 bodies (e.g. gate findings) stay readable
                 throw err;
             },
-            get: async (url) => {
-                const res = await fetch(url);
-                await API._handleError(res);
-                return res.json();
+            get: async (url, {timeoutMs = null, timeoutMessage = 'The request timed out. Check the selected book and try again.'} = {}) => {
+                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+                    throw new Error('The request deadline must be a positive finite duration.');
+                }
+                const controller = timeoutMs === null ? null : new AbortController();
+                let timer;
+                const request = async () => {
+                    const res = await fetch(url, {
+                        ...(controller ? {signal: controller.signal} : {}),
+                    });
+                    await API._handleError(res);
+                    return res.json();
+                };
+                if (!controller) { return request(); }
+                const deadline = new Promise((resolve, reject) => {
+                    timer = setTimeout(() => {
+                        reject(new Error(timeoutMessage));
+                        controller.abort();
+                    }, timeoutMs);
+                });
+                try {
+                    return await Promise.race([request(), deadline]);
+                } finally {
+                    if (timer !== undefined) { clearTimeout(timer); }
+                }
             },
             post: async (url, data, {timeoutMs = null, timeoutMessage = 'The voice save timed out. Your edits are retained; the server save could not be confirmed.'} = {}) => {
                 if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
@@ -4597,7 +4624,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(getEffectiveVoiceAlias(config))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -4835,7 +4862,9 @@
         };
 
         async function refreshVoiceMetadata() {
-            const expectedSelection = arguments[0]?.expectedSelection || null;
+            const opts = (arguments[0] && typeof arguments[0] === 'object') ? arguments[0] : {};
+            const expectedSelection = opts.expectedSelection || null;
+            const expectedIdentityToken = opts.expectedIdentityToken || null;
             const selectionEpoch = window._bookSelectionEpoch;
             await flushVoiceSaves();
             const localRevision = voiceSaveQueue.getRevision();
@@ -4848,6 +4877,15 @@
                     || window._bookSelectionEpoch !== selectionEpoch
                     || window._existingUploadSelectionPending
                     || snapshot.book_identity_token !== expectedSelection.token)) {
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+            }
+            if (expectedIdentityToken && snapshot.book_identity_token !== expectedIdentityToken) {
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+            }
+            if (expectedIdentityToken
+                    && (window._bookSelectionEpoch !== selectionEpoch
+                        || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
+                        || rosterFilename !== currentBookFilename)) {
                 throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
             }
             if (!Array.isArray(snapshot.voices) || !/^[0-9a-f]{64}$/.test(snapshot.revision) || !/^[0-9a-f]{64}$/.test(snapshot.book_token)) {
@@ -4959,8 +4997,20 @@
             }
         }
 
-        async function loadVoices(refreshResources = true) {
-            if (!refreshResources && loadVoices.pending) { return loadVoices.pending; }
+        async function loadVoices(refreshResources = true, options = null) {
+            const opts = (options && typeof options === 'object') ? options : {};
+            const expectedSelection = opts.expectedSelection || null;
+            const expectedIdentityToken = opts.expectedIdentityToken || (expectedSelection ? expectedSelection.token : null);
+            const selectionEpoch = window._bookSelectionEpoch;
+            const rosterFilename = currentBookFilename;
+            const identityKey = expectedSelection ? `sel:${expectedSelection.token}`
+                : (expectedIdentityToken ? `id:${expectedIdentityToken}` : '');
+            if (!refreshResources && loadVoices.pending) {
+                if (!identityKey || loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
+                // Never reuse another identity's pending render: wait for it
+                // to settle, then fall through to a fresh load for this identity.
+                try { await loadVoices.pending; } catch (e) { /* fall through to fresh load */ }
+            }
             const loading = (async () => {
                 await flushVoiceSaves();
                 const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
@@ -4984,9 +5034,19 @@
                     catch (e) { resourcesComplete = false; failedResources.push(path); console.debug(`${label} cache refresh failed`, e); }
                 });
                 const [voices] = await Promise.all([
-                    refreshVoiceMetadata(), ...resources,
+                    refreshVoiceMetadata({expectedSelection, expectedIdentityToken: expectedIdentityToken || undefined}), ...resources,
                     ...(reuseResources ? [] : [loadCastLibrary().catch(e => { resourcesComplete = false; failedResources.push('/api/voice_library'); console.debug('cast library refresh failed', e); })]),
                 ]);
+                if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
+                        || window._bookSelectionEpoch !== selectionEpoch
+                        || _voiceSaveSnapshot.book_identity_token !== expectedSelection.token)) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (expectedIdentityToken && (_voiceSaveSnapshot.book_identity_token !== expectedIdentityToken
+                        || window._bookSelectionEpoch !== selectionEpoch
+                        || rosterFilename !== currentBookFilename)) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
                 if (!reuseResources) {
                     _voiceResourcesRefreshedAt = resourcesComplete ? performance.now() : -Infinity;
                 }
@@ -5032,8 +5092,9 @@
                 return {refreshedResources, failedResources};
             })();
             loadVoices.pending = loading;
+            loadVoices.pendingIdentity = identityKey;
             try { return await loading; }
-            finally { if (loadVoices.pending === loading) { loadVoices.pending = null; } }
+            finally { if (loadVoices.pending === loading) { loadVoices.pending = null; loadVoices.pendingIdentity = null; } }
         }
 
         window.selectVoiceVersion = async function selectVoiceVersion(select) {
@@ -6502,6 +6563,16 @@
                     delete preserved[key];
                 }
                 config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed).trim() || "-1" };
+                // Adapter pin explicit-clear seam: actual adapter replacement
+                // (genuine type/adapter_id change, not inactive fields) must
+                // clear the old pin. Same adapter keeps the preserved pin so
+                // the guarded save preserves it byte-identically.
+                { const oldType = metadata.type || 'custom';
+                  const newType = config[name].type || '';
+                  const isLoRA = t => t === 'lora' || t === 'builtin_lora';
+                  if ((isLoRA(oldType) || isLoRA(newType)) && (oldType !== newType || (metadata.adapter_id || '') !== (config[name].adapter_id || ''))) {
+                      config[name].adapter_generation_sha256 = null;
+                  } }
             });
             const merged = {};
             cards.forEach(card => {

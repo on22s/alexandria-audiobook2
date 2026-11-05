@@ -50,7 +50,7 @@ const TASK_GUIDES = [
         "Import and confirm your source",
         "script",
         "script-single-area",
-        "Import the book if you have not yet. In the source preview, read the actual extracted text (filename, encoding and excerpt limits are shown; it is the original extracted text, before annotation/preparation), then explicitly confirm the current text. Annotation still runs later and speaker attribution still occurs — this checklist never rewrites dialogue or source words.",
+        "Import the book if you have not yet. In the source preview, read the actual extracted text (filename, encoding and excerpt limits are shown; it is the original extracted text, before annotation/preparation), then explicitly confirm the current text. Annotation still runs later and speaker attribution still occurs — this checklist never rewrites dialogue or source words. If the preview is hidden, the guide feedback names the hidden pane: turn off Generate multiple books to show the single-book area; opening this step never changes the book or starts a job.",
         "You have explicitly confirmed the extracted text for this book.",
         "Opening this step loads no model. Confirming the preview writes nothing."
       ],
@@ -88,8 +88,8 @@ const TASK_GUIDES = [
       ],
       [
         "Merge, export and verify",
-        "audio",
-        "audio-tab",
+        "editor",
+        "btn-merge",
         "Press Merge All yourself in Editor (Whole-book actions) after checking line audio and source-match warnings, and wait for the merged result — reaching this step does not mean a merge has happened. Then choose M4B, MP3/WAV chapters or Audacity in Audio, wait for the explicit completion result, download, and play the beginning and ending. An earlier downloaded audiobook will not update itself.",
         "A downloaded file you have actually checked.",
         "Merging uses CPU and temporary disk space; export has its own Cancel control. A failed or cancelled job is not a finished audiobook. The guide does not press Merge All for you."
@@ -274,6 +274,13 @@ function openTaskGuideTarget() {
     }
     if (isEditorEditPending()) {
         document.getElementById('task-guide-feedback').textContent = 'Editor edits are pending or failed. Resolve them in Editor before using this guide link.'; return;
+    }
+    // A hidden target (e.g. the single-book area in batch mode) must not
+    // look like navigation succeeded: give visible feedback without
+    // changing the book or starting any job.
+    const hidden = target.style && target.style.display === 'none';
+    if (hidden) {
+        document.getElementById('task-guide-feedback').textContent = `The target “${id}” is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
     }
     if (currentTabName !== tab) { activateTab(tab); }
     if (!target.matches('button, input, select, textarea, a[href], [tabindex]')) { target.setAttribute('tabindex', '-1'); }

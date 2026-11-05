@@ -154,6 +154,8 @@
             'speaker-review-partial': {what: 'Allow reviewing labels from an attribution checkpoint that has not finished.'},
             'speaker-review-consent': {what: 'Confirms that the shown book and reference excerpts may be sent to this model endpoint. Remote providers may charge for it.'},
             'save-script-name': {what: 'Name to save the current script under in the script library.'},
+            'source-preview-confirm': {what: 'Confirms the loaded source-text excerpt snapshot for the current book in this tab. Reload the preview to check the current source.'},
+            'single-voice-source': {what: 'Speaker whose existing voice to review for book-wide use. Preview lists every affected speaker before anything is applied.'},
 
             // Voices tab
             'voices-state-filter': {what: 'Show all characters, or only those with or without state cards (per-state voices, e.g. a time skip).'},
