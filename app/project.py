@@ -49,6 +49,7 @@ from synthesis_recovery_context import (RecoveryParent, RecoveryAdmissionError, 
 from synthesis_recovery_identity import get_recovery_digest
 from dialogue_continuity import get_dialogue_gap_suggestion
 from speech_verification_settings import get_enabled_speech_verification_settings
+from speech_retry import get_speech_retry_budget
 from book_state_transaction import get_book_operation_token
 from take_retention import (KEY as RETAINED_TAKE_KEY, POLICY as TAKE_HISTORY_POLICY, admit_take_history_edit,
     get_take_history_policy, preserve_retained_takes, make_retained_take,
@@ -1472,6 +1473,8 @@ class ProjectManager:
                     chunk["outlier"] = None
                 if "drift" in chunk:
                     chunk["drift"] = None
+                if "speech_retry_attempts" in chunk:
+                    chunk["speech_retry_attempts"] = None
 
         return self._modify_chunk(index, mutator)
 
@@ -1531,6 +1534,11 @@ class ProjectManager:
                 if any(related.get(key) != expected.get(key) for key in ("status", "audio_path", "audio_revision")):
                     return None
             if audio_source is not None:
+                if "speech_retry_attempts" in chunk:
+                    kwargs.setdefault("speech_retry_attempts", None)
+                publication_retry_budget = get_speech_retry_budget()
+                if publication_retry_budget is not None:
+                    publication_retry_budget.check_active()
                 if get_take_history_policy(self.root_dir)['enabled'] and (chunk.get('audio_path') or chunk.get(RETAINED_TAKE_KEY)):
                     held = validate_retained_take(chunk)
                     if held is None or held['archive'] is None:
@@ -1597,6 +1605,8 @@ class ProjectManager:
                     kwargs['speech_verification'] = {**receipt,
                         'audio_file_version': list(publication_version[:5])}
             if kwargs:
+                if audio_source is not None and publication_retry_budget is not None:
+                    publication_retry_budget.check_active()
                 if audio_source_authority is not None:
                     if os.path.realpath(self.root_dir) != str(audio_source_authority.stage.directory.parent.parent):
                         raise SynthesisWorkspaceUnavailable('Registered publication book changed')
@@ -1666,6 +1676,12 @@ class ProjectManager:
                 chunk, temp_path, staged_path, preparation, revision)
             evidence.update(speech_verification=speech_receipt,speech_verification_failure=None,
                             speech_verification_recheck=None)
+            retry_budget = get_speech_retry_budget()
+            if retry_budget is not None:
+                retry_budget.record("verified", speech_receipt, reason="verified")
+                evidence["speech_retry_attempts"] = retry_budget.get_history()
+            elif "speech_retry_attempts" in chunk:
+                evidence["speech_retry_attempts"] = None
             from take_publication import (KEY as PUBLICATION_KEY, get_take_publication_receipt,
                                           get_take_publication_book_token)
             publication, publication_version = get_take_publication_receipt(
@@ -1675,10 +1691,14 @@ class ProjectManager:
             if publication is not None or PUBLICATION_KEY in chunk:
                 evidence[PUBLICATION_KEY] = publication
             publication_book = get_take_publication_book_token(publication_admission)
+            if retry_budget is not None:
+                retry_budget.check_active()
             with self._ensure_automatic_predecessor(chunk), self._ensure_chunk_generation_publication(
                     chunk, publication_book=publication_book) as current_book:
                 if not current_book:
                     raise ValueError(GENERATION_INPUTS_CHANGED)
+                if retry_budget is not None:
+                    retry_budget.check_deadline()
                 if staged_version is not None and self._get_speech_staged_version(staged_path) != staged_version:
                     raise ValueError('Finished audio changed before speech evidence publication')
                 if publication_version is not None and self._get_speech_staged_version(staged_path) != publication_version:
@@ -1827,6 +1847,14 @@ class ProjectManager:
 
     def _verify_generated_chunk_speech(self,chunk,temp_path,staged_path,preparation,revision):
         admission=chunk.get('_speech_verification_admission')
+        from speech_retry import SpeechRetryAttemptError
+        retry_budget=get_speech_retry_budget()
+        if retry_budget is not None:
+            ensure_audio_generation_active()
+            retry_budget.check_active()
+            if admission is None:
+                unavailable_receipt={"version":1,"status":"unavailable","stage":"input_admission","reason":"Speech verification admission is unavailable for this render path."}
+                raise SpeechRetryAttemptError("verifier_unavailable","Speech verification admission is unavailable for this render path.",receipt=unavailable_receipt)
         if admission is None:
             return None,None
         from speech_verification import verify_finished_speech
@@ -1862,6 +1890,8 @@ class ProjectManager:
                 is_audio_generation_cancelled,
                 ambiguous_expected_regions=regions)
         ensure_audio_generation_active()
+        if retry_budget is not None:
+            retry_budget.check_active()
         if staged_version[2] > MAX_AUDIO_BYTES:
             if self._get_speech_staged_version(staged_path) != staged_version:
                 raise ValueError('Finished audio changed during speech verification admission')
@@ -1876,6 +1906,15 @@ class ProjectManager:
         receipt=get_speech_verification_receipt(report,chunk,admission['book_token'],revision,speech_input)
         if report['status']=='corroborated_content_difference' and report.get('stage')=='complete':
             raise SpeechContentMismatchError(receipt)
+        if retry_budget is not None:
+            report_status=report.get("status")
+            report_stage=report.get("stage")
+            if report_status=="unavailable":
+                raise SpeechRetryAttemptError("verifier_unavailable",str(receipt.get("reason") or "Speech verification is unavailable."),receipt=receipt)
+            if report_status in ("review","review_short_acoustic_unavailable"):
+                raise SpeechRetryAttemptError("acoustic_suspicion",str(receipt.get("reason") or "Speech verification requires review."),receipt=receipt)
+            if report_status != "no_content_candidate" or report_stage != "complete":
+                raise SpeechRetryAttemptError("verifier_unavailable",str(receipt.get("reason") or "Speech verification is not complete."),receipt=receipt)
         receipt['audio_file_version']=list(current['file_version'][:5])
         return receipt,tuple(current['file_version'])
 
@@ -1920,15 +1959,16 @@ class ProjectManager:
                                   "index": index, "inputs": get_chunk_generation_inputs(captured)}),
                               claim_digest, admit)
 
-    def _restore_cancelled_generation(self, chunk):
+    def _restore_cancelled_generation(self, chunk, *, speech_retry_attempts=None):
         try:
             with ensure_audio_generation_publication(allow_cancelled=True):
                 current = self._update_chunk_fields_by_uid(chunk.get("uid"), expected_chunk=chunk)
                 if current is not None and current.get("status") == "generating":
+                    retry_fields = {} if speech_retry_attempts is None else {"speech_retry_attempts": speech_retry_attempts}
                     return self._update_chunk_fields_by_uid(
                         chunk.get("uid"), expected_chunk=chunk, required_status="generating",
                         status=(chunk.get("status", "pending") if chunk.get("status") != "generating" else "pending"),
-                        error=chunk.get("error"))
+                        error=chunk.get("error"), **retry_fields)
                 return current
         except AudioGenerationCancelled:
             # A replaced/released owner has no authority even for cleanup.
@@ -1997,8 +2037,92 @@ class ProjectManager:
             raise ValueError("Literal chunks have no matching source-policy script")
         ensure_literal_chunks(selected, policy)
 
-    @ensure_pronunciation_snapshot()
-    def _generate_captured_chunk_audio(self, index, chunk):
+    def _get_speech_retry_policies(self, engine=None):
+        from speech_retry import get_enabled_speech_retry_settings
+        engine = self.engine if engine is None else engine
+        saved_policy = get_enabled_speech_retry_settings(self._load_tts_config().get("speech_retry"))
+        active_policy = None
+        if engine is not None:
+            reader = getattr(engine, "get_speech_retry_policy", None)
+            active_value = reader() if callable(reader) else getattr(engine, "_speech_retry", None)
+            active_policy = get_enabled_speech_retry_settings(active_value)
+        return saved_policy, active_policy
+
+    def _get_speech_retry_mismatch_reason(self, engine=None):
+        engine = self.engine if engine is None else engine
+        saved_policy, active_policy = self._get_speech_retry_policies(engine)
+        saved_verification = get_enabled_speech_verification_settings(self._load_tts_config().get("speech_verification"))
+        if engine is None:
+            if saved_policy is not None and saved_verification is None:
+                return "Speech retry requires speech verification to be enabled."
+            return None
+        if active_policy != saved_policy:
+            return "Speech retry policy differs from the active TTS engine."
+        if saved_policy is None:
+            return None
+        if saved_verification is None:
+            return "Speech retry requires speech verification to be enabled."
+        active_verification = None
+        verification_reader = getattr(engine, "get_speech_verification_policy", None)
+        if callable(verification_reader):
+            try:
+                active_verification = get_enabled_speech_verification_settings(verification_reader())
+            except Exception:
+                active_verification = None
+        if active_verification != saved_verification:
+            return "Speech verification policy differs from the active TTS engine."
+        return None
+
+    def _is_speech_retry_opted_in(self, engine=None):
+        saved_policy, active_policy = self._get_speech_retry_policies(engine)
+        return saved_policy is not None or active_policy is not None
+
+    def _create_speech_retry_budget(self, chunk):
+        from speech_retry import SpeechRetryBudget
+        from speech_verification_receipt import get_speech_verification_chunk_digest
+        with ensure_audio_generation_book(self.root_dir):
+            book_token = get_book_operation_token(self.root_dir)
+            chunk_uid = chunk.get("uid") if isinstance(chunk, dict) else None
+            input_digest = get_speech_verification_chunk_digest(chunk)
+            return SpeechRetryBudget(book_token=book_token, uid=chunk_uid, input_digest=input_digest)
+
+    @staticmethod
+    def _coerce_saved_seed(value):
+        """Read integer or string seeds without inventing an invalid value."""
+        if type(value) is int:
+            return value
+        if type(value) is str:
+            try:
+                return int(value.strip())
+            except (TypeError, ValueError, OverflowError):
+                return None
+        return None
+
+    def _speech_retry_requested_seed(self, chunk, chunk_voice_config, speaker, text):
+        """Bind the materialized seed, leaving unsupported saved values unchanged."""
+        from speech_retry import MAX_SEED
+        raw_batch = chunk.get("_speech_retry_batch_seed")
+        if raw_batch is not None:
+            batch_seed = self._coerce_saved_seed(raw_batch)
+            if batch_seed is None or batch_seed < -1:
+                return None
+        voice = chunk_voice_config.get(speaker) if isinstance(chunk_voice_config, dict) else None
+        raw_seed = voice.get("seed") if isinstance(voice, dict) else None
+        if raw_seed is not None:
+            selected_seed = self._coerce_saved_seed(raw_seed)
+            if selected_seed is None:
+                return None
+            requested = (get_chunk_seed(text, chunk.get("take", 0))
+                         if selected_seed == -1 else selected_seed)
+        else:
+            requested = get_chunk_seed(text, chunk.get("take", 0))
+        if type(requested) is not int or not 0 <= requested <= MAX_SEED:
+            return None
+        return requested
+
+    def _generate_captured_chunk_audio_once(self, index, chunk):
+        from speech_retry import MAX_SEED, SpeechRetryAttemptError, get_speech_retry_budget
+        retry_budget = get_speech_retry_budget()
         if not chunk:
             return False, "Invalid chunk index"
         ensure_literal_chunk(chunk)
@@ -2015,6 +2139,10 @@ class ProjectManager:
                 updated = self._update_generation_fields(
                     chunk, status="error", error=message)
                 return False, message if updated is not None else GENERATION_INPUTS_CHANGED
+            if retry_budget is not None:
+                mismatch_reason = self._get_speech_retry_mismatch_reason(engine)
+                if mismatch_reason is not None:
+                    raise SpeechRetryAttemptError("admission_refusal", mismatch_reason)
 
             # atomic_json_write's write-temp+rename makes plain reads safe even
             # while app.py's voice_library endpoints hold file_lock(voice_config_path)
@@ -2040,10 +2168,29 @@ class ProjectManager:
             # Pass canonical speaker to the TTS engine so it uses the aliased config;
             # the identity anchor in force at this line (a character can change
             # from a point in the book - tts.active_character_style)
+            batch_seed_value = chunk.get("_speech_retry_batch_seed")
+            render_batch_seed = (batch_seed_value
+                                 if type(batch_seed_value) is int and batch_seed_value >= 0 else None)
             chunk_voice_config = self.get_chunk_render_voice_config(
-                voice_config, speaker_to_use, chunk, index)
+                voice_config, speaker_to_use, chunk, index, batch_seed=render_batch_seed)
+            if retry_budget is not None and retry_budget.requested_seed is None:
+                retry_budget.requested_seed = self._speech_retry_requested_seed(
+                    chunk, chunk_voice_config, speaker_to_use, text)
+            if retry_budget is not None:
+                requested_seed = retry_budget.requested_seed
+                if requested_seed is not None:
+                    if type(requested_seed) is not int or not 0 <= requested_seed <= MAX_SEED:
+                        raise SpeechRetryAttemptError("admission_refusal", "Speech retry seed is not a bounded supported integer.")
+                    if isinstance(chunk_voice_config, dict):
+                        chunk_voice_config = {voice_name: ({**voice_value, "seed": requested_seed} if isinstance(voice_value, dict) else voice_value) for voice_name, voice_value in chunk_voice_config.items()}
             chunk={**chunk,'_speech_input':None,
                    '_speech_verification_admission':self._capture_speech_verification_admission(engine)}
+            if retry_budget is not None:
+                admission_value = chunk.get("_speech_verification_admission")
+                admission_token = admission_value.get("book_token") if isinstance(admission_value, dict) else None
+                if admission_token != retry_budget.book_token:
+                    raise SpeechRetryAttemptError("admission_refusal", "Speech retry book token changed before rendering.")
+                chunk = {**chunk, "_synthesis_receipt": None, "_speech_input": None}
             failure = None
             ensure_audio_generation_active()
             recovery_parent = self._capture_synthesis_recovery_parent(engine, index, chunk)
@@ -2060,11 +2207,16 @@ class ProjectManager:
                 fd, temp_path = tempfile.mkstemp(prefix=f"chunk_{index}_", suffix=".wav", dir=self.root_dir)
                 os.close(fd)
             generation_args = (text, instruct, speaker_to_use, chunk_voice_config, temp_path)
+            if retry_budget is not None:
+                retry_budget.check_active()
+                ensure_audio_generation_active()
             with (ensure_synthesis_recovery_parent(recovery_parent),
                   ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context"))):
+                if retry_budget is not None:
+                    retry_budget.phase = "provider"
                 if callable(getattr(engine, "generate_voice_result", None)):
                     result = engine.generate_voice_result(*generation_args,
-                        **({'capture_input':True} if publication_admission is not None else {}))
+                        **({'capture_input':True} if publication_admission is not None or retry_budget is not None else {}))
                     success, failure = result.success, result.failure
                     receipt = getattr(result, "synthesis_receipt", None)
                     if receipt is not None:
@@ -2075,6 +2227,8 @@ class ProjectManager:
                 else:
                     success = engine.generate_voice(*generation_args)
 
+            if retry_budget is not None:
+                retry_budget.check_active()
             ensure_audio_generation_active()
             if success:
                 validate_generated_audio(
@@ -2082,6 +2236,8 @@ class ProjectManager:
 
                 print(f"Generated WAV size: {os.path.getsize(temp_path)} bytes")
 
+                if retry_budget is not None:
+                    retry_budget.phase = "verification"
                 audio_path = self._publish_generated_chunk_audio(
                     chunk, temp_path, speaker_to_use,
                     **({'recovery_parent': recovery_parent}
@@ -2091,11 +2247,15 @@ class ProjectManager:
                 return True, audio_path
             else:
                 message = failure.get_message() if failure else "Generation returned False"
+                if retry_budget is not None:
+                    raise SpeechRetryAttemptError("provider_failure", message)
                 updated = self._update_generation_fields(
                     chunk, status="error", error=message)
                 return False, message if updated is not None else GENERATION_INPUTS_CHANGED
 
         except Exception as e:
+            if retry_budget is not None:
+                raise
             if isinstance(e, AudioGenerationCancelled) or is_audio_generation_cancelled():
                 self._restore_cancelled_generation(chunk)
                 return False, AUDIO_GENERATION_CANCELLED
@@ -2117,6 +2277,120 @@ class ProjectManager:
             scratch.close()
             if temp_path and not registered_temp:
                 self._remove_temp_file(temp_path)
+
+    @ensure_pronunciation_snapshot()
+    def _generate_captured_chunk_audio(self, index, chunk, retry_budget=None):
+        from speech_retry import (SpeechRetryAttemptError,
+            ensure_speech_retry_budget, get_speech_retry_decision)
+        from speech_verification_receipt import SpeechContentMismatchError
+        if not chunk:
+            return False, "Invalid chunk index"
+        if retry_budget is None and not self._is_speech_retry_opted_in():
+            return self._generate_captured_chunk_audio_once(index, chunk)
+        try:
+            retry_budget = retry_budget if retry_budget is not None else self._create_speech_retry_budget(chunk)
+        except AudioGenerationCancelled:
+            self._restore_cancelled_generation(chunk)
+            return False, AUDIO_GENERATION_CANCELLED
+        working_chunk = {**chunk, "_speech_verification_admission": {"book_token": retry_budget.book_token}}
+        while True:
+            attempt_started = False
+            try:
+                ensure_audio_generation_active()
+                with ensure_audio_generation_book(self.root_dir):
+                    if get_book_operation_token(self.root_dir) != retry_budget.book_token:
+                        return False, GENERATION_INPUTS_CHANGED
+                    current = self._update_chunk_fields_by_uid(working_chunk.get("uid"), expected_chunk=working_chunk)
+                    if current is None:
+                        return False, GENERATION_INPUTS_CHANGED
+                retry_budget.check_active()
+                if not retry_budget.begin_attempt():
+                    history = retry_budget.get_history()
+                    last = history[-1] if history else None
+                    detail = (f" Last attempt: {last.get('reason') or last.get('outcome')}."
+                              if isinstance(last, dict) else "")
+                    error = SpeechRetryAttemptError("admission_refusal",
+                        "Speech retry attempts exhausted; the prior take was kept." + detail)
+                    return self._finish_speech_retry_failure(working_chunk, retry_budget, error, record_attempt=False)
+                attempt_started = True
+                retry_budget.phase = "admission"
+                with ensure_speech_retry_budget(retry_budget):
+                    mismatch_reason = self._get_speech_retry_mismatch_reason()
+                    if mismatch_reason is not None:
+                        raise SpeechRetryAttemptError("admission_refusal", mismatch_reason)
+                    success_result, result_message = self._generate_captured_chunk_audio_once(index, working_chunk)
+                if success_result:
+                    return True, result_message
+                return self._finish_speech_retry_failure(working_chunk, retry_budget,
+                    SpeechRetryAttemptError("admission_refusal", result_message))
+            except SpeechContentMismatchError as mismatch_error:
+                try:
+                    ensure_audio_generation_active()
+                    with ensure_audio_generation_book(self.root_dir):
+                        current_token = get_book_operation_token(self.root_dir)
+                        current_row = self._update_chunk_fields_by_uid(working_chunk.get("uid"), expected_chunk=working_chunk)
+                    history = retry_budget.get_history()
+                    attempted = [entry["requested_seed"] for entry in history if type(entry["requested_seed"]) is int]
+                    decision = get_speech_retry_decision("corroborated_content_difference",
+                        attempts_used=retry_budget.attempts_used, deadline=retry_budget.deadline,
+                        now=time.monotonic(), seed=retry_budget.requested_seed, attempted_seeds=attempted,
+                        cancelled=is_audio_generation_cancelled(),
+                        inputs_current=current_token == retry_budget.book_token and current_row is not None)
+                    retry_budget.record("corroborated_content_difference", mismatch_error.receipt, reason=decision["reason"])
+                    if decision["eligible"]:
+                        retry_budget.requested_seed = decision["proposed_seed"]
+                        continue
+                    return self._finish_speech_retry_failure(working_chunk, retry_budget, mismatch_error)
+                except Exception as refusal:
+                    if isinstance(refusal, AudioGenerationCancelled) or is_audio_generation_cancelled():
+                        return self._finish_speech_retry_failure(working_chunk, retry_budget, refusal)
+                    print(f"Warning: Could not evaluate speech-retry eligibility for "
+                          f"{working_chunk.get('uid')}: {refusal}")
+                    return self._finish_speech_retry_failure(working_chunk, retry_budget, mismatch_error)
+            except Exception as error:
+                return self._finish_speech_retry_failure(working_chunk, retry_budget, error, record_attempt=attempt_started)
+
+    def _finish_speech_retry_failure(self, chunk, budget, error, *, record_attempt=True):
+        from speech_retry import SpeechRetryAttemptError
+        from speech_verification import SpeechVerificationCancelled
+        from speech_verification_receipt import SpeechContentMismatchError, get_speech_verification_error_fields
+        cancelled = isinstance(error, (AudioGenerationCancelled, SpeechVerificationCancelled)) or is_audio_generation_cancelled()
+        outcome = ("cancellation" if cancelled else "corroborated_content_difference"
+                   if isinstance(error, SpeechContentMismatchError) else error.outcome
+                   if isinstance(error, SpeechRetryAttemptError) else "provider_failure"
+                   if getattr(budget, "phase", "admission") == "provider" else "admission_refusal")
+        receipt = getattr(error, "receipt", None)
+        history = budget.get_history()
+        if receipt is None and history and history[-1]["attempt_id"] == budget.pending_attempt_id:
+            receipt = history[-1]["receipt"]
+        reason = (history[-1]["reason"] if isinstance(error, SpeechContentMismatchError) and history
+                  and history[-1]["attempt_id"] == budget.pending_attempt_id else str(error))
+        if record_attempt:
+            budget.record(outcome, receipt, reason=reason)
+        history = budget.get_history()
+        if cancelled:
+            self._restore_and_release(chunk, history)
+            return False, AUDIO_GENERATION_CANCELLED
+        try:
+            updated = self._update_generation_fields(chunk, status="error", error=str(error),
+                speech_retry_attempts=history, **get_speech_verification_error_fields(error))
+            return False, str(error) if updated is not None else GENERATION_INPUTS_CHANGED
+        except AudioGenerationCancelled:
+            self._restore_and_release(chunk, history)
+            return False, AUDIO_GENERATION_CANCELLED
+        except Exception as write_error:
+            print(f"Warning: Failed to persist speech-retry failure for "
+                  f"{chunk.get('uid')}: {write_error}")
+            self._restore_and_release(chunk, history)
+            return False, str(error)
+
+    def _restore_and_release(self, chunk, history):
+        """Best-effort restore; cleanup authority loss is never fatal."""
+        try:
+            self._restore_cancelled_generation(chunk, speech_retry_attempts=history)
+        except Exception as restore_error:
+            print(f"Warning: Failed to restore cancelled generation for "
+                  f"{chunk.get('uid') if isinstance(chunk, dict) else None}: {restore_error}")
 
     def _load_pause_defaults(self):
         """Return (pause_between_speakers_ms, pause_same_speaker_ms) from config."""
@@ -3297,6 +3571,22 @@ class ProjectManager:
 
         all_indices = list(indices)
         audio_owner = get_audio_generation_owner()
+        speech_retry_budgets = {}
+        if self._is_speech_retry_opted_in():
+            speech_retry_budgets = {budget_index: None for budget_index in indices if captured.get(budget_index) is not None}
+
+        def render_with_retry_budget(index):
+            if cancel_check and cancel_check():
+                return False, AUDIO_GENERATION_CANCELLED
+            budget = speech_retry_budgets[index]
+            if budget is None:
+                try:
+                    budget = self._create_speech_retry_budget(captured[index])
+                except AudioGenerationCancelled:
+                    return False, AUDIO_GENERATION_CANCELLED
+                budget.cancel_check = cancel_check
+                speech_retry_budgets[index] = budget
+            return self._generate_captured_chunk_audio(index, captured[index], budget)
 
         def _run_round(round_indices, workers):
             """One pass at `workers` concurrency.
@@ -3308,9 +3598,14 @@ class ProjectManager:
             completed, oom_failed, hard_failed = [], [], []
             was_cancelled = False
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {executor.submit(run_with_audio_generation_owner, audio_owner,
-                                           self._generate_captured_chunk_audio, idx, captured.get(idx)): idx
-                           for idx in round_indices}
+                futures = {}
+                for idx in round_indices:
+                    if idx in speech_retry_budgets:
+                        futures[executor.submit(run_with_audio_generation_owner, audio_owner,
+                                                render_with_retry_budget, idx)] = idx
+                    else:
+                        futures[executor.submit(run_with_audio_generation_owner, audio_owner,
+                                                self._generate_captured_chunk_audio, idx, captured.get(idx))] = idx
                 for future in as_completed(futures):
                     if (is_audio_generation_cancelled() or (cancel_check and cancel_check())) and not was_cancelled:
                         was_cancelled = True
@@ -3320,23 +3615,32 @@ class ProjectManager:
                                 pending_future.cancel()
                     idx = futures[future]
                     if future.cancelled():
+                        speech_retry_budgets.pop(idx, None)
                         continue
+                    retryable_oom = False
                     try:
                         success, msg = future.result()
                         if success:
                             completed.append(idx)
                             print(f"Chunk {idx} completed: {msg}")
-                        elif audio_owner is not None and msg == AUDIO_GENERATION_CANCELLED:
+                        elif (audio_owner is not None or idx in speech_retry_budgets) and msg == AUDIO_GENERATION_CANCELLED:
                             was_cancelled = True
-                        elif is_oom_failure(msg):
+                        elif is_oom_failure(msg) and (speech_retry_budgets.get(idx) is None
+                                or speech_retry_budgets[idx].allows_memory_stepdown()):
+                            retryable_oom = workers > 1
                             oom_failed.append((idx, msg))
                             print(f"Chunk {idx} failed (VRAM): {msg}")
                         else:
                             hard_failed.append((idx, msg))
                             print(f"Chunk {idx} failed: {msg}")
                     except Exception as e:
-                        (oom_failed if is_oom_failure(e) else hard_failed).append((idx, str(e)))
+                        oom_failure = is_oom_failure(e) and (speech_retry_budgets.get(idx) is None
+                            or speech_retry_budgets[idx].allows_memory_stepdown())
+                        retryable_oom = oom_failure and workers > 1
+                        (oom_failed if oom_failure else hard_failed).append((idx, str(e)))
                         print(f"Chunk {idx} error: {e}")
+                    if not retryable_oom:
+                        speech_retry_budgets.pop(idx, None)
                     if progress_callback:
                         # oom_failed chunks aren't final yet (they get retried
                         # next round at a lower worker count), but they ARE
@@ -3624,9 +3928,6 @@ class ProjectManager:
         if total == 0:
             return results
 
-        print(f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed}, "
-              f"group_by_type={batch_group_by_type})...")
-        
         # atomic_json_write's write-temp+rename makes plain reads safe even
         # while app.py's voice_library endpoints hold file_lock(voice_config_path)
         # for a read-modify-write — no extra locking needed here.
@@ -3649,6 +3950,18 @@ class ProjectManager:
             except (ValueError, OSError) as error:
                 results['failed'] = [(idx, str(error)) for idx in indices]
                 return results
+
+        if self._is_speech_retry_opted_in():
+            print(f"Speech retry is enabled: rendering {total} chunks one line at a time "
+                  f"(configured batch_size={batch_size} is not used)...")
+            routed_indices = list(indices)
+            if batch_group_by_type:
+                routed_indices = self._group_indices_by_voice_type(routed_indices, chunks, voice_config)
+            routed_requests = {routed_index: {**captured[routed_index], "_speech_retry_batch_seed": batch_seed} for routed_index in routed_indices if routed_index in captured}
+            return self.generate_chunks_parallel(routed_indices, max_workers=1, progress_callback=progress_callback, cancel_check=cancel_check, admitted_requests=routed_requests)
+
+        print(f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed}, "
+              f"group_by_type={batch_group_by_type})...")
 
         # Get TTS engine
         engine = self.get_engine()

@@ -13,14 +13,17 @@ from tests.test_support import use_private_cpu_fixture_lock
 class SpeechVerificationSettingsAdmissionTests(unittest.TestCase):
     setUp = windows.SynthesisWindowSettingsAdmissionTests.setUp
 
-    def store(self, enabled):
-        Path(self.pm.config_path).write_text(json.dumps({'tts': {'speech_verification': {'enabled': enabled}}}))
+    def store(self, enabled, retry_enabled=False):
+        Path(self.pm.config_path).write_text(json.dumps({'tts': {'speech_verification': {'enabled': enabled},'speech_retry': {'enabled': retry_enabled}}}))
         self.pm.invalidate_config_cache()
 
-    def save(self, policy):
+    def save(self, policy, retry_policy=None):
         profile = dict(base_url='http://127.0.0.1:1234/v1',api_key='fixture',model_name='fixture')
+        tts_policy={'speech_verification':policy}
+        if retry_policy is not None:
+            tts_policy['speech_retry']=retry_policy
         return self.client.post('/api/config',json={'llm':profile,'llm_local':profile,'llm_mode':'local',
-                                                  'tts':{'speech_verification':policy}})
+                                                  'tts':tts_policy})
 
     @use_private_cpu_fixture_lock()
     def test_live_task_blocks_policy_change_and_actual_engine_drift_without_mutation(self):
@@ -44,6 +47,47 @@ class SpeechVerificationSettingsAdmissionTests(unittest.TestCase):
                 self.assertIsNone(self.pm.engine)
                 engine.close_external.assert_called_once()
                 self.assertEqual(rows,self.pm.get_saved_chunks())
+
+    @use_private_cpu_fixture_lock()
+    def test_live_task_blocks_retry_toggle_and_actual_engine_drift_without_mutation(self):
+        for before_retry, after_retry, active_retry in [(False,True,None),(True,False,{'enabled':True}),(True,True,None)]:
+            with self.subTest(before_retry=before_retry,after_retry=after_retry,active_retry=active_retry):
+                self.store(True,before_retry)
+                engine = SimpleNamespace(_speech_verification={'enabled':True},_speech_retry=active_retry,close_external=Mock())
+                self.pm.engine = engine
+                config=Path(self.pm.config_path).read_bytes(); rows=self.pm.get_saved_chunks()
+                claim=core.reserve_background_task('audio',cpu_only=True)
+                try:
+                    with patch.object(self.pm,'reset_engine') as reset:
+                        response=self.save({'enabled':True},{'enabled':after_retry})
+                    self.assertEqual(409,response.status_code,response.text)
+                    reset.assert_not_called()
+                    self.assertEqual(config,Path(self.pm.config_path).read_bytes())
+                    self.assertEqual(rows,self.pm.get_saved_chunks())
+                finally: core.release_gpu_task_claim('audio',claim)
+                response=self.save({'enabled':True},{'enabled':after_retry})
+                self.assertEqual(200,response.status_code,response.text)
+                self.assertIsNone(self.pm.engine)
+                engine.close_external.assert_called_once()
+                self.assertEqual(rows,self.pm.get_saved_chunks())
+
+    def test_invalid_retry_policy_never_silently_changes_saved_retry(self):
+        self.store(True,True)
+        for policy in [{'enabled':1},{'enabled':'true'},{'unknown':True}]:
+            with self.subTest(policy=policy):
+                before=Path(self.pm.config_path).read_bytes()
+                response=self.save({'enabled':True},policy)
+                self.assertEqual(422,response.status_code,response.text)
+                self.assertEqual(before,Path(self.pm.config_path).read_bytes())
+        self.assertEqual({'enabled':True},json.loads(Path(self.pm.config_path).read_text())['tts']['speech_retry'])
+
+    def test_omitted_retry_policy_preserves_saved_retry(self):
+        self.store(True,True)
+        response=self.save({'enabled':True})
+        self.assertEqual(200,response.status_code,response.text)
+        saved_config=json.loads(Path(self.pm.config_path).read_text())
+        self.assertEqual({'enabled':True},saved_config['tts']['speech_retry'])
+        self.assertEqual({'enabled':True},saved_config['tts']['speech_verification'])
 
     def test_invalid_or_omitted_policy_never_silently_disables_saved_check(self):
         self.store(True)

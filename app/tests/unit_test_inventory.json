@@ -11488,6 +11488,64 @@
     "tests.test_speech_numbers.LeftAloneTests.test_an_ambiguous_date_with_no_order_is_left_and_recorded",
     "tests.test_speech_numbers.LeftAloneTests.test_codes_scores_fractions_and_plain_amounts_are_untouched"
   ],
+  "test_speech_retry_fixes": [
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_digit_string_seed_renders_and_retries_with_distinct_seeds",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_exhausted_budget_keeps_the_last_attempt_reason",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_failure_write_error_returns_instead_of_escaping_or_sticking",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_first_render_with_review_verdict_ends_in_error_without_audio",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_nonnumeric_seed_renders_once_and_refuses_the_retry",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_text_edit_clears_displaced_retry_history",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_uint32_seed_keeps_the_first_render_and_refuses_the_retry",
+    "tests.test_speech_retry_fixes.SpeechRetryFixTests.test_view_serves_retry_history_only_for_the_selected_take"
+  ],
+  "test_speech_retry_integration": [
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_batch_seed_overrides_selected_voice_seed_and_default_seed_is_deterministic",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_book_switch_during_first_verification_stops_retry_without_row_rewrite",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_cancellation_during_first_or_second_verification_never_publishes",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_deadline_before_render_after_synthesis_and_inside_verifier_preserves_prior",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_deadline_during_audio_install_keeps_the_selected_pointer_and_prior_bytes",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_external_parent_wait_uses_remaining_shared_deadline",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_mismatch_then_verified_retries_once_with_distinct_seed_in_all_modes",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_native_batch_callback_cancellation_stops_queued_lines",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_oom_parallel_stepdown_shares_budget_and_exhausts_after_two_calls",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_provider_failure_and_exception_do_not_trigger_content_retry",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_released_owner_and_cancelled_verifier_exception_do_not_publish",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_repeated_mismatch_and_non_retryable_verifier_outcomes_keep_prior",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_requested_seed_is_local_and_retained_capture_preserves_attempt_evidence",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_retry_disabled_baseline_publishes_without_retry_history",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_shared_deadline_stops_later_local_windows_and_preserves_parent_output",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_stale_engine_or_disabled_verification_refuses_before_provider",
+    "tests.test_speech_retry_integration.SpeechRetryIntegrationTests.test_text_edit_during_first_verification_stops_retry_and_preserves_edit"
+  ],
+  "test_speech_retry_parent_review": [
+    "tests.test_speech_retry_parent_review.SpeechRetryParentReviewTests.test_batch_retention_qualification_precedes_serial_routing",
+    "tests.test_speech_retry_parent_review.SpeechRetryParentReviewTests.test_default_batch_seed_honors_saved_voice_seed",
+    "tests.test_speech_retry_parent_review.SpeechRetryParentReviewTests.test_public_view_does_not_expose_raw_attempt_history",
+    "tests.test_speech_retry_parent_review.SpeechRetryParentReviewTests.test_verifier_memory_reason_is_not_provider_oom_retry"
+  ],
+  "test_speech_retry_policy": [
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_already_attempted_proposed_seed_is_not_an_identical_retry",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_budget_keeps_distinct_attempts_and_updates_one_pending_record",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_call_local_context_is_reset_after_failure",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_decision_is_deterministic_and_does_not_read_clock_or_mutate_inputs",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_exhaustion_deadline_cancellation_and_changed_inputs_stop",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_expired_budget_does_not_start_or_create_phantom_attempt",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_history_evidence_is_bounded_without_silently_dropping_receipt",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_only_corroborated_content_can_request_one_changed_seed",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_remaining_budget_is_finite_and_bounded_even_at_large_valid_times",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_seed_boundaries_and_generated_inputs_preserve_domain_invariants",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_settings_are_strict_and_disabled_by_default",
+    "tests.test_speech_retry_policy.SpeechRetryPolicyTests.test_unknown_or_malformed_contract_never_requests_work"
+  ],
+  "test_speech_retry_repairs": [
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_callback_cancellation_during_audio_install_keeps_selected_prior_take",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_cancelled_budget_admission_is_not_counted_as_provider_failure",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_completed_budgets_are_released_before_the_parallel_call_finishes",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_engine_policy_accessor_is_used_for_a_real_engine_proxy",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_generic_audio_replacement_does_not_keep_displaced_attempt_history",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_quality_retry_uses_one_pronunciation_snapshot_and_next_request_refreshes",
+    "tests.test_speech_retry_repairs.SpeechRetryRepairTests.test_unowned_opted_in_callback_cancellation_is_not_a_provider_failure"
+  ],
   "test_speech_symbol_dispatch": [
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_classifier_uses_the_shared_rendering_object",
     "tests.test_speech_symbol_dispatch.SpeechSymbolDispatchTests.test_compact_symbols_preserve_boundaries_in_direct_and_prepared_dispatch",
@@ -11634,9 +11692,13 @@
   ],
   "test_speech_verification_settings_admission": [
     "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_invalid_or_omitted_policy_never_silently_disables_saved_check",
-    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_live_task_blocks_policy_change_and_actual_engine_drift_without_mutation"
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_invalid_retry_policy_never_silently_changes_saved_retry",
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_live_task_blocks_policy_change_and_actual_engine_drift_without_mutation",
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_live_task_blocks_retry_toggle_and_actual_engine_drift_without_mutation",
+    "tests.test_speech_verification_settings_admission.SpeechVerificationSettingsAdmissionTests.test_omitted_retry_policy_preserves_saved_retry"
   ],
   "test_speech_verification_settings_js": [
+    "tests.test_speech_verification_settings_js.SpeechVerificationSettingsJsTests.test_actual_index_html_checkbox_inventory",
     "tests.test_speech_verification_settings_js.SpeechVerificationSettingsJsTests.test_off_default_roundtrip_and_unloaded_save_does_not_override_settings"
   ],
   "test_split_quote_evidence": [

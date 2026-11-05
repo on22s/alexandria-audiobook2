@@ -16,6 +16,7 @@ from export_limits import MAX_PAUSE_MS
 from lora_evidence import TTS_MODEL_DEFAULTS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
 from speech_verification_settings import get_speech_verification_settings
+from speech_retry import get_speech_retry_settings
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ class TTSConfig(BaseModel):
     # Execution policy only; excluded from voice/acoustic identity.
     synthesis_recovery: Annotated[Dict[str, JsonValue], AfterValidator(get_synthesis_recovery_settings)] = Field(default_factory=get_synthesis_recovery_settings)
     speech_verification: Annotated[Dict[str, JsonValue], AfterValidator(get_speech_verification_settings)] = Field(default_factory=get_speech_verification_settings)
+    speech_retry: Annotated[Dict[str, JsonValue], AfterValidator(get_speech_retry_settings)] = Field(default_factory=get_speech_retry_settings)
     compile_codec: bool = TTS_MODEL_DEFAULTS["compile_codec"]
     max_new_tokens: int = Field(default=TTS_MODEL_DEFAULTS["max_new_tokens"], ge=256, le=8192)
     sub_batch_enabled: bool = True

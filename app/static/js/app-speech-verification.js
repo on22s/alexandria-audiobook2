@@ -3,17 +3,40 @@ let speechVerificationControlsLoaded = false;
 let speechVerificationBusy = false;
 let speechVerificationReattached = false;
 
-function setSpeechVerificationControls(settings) {
+function updateSpeechRetryControls() {
+    const verificationEnabled = document.getElementById('speech-verification-enabled');
+    const speechRetryEnabled = document.getElementById('speech-retry-enabled');
+    if (!speechRetryEnabled) { return; }
+    const verificationOn = verificationEnabled?.checked === true;
+    if (speechVerificationControlsLoaded && verificationOn) {
+        speechRetryEnabled.disabled = false;
+    } else {
+        speechRetryEnabled.disabled = true;
+        speechRetryEnabled.checked = false;
+    }
+}
+
+function setSpeechVerificationControls(settings, retrySettings) {
     const enabled = document.getElementById('speech-verification-enabled');
     if (!enabled) { return; }
+    const speechRetryEnabled = document.getElementById('speech-retry-enabled');
     enabled.checked = settings?.enabled === true;
     enabled.disabled = false;
     speechVerificationControlsLoaded = true;
+    if (speechRetryEnabled) {
+        speechRetryEnabled.checked = retrySettings?.enabled === true;
+    }
+    updateSpeechRetryControls();
 }
 
 function getSpeechVerificationConfig() {
     if (!speechVerificationControlsLoaded) { return {}; }
-    return {speech_verification: {enabled: document.getElementById('speech-verification-enabled').checked}};
+    const verificationEnabled = document.getElementById('speech-verification-enabled');
+    const speechRetryEnabled = document.getElementById('speech-retry-enabled');
+    const verificationOn = verificationEnabled?.checked === true;
+    const retryOn = speechRetryEnabled?.checked === true && verificationOn;
+    return {speech_verification: {enabled: verificationOn},
+        speech_retry: {enabled: retryOn}};
 }
 
 function isSpeechVerificationTaskActive() {
