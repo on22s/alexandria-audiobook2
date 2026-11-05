@@ -1733,35 +1733,29 @@ class TTSEngine:
                 release_for_oom=lambda: self._release_inactive_models_after_oom("lora", device),
             )
 
-            # Apply the adapter, then fold it into the base weights.
-            #
-            # Left as a PeftModel, every decoder step computes W.x + B.A.x
-            # for every targeted module, and that is the whole of the LoRA
-            # path's speed cost: measured on the RX 9070 XT (goal 4.1),
-            # unmerged runs at 1.25x realtime, merged at 0.835x -- the stock
-            # model's speed. merge_and_unload adds B.A into W once (0.03 s)
-            # and returns the plain talker module. The merged weights are
-            # bf16-rounded, so the audio is not bit-identical to the unmerged
-            # render, but it is the same voice: ECAPA similarity 0.714
-            # merged-vs-unmerged on the same line, against 0.538 for the
-            # adapter across different lines (2026-09-12, six lines).
-            # This model instance is fresh from _load_model and cached only
-            # here, so merging in place cannot leak into the stock/clone
-            # paths; switching adapters reloads the base anyway.
-            # A recovery certificate must describe the implementation that
-            # actually merged these tensors, not a later installed PEFT release.
             merge_sha256 = None
-            if getattr(model, '_aa2_recovery_loaded_model', None) is not None:
-                from synthesis_recovery_serving import get_native_lora_merge_sha256
-                from synthesis_recovery_identity import RecoveryIdentityUnavailable
-                try:
-                    merge_sha256 = get_native_lora_merge_sha256()
-                except (RecoveryIdentityUnavailable, ImportError, AttributeError, ValueError, OSError):
-                    pass  # Optional recovery cannot prevent ordinary synthesis.
-            model.model.talker = PeftModel.from_pretrained(
-                model.model.talker,
-                adapter_path,
-            ).merge_and_unload()
+            if dtype is torch.bfloat16:
+                model.model.talker = PeftModel.from_pretrained(
+                    model.model.talker,
+                    adapter_path,
+                    autocast_adapter_dtype=True,
+                )
+                model._aa2_recovery_lora_unmerged = True
+                print("LoRA bf16 serving keeps fp32 adapters unmerged; "
+                      "synthesis recovery certificates and window reuse are unavailable "
+                      "for this serving mode.")
+            else:
+                if getattr(model, '_aa2_recovery_loaded_model', None) is not None:
+                    from synthesis_recovery_serving import get_native_lora_merge_sha256
+                    from synthesis_recovery_identity import RecoveryIdentityUnavailable
+                    try:
+                        merge_sha256 = get_native_lora_merge_sha256()
+                    except (RecoveryIdentityUnavailable, ImportError, AttributeError, ValueError, OSError):
+                        pass
+                model.model.talker = PeftModel.from_pretrained(
+                    model.model.talker,
+                    adapter_path,
+                ).merge_and_unload()
             model.model.talker.eval()
             if merge_sha256 is not None:
                 try:

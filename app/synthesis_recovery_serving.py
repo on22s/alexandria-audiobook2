@@ -429,6 +429,8 @@ def capture_native_lora_serving_identity(engine, request):
                 raise RecoveryIdentityUnavailable('lora_model_loaded_without_identity')
             if get_native_custom_code_sha256() != loaded.loader_code_sha256:
                 raise RecoveryIdentityUnavailable('lora_loaded_code_changed')
+            if getattr(model, '_aa2_recovery_lora_unmerged', False):
+                raise RecoveryIdentityUnavailable('unqualified_unmerged_lora_serving')
             merge_sha256 = get_native_lora_merge_sha256()
             if getattr(model, '_aa2_recovery_lora_merge_sha256', None) != merge_sha256:
                 raise RecoveryIdentityUnavailable('lora_merge_implementation_changed')

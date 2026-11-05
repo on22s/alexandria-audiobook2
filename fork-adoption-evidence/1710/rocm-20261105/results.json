@@ -1,0 +1,1322 @@
+{
+  "version": 1,
+  "date": "2026-11-05",
+  "scope": "ROCm-only native Windows batch-one; CUDA untested; issue 1710 remains open",
+  "base_commit": "47f06c34d47c704e5ad35de96446f68d31b192f6",
+  "measurement_source_sha256": "0bc0bf5edf4ace0b247c3204dbf8a81ef0f0fd5b2325e672f7d0791b6ba49547",
+  "measurement_source_identity": {
+    "scheme": "sha256-lf-v1",
+    "path": "app/tts.py",
+    "canonical_sha256": "4257d99f805bf9e69d42b561912a2ed03ee3f173a49675f784842680499be2d3",
+    "captured_bytes_sha256": "0bc0bf5edf4ace0b247c3204dbf8a81ef0f0fd5b2325e672f7d0791b6ba49547",
+    "captured_line_endings": "CRLF; original exact-byte digest retained above"
+  },
+  "numeric_replay": {
+    "input": "numeric-logits.npz",
+    "input_sha256": "088ede93ec7e2991c2fb2a3b84f04d2f173e846a56938d38fbfc694b57cd437d",
+    "script": "reduce-numeric.py",
+    "script_sha256": "bdaa3863b051bec97d1b14467fdbfc62827ef0b5e231c4298b80b6f060c45b3c",
+    "record_comparison_tolerance": {
+      "relative": 0.00001,
+      "absolute": 0.000001
+    },
+    "added_after_measurement": true,
+    "scope": "CPU replay of archived last-prefill-position logits; no model assets or GPU required"
+  },
+  "protocol_sha256": "95c2a8cf1aa66fa7c567d69a6bc4fe92b16bc7c6c5b9fd6763d58218a2923ce7",
+  "script_sha256": {
+    "rocm-numeric.py": "0be0f016e4cdb858a9ba7b114344d276bf25eb127012916114f3705b7d9dce0b",
+    "rocm-audio.py": "6c31d6a63b186119706b18d2a62afcb56e6d558904741ec3e3561b973db8c50f",
+    "qualification_metrics.py": "10b38b9407c4f5cb95132e2cf9863dce1142164affaecb50d1768a8f8bcb1419",
+    "score-audio.py": "1430731eecddcb20d0a190108aa069c3a9100b4b4717c2d729262633cd549684",
+    "score-audio-controls.py": "0edb25b7d95a7376d627dc1bb8303ca082d7822b065702de52826bc6177a8f3f"
+  },
+  "public_assets": {
+    "base_model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    "base_revision": "fd4b254389122332181a7c3db7f27e918eec64e3",
+    "adapter_repo": "Finrandojin/Alexandria",
+    "adapter_revision": "d5a523e68181faf92daf696d62da02bd6bb2e7fe",
+    "adapter": "watson",
+    "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897"
+  },
+  "numeric": {
+    "fp32": {
+      "scope": "six_prompt_prefill_last_position_logits_only",
+      "precision": "fp32",
+      "device": "AMD Radeon RX 9070 XT",
+      "torch": "2.9.1+rocm7.2.1",
+      "hip": "7.2.53211-158bd99533",
+      "inputs_sha256": "17628febfcd10cf989bfafa4d4b8d7b3e1c67d675dfd3d6a84a8f5c84b1f47db",
+      "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897",
+      "adapter_dtypes": [
+        "torch.float32"
+      ],
+      "seconds": 18.40600000000086,
+      "peak_allocated_gib": 8.39381742477417,
+      "shapes": [
+        [
+          1,
+          19,
+          2048
+        ],
+        [
+          1,
+          20,
+          2048
+        ],
+        [
+          1,
+          23,
+          2048
+        ],
+        [
+          1,
+          21,
+          2048
+        ],
+        [
+          1,
+          21,
+          2048
+        ],
+        [
+          1,
+          24,
+          2048
+        ]
+      ]
+    },
+    "bf16": {
+      "scope": "six_prompt_prefill_last_position_logits_only",
+      "precision": "bf16",
+      "device": "AMD Radeon RX 9070 XT",
+      "torch": "2.9.1+rocm7.2.1",
+      "hip": "7.2.53211-158bd99533",
+      "inputs_sha256": "17628febfcd10cf989bfafa4d4b8d7b3e1c67d675dfd3d6a84a8f5c84b1f47db",
+      "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897",
+      "adapter_dtypes": [
+        "torch.float32"
+      ],
+      "seconds": 5.4539999999997235,
+      "peak_allocated_gib": 4.094996929168701,
+      "shapes": [
+        [
+          1,
+          19,
+          2048
+        ],
+        [
+          1,
+          20,
+          2048
+        ],
+        [
+          1,
+          23,
+          2048
+        ],
+        [
+          1,
+          21,
+          2048
+        ],
+        [
+          1,
+          21,
+          2048
+        ],
+        [
+          1,
+          24,
+          2048
+        ]
+      ]
+    },
+    "records": [
+      {
+        "text_id": 0,
+        "arm": "merged",
+        "retention": 0.9117605686187744,
+        "cosine": 0.9936798810958862,
+        "relative_error": 0.13896459341049194
+      },
+      {
+        "text_id": 0,
+        "arm": "unmerged",
+        "retention": 1.007151484489441,
+        "cosine": 0.9993074536323547,
+        "relative_error": 0.038029249757528305
+      },
+      {
+        "text_id": 1,
+        "arm": "merged",
+        "retention": 0.9083966016769409,
+        "cosine": 0.9879714250564575,
+        "relative_error": 0.17390958964824677
+      },
+      {
+        "text_id": 1,
+        "arm": "unmerged",
+        "retention": 0.9963483214378357,
+        "cosine": 0.9986549615859985,
+        "relative_error": 0.05190040171146393
+      },
+      {
+        "text_id": 2,
+        "arm": "merged",
+        "retention": 0.8565558195114136,
+        "cosine": 0.9929932355880737,
+        "relative_error": 0.18049772083759308
+      },
+      {
+        "text_id": 2,
+        "arm": "unmerged",
+        "retention": 0.9771316647529602,
+        "cosine": 0.9991276860237122,
+        "relative_error": 0.047197096049785614
+      },
+      {
+        "text_id": 3,
+        "arm": "merged",
+        "retention": 0.9251964688301086,
+        "cosine": 0.9905089139938354,
+        "relative_error": 0.15217740833759308
+      },
+      {
+        "text_id": 3,
+        "arm": "unmerged",
+        "retention": 1.0089218616485596,
+        "cosine": 0.9982332587242126,
+        "relative_error": 0.060372475534677505
+      },
+      {
+        "text_id": 4,
+        "arm": "merged",
+        "retention": 0.9233646988868713,
+        "cosine": 0.995488166809082,
+        "relative_error": 0.11918490380048752
+      },
+      {
+        "text_id": 4,
+        "arm": "unmerged",
+        "retention": 0.998121440410614,
+        "cosine": 0.9990227222442627,
+        "relative_error": 0.04420967772603035
+      },
+      {
+        "text_id": 5,
+        "arm": "merged",
+        "retention": 0.9044714570045471,
+        "cosine": 0.9935858249664307,
+        "relative_error": 0.1439748853445053
+      },
+      {
+        "text_id": 5,
+        "arm": "unmerged",
+        "retention": 1.0121201276779175,
+        "cosine": 0.9983205795288086,
+        "relative_error": 0.05955354869365692
+      }
+    ],
+    "median_relative_l2_error": {
+      "merged": 0.1480761468410492,
+      "unmerged": 0.04954874888062477
+    },
+    "all_six_unmerged_errors_lower": true
+  },
+  "audio": {
+    "arm_provenance": {
+      "no_lora": {
+        "state": "done",
+        "scope": "public_watson_six_text_two_seed_batch_one",
+        "source_sha256": "0bc0bf5edf4ace0b247c3204dbf8a81ef0f0fd5b2325e672f7d0791b6ba49547",
+        "torch": "2.9.1+rocm7.2.1",
+        "hip": "7.2.53211-158bd99533",
+        "device": "AMD Radeon RX 9070 XT",
+        "adapter_dtypes": [
+          "torch.float32"
+        ],
+        "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897"
+      },
+      "merged": {
+        "state": "done",
+        "scope": "public_watson_six_text_two_seed_batch_one",
+        "source_sha256": "0bc0bf5edf4ace0b247c3204dbf8a81ef0f0fd5b2325e672f7d0791b6ba49547",
+        "torch": "2.9.1+rocm7.2.1",
+        "hip": "7.2.53211-158bd99533",
+        "device": "AMD Radeon RX 9070 XT",
+        "adapter_dtypes": [
+          "torch.float32"
+        ],
+        "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897"
+      },
+      "unmerged": {
+        "state": "done",
+        "scope": "public_watson_six_text_two_seed_batch_one",
+        "source_sha256": "0bc0bf5edf4ace0b247c3204dbf8a81ef0f0fd5b2325e672f7d0791b6ba49547",
+        "torch": "2.9.1+rocm7.2.1",
+        "hip": "7.2.53211-158bd99533",
+        "device": "AMD Radeon RX 9070 XT",
+        "adapter_dtypes": [
+          "torch.float32"
+        ],
+        "adapter_sha256": "0e85cc29786d335a0c030784f3a734478397bcc50bab06492b28cf5ad1b05897"
+      }
+    },
+    "summaries": {
+      "no_lora": {
+        "count": 12,
+        "median_seconds": 4.7885000000005675,
+        "median_seconds_per_audio_second": 1.3424088266385854,
+        "total_audio_seconds": 43.6,
+        "expected_words": 104,
+        "word_edits": 0,
+        "endings_present": 12
+      },
+      "merged": {
+        "count": 12,
+        "median_seconds": 4.25,
+        "median_seconds_per_audio_second": 1.2712917933132197,
+        "total_audio_seconds": 40.08,
+        "expected_words": 104,
+        "word_edits": 1,
+        "endings_present": 12
+      },
+      "unmerged": {
+        "count": 12,
+        "median_seconds": 6.98450000000048,
+        "median_seconds_per_audio_second": 2.2744614109844052,
+        "total_audio_seconds": 39.6,
+        "expected_words": 104,
+        "word_edits": 0,
+        "endings_present": 12
+      }
+    },
+    "records": {
+      "no_lora": [
+        {
+          "text_id": 0,
+          "seed": 1710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 3.561999999999898,
+          "audio_seconds": 2.96,
+          "seconds_per_audio_second": 1.203378378378344,
+          "peak_allocated_gib": 4.22187614440918,
+          "sha256": "629fc5bdc6e9c95ec3d3461bde2d5b1c4a9fb830a872155d52858fa1cf3dd780"
+        },
+        {
+          "text_id": 0,
+          "seed": 2710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 3.75,
+          "audio_seconds": 2.72,
+          "seconds_per_audio_second": 1.3786764705882353,
+          "peak_allocated_gib": 4.209314346313477,
+          "sha256": "6e7af622946699c9dbc0423cbdd61dc8bb2d2ed8e9cc0030f8313337d5748e2c"
+        },
+        {
+          "text_id": 1,
+          "seed": 1710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 4.561999999999898,
+          "audio_seconds": 2.88,
+          "seconds_per_audio_second": 1.5840277777777425,
+          "peak_allocated_gib": 4.216931343078613,
+          "sha256": "e85e0ce8350cd1dbc393b89dbb4c06d80f5d34aae1e90d149a445c80c85648f0"
+        },
+        {
+          "text_id": 1,
+          "seed": 2710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 4.718000000000757,
+          "audio_seconds": 3.52,
+          "seconds_per_audio_second": 1.340340909091124,
+          "peak_allocated_gib": 4.249072551727295,
+          "sha256": "4a5aaeb3ee9a9324b59f502d084fdcc6bd4ebf9294d0191ab66a9ee750fef762"
+        },
+        {
+          "text_id": 2,
+          "seed": 1710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 5.25,
+          "audio_seconds": 4,
+          "seconds_per_audio_second": 1.3125,
+          "peak_allocated_gib": 4.27493143081665,
+          "sha256": "4206a8b31799038ae2c0f52cb5dbfa496537cfeb739b9dd57a4958e356c9d24d"
+        },
+        {
+          "text_id": 2,
+          "seed": 2710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 8.07799999999952,
+          "audio_seconds": 4.24,
+          "seconds_per_audio_second": 1.9051886792451698,
+          "peak_allocated_gib": 4.285945892333984,
+          "sha256": "c8b5d44192d93af6dfab1f6d67536056e7bb2e878485fabb0e2e1507000632dd"
+        },
+        {
+          "text_id": 3,
+          "seed": 1710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 3.375,
+          "audio_seconds": 2.64,
+          "seconds_per_audio_second": 1.2784090909090908,
+          "peak_allocated_gib": 4.20643424987793,
+          "sha256": "b6660108469c3f8a028c66b11a974881dc35811e845ed55a94c453e311d52096"
+        },
+        {
+          "text_id": 3,
+          "seed": 2710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 4.859000000000378,
+          "audio_seconds": 3.6,
+          "seconds_per_audio_second": 1.3497222222223273,
+          "peak_allocated_gib": 4.25344181060791,
+          "sha256": "d057f55eb2804cf6b9dda9db5905a83f27aec2a5574afd123a543d7c4223cd0b"
+        },
+        {
+          "text_id": 4,
+          "seed": 1710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 4.625,
+          "audio_seconds": 3.44,
+          "seconds_per_audio_second": 1.3444767441860466,
+          "peak_allocated_gib": 4.246091365814209,
+          "sha256": "745896f2953df0c0e6b10ca58dd2ad14098eaf5a451bf605ccca63e24259387d"
+        },
+        {
+          "text_id": 4,
+          "seed": 2710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 5.375,
+          "audio_seconds": 3.6,
+          "seconds_per_audio_second": 1.4930555555555556,
+          "peak_allocated_gib": 4.253087520599365,
+          "sha256": "0424c7ab813b5cd63da37b21307aa3d0fee3bfeb420e4f1514794d3cddfd4a8c"
+        },
+        {
+          "text_id": 5,
+          "seed": 1710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 5.640999999999622,
+          "audio_seconds": 4.64,
+          "seconds_per_audio_second": 1.2157327586206081,
+          "peak_allocated_gib": 4.305707931518555,
+          "sha256": "7c7c5bbd0519b5efcc9122ca115e51639efb6105eaaa5808989aca21cd063ccb"
+        },
+        {
+          "text_id": 5,
+          "seed": 2710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 6.468999999999141,
+          "audio_seconds": 5.36,
+          "seconds_per_audio_second": 1.2069029850744666,
+          "peak_allocated_gib": 4.342625617980957,
+          "sha256": "a84f304e40449201572aa995a041cfc93869b4647b55f9773a18ec83511a9de9"
+        }
+      ],
+      "merged": [
+        {
+          "text_id": 0,
+          "seed": 1710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 3.0940000000009604,
+          "audio_seconds": 2.64,
+          "seconds_per_audio_second": 1.1719696969700608,
+          "peak_allocated_gib": 4.152493953704834,
+          "sha256": "134bdfa1c37ccc32aa1e9aa32a0b2ee832339859f3f8d4dbcda662d4b15d54fb"
+        },
+        {
+          "text_id": 0,
+          "seed": 2710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 3.54700000000048,
+          "audio_seconds": 2.8,
+          "seconds_per_audio_second": 1.2667857142858858,
+          "peak_allocated_gib": 4.15895938873291,
+          "sha256": "86795195cbf4697ecece5e82faa557e490defa02c79aa889814612e693e219a2"
+        },
+        {
+          "text_id": 1,
+          "seed": 1710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 3.7969999999986612,
+          "audio_seconds": 3.12,
+          "seconds_per_audio_second": 1.2169871794867504,
+          "peak_allocated_gib": 4.175051212310791,
+          "sha256": "3f25bd0b9c3751616f39b37b431454e70a8708e98c59f432a69fc98b0e73a21a"
+        },
+        {
+          "text_id": 1,
+          "seed": 2710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 4.359000000000378,
+          "audio_seconds": 3.12,
+          "seconds_per_audio_second": 1.3971153846155058,
+          "peak_allocated_gib": 4.175051212310791,
+          "sha256": "2410dd91789a299052093e7a7feae884705a86dd723ef15f043d16a7ac0367dd"
+        },
+        {
+          "text_id": 2,
+          "seed": 1710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 5.235000000000582,
+          "audio_seconds": 4.4,
+          "seconds_per_audio_second": 1.1897727272728595,
+          "peak_allocated_gib": 4.239940643310547,
+          "sha256": "3a2b3733c3615c1dfa16011de9897a3b6919337e464e9753cf64e29c8a55efa4"
+        },
+        {
+          "text_id": 2,
+          "seed": 2710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 4.79700000000048,
+          "audio_seconds": 3.76,
+          "seconds_per_audio_second": 1.2757978723405534,
+          "peak_allocated_gib": 4.208428382873535,
+          "sha256": "e28c478e30117e326b323ab21d71de68aa86fc43d1b8a215bb0cf3c7a646a11f"
+        },
+        {
+          "text_id": 3,
+          "seed": 1710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 4.5,
+          "audio_seconds": 2.96,
+          "seconds_per_audio_second": 1.5202702702702704,
+          "peak_allocated_gib": 4.167917728424072,
+          "sha256": "13199ee68a0ef2a05ec025e1d544b9a958b4c87ba7c98b2910fa42d14a7a2f8a"
+        },
+        {
+          "text_id": 3,
+          "seed": 2710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 3.390000000001237,
+          "audio_seconds": 2.64,
+          "seconds_per_audio_second": 1.2840909090913775,
+          "peak_allocated_gib": 4.151697635650635,
+          "sha256": "a781ce2b8b02c15daacff8a38d78667bbb67494c9d26857984b9a17ac1bc6e96"
+        },
+        {
+          "text_id": 4,
+          "seed": 1710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 4.0460000000002765,
+          "audio_seconds": 3.36,
+          "seconds_per_audio_second": 1.204166666666749,
+          "peak_allocated_gib": 4.188016414642334,
+          "sha256": "cfe6b5da815805d6aed275200c310390f88609ba6faa1e59453c17045dc65d0b"
+        },
+        {
+          "text_id": 4,
+          "seed": 2710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 4.140999999999622,
+          "audio_seconds": 3.2,
+          "seconds_per_audio_second": 1.2940624999998818,
+          "peak_allocated_gib": 4.1790452003479,
+          "sha256": "35005a150da6eb9162faeaea02db5a119718acd0819380bddb9cde2bb634a9bf"
+        },
+        {
+          "text_id": 5,
+          "seed": 1710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 5.093000000000757,
+          "audio_seconds": 4.16,
+          "seconds_per_audio_second": 1.224278846154028,
+          "peak_allocated_gib": 4.227285861968994,
+          "sha256": "9eb19d89a86883c8939d6631aa25136aefea291814e83a79e3626bb866527e6b"
+        },
+        {
+          "text_id": 5,
+          "seed": 2710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 5.141000000001441,
+          "audio_seconds": 3.92,
+          "seconds_per_audio_second": 1.3114795918371023,
+          "peak_allocated_gib": 4.21520471572876,
+          "sha256": "782cf89467b253d2c18e056c32d99a9ea4ed9db46c56182e3c7faf90d5ae3280"
+        }
+      ],
+      "unmerged": [
+        {
+          "text_id": 0,
+          "seed": 1710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 4.70299999999952,
+          "audio_seconds": 2.64,
+          "seconds_per_audio_second": 1.781439393939212,
+          "peak_allocated_gib": 4.206449031829834,
+          "sha256": "ff3cd9e24e5d8cd8af9a131e71385556cd19c50f589639e9c31a7d62289b88ba"
+        },
+        {
+          "text_id": 0,
+          "seed": 2710,
+          "text": "The lantern stood beside the open door.",
+          "seconds": 6.96900000000096,
+          "audio_seconds": 2.48,
+          "seconds_per_audio_second": 2.8100806451616775,
+          "peak_allocated_gib": 4.196847915649414,
+          "sha256": "d831aa4e62e91bef5af41061b3a65d7a8a2bd5e50e34616b3e583348365e885a"
+        },
+        {
+          "text_id": 1,
+          "seed": 1710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 7,
+          "audio_seconds": 2.88,
+          "seconds_per_audio_second": 2.430555555555556,
+          "peak_allocated_gib": 4.216931343078613,
+          "sha256": "deb7a66a28f708f479aced1d0b8098727bf9459ca8a300947fda32e99992f953"
+        },
+        {
+          "text_id": 1,
+          "seed": 2710,
+          "text": "Please close the window before the storm arrives.",
+          "seconds": 7.218999999999141,
+          "audio_seconds": 3.04,
+          "seconds_per_audio_second": 2.3746710526312964,
+          "peak_allocated_gib": 4.225439548492432,
+          "sha256": "45130175a1f95dcd30ee5fa2484d02422c1ae8c067e5ddaefc97f8ad2be35568"
+        },
+        {
+          "text_id": 2,
+          "seed": 1710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 9.984999999998763,
+          "audio_seconds": 4.32,
+          "seconds_per_audio_second": 2.311342592592306,
+          "peak_allocated_gib": 4.289276123046875,
+          "sha256": "fac2a2e82a8a7f3e3ca15e90a50b443db16f08d32ec4675eb67d5d8e159544be"
+        },
+        {
+          "text_id": 2,
+          "seed": 2710,
+          "text": "Across the quiet valley, a distant bell began to ring.",
+          "seconds": 8.57799999999952,
+          "audio_seconds": 3.68,
+          "seconds_per_audio_second": 2.3309782608694345,
+          "peak_allocated_gib": 4.257885932922363,
+          "sha256": "aa5977f03c9a49e443170ae8d5568cd7bcbf674511d81861de90f7065928dfb9"
+        },
+        {
+          "text_id": 3,
+          "seed": 1710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 6.03099999999904,
+          "audio_seconds": 2.64,
+          "seconds_per_audio_second": 2.284469696969333,
+          "peak_allocated_gib": 4.205652713775635,
+          "sha256": "47fa34456e4051f964a0ed446a451b439317efc8fb64c31059e4f54d09cfdbf5"
+        },
+        {
+          "text_id": 3,
+          "seed": 2710,
+          "text": "I left the blue notebook on the kitchen table.",
+          "seconds": 5.796999999998661,
+          "audio_seconds": 2.56,
+          "seconds_per_audio_second": 2.264453124999477,
+          "peak_allocated_gib": 4.200867176055908,
+          "sha256": "f5a2b37a617f36617e8c71bd77b4b30cf26d92c815f5d93695776235d8acc1df"
+        },
+        {
+          "text_id": 4,
+          "seed": 1710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 5.95299999999952,
+          "audio_seconds": 3.28,
+          "seconds_per_audio_second": 1.8149390243900976,
+          "peak_allocated_gib": 4.237018585205078,
+          "sha256": "25534bb69a2a6311c1274de9d72a91b6e91f06c55e8ffd99acd46bfa878170b9"
+        },
+        {
+          "text_id": 4,
+          "seed": 2710,
+          "text": "When the door opened, nobody was standing outside.",
+          "seconds": 5.860000000000582,
+          "audio_seconds": 3.2,
+          "seconds_per_audio_second": 1.831250000000182,
+          "peak_allocated_gib": 4.2330002784729,
+          "sha256": "c82f6b1899ae9589084564146baf6fa7fdf5e757c213326589537a5e63b008a4"
+        },
+        {
+          "text_id": 5,
+          "seed": 1710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 9.563000000000102,
+          "audio_seconds": 4.64,
+          "seconds_per_audio_second": 2.060991379310367,
+          "peak_allocated_gib": 4.305707931518555,
+          "sha256": "d70ec84c5ab2385c3b71bdcf6471dae21cf1a92b2d230cdf7adfbb0176fe9e11"
+        },
+        {
+          "text_id": 5,
+          "seed": 2710,
+          "text": "At last, she smiled and whispered, we are finally home.",
+          "seconds": 7.82799999999952,
+          "audio_seconds": 4.24,
+          "seconds_per_audio_second": 1.8462264150942262,
+          "peak_allocated_gib": 4.285945892333984,
+          "sha256": "c04f13c89be2f7096cf9f6d7081e4e3806100d9edf210b40af8866a7adb05bfb"
+        }
+      ]
+    },
+    "asr": [
+      {
+        "arm": "no_lora",
+        "text_id": 0,
+        "seed": 1710,
+        "sha256": "629fc5bdc6e9c95ec3d3461bde2d5b1c4a9fb830a872155d52858fa1cf3dd780",
+        "transcript": "The lantern stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 0,
+        "seed": 2710,
+        "sha256": "6e7af622946699c9dbc0423cbdd61dc8bb2d2ed8e9cc0030f8313337d5748e2c",
+        "transcript": "The lantern stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 1,
+        "seed": 1710,
+        "sha256": "e85e0ce8350cd1dbc393b89dbb4c06d80f5d34aae1e90d149a445c80c85648f0",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 1,
+        "seed": 2710,
+        "sha256": "4a5aaeb3ee9a9324b59f502d084fdcc6bd4ebf9294d0191ab66a9ee750fef762",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 2,
+        "seed": 1710,
+        "sha256": "4206a8b31799038ae2c0f52cb5dbfa496537cfeb739b9dd57a4958e356c9d24d",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 2,
+        "seed": 2710,
+        "sha256": "c8b5d44192d93af6dfab1f6d67536056e7bb2e878485fabb0e2e1507000632dd",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 3,
+        "seed": 1710,
+        "sha256": "b6660108469c3f8a028c66b11a974881dc35811e845ed55a94c453e311d52096",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 3,
+        "seed": 2710,
+        "sha256": "d057f55eb2804cf6b9dda9db5905a83f27aec2a5574afd123a543d7c4223cd0b",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 4,
+        "seed": 1710,
+        "sha256": "745896f2953df0c0e6b10ca58dd2ad14098eaf5a451bf605ccca63e24259387d",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 4,
+        "seed": 2710,
+        "sha256": "0424c7ab813b5cd63da37b21307aa3d0fee3bfeb420e4f1514794d3cddfd4a8c",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 5,
+        "seed": 1710,
+        "sha256": "7c7c5bbd0519b5efcc9122ca115e51639efb6105eaaa5808989aca21cd063ccb",
+        "transcript": "At last she smiled and whispered we are finally home",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "no_lora",
+        "text_id": 5,
+        "seed": 2710,
+        "sha256": "a84f304e40449201572aa995a041cfc93869b4647b55f9773a18ec83511a9de9",
+        "transcript": "At last, she smiled and whispered, we are finally home.",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 0,
+        "seed": 1710,
+        "sha256": "134bdfa1c37ccc32aa1e9aa32a0b2ee832339859f3f8d4dbcda662d4b15d54fb",
+        "transcript": "The lantern stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 0,
+        "seed": 2710,
+        "sha256": "86795195cbf4697ecece5e82faa557e490defa02c79aa889814612e693e219a2",
+        "transcript": "The lanterns stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 1,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 1,
+        "seed": 1710,
+        "sha256": "3f25bd0b9c3751616f39b37b431454e70a8708e98c59f432a69fc98b0e73a21a",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 1,
+        "seed": 2710,
+        "sha256": "2410dd91789a299052093e7a7feae884705a86dd723ef15f043d16a7ac0367dd",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 2,
+        "seed": 1710,
+        "sha256": "3a2b3733c3615c1dfa16011de9897a3b6919337e464e9753cf64e29c8a55efa4",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 2,
+        "seed": 2710,
+        "sha256": "e28c478e30117e326b323ab21d71de68aa86fc43d1b8a215bb0cf3c7a646a11f",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 3,
+        "seed": 1710,
+        "sha256": "13199ee68a0ef2a05ec025e1d544b9a958b4c87ba7c98b2910fa42d14a7a2f8a",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 3,
+        "seed": 2710,
+        "sha256": "a781ce2b8b02c15daacff8a38d78667bbb67494c9d26857984b9a17ac1bc6e96",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 4,
+        "seed": 1710,
+        "sha256": "cfe6b5da815805d6aed275200c310390f88609ba6faa1e59453c17045dc65d0b",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 4,
+        "seed": 2710,
+        "sha256": "35005a150da6eb9162faeaea02db5a119718acd0819380bddb9cde2bb634a9bf",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 5,
+        "seed": 1710,
+        "sha256": "9eb19d89a86883c8939d6631aa25136aefea291814e83a79e3626bb866527e6b",
+        "transcript": "At last, she smiled and whispered, we are finally home.",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "merged",
+        "text_id": 5,
+        "seed": 2710,
+        "sha256": "782cf89467b253d2c18e056c32d99a9ea4ed9db46c56182e3c7faf90d5ae3280",
+        "transcript": "At last, she smiled and whispered, we are finally home.",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 0,
+        "seed": 1710,
+        "sha256": "ff3cd9e24e5d8cd8af9a131e71385556cd19c50f589639e9c31a7d62289b88ba",
+        "transcript": "The lantern stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 0,
+        "seed": 2710,
+        "sha256": "d831aa4e62e91bef5af41061b3a65d7a8a2bd5e50e34616b3e583348365e885a",
+        "transcript": "The lantern stood beside the open door.",
+        "expected": "The lantern stood beside the open door.",
+        "expected_words": 7,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 1,
+        "seed": 1710,
+        "sha256": "deb7a66a28f708f479aced1d0b8098727bf9459ca8a300947fda32e99992f953",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 1,
+        "seed": 2710,
+        "sha256": "45130175a1f95dcd30ee5fa2484d02422c1ae8c067e5ddaefc97f8ad2be35568",
+        "transcript": "Please close the window before the storm arrives.",
+        "expected": "Please close the window before the storm arrives.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 2,
+        "seed": 1710,
+        "sha256": "fac2a2e82a8a7f3e3ca15e90a50b443db16f08d32ec4675eb67d5d8e159544be",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 2,
+        "seed": 2710,
+        "sha256": "aa5977f03c9a49e443170ae8d5568cd7bcbf674511d81861de90f7065928dfb9",
+        "transcript": "Across the quiet valley, a distant bell began to ring.",
+        "expected": "Across the quiet valley, a distant bell began to ring.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 3,
+        "seed": 1710,
+        "sha256": "47fa34456e4051f964a0ed446a451b439317efc8fb64c31059e4f54d09cfdbf5",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 3,
+        "seed": 2710,
+        "sha256": "f5a2b37a617f36617e8c71bd77b4b30cf26d92c815f5d93695776235d8acc1df",
+        "transcript": "I left the blue notebook on the kitchen table.",
+        "expected": "I left the blue notebook on the kitchen table.",
+        "expected_words": 9,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 4,
+        "seed": 1710,
+        "sha256": "25534bb69a2a6311c1274de9d72a91b6e91f06c55e8ffd99acd46bfa878170b9",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 4,
+        "seed": 2710,
+        "sha256": "c82f6b1899ae9589084564146baf6fa7fdf5e757c213326589537a5e63b008a4",
+        "transcript": "When the door opened, nobody was standing outside.",
+        "expected": "When the door opened, nobody was standing outside.",
+        "expected_words": 8,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 5,
+        "seed": 1710,
+        "sha256": "d70ec84c5ab2385c3b71bdcf6471dae21cf1a92b2d230cdf7adfbb0176fe9e11",
+        "transcript": "At last, she smiled and whispered, we are finally home.",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      },
+      {
+        "arm": "unmerged",
+        "text_id": 5,
+        "seed": 2710,
+        "sha256": "c04f13c89be2f7096cf9f6d7081e4e3806100d9edf210b40af8866a7adb05bfb",
+        "transcript": "At last, she smiled and whispered, We are finally home.",
+        "expected": "At last, she smiled and whispered, we are finally home.",
+        "expected_words": 10,
+        "edit_distance": 0,
+        "ending_present": true
+      }
+    ],
+    "asr_controls": {
+      "state": "passed",
+      "records": [
+        {
+          "control": "silence",
+          "transcript": "You",
+          "ending_present": false,
+          "sha256": "ec36dcbee7a0ddbda819515572c041b232fbe4f4e94bc9d71a7421fcbe3b8082",
+          "expected_text": "The lantern stood beside the open door.",
+          "source_sha256": "ff3cd9e24e5d8cd8af9a131e71385556cd19c50f589639e9c31a7d62289b88ba"
+        },
+        {
+          "control": "truncated_half",
+          "transcript": "The lantern stood beside him.",
+          "ending_present": false,
+          "sha256": "1a77cce43c67959b61f09ddf26fdbb2d36dd5be61353ebfa58964b1822285086",
+          "expected_text": "The lantern stood beside the open door.",
+          "source_sha256": "ff3cd9e24e5d8cd8af9a131e71385556cd19c50f589639e9c31a7d62289b88ba"
+        }
+      ]
+    },
+    "scorer_controls": {
+      "controls": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "scorer_settings": {
+      "language": "en",
+      "beam_size": 5,
+      "vad_filter": false,
+      "condition_on_previous_text": false,
+      "initial_prompt": null
+    },
+    "scorer_model_sha256": "62b2a45b05ee59acb4a5341b33ee35e041395d378d418a18acfe4c9e768ee37a",
+    "paired_wall_time_ratio_median": 1.683071643044835,
+    "median_wall_time_ratio": 1.6434117647059954
+  },
+  "identity": {
+    "method": "native_qwen_speaker_encoder_leave_one_text_out_nearest_centroid",
+    "trials": 24,
+    "balanced_accuracy": 0.9583333333333334,
+    "mean_signed_margin": 0.0011143256800648183,
+    "qualified_to_separate_serving_conditions": true,
+    "not_claimed": "perceptual voice identity, superiority, or generalization beyond these texts",
+    "records": [
+      {
+        "text_id": 0,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.00013189329404850495,
+        "correct": true
+      },
+      {
+        "text_id": 0,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0014997123134447617,
+        "correct": true
+      },
+      {
+        "text_id": 0,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0005807041394531156,
+        "correct": true
+      },
+      {
+        "text_id": 0,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0016838317974368145,
+        "correct": true
+      },
+      {
+        "text_id": 1,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.00005421994957181212,
+        "correct": true
+      },
+      {
+        "text_id": 1,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0019450969268482918,
+        "correct": true
+      },
+      {
+        "text_id": 1,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0007153269508167097,
+        "correct": true
+      },
+      {
+        "text_id": 1,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0021690750315890967,
+        "correct": true
+      },
+      {
+        "text_id": 2,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0011540489675086947,
+        "correct": true
+      },
+      {
+        "text_id": 2,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.001072149051696772,
+        "correct": true
+      },
+      {
+        "text_id": 2,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "no_lora",
+        "signed_margin": -0.0005251532871131182,
+        "correct": false
+      },
+      {
+        "text_id": 2,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0009430170713829954,
+        "correct": true
+      },
+      {
+        "text_id": 3,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0008966996244987309,
+        "correct": true
+      },
+      {
+        "text_id": 3,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0024257761149473122,
+        "correct": true
+      },
+      {
+        "text_id": 3,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.00013791855955059065,
+        "correct": true
+      },
+      {
+        "text_id": 3,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0017280402640154685,
+        "correct": true
+      },
+      {
+        "text_id": 4,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0009678278561404713,
+        "correct": true
+      },
+      {
+        "text_id": 4,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0018059491700860417,
+        "correct": true
+      },
+      {
+        "text_id": 4,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0005292623528710545,
+        "correct": true
+      },
+      {
+        "text_id": 4,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0013199033538649958,
+        "correct": true
+      },
+      {
+        "text_id": 5,
+        "seed": 1710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0020489208371222392,
+        "correct": true
+      },
+      {
+        "text_id": 5,
+        "seed": 2710,
+        "actual": "no_lora",
+        "predicted": "no_lora",
+        "signed_margin": 0.0026215001770936823,
+        "correct": true
+      },
+      {
+        "text_id": 5,
+        "seed": 1710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.000317748175970946,
+        "correct": true
+      },
+      {
+        "text_id": 5,
+        "seed": 2710,
+        "actual": "unmerged",
+        "predicted": "unmerged",
+        "signed_margin": 0.0005203476287096575,
+        "correct": true
+      }
+    ]
+  },
+  "qualification_limits": [
+    "Six short English sentences, one public adapter, two seeds, one native Windows ROCm card, batch size one.",
+    "Canonical prefill last-position logits, not full autoregressive teacher forcing.",
+    "ASR evidence is not a pronunciation or acoustic-completeness certificate. Silence control hallucinated You but did not falsely pass endings.",
+    "Speaker encoder separation is not listening acceptance or superiority. One held-out prediction was incorrect.",
+    "Arms ran sequentially in fixed order with one warm-up; no confidence interval, thermal control, long-form, or batch qualification.",
+    "Unmerged serving has no synthesis-recovery certificate or window reuse. Refusal and explicit notice remain; not restored.",
+    "No NVIDIA CUDA or Linux ROCm execution; no claim of full issue closure.",
+    "Raw WAVs, tensors, and embeddings remain local and are not committed; hashes and reproduction scripts are retained."
+  ],
+  "supplemental_controls": {
+    "added_after_measurement": true,
+    "identical_vector_identity": {
+      "trials": 24,
+      "balanced_accuracy": 0.5,
+      "mean_signed_margin": 0,
+      "qualified_to_separate_serving_conditions": false,
+      "performed_on": "2026-11-05"
+    },
+    "test": "app/tests/test_lora_rocm_qualification.py",
+    "scope": "CPU-only instrument control executed after measurement; not a new GPU or listening result"
+  }
+}

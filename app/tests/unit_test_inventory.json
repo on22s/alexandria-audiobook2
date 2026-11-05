@@ -6805,6 +6805,7 @@
     "tests.test_lora_evaluation.CandidateReferencePairingTests.test_incomplete_candidate_cannot_borrow_parent_reference_before_inference",
     "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_actual_evaluator_rebuilds_malformed_cache_then_resumes_verified_replacement",
     "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_malformed_json_probe_containers_are_incomplete_without_mutating_artifacts",
+    "tests.test_lora_evaluation.EvaluationCacheShapeTests.test_pre_bf16_serving_change_evidence_is_not_current",
     "tests.test_lora_evaluation.EvaluationCleanupResumeTests.test_actual_pending_cleanup_is_finished_and_next_run_skips",
     "tests.test_lora_evaluation.EvaluationCleanupResumeTests.test_pending_or_malformed_cleanup_is_not_a_complete_cache",
     "tests.test_lora_evaluation.EvaluationProbeFreshnessTests.test_explicit_failure_with_written_audio_and_empty_fresh_audio_are_rejected",
@@ -6852,6 +6853,8 @@
     "tests.test_lora_input_batch.LoraRequestBoundsTests.test_invalid_fields_reject_before_handler"
   ],
   "test_lora_merge_into_talker": [
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_bfloat16_serves_unmerged_peft_with_autocast_and_no_merge_stamp",
+    "tests.test_lora_merge_into_talker.LoraMergeTests.test_float32_still_merges_and_stamps_recovery_identity",
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_merged_talker_still_exposes_config_for_the_vram_estimator",
     "tests.test_lora_merge_into_talker.LoraMergeTests.test_served_talker_is_the_merged_module_not_the_peft_wrapper"
   ],
@@ -6873,6 +6876,15 @@
     "tests.test_lora_review_integration.ReviewAudioProxyTests.test_proxy_streams_in_range_file_and_blocks_escapes",
     "tests.test_lora_review_integration.ReviewIntegrationTests.test_full_blind_review_flow_over_real_evidence",
     "tests.test_lora_review_integration.ReviewIntegrationTests.test_mutated_checkpoint_rejects_a_stale_submission"
+  ],
+  "test_lora_rocm_qualification": [
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_committed_public_logits_reproduce_the_numeric_gate_on_cpu",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_identical_embedding_conditions_cannot_qualify_separation",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_known_effects_use_fp32_merged_minus_base_reference",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_missing_nonfinite_wrong_shape_and_absent_effect_refuse",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_one_worse_line_refuses_even_with_lower_median",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_portable_source_identity_records_both_historical_digests",
+    "tests.test_lora_rocm_qualification.RocmNumericReplayTests.test_swapped_arms_fail_the_lower_median_gate"
   ],
   "test_lora_route_safety": [
     "tests.test_lora_route_safety.BuiltinLoraDispatchEquivalenceTests.test_builtin_test_route_and_saved_builtin_assignment_use_same_real_audio_path",

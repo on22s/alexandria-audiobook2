@@ -5,7 +5,7 @@ import json
 import os
 from synthesis_settings import get_enabled_synthesis_window_settings
 
-EVALUATION_EVIDENCE_VERSION = 3
+EVALUATION_EVIDENCE_VERSION = 4
 GENERATION_FILES = ('adapter_config.json', 'adapter_model.safetensors',
                     'ref_sample.wav', 'training_meta.json')
 
