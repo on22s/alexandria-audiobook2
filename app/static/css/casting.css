@@ -51,3 +51,5 @@
     .casting-bulkbar { align-items: stretch; }
     .casting-bulkbar > * { max-width: 100%; }
 }
+
+.casting-note { white-space: pre-wrap; overflow-wrap: anywhere; }

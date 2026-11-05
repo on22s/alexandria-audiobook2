@@ -250,6 +250,49 @@ const firstBatch = env => batchCalls(env)[0];
 (async () => {
     let env = setup();
     await env.w.loadCastingLibrary(); await settle();
+    {
+        const noteEnv = setup({marks: {'persona/dh/abel': {notes: 'First line\n<script>literal note</script>'}}});
+        await noteEnv.w.loadCastingLibrary(); await settle();
+        function noteCard() {
+            let card = selectByLabel(noteEnv, 'Review status for ABEL');
+            while (card && !String(card.className).split(' ').includes('card')) { card = card.parentElement; }
+            return card;
+        }
+        function notePanel() {
+            return noteCard().querySelectorAll('details').find(panel =>
+                panel.children[0].textContent === 'Tags, research collections & notes');
+        }
+        const panel = notePanel();
+        ok(panel, 'notes share the renamed organization panel');
+        ok(!panel.open, 'the notes editor starts collapsed');
+        const editor = panel.querySelector('textarea');
+        ok(editor, 'the notes editor lives inside the organization panel');
+        eq(editor.attrs['aria-label'], 'Notes for ABEL');
+        ok(panel.children.at(-1).children[0] === editor, 'notes follow the research collection editor');
+        const body = noteCard().children[0];
+        const preview = body.querySelectorAll('p').find(node => node.className.split(' ').includes('casting-note'));
+        eq(preview.textContent, 'First line\n<script>literal note</script>', 'saved notes render as literal text');
+        const sample = body.querySelectorAll('p').find(node => node.className.split(' ').includes('casting-sample'));
+        ok(body.children.indexOf(sample) < body.children.indexOf(preview), 'notes follow the spoken text');
+        ok(body.children.indexOf(preview) < body.children.length - 1, 'notes precede the variants footer');
+        eq(noteCard().querySelectorAll('textarea').length, 1, 'there is only one card notes editor');
+        eq($(noteEnv, 'results').querySelectorAll('p').filter(node => node.className.split(' ').includes('casting-note')).length,
+           1, 'voices without notes have no preview');
+        panel.open = true;
+        editor.focus();
+        await change(noteEnv, editor, 'Updated\nnotes');
+        eq(noteEnv.serverMarks['persona/dh/abel'].notes, 'Updated\nnotes', 'editing uses the existing save route');
+        eq(noteCard().querySelectorAll('p').find(node => node.className.split(' ').includes('casting-note')).textContent, 'Updated\nnotes', 'saving refreshes the preview');
+        ok(notePanel().open, 'saving preserves the open panel');
+        eq(noteEnv.w.document.activeElement.dataset.castingFocus, 'notes:persona/dh/abel', 'saving restores editor focus');
+        notePanel().open = false;
+        await click(noteEnv, markButton(noteEnv, 'persona/dh/abel', 'stars', 'amber'));
+        ok(!notePanel().open, 'unrelated changes preserve a collapsed notes editor');
+        await noteEnv.w.loadCastingLibrary(); await settle();
+        eq(noteCard().querySelectorAll('p').find(node => node.className.split(' ').includes('casting-note')).textContent, 'Updated\nnotes', 'saved notes survive reloading');
+        await change(noteEnv, notePanel().querySelector('textarea'), '');
+        eq(noteCard().querySelectorAll('p').find(node => node.className.split(' ').includes('casting-note')), undefined, 'clearing notes removes the preview');
+    }
     eq(labels(env).length, 5, 'every voice renders');
     ok($(env, 'research-toolbar').children.length > 0, 'research toolbar mounted');
     ok($(env, 'pagination').children.length > 0, 'pagination mounted');
@@ -937,29 +980,29 @@ const firstBatch = env => batchCalls(env)[0];
         while (card && !String(card.className).split(' ').includes('card')) { card = card.parentElement; }
         return card.querySelectorAll('details').find(panel => panel.children[0].textContent === summary);
     }
-    panelFor('ABEL', 'Tags & research collections').open = true;
-    panelFor('AICHEL', 'Tags & research collections').open = true;
+    panelFor('ABEL', 'Tags, research collections & notes').open = true;
+    panelFor('AICHEL', 'Tags, research collections & notes').open = true;
     panelFor('ABEL', 'Use this voice').open = true;
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'amber'));
-    ok(panelFor('ABEL', 'Tags & research collections').open, 'first panel survives unrelated actions');
-    ok(panelFor('AICHEL', 'Tags & research collections').open, 'second panel survives independently');
+    ok(panelFor('ABEL', 'Tags, research collections & notes').open, 'first panel survives unrelated actions');
+    ok(panelFor('AICHEL', 'Tags, research collections & notes').open, 'second panel survives independently');
     ok(panelFor('ABEL', 'Use this voice').open, 'assignment panel survives too');
-    const closedPanel = panelFor('ABEL', 'Tags & research collections');
+    const closedPanel = panelFor('ABEL', 'Tags, research collections & notes');
     closedPanel.querySelector('input').focus();
     closedPanel.open = false;
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'amber'));
-    ok(!panelFor('ABEL', 'Tags & research collections').open, 'focus does not reopen a manually closed panel');
-    ok(panelFor('AICHEL', 'Tags & research collections').open, 'closing one panel does not close another');
+    ok(!panelFor('ABEL', 'Tags, research collections & notes').open, 'focus does not reopen a manually closed panel');
+    ok(panelFor('AICHEL', 'Tags, research collections & notes').open, 'closing one panel does not close another');
     input($(env, 'search'), 'name:ABEL'); await settle();
     eq(labels(env), ['ABEL'], 'filter really removes the second panel');
     input($(env, 'search'), ''); await settle();
-    ok(panelFor('AICHEL', 'Tags & research collections').open, 'filtered-out state survives absence');
-    ok(!panelFor('ABEL', 'Tags & research collections').open, 'closed state survives filtering');
+    ok(panelFor('AICHEL', 'Tags, research collections & notes').open, 'filtered-out state survives absence');
+    ok(!panelFor('ABEL', 'Tags, research collections & notes').open, 'closed state survives filtering');
     await click(env, $(env, 'view-table'));
     await click(env, $(env, 'view-cards'));
-    ok(panelFor('AICHEL', 'Tags & research collections').open, 'panel state survives switching views');
+    ok(panelFor('AICHEL', 'Tags, research collections & notes').open, 'panel state survives switching views');
     await change(env, cardCheckbox(env, 'persona/dh/aichel'), true);
-    ok(panelFor('AICHEL', 'Tags & research collections').open, 'selection preserves panel state');
+    ok(panelFor('AICHEL', 'Tags, research collections & notes').open, 'selection preserves panel state');
     const focusSelect = selectByLabel(env, 'Review status for ABEL');
     focusSelect.focus();
     await click(env, markButton(env, 'persona/dh/abel', 'stars', 'red'));
