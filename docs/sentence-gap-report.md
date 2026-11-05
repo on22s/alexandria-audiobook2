@@ -4,6 +4,22 @@ Offline analysis of sentence gaps **inside** one rendered take. This is not
 the between-take `dialogue_continuity` gap suggestion, and it never edits
 audio.
 
+In the **Editor**, select a saved line with generated English audio, open
+**Word timing and sentence gaps**, and choose **Analyze sentence gaps**.
+The panel shows each sentence break, the measured and usable quiet interval,
+extra-pause suggestions, and reasons for skipped boundaries. Timed words let
+you seek in the verified take to review by listening. **Cancel analysis**
+uses the existing CPU word-timing task; selecting or editing another take
+clears the old results. No audio or row `pause_after` value is changed.
+
+The installed whisper.cpp Small.en runtime is required; analysis never downloads
+models automatically. The first analysis captures observed ASR words when an
+older timing cache lacks them. Later analyses can reuse those observations,
+but always recompute the acoustic report from freshly verified file bytes.
+The response and cache remain private to the book. Acoustic reports are
+returned for the current request and are not stored in the timing cache.
+The same duration, size and report limits below apply to the UI.
+
 ```bash
 python -m sentence_gap_report \
   --audio take.wav --text-file prepared.txt \

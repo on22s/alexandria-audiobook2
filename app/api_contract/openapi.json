@@ -5803,6 +5803,11 @@
       },
       "WordTimingRequest": {
         "properties": {
+          "analyze_sentence_gaps": {
+            "default": false,
+            "title": "Analyze Sentence Gaps",
+            "type": "boolean"
+          },
           "expected_audio_revision": {
             "anyOf": [
               {

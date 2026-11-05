@@ -14323,6 +14323,11 @@
     "tests.test_word_timing.WordTimingTests.test_native_multiword_groups_retain_group_timing",
     "tests.test_word_timing.WordTimingTests.test_real_cancelled_child_is_reaped_and_timeout_is_finite",
     "tests.test_word_timing.WordTimingTests.test_repeated_missing_and_wrong_words_do_not_receive_invented_times",
+    "tests.test_word_timing.WordTimingTests.test_sentence_gap_analysis_refreshes_legacy_cache_then_reuses_observations",
+    "tests.test_word_timing.WordTimingTests.test_sentence_gap_analysis_refuses_stale_or_cancelled_publication",
+    "tests.test_word_timing.WordTimingTests.test_sentence_gap_api_uses_real_report_and_preserves_book_and_take",
+    "tests.test_word_timing.WordTimingTests.test_sentence_gap_cache_keeps_unmatched_observed_speech_instead_of_inventing_words",
+    "tests.test_word_timing.WordTimingTests.test_sentence_gap_file_bridge_rejects_wrong_bytes_before_decode",
     "tests.test_word_timing.WordTimingTests.test_verified_audio_uses_open_captured_inode_and_refuses_changed_bytes"
   ],
   "test_word_timing_cpu_admission": [
@@ -14330,9 +14335,14 @@
     "tests.test_word_timing_cpu_admission.WordTimingCPUAdmissionTests.test_word_timing_owns_cpu_slot_during_gpu_work_and_cancellation_until_worker_exits"
   ],
   "test_word_timing_js": [
+    "tests.test_word_timing_js.WordTimingJsTests.test_editor_markup_exposes_analysis_and_accessible_results",
     "tests.test_word_timing_js.WordTimingJsTests.test_failed_snapshot_does_not_start_asr_and_wrong_take_result_is_refused",
     "tests.test_word_timing_js.WordTimingJsTests.test_late_reply_cannot_paint_another_line_or_override_pending_edits",
     "tests.test_word_timing_js.WordTimingJsTests.test_reattached_timing_prevents_new_start_and_retains_cancel_after_redraw",
+    "tests.test_word_timing_js.WordTimingJsTests.test_sentence_gap_action_shows_real_fields_and_shares_timing_task_controls",
+    "tests.test_word_timing_js.WordTimingJsTests.test_sentence_gap_empty_result_is_explained_and_listening_never_displays_extra_report",
+    "tests.test_word_timing_js.WordTimingJsTests.test_sentence_gap_report_requires_a_file_identity_even_when_both_hashes_are_missing",
+    "tests.test_word_timing_js.WordTimingJsTests.test_sentence_gap_report_wrong_file_or_late_response_is_not_displayed",
     "tests.test_word_timing_js.WordTimingJsTests.test_unicode_spans_seek_native_player_and_track_playback_without_generation"
   ],
   "test_workbench_status_js": [

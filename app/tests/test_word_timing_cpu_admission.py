@@ -35,7 +35,8 @@ class WordTimingCPUAdmissionTests(unittest.TestCase):
         async def run():
             api = FastAPI(); api.include_router(editor.router)
             token = editor.get_snapshot_digest(editor.get_editor_book_identity(str(fixture.root)))
-            body = {'expected_book_token': token, 'expected_uid': 'row', 'expected_audio_revision': 'take1'}
+            body = {'expected_book_token': token, 'expected_uid': 'row', 'expected_audio_revision': 'take1',
+                    'analyze_sentence_gaps': True}
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api), base_url='http://fixture') as client:
                 task = asyncio.create_task(client.post('/api/chunks/0/word_timing', json=body))
                 try:
@@ -112,6 +113,8 @@ class WordTimingCPUAdmissionTests(unittest.TestCase):
         self.assertEqual(2, len(seen))
         self.assertIn('--no-gpu', seen[1])
         self.assertEqual(2, len(result['spans']))
+        self.assertEqual([{'word': 'Amber', 'start': .1, 'end': .5},
+                          {'word': 'arrives', 'start': .7, 'end': 1.2}], result['segments'])
         self.assertEqual(2, result['duration'])
 
 

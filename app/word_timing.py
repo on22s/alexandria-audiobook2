@@ -188,7 +188,7 @@ def render_word_timing(audio_path, runtime, text, cancel_check, directory):
     payload = transcribe_asr_audio(decoded, runtime, cancel_check, directory, command=command)
     segments = get_coalesced_whisper_cpp_segments(payload.get('transcription'))
     spans = get_validated_word_spans(text, segments, duration)
-    return {'display_text': text, 'spans': spans, 'duration': duration,
+    return {'display_text': text, 'spans': spans, 'segments': segments, 'duration': duration,
             'provider': 'whisper.cpp (English, CPU)', 'language': 'en',
             'notice': 'Estimated ASR timing only. Untimed or repeated words need listening review; this does not certify pronunciation.'}
 

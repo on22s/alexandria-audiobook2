@@ -390,18 +390,20 @@ def _get_timing_payload_digest(evidence):
                                      allow_nan=False, separators=(',', ':')).encode('utf-8')).hexdigest()
 
 
-def get_word_timing_evidence(*, text, pcm, sample_rate, segments, provider, language='en'):
+def get_word_timing_evidence(*, text, pcm, sample_rate, segments, provider, language='en',
+                             cancel_check=None):
     """Prepare a report envelope from existing observed words; never run ASR.
 
     Integrity binds the payload to the declared identity; it does not attest
     who produced the observations. Stripped Editor caches cannot reconstruct it.
     """
     from word_timing import get_timing_fingerprint, get_validated_word_spans
+    _check_cancel(cancel_check)
     arr, duration = _prepare_analysis_inputs(text, pcm, sample_rate, MIN_QUIET_SECONDS)
     evidence = {'display_text': text, 'segments': segments,
                 'spans': get_validated_word_spans(text, segments, duration),
                 'duration': duration, 'provider': provider, 'language': language}
-    binding = {'audio_sha256': get_pcm_digest(arr),
+    binding = {'audio_sha256': get_pcm_digest(arr, cancel_check=cancel_check),
                'text_sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(),
                'provider': provider, 'language': language,
                'payload_sha256': _get_timing_payload_digest(evidence)}
@@ -562,6 +564,25 @@ def get_sentence_gap_report(*, text, word_spans, pcm, sample_rate, provenance,
         sample_rate=sample_rate, pcm_digest=pcm_digest, provenance=provenance,
         explicit_pause_after_sentence=explicit_pause_after_sentence,
         cancel_check=cancel_check, min_quiet_seconds=min_quiet_seconds)
+
+
+def get_sentence_gap_report_for_take(*, audio_path, expected_file_sha256, text,
+                                     segments, provider, language='en', cancel_check=None):
+    """Analyse verified file bytes and real observed words without changing a take."""
+    _check_cancel(cancel_check)
+    _validate_text(text)
+    if not isinstance(expected_file_sha256, str) or not _HEX64.fullmatch(expected_file_sha256):
+        raise ValueError('Sentence-gap analysis requires the selected audio file digest.')
+    pcm, rate, file_digest = _read_wav_bounded(audio_path, cancel_check, expected_file_sha256)
+    evidence = get_word_timing_evidence(text=text, pcm=pcm, sample_rate=rate,
+        segments=segments, provider=provider, language=language, cancel_check=cancel_check)
+    _check_cancel(cancel_check)
+    arr, duration = _prepare_analysis_inputs(text, pcm, rate, MIN_QUIET_SECONDS)
+    pcm_digest = get_pcm_digest(arr, cancel_check=cancel_check)
+    return _build_sentence_gap_report(text=text, word_spans=evidence, arr=arr,
+        duration=duration, sample_rate=rate, pcm_digest=pcm_digest,
+        provenance={**evidence['binding']}, verified_file_sha256=file_digest,
+        cancel_check=cancel_check)
 
 
 def _get_boundary_entry(si, left, right):
