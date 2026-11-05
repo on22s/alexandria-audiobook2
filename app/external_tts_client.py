@@ -17,12 +17,31 @@ from diagnostics import redact_text
 from subprocess_ownership import (start_owned_subprocess, stop_owned_subprocess,
                                   is_subprocess_tree_running)
 from utils import atomic_json_write
+import external_tts_capabilities
 
 
 _REQUEST_CONTROL = ContextVar("external_tts_request_control", default=None)
 PROTOCOL_VERSION = 1
 MAX_REQUEST_BYTES = 2 * 1024**2
-MAX_RESPONSE_BYTES = 16384
+MAX_RESPONSE_BYTES = external_tts_capabilities.MAX_PROTOCOL_RESPONSE_BYTES
+
+
+def get_external_tts_settings(tts_settings):
+    from config_settings import TTSConfig
+    settings = {name: tts_settings.get(name, field.get_default(call_default_factory=True))
+                for name, field in TTSConfig.model_fields.items()
+                if name in ('mode', 'url', 'external_urls', 'external_timeout_seconds')}
+    pool = tts_settings.get("external_urls") or []
+    if not isinstance(pool, list) or any(not isinstance(url, str) for url in pool):
+        raise ValueError("Saved TTS server pool is invalid.")
+    settings['external_urls'] = [url.strip() for url in pool if url.strip()]
+    settings['external_timeout_seconds'] = int(settings['external_timeout_seconds'] or TTSConfig.model_fields['external_timeout_seconds'].default)
+    return settings
+
+
+def get_external_tts_urls(tts_settings):
+    settings = get_external_tts_settings(tts_settings)
+    return settings['external_urls'] or [settings['url']]
 
 
 @contextmanager
@@ -67,13 +86,19 @@ def copy_external_inputs(value, directory):
 class ExternalPrediction(tuple):
     """A copied provider result whose private files belong to the caller."""
 
-    def __new__(cls, path, directory):
+    def __new__(cls, path, directory, owner=None):
         result = super().__new__(cls, (path,))
         result.directory = directory
+        result.owner = owner
         return result
 
     def close(self):
         if self.directory is not None:
+            if self.owner is not None:
+                self.owner.cleanup()
+                self.owner = None
+                self.directory = None
+                return
             try:
                 shutil.rmtree(self.directory)
             except FileNotFoundError:
@@ -135,7 +160,7 @@ def _close_resources(resources):
 
 
 class ExternalTTSClient:
-    """One persistent SDK client per engine endpoint slot, replaced after timeout."""
+    """One owned endpoint slot; generic calls cache SDKs, compatible calls refresh."""
 
     def __init__(self, url, timeout=300, *, environment=None):
         self.url = url
@@ -156,10 +181,12 @@ class ExternalTTSClient:
                 return
             resources.directory = tempfile.TemporaryDirectory(prefix="external-tts-client-")
             command = [sys.executable, str(Path(__file__).resolve()), resources.directory.name]
+            environment = dict(os.environ if self._environment is None else self._environment)
+            environment['HF_HUB_DISABLE_TELEMETRY'] = '1'
             try:
                 resources.process = start_owned_subprocess(
                     command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL, env=self._environment,
+                    stderr=subprocess.DEVNULL, env=environment,
                     start_new_session=(os.name == "posix"),
                     creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
                     termination_grace=1)
@@ -168,6 +195,22 @@ class ExternalTTSClient:
                 raise
 
     def predict(self, *args, **kwargs):
+        response, directory = self._dispatch("predict", args, kwargs, retire_worker=False)
+        return self._prediction_from_response(response, directory)
+
+    def get_capabilities(self):
+        response, _directory = self._dispatch("capabilities", (), {}, retire_worker=True)
+        return response['capabilities']
+
+    def predict_compatible(self, *args, **kwargs):
+        response, directory = self._dispatch("compatible_predict", args, kwargs, retire_worker=True)
+        return self._prediction_from_response(response, directory)
+
+    def _prediction_from_response(self, response, directory):
+        path = str(directory / "audio.wav") if response.get("audio") else None
+        return ExternalPrediction(path, directory, response.get('_output_owner'))
+
+    def _dispatch(self, operation, args, kwargs, retire_worker):
         control = _REQUEST_CONTROL.get()
         deadline, cancelled = (control if control is not None
                                else (time.monotonic() + self.timeout, threading.Event()))
@@ -176,9 +219,11 @@ class ExternalTTSClient:
         try:
             self._check_active(deadline, cancelled)
             request_id = uuid.uuid4().hex
-            request = {"version": PROTOCOL_VERSION, "id": request_id, "url": self.url, "args": args, "kwargs": kwargs}
+            request = {"version": PROTOCOL_VERSION, "id": request_id, "url": self.url, "operation": operation, "args": args, "kwargs": kwargs}
             if len(json.dumps(request).encode("utf-8")) > MAX_REQUEST_BYTES:
                 raise ValueError("External TTS request exceeds its byte limit")
+            if retire_worker:
+                self._resources.stop()
             self._start()
             resources = self._resources
             try:
@@ -211,12 +256,27 @@ class ExternalTTSClient:
                 if "error" in response:
                     error = TimeoutError if response.get("type") == "TimeoutError" else RuntimeError
                     raise error(response["error"] or response.get("type") or "External TTS provider failed")
-                if "audio" not in response:
-                    raise ValueError("External TTS worker returned an incomplete response")
-                if response.get("audio") not in (None, "audio.wav"):
-                    raise ValueError("External TTS worker returned an invalid audio path")
-                path = str(directory / "audio.wav") if response.get("audio") else None
-                return ExternalPrediction(path, directory)
+                if operation == "capabilities":
+                    if not isinstance(response.get("capabilities"), dict):
+                        raise ValueError("External TTS worker returned an incomplete capability report")
+                    resources.stop()
+                elif "audio" not in response or response["audio"] not in (None, "audio.wav"):
+                    raise ValueError("External TTS worker returned an invalid audio response")
+                else:
+                    owner = tempfile.TemporaryDirectory(prefix='external_prediction_')
+                    try:
+                        output_directory = Path(owner.name)
+                        if response['audio']:
+                            shutil.move(str(directory / 'audio.wav'), str(output_directory / 'audio.wav'))
+                        shutil.rmtree(directory)
+                        if operation == 'compatible_predict':
+                            resources.stop()
+                    except BaseException:
+                        owner.cleanup()
+                        raise
+                    directory = output_directory
+                    response['_output_owner'] = owner
+                return response, directory
             except BaseException:
                 resources.stop()
                 raise
@@ -255,19 +315,35 @@ def run_client_worker(directory):
         if not workspace.is_dir() or workspace.is_symlink():
             raise ValueError("Invalid external TTS request workspace")
         response = {"version": PROTOCOL_VERSION, "id": request_id}
+        operation = request.get("operation") or "predict"
         try:
+            if operation not in ('predict', 'capabilities', 'compatible_predict'):
+                raise ValueError("Unsupported external TTS worker operation")
             if client is None:
                 from gradio_client import Client
                 client = Client(request["url"])
-            result = client.predict(*request["args"], **request["kwargs"])
-            source = result[0]
-            if source and os.path.isfile(source):
-                shutil.copyfile(source, workspace / "audio.wav")
-                response["audio"] = "audio.wav"
+            if operation == 'capabilities':
+                metadata = client.view_api(return_format="dict", print_info=False)
+                response['capabilities'] = external_tts_capabilities.build_capability_report(request['url'], metadata)
             else:
-                response["audio"] = None
+                call_args, call_kwargs = tuple(request['args']), dict(request['kwargs'])
+                if operation == 'compatible_predict':
+                    metadata = client.view_api(return_format="dict", print_info=False)
+                    call_args, call_kwargs = external_tts_capabilities.build_compatible_call(request['url'], metadata, call_args, call_kwargs)
+                result = client.predict(*call_args, **call_kwargs)
+                source = result if isinstance(result, str) else result[0]
+                if source and os.path.isfile(source):
+                    shutil.copyfile(source, workspace / "audio.wav")
+                    response["audio"] = "audio.wav"
+                else:
+                    response["audio"] = None
         except Exception as error:
-            response.update(error=redact_text(str(error))[:2000], type=type(error).__name__)
+            if operation == 'capabilities':
+                response['capabilities'] = external_tts_capabilities.make_unknown_capability_report(request['url'], external_tts_capabilities.UNAVAILABLE_ERROR)
+            else:
+                response.update(error=redact_text(str(error)), type=type(error).__name__)
+        if operation == 'capabilities' and len(json.dumps(response).encode('utf-8')) > MAX_RESPONSE_BYTES:
+            response['capabilities'] = external_tts_capabilities.make_unknown_capability_report(request['url'], external_tts_capabilities.MALFORMED_ERROR)
         atomic_json_write(response, str(workspace / "response.json"))
 
 

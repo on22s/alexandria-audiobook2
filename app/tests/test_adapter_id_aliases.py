@@ -587,7 +587,7 @@ class AdapterIdAliasTests(unittest.TestCase):
             def endpoint(*args):
                 # The source may change while the provider connection is made.
                 Path(current).write_bytes(b'replaced after snapshot')
-                return SimpleNamespace(predict=predict),threading.Lock()
+                return SimpleNamespace(predict_compatible=predict),threading.Lock()
             engine=tts.TTSEngine({'tts':{'mode':'external'}})
             with patch.dict(sys.modules,{'gradio_client':SimpleNamespace(handle_file=lambda path:path)}), \
                  patch.object(engine,'_external_endpoint',side_effect=endpoint):

@@ -28,7 +28,7 @@ class _FakeClient:
 
     behaviour_for = {}
 
-    def predict(self, *args, **kwargs):
+    def predict_compatible(self, *args, **kwargs):
         self.calls.append(kwargs.get("text") or (args[2] if len(args) > 2 else None))
         if self.behaviour == "raise":
             raise RuntimeError("server exploded")
@@ -104,7 +104,7 @@ class ExternalPoolTests(unittest.TestCase):
                 with self.subTest(kind=kind, payload_size=len(payload)):
                     output.write_bytes(good.read_bytes())
                     engine = _engine([])
-                    with patch.object(_FakeClient, "predict", return_value=(str(broken),)):
+                    with patch.object(_FakeClient, "predict_compatible", return_value=(str(broken),)):
                         if kind == "custom":
                             success = engine.generate_custom_voice("Hi", "", speaker, self.voice_config, str(output))
                         else:

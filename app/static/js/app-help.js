@@ -46,6 +46,7 @@
             'tts-url': {what: 'Address of the external Qwen3-TTS Gradio server.'},
             'tts-external-urls': {what: 'Extra external TTS servers, one per line. Batch rendering spreads lines across them. Empty uses only the address above.'},
             'tts-external-timeout': {what: 'A line that takes longer than this on an external server is marked failed instead of waited on.'},
+            'tts-external-server-number': {what: 'Select the saved external server to inspect, numbered from 1 in saved pool order. The check reads schema only; it does not save settings or generate audio.'},
             'tts-device': {what: 'Where the local TTS model runs. Auto picks the best available GPU, else the CPU.'},
             'tts-language': {what: 'Language the audio is spoken in. It does not change script generation; edit the prompts for that.'},
             'parallel-workers': {what: 'How many TTS requests run at once. More can be faster on a large GPU or server pool, but uses more memory.'},

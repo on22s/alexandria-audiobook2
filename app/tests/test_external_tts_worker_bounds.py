@@ -24,7 +24,7 @@ class ExternalWorkerBoundsTests(unittest.TestCase):
                 class Client:
                     def __init__(self, url):
                         self.url = url
-                    def predict(self, **kwargs):
+                    def predict_compatible(self, **kwargs):
                         calls.append(kwargs['text']); entered.set(); release.wait(5)
                         return (str(provider),)
                 fake = type('SDK', (), {'Client': Client})
