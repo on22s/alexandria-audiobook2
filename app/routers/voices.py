@@ -51,7 +51,7 @@ from core import (
     run_process,
 )
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
-from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows, validate_adapter_name
+from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows, get_resolved_adapter_id_mapping, validate_adapter_name
 from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields, resolve_narrator_voice_config, voice_category, voice_is_set
 from speaker_traits import (get_age_distance, get_library_age_group,
                             get_entry_speaker, get_normalized_age_group, get_normalized_gender,
@@ -494,8 +494,30 @@ def get_voice_rows(script_data, voice_config):
                "persona_pending": not voice_is_set(entry)}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
-        if name in state_targets and not (row["config"].get("alias_of") or row["config"].get("alias")):
+        # Alias eligibility matches the canonical runtime
+        # (tts.get_resolved_speaker): only a non-blank string alias counts.
+        # A whitespace/non-string legacy value is ignored by the runtime, so
+        # it must not suppress persona states here either.
+        _effective_alias = row["config"].get("alias_of") or row["config"].get("alias")
+        _has_effective_alias = isinstance(_effective_alias, str) and bool(_effective_alias.strip())
+        if name in state_targets and not _has_effective_alias:
+            # Nullable contract: versions null/absent means no saved states.
+            # A present non-object versions container (or a non-object saved
+            # state for a current target) is malformed ACTIVE data: refuse
+            # via domain ValueError instead of raising AttributeError.
             saved = row["config"].get("versions", {})
+            if saved is None:
+                saved = {}
+            if not isinstance(saved, dict):
+                raise ValueError(
+                    f"Speaker '{name}' has malformed voice versions (not an object); "
+                    "restore the saved voice configuration before continuing.")
+            for _target in state_targets[name]:
+                if _target["version_id"] in saved and not isinstance(saved[_target["version_id"]], dict):
+                    raise ValueError(
+                        f"Speaker '{name}' has a malformed saved voice state "
+                        f"'{_target['version_id']}'; restore the saved voice configuration "
+                        "before continuing.")
             # Each state says whether its saved version is current, by the
             # server's own rule, so the cards never re-derive it (C37).
             # Each state carries its own line count (the character's spoken
@@ -513,10 +535,53 @@ def get_voice_rows(script_data, voice_config):
     return rows
 
 
+def _enter_read_admission(stack, *factories):
+    """Enter read-admission managers, mapping entry failures honestly.
+
+    Factories are called inside the try so entry-stage construction
+    failures are mapped too. Entry-stage TimeoutError is a busy 503;
+    entry-stage OSError/ValueError (filesystem, lock, invalid
+    journal/root admission) is a 409 integrity refusal. Body-stage
+    corrupt JSON/domain errors are mapped separately by each facade
+    (400), so this wrapper never masks them, and real programmer
+    TypeError/AttributeError errors propagate unchanged.
+    """
+    for factory in factories:
+        try:
+            stack.enter_context(factory())
+        except TimeoutError as exc:
+            raise HTTPException(status_code=503, detail=(
+                "Book or voices are busy; please try again.")) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading voices. "
+                "Restore the book state or try again.")) from exc
+
+
 def _ensure_voice_listing():
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH)):
-        script_data = safe_load_json(SCRIPT_PATH, default=[]) if os.path.exists(SCRIPT_PATH) else []
-        voice_config = safe_load_json(VOICE_CONFIG_PATH, default={}) if os.path.exists(VOICE_CONFIG_PATH) else {}
+    # Strict listing (DS3005): reuse the same snapshot admission the
+    # guarded snapshot route uses. Corrupt/unreadable PRESENT script or
+    # voice data refuses clearly instead of folding into plausible
+    # defaults; absent files stay ordinary (empty roster / unconfigured).
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        _enter_read_admission(stack, lambda: ensure_book_state(os.path.dirname(SCRIPT_PATH)))
+        try:
+            snapshot = get_book_snapshot(os.path.dirname(SCRIPT_PATH),
+                                         allow_missing_script=True)
+            script_data = (json.loads(snapshot["script_bytes"])
+                           if snapshot["script_bytes"] is not None else [])
+            if not isinstance(script_data, list):
+                raise ValueError("Active script must contain an entry list")
+            voice_config = snapshot["voices"]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=(
+                "Active book data is invalid and cannot be read. "
+                "Restore the book state or reload the script, then try again.")) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading voices. "
+                "Restore the book state or try again.")) from exc
         try:
             return get_voice_rows(script_data, voice_config)
         except ValueError as exc:
@@ -572,6 +637,14 @@ async def select_voice_version(speaker: str, version_id: str, request: VoiceBook
             raise HTTPException(status_code=409, detail="This is a character-state voice; apply it from Voice changes on its state card")
         after = {**entry, **get_version_fields(entry, version_id), "age_group": version.get("age_group"),
                  "active_version": version_id, "voice_status": "assigned"}
+        # DS3010: if the chosen version does not explicitly define a
+        # pin and its adapter differs from the entry's, the old pin
+        # must not follow the new asset. Same-adapter versions keep it.
+        if "adapter_generation_sha256" not in (get_version_fields(entry, version_id) or {}):
+            if not _voice_adapter_identity_same(
+                    entry.get("type") or "custom", entry.get("adapter_id"),
+                    after.get("type") or "custom", after.get("adapter_id")):
+                after["adapter_generation_sha256"] = None
         get_validated_voice_changes(speaker, entry, after)
         entry.clear()
         entry.update(after)
@@ -1135,6 +1208,33 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
         raise
     return {"status": "resuming" if request.resume else "saved", "speaker": request.speaker}
 
+def _voice_adapter_identity_same(old_type, old_adapter_id, new_type, new_adapter_id):
+    """Whether two LoRA identities name the same physical adapter (DS3031).
+
+    Identity is the type plus the manifest-resolved adapter id, never a
+    raw adapter_path string: relative/absolute spellings and catalog
+    moves of the same id are the same asset, and a manifest rename
+    (previous_ids) resolves both spellings to one current id through the
+    existing voice_manifest seam. If identity equivalence cannot be
+    established (resolution raises), fail closed and retain the pin
+    rather than silently unpinning. Only a genuine replacement with a
+    different resolved identity, or a type change, is a different asset.
+    """
+    if (old_type or "custom") != (new_type or "custom"):
+        return False
+    if not old_adapter_id or not new_adapter_id:
+        return False
+    if os.path.normcase(str(old_adapter_id)) == os.path.normcase(str(new_adapter_id)):
+        return True
+    try:
+        resolved = get_resolved_adapter_id_mapping(
+            LORA_MODELS_DIR, [str(old_adapter_id), str(new_adapter_id)])
+    except Exception:
+        return True
+    return (os.path.normcase(str(resolved[str(old_adapter_id)]))
+            == os.path.normcase(str(resolved[str(new_adapter_id)])))
+
+
 def _apply_voice_save(config_data, expected_revision=None, book_token=None):
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
         def apply_updates(current_config):
@@ -1176,35 +1276,18 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 # source P, including when the target already holds P).
                 # Only when the pin is omitted does the conservative rule
                 # apply, and it uses genuine adapter identity (type +
-                # adapter_id + canonical adapter_path), never inactive
-                # voice/ref fields: same adapter keeps its pin; any adapter
-                # replacement or move to a non-LoRA type clears the old pin.
+                # manifest-resolved adapter id), never inactive voice/ref
+                # fields and never a raw adapter_path string compare
+                # (DS3031): same adapter keeps its pin across path
+                # spellings/catalog moves; any genuine adapter replacement
+                # or move to a non-LoRA type clears the old pin.
                 if 'adapter_generation_sha256' not in fields:
                     new_type = fields.get("type", metadata.get("type")) or "custom"
                     old_type = metadata.get("type") or "custom"
                     new_adapter = fields.get("adapter_id", metadata.get("adapter_id")) or None
                     old_adapter = metadata.get("adapter_id") or None
-                    new_path = fields.get("adapter_path", metadata.get("adapter_path")) or None
-                    old_path = metadata.get("adapter_path") or None
-                    # Canonical fallback: an id-only LoRA resolves to
-                    # builtin_lora/{id} or lora_models/{id}; missing stored
-                    # paths must not spuriously look like a new asset.
-                    def _canonical(vtype, aid, path):
-                        if path:
-                            return path
-                        if vtype in ("lora", "builtin_lora") and aid:
-                            try:
-                                return get_library_voice_config({"type": vtype, "adapter_id": aid})["adapter_path"]
-                            except Exception:
-                                return path
-                        return path
-                    same_adapter = (
-                        new_type == old_type
-                        and bool(new_adapter)
-                        and new_adapter == old_adapter
-                        and _canonical(new_type, new_adapter, new_path) == _canonical(old_type, old_adapter, old_path)
-                    )
-                    if not same_adapter:
+                    if not _voice_adapter_identity_same(
+                            old_type, old_adapter, new_type, new_adapter):
                         candidate["adapter_generation_sha256"] = None
                 get_validated_voice_changes(voice_name, metadata, candidate, allow_state_removal=book_token is not None)
                 updated[voice_name] = candidate
@@ -1241,7 +1324,10 @@ class GuardedVoiceSaveRequest(BaseModel):
 
 
 def _ensure_voice_snapshot():
-    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_CONFIG_PATH):
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        _enter_read_admission(stack, lambda: ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)),
+                              lambda: file_lock(VOICE_CONFIG_PATH))
         # Only the structured book-data reads are mapped: get_book_snapshot
         # raises ValueError (incl. JSONDecodeError) for malformed top-level
         # book/voice JSON, and the script bytes are parsed here. A malformed
@@ -1256,6 +1342,10 @@ def _ensure_voice_snapshot():
             raise HTTPException(status_code=400, detail=(
                 "Active book data is invalid and cannot be read. "
                 "Restore the book state or reload the script, then try again.")) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading voices. "
+                "Restore the book state or try again.")) from exc
         config = snapshot["voices"]
         # Revision/token/identity/rows are also intended snapshot reads:
         # nonfinite/corrupt book data (NaN/Infinity via plain loads) makes
@@ -1264,7 +1354,24 @@ def _ensure_voice_snapshot():
         try:
             revision = get_voice_config_revision(config)
             book_token = get_book_snapshot_token(snapshot)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=(
+                "Active book data is invalid and cannot be read. "
+                f"{exc} Restore the book state or reload the script, then try again.")) from exc
+        # Operation-token derivation can raise ValueError for a transient
+        # root/admission race (DS3085): that is a retryable 409, not a
+        # corrupt-data 400. Narrow try only, mirroring the source preview.
+        try:
             book_identity_token = get_book_operation_token(os.path.dirname(VOICE_CONFIG_PATH))
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading voices. "
+                "Restore the book state or try again.")) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading voices. "
+                "Restore the book state or try again.")) from exc
+        try:
             voices = get_voice_rows(script, config)
             seed_changes = get_unseeded_voice_seed_changes(config)
         except ValueError as exc:
@@ -1321,30 +1428,30 @@ def _direct_source_asset(source_speaker, source_config):
     # silently cleared as a side effect. Canonical runtime alias
     # resolution (tts.get_resolved_speaker) is unchanged.
     for alias_key in ("alias_of", "alias"):
-        alias_value = (source_config or {}).get(alias_key)
+        alias_value = source_config.get(alias_key)
         if alias_value is not None and alias_value != "" and not isinstance(alias_value, str):
             raise HTTPException(status_code=422, detail=(
                 f"Speaker '{source_speaker}' has malformed alias metadata (not text). "
                 "Restore the saved voice configuration before applying it."))
-    alias = (source_config or {}).get("alias_of") or (source_config or {}).get("alias")
+    alias = source_config.get("alias_of") or source_config.get("alias")
     if isinstance(alias, str) and alias.strip():
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' is an alias of '{alias.strip()}'. "
             "Choose a speaker with a direct base voice, then use its voice for the book."))
-    if (source_config or {}).get("active_version"):
+    if source_config.get("active_version"):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' speaks with a selected version. "
             "Choose a speaker whose base voice is direct, then use its voice for the book."))
-    if (source_config or {}).get("version_timeline"):
+    if source_config.get("version_timeline"):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' has a version timeline. "
             "Choose a speaker whose base voice is direct, then use its voice for the book."))
-    strategy = (source_config or {}).get("narrator_strategy")
+    strategy = source_config.get("narrator_strategy")
     if strategy not in (None, "global"):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' uses an active narrator strategy ('{strategy}'). "
             "Choose a speaker whose base voice is direct, then use its voice for the book."))
-    voice_type = (source_config or {}).get("type") or "custom"
+    voice_type = source_config.get("type") or "custom"
     if voice_type == "design":
         # A raw design description asks for a NEW voice; choosing an existing
         # asset must never create one implicitly. Saved designed voices are
@@ -1354,18 +1461,18 @@ def _direct_source_asset(source_speaker, source_config):
             f"Speaker '{source_speaker}' holds a Voice Design description, which would create a "
             "new voice. Choose a speaker whose saved asset is direct (custom, LoRA, clone or "
             "saved designed reference), then use its voice for the book."))
-    if voice_category(source_config or {}) == "ensemble":
+    if voice_category(source_config) == "ensemble":
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' is an ensemble. "
             "Choose a speaker with one direct base voice, then use its voice for the book."))
     def _text(key):
-        value = (source_config or {}).get(key)
+        value = source_config.get(key)
         return value if isinstance(value, str) else ""
     # Adapter generation pin: strict 64-lowercase-hex or null. A malformed
     # pin on the chosen source refuses with no write instead of silently
     # unpinning a pinned source or transferring garbage. The pin P is
     # transferred unchanged to targets; it is never recomputed from disk Q.
-    source_pin = (source_config or {}).get("adapter_generation_sha256")
+    source_pin = source_config.get("adapter_generation_sha256")
     if source_pin is not None and (not isinstance(source_pin, str)
             or not re.fullmatch(r"[0-9a-f]{64}", source_pin)):
         raise HTTPException(status_code=422, detail=(
@@ -1431,20 +1538,26 @@ def _direct_source_asset(source_speaker, source_config):
 def _voice_asset_summary(config):
     data = config if isinstance(config, dict) else {}
     timeline = data.get("version_timeline")
+    # Effective-alias COMPARISON uses the canonical nonblank-string
+    # rule (DS3039): whitespace/non-string aliases are ignored by the
+    # runtime, so they must not read as an audible voice change here.
+    # The raw override-clearing disclosure in build_single_voice_proposal
+    # still inspects the stored keys directly; stored bytes are untouched.
+    _raw_alias = data.get("alias_of") or data.get("alias")
+    _effective_alias = _raw_alias if isinstance(_raw_alias, str) and _raw_alias.strip() else None
     return {"type": data.get("type") or "custom", "voice": data.get("voice"),
             "ref_audio": data.get("ref_audio"), "ref_text": data.get("ref_text"),
             "adapter_id": data.get("adapter_id"), "adapter_path": data.get("adapter_path"),
             "adapter_generation_sha256": data.get("adapter_generation_sha256"),
-            "description": data.get("description"), "members": data.get("members"),
-            "alias_of": data.get("alias_of") or data.get("alias"),
-            "alias": data.get("alias"), "active_version": data.get("active_version"),
+            "members": data.get("members"),
+            "alias_of": _effective_alias,
+            "alias": _effective_alias, "active_version": data.get("active_version"),
             # A malformed (non-list) timeline passes through untouched so the
             # change detection sees it instead of a list of characters (#1724 C045).
             "version_timeline": list(timeline) if isinstance(timeline, list)
             else ([] if timeline is None else timeline),
             # None and "global" are the same effective strategy (#1724 C007).
-            "narrator_strategy": data.get("narrator_strategy") or "global",
-            "ready": bool(data.get("ready"))}
+            "narrator_strategy": data.get("narrator_strategy") or "global"}
 
 
 def build_single_voice_proposal(voices, script, source_speaker):
@@ -1489,7 +1602,7 @@ def build_single_voice_proposal(voices, script, source_speaker):
     names = [row["name"] for row in rows]
     if source_speaker not in names:
         raise HTTPException(status_code=404, detail=f"Speaker '{source_speaker}' is not in the active script.")
-    source_config = (voices or {}).get(source_speaker)
+    source_config = voices.get(source_speaker)
     if source_config is None:
         source_config = {}
     asset = _direct_source_asset(source_speaker, source_config)
@@ -1499,7 +1612,7 @@ def build_single_voice_proposal(voices, script, source_speaker):
     # "alias" key is never sent as a writable field.
     patch_template.update({"alias_of": None, "version_timeline": [],
                            "active_version": None, "narrator_strategy": "global",
-                           "ready": False})
+                           "active_candidate": None, "ready": False})
     # Per-speaker voice_status: only speakers whose effective voice or
     # active overrides change lose stale voice approval (reset to
     # unassigned). persona_status and persona/performance metadata
@@ -1534,15 +1647,14 @@ def build_single_voice_proposal(voices, script, source_speaker):
     after_summary = _voice_asset_summary(patch_template)
     for row in rows:
         name = row["name"]
-        before = (voices or {}).get(name)
+        before = voices.get(name)
         patch = dict(patch_template)
         changes = []
-        before_summary = _voice_asset_summary(before) if isinstance(before, dict) else _voice_asset_summary({})
+        before_summary = _voice_asset_summary(before)
         # Persona description is preserved per target, not part of the
-        # applied asset: exclude it from the "voice changed" comparison.
-        comparable_before = {**before_summary, "description": None,
-                             "ready": after_summary["ready"]}
-        voice_changed = comparable_before != {**after_summary, "description": None}
+        # applied asset, and ready is detected separately below: neither
+        # is part of the "voice changed" comparison.
+        voice_changed = before_summary != after_summary
         if voice_changed:
             changes.append("voice changed")
         if isinstance(before, dict) and (before.get("alias_of") or before.get("alias")):
@@ -1551,18 +1663,28 @@ def build_single_voice_proposal(voices, script, source_speaker):
             changes.append("version timeline/active version cleared")
         if isinstance(before, dict) and before.get("narrator_strategy") not in (None, "global"):
             changes.append("narrator strategy reset to global")
+        if isinstance(before, dict) and before.get("active_candidate"):
+            # UI-only marker: the saved candidate no longer names the
+            # applied voice. Disclosed in the preview; clearing it does
+            # not reset voice approval (no audible change by itself).
+            changes.append("active candidate cleared (saved candidates kept)")
         if isinstance(before, dict) and bool(before.get("ready")):
             changes.append("ready reset (needs new listening approval)")
         # Reset stale voice approval exactly where the effective voice or
-        # active overrides change; otherwise preserve (omit the key).
-        effective_changed = voice_changed or ("alias cleared" in changes
+        # active overrides change; otherwise preserve (omit the key). An
+        # alias the runtime ignores (whitespace/non-string) does not make
+        # the effective voice change, even though its raw key is cleared
+        # and disclosed above (DS3039).
+        _raw_before_alias = (before.get("alias_of") or before.get("alias")) if isinstance(before, dict) else None
+        _effective_before_alias = (_raw_before_alias if isinstance(_raw_before_alias, str)
+                                   and _raw_before_alias.strip() else None)
+        effective_changed = voice_changed or ("alias cleared" in changes and _effective_before_alias
             or "version timeline/active version cleared" in changes
             or "narrator strategy reset to global" in changes)
-        if effective_changed and isinstance(before, dict) and before.get("voice_status"):
+        if effective_changed:
             patch["voice_status"] = "unassigned"
-            changes.append("voice approval reset (needs new listening approval)")
-        elif effective_changed:
-            patch["voice_status"] = "unassigned"
+            if isinstance(before, dict) and before.get("voice_status"):
+                changes.append("voice approval reset (needs new listening approval)")
         # Revalidate the per-speaker patch when the approval reset was added.
         if "voice_status" in patch:
             VoiceConfigItem(**patch)
@@ -1578,7 +1700,13 @@ def build_single_voice_proposal(voices, script, source_speaker):
 
 
 def _ensure_single_voice_preview(request):
-    with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)), file_lock(VOICE_CONFIG_PATH):
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        # Entry-stage admission failures (book state / voice lock) are
+        # honest 409/503 refusals, not corrupt-data 400s; body-stage
+        # corrupt JSON still reaches the route's 400 handler below.
+        _enter_read_admission(stack, lambda: ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)),
+                              lambda: file_lock(VOICE_CONFIG_PATH))
         snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
         book_token = get_book_snapshot_token(snapshot)
         if book_token != request.book_token:
@@ -1610,6 +1738,13 @@ async def preview_single_voice(request: SingleVoicePreviewRequest):
             "Restore the book state or reload the script, then preview again.")) from exc
     except TimeoutError:
         raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+    except OSError as exc:
+        # Filesystem admission/read failures (lock, state, voice files) are
+        # honest 409 refusals matching the source-preview sibling, never
+        # an unhandled 500. Narrow: only this preview route's read seam.
+        raise HTTPException(status_code=409, detail=(
+            "Active book could not be verified while previewing. "
+            "Restore the book state or try again.")) from exc
 
 
 
@@ -2329,6 +2464,12 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                     cfg = dict(voice_config.get(character) or {})
                     cfg.pop("active_candidate", None)
                     cfg.pop("active_version", None)
+                    # DS3010: a genuine adapter replacement clears the
+                    # unrelated old pin; the same adapter keeps it.
+                    if not _voice_adapter_identity_same(
+                            cfg.get("type") or "custom", cfg.get("adapter_id"),
+                            candidate["type"], adapter_id):
+                        cfg["adapter_generation_sha256"] = None
                     cfg.update({
                         "type": candidate["type"], "adapter_id": adapter_id,
                         "adapter_path": (f"builtin_lora/{adapter_id}" if candidate["type"] == "builtin_lora"

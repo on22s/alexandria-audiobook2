@@ -70,6 +70,52 @@ class VoiceConfigRevisionTests(unittest.TestCase):
             payload=self.payload(snapshot,'bad');payload['revision']='invalid';result=client.post('/api/voice_config/save',json=payload);self.assertEqual(422,result.status_code);self.assertFalse(path.exists())
             payload=self.payload(snapshot,'bad');payload['book_token']='0'*64;result=client.post('/api/voice_config/save',json=payload);self.assertEqual(409,result.status_code);self.assertFalse(path.exists())
 
+    def test_nonfinite_and_deep_nesting_refuse_before_any_write(self):
+        # Raw NaN/Infinity must travel as request bytes (httpx json= would
+        # refuse client-side); the server must validate the final proposed
+        # map BEFORE committing, leaving the file byte-identical.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, path = self.fixture(root, stack)
+            snapshot = client.get('/api/voice_config/snapshot').json()
+            before = path.read_bytes()
+            def raw_payload(versions_value):
+                payload = {'revision': snapshot['revision'], 'book_token': snapshot['book_token'],
+                           'voices': {'ALICE': {'type': 'custom', 'voice': 'Serena',
+                                                'versions': {'v1': versions_value}}}}
+                return json.dumps(payload)  # allow_nan=True: emits NaN/Infinity tokens
+            cases = {
+                'nan': {'n': float('nan')},
+                'infinity': {'n': float('inf')},
+                'neg_infinity': {'n': float('-inf')},
+            }
+            for label, versions_value in cases.items():
+                with self.subTest(case=label):
+                    result = client.post('/api/voice_config/save', content=raw_payload(versions_value),
+                                         headers={'Content-Type': 'application/json'})
+                    self.assertIn(result.status_code, (400, 409, 422), result.text)
+                    self.assertEqual(before, path.read_bytes(),
+                                     'nonfinite payload must not be written')
+            # Deeply nested beyond the JSON parser's own limit: the body
+            # parse itself refuses (400) and nothing is written.
+            with self.subTest(case='deep_nesting'):
+                deep_raw = '{"n":' * 3000 + '1' + '}' * 3000
+                raw = ('{"revision":"' + snapshot['revision'] + '","book_token":"'
+                       + snapshot['book_token'] + '","voices":{"ALICE":{"type":"custom",'
+                       '"voice":"Serena","versions":{"v1":' + deep_raw + '}}}}')
+                result = client.post('/api/voice_config/save', content=raw,
+                                     headers={'Content-Type': 'application/json'})
+                self.assertIn(result.status_code, (400, 409, 422), result.text)
+                self.assertEqual(before, path.read_bytes(),
+                                 'deep payload must not be written')
+            # Valid finite control still persists with a matching revision.
+            result = client.post('/api/voice_config/save',
+                                 content=raw_payload({'n': 1.5}),
+                                 headers={'Content-Type': 'application/json'})
+            self.assertEqual(200, result.status_code, result.text)
+            saved = json.loads(path.read_bytes())
+            self.assertEqual(1.5, saved['ALICE']['versions']['v1']['n'])
+            self.assertEqual(get_voice_config_revision(saved), result.json()['revision'])
+
     def test_revision_is_order_independent_and_includes_unknown_fields_and_zero(self):
         first={'ALICE':{'seed':0,'future':{'a':1,'b':2}}};second={'ALICE':{'future':{'b':2,'a':1},'seed':0}}
         self.assertEqual(get_voice_config_revision(first),get_voice_config_revision(second))

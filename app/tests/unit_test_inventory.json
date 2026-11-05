@@ -1,4 +1,26 @@
 {
+  "test_1724_deepseek_repairs_v3": [
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_absent_and_inactive_malformed_legacy_stay_ordinary",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_corrupt_listing_refuses_both_files_without_writing",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_explicit_pin_and_null_always_win",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_filesystem_oserror_is_honest_refusal_not_500",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_null_means_absent_but_list_refuses",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_string_refuses_on_preview_too",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_omitted_pin_genuine_replacement_clears_p",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_omitted_pin_same_asset_path_spelling_preserves_p",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_suggestions_writer_clears_unrelated_pin_only_on_replacement",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_version_select_writer_clears_unrelated_pin_only_on_replacement",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_whitespace_alias_same_voice_no_false_approval_reset",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_whitespace_and_nonstring_alias_do_not_suppress_persona_states",
+    "tests.test_1724_deepseek_repairs_v3.ReadAdmissionEntryTests.test_ensure_book_state_entry_failures",
+    "tests.test_1724_deepseek_repairs_v3.ReadAdmissionEntryTests.test_lock_entry_timeout_is_busy",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_returned_identity_belongs_to_loaded_book_not_later_book",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_token_captured_under_lease_survives_interleaving_book_switch",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_unverifiable_identity_returns_none",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_both_generation_readers_refuse_swapped_parent",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_digest_only_read_requests_no_bytes",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_plain_source_valid_controls"
+  ],
   "test_1724_r2_regressions": [
     "tests.test_1724_r2_regressions.AdmissionRouteTests.test_invalid_journal_maps_to_409_no_mutation",
     "tests.test_1724_r2_regressions.BackendSeamTests.test_adapter_id_whitespace_normalized_and_dotdot_refused",
@@ -19,8 +41,17 @@
     "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_generated_map_roundtrip_invariant",
     "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_reserved_names_roundtrip_http",
     "tests.test_1724_r2_regressions.SourceIdentityJsTests.test_selected_upload_authoritative_over_stale_snapshot",
+    "tests.test_1724_r2_regressions.WaitingLoadCoalesceTests.test_same_book_waiter_coalesces_on_newer_load",
+    "tests.test_1724_r2_regressions.WaitingLoadRecoveryTests.test_failed_newer_load_does_not_supersede_waiter",
+    "tests.test_1724_r2_regressions.WaitingLoadRestoredTests.test_restored_tab_waiter_coalesces_on_newer_same_book_load",
     "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_legitimate_when_no_newer",
-    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_obsolete_does_not_supersede_newer"
+    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_obsolete_does_not_supersede_newer",
+    "tests.test_1724_r2_regressions.WaitingLoadUnavailableControlTests.test_unavailable_selection_never_falls_back_to_old_snapshot"
+  ],
+  "test_1724_voice_navigation_js": [
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_guide_read_only_voices_open_writes_no_defaults",
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_ordinary_voices_navigation_still_autosaves_defaults",
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_tab_load_rejections_visible_except_benign_supersession"
   ],
   "test_action_error_guidance_js": [
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_designer_preview_failure_keeps_inputs_and_escapes_diagnostics",
@@ -10259,7 +10290,9 @@
   ],
   "test_saved_script_hydration_js": [
     "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_confirmed_saved_loads_are_serialized_and_only_latest_publishes",
-    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered"
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered",
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_invalid_load_token_sets_unavailable_identity_not_adoption",
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_load_ack_then_hydration_failure_reports_committed_truth"
   ],
   "test_scene_context_listening": [
     "tests.test_scene_context_listening.ArmInstructionTests.test_each_arm_sends_exactly_its_stated_instruction",
@@ -10777,10 +10810,18 @@
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_requires_disabled_baseline_and_equivalent_outputs"
   ],
   "test_single_narrator_http_ui": [
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_ambiguous_bulk_write_is_not_auto_replayed_by_reads",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_book_navigation_does_not_replay_ambiguous_bulk",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_builtin_lora_path_preserved_when_catalog_missing",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_bulk_apply_clears_active_candidate_marker",
     "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_bulk_apply_rerenders_and_later_edit_does_not_revert",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_failed_post_save_refresh_keeps_stale_fence_until_recovery",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_inactive_alias_preserved_state_resolves_at_runtime",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_inactive_alias_target_preserved_through_real_save",
     "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_legacy_alias_resolves_to_target_after_real_save",
     "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_legacy_alias_roundtrip_through_real_save",
-    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_lost_reply_after_commit_is_unknown_and_never_retried"
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_lost_reply_after_commit_is_unknown_and_never_retried",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_manifest_renamed_adapter_keeps_pin_through_collector"
   ],
   "test_single_narrator_source_preview": [
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_accepts_canonical_docx_group_and_refuses_foreign_root",
@@ -10792,11 +10833,13 @@
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_empty_raw_docx_and_raw_epub",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_garbled_and_blank_text",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_hard_linked_source_as_integrity_failure",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_invisible_format_only_excerpt",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_json_source",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_missing_unsupported_and_outside_sources",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_outside_data_dir",
     "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_swapped_source_parent",
-    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_tracks_source_and_book_changes"
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_tracks_source_and_book_changes",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_saved_json_remains_honestly_unavailable"
   ],
   "test_single_narrator_voice_save": [
     "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_custom_clone_replacement_clears_old_lora_pin",
@@ -10841,6 +10884,7 @@
     "tests.test_single_voice_js.SingleVoiceJsTests.test_busy_guard_gives_feedback",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_definite_refusal_preserves_detail",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_dropped_speaker_selection_is_announced",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_escape_label_covers_line_and_bidi_controls",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_excerpt_count_uses_code_points",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_legacy_alias_rendered_and_preserved",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_lost_response_after_commit_is_unknown_not_nothing",
@@ -10860,6 +10904,8 @@
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_preview_pending_fetch_discarded_on_book_switch",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_status_describes_snapshot_not_live_state",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_stale_source_rejection_after_new_book_success_is_ignored",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_unavailable_selection_refuses_server_book_before_publishing",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_unscoped_refresh_refuses_other_tab_book_and_keeps_globals",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_voices_load_populates_speaker_select",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_zero_line_speaker_modal_copy_is_honest"
   ],
@@ -12478,6 +12524,8 @@
   ],
   "test_task_guides": [
     "tests.test_task_guides.TaskGuideTests.test_every_guide_target_and_illustration_is_bundled",
+    "tests.test_task_guides.TaskGuideTests.test_first_book_hidden_settings_section_is_revealed_by_guide",
+    "tests.test_task_guides.TaskGuideTests.test_guide_voices_navigation_requests_read_only_load",
     "tests.test_task_guides.TaskGuideTests.test_merge_navigation_preserves_keyboard_action_and_pending_return",
     "tests.test_task_guides.TaskGuideTests.test_navigation_return_steps_and_unknown_target_are_read_only",
     "tests.test_task_guides.TaskGuideTests.test_pending_editor_edits_block_navigation_without_saving_or_discarding",
@@ -13818,6 +13866,7 @@
   "test_voice_config_revision": [
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_book_switch_reload_source_change_and_input_selection_reject_old_book",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_initial_empty_book_and_bad_tokens_are_handled_without_false_admission",
+    "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_nonfinite_and_deep_nesting_refuse_before_any_write",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_revision_is_order_independent_and_includes_unknown_fields_and_zero",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_stale_revision_after_another_tab_or_audit_edit_cannot_overwrite_bytes",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_success_acknowledges_exact_revision_and_preserves_audit",
@@ -14126,6 +14175,7 @@
   "test_voice_transport_deadline": [
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_custom_read_deadline_message_aborts_stalled_request",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_fetch_and_both_response_body_stalls_retain_drafts_and_block_load",
+    "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_snapshot_get_has_read_deadline_and_untimed_get_keeps_default_transport",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_success_http_and_json_failures_clear_deadlines_without_changing_transport"
   ],
   "test_voice_version_inheritance_js": [

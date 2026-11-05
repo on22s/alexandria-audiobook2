@@ -366,6 +366,46 @@ class SingleNarratorSourcePreviewTests(unittest.TestCase):
             response = client.get('/api/single-narrator/source-preview')
             self.assertEqual(400, response.status_code)
 
+    def test_preview_refuses_invisible_format_only_excerpt(self):
+        # DS3087: U+200B/U+2060/BOM-only excerpts render as nothing and
+        # must refuse like a blank excerpt; BOM+text and multilingual
+        # prose stay valid.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            client, source, text = self.fixture(root, stack)
+            for label, payload in (
+                    ('zwsp', '​' * 4000),
+                    ('word-joiner', '⁠' * 4000),
+                    ('bom-only', '﻿')):
+                with self.subTest(case=label):
+                    source.write_bytes(payload.encode('utf-8'))
+                    response = client.get('/api/single-narrator/source-preview')
+                    self.assertEqual(400, response.status_code, response.text)
+                    self.assertIn('empty', response.json()['detail'])
+            source.write_bytes(b'\xef\xbb\xbf' + 'BOM plus readable text.'.encode('utf-8'))
+            self.assertEqual(200, client.get('/api/single-narrator/source-preview').status_code)
+            source.write_text('日本語の合成テキストです。', encoding='utf-8')
+            self.assertEqual(200, client.get('/api/single-narrator/source-preview').status_code)
+
+    def test_saved_json_remains_honestly_unavailable(self):
+        # DS3077: saved-library books have no verified prose link, so
+        # the preview stays honestly unavailable with no provenance
+        # read, no guessed filename and no relabelled JSON.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            client, source, text = self.fixture(root, stack)
+            saved = root / 'saved.json'
+            saved.write_bytes(b'[{"speaker":"ALICE","text":"Saved line."}]')
+            (root / 'state.json').write_text(json.dumps(
+                {"active_book_id": "book", "book_generation": "one",
+                 "input_file_path": str(saved)}))
+            response = client.get('/api/single-narrator/source-preview')
+            self.assertEqual(409, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertIn('no retained original prose', detail)
+            self.assertIn('not original prose', detail)
+            self.assertNotIn('Verified provenance', detail)
+
     def test_preview_refuses_duplicate_or_nonfinite_state(self):
         # Bounded strict reader: duplicate keys / nonfinite reject as corrupt.
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

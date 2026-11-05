@@ -982,6 +982,7 @@ def _get_single_narrator_source_preview():
             # never an unhandled 500 (#1724 C028).
             raise HTTPException(status_code=409, detail=(
                 "Active source could not be verified; inspect it in Script instead."))
+        imported_source_name = None
         if group is not None:
             raw = group["text_bytes"]
             if not isinstance(raw, bytes):
@@ -989,6 +990,10 @@ def _get_single_narrator_source_preview():
                     "Active source could not be verified; inspect it in Script instead."))
             # Reuse the capture proof digest instead of re-hashing (#1724 C065).
             source_sha256 = group["proofs"]["text"]["sha256"]
+            # Verified imported identity from the DOCX receipt (DS3007):
+            # the selected/imported document is distinct from the
+            # retained extracted-text file the excerpt actually shows.
+            imported_source_name = group.get("uploaded_filename")
         else:
             extension = os.path.splitext(str(source_abs))[1].lower()
             if extension in (".docx", ".epub"):
@@ -1001,9 +1006,15 @@ def _get_single_narrator_source_preview():
             # prose: refuse honestly with saved-script guidance instead of
             # relabelling JSON as the extracted source.
             if extension == ".json":
+                # Saved-library books stay honestly unavailable: no
+                # verified prose link survives as readable original text,
+                # and the annotated JSON is not original prose. No
+                # provenance read is attempted here (DS3077).
                 raise HTTPException(status_code=409, detail=(
-                    "Source preview is unavailable for this file format; inspect the "
-                    "saved script in Script instead."))
+                    "Source preview is unavailable for this saved book: no retained "
+                    "original prose is linked to its saved script, and the annotated "
+                    "JSON is not original prose. Inspect the saved script in Script "
+                    "instead."))
             if extension not in SELECTABLE_SOURCE_EXTENSIONS:
                 raise HTTPException(status_code=409, detail=(
                     "Source preview is unavailable for this file format; inspect the "
@@ -1055,9 +1066,19 @@ def _get_single_narrator_source_preview():
         # whole-book emptiness; decoder/BOM/NUL/counts above are unchanged.
         if not text:
             raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
-        if not text[:SINGLE_NARRATOR_PREVIEW_CHARS].strip():
+        _excerpt = text[:SINGLE_NARRATOR_PREVIEW_CHARS]
+        if not _excerpt.strip():
             raise HTTPException(status_code=400, detail=(
-                "Source excerpt is empty or blank in the first 4000 characters; import a book whose beginning is readable before confirming."))
+                "Source excerpt is empty or blank in the displayed excerpt; import a book whose beginning is readable before confirming."))
+        # Zero-width/format-only excerpts (U+200B/U+2060/BOM-only) render
+        # as nothing: refuse when the bounded excerpt has no readable,
+        # non-format content. BOM followed by text stays valid; this
+        # scans only the bounded excerpt, never the whole source.
+        if not ''.join(char for char in _excerpt
+                       if not char.isspace()
+                       and unicodedata.category(char) not in ('Cf', 'Cc')):
+            raise HTTPException(status_code=400, detail=(
+                "Source excerpt is empty or blank in the displayed excerpt; import a book whose beginning is readable before confirming."))
         # Derive the operation token from the already-loaded state instead
         # of re-reading state.json for every token use. Token derivation
         # can raise ValueError (filesystem admission/alias race): map it
@@ -1080,6 +1101,7 @@ def _get_single_narrator_source_preview():
         if token_after != book_token:
             raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
         return {"book_token": book_token, "source_name": source_name,
+                "imported_source_name": imported_source_name,
                 "source_sha256": source_sha256, "encoding": encoding,
                 "total_chars": len(text), "truncated": len(text) > SINGLE_NARRATOR_PREVIEW_CHARS,
                 "text_start": text[:SINGLE_NARRATOR_PREVIEW_CHARS]}

@@ -276,19 +276,27 @@ function openTaskGuideTarget() {
         document.getElementById('task-guide-feedback').textContent = 'Editor edits are pending or failed. Resolve them in Editor before using this guide link.'; return;
     }
     // Tab-container targets start display:none, so they must be activated
-    // before judging visibility (Home->tab must work). Descendant targets
-    // hidden by the current mode (e.g. single-book area in batch mode)
-    // keep the pre-activation hidden check so they give feedback without
-    // navigating as success.
+    // before judging visibility (Home->tab must work). Settings sections
+    // (e.g. #settings-tts) start hidden and are revealed by the existing
+    // openConfigField helper, so they are never refused as mode-hidden.
+    // Other mode-hidden targets (e.g. the single-book area in batch mode)
+    // navigate to their tab first, then give guidance naming the visible
+    // control that reveals them, without opening the hidden target.
     const isTabContainer = id === `${tab}-tab`;
+    const isSettingsSection = target.closest && target.closest('[data-settings-section]') !== null;
     const isHidden = () => (target.style && target.style.display === 'none')
         || target.hidden === true || (target.closest && target.closest('[hidden]') !== null);
-    if (!isTabContainer && isHidden()) {
-        document.getElementById('task-guide-feedback').textContent = `The target “${id}” is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
+    // Guide navigation is read-only regarding NEW/default voice configs:
+    // the Voices activation asks loadVoices to skip its default autosave
+    // for unconfigured speakers. Already-authorized pending saves still
+    // flush through the ordinary loadVoices path.
+    if (currentTabName !== tab) {
+        activateTab(tab, true, tab === 'voices' ? {readOnlyVoices: true} : null);
     }
-    if (currentTabName !== tab) { activateTab(tab); }
-    if (isHidden()) {
-        document.getElementById('task-guide-feedback').textContent = `The target “${id}” is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
+    if (!isTabContainer && !isSettingsSection && isHidden()) {
+        document.getElementById('task-guide-feedback').textContent = id === 'script-single-area'
+            ? 'The single-book source area is hidden because batch mode is on. On the Script tab, turn off Generate multiple books to show the single-book area, then open this step again.'
+            : `The target is hidden by the current mode. Adjust the visible controls shown on this screen to reveal it, then open the target again.`; return;
     }
     if (!target.matches('button, input, select, textarea, a[href], [tabindex]')) { target.setAttribute('tabindex', '-1'); }
     openConfigField(target);

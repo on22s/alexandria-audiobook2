@@ -41,9 +41,10 @@ class SharedSourceEncodingTests(unittest.TestCase):
                 with self.subTest(encoding=encoding, text=text):
                     raw = text.encode(encoding)
                     path.write_bytes(raw)
-                    with patch.object(Path, 'read_bytes', autospec=True, return_value=raw) as read:
-                        single, digest = completion.get_generation_input(path)
-                        self.assertEqual(1, read.call_count)
+                    # Real bytes through the confined capture seam: both
+                    # readers decode the same file with one policy and the
+                    # raw-byte digest is preserved.
+                    single, digest = completion.get_generation_input(path)
                     triple, detected = three_pass.read_source_text(path)
                     self.assertIs(three_pass.read_source_text, read_source_text)
                     self.assertEqual(text, single)

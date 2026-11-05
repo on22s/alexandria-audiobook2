@@ -13,8 +13,11 @@ Element.prototype.replaceChildren=function(...nodes){for(const node of [...this.
 Element.prototype.querySelector=function(s){return this.querySelectorAll(s)[0]||null;};
 Element.prototype.focus=function(){context.focused=this.id;};Element.prototype.scrollIntoView=function(){};
 for(const id of ['task-guide-cards','task-guide-detail','task-guide-return','task-guide-title','task-guide-image','task-guide-step-title','task-guide-instruction','task-guide-expected','task-guide-cost','task-guide-prev','task-guide-next','task-guide-feedback','home-tab','setup-tab','settings-tts','script-tab','script-single-area','voices-tab','editor-tab','audio-tab','preparer-tab','dataset-builder-tab','training-tab','chapter-options','chapter-template','btn-merge','btn-batch-fast']){body.appendChild(new Element('div',{id}));}
-const navigation=[],opened=[],warnings=[];let pending=false;
-context.currentTabName='home';context.activateTab=tab=>{navigation.push(tab);context.currentTabName=tab;};context.openConfigField=target=>opened.push(target.id);context.isEditorEditPending=()=>pending;context.showToast=(...args)=>warnings.push(args);context.API={post(){throw new Error('guide must not POST');}};
+// Real default DOM state: the Speech engine settings section starts
+// hidden until openConfigField/openSetupSettingsSection reveals it.
+const ttsSection=document.getElementById('settings-tts');ttsSection.setAttribute('data-settings-section','Speech engine');ttsSection.setAttribute('hidden','');
+const navigation=[],navigationOptions=[],opened=[],warnings=[];let pending=false;
+context.currentTabName='home';context.activateTab=(tab,updateHistory,options)=>{navigation.push(tab);navigationOptions.push({tab,updateHistory,options});context.currentTabName=tab;};context.openConfigField=target=>{opened.push(target.id);const section=target.closest&&target.closest('[data-settings-section]');if(section){section.removeAttribute('hidden');}};context.isEditorEditPending=()=>pending;context.showToast=(...args)=>warnings.push(args);context.API={post(){throw new Error('guide must not POST');}};
 load();
 '''
 
@@ -90,14 +93,41 @@ assert.deepEqual(navigation,['script','home','voices','home','editor','home','ed
 ''')
 
     def test_single_narrator_hidden_target_gives_visible_feedback(self):
-        # DS040: in batch mode the single-book area is display:none. The
-        # guide must not silently aim at a hidden pane: it gives visible
-        # feedback with an instruction and does not navigate/changes book.
+        # DS040 + guide fix: in batch mode the single-book area is
+        # display:none. The guide navigates to the Script tab and gives
+        # useful guidance naming the visible control, not the internal id.
         self.run_js(r'''
 document.getElementById('script-single-area').style.display='none';
 context.openTaskGuide('single-narrator',0);context.openTaskGuideTarget();
-assert.deepEqual(navigation,[],'hidden target must not activate a tab as success');
+assert.deepEqual(navigation,['script'],'hidden target guidance happens on the Script tab');
 assert.deepEqual(opened,[],'hidden target must not be opened as success');
-assert(document.getElementById('task-guide-feedback').textContent.includes('hidden'),'feedback must name the hidden pane');
-assert(document.getElementById('task-guide-feedback').textContent.includes('current mode'),'feedback must be a useful instruction');
+const feedback=document.getElementById('task-guide-feedback').textContent;
+assert(feedback.includes('Generate multiple books'),'feedback must name the visible control to turn off');
+assert(feedback.includes('Script'),'feedback must place the user on the Script tab');
+assert(!feedback.includes('script-single-area'),'feedback must not expose the internal element id');
+''')
+
+    def test_first_book_hidden_settings_section_is_revealed_by_guide(self):
+        # DS3000 regression: #settings-tts starts hidden (Speech engine
+        # section collapsed). Home -> guide step must activate Setup and
+        # reveal it via openConfigField, not refuse as mode-hidden.
+        self.run_js(r'''
+assert(document.getElementById('settings-tts').hidden,'fixture must start hidden like the real default DOM');
+context.openTaskGuide('first-book',0);context.openTaskGuideTarget();
+assert.deepEqual(navigation,['setup'],'guide must activate the Setup tab');
+assert.deepEqual(opened,['settings-tts'],'guide must reveal the Speech engine section');
+assert(!document.getElementById('settings-tts').hidden,'Speech engine section must no longer be hidden');
+assert(!document.getElementById('task-guide-feedback').textContent.includes('hidden by the current mode'));
+''')
+
+    def test_guide_voices_navigation_requests_read_only_load(self):
+        # Guide opens must not implicitly publish default configs for
+        # unconfigured speakers: the Voices activation asks for a
+        # read-only load, preserving activateTab's boolean history arg.
+        self.run_js(r'''
+context.openTaskGuide('single-narrator',2);context.openTaskGuideTarget();
+assert.deepEqual(navigation,['voices']);
+const call=navigationOptions.find(item=>item.tab==='voices');
+assert.strictEqual(call.updateHistory,true,'second argument stays the updateHistory boolean');
+assert(call.options&&call.options.readOnlyVoices===true,'guide Voices open must request a read-only load');
 ''')

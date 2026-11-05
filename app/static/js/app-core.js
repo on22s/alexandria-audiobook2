@@ -15,14 +15,24 @@
 
         // One effective-alias rule for rendering: alias_of wins, legacy
         // alias is the fallback. Do not spread `alias_of || alias` elsewhere.
+        // Canonical nonblank-string rule (DS3039): whitespace/non-string
+        // values are ignored by the runtime, so they display as no alias.
+        // Stored names/bytes are never normalized on read. A nonblank
+        // self-alias is NOT ignored: get_resolved_speaker raises a cycle
+        // ValueError for it, and that truth is preserved here.
         function getEffectiveVoiceAlias(config) {
-            return config?.alias_of || config?.alias || '';
+            const alias = config?.alias_of || config?.alias || '';
+            return (typeof alias === 'string' && alias.trim()) ? alias : '';
         }
 
         function renderInitialAliasOptions(voice) {
-            const roster = ensureVoiceRosterCache();
             const alias = getEffectiveVoiceAlias(voice.config);
-            return alias && alias !== voice.name && roster.nameSet.has(alias)
+            // Preserve a saved alias even when its target is no longer
+            // an active roster speaker (DS3001): the select cannot
+            // represent it from the roster alone, and omitting it would
+            // make every unrelated autosave clear both alias keys.
+            // Explicit None in the collector still clears both keys.
+            return typeof alias === 'string' && alias.trim() && alias !== voice.name
                 ? `<option value="${escapeHtml(alias)}" selected>${escapeHtml(alias)}</option>` : '';
         }
 
@@ -619,7 +629,7 @@
             const name = window.location.hash.slice(1);
             return getTabLink(name) ? name : null;
         }
-        function activateTab(name, updateHistory = true) {
+        function activateTab(name, updateHistory = true, tabOptions = null) {
             const selectedLink = getTabLink(name);
             if (!selectedLink) { return; }
             const target = document.getElementById(name + '-tab');
@@ -657,7 +667,20 @@
             } else if (selectedLink.dataset.tab === 'audio') {
                 loadFinalAudio();
             } else if (selectedLink.dataset.tab === 'voices') {
-                loadVoices(false);
+                // Tab-load error boundary (DS3006): this fire-and-forget
+                // load must not become an unhandled rejection. A benign
+                // superseded/obsolete rejection means a newer load or
+                // book already owns the UI, so it stays silent; a real
+                // load failure is shown visibly. Await-callers of
+                // loadVoices keep their own rejection truth unchanged.
+                const voiceLoadOptions = (tabOptions && tabOptions.readOnlyVoices)
+                    ? {skipDefaultSave: true} : null;
+                const voiceLoad = loadVoices(false, voiceLoadOptions);
+                Promise.resolve(voiceLoad).catch(error => {
+                    const message = String(error?.message || error || '');
+                    if (/superseded|Active book changed while loading voices/.test(message)) { return; }
+                    showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
+                });
             } else if (selectedLink.dataset.tab === 'designer') {
                 loadDesignedVoices();
             } else if (selectedLink.dataset.tab === 'casting') {
@@ -790,14 +813,28 @@
             applyTheme(saved);
         })();
 
-        function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {} }) {
+        function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {}, guardAmbiguous = false }) {
             let pending = null;
             let inFlight = null;
             let timer = null;
             let revision = 0;
             let savedRevision = 0;
+            // Ambiguous outcome (DS3014, voice queue only): a write that
+            // failed WITHOUT a definite server refusal (400/409/422) may
+            // have committed. Ordinary implicit flushes (navigation,
+            // reads, timers, pagehide) must not auto-replay it; the
+            // existing explicit Discard-edits-and-reload recovery (which
+            // discards + clears this flag) is the reconciliation path.
+            // Generic queues opt out entirely (guardAmbiguous=false).
+            let ambiguous = false;
 
-            async function flush() {
+            // ONE canonical flush policy for guarded queues: an ordinary
+            // implicit flush must refuse an ambiguous outcome without
+            // sending; {explicitRetry:true} or discard may reconcile it.
+            async function flush(options = {}) {
+                if (guardAmbiguous && ambiguous && isDirty() && !options.explicitRetry) {
+                    throw new Error('Voice save outcome is unconfirmed and is retained for explicit recovery. Use Discard edits and reload in Voices to reconcile before retrying.');
+                }
                 clearTimeout(timer);
                 timer = null;
                 if (inFlight) {
@@ -814,9 +851,14 @@
                             await write(batch.value, batch.revision);
                         } catch (error) {
                             if (!pending) { pending = batch; }
+                            if (guardAmbiguous) {
+                                const status = error && typeof error.status === 'number' ? error.status : null;
+                                ambiguous = !(status === 400 || status === 409 || status === 422);
+                            }
                             onError(error);
                             throw error;
                         }
+                        ambiguous = false;
                         savedRevision = batch.revision;
                         if (savedRevision === revision) { onSaved(); }
                     }
@@ -840,6 +882,10 @@
                 return savedRevision !== revision;
             }
 
+            function isAmbiguous() {
+                return ambiguous && isDirty();
+            }
+
             async function discard() {
                 clearTimeout(timer);
                 timer = null;
@@ -853,10 +899,11 @@
                 }
                 pending = null;
                 savedRevision = discardedRevision;
+                ambiguous = false;
             }
 
             function getRevision() { return revision; }
-            return { enqueue, flush, isDirty, discard, getRevision };
+            return { enqueue, flush, isDirty, isAmbiguous, discard, getRevision };
         }
 
         const taskStartButtons = {
@@ -899,21 +946,16 @@
                 throw err;
             },
             get: async (url, {timeoutMs = null, timeoutMessage = 'The request timed out. Check the selected book and try again.'} = {}) => {
-                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-                    throw new Error('The request deadline must be a positive finite duration.');
-                }
                 return API._withDeadline(async signal => {
-                    const res = await fetch(url, {
-                        ...(signal ? {signal} : {}),
-                    });
+                    // Untimed GETs keep the original default transport exactly:
+                    // fetch(url) with no options argument. Only a timed GET
+                    // carries an AbortSignal.
+                    const res = signal ? await fetch(url, {signal}) : await fetch(url);
                     await API._handleError(res);
                     return res.json();
                 }, timeoutMs, timeoutMessage);
             },
             post: async (url, data, {timeoutMs = null, timeoutMessage = 'The voice save timed out. Your edits are retained; the server save could not be confirmed.'} = {}) => {
-                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-                    throw new Error('The request deadline must be a positive finite duration.');
-                }
                 return API._withDeadline(async signal => {
                     const res = await fetch(url, {
                         method: 'POST',
@@ -930,6 +972,9 @@
             // always cleared. Placed after post so the
             // _handleError..get extraction boundary stays intact.
             _withDeadline: (requestFactory, timeoutMs, timeoutMessage) => {
+                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+                    throw new Error('The request deadline must be a positive finite duration.');
+                }
                 if (timeoutMs === null) { return requestFactory(null); }
                 const controller = new AbortController();
                 let timer;
@@ -4855,10 +4900,22 @@
             const expectedSelection = opts.expectedSelection || null;
             const expectedIdentityToken = opts.expectedIdentityToken || null;
             const selectionEpoch = window._bookSelectionEpoch;
+            // Local context captured BEFORE any fetch (DS3074): unscoped
+            // reads bind to this, never to the adopted snapshot itself.
+            const capturedSelection = window._selectedUploadIdentity || null;
+            const capturedPrevToken = (typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                ? _voiceSaveSnapshot.book_identity_token : null;
+            const capturedFilename = currentBookFilename;
+            // flushVoiceSaves refuses an ambiguous outcome at the
+            // canonical queue seam (DS3014) before any read is sent.
             await flushVoiceSaves();
             const localRevision = voiceSaveQueue.getRevision();
             const rosterFilename = currentBookFilename;
-            const snapshot = await API.get('/api/voice_config/snapshot');
+            // Read deadline (DS3024): a hung snapshot GET must not leave
+            // callers such as the single-voice preview busy forever. Reuses
+            // the shared API._withDeadline seam; no extra controllers.
+            const snapshot = await API.get('/api/voice_config/snapshot',
+                {timeoutMs: 60000, timeoutMessage: 'The voice snapshot timed out. Your voice edits are retained; try again.'});
             if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision() || rosterFilename !== currentBookFilename) {
                 throw new Error('Voice edits changed while refreshing. Your edits are still pending; try again.');
             }
@@ -4876,6 +4933,25 @@
                         || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
                         || rosterFilename !== currentBookFilename)) {
                 throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+            }
+            // Unscoped binding (DS3074): with no explicit expected
+            // identity, the snapshot must match the authoritative local
+            // context captured before the fetch — the local selection
+            // token when this tab selected a book, otherwise the
+            // previously published snapshot token. Another tab's book
+            // switch changes neither, so its snapshot is refused here
+            // instead of silently replacing this tab's globals/cards.
+            // First load (no local context) accepts, as before.
+            if (!expectedSelection && !expectedIdentityToken) {
+                if (capturedSelection && capturedSelection.filename === capturedFilename) {
+                    if (snapshot.book_identity_token !== capturedSelection.token) {
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                    }
+                } else if (capturedPrevToken) {
+                    if (snapshot.book_identity_token !== capturedPrevToken) {
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                    }
+                }
             }
             if (!Array.isArray(snapshot.voices) || !/^[0-9a-f]{64}$/.test(snapshot.revision) || !/^[0-9a-f]{64}$/.test(snapshot.book_token)) {
                 throw new Error('Invalid voice snapshot; your voice settings were not replaced.');
@@ -4935,8 +5011,15 @@
                 const result = await API.post('/api/voice_config/seed_unseeded', {
                     revision: snapshot.revision, book_token: snapshot.book_token,
                 });
-                await loadVoices(false);
-                showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000);
+                // The seed write committed: a later refresh failure must
+                // report saved-but-unrefreshed, not a failed repair.
+                let refreshed = true;
+                try { await loadVoices(false); }
+                catch (refreshError) {
+                    refreshed = false;
+                    showActionError('Stable seeds saved, but Voices could not be refreshed', refreshError, 'The seeds were saved. Reload Voices to see them before applying again.');
+                }
+                if (refreshed) { showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000); }
             } catch (e) {
                 showActionError("Stable seed repair failed", e, "Reload Voices and review the current seed suggestions before applying again; the book or voice settings may have changed.");
             } finally {
@@ -4998,6 +5081,21 @@
         }
 
         async function loadVoices(refreshResources = true, options = null) {
+            // Release a retained stale-card fence (DS3075) only after a
+            // successful CURRENT canonical reload/rerender in this load.
+            // Nested so sliced test harnesses carry it with loadVoices.
+            // The owning apply marked it stale; a book switch already
+            // cleared the flag via resetSingleVoiceBook, and a newer apply
+            // owns a different object, so only the exact stale owner whose
+            // generation is still current is released here.
+            function releaseStaleSingleVoiceFenceLocal() {
+                const owner = window._singleVoiceApplying;
+                if (!owner || !owner.stale) { return; }
+                if (typeof _singleVoiceGeneration !== 'undefined'
+                        && owner.generation !== _singleVoiceGeneration) { return; }
+                window._singleVoiceApplying = false;
+                owner.controls.forEach(({control, wasDisabled}) => { control.disabled = wasDisabled; });
+            }
             const opts = (options && typeof options === 'object') ? options : {};
             const expectedSelection = opts.expectedSelection || null;
             const expectedIdentityToken = opts.expectedIdentityToken || (expectedSelection ? expectedSelection.token : null);
@@ -5008,7 +5106,19 @@
                 // Legacy unscoped callers bind to the CURRENT book context
                 // (filename+epoch+selection), never a wildcard: a pending
                 // load for book A must not be reused or rendered for B.
-                : `ctx:${rosterFilename}:${selectionEpoch}:${window._selectedUploadIdentity?.token || ''}`);
+                // A restored tab with NO local selection object still
+                // binds to its already-known logical identity: the
+                // previous snapshot fallback token (DS3045 restored-book
+                // case), never a wildcard another load could self-adopt.
+                // A selected object is authoritative even when its token
+                // is null/unavailable: the older snapshot must never
+                // override it (same conditional authority as
+                // singleVoiceCaptureIdentity).
+                : `ctx:${rosterFilename}:${selectionEpoch}:${
+                    window._selectedUploadIdentity
+                        ? (window._selectedUploadIdentity.token || '')
+                        : ((typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                            ? _voiceSaveSnapshot.book_identity_token : '')}`);
             if (!refreshResources && loadVoices.pending) {
                 if (loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
                 // Never reuse another identity's pending render: wait for it
@@ -5020,17 +5130,41 @@
                 // otherwise a stale waiter resuming after its await would
                 // supersede the truly newer load.
                 const generationAtWait = loadVoices.generation || 0;
-                try { await loadVoices.pending; } catch (e) { /* fall through to fresh load */ }
-                if ((loadVoices.generation || 0) !== generationAtWait) {
-                    throw new Error('A newer voice load superseded this request; existing edits were preserved.');
-                }
+                // Supersession is publication, not a bare counter bump
+                // (DS3082): a newer load that fails renders nothing, so
+                // waiting for it and then claiming a fresh load is the
+                // correct recovery. A newer load for the same logical
+                // book coalesces (DS3045); a live newer load for another
+                // book still supersedes this waiter.
+                const publishedAtWait = loadVoices.publishedGeneration || 0;
+                const waitedPending = loadVoices.pending;
+                try { await waitedPending; } catch (e) { /* fall through to fresh load */ }
                 if (rosterFilename !== currentBookFilename || selectionEpoch !== window._bookSelectionEpoch
                         || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)) {
                     throw new Error('Active book changed while loading voices; voice edits were preserved.');
                 }
-                // A slot may have opened for an identical identity while we
-                // waited (compatible coalescing): reuse it instead of claiming.
-                if (loadVoices.pending && loadVoices.pendingIdentity === identityKey) { return loadVoices.pending; }
+                // Compatible coalescing (DS3045): a newer load for the
+                // SAME logical book satisfies this waiter — reuse its
+                // pending promise or its published result instead of a
+                // false supersede. Sameness is the identity key, or the
+                // same book-identity token carried in either key form
+                // (sel:<token> vs ctx:...:<token>).
+                const waiterToken = expectedIdentityToken || expectedSelection?.token || null;
+                const sameLogicalBook = key => key === identityKey
+                    || (!!waiterToken && String(key || '').split(':').pop() === waiterToken);
+                if (loadVoices.pending && sameLogicalBook(loadVoices.pendingIdentity)) { return loadVoices.pending; }
+                if ((loadVoices.publishedGeneration || 0) > publishedAtWait) {
+                    if (sameLogicalBook(loadVoices.publishedIdentity)) { return loadVoices.publishedResult; }
+                    throw new Error('A newer voice load superseded this request; existing edits were preserved.');
+                }
+                if ((loadVoices.generation || 0) !== generationAtWait
+                        && loadVoices.pending && loadVoices.pending !== waitedPending) {
+                    // A live newer load for another logical book owns
+                    // the UI: this waiter is obsolete. A newer load
+                    // that settled FAILED (nothing pending, nothing
+                    // published) falls through to a fresh load (DS3082).
+                    throw new Error('A newer voice load superseded this request; existing edits were preserved.');
+                }
             }
             // Request ownership: a forced/newer load increments the
             // generation and fences every older load's side effects
@@ -5096,7 +5230,11 @@
                 }
                 if (reuseResources && _voiceCardsRevision === _voiceSaveSnapshot.revision
                         && _voiceCardsBookToken === _voiceSaveSnapshot.book_token) {
-                    return {refreshedResources, failedResources};
+                    loadVoices.publishedGeneration = generation;
+                    loadVoices.publishedIdentity = identityKey;
+                    loadVoices.publishedResult = {refreshedResources, failedResources};
+                    releaseStaleSingleVoiceFenceLocal();
+                    return loadVoices.publishedResult;
                 }
                 refreshVoicesScope();
                 const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
@@ -5112,7 +5250,11 @@
                     container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
                     _voiceCardsRevision = _voiceSaveSnapshot.revision;
                     _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
-                    return {refreshedResources, failedResources};
+                    loadVoices.publishedGeneration = generation;
+                    loadVoices.publishedIdentity = identityKey;
+                    loadVoices.publishedResult = {refreshedResources, failedResources};
+                    releaseStaleSingleVoiceFenceLocal();
+                    return loadVoices.publishedResult;
                 }
                 container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + getStateVoiceCardsMarkup(voices);
                 window.applyTtsCapabilityGuidance?.();
@@ -5122,8 +5264,11 @@
                 renderReadyCount();
                 onToggleHideReady();
 
-                // If any voice has no saved config, save defaults immediately
-                if (!_voiceRecoveryDrafts.some(record => record.book_token === _voiceSaveSnapshot.book_token) && voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
+                // If any voice has no saved config, save defaults immediately.
+                // Read-only navigations (task guides) pass skipDefaultSave
+                // so opening Voices never implicitly publishes defaults for
+                // unconfigured speakers; ordinary navigation is unchanged.
+                if (!opts.skipDefaultSave && !_voiceRecoveryDrafts.some(record => record.book_token === _voiceSaveSnapshot.book_token) && voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
                     saveVoicesDebounced();
                 }
 
@@ -5133,7 +5278,11 @@
                 }
                 restoreVoicePanels(container, panels, _voiceCardsBookToken);
                 restoreVoiceListFocus(container, focus, _voiceCardsBookToken);
-                return {refreshedResources, failedResources};
+                loadVoices.publishedGeneration = generation;
+                loadVoices.publishedIdentity = identityKey;
+                loadVoices.publishedResult = {refreshedResources, failedResources};
+                releaseStaleSingleVoiceFenceLocal();
+                return loadVoices.publishedResult;
             })();
             loadVoices.pending = loading;
             loadVoices.pendingIdentity = identityKey;
@@ -6573,20 +6722,31 @@
                 } else if (type === 'builtin_lora') {
                     const adapterId = card.querySelector('.builtin-lora-select').value;
                     const adapterEntry = modelsById.get(adapterId);
+                    // Preserve the stored path for the SAME asset when
+                    // the catalog is unavailable/missing the entry
+                    // (DS3002): an empty path would make the speaker
+                    // unrenderable after any autosave. A real adapter
+                    // replacement never inherits the old path.
+                    const storedPath = (metadata.type === 'builtin_lora'
+                        && (metadata.adapter_id || '') === adapterId
+                        && typeof metadata.adapter_path === 'string') ? metadata.adapter_path : '';
                     config[name] = {
                         type: 'builtin_lora',
                         adapter_id: adapterId,
-                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || '',
+                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || storedPath,
                         character_style: card.querySelector('.builtin-lora-style').value,
                         seed: "-1"
                     };
                 } else if (type === 'lora') {
                     const adapterId = card.querySelector('.lora-adapter-select').value;
                     const adapterEntry = modelsById.get(adapterId);
+                    const storedPath = (metadata.type === 'lora'
+                        && (metadata.adapter_id || '') === adapterId
+                        && typeof metadata.adapter_path === 'string') ? metadata.adapter_path : '';
                     config[name] = {
                         type: 'lora',
                         adapter_id: adapterId,
-                        adapter_path: adapterEntry?.adapter_path || (adapterId ? `lora_models/${adapterId}` : ''),
+                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || storedPath || (adapterId ? `lora_models/${adapterId}` : ''),
                         character_style: card.querySelector('.lora-character-style').value,
                         seed: "-1"
                     };
@@ -6612,15 +6772,20 @@
                     delete preserved[key];
                 }
                 config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed).trim() || "-1" };
-                // Adapter pin explicit-clear seam: actual adapter replacement
-                // (genuine type/adapter_id change, not inactive fields) must
-                // clear the old pin. Same adapter keeps the preserved pin so
-                // the guarded save preserves it byte-identically.
+                // Adapter pin seam (DS3047): on an apparent type/id
+                // change, OMIT the pin entirely so the guarded save's
+                // canonical omitted-pin helper (manifest-resolved
+                // identity) decides preserve-vs-clear. Sending an
+                // explicit null here would bypass that decision and
+                // unpin a renamed same-asset adapter. The preserved
+                // metadata P must not be sent on a true replacement
+                // either, hence the delete (not a null assignment).
+                // Same type+id keeps the preserved pin byte-identically.
                 { const oldType = metadata.type || 'custom';
                   const newType = config[name].type || '';
                   const isLoRA = t => t === 'lora' || t === 'builtin_lora';
                   if ((isLoRA(oldType) || isLoRA(newType)) && (oldType !== newType || (metadata.adapter_id || '') !== (config[name].adapter_id || ''))) {
-                      config[name].adapter_generation_sha256 = null;
+                      delete config[name].adapter_generation_sha256;
                   } }
             });
             const merged = Object.create(null);
@@ -6783,6 +6948,7 @@
 
         const voiceSaveQueue = createSerializedSaveQueue({
             delay: 800,
+            guardAmbiguous: true,
             write: async draft => {
                 if (!_voiceSaveSnapshot || _voiceSaveSnapshot.book_token !== draft.book_token) {
                     throw new Error('The active book changed. Your unsaved voice edits were retained.');
@@ -6839,8 +7005,11 @@
             enqueueVoiceDraft(collectVoiceConfig());
         }
 
-        async function flushVoiceSaves() {
-            await voiceSaveQueue.flush();
+        // Ordinary implicit flushes refuse an ambiguous outcome at the
+        // queue seam (DS3014); only an explicit retry reconciles it,
+        // alongside the existing Discard-edits-and-reload recovery.
+        async function flushVoiceSaves(options = {}) {
+            await voiceSaveQueue.flush(options);
         }
 
         async function discardVoiceEditsAndReload() {

@@ -13,12 +13,27 @@ def get_file_sha256(path):
     return digest.hexdigest()
 
 
-def get_generation_input(path):
-    """Read source text and its raw-byte identity from one snapshot."""
-    data = Path(path).read_bytes()
+def get_generation_input(path, *, owning_root=None):
+    """Read source text and its raw-byte identity from one snapshot.
+
+    Raw bytes come through the shared confined capture seam
+    (project_scope_files.capture_scope_file), so descriptor, plain-path
+    and hardlink guards apply exactly as for the selection readers: an
+    aliased source parent is refused instead of followed (DS3076).
+    `owning_root` confines the read where the HTTP generation context
+    knows the book data directory; explicit CLI sources keep their
+    source-parent authority and remain supported in ordinary dirs.
+    """
+    from script_selection_binding import _capture_raw_source
+    proof, data = _capture_raw_source(path, owning_root=owning_root,
+                                      include_bytes=True)
+    if not proof.get('exists'):
+        raise FileNotFoundError(str(path))
+    if data is None:
+        raise ValueError('Selected source is unavailable')
     text, _encoding = get_decoded_source_text(data)
     text = get_normalized_source_newlines(text)
-    return text, hashlib.sha256(data).hexdigest()
+    return text, proof['sha256']
 
 
 def get_generation_completion_error(output_path, input_path):

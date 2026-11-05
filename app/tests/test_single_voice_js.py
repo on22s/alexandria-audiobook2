@@ -393,6 +393,76 @@ assert.strictEqual(context.actionErrors.length,1);
 ''')
         self.assertEqual(0, len(out['writes']))
 
+    def test_unscoped_refresh_refuses_other_tab_book_and_keeps_globals(self):
+        # DS3074: tab 1 loaded book A (identity 'b'*64 via harness
+        # initial refresh). Another tab switches the server to book B
+        # ('d'*64). An unscoped refresh (Voices tab activation) must
+        # refuse B instead of adopting it, keeping A's globals/cards.
+        # Intentional local selection of B (selection identity, like
+        # loadScript/upload) then binds and accepts B.
+        self.run_node(r'''
+const oldGet=context.API.get;
+const beforeSnapshot=vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context);
+context.API.get=async(url,...args)=>{
+ const value=await oldGet(url,...args);
+ if(url==='/api/voice_config/snapshot'){return {...value,book_identity_token:'d'.repeat(64),voices:[{name:'CAROL',config:{type:'custom',voice:'Ryan'},persona_pending:true}]};}
+ return value;
+};
+await assert.rejects(context.refreshVoiceMetadata(),/Active book changed/);
+assert.strictEqual(vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context),beforeSnapshot,'A globals must not be replaced by B');
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),book);
+// Intentional local B: selection identity authorizes the new token.
+context.window._selectedUploadIdentity={filename:'book.txt',token:'d'.repeat(64),request:{}};
+await context.refreshVoiceMetadata();
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),'d'.repeat(64));
+// A-B-A: intentional return to A binds and accepts A again.
+context.window._selectedUploadIdentity={filename:'book.txt',token:book,request:{}};
+context.API.get=oldGet;
+await context.loadVoices(true);
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),book);
+''')
+
+    def test_escape_label_covers_line_and_bidi_controls(self):
+        self.run_node(r'''
+const cases=[
+ ['ALICE', 'ALICE'],
+ ['A\u2028B', 'A\\u2028B'],
+ ['A\u2029B', 'A\\u2029B'],
+ ['A\u0085B', 'A\\u0085B'],
+ ['A\u202eB', 'A\\u202eB'],
+ ['A\u200fB', 'A\\u200fB'],
+ ['A\u2066B', 'A\\u2066B'],
+ ['A\nB\rC\tD', 'A\\nB\\rC\\tD'],
+];
+for(const [input,expected] of cases){
+ assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)(input),expected,'escape must cover '+JSON.stringify(input));
+}
+assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)('A\u2028B').includes('\u2028'),false);
+''')
+
+    def test_unavailable_selection_refuses_server_book_before_publishing(self):
+        # DS3074 fail-closed companion: an explicit unavailable local
+        # identity (invalid load token) must refuse a valid server-C
+        # snapshot BEFORE globals/cards change; a valid explicit
+        # reload identity then publishes C normally.
+        self.run_node(r'''
+const beforeSnapshot=vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context);
+context.window._selectedUploadIdentity={filename:'book.txt',token:null,unavailable:true,request:{}};
+const oldGet=context.API.get;
+context.API.get=async(url,...args)=>{
+ const value=await oldGet(url,...args);
+ if(url==='/api/voice_config/snapshot'){return {...value,book_identity_token:'c'.repeat(64),voices:[{name:'CAROL',config:{type:'custom',voice:'Ryan'},persona_pending:true}]};}
+ return value;
+};
+await assert.rejects(context.refreshVoiceMetadata(),/Active book changed/);
+assert.strictEqual(vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context),beforeSnapshot,'unavailable identity must not publish server C globals');
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),book);
+// Explicit valid reload identity recovers: matching token publishes.
+context.window._selectedUploadIdentity={filename:'book.txt',token:'c'.repeat(64),request:{}};
+await context.refreshVoiceMetadata();
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),'c'.repeat(64));
+''')
+
     def test_stale_source_rejection_after_new_book_success_is_ignored(self):
         self.run_node(r'''
 const originalGet = context.API.get; let releaseFirst = null;

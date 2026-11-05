@@ -43,7 +43,10 @@ ensure(blank);assert.deepEqual(blank.options.map(o=>o.value),['']);assert.equal(
         self.run_js(r'''
 context.window._voicesNames=['Alice','Zed','Bob'];
 assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'Zed'}}),'<option value="Zed" selected>Zed</option>');
-for(const alias of ['','Alice','missing']){assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:alias}}),'');}
+for(const alias of ['','Alice']){assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:alias}}),'');}
+// DS3001: a saved alias whose target is not in the active roster
+// (inactive legacy target) must still render selected, not blank.
+assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'missing'}}),'<option value="missing" selected>missing</option>');
 const s=select('alias','Zed');assert.equal(s.value,'Zed');ensure(s);assert.equal(s.value,'Zed');assert.deepEqual(s.options.map(o=>o.value),['','Zed','Bob']);s.value='';ensure(s);assert.equal(s.value,'');
 ''')
 
@@ -119,7 +122,7 @@ Object.assign(context,{showConfirm:async()=>true,flushVoiceSaves:async()=>{},ens
  applyCurrentBookFilename:name=>{context.currentBookFilename=name;},clearCastListEditor:()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},
  showToast:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadCastList:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{},
  showActionError:(...args)=>errors.push(args),voiceSaveQueue:{getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts:()=>{},
- API:{post:async()=>({name:'new'}),get:async()=>({voices:[{name:'New'},{name:'Alternate'}],revision:'a'.repeat(64),book_token:'b'.repeat(64)})},
+ API:{post:async()=>({name:'new',book_identity_token:'b'.repeat(64)}),get:async()=>({voices:[{name:'New'},{name:'Alternate'}],revision:'a'.repeat(64),book_token:'b'.repeat(64),book_identity_token:'b'.repeat(64)})},
  loadChunks:async force=>{if(force){const html=context.buildSpeakerSelect({id:0,speaker:'New'});editorSelect=select('speaker','New');editorSelect.dataset.rosterBook=html.match(/data-roster-book="([^"]+)"/)[1];}}
 });
 const queueStart=source.indexOf('function enqueueBookSelection(');vm.runInContext(source.slice(queueStart,source.indexOf('function getCurrentBookName(',queueStart)),context);

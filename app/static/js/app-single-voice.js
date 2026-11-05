@@ -22,14 +22,20 @@ function getSingleVoiceSourceBinding(preview) {
         literal: getSingleVoiceLiteralChecked()};
 }
 
+// One source-binding equality rule for confirmation and reload checks.
+function singleVoiceBindingsEqual(first, second) {
+    return !!first && !!second
+        && first.book === second.book
+        && first.epoch === second.epoch
+        && first.token === second.token
+        && first.sha === second.sha
+        && first.literal === second.literal;
+}
+
 function isSingleVoiceSourceConfirmed() {
     if (!_singleVoiceSourceBinding || !_singleVoiceSourcePreview) { return false; }
     const current = getSingleVoiceSourceBinding(_singleVoiceSourcePreview);
-    return _singleVoiceSourceBinding.book === current.book
-        && _singleVoiceSourceBinding.epoch === current.epoch
-        && _singleVoiceSourceBinding.token === current.token
-        && _singleVoiceSourceBinding.sha === current.sha
-        && _singleVoiceSourceBinding.literal === current.literal;
+    return singleVoiceBindingsEqual(_singleVoiceSourceBinding, current);
 }
 
 // One book/epoch freshness check for every single-voice action (#1724 C076).
@@ -57,7 +63,6 @@ function singleVoiceIdentityCurrent(identity) {
     if (identity.generation !== _singleVoiceGeneration) { return false; }
     if (!singleVoiceBookEpochCurrent(identity.book, identity.epoch)) { return false; }
     if (identity.selection && window._selectedUploadIdentity !== identity.selection) { return false; }
-    if (identity.selection && window._bookSelectionEpoch !== identity.epoch) { return false; }
     if (identity.identityToken) {
         // The selected upload is authoritative when present: a stale
         // rendered voice snapshot from a previous book (A) must not veto a
@@ -113,9 +118,15 @@ function renderSingleVoiceSourcePreview() {
     // total_chars counts Unicode code points (Python len); count code points
     // here too, not UTF-16 code units (#1724 C010).
     const excerptChars = [...(preview.text_start || '')].length;
-    meta.textContent = `${preview.source_name} · encoding ${preview.encoding} · original extracted text (before annotation/preparation) · `
+    // DS3007: distinguish the imported document from the retained
+    // extracted text actually shown, and label the digest as the
+    // extracted-text digest it is.
+    const identityLabel = preview.imported_source_name
+        ? `imported document ${preview.imported_source_name} · retained extracted text ${preview.source_name}`
+        : `retained extracted text ${preview.source_name}`;
+    meta.textContent = `${identityLabel} · encoding ${preview.encoding} · original extracted text (before annotation/preparation) · `
         + `${preview.total_chars} chars total · excerpt ${excerptChars} shown`
-        + (preview.truncated ? ' (truncated)' : '') + ` · sha256 ${preview.source_sha256.slice(0, 16)}…`
+        + (preview.truncated ? ' (truncated)' : '') + ` · extracted-text sha256 ${preview.source_sha256.slice(0, 16)}…`
         + ` · book ${(preview.book_token || '').slice(0, 12)}…`;
     const confirmed = isSingleVoiceSourceConfirmed();
     if (confirmBox) { confirmBox.checked = confirmed; }
@@ -142,7 +153,7 @@ async function loadSingleVoiceSourcePreview() {
         // Promise.race copy that never aborted the fetch (#1724 C048).
         const preview = await API.get('/api/single-narrator/source-preview',
             {timeoutMs: 60000, timeoutMessage: 'The source preview timed out. Check the selected book and try again.'});
-        if (!singleVoiceIdentityCurrent(identity) || generation !== _singleVoiceGeneration) { return; }
+        if (!singleVoiceIdentityCurrent(identity)) { return; }
         if (!preview || typeof preview.text_start !== 'string' || !/^[0-9a-f]{64}$/.test(preview.book_token || '')
             || !/^[0-9a-f]{64}$/.test(preview.source_sha256 || '')) {
             throw new Error('Invalid source preview; your confirmation was not recorded.');
@@ -163,9 +174,7 @@ async function loadSingleVoiceSourcePreview() {
         _singleVoiceSourcePreview = preview;
         if (_singleVoiceSourceBinding) {
             const current = getSingleVoiceSourceBinding(preview);
-            if (_singleVoiceSourceBinding.sha !== current.sha || _singleVoiceSourceBinding.token !== current.token
-                || _singleVoiceSourceBinding.book !== current.book || _singleVoiceSourceBinding.epoch !== current.epoch
-                || _singleVoiceSourceBinding.literal !== current.literal) {
+            if (!singleVoiceBindingsEqual(_singleVoiceSourceBinding, current)) {
                 _singleVoiceSourceBinding = null;
             }
         }
@@ -259,7 +268,12 @@ function refreshSingleVoiceSpeakers() {
 // without changing stored names: control/newline characters become visible
 // escapes so one name cannot masquerade as several lines.
 function singleVoiceEscapeLabel(name) {
-    return String(name).replace(/[\u0000-\u001f\u007f]/g, char => {
+    // Visible escaping for line/bidi controls that could fake modal
+    // rows or reorder a label: U+2028/U+2029/U+0085 (line/paragraph
+    // separators), bidi controls (U+061C, U+200E/U+200F, U+202A-202E,
+    // U+2066-2069) and other format controls. Stored names are
+    // unchanged; only this confirmation display is escaped.
+    return String(name).replace(/[\u0000-\u001f\u007f\u0085\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, char => {
         if (char === '\n') { return '\\n'; }
         if (char === '\r') { return '\\r'; }
         if (char === '\t') { return '\\t'; }
@@ -291,10 +305,7 @@ async function previewSingleVoiceBook() {
     // during the flush must be detected by the rechecks below (#1724 C012).
     const identity = singleVoiceCaptureIdentity();
     const generation = _singleVoiceGeneration;
-    const book = identity.book;
-    const epoch = identity.epoch;
     let flushedPending = false;
-    let preflushUnknown = false;
     try {
         // Preview may save the user's already-authorized pending card edits,
         // exactly as the existing Voices controls do, but it never
@@ -304,6 +315,9 @@ async function previewSingleVoiceBook() {
         // claiming no edits were applied.
         if (typeof voiceSaveQueue !== 'undefined' && voiceSaveQueue?.isDirty?.()) {
             try {
+                // The canonical flush refuses an ambiguous outcome
+                // (DS3014) without sending; the catch below classifies
+                // it as unknown with an explicit-recovery message.
                 await flushVoiceSaves();
                 flushedPending = true;
             } catch (preError) {
@@ -313,15 +327,14 @@ async function previewSingleVoiceBook() {
                 }
                 const unknownPre = new Error(`Pending voice edits could not be confirmed: ${detail} They may have been saved. Check Voices state before trying again; your edits are retained.`, {cause: preError});
                 unknownPre.unknownOutcome = true;
-                preflushUnknown = true;
                 throw unknownPre;
             }
         }
-        if (!singleVoiceIdentityCurrent(identity) || generation !== _singleVoiceGeneration) {
+        if (!singleVoiceIdentityCurrent(identity)) {
             throw new Error('Active book changed while previewing. Nothing was applied; reload Voices and preview again.');
         }
         await refreshVoiceMetadata(singleVoiceRefreshOpts(identity));
-        if (!singleVoiceIdentityCurrent(identity) || generation !== _singleVoiceGeneration) {
+        if (!singleVoiceIdentityCurrent(identity)) {
             throw new Error('Active book changed while previewing. Nothing was applied; reload Voices and preview again.');
         }
         const snapshot = _voiceSaveSnapshot;
@@ -332,7 +345,7 @@ async function previewSingleVoiceBook() {
         const preview = await API.post('/api/voice_config/single-voice-preview', {
             source_speaker: source, revision: snapshot.revision, book_token: snapshot.book_token},
             {timeoutMs: 60000, timeoutMessage: 'The single-voice preview timed out. Nothing was applied; preview again.'});
-        if (!singleVoiceIdentityCurrent(identity) || generation !== _singleVoiceGeneration
+        if (!singleVoiceIdentityCurrent(identity)
             || _voiceSaveSnapshot.book_token !== preview.book_token || _voiceSaveSnapshot.revision !== preview.revision
             || (typeof voiceSaveQueue !== 'undefined' && voiceSaveQueue.getRevision() !== revisionBefore)) {
             throw new Error('Book, voices or selection changed while previewing. Nothing was applied; preview again.');
@@ -370,11 +383,15 @@ async function previewSingleVoiceBook() {
             + `Voice approvals are reset for speakers whose effective voice changes.`,
             {title: 'Use one voice for the book?', actionLabel: 'Use this voice for all speakers', danger: false});
         if (!confirmed) { return; }
-        if (!singleVoiceIdentityCurrent(identity) || generation !== _singleVoiceGeneration) {
+        if (!singleVoiceIdentityCurrent(identity)) {
             throw new Error('Active book changed while confirming. Nothing was applied; preview again.');
         }
         await applySingleVoicePreview(preview, identity, source);
     } catch (error) {
+        // DS3013: a stale rejection after a book switch (reset bumps
+        // the generation) must not toast over the new book's state,
+        // mirroring loadSingleVoiceSourcePreview's guard.
+        if (generation !== _singleVoiceGeneration) { return; }
         // If the pre-flush already persisted, say so instead of the false
         // "Nothing was applied" (#1724 C038, C006). A bulk save whose outcome
         // is unknown (timeout/lost response) must never claim "Nothing was
@@ -394,7 +411,7 @@ async function previewSingleVoiceBook() {
         // paint the new book's roster mid-switch (#1724 C015, C079). Never
         // call refreshVoiceMetadata while a retained draft is pending: it
         // flushes first and could retry an ambiguous write.
-        if (singleVoiceIdentityCurrent(identity) && generation === _singleVoiceGeneration
+        if (singleVoiceIdentityCurrent(identity)
                 && (typeof voiceSaveQueue === 'undefined' || !voiceSaveQueue.isDirty())) { refreshSingleVoiceSpeakers(); }
     }
 }
@@ -433,15 +450,16 @@ async function applySingleVoicePreview(preview, identity, source) {
     const ownedControls = [...((voicesList && typeof voicesList.querySelectorAll === 'function')
         ? voicesList.querySelectorAll('button,input,select,textarea') : [])]
         .map(control => ({control, wasDisabled: !!control.disabled}));
-    const applyOwner = {generation: identity.generation, controls: ownedControls};
+    const applyOwner = {generation: identity.generation, controls: ownedControls, stale: false};
     window._singleVoiceApplying = applyOwner;
     ownedControls.forEach(({control}) => { control.disabled = true; });
+    let refreshedAfterSave = false;
+    let persistedOrUnknown = false;
     try {
     enqueueVoiceDraft(preview.voices);
-    let savedApplied = false;
     try {
         await flushVoiceSaves();
-        savedApplied = true;
+        persistedOrUnknown = true;
     } catch (error) {
         // Keep the original server detail for diagnosis AND for the user
         // (#1724 C041). A rejected/lost flush is an UNKNOWN outcome unless
@@ -463,6 +481,7 @@ async function applySingleVoicePreview(preview, identity, source) {
         const unknown = new Error(`Voice save could not be confirmed: ${detail} It may have been saved. Check Voices state before trying again; your edits are retained.`, {cause: error});
         unknown.savedApplied = false;
         unknown.unknownOutcome = true;
+        persistedOrUnknown = true;
         throw unknown;
     }
     if (!singleVoiceIdentityCurrent(identity)) {
@@ -479,6 +498,7 @@ async function applySingleVoicePreview(preview, identity, source) {
         // revision changed (it does after this save), while reusing fresh
         // catalogs instead of forcing a full resource refetch (CR2078).
         loadReport = await loadVoices(false, singleVoiceRefreshOpts(identity));
+        refreshedAfterSave = true;
     } catch (error) {
         // ANY post-save render/refresh error is a persisted save, with the
         // same identity or a changed one: never fall through with a bare
@@ -503,10 +523,20 @@ async function applySingleVoicePreview(preview, identity, source) {
         // Release only our own ownership: a book switch (resetSingleVoiceBook)
         // already cleared the flag, and a newer apply owns a different
         // object — neither must be disturbed by this stale finally.
+        // DS3075: when a confirmed/possibly-committed save was NOT
+        // followed by a successful canonical reload/rerender, leave a
+        // recoverable stale-card fence in place (controls stay disabled,
+        // card saves stay blocked) until loadVoices successfully
+        // rerenders CURRENT cards and releases it. A definite refusal
+        // never committed, so it releases normally below.
         if (window._singleVoiceApplying === applyOwner) {
-            window._singleVoiceApplying = false;
-            if (identity.generation === _singleVoiceGeneration) {
-                applyOwner.controls.forEach(({control, wasDisabled}) => { control.disabled = wasDisabled; });
+            if (persistedOrUnknown && !refreshedAfterSave) {
+                applyOwner.stale = true;
+            } else {
+                window._singleVoiceApplying = false;
+                if (identity.generation === _singleVoiceGeneration) {
+                    applyOwner.controls.forEach(({control, wasDisabled}) => { control.disabled = wasDisabled; });
+                }
             }
         }
     }
