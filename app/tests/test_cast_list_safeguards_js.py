@@ -57,7 +57,7 @@ function client(){
  function load(text,start,end){const a=text.indexOf(start),b=text.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(text.slice(a,b),c);}
  load(core,'let castListLoaded =','async function buildCastList()');load(core,'function renderCastListStatus(','let characterAliasesLoaded');
  load(core,'function enqueueBookSelection(','function getCurrentBookName(');
- load(core,'window.selectExistingScriptUpload =','// Generate resumes saved progress');load(scripts,'async function loadScript(name)','async function deleteScript(name)');
+ load(core,'window.selectExistingScriptUpload =','// Generate resumes saved progress');load(scripts,'async function loadScript(','async function deleteScript(name)');
  vm.runInContext('castListEditorSnapshot=getCastListEditorSnapshot();',c);rows[0][0]='EDITED';el('existing-upload-select').value='B.txt';el('file-upload').files=[{}];
  return{c,el,requests,confirms,handlers,accept:()=>accept=true};
 }

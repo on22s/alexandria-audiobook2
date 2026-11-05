@@ -6,6 +6,7 @@ from direct_path_admission import is_plain_path
 from audio_take_history import _open_regular, _version, _ensure_plain_path, _hash, _check_cancelled
 
 MAX_SCOPE_METADATA_BYTES = 64 * 1024**2
+MAX_SCRIPT_BYTES = 512 * 1024**2
 
 
 def capture_scope_file(root, relative_path, *, limit=MAX_SCOPE_METADATA_BYTES,

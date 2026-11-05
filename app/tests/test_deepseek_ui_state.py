@@ -72,7 +72,7 @@ if(fail){pending[0].reject(Error('stale A error'));}else{pending[0].resolve({sto
 const pending=[];const turn=()=>new Promise(resolve=>setImmediate(resolve));ctx.API.upload=file=>new Promise(resolve=>pending.push(resolve));
 el('file-upload').files=[{name:'old.txt'}];const uploading=handlers['file-upload:change']();await turn();
 el('existing-upload-select').value='selected.txt';selectedFilename='selected.txt';const selecting=ctx.selectExistingScriptUpload();await turn();pending[0]({stored_filename:'old.txt'});await Promise.all([uploading,selecting]);assert.equal(run('currentBookFilename'),'selected.txt');
-const a=scripts.indexOf('async function loadScript(name)'),b=scripts.indexOf('async function deleteScript(name)',a);run(scripts.slice(a,b));ctx.API.post=async()=>({name:'saved'});el('file-upload').files=[{name:'other.txt'}];const old=handlers['file-upload:change']();await turn();const saved=ctx.loadScript('saved');await turn();pending[1]({stored_filename:'other.txt'});await Promise.all([old,saved]);assert.equal(run('currentBookFilename'),'saved.json');
+const a=scripts.indexOf('async function loadScript('),b=scripts.indexOf('async function deleteScript(name)',a);run(scripts.slice(a,b));ctx.API.post=async()=>({name:'saved'});el('file-upload').files=[{name:'other.txt'}];const old=handlers['file-upload:change']();await turn();const saved=ctx.loadScript('saved');await turn();pending[1]({stored_filename:'other.txt'});await Promise.all([old,saved]);assert.equal(run('currentBookFilename'),'saved.json');
 ''')
 
     def test_queue_changes_during_each_preparation_phase_require_fresh_start(self):

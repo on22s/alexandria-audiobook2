@@ -613,6 +613,7 @@
             'blind-pref-a': 'Record that you preferred sample A in this blind comparison.',
             'blind-pref-b': 'Record that you preferred sample B in this blind comparison.',
             'blind-pref-tie': 'Record that you had no preference between the two samples.',
+            'workspace-collection-show': 'Show progress for the selected saved books without opening, loading or changing any book.',
         };
 
         const NAV_HELP = {

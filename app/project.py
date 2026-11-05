@@ -2261,6 +2261,7 @@ class ProjectManager:
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
                 os.replace(pending_output, output_path)
+            quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, output_filename, quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
                 try:
@@ -2585,6 +2586,7 @@ class ProjectManager:
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
                 os.replace(pending_output, output_path)
+            quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, 'audiobook.m4b', quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
                 try:

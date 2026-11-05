@@ -18,6 +18,9 @@ let workspacePollTimer = null;
 let workspacePreviousRunning = false;
 const workspaceTaskViews = new Map();
 let workspaceLibrarySignature = null;
+let collectionOverviewRequest = 0;
+let collectionOverviewPending = null;
+let collectionOverviewLimit = 50;
 
 function isWorkspaceVisible() {
     return currentTabName === 'home' && document.visibilityState !== 'hidden';
@@ -72,6 +75,7 @@ function renderWorkspaceLibrary(books) {
     if (signature === workspaceLibrarySignature) { return; }
     workspaceLibrarySignature = signature;
     const container = document.getElementById('workspace-library');
+    const selected = new Set(collectionSelectedNames());
     container.replaceChildren();
     if (!books.length) { container.textContent = 'No saved books yet. Save the current script from Script.'; return; }
     for (const book of books) {
@@ -88,9 +92,162 @@ function renderWorkspaceLibrary(books) {
         load.textContent = 'Load saved book…';
         load.setAttribute('data-help-key', 'openWorkspaceSavedBook');
         load.addEventListener('click', () => openWorkspaceSavedBook(book.name, load));
-        row.append(title, description, load);
+        const checkLabel = document.createElement('label');
+        checkLabel.className = 'small d-block mt-2';
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.setAttribute('data-collection-select', book.name);
+        check.checked = selected.has(book.name);
+        const checkText = document.createElement('span');
+        checkText.textContent = ` Select ${book.name} for collection overview`;
+        checkLabel.append(check, checkText);
+        row.append(title, description, load, checkLabel);
         container.appendChild(row);
     }
+}
+
+function collectionSelectedNames() {
+    return [...document.getElementById('workspace-library').querySelectorAll('input[data-collection-select]')]
+        .filter(box => box.checked).map(box => box.getAttribute('data-collection-select'));
+}
+
+function isCollectionDigest(value) {
+    return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+}
+
+function isCollectionRowValid(row) {
+    const stages = [row?.script, row?.review, row?.voices, row?.render];
+    const revisionValid = row && (row.revision === null || isCollectionDigest(row.revision));
+    return !!row && typeof row.name === 'string' && typeof row.book_id === 'string'
+        && typeof row.is_active === 'boolean' && typeof row.overall === 'string'
+        && stages.every(stage => stage && typeof stage.status === 'string' && typeof stage.evidence === 'string')
+        && typeof row.next?.tab === 'string' && typeof row.next?.label === 'string'
+        && typeof row.next?.reason === 'string' && revisionValid;
+}
+
+function isCollectionRowLoadable(row) {
+    return !!row && isCollectionDigest(row.revision) && isCollectionDigest(row.script?.script_sha256)
+        && row.script?.status !== 'missing' && row.loadable !== false;
+}
+
+function renderCollectionOverview(rows) {
+    const container = document.getElementById('workspace-collection');
+    container.replaceChildren();
+    const table = document.createElement('table');
+    table.className = 'table table-sm';
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    for (const label of ['Book', 'Stage', 'Evidence', 'Next step', 'Open']) {
+        const cell = document.createElement('th');
+        cell.scope = 'col';
+        cell.textContent = label;
+        headRow.appendChild(cell);
+    }
+    head.appendChild(headRow);
+    table.append(head);
+    const body = document.createElement('tbody');
+    for (const row of rows) {
+        const line = document.createElement('tr');
+        const bookCell = document.createElement('td');
+        const bookTitle = document.createElement('strong');
+        bookTitle.textContent = row.name;
+        const bookId = document.createElement('div');
+        bookId.className = 'small text-muted';
+        bookId.textContent = `ID ${row.book_id}${row.is_active ? ' · active' : ''} · revision ${isCollectionDigest(row.revision) ? row.revision.slice(0, 12) : 'unknown'}`;
+        bookCell.append(bookTitle, bookId);
+        const stageCell = document.createElement('td');
+        stageCell.textContent = row.overall;
+        const evidenceCell = document.createElement('td');
+        const evidence = document.createElement('ul');
+        evidence.className = 'small mb-0';
+        for (const [label, stage] of [['Script', row.script], ['Review', row.review], ['Voices', row.voices], ['Render/export', row.render]]) {
+            const item = document.createElement('li');
+            item.textContent = `${label}: ${stage.status} — ${stage.evidence}`;
+            evidence.appendChild(item);
+        }
+        evidenceCell.appendChild(evidence);
+        const nextCell = document.createElement('td');
+        nextCell.className = 'small';
+        nextCell.textContent = `${row.next.label} — ${row.next.reason}`;
+        const openCell = document.createElement('td');
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'btn btn-outline-secondary btn-sm';
+        open.textContent = 'Load this book…';
+        open.setAttribute('data-help-key', 'openWorkspaceSavedBook');
+        if (!isCollectionRowLoadable(row)) {
+            open.disabled = true;
+            open.title = row.loadable === false ? row.script.evidence
+                : 'No valid revision proof for this book; show the overview again before loading.';
+        }
+        open.addEventListener('click', () => openCollectionBook(row, open));
+        openCell.appendChild(open);
+        line.append(bookCell, stageCell, evidenceCell, nextCell, openCell);
+        body.appendChild(line);
+    }
+    table.appendChild(body);
+    container.appendChild(table);
+}
+
+async function showCollectionOverview() {
+    const selectionEpoch = window._bookSelectionEpoch || 0;
+    const names = collectionSelectedNames();
+    const signature = JSON.stringify([selectionEpoch, names]);
+    if (collectionOverviewPending?.signature === signature) { return null; }
+    const request = ++collectionOverviewRequest;
+    const feedback = document.getElementById('workspace-collection-feedback');
+    const container = document.getElementById('workspace-collection');
+    container.replaceChildren();
+    if (!names.length) {
+        feedback.textContent = 'Select at least one saved book above first.';
+        return null;
+    }
+    if (names.length > collectionOverviewLimit) {
+        feedback.textContent = `Select at most ${collectionOverviewLimit} books for the collection overview; deselect some books and try again.`;
+        return null;
+    }
+    feedback.textContent = 'Reading the selected books…';
+    const pending = { signature };
+    collectionOverviewPending = pending;
+    const show = document.getElementById('workspace-collection-show');
+    if (show) { show.disabled = true; }
+    try {
+        const rows = await API.post('/api/collection/overview', { names });
+        if (request !== collectionOverviewRequest) { return null; }
+        if (selectionEpoch !== (window._bookSelectionEpoch || 0)
+                || JSON.stringify(names) !== JSON.stringify(collectionSelectedNames())) {
+            feedback.textContent = 'The book or collection selection changed. Show the overview again.';
+            return null;
+        }
+        if (!Array.isArray(rows) || !rows.every(isCollectionRowValid)
+                || JSON.stringify(rows.map(row => row.name)) !== JSON.stringify(names)) {
+            feedback.textContent = 'Collection overview was incomplete. Nothing was loaded; refresh the selection and try again.';
+            return null;
+        }
+        renderCollectionOverview(rows);
+        feedback.textContent = `Collection overview updated for ${rows.length} book${rows.length === 1 ? '' : 's'}. Opening it started no work.`;
+        return rows;
+    } catch (error) {
+        if (request !== collectionOverviewRequest) { return null; }
+        feedback.textContent = `Collection overview could not be read: ${error.message || 'request failed'}. No book was switched.`;
+        return null;
+    } finally {
+        if (collectionOverviewPending === pending) {
+            collectionOverviewPending = null;
+            if (show) { show.disabled = false; }
+        }
+    }
+}
+
+async function openCollectionBook(row, button) {
+    if (!isCollectionRowLoadable(row)) {
+        document.getElementById('workspace-collection-feedback').textContent =
+            row.loadable === false ? row.script.evidence
+                : 'This book has no valid revision proof. Nothing was loaded; show the overview again before loading.';
+        return;
+    }
+    // The confirmed load rechecks this proof under admission before publishing.
+    await openWorkspaceSavedBook(row.name, button, row.revision);
 }
 
 function isWorkspaceSnapshotValid(data) {
@@ -148,6 +305,9 @@ async function refreshBookWorkspace() {
         return null;
     }
     workspaceBookSnapshot = data;
+    if (Number.isSafeInteger(data.collection_overview_limit) && data.collection_overview_limit > 0) {
+        collectionOverviewLimit = data.collection_overview_limit;
+    }
     renderBookWorkspace(data);
     document.getElementById('workspace-feedback').textContent = `Book status updated at ${new Date().toLocaleTimeString()}.`;
     return data;
@@ -167,9 +327,9 @@ async function continueBookWorkspace() {
     }
 }
 
-async function openWorkspaceSavedBook(name, button) {
+async function openWorkspaceSavedBook(name, button, expectedRevision = null) {
     button.disabled = true;
-    try { await loadScript(name); }
+    try { await loadScript(name, expectedRevision); }
     catch (error) { showActionError('Could not load the saved book', error, 'Review the currently selected book before trying Load again; its reply may have been lost.'); }
     finally { button.disabled = false; await refreshBookWorkspace(); }
 }
@@ -268,6 +428,10 @@ window.refreshWorkspaceView = function () {
     refreshWorkspaceMonitor();
 };
 window.invalidateBookWorkspace = function () {
+    ++collectionOverviewRequest;
+    document.getElementById('workspace-collection')?.replaceChildren();
+    const feedback = document.getElementById('workspace-collection-feedback');
+    if (feedback) { feedback.textContent = 'The active book changed. Show the collection overview again.'; }
     workspaceBookRequest++;
     workspaceBookSnapshot = null;
     document.getElementById('workspace-continue').disabled = true;

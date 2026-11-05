@@ -1026,12 +1026,14 @@ async def get_editor_integrity():
 def get_export_quality_attempt(request, state, *, audacity=False):
     # A cancelled queued worker must not start book I/O for evidence capture.
     ensure_audio_export_active(lambda: state.get('cancel', False))
+    options = getattr(request, 'export_quality', None)
     with ensure_book_state(DATA_DIR):
         _ensure_editor_selection()
         token = get_snapshot_digest(get_editor_book_identity(DATA_DIR))
-    options = getattr(request, 'export_quality', None)
-    return ExportQualityAttempt(state, token,
-        options.model_dump() if options is not None else None, audacity=audacity)
+        # Stamp the input revision at admitted start under the book lock.
+        return ExportQualityAttempt(state, token,
+            options.model_dump() if options is not None else None, audacity=audacity,
+            data_dir=DATA_DIR)
 
 
 def record_export_quality_error(attempt, error):

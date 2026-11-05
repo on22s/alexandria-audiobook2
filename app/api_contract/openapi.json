@@ -1171,6 +1171,20 @@
         "title": "ClearSynthesisRecoveryRequest",
         "type": "object"
       },
+      "CollectionOverviewRequest": {
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Names",
+            "type": "array"
+          }
+        },
+        "title": "CollectionOverviewRequest",
+        "type": "object"
+      },
       "ContentRepairRequest": {
         "properties": {
           "direction_changes": {
@@ -4015,6 +4029,18 @@
       },
       "ScriptLoadRequest": {
         "properties": {
+          "expected_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8155,6 +8181,43 @@
           }
         },
         "summary": "Clone Voices Delete"
+      }
+    },
+    "/api/collection/overview": {
+      "post": {
+        "description": "Project script/review/voice/render/export state for selected saved books.",
+        "operationId": "get_collection_overview_status_api_collection_overview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionOverviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Collection Overview Status"
       }
     },
     "/api/config": {

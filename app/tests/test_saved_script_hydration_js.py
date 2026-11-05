@@ -11,11 +11,11 @@ class SavedScriptHydrationTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');const posts=[],events=[],toasts=[];
 const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},applyCurrentBookFilename:name=>events.push(name),showToast:(...args)=>toasts.push(args)};
 for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadChunks','refreshVoiceMetadata','loadVoices','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
-ctx.window=ctx;vm.createContext(ctx);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript(name)'),source.indexOf('async function deleteScript(name)')),ctx);
+ctx.window=ctx;vm.createContext(ctx);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript('),source.indexOf('async function deleteScript(name)')),ctx);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
-const a=ctx.loadScript('A');await turn();const b=ctx.loadScript('B');await turn();assert.strictEqual(posts.length,1);posts[0].resolve({name:'A'});await a;await turn();assert.deepStrictEqual(events,[]);assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.name,'B');posts[1].resolve({name:'B'});await b;assert.deepStrictEqual(events,['B.json']);assert.strictEqual(toasts.length,1);
+const a=ctx.loadScript('A');await turn();const b=ctx.loadScript('B');await turn();assert.strictEqual(posts.length,1);assert.strictEqual(JSON.stringify(posts[0].body),JSON.stringify({name:'A'}));posts[0].resolve({name:'A'});await a;await turn();assert.deepStrictEqual(events,[]);assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.name,'B');posts[1].resolve({name:'B'});await b;assert.deepStrictEqual(events,['B.json']);assert.strictEqual(toasts.length,1);
 const c=ctx.loadScript('C');await turn();const d=ctx.loadScript('D');await turn();posts[2].reject(Error('stale error'));await c;await turn();assert.strictEqual(toasts.length,1);posts[3].resolve({name:'D'});await d;assert.deepStrictEqual(events,['B.json','D.json']);
-const e=ctx.loadScript('E');await turn();posts[4].reject(Error('current error'));await e;assert(toasts.at(-1)[0].includes('current error'));const f=ctx.loadScript('F');await turn();posts[5].resolve({name:'F'});await f;assert.strictEqual(events.at(-1),'F.json');finished=true;
+const e=ctx.loadScript('E');await turn();posts[4].reject(Error('current error'));await e;assert(toasts.at(-1)[0].includes('current error'));const f=ctx.loadScript('F','a'.repeat(64));await turn();assert.strictEqual(JSON.stringify(posts[5].body),JSON.stringify({name:'F',expected_revision:'a'.repeat(64)}));posts[5].resolve({name:'F'});await f;assert.strictEqual(events.at(-1),'F.json');finished=true;
 })().catch(error=>{console.error(error);process.exitCode=1;});
 '''
         result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True, timeout=10)
@@ -26,7 +26,7 @@ const e=ctx.loadScript('E');await turn();posts[4].reject(Error('current error'))
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
-const start=source.indexOf('async function loadScript(name)'),end=source.indexOf('async function deleteScript(name)',start);
+const start=source.indexOf('async function loadScript('),end=source.indexOf('async function deleteScript(name)',start);
 assert(start>=0&&end>start);
 let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must complete'));
 (async()=>{

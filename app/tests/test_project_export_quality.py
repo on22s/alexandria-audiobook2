@@ -26,7 +26,6 @@ class ProjectExportQualityTests(unittest.TestCase):
             text='Synthetic line.', status='done', audio_path=source.name, pause_after=1500)
             for index in range(2)])
         return manager, source
-
     def assert_clean(self, directory):
         self.assertEqual([], [path.name for path in Path(directory).iterdir()
             if path.name.startswith(('.mp3-merge-', '.pcm-encode-', '.stream-pcm-', '.chapter-export-'))
@@ -133,6 +132,34 @@ class ProjectExportQualityTests(unittest.TestCase):
             self.assertTrue(success, message)
             self.assertGreater(len(AudioSegment.from_mp3(path)), 3000)
             self.assert_clean(tmp)
+
+
+    def test_two_chunk_corrupt_audio_reports_skipped_chunks(self):
+        # Synthetic two-chunk producer: one decodable take and one corrupt
+        # byte file. The partial export still succeeds (True) but the
+        # delivered evidence must carry the structural skip count so the
+        # overview never certifies it as a complete full-book delivery.
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, source = self.fixture(tmp)
+            corrupt = Path(tmp) / 'corrupt.wav'
+            corrupt.write_bytes(b'this is not audio')
+            rows = manager.load_chunks()
+            rows[1]['audio_path'] = corrupt.name
+            manager.save_chunks(rows)
+            reports = []
+            success, message = manager.merge_audio(export_quality_callback=reports.append)
+            self.assertTrue(success, message)
+            self.assertIn('skipped', message)
+            self.assertEqual(1, len(reports))
+            self.assertEqual(1, reports[0]['skipped_chunks'])
+            self.assertEqual('cloned_audiobook.mp3', reports[0]['file'])
+        # Clean two-chunk producer carries an explicit zero.
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, _ = self.fixture(tmp)
+            reports = []
+            success, message = manager.merge_audio(export_quality_callback=reports.append)
+            self.assertTrue(success, message)
+            self.assertEqual(0, reports[0]['skipped_chunks'])
 
 
 if __name__ == '__main__':
