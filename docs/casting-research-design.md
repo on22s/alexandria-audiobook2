@@ -40,6 +40,10 @@ interface or importing its sample voices.
   whole map, like the other mark arrays. Removal and undo/redo move a color
   with its tag, and a color for a tag that is no longer on the voice is pruned
   when saved, including by a legacy tags-only client.
+- A tag name has one color across the library. Changing it writes every voice
+  carrying that tag, ignoring case and filters, in one atomic batch that undoes
+  as one step. A tag newly added to a voice inherits the color. Older marks that
+  differ stay as stored until the next color change for that tag.
 - Malformed stored tag colors block loading the entire casting library, not
   just editing that voice. The store is left unchanged and must be repaired
   before reloading; unsupported colors are not silently discarded.
