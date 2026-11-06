@@ -8,7 +8,7 @@ HARNESS = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const handlers={};const containers=Object.fromEntries(['voices-list','chunks-table-body'].map(id=>[id,{dataset:{},addEventListener(type,fn){handlers[id+type]=fn;}}]));
-const context={currentBookFilename:'',window:{_voicesNames:['Zed','Alice','Alice','  Bob  '],_voiceRosterBookToken:'book-a'},
+const context={currentBookFilename:'',_voiceSaveSnapshot:null,window:{_voicesNames:['Zed','Alice','Alice','  Bob  '],_voiceRosterBookToken:'book-a'},
  escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'),
  document:{getElementById:id=>containers[id],createElement:()=>({value:'',textContent:''}),createDocumentFragment:()=>({children:[],appendChild(o){this.children.push(o);}})}};
 vm.createContext(context);

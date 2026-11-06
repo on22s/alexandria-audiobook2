@@ -954,13 +954,14 @@ def _get_single_narrator_source_preview():
         source_path = state.get("input_file_path")
         if not isinstance(source_path, str) or not source_path:
             raise HTTPException(status_code=400, detail="No input file selected for the active book.")
-        # Confine to DATA_DIR by spelling (no trust yet); the descriptor
-        # capture below re-checks containment and freezes file identity.
+        # Resolve exactly like the shared generation/source capture
+        # resolver (_capture_raw_source): relative spellings resolve
+        # against the process CWD, never silently against DATA_DIR, so
+        # preview shows the exact source generation reads. Confine to
+        # DATA_DIR by spelling (no trust yet); the descriptor capture
+        # below re-checks containment and freezes file identity.
         root_abs = Path(os.path.abspath(DATA_DIR))
-        if os.path.isabs(source_path):
-            source_abs = Path(os.path.abspath(source_path))
-        else:
-            source_abs = Path(os.path.abspath(os.path.join(DATA_DIR, source_path)))
+        source_abs = Path(os.path.abspath(source_path))
         try:
             relative = source_abs.relative_to(root_abs)
         except ValueError:

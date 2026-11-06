@@ -111,6 +111,15 @@ function singleVoiceIsDefiniteSaveRefusal(error) {
     return isDefiniteVoiceSaveRefusal(error);
 }
 
+// Owned pre-send refusal (canonical queue write guard): the write was
+// provably NOT sent (book changed before send). It is neither a server
+// refusal nor an unknown outcome — HTTP 5xx errors never carry this
+// marker, so this classification cannot misclassify them, and a prior
+// ambiguous outcome stays sticky in the queue (this never clears flags).
+function singleVoiceIsNotSent(error) {
+    return error?.voiceSaveNotSent === true;
+}
+
 function singleVoiceSaveErrorDetail(error) {
     return (error && (error.message || error.detail)) || 'Voice save failed.';
 }
@@ -363,6 +372,12 @@ async function previewSingleVoiceBook() {
                 flushedPending = true;
             } catch (preError) {
                 const detail = singleVoiceSaveErrorDetail(preError);
+                if (singleVoiceIsNotSent(preError)) {
+                    const notSentPre = new Error(`Pending voice edits were not sent: ${detail} Nothing was sent; your edits were retained.`, {cause: preError});
+                    notSentPre.notSentOutcome = true;
+                    notSentPre.unknownOutcome = false;
+                    throw notSentPre;
+                }
                 if (singleVoiceIsDefiniteSaveRefusal(preError)) {
                     throw new Error(`Pending voice edits were refused by the server: ${detail} Your edits were retained; fix the cause in Voices and try again.`, {cause: preError});
                 }
@@ -518,6 +533,15 @@ async function applySingleVoicePreview(preview, identity, source) {
         // 400/409/422 refusal is a definite no-write; transport/timeouts/5xx
         // stay unknown because a proxy/app error may follow a commit.
         const detail = singleVoiceSaveErrorDetail(error);
+        if (singleVoiceIsNotSent(error)) {
+            // Provably unsent: never claim a server refusal or an
+            // unknown/maybe-saved outcome, and never mark persisted.
+            const notSent = new Error(`Voice save was not sent: ${detail} Nothing was sent; your edits were retained.`, {cause: error});
+            notSent.savedApplied = false;
+            notSent.unknownOutcome = false;
+            notSent.notSentOutcome = true;
+            throw notSent;
+        }
         if (singleVoiceIsDefiniteSaveRefusal(error)) {
             // The server answered with a validation/CAS refusal: definite.
             const refused = new Error(`Voice save refused by the server: ${detail} Your edits were retained; fix the cause in Voices and try again.`, {cause: error});

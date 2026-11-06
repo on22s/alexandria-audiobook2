@@ -5531,14 +5531,20 @@
                 if (!token) { throw new Error('Reload Voices before saving the narrator strategy.'); }
                 const result = await API.post('/api/narrator/strategy', {strategy, book_token: token});
                 if (!isCurrentBook()) { return; }
-                if (/^[0-9a-f]{64}$/.test(result.revision)) {
-                    // Immutable snapshot replacement (the canonical
-                    // queue ACK does the same): mutating the object in
-                    // place would make returned rows' snapshot binding
-                    // point at this NEW revision, defeating the
-                    // loader's stale-row detection.
-                    _voiceSaveSnapshot = { ..._voiceSaveSnapshot, revision: result.revision };
+                // A 2xx ACK without the canonical revision shape is an
+                // UNCONFIRMED outcome, never a validated success: report
+                // it honestly (the write may have committed), invent no
+                // revision, and leave snapshot metadata/server state and
+                // retained drafts unmodified by the bad ACK.
+                if (!/^[0-9a-f]{64}$/.test(result?.revision || '')) {
+                    throw new Error('Narrator strategy save could not be confirmed: the server response did not include a valid revision. It may have been saved. Reload Voices to check the saved narrator strategy before changing it again.');
                 }
+                // Immutable snapshot replacement (the canonical
+                // queue ACK does the same): mutating the object in
+                // place would make returned rows' snapshot binding
+                // point at this NEW revision, defeating the
+                // loader's stale-row detection.
+                _voiceSaveSnapshot = { ..._voiceSaveSnapshot, revision: result.revision };
                 if (isLatest()) { showToast('Narrator strategy saved.', 'success'); }
             })();
             window._narratorStrategySave = saving;
@@ -6960,7 +6966,15 @@
                 const preserved = { ...metadata };
                 // Form fields describe the selected voice type; retain all
                 // other server metadata without copying inactive voice inputs.
-                for (const key of ['type', 'voice', 'character_style', 'default_style', 'seed', 'ref_audio', 'ref_text', 'adapter_id', 'adapter_path', 'description', 'members', 'alias_of', 'ready']) {
+                // The narrator strategy is owned by its dedicated
+                // endpoint (saveNarratorStrategy -> /api/narrator/strategy):
+                // ordinary card saves must OMIT it so the guarded save's
+                // exclude-unset merge preserves the server-acknowledged
+                // value. Preserving it from _voicesByName here would
+                // re-send the pre-ACK value (including drafts captured
+                // while the strategy POST was in flight) and silently
+                // revert the acknowledged strategy.
+                for (const key of ['type', 'voice', 'character_style', 'default_style', 'seed', 'ref_audio', 'ref_text', 'adapter_id', 'adapter_path', 'description', 'members', 'alias_of', 'ready', 'narrator_strategy']) {
                     delete preserved[key];
                 }
                 config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed).trim() || "-1" };

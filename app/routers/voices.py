@@ -355,6 +355,16 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
     (they pass `trusted_states`). A client may keep the stored value but never
     introduce or change one, and `state_<24 hex>` ids are reserved for state
     versions (#1040 review C6)."""
+    # Central consumed-container validation: a present non-object
+    # versions container (canonical null/absent excepted) is malformed
+    # data, refused clearly here — the one seam every write path and the
+    # single-voice proposal share — instead of an AttributeError deep in
+    # .items(). Legitimate dict histories pass untouched.
+    for _versions_value in (before.get("versions"), after.get("versions")):
+        if _versions_value is not None and not isinstance(_versions_value, dict):
+            raise ValueError(
+                f"Speaker '{speaker}' has malformed voice versions (not an object); "
+                "restore the saved voice configuration before continuing.")
     old_versions, versions = before.get("versions") or {}, after.get("versions") or {}
     for version_id, version in versions.items():
         if not isinstance(version, dict) or version_id in trusted_states:
@@ -1332,7 +1342,13 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                     raise ValueError(
                         f"Speaker '{voice_name}' has a malformed voice entry (not an object).")
                 metadata = dict(existing) if isinstance(existing, dict) else {}
-                fields = config.model_dump(exclude_unset=isinstance(existing, dict))
+                # Canonical null is the unconfigured equivalent of {}:
+                # a metadata-only update (e.g. ready) must not
+                # materialize Pydantic defaults (custom/Ryan) the way a
+                # full dump for an ABSENT key does. Explicit valid
+                # proposals still initialize every field they set.
+                fields = config.model_dump(exclude_unset=isinstance(existing, dict)
+                                           or (existing is None and voice_name in current_config))
                 # Timeline fields must serialize their full objects (not the
                 # exclude_unset slice): dump once, only when needed.
                 _timeline_dump = None
@@ -1683,7 +1699,10 @@ def build_single_voice_proposal(voices, script, source_speaker):
         raise HTTPException(status_code=400, detail="Saved voice configuration must be an object.")
     # A non-dict source entry is a clear 422 before the roster build touches
     # it (get_voice_rows/voice_is_set assume dict entries) (#1724 C002).
-    if source_speaker in voices and not isinstance(voices[source_speaker], dict):
+    # Canonical null (unconfigured) is NOT malformed: it falls through
+    # to the direct-asset unset handling ("has no custom voice
+    # selected"). Only non-null non-object shapes refuse as malformed.
+    if source_speaker in voices and voices[source_speaker] is not None and not isinstance(voices[source_speaker], dict):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' has a malformed voice entry (not an object). "
             "Choose a speaker with a direct base voice, then use its voice for the book."))
@@ -1800,6 +1819,14 @@ def build_single_voice_proposal(voices, script, source_speaker):
             _validate_consumed_description(name, _merged_entry)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        # Never offer a proposal that the canonical guarded save would
+        # refuse: run the same central change validation on the resulting
+        # entry here (read-only; its HTTPException refusals propagate
+        # with their own clear status, ValueError maps to 400).
+        try:
+            get_validated_voice_changes(name, before if isinstance(before, dict) else {}, _merged_entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         proposed[name] = patch
         # The client renders only name/line_count/changes; before/after
         # summaries and a top-level asset copy are dead payload (#1724 C096/C097).

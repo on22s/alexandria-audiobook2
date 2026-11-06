@@ -46,6 +46,40 @@ class SingleNarratorSourcePreviewTests(unittest.TestCase):
             self.assertRegex(body['book_token'], r'^[0-9a-f]{64}$')
             self.assertEqual('utf-8', body['encoding'])
 
+    def test_preview_matches_shared_generation_reader_for_cwd_relative_source(self):
+        # B: a relative input_file_path resolves against the process CWD
+        # exactly like the shared capture resolver, never silently
+        # against DATA_DIR. Same-named files with different bytes prove
+        # the preview shows the exact generation source. CWD is restored
+        # before temp cleanup (Windows).
+        from script_selection_binding import _read_source_snapshot
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            nested = root / 'app'
+            nested.mkdir()
+            (root / 'book.txt').write_text('Synthetic DATA source.', encoding='utf-8')
+            (nested / 'book.txt').write_text('Synthetic CWD source.', encoding='utf-8')
+            (root / 'state.json').write_text(json.dumps(
+                {"active_book_id": "book", "book_generation": "one",
+                 "input_file_path": "book.txt"}))
+            stack.enter_context(patch.object(script_router, 'DATA_DIR', str(root)))
+            app = FastAPI()
+            app.include_router(script_router.router)
+            client = stack.enter_context(TestClient(app))
+            previous_cwd = os.getcwd()
+            try:
+                os.chdir(nested)
+                response = client.get('/api/single-narrator/source-preview')
+                digest, raw = _read_source_snapshot(
+                    'book.txt', owning_root=str(root), include_bytes=True)
+            finally:
+                os.chdir(previous_cwd)
+            self.assertEqual(200, response.status_code, response.text)
+            body = response.json()
+            self.assertEqual('Synthetic CWD source.', body['text_start'])
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), body['source_sha256'])
+            self.assertEqual(digest, body['source_sha256'])
+
     def test_preview_tracks_source_and_book_changes(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             root = Path(tmp)

@@ -2636,7 +2636,15 @@ def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True)
     if is_voice_config_depth_exceeded(voices):
         raise ValueError("Voice configuration JSON is too deeply nested")
     identity = {key:state.get(key) for key in ("active_book_id", "input_file_path", "book_generation")}
-    book_id = state.get("active_book_id") or Path(state.get("input_file_path") or "").stem or "active_book"
+    # Narrow consumed-path validation only: the Path fallback below
+    # consumes input_file_path solely when no active_book_id is present.
+    # A malformed (non-string) spelling there is corrupt state data
+    # (clear ValueError), never an unmapped TypeError; str/None/missing
+    # fallbacks and all other state metadata are preserved untouched.
+    _input_file_path = state.get("input_file_path")
+    if not state.get("active_book_id") and _input_file_path is not None and not isinstance(_input_file_path, str):
+        raise ValueError("Book state input_file_path must be a string")
+    book_id = state.get("active_book_id") or Path(_input_file_path or "").stem or "active_book"
     return {"identity":identity, "book_id":book_id, "script_bytes":script_bytes,
             "script_sha256":hashlib.sha256(script_bytes).hexdigest() if script_bytes is not None else None, "voices":voices}
 

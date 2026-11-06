@@ -1411,6 +1411,139 @@ class MalformedFieldShapeTests(unittest.TestCase):
         self.assertIn('ALICE', proposal['voices'])
         self.assertEqual('custom', proposal['voices']['ALICE']['type'])
 
+    def test_state_input_file_path_nonstring_refuses_clearly_when_consumed(self):
+        # A3: state input_file_path={...} with no active_book_id is
+        # consumed by the book-id fallback and must be a clear 400, never
+        # an unmapped TypeError; str/None/missing fallbacks preserve.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text('[{"speaker": "Hero"}]')
+            config.write_text('{"Hero": {"type": "custom", "description": "x"}}')
+            state = root / 'state.json'
+            for bad in ({"a": 1}, ["book.txt"], 42):
+                with self.subTest(bad=bad):
+                    state.write_text(json.dumps({"input_file_path": bad}))
+                    before = {p: p.read_bytes() for p in (script, config, state)}
+                    response = client.get('/api/voices')
+                    self.assertEqual(400, response.status_code, response.text)
+                    self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+            for good in ("book.txt", None):
+                with self.subTest(good=good):
+                    state.write_text(json.dumps({"input_file_path": good}))
+                    response = client.get('/api/voices')
+                    self.assertEqual(200, response.status_code, response.text)
+            state.write_text('{}')
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+
+    def test_malformed_versions_container_refuses_save_and_preview_no_writes(self):
+        # C: versions=['bad'] with no persona targets reads fine, but the
+        # canonical save must clear-refuse (never AttributeError) and the
+        # preview must not offer a proposal its own save would refuse.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "Other"}]))
+            config.write_text(json.dumps({
+                "Hero": {"type": "custom", "voice": "Serena", "versions": ["bad"]},
+                "Other": {"type": "custom", "voice": "Serena"}}))
+            state = root / 'state.json'
+            before = {p: p.read_bytes() for p in (script, config, state)}
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            snapshot = client.get('/api/voice_config/snapshot')
+            self.assertEqual(200, snapshot.status_code, snapshot.text)
+            snap = snapshot.json()
+            preview = client.post('/api/voice_config/single-voice-preview', json={
+                "source_speaker": "Other", "revision": snap["revision"],
+                "book_token": snap["book_token"]})
+            self.assertEqual(400, preview.status_code, preview.text)
+            self.assertIn("malformed voice versions", preview.json()["detail"])
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+            save = client.post('/api/voice_config/save', json={
+                "voices": {"Hero": {"type": "custom", "voice": "Serena"}},
+                "revision": snap["revision"], "book_token": snap["book_token"]})
+            self.assertEqual(400, save.status_code, save.text)
+            self.assertIn("malformed voice versions", save.json()["detail"])
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+            # Valid controls: canonical null/absent versions and a
+            # legitimate dict history all save and preserve.
+            for versions in (None, {"v1": {"type": "custom", "voice": "Jenny", "seed": "1"}}):
+                with self.subTest(versions=versions):
+                    entry = {"type": "custom", "voice": "Serena"}
+                    if versions is not None:
+                        entry["versions"] = versions
+                    config.write_text(json.dumps({"Hero": entry, "Other": {"type": "custom", "voice": "Serena"}}))
+                    snap = client.get('/api/voice_config/snapshot').json()
+                    save = client.post('/api/voice_config/save', json={
+                        "voices": {"Hero": {"type": "custom", "voice": "Serena"}},
+                        "revision": snap["revision"], "book_token": snap["book_token"]})
+                    self.assertEqual(200, save.status_code, save.text)
+                    saved = json.loads(config.read_bytes())
+                    if versions is not None:
+                        self.assertEqual(versions, saved["Hero"]["versions"])
+
+    def test_null_target_metadata_only_update_does_not_pick_default_voice(self):
+        # E: canonical null and {} are unconfigured equivalents. A
+        # ready-only update must not materialize Pydantic defaults
+        # (custom/Ryan) on null, matching the {} behavior; an explicit
+        # valid asset still initializes the null target.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text(json.dumps([{"speaker": "Hero"}]))
+            for initial in (None, {}):
+                with self.subTest(initial=initial):
+                    config.write_text(json.dumps({"Hero": initial}))
+                    snap = client.get('/api/voice_config/snapshot').json()
+                    save = client.post('/api/voice_config/save', json={
+                        "voices": {"Hero": {"ready": True}},
+                        "revision": snap["revision"], "book_token": snap["book_token"]})
+                    self.assertEqual(200, save.status_code, save.text)
+                    saved = json.loads(config.read_bytes())["Hero"]
+                    self.assertTrue(saved["ready"])
+                    self.assertNotIn("voice", saved, "metadata-only update must not pick a voice")
+                    self.assertNotIn("type", saved, "metadata-only update must not pick a type")
+            config.write_text(json.dumps({"Hero": None}))
+            snap = client.get('/api/voice_config/snapshot').json()
+            save = client.post('/api/voice_config/save', json={
+                "voices": {"Hero": {"type": "custom", "voice": "Serena"}},
+                "revision": snap["revision"], "book_token": snap["book_token"]})
+            self.assertEqual(200, save.status_code, save.text)
+            saved = json.loads(config.read_bytes())["Hero"]
+            self.assertEqual("custom", saved["type"])
+            self.assertEqual("Serena", saved["voice"])
+
+    def test_explicit_null_source_refuses_as_unconfigured_not_malformed(self):
+        # A index2 copy: canonical null source is unconfigured (422, no
+        # direct voice selected), not malformed/corrupt; non-null
+        # malformed shapes still refuse as malformed; bytes preserved.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "Other"}]))
+            config.write_text(json.dumps({
+                "Hero": None, "Other": {"type": "custom", "voice": "Serena"}}))
+            state = root / 'state.json'
+            before = {p: p.read_bytes() for p in (script, config, state)}
+            snap = client.get('/api/voice_config/snapshot').json()
+            preview = client.post('/api/voice_config/single-voice-preview', json={
+                "source_speaker": "Hero", "revision": snap["revision"],
+                "book_token": snap["book_token"]})
+            self.assertEqual(422, preview.status_code, preview.text)
+            self.assertIn("no custom voice selected", preview.json()["detail"])
+            self.assertNotIn("malformed", preview.json()["detail"])
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+            config.write_text(json.dumps({
+                "Hero": "not-a-dict", "Other": {"type": "custom", "voice": "Serena"}}))
+            # Snapshot GET itself refuses malformed active data, so derive
+            # the guards canonically via the module helpers instead.
+            snap_obj = voices_module.get_book_snapshot(str(root), allow_missing_script=True)
+            snap = {"revision": voices_module.get_voice_config_revision(snap_obj["voices"]),
+                    "book_token": voices_module.get_book_snapshot_token(snap_obj)}
+            preview = client.post('/api/voice_config/single-voice-preview', json={
+                "source_speaker": "Hero", "revision": snap["revision"],
+                "book_token": snap["book_token"]})
+            self.assertEqual(422, preview.status_code, preview.text)
+            self.assertIn("malformed", preview.json()["detail"])
+
     def test_voice_map_depth_above_shared_bound_refuses_on_any_decoder(self):
         # Deterministic #11078 portability case: nesting well above the
         # shared 100 bound but far below every decoder's recursion
