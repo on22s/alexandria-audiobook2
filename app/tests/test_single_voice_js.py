@@ -326,6 +326,39 @@ await context.previewSingleVoiceBook();
 assert(context.confirmMessages.some(message=>message.includes('BOB: 0 lines') && message.includes('voice config will still be updated')),'0-line speaker must be disclosed as still updated');
 ''')
 
+    def test_confirm_shows_clone_source_asset_and_cancel_writes_nothing(self):
+        out = self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=false;
+previewVoicesOverride={ALICE:{type:'clone',voice:null,ref_audio:'C:\\private\\ref.wav',ref_text:'transcript must not dump',adapter_id:null,adapter_path:null,members:null,adapter_generation_sha256:null},BOB:{type:'clone',voice:null,ref_audio:'C:\\private\\ref.wav',ref_text:'transcript must not dump',adapter_id:null,adapter_path:null,members:null,adapter_generation_sha256:null}};
+await context.previewSingleVoiceBook();
+assert(context.confirmMessages.some(m=>m.includes('clone reference')&&m.includes('C:\\private\\ref.wav')),'modal must name the clone reference being copied');
+assert(!context.confirmMessages.some(m=>m.includes('transcript must not dump')),'modal must not dump the reference transcript');
+assert.strictEqual(writes.length,0,'cancel must write nothing');
+''')
+        self.assertEqual(0, len(out['writes']))
+
+    def test_confirm_shows_lora_source_asset_id_path_and_pin(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=false;
+previewVoicesOverride={ALICE:{type:'lora',voice:null,ref_audio:null,ref_text:null,adapter_id:'my-adapter',adapter_path:'C:\\models\\my-adapter',members:null,adapter_generation_sha256:'f'.repeat(64)},BOB:{type:'lora',voice:null,ref_audio:null,ref_text:null,adapter_id:'my-adapter',adapter_path:'C:\\models\\my-adapter',members:null,adapter_generation_sha256:'f'.repeat(64)}};
+await context.previewSingleVoiceBook();
+assert(context.confirmMessages.some(m=>m.includes('LoRA adapter my-adapter')&&m.includes('C:\\models\\my-adapter')&&m.includes('ffffffffffff')),'modal must name LoRA id, path and pin');
+assert.strictEqual(writes.length,0,'cancel must write nothing');
+''')
+
+    def test_source_preview_filename_labels_are_escaped(self):
+        self.run_node(r'''
+const evilPreview={text_start:'Synthetic text.',source_name:'evil\nname\u202etxt',imported_source_name:'imp\r\u202e.docx',encoding:'utf-8',total_chars:10,truncated:false,source_sha256:'a'.repeat(64),book_token:'b'.repeat(64)};
+vm.runInContext('_singleVoiceSourcePreview = ' + JSON.stringify(evilPreview), context);
+context.renderSingleVoiceSourcePreview();
+const meta=context.elements['source-preview-meta'].textContent;
+assert(!meta.includes('\n')&&!meta.includes('\r')&&!meta.includes('\u202e'),'displayed filename must escape newline/bidi controls');
+assert(meta.includes('\\n')&&meta.includes('\\u202e')&&meta.includes('\\r'),'escaped forms must be visible');
+assert(vm.runInContext('_singleVoiceSourcePreview.source_name',context).includes('\n'),'raw returned string must remain unchanged');
+''')
+
     def test_excerpt_count_uses_code_points(self):
         self.run_node(r'''
 previewTextOverride='😀'.repeat(4000);
@@ -461,6 +494,28 @@ assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',cont
 context.window._selectedUploadIdentity={filename:'book.txt',token:'c'.repeat(64),request:{}};
 await context.refreshVoiceMetadata();
 assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',context),'c'.repeat(64));
+''')
+
+    def test_unavailable_selection_guidance_requires_book_reload_not_voices(self):
+        self.run_node(r'''
+context.window._selectedUploadIdentity={filename:'book.txt',token:null,unavailable:true,request:{}};
+const beforeSnapshot=vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context);
+await context.loadSingleVoiceSourcePreview();
+assert.strictEqual(context.actionErrors.length,1);
+assert(context.actionErrors[0][1].message.includes('Reload or reselect this book'),'unavailable preview must direct to book reload, got: '+context.actionErrors[0][1].message);
+assert(!context.actionErrors[0][1].message.includes('Voices are still loading'),'unavailable preview must not say Voices are still loading');
+assert.strictEqual(context.elements['source-preview-text'].textContent,'No source preview loaded for this book.');
+context.elements['single-voice-source'].value='ALICE';
+await context.previewSingleVoiceBook();
+assert.strictEqual(context.actionErrors.length,2);
+assert(context.actionErrors[1][1].message.includes('Reload or reselect this book'),'unavailable bulk preview must direct to book reload');
+assert.strictEqual(writes.length,0,'unavailable preview must write nothing');
+assert.strictEqual(vm.runInContext('JSON.stringify(_voiceSaveSnapshot)',context),beforeSnapshot,'unavailable must publish no snapshot');
+// Explicit valid same-book reload recovers (existing loadScript/upload path).
+context.window._selectedUploadIdentity={filename:'book.txt',token:book,request:{}};
+await context.loadSingleVoiceSourcePreview();
+assert.strictEqual(context.actionErrors.length,2,'valid reload must not add a failure');
+assert.strictEqual(context.elements['source-preview-text'].textContent,'Synthetic text.');
 ''')
 
     def test_stale_source_rejection_after_new_book_success_is_ignored(self):

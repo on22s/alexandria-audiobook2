@@ -1,6 +1,7 @@
 import importlib.util
 import asyncio
 import copy
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -244,14 +245,21 @@ class VoicesTests(unittest.TestCase):
         self.assertTrue(tts.voice_is_set({"type": "lora", "adapter_id": "a"}))
         self.assertTrue(tts.voice_is_set({"type": "design", "description": ""}))
         with tempfile.TemporaryDirectory() as tmp:
-            script_path = os.path.join(tmp, "script.json")
-            voice_path = os.path.join(tmp, "voices.json")
-            Path(script_path).write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "Bare"}, {"speaker": "New"}]), encoding="utf-8")
-            Path(voice_path).write_text(json.dumps({"Hero": {"type": "lora", "adapter_id": "a"},
+            # Canonical book layout (get_book_snapshot reads
+            # annotated_script.json + voice_config.json + state.json);
+            # the listing is read-only and must not write defaults.
+            root = Path(tmp)
+            script_path = root / 'annotated_script.json'
+            voice_path = root / 'voice_config.json'
+            (root / 'state.json').write_text('{"active_book_id": "book", "book_generation": "one"}', encoding='utf-8')
+            script_path.write_text(json.dumps([{"speaker": "Hero"}, {"speaker": "Bare"}, {"speaker": "New"}]), encoding="utf-8")
+            voice_path.write_text(json.dumps({"Hero": {"type": "lora", "adapter_id": "a"},
                                                     "Bare": {"type": "custom", "voice": "Aiden", "seed": "-1"}}), encoding="utf-8")
-            with patch.object(voices_module, "SCRIPT_PATH", script_path), \
-                 patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path):
+            before = {p: p.read_bytes() for p in (script_path, voice_path)}
+            with patch.object(voices_module, "SCRIPT_PATH", str(script_path)), \
+                 patch.object(voices_module, "VOICE_CONFIG_PATH", str(voice_path)):
                 rows = {r["name"]: r["persona_pending"] for r in asyncio.run(voices_module.get_voices())}
+            self.assertEqual(before, {p: p.read_bytes() for p in (script_path, voice_path)})
         self.assertEqual({"Hero": False, "Bare": True, "New": True}, rows)
 
     def test_persona_generation_can_be_limited_to_characters_without_a_voice(self):
@@ -1044,25 +1052,36 @@ class VoiceMetadataIdentityTests(unittest.TestCase):
 
 
 class VoiceListShapeTests(unittest.TestCase):
-    def test_wrong_top_level_script_shapes_return_empty_list_without_writes(self):
+    def test_wrong_top_level_script_shapes_refuse_without_writes(self):
+        # Canonical layout: get_book_snapshot reads annotated_script.json
+        # + voice_config.json (+ state.json), not script.json/voices.json.
+        # A present wrong-shape script is fail-closed 400; a missing
+        # script stays the ordinary empty roster (200 []).
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         api = FastAPI()
         api.include_router(voices_module.router)
         with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
-            script = Path(tmp) / 'script.json'
-            config = Path(tmp) / 'voices.json'
-            config.write_text('{"Hero":{"type":"lora","adapter_id":"a"}}')
+            root = Path(tmp)
+            script = root / 'annotated_script.json'
+            config = root / 'voice_config.json'
+            (root / 'state.json').write_text('{"active_book_id": "book", "book_generation": "one"}')
+            config.write_text('{"Hero": {"type": "lora", "adapter_id": "a"}}')
             original_config = config.read_bytes()
             with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
                  patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
+                # Missing script: ordinary empty roster, no writes.
+                script.unlink(missing_ok=True)
+                response = client.get('/api/voices')
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual([], response.json())
+                self.assertEqual(original_config, config.read_bytes())
                 for value in ({'speaker': 'Hero'}, 'Hero', 7, True, None):
                     with self.subTest(value=value):
                         script.write_text(json.dumps(value))
                         original_script = script.read_bytes()
                         response = client.get('/api/voices')
-                        self.assertEqual(200, response.status_code)
-                        self.assertEqual([], response.json())
+                        self.assertEqual(400, response.status_code, response.text)
                         self.assertEqual(original_script, script.read_bytes())
                         self.assertEqual(original_config, config.read_bytes())
 
@@ -1072,8 +1091,10 @@ class VoiceListShapeTests(unittest.TestCase):
         api = FastAPI()
         api.include_router(voices_module.router)
         with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
-            script = Path(tmp) / 'script.json'
-            config = Path(tmp) / 'voices.json'
+            root = Path(tmp)
+            script = root / 'annotated_script.json'
+            config = root / 'voice_config.json'
+            (root / 'state.json').write_text('{"active_book_id": "book", "book_generation": "one"}')
             script.write_text(json.dumps([None, 'bad', 7, True, [],
                 {'speaker': 'Hero'}, {'type': 'Narrator'}, {'speaker': 'Hero'}]))
             original_script = script.read_bytes()
@@ -1090,28 +1111,126 @@ class VoiceListShapeTests(unittest.TestCase):
             self.assertEqual(original_script, script.read_bytes())
             self.assertEqual(original_config, config.read_bytes())
 
-    def test_wrong_config_shapes_use_empty_config_without_overwriting_file(self):
+    def test_wrong_config_shapes_refuse_without_overwriting_file(self):
+        # Present-but-wrong-shape voice config is fail-closed 400 with
+        # bytes unchanged (not 200 + empty config); missing/empty config
+        # stays the ordinary unconfigured roster.
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         api = FastAPI()
         api.include_router(voices_module.router)
         with tempfile.TemporaryDirectory() as tmp, TestClient(api) as client:
-            script = Path(tmp) / 'script.json'
-            config = Path(tmp) / 'voices.json'
+            root = Path(tmp)
+            script = root / 'annotated_script.json'
+            config = root / 'voice_config.json'
+            (root / 'state.json').write_text('{"active_book_id": "book", "book_generation": "one"}')
             script.write_text('[{"speaker":"Hero"}]')
             original_script = script.read_bytes()
             with patch.object(voices_module, 'SCRIPT_PATH', str(script)), \
                  patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)):
+                # Missing config file: ordinary unconfigured roster.
+                config.unlink(missing_ok=True)
+                response = client.get('/api/voices')
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual([{'name': 'Hero', 'config': {}, 'line_count': 0,
+                    'persona_pending': True}], response.json())
+                self.assertFalse(config.exists())
+                # Empty object config: same ordinary roster, bytes unchanged.
+                config.write_text('{}')
+                original_config = config.read_bytes()
+                response = client.get('/api/voices')
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual([{'name': 'Hero', 'config': {}, 'line_count': 0,
+                    'persona_pending': True}], response.json())
+                self.assertEqual(original_config, config.read_bytes())
                 for value in ([], ['bad'], 'bad', 7, True, None):
                     with self.subTest(value=value):
                         config.write_text(json.dumps(value))
                         original_config = config.read_bytes()
                         response = client.get('/api/voices')
-                        self.assertEqual(200, response.status_code)
-                        self.assertEqual([{'name': 'Hero', 'config': {}, 'line_count': 0,
-                            'persona_pending': True}], response.json())
+                        self.assertEqual(400, response.status_code, response.text)
                         self.assertEqual(original_script, script.read_bytes())
                         self.assertEqual(original_config, config.read_bytes())
+
+
+class MalformedFieldShapeTests(unittest.TestCase):
+    def _client(self, root, stack):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        script = root / 'annotated_script.json'
+        config = root / 'voice_config.json'
+        (root / 'state.json').write_text('{"active_book_id": "book", "book_generation": "one"}')
+        api = FastAPI()
+        api.include_router(voices_module.router)
+        stack.enter_context(patch.object(voices_module, 'SCRIPT_PATH', str(script)))
+        stack.enter_context(patch.object(voices_module, 'VOICE_CONFIG_PATH', str(config)))
+        return stack.enter_context(TestClient(api)), script, config
+
+    def test_malformed_active_description_and_trait_shapes_refuse_400(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            cases = [
+                ('active_description_int', [{"speaker": "Hero"}], {"Hero": {"type": "custom", "description": 123}}),
+                ('active_description_list', [{"speaker": "Hero"}], {"Hero": {"type": "custom", "description": ["x"]}}),
+                ('gender_list', [{"speaker": "Hero", "speaker_gender": ["male"], "speaker_age_group": "adult"}], {}),
+                ('age_list', [{"speaker": "Hero", "speaker_gender": "male", "speaker_age_group": ["adult"]}], {}),
+                ('gender_only', [{"speaker": "Hero", "speaker_gender": "male"}], {}),
+                ('age_only', [{"speaker": "Hero", "speaker_age_group": "adult"}], {}),
+            ]
+            for label, script_rows, voice in cases:
+                with self.subTest(case=label):
+                    script.write_text(json.dumps(script_rows))
+                    config.write_text(json.dumps(voice))
+                    before = {p: p.read_bytes() for p in (script, config)}
+                    response = client.get('/api/voices')
+                    self.assertEqual(400, response.status_code, response.text)
+                    self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+
+    def test_malformed_saved_state_description_refuses_400(self):
+        from speaker_traits import get_persona_state_targets
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            rows = []
+            for age in ('teen', 'adult'):
+                rows.extend({"speaker": "Hero", "text": f"{age} line {i}.", "speaker_gender": "male",
+                             "speaker_age_group": age} for i in range(10))
+            targets = get_persona_state_targets(rows)
+            self.assertTrue(targets.get("Hero"), targets)
+            version_id = targets["Hero"][0]["version_id"]
+            script.write_text(json.dumps(rows))
+            config.write_text(json.dumps({"Hero": {"versions": {version_id: {"description": 123}}}}))
+            before = {p: p.read_bytes() for p in (script, config)}
+            response = client.get('/api/voices')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+
+    def test_valid_absent_null_and_inactive_controls(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            # Valid string description + string traits: ordinary rows.
+            script.write_text(json.dumps([{"speaker": "Hero", "speaker_gender": "male",
+                                           "speaker_age_group": "adult"}]))
+            config.write_text(json.dumps({"Hero": {"type": "custom", "description": "A voice"},
+                                          "Inactive": {"type": "custom", "description": 123}}))
+            before = {p: p.read_bytes() for p in (script, config)}
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            rows = response.json()
+            self.assertEqual("Hero", rows[0]["name"])
+            self.assertFalse(rows[0]["persona_pending"])
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+            # Absent traits + null description: legitimate unconfigured contract.
+            script.write_text(json.dumps([{"speaker": "Hero"}]))
+            config.write_text(json.dumps({"Hero": {"type": "custom", "description": None}}))
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(response.json()[0]["persona_pending"])
+
+    def test_genuine_programmer_error_still_propagates(self):
+        with patch.object(voices_module, 'get_speaker_trait_summary',
+                          side_effect=AttributeError('injected programmer error')):
+            with self.assertRaisesRegex(AttributeError, 'injected programmer error'):
+                voices_module.get_voice_rows([{"speaker": "Hero"}], {"Hero": {}})
 
 
 class LibraryConfigShapeTests(unittest.TestCase):

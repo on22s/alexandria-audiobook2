@@ -678,7 +678,10 @@
                 const voiceLoad = loadVoices(false, voiceLoadOptions);
                 Promise.resolve(voiceLoad).catch(error => {
                     const message = String(error?.message || error || '');
-                    if (/superseded|Active book changed while loading voices/.test(message)) { return; }
+                    // Exact known obsolete prefixes only: a genuine error
+                    // that merely contains "superseded" (e.g. a speaker
+                    // named 'superseded' in a 400) must stay visible.
+                    if (/^(A newer voice load superseded|Active book changed while (loading|refreshing) voices)/.test(message)) { return; }
                     showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
                 });
             } else if (selectedLink.dataset.tab === 'designer') {
@@ -852,8 +855,7 @@
                         } catch (error) {
                             if (!pending) { pending = batch; }
                             if (guardAmbiguous) {
-                                const status = error && typeof error.status === 'number' ? error.status : null;
-                                ambiguous = !(status === 400 || status === 409 || status === 422);
+                                ambiguous = !isDefiniteVoiceSaveRefusal(error);
                             }
                             onError(error);
                             throw error;
@@ -882,10 +884,6 @@
                 return savedRevision !== revision;
             }
 
-            function isAmbiguous() {
-                return ambiguous && isDirty();
-            }
-
             async function discard() {
                 clearTimeout(timer);
                 timer = null;
@@ -903,7 +901,16 @@
             }
 
             function getRevision() { return revision; }
-            return { enqueue, flush, isDirty, isAmbiguous, discard, getRevision };
+            return { enqueue, flush, isDirty, discard, getRevision };
+        }
+
+        // One definite voice-save refusal rule for every voice queue and
+        // single-voice catch: a documented validation/CAS status
+        // (400/409/422) guarantees no commit. Transport failures,
+        // timeouts, aborts and 5xx are unknown outcomes, never definite.
+        function isDefiniteVoiceSaveRefusal(error) {
+            const status = error && typeof error.status === 'number' ? error.status : null;
+            return status === 400 || status === 409 || status === 422;
         }
 
         const taskStartButtons = {

@@ -78,3 +78,60 @@ class SharedSourceEncodingTests(unittest.TestCase):
             for reader in (read_source_text, completion.get_generation_input):
                 with self.subTest(reader=reader.__name__), self.assertRaises(FileNotFoundError):
                     reader(path)
+
+    def test_prepared_source_without_expected_sha_refuses_alias_and_hardlink(self):
+        import os
+        import subprocess
+        text = 'Alice walked home. "Hello," she said. The road was quiet and long.'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Valid control: no expected sha, ordinary CLI source outside
+            # any book directory prepares normally, file unchanged.
+            parent = root / 'parent'
+            parent.mkdir()
+            path = parent / 'book.txt'
+            path.write_bytes(text.encode('utf-8'))
+            prepared, _report = three_pass.get_prepared_source(str(path))
+            self.assertIn('Alice walked home.', prepared)
+            self.assertEqual(text.encode('utf-8'), path.read_bytes())
+            # Hardlinked source (nlink != 1): refused without a digest,
+            # exactly as the bound generation branch refuses it.
+            alias = parent / 'alias.txt'
+            os.link(path, alias)
+            with self.assertRaises(ValueError):
+                three_pass.get_prepared_source(str(alias))
+            alias.unlink()
+            # Aliased parent: refused on both hosts without a digest —
+            # native directory junction on Windows, directory symlink on
+            # POSIX (SourceParentSubstitutionTests pattern). Outside
+            # sentinel bytes must never be returned.
+            outside = root / 'outside'
+            outside.mkdir()
+            (outside / 'book.txt').write_text('OUTSIDE SENTINEL. Must not be read.', encoding='utf-8')
+            saved = root / 'parent-original'
+            os.rename(parent, saved)
+            aliased = root / 'parent'
+            try:
+                if os.name == 'nt':
+                    subprocess.run(['cmd.exe', '/d', '/c', 'mklink', '/J',
+                                    str(aliased), str(outside)],
+                                   capture_output=True, check=True)
+                else:
+                    os.symlink(outside, aliased, target_is_directory=True)
+                self.assertTrue(os.path.lexists(aliased))
+                with self.assertRaises(ValueError):
+                    three_pass.get_prepared_source(str(aliased / 'book.txt'))
+            finally:
+                if os.path.islink(aliased):
+                    os.unlink(aliased)
+                elif os.path.lexists(aliased):
+                    os.rmdir(aliased)
+                if saved.exists():
+                    os.rename(saved, parent)
+            self.assertEqual(text.encode('utf-8'), path.read_bytes())
+            # Expected-digest branch unchanged: match prepares, mismatch refuses.
+            digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+            prepared, _ = three_pass.get_prepared_source(str(path), expected_source_sha256=digest)
+            self.assertIn('Alice walked home.', prepared)
+            with self.assertRaisesRegex(ValueError, 'changed before it was read'):
+                three_pass.get_prepared_source(str(path), expected_source_sha256='0' * 64)

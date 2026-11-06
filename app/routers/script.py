@@ -3046,8 +3046,24 @@ def _read_and_validate_batch_script_source(job):
 
 
 def get_batch_script_source_identity(path):
-    stat = os.stat(path)
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    """Content-authoritative identity for the prepared-source cache.
+
+    The cached decoded text may be reused only while the exact source
+    bytes are unchanged. A stat tuple alone cannot prove that: timestamp
+    resolution is OS/filesystem dependent, and a same-sized rewrite can
+    restore mtime (and on some filesystems leave the whole stat tuple
+    unchanged) while the bytes change. Hash the raw bytes through the
+    shared confined capture seam (plain-path, single-link regular-file
+    and 512 MiB bounds, digest-only stream) and keep the file version
+    alongside it, so a touch still misses conservatively. A missing
+    source raises FileNotFoundError, matching the previous os.stat
+    contract; an aliased/hardlinked source raises ValueError.
+    """
+    from script_selection_binding import _capture_raw_source
+    proof, _raw = _capture_raw_source(path, owning_root=None, include_bytes=False)
+    if not proof.get('exists'):
+        raise FileNotFoundError(str(path))
+    return (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
 
 
 def get_validated_batch_script_source(job):

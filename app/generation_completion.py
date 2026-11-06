@@ -69,7 +69,13 @@ def get_generation_completion_error(output_path, input_path):
         if (not isinstance(artifact, dict) or type(artifact.get('version')) is not int
                 or artifact['version'] != 1):
             return 'Generation has no bound completion artifact'
-        if artifact.get('input_sha256') != get_file_sha256(input_path):
+        # Input identity re-verified through the same confined digest
+        # seam that bound it (script_selection_binding._source_digest):
+        # an aliased/hardlinked source refuses here exactly as the
+        # binding seam refuses it, instead of passing a plain hash of
+        # identical bytes through a different admission policy.
+        from script_selection_binding import _source_digest
+        if artifact.get('input_sha256') != _source_digest(input_path):
             return 'Generation source file changed'
         if artifact.get('output_sha256') != hashlib.sha256(output_bytes).hexdigest():
             return 'Generated output changed after completion'

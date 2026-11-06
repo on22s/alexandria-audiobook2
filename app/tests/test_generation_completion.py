@@ -70,6 +70,34 @@ class GenerationCompletionTests(unittest.TestCase):
                 {**self.manifest,'status':'failed'},self.source,get_file_sha256(self.source))
         self.assertEqual(before,self.output.read_bytes())
 
+    def test_hardlinked_source_with_same_bytes_refuses_completion_and_publication(self):
+        import os
+        from generate_script import publish_completed_generation
+        from generation_completion import get_generation_input
+        self.save()
+        self.assertIsNone(get_generation_completion_error(self.output, self.source))
+        # Bind via the confined seam, then make the source hardlinked
+        # to identical bytes: a plain hash would still match, but the
+        # admission policy that bound it refuses hardlinks.
+        _text, bound = get_generation_input(self.source)
+        alias = self.source.parent / 'source-alias.txt'
+        os.link(self.source, alias)
+        try:
+            self.assertIsNotNone(get_generation_completion_error(self.output, self.source),
+                                 'hardlinked source must refuse completion verification')
+            before_output = self.output.read_bytes()
+            manifest_path = Path(str(self.output) + '.generation_quality.json')
+            before_manifest = manifest_path.read_bytes()
+            with self.assertRaises(ValueError):
+                publish_completed_generation(str(self.output), [{'text': 'replacement'}],
+                                             {**self.manifest, 'status': 'verified'}, str(self.source), bound)
+            self.assertEqual(before_output, self.output.read_bytes())
+            self.assertEqual(before_manifest, manifest_path.read_bytes())
+        finally:
+            alias.unlink()
+        # Valid control: unlinking the alias restores verification.
+        self.assertIsNone(get_generation_completion_error(self.output, self.source))
+
     def test_source_text_and_raw_hash_come_from_one_read_with_existing_newline_policy(self):
         import hashlib
         from generation_completion import get_generation_input

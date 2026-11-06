@@ -79,6 +79,20 @@ function singleVoiceIdentityCurrent(identity) {
     return true;
 }
 
+// Explicit unavailable selection ({token:null, unavailable:true}): the
+// book identity could not be verified at load, so Reload Voices cannot
+// resolve it. Recovery is an explicit reload/reselect of the book
+// itself (Scripts load or re-upload), never a snapshot fallback.
+function singleVoiceIdentityUnavailable(identity) {
+    return !!(identity && identity.selection && identity.selection.unavailable);
+}
+
+function singleVoiceUnavailableBookError() {
+    return new Error('The selected book identity is unavailable. Reload or reselect this book '
+        + '(load it again from Scripts, or re-upload its source) before previewing again; '
+        + 'Reload Voices cannot resolve an unavailable book identity.');
+}
+
 function singleVoiceRefreshOpts(identity) {
     if (!identity) { return {}; }
     if (identity.selection) { return {expectedSelection: identity.selection}; }
@@ -90,10 +104,11 @@ function singleVoiceRefreshOpts(identity) {
 // documented validation/CAS status (400/409/422): those responses guarantee
 // no commit. Transport failures, timeouts, aborts and 5xx (proxy/app errors
 // that may follow a committed write) are UNKNOWN outcomes. The actionable
-// detail is always kept in the displayed message.
+// detail is always kept in the displayed message. The one status rule
+// lives in app-core (isDefiniteVoiceSaveRefusal, loaded first); this
+// alias keeps the single-voice call sites readable with no second copy.
 function singleVoiceIsDefiniteSaveRefusal(error) {
-    const status = error && typeof error.status === 'number' ? error.status : null;
-    return status === 400 || status === 409 || status === 422;
+    return isDefiniteVoiceSaveRefusal(error);
 }
 
 function singleVoiceSaveErrorDetail(error) {
@@ -120,10 +135,11 @@ function renderSingleVoiceSourcePreview() {
     const excerptChars = [...(preview.text_start || '')].length;
     // DS3007: distinguish the imported document from the retained
     // extracted text actually shown, and label the digest as the
-    // extracted-text digest it is.
+    // extracted-text digest it is. Filename labels are display-escaped
+    // (control/bidi) without changing raw stored/returned strings.
     const identityLabel = preview.imported_source_name
-        ? `imported document ${preview.imported_source_name} · retained extracted text ${preview.source_name}`
-        : `retained extracted text ${preview.source_name}`;
+        ? `imported document ${singleVoiceEscapeLabel(preview.imported_source_name)} · retained extracted text ${singleVoiceEscapeLabel(preview.source_name)}`
+        : `retained extracted text ${singleVoiceEscapeLabel(preview.source_name)}`;
     meta.textContent = `${identityLabel} · encoding ${preview.encoding} · original extracted text (before annotation/preparation) · `
         + `${preview.total_chars} chars total · excerpt ${excerptChars} shown`
         + (preview.truncated ? ' (truncated)' : '') + ` · extracted-text sha256 ${preview.source_sha256.slice(0, 16)}…`
@@ -163,6 +179,7 @@ async function loadSingleVoiceSourcePreview() {
         // snapshot book_token (a different digest). A missing captured token
         // fails closed: the book identity is still loading.
         if (!identity.identityToken) {
+            if (singleVoiceIdentityUnavailable(identity)) { throw singleVoiceUnavailableBookError(); }
             throw new Error('Voices are still loading for this book. Wait for Voices to finish, then reload the source preview.');
         }
         if (preview.book_token !== identity.identityToken) {
@@ -281,6 +298,27 @@ function singleVoiceEscapeLabel(name) {
     });
 }
 
+// Minimal escaped identity of the actual asset being copied, from the
+// server-authoritative preview patch for the source speaker. No new
+// availability/path qualification: this only shows what consent copies.
+function singleVoiceSourceAssetLabel(preview) {
+    const asset = preview && preview.voices ? preview.voices[preview.source_speaker] : null;
+    if (!asset || typeof asset !== 'object') { return 'unknown voice asset'; }
+    const type = asset.type || 'custom';
+    if (type === 'clone') {
+        return `clone reference ${singleVoiceEscapeLabel(asset.ref_audio || '')}`;
+    }
+    if (type === 'lora' || type === 'builtin_lora') {
+        const pin = asset.adapter_generation_sha256
+            ? ` pin ${singleVoiceEscapeLabel(String(asset.adapter_generation_sha256).slice(0, 12))}…` : '';
+        return `LoRA adapter ${singleVoiceEscapeLabel(asset.adapter_id || '')} path ${singleVoiceEscapeLabel(asset.adapter_path || '')}${pin}`;
+    }
+    if (type === 'custom') {
+        return `custom voice ${singleVoiceEscapeLabel(asset.voice || '')}`;
+    }
+    return `${singleVoiceEscapeLabel(type)} voice ${singleVoiceEscapeLabel(asset.voice || '')}`;
+}
+
 async function previewSingleVoiceBook() {
     if (_singleVoiceBusy) {
         showToast('A single-voice action is still running; please wait.', 'warning');
@@ -307,6 +345,7 @@ async function previewSingleVoiceBook() {
     const generation = _singleVoiceGeneration;
     let flushedPending = false;
     try {
+        if (singleVoiceIdentityUnavailable(identity)) { throw singleVoiceUnavailableBookError(); }
         // Preview may save the user's already-authorized pending card edits,
         // exactly as the existing Voices controls do, but it never
         // bulk-applies. The Voices copy states this truthfully (#1724 C126).
@@ -377,7 +416,7 @@ async function previewSingleVoiceBook() {
                 ? '0 lines — voice config will still be updated'
                 : (row.changes.length ? row.changes.join(', ') : 'unchanged'))).join('\n');
         const confirmed = await showConfirm(
-            `Use the ${singleVoiceEscapeLabel(preview.source_speaker)} voice for all ${preview.affected_speakers} speakers `
+            `Use the ${singleVoiceEscapeLabel(preview.source_speaker)} voice (${singleVoiceSourceAssetLabel(preview)}) for all ${preview.affected_speakers} speakers `
             + `(${preview.affected_lines} lines)?\n${lines}\n\nReady approvals are cleared for every affected speaker on this apply. `
             + `Changed-voice lines become pending for re-render; already rendered take files are retained, not deleted. `
             + `Voice approvals are reset for speakers whose effective voice changes.`,

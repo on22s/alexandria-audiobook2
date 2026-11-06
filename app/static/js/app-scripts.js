@@ -165,7 +165,11 @@
                 if (!isCurrent()) { return; }
                 console.error('Error loading script:', e);
                 if (request?.loadedCommitted) {
-                    showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded. Reload Voices to see it before trying Load again.');
+                    if (window._selectedUploadIdentity?.unavailable) {
+                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded, but its identity is unavailable. Reload or reselect this book (load it again from Scripts) before trying Voices again; Reload Voices cannot resolve an unavailable book identity.');
+                    } else {
+                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded. Reload Voices to see it before trying Load again.');
+                    }
                 } else {
                     showActionError("Error loading script", e, "Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.");
                 }

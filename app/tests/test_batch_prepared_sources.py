@@ -111,6 +111,30 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             path.unlink()
             with self.assertRaises(FileNotFoundError):script.get_validated_batch_script_source(jobs[0])
 
+    def test_cache_hit_reuses_decoded_text_without_rereading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+                with patch.object(script,'_read_and_validate_batch_script_source',side_effect=AssertionError('cache hit must not re-read')) as reread:
+                    self.assertEqual((jobs[0]['prepared_source']['text'],jobs[0]['prepared_source']['normalizations']),
+                                     script.get_validated_batch_script_source(jobs[0]))
+                    reread.assert_not_called()
+
+    def test_hardlinked_and_missing_sources_are_refused_not_cached(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+                os.link(path, Path(tmp)/'alias.txt')
+                with self.assertRaises(ValueError):
+                    script.get_validated_batch_script_source(jobs[0])
+                path.unlink();(Path(tmp)/'alias.txt').unlink()
+                with self.assertRaises(FileNotFoundError):
+                    script.get_validated_batch_script_source(jobs[0])
+
     def test_source_changed_during_preparation_is_refused_before_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'book.txt';path.write_text('Original source')

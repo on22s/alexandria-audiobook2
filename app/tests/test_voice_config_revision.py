@@ -73,11 +73,17 @@ class VoiceConfigRevisionTests(unittest.TestCase):
     def test_nonfinite_and_deep_nesting_refuse_before_any_write(self):
         # Raw NaN/Infinity must travel as request bytes (httpx json= would
         # refuse client-side); the server must validate the final proposed
-        # map BEFORE committing, leaving the file byte-identical.
+        # map BEFORE committing, leaving every file byte-identical.
+        # Parser limits vary by runtime (some parsers accept deep bodies
+        # that the storage encoder cannot write), so the authoritative
+        # refusal is the shared storable validator matching the stored
+        # encoding, not the request parser.
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             root = Path(tmp); client, path = self.fixture(root, stack)
+            (root / 'chunks.json').write_text('[{"id": 1, "speaker": "ALICE", "text": "Original source.", "status": "done", "audio_path": "take.wav"}]')
             snapshot = client.get('/api/voice_config/snapshot').json()
-            before = path.read_bytes()
+            before_files = {name: (root / name).read_bytes() for name in
+                            ('voice_config.json', 'annotated_script.json', 'state.json', 'chunks.json')}
             def raw_payload(versions_value):
                 payload = {'revision': snapshot['revision'], 'book_token': snapshot['book_token'],
                            'voices': {'ALICE': {'type': 'custom', 'voice': 'Serena',
@@ -93,10 +99,11 @@ class VoiceConfigRevisionTests(unittest.TestCase):
                     result = client.post('/api/voice_config/save', content=raw_payload(versions_value),
                                          headers={'Content-Type': 'application/json'})
                     self.assertIn(result.status_code, (400, 409, 422), result.text)
-                    self.assertEqual(before, path.read_bytes(),
+                    self.assertEqual(before_files, {name: (root / name).read_bytes() for name in before_files},
                                      'nonfinite payload must not be written')
-            # Deeply nested beyond the JSON parser's own limit: the body
-            # parse itself refuses (400) and nothing is written.
+            # Deeply nested: whether the request parser or the storable
+            # validator refuses it, nothing is written and no exception
+            # escapes as a 500.
             with self.subTest(case='deep_nesting'):
                 deep_raw = '{"n":' * 3000 + '1' + '}' * 3000
                 raw = ('{"revision":"' + snapshot['revision'] + '","book_token":"'
@@ -105,7 +112,7 @@ class VoiceConfigRevisionTests(unittest.TestCase):
                 result = client.post('/api/voice_config/save', content=raw,
                                      headers={'Content-Type': 'application/json'})
                 self.assertIn(result.status_code, (400, 409, 422), result.text)
-                self.assertEqual(before, path.read_bytes(),
+                self.assertEqual(before_files, {name: (root / name).read_bytes() for name in before_files},
                                  'deep payload must not be written')
             # Valid finite control still persists with a matching revision.
             result = client.post('/api/voice_config/save',
@@ -115,6 +122,66 @@ class VoiceConfigRevisionTests(unittest.TestCase):
             saved = json.loads(path.read_bytes())
             self.assertEqual(1.5, saved['ALICE']['versions']['v1']['n'])
             self.assertEqual(get_voice_config_revision(saved), result.json()['revision'])
+
+    def test_deep_programmatic_map_reaches_storable_validator_before_invalidation(self):
+        # A programmatically built deep map bypasses request-parser limits
+        # on every runtime and reaches the storage-encoding validator.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, path = self.fixture(root, stack)
+            (root / 'chunks.json').write_text('[{"id": 1, "speaker": "ALICE", "text": "Original source.", "status": "done", "audio_path": "take.wav"}]')
+            before_files = {name: (root / name).read_bytes() for name in
+                            ('voice_config.json', 'annotated_script.json', 'state.json', 'chunks.json')}
+            deep = 1
+            for _ in range(3000):
+                deep = {'n': deep}
+            def deep_update(current):
+                updated = dict(current)
+                entry = dict(updated.get('ALICE') or {})
+                entry['versions'] = {'v1': deep}
+                updated['ALICE'] = entry
+                return updated
+            with ensure_book_state(str(root)):
+                with self.assertRaisesRegex(ValueError, 'finite JSON values'):
+                    voices._apply_book_voice_update(deep_update)
+            self.assertEqual(before_files, {name: (root / name).read_bytes() for name in before_files},
+                             'deep map must be refused before invalidation or any write')
+            # Valid finite control through the same seam persists.
+            def valid_update(current):
+                updated = dict(current)
+                entry = dict(updated.get('ALICE') or {})
+                entry['description'] = 'controlled voice'
+                updated['ALICE'] = entry
+                return updated
+            with ensure_book_state(str(root)):
+                saved = voices._apply_book_voice_update(valid_update)
+            self.assertEqual('controlled voice', json.loads(path.read_bytes())['ALICE']['description'])
+            self.assertEqual(get_voice_config_revision(saved), get_voice_config_revision(json.loads(path.read_bytes())))
+
+    def test_storable_validator_preserves_revision_and_bounds_nesting(self):
+        from voice_config_store import ensure_voice_config_storable
+        # Mixed-type dict keys refuse via sort_keys in the revision digest.
+        with self.assertRaisesRegex(ValueError, 'finite JSON values'):
+            ensure_voice_config_storable({1: 'a', 'b': 2})
+        # Unpaired surrogates refuse via the UTF-8 encode, not just dumps str.
+        with self.assertRaisesRegex(ValueError, 'finite JSON values'):
+            ensure_voice_config_storable({'ALICE': {'description': '\ud800'}})
+        # Nested arrays and dicts beyond the bound refuse iteratively,
+        # before any serialization recursion.
+        deep_list = 1
+        for _ in range(150):
+            deep_list = [deep_list]
+        with self.assertRaisesRegex(ValueError, 'finite JSON values'):
+            ensure_voice_config_storable({'ALICE': {'versions': {'v1': deep_list}}})
+        deep_dict = 1
+        for _ in range(150):
+            deep_dict = {'n': deep_dict}
+        with self.assertRaisesRegex(ValueError, 'finite JSON values'):
+            ensure_voice_config_storable({'ALICE': {'versions': {'v1': deep_dict}}})
+        # Valid control: moderate nesting, finite, sortable, UTF-8 clean.
+        moderate = 1
+        for _ in range(20):
+            moderate = [{'n': moderate}]
+        ensure_voice_config_storable({'ALICE': {'versions': {'v1': moderate}, 'seed': 0}})
 
     def test_revision_is_order_independent_and_includes_unknown_fields_and_zero(self):
         first={'ALICE':{'seed':0,'future':{'a':1,'b':2}}};second={'ALICE':{'future':{'b':2,'a':1},'seed':0}}

@@ -3715,16 +3715,19 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     receives the same notices main() has always printed. Raises ValueError for
     a source the shared gate refuses.
     """
-    if expected_source_sha256 is None:
-        book, source_encoding = read_source_text(path)
-    else:
-        from script_selection_binding import _read_source_snapshot, _digest
-        from source_encoding import get_decoded_source_text
-        digest, raw = _read_source_snapshot(path, include_bytes=True,
-                                            owning_root=owning_root)
-        if digest != _digest(expected_source_sha256):
-            raise ValueError('Selected source changed before it was read for generation')
-        book, source_encoding = get_decoded_source_text(raw)
+    # One raw capture/decoding authority for BOTH branches: the confined
+    # snapshot refuses aliased/hardlinked sources exactly as the bound
+    # generation path does, so cast-list and speaker-review callers
+    # (which pass no expected digest) can never build a cast from
+    # outside bytes generation would refuse. The expected digest is
+    # compared only when supplied.
+    from script_selection_binding import _read_source_snapshot, _digest
+    from source_encoding import get_decoded_source_text
+    digest, raw = _read_source_snapshot(path, include_bytes=True,
+                                        owning_root=owning_root)
+    if expected_source_sha256 is not None and digest != _digest(expected_source_sha256):
+        raise ValueError('Selected source changed before it was read for generation')
+    book, source_encoding = get_decoded_source_text(raw)
     book = get_normalized_source_newlines(book)
     if source_encoding != "utf-8":
         report(f"Read {path} as {source_encoding} (not valid UTF-8)")

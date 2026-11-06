@@ -12,7 +12,6 @@ from utils import atomic_json_write
 import httpx2, llm_provider
 c = r.core
 app = FastAPI(); app.include_router(r.router)
-client = TestClient(app)
 
 
 def save(path, value):
@@ -48,6 +47,15 @@ class Fake:
 
 class SpeakerReviewApiTests(unittest.TestCase):
     def setUp(self):
+        # Enter the real TestClient BEFORE installing the network
+        # fence: entering pre-creates the portal/event loop, so the
+        # Windows Proactor self-pipe (socketpair -> connect) is built
+        # before socket.socket.connect is fenced. Guards are installed
+        # after, and LIFO cleanup removes them before the client
+        # closes. All actual requests still run under the fence.
+        self.client = TestClient(app)
+        self.client.__enter__()
+        self.addCleanup(self.client.__exit__, None, None, None)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         paths = {'DATA_DIR': self.tmp.name, 'SCRIPTS_DIR': str(Path(self.tmp.name, 'scripts')),
@@ -76,11 +84,11 @@ class SpeakerReviewApiTests(unittest.TestCase):
         self.make_patch.stop()
         if c.is_task_running(r.TASK): c.release_gpu_task_claim(r.TASK)
     def preview(self,sel):
-        response=client.post('/api/speaker_review/preview',json=sel)
+        response=self.client.post('/api/speaker_review/preview',json=sel)
         self.assertEqual(response.status_code,200,response.text)
         return response.json()
     def start(self,sel,p):
-        response=client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot'],'allow_network':True})
+        response=self.client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot'],'allow_network':True})
         self.assertEqual(response.status_code,200,response.text)
         return response.json()['run_id']
     def test_native_saved_script_api_lifecycle(self):
@@ -88,43 +96,43 @@ class SpeakerReviewApiTests(unittest.TestCase):
         self.assertEqual(len(self.calls),0); self.assertIn('native narrator labels',p['source_alignment'])
         self.assertNotIn('synthetic-secret',json.dumps(p))
         rid=self.start(sel,p); self.assertEqual(len(self.calls),2)
-        report=client.get('/api/speaker_review/'+rid).json()
+        report=self.client.get('/api/speaker_review/'+rid).json()
         self.assertEqual(report['status'],'completed'); self.assertTrue(report['candidates'][0]['can_apply'])
         self.assertFalse(Path(c.CHARACTER_ALIASES_PATH).exists())
         cand=p['candidates'][0]; payload={'snapshot':p['snapshot'],'candidate_id':cand['id'],'alias':'ALICE0','canonical':'AL0'}
-        response=client.post('/api/speaker_review/'+rid+'/apply',json=payload)
+        response=self.client.post('/api/speaker_review/'+rid+'/apply',json=payload)
         self.assertEqual(response.status_code,200,response.text)
         self.assertEqual(json.loads(Path(c.CHARACTER_ALIASES_PATH).read_text()),{'ALICE0':'AL0'})
-        self.assertEqual(client.post('/api/speaker_review/'+rid+'/apply',json=payload).status_code,409)
+        self.assertEqual(self.client.post('/api/speaker_review/'+rid+'/apply',json=payload).status_code,409)
     def test_real_checkpoint_prefix_missing_native_types(self):
         sel=fixture('checkpoint',pairs=2,checkpoint=True,partial=True)
         p=self.preview(sel); self.assertEqual(p['entries'],1); self.assertEqual(p['phase'],'provisional')
         self.assertEqual(p['candidates'][0]['context'][0]['type'],'SPOKEN')
-        self.assertEqual(client.post('/api/speaker_review/preview',json={**sel,'allow_partial':False}).status_code,409)
+        self.assertEqual(self.client.post('/api/speaker_review/preview',json={**sel,'allow_partial':False}).status_code,409)
         self.start(sel,p); self.assertEqual(len(self.calls),2)
     def test_real_completed_checkpoint_script_alignment(self):
         sel=fixture('complete',checkpoint=True)
         p=self.preview({**sel,'source':'current'}); self.assertEqual(p['source_alignment'],'frozen generation text/type')
         script=json.loads(Path(c.SCRIPT_PATH).read_text()); script[0]['text']='Changed'; save(c.SCRIPT_PATH,script)
-        self.assertEqual(client.post('/api/speaker_review/preview',json={**sel,'source':'current'}).status_code,409)
+        self.assertEqual(self.client.post('/api/speaker_review/preview',json={**sel,'source':'current'}).status_code,409)
     def test_wrong_checkpoint_source_and_type_rejected(self):
         sel=fixture('wrongsource',checkpoint=True)
         Path(c.DATA_DIR,'synthetic.txt').write_text('A different synthetic book')
-        self.assertEqual(client.post('/api/speaker_review/preview',json=sel).status_code,409)
+        self.assertEqual(self.client.post('/api/speaker_review/preview',json=sel).status_code,409)
         fixture('wrongtype',checkpoint=True)
         checkpoint=json.loads(Path(r._checkpoint_path()).read_text()); checkpoint['named'][0]['type']='NARRATOR'
         save(r._checkpoint_path(),checkpoint)
-        self.assertEqual(client.post('/api/speaker_review/preview',json=sel).status_code,409)
+        self.assertEqual(self.client.post('/api/speaker_review/preview',json=sel).status_code,409)
     def test_model_free_preview_unavailable_profile(self):
         sel=fixture('manual'); save(c.CONFIG_PATH,{'llm':{'transport':'manual'}})
         p=self.preview(sel); self.assertFalse(p['profile']['available']); self.assertEqual(len(p['candidates']),1)
-        response=client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot'],'allow_network':True})
+        response=self.client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot'],'allow_network':True})
         self.assertEqual(response.status_code,409); self.assertEqual(self.calls,[])
     def test_requires_explicit_consent_and_fresh_preview(self):
         sel=fixture('consent'); p=self.preview(sel)
-        response=client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot']})
+        response=self.client.post('/api/speaker_review/start',json={**sel,'snapshot':p['snapshot']})
         self.assertEqual(response.status_code,400)
-        response=client.post('/api/speaker_review/start',json={**sel,'snapshot':'0'*64,'allow_network':True})
+        response=self.client.post('/api/speaker_review/start',json={**sel,'snapshot':'0'*64,'allow_network':True})
         self.assertEqual(response.status_code,409); self.assertEqual(self.calls,[])
     def test_unique_reference_matching_and_evidence_bounds(self):
         sel=fixture('unique'); ref=Path(c.SCRIPTS_DIR,'reference.json'); rows=json.loads(ref.read_text());save(ref,rows+rows)
@@ -135,7 +143,7 @@ class SpeakerReviewApiTests(unittest.TestCase):
         sel=fixture('cap',pairs=25); p=self.preview(sel);self.assertEqual(len(p['candidates']),20)
         rid=self.start(sel,p);self.assertEqual(len(self.calls),40)
         self.start(sel,p);self.assertEqual(len(self.calls),40)
-        report=client.get('/api/speaker_review/'+rid).json();self.assertEqual(report['attempts'],40)
+        report=self.client.get('/api/speaker_review/'+rid).json();self.assertEqual(report['attempts'],40)
         self.assertTrue(all(row['cached'] for row in report['reviews']))
     def test_failed_calls_do_not_leak_or_retry_past_ceiling(self):
         sel=fixture('failurecap',pairs=20); p=self.preview(sel)
@@ -146,15 +154,15 @@ class SpeakerReviewApiTests(unittest.TestCase):
         with patch.object(r,'make_reviewer',side_effect=bad):
             rid=self.start(sel,p);self.start(sel,p)
         self.assertEqual(len(self.calls),40)
-        report=client.get('/api/speaker_review/'+rid).json();self.assertNotIn('synthetic-secret',json.dumps(report))
+        report=self.client.get('/api/speaker_review/'+rid).json();self.assertNotIn('synthetic-secret',json.dumps(report))
         self.assertFalse(any(row['can_apply'] for row in report['candidates']))
     def test_disagreement_prevents_apply(self):
         sel=fixture('disagreement');p=self.preview(sel)
         def different(profile):
             return Fake(),lambda candidate,mode: {'same_identity': mode=='none','reason':'Synthetic disagreement'}
         with patch.object(r,'make_reviewer',side_effect=different):rid=self.start(sel,p)
-        report=client.get('/api/speaker_review/'+rid).json();self.assertFalse(report['candidates'][0]['can_apply'])
-        response=client.post('/api/speaker_review/'+rid+'/apply',json={'snapshot':p['snapshot'],'candidate_id':p['candidates'][0]['id'],'alias':'ALICE0','canonical':'AL0'})
+        report=self.client.get('/api/speaker_review/'+rid).json();self.assertFalse(report['candidates'][0]['can_apply'])
+        response=self.client.post('/api/speaker_review/'+rid+'/apply',json={'snapshot':p['snapshot'],'candidate_id':p['candidates'][0]['id'],'alias':'ALICE0','canonical':'AL0'})
         self.assertEqual(response.status_code,409)
     def test_each_changed_revision_refuses_apply_without_relabeling(self):
         for target in ('state', 'script', 'reference', 'profile', 'aliases', 'checkpoint'):
@@ -180,7 +188,7 @@ class SpeakerReviewApiTests(unittest.TestCase):
                     save(path, {'stage': 'invalid'})
                 before_script = Path(c.SCRIPT_PATH).read_bytes()
                 before_aliases = Path(c.CHARACTER_ALIASES_PATH).read_bytes() if Path(c.CHARACTER_ALIASES_PATH).exists() else None
-                response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                response = self.client.post('/api/speaker_review/' + run_id + '/apply', json={
                     'snapshot': preview['snapshot'], 'candidate_id': candidate['id'],
                     'alias': 'ALICE0', 'canonical': 'AL0'})
                 self.assertEqual(409, response.status_code, response.text)
@@ -193,7 +201,7 @@ class SpeakerReviewApiTests(unittest.TestCase):
         save(c.CHARACTER_ALIASES_PATH, {'ALICE0': 'OTHER'})
         preview = self.preview(sel)
         run_id = self.start(sel, preview)
-        report = client.get('/api/speaker_review/' + run_id).json()
+        report = self.client.get('/api/speaker_review/' + run_id).json()
         self.assertEqual('completed', report['status'])
         self.assertTrue(report['candidates'][0]['can_apply'])
         directions = report['candidates'][0]['apply_directions']
@@ -212,25 +220,25 @@ class SpeakerReviewApiTests(unittest.TestCase):
                 save(c.CHARACTER_ALIASES_PATH, aliases)
                 preview = self.preview(sel)
                 run_id = self.start(sel, preview)
-                report = client.get('/api/speaker_review/' + run_id).json()
+                report = self.client.get('/api/speaker_review/' + run_id).json()
                 candidate = report['candidates'][0]
                 self.assertEqual(expected, [item['can_apply'] for item in candidate['apply_directions']])
                 self.assertEqual(any(expected), candidate['can_apply'])
                 before_script = Path(c.SCRIPT_PATH).read_bytes()
                 for item in candidate['apply_directions']:
                     if not item['can_apply']:
-                        response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                        response = self.client.post('/api/speaker_review/' + run_id + '/apply', json={
                             'snapshot': preview['snapshot'], 'candidate_id': candidate['id'],
                             'alias': item['alias'], 'canonical': item['canonical']})
                         self.assertEqual(409, response.status_code)
                         self.assertEqual(aliases, json.loads(Path(c.CHARACTER_ALIASES_PATH).read_text()))
                 if any(expected):
                     item = next(item for item in candidate['apply_directions'] if item['can_apply'])
-                    response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                    response = self.client.post('/api/speaker_review/' + run_id + '/apply', json={
                         'snapshot': preview['snapshot'], 'candidate_id': candidate['id'],
                         'alias': item['alias'], 'canonical': item['canonical']})
                     self.assertEqual(200, response.status_code, response.text)
-                    stale = client.get('/api/speaker_review/' + run_id).json()
+                    stale = self.client.get('/api/speaker_review/' + run_id).json()
                     self.assertTrue(stale['stale'])
                     self.assertFalse(any(item['can_apply'] for item in stale['candidates'][0]['apply_directions']))
                 self.assertEqual(before_script, Path(c.SCRIPT_PATH).read_bytes())

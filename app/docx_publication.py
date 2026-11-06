@@ -95,8 +95,7 @@ def capture_docx_group(path, *, byte_limit=MAX_ARCHIVE + MAX_TEXT + 65536, cance
     # receipt was validated above against the captured proofs, so its
     # uploaded_filename is trustworthy provenance, not a guess.
     return {'kind': 'docx', 'proofs': proofs, 'text_bytes': payloads['text'],
-            'uploaded_filename': receipt['uploaded_filename'],
-            'original_sha256': receipt['original_sha256']}
+            'uploaded_filename': receipt['uploaded_filename']}
 
 
 def publish_docx_upload(original, preview, filename, *, remaining):

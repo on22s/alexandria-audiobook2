@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Literal
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, model_validator, field_validator
 from config_settings import load_app_config
-from voice_config_store import apply_voice_config_update, get_voice_config_revision, VoiceConfigConflict
+from voice_config_store import apply_voice_config_update, get_voice_config_revision, ensure_voice_config_storable, VoiceConfigConflict
 from project import ProjectManager
 
 from core import (
@@ -283,19 +283,16 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
         def update(current):
             updated = transform(current)
             # Pre-invalidation strict-map validation (DS3021 remainder):
-            # the canonical revision digest (allow_nan=False) runs on
-            # the FINAL proposed map BEFORE any audio invalidation side
-            # effect, so a nonfinite/invalid payload is an all-file
-            # no-write refusal. Valid updates keep the crucial order:
-            # invalidation fences old/in-flight audio BEFORE the config
-            # publish inside apply_voice_config_update (which
-            # re-validates before writing), preserving conservative
-            # fencing on publication I/O failure.
-            try:
-                get_voice_config_revision(updated)
-            except (ValueError, TypeError, RecursionError) as exc:
-                raise ValueError(
-                    "Voice configuration values must be finite JSON values") from exc
+            # the one storable validator runs on the FINAL proposed map
+            # BEFORE any audio invalidation side effect, so a nonfinite
+            # or storage-unserializable payload is an all-file no-write
+            # refusal. It matches the actual stored encoding (indent=2),
+            # not only the compact revision digest. Valid updates keep
+            # the crucial order: invalidation fences old/in-flight audio
+            # BEFORE the config publish inside apply_voice_config_update
+            # (which re-validates before writing), preserving
+            # conservative fencing on publication I/O failure.
+            ensure_voice_config_storable(updated)
             manager._apply_voice_timeline_audio_invalidation_locked(current, updated)
             return updated
         return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
@@ -484,6 +481,26 @@ def get_voice_rows(script_data, voice_config):
         name = get_script_speaker(entry)
         if name in lines and isinstance(entry, dict):
             lines[name].append(entry)
+    # Narrow domain-boundary validation of malformed external field
+    # shapes (CF60009): speaker_traits Counter-hashes gender/age and
+    # voice_is_set .strip()s description, so a present non-string
+    # value is corrupt book data (ValueError -> 400), never a 500.
+    # Absent trait fields stay ordinary (no pass-2 traits); absent/
+    # null description stays the legitimate unconfigured contract;
+    # inactive entries are not validated here. No broad TypeError /
+    # AttributeError catch and no silent coercion: genuine programmer
+    # errors still propagate.
+    for entry in script_data:
+        if not isinstance(entry, dict):
+            continue
+        has_gender = "speaker_gender" in entry
+        has_age = "speaker_age_group" in entry
+        if has_gender != has_age or (
+                (has_gender and not isinstance(entry.get("speaker_gender"), str))
+                or (has_age and not isinstance(entry.get("speaker_age_group"), str))):
+            raise ValueError(
+                "Active script has malformed speaker trait fields; "
+                "restore the book state or reload the script, then try again.")
     state_targets = get_persona_state_targets(script_data)
     if not isinstance(voice_config, dict):
         raise ValueError(
@@ -501,6 +518,12 @@ def get_voice_rows(script_data, voice_config):
             raise ValueError(
                 f"Speaker '{name}' has a malformed voice entry (not an object); "
                 "restore the saved voice configuration before continuing.")
+        if name in voice_config:
+            _description = voice_config[name].get("description")
+            if _description is not None and not isinstance(_description, str):
+                raise ValueError(
+                    f"Speaker '{name}' has a malformed voice description; "
+                    "restore the saved voice configuration before continuing.")
     rows = []
     for name in roster:
         entry = voice_config.get(name, {})
@@ -532,6 +555,13 @@ def get_voice_rows(script_data, voice_config):
                         f"Speaker '{name}' has a malformed saved voice state "
                         f"'{_target['version_id']}'; restore the saved voice configuration "
                         "before continuing.")
+                if _target["version_id"] in saved:
+                    _saved_description = saved[_target["version_id"]].get("description")
+                    if _saved_description is not None and not isinstance(_saved_description, str):
+                        raise ValueError(
+                            f"Speaker '{name}' has a malformed saved voice state "
+                            f"description '{_target['version_id']}'; restore the saved voice "
+                            "configuration before continuing.")
             # Each state says whether its saved version is current, by the
             # server's own rule, so the cards never re-derive it (C37).
             # Each state carries its own line count (the character's spoken
@@ -1688,11 +1718,9 @@ def build_single_voice_proposal(voices, script, source_speaker):
         # active overrides change; otherwise preserve (omit the key). An
         # alias the runtime ignores (whitespace/non-string) does not make
         # the effective voice change, even though its raw key is cleared
-        # and disclosed above (DS3039).
-        _raw_before_alias = (before.get("alias_of") or before.get("alias")) if isinstance(before, dict) else None
-        _effective_before_alias = (_raw_before_alias if isinstance(_raw_before_alias, str)
-                                   and _raw_before_alias.strip() else None)
-        effective_changed = voice_changed or ("alias cleared" in changes and _effective_before_alias
+        # and disclosed above (DS3039). Reuse the normalized summary's
+        # alias instead of re-deriving it from the raw entry.
+        effective_changed = voice_changed or ("alias cleared" in changes and before_summary["alias_of"]
             or "version timeline/active version cleared" in changes
             or "narrator strategy reset to global" in changes)
         if effective_changed:
