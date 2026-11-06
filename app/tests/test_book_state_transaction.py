@@ -56,20 +56,13 @@ class BookStateTransactionTests(unittest.TestCase):
                     if replacement:
                         self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
                     self.assertEqual(generated, (retained / 'new-0').read_bytes())
-                    journal = root / books.JOURNAL
-                    self.assertTrue(journal.exists())
-                    with journal.open('r', encoding='utf-8') as handle:
-                        self.assertEqual('publishing', json.load(handle)['phase'])
-                    frozen = journal.read_bytes()
-                    for _ in range(2):
-                        with self.assertRaises(ValueError):
-                            with books.ensure_book_state(root):
-                                self.fail('Relocated recovery workspace was admitted')
-                        self.assertEqual(frozen, journal.read_bytes())
+                    def check():
                         self.assertEqual(b'owned original', original.read_bytes())
                         self.assertFalse(target.exists())
                         if replacement:
                             self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
+                    from tests.test_support import assert_book_journal_fenced
+                    assert_book_journal_fenced(self, root, content_check=check)
 
     def test_failed_journal_publication_preserves_edited_journal_and_workspace(self):
         import source_upload_publication as publication

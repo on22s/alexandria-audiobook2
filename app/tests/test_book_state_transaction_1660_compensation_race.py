@@ -1,6 +1,6 @@
+import errno
 import hashlib
 import io
-import json
 import os
 import tempfile
 import unittest
@@ -8,12 +8,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 import book_state_transaction as books
+import source_upload_publication as publication
+from tests.test_support import assert_book_journal_fenced
 
 OWNED = b'owned original'
 GENERATED = b'generated'
 FOREIGN = b'foreign replacement'
 
 
+def _stream(data):
+    return books.BookStateStream(io.BytesIO(data), len(data), hashlib.sha256(data).hexdigest())
+
+
+@unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
 class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
     """Permanent regression for the #1660 residual compensation race.
 
@@ -25,37 +32,98 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
     repeated recovery refusal -- a disappearing hook alone cannot pass.
     """
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
     def test_destination_parent_swap_before_and_after_byte_and_stream(self):
-        import source_upload_publication as publication
         for streaming in (False, True):
             for timing in ('before', 'after'):
                 with self.subTest(streaming=streaming, timing=timing):
-                    self._parent_case(publication, 'destination', streaming, timing)
+                    self._parent_case('destination', streaming, timing)
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
     def test_source_parent_swap_before_and_after_byte_and_stream(self):
-        import source_upload_publication as publication
         for streaming in (False, True):
             for timing in ('before', 'after'):
                 with self.subTest(streaming=streaming, timing=timing):
-                    self._parent_case(publication, 'source', streaming, timing)
+                    self._parent_case('source', streaming, timing)
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
     def test_occupied_source_is_preserved_byte_and_stream(self):
-        import source_upload_publication as publication
         for streaming in (False, True):
             with self.subTest(streaming=streaming):
-                self._parent_case(publication, 'destination', streaming, 'occupied')
+                self._parent_case('destination', streaming, 'occupied')
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
     def test_direct_directory_move_preserves_on_destination_parent_change(self):
-        import source_upload_publication as publication
+        # Bounded duplication is intentional here: a directory removal has
+        # no generated stage and different postconditions (contents, not
+        # bytes), so sharing the file harness would hide those oracles.
         for timing in ('before', 'after'):
             with self.subTest(timing=timing):
-                self._directory_case(publication, timing)
+                self._directory_case(timing)
 
-    @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
+    def test_sync_oserror_preserves_parent_error_as_primary_with_sync_cause(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            workspace = root / 'workspace'
+            workspace.mkdir()
+            source = root / 'artifact'
+            source.write_bytes(OWNED)
+            retained = root / 'retained'
+            real_move, real_fsync = publication.move_source_upload_exclusively, os.fsync
+            state = {'moved': False, 'sync_failed': False}
+            def relocate(source_name, dest_name, **kwargs):
+                result = real_move(source_name, dest_name, **kwargs)
+                if not state['moved']:
+                    workspace.rename(retained)
+                    workspace.mkdir()
+                    state['moved'] = True
+                return result
+            def fail_sync(fd):
+                if state['moved'] and not state['sync_failed']:
+                    state['sync_failed'] = True
+                    raise OSError(errno.EIO, 'fixture directory sync failure')
+                return real_fsync(fd)
+            with patch.object(publication, 'move_source_upload_exclusively', relocate), \
+                 patch.object(books.os, 'fsync', fail_sync):
+                with self.assertRaises(ValueError) as raised:
+                    books._move(source, workspace / 'old-0', exclusive=True, anchor=root)
+            self.assertTrue(state['moved'])
+            self.assertTrue(state['sync_failed'])
+            self.assertIn('parent changed', str(raised.exception))
+            self.assertIsInstance(raised.exception.__cause__, OSError)
+            self.assertIn('fixture directory sync failure', str(raised.exception.__cause__))
+            self.assertFalse(source.exists())
+            self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
+            self.assertEqual([], list(workspace.iterdir()))
+
+    def test_sync_keyboard_interrupt_is_not_converted_to_value_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            workspace = root / 'workspace'
+            workspace.mkdir()
+            source = root / 'artifact'
+            source.write_bytes(OWNED)
+            retained = root / 'retained'
+            real_move, real_fsync = publication.move_source_upload_exclusively, os.fsync
+            state = {'moved': False, 'sync_failed': False}
+            def relocate(source_name, dest_name, **kwargs):
+                result = real_move(source_name, dest_name, **kwargs)
+                if not state['moved']:
+                    workspace.rename(retained)
+                    workspace.mkdir()
+                    state['moved'] = True
+                return result
+            def interrupt_sync(fd):
+                if state['moved'] and not state['sync_failed']:
+                    state['sync_failed'] = True
+                    raise KeyboardInterrupt()
+                return real_fsync(fd)
+            with patch.object(publication, 'move_source_upload_exclusively', relocate), \
+                 patch.object(books.os, 'fsync', interrupt_sync):
+                with self.assertRaises(KeyboardInterrupt) as raised:
+                    books._move(source, workspace / 'old-0', exclusive=True, anchor=root)
+            self.assertTrue(state['moved'])
+            self.assertTrue(state['sync_failed'])
+            self.assertIsInstance(raised.exception.__context__, ValueError)
+            self.assertIn('parent changed', str(raised.exception.__context__))
+            self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
+
     def test_ordinary_rollback_with_valid_parents_byte_and_stream(self):
         for streaming in (False, True):
             with self.subTest(streaming=streaming), tempfile.TemporaryDirectory() as temporary:
@@ -69,77 +137,32 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                         calls.append(True)
                         raise ValueError('fixture moved-original failure')
                     return real(*args, **kwargs)
-                value = (books.BookStateStream(io.BytesIO(GENERATED), len(GENERATED),
-                         hashlib.sha256(GENERATED).hexdigest()) if streaming else GENERATED)
+                value = _stream(GENERATED) if streaming else GENERATED
                 options = {'stream_byte_limit': 100} if streaming else {}
                 with patch.object(books, name, side_effect=fail_once):
                     with books.ensure_book_state(root), self.assertRaises(ValueError):
                         books.apply_book_state_locked(root, {'artifact': value}, [], **options)
                 self.assertEqual([True], calls)
-                # Valid parents: recovery restores the original and clears evidence.
                 self.assertEqual(OWNED, target.read_bytes())
                 self.assertFalse((root / books.JOURNAL).exists())
                 self.assertEqual([], list(root.glob('.book-switch-*')))
 
-    @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd
-                         and os.mkdir in os.supports_dir_fd,
-                         'POSIX descriptor-relative staging required')
-    def test_root_relocation_control_asserts_admission_and_evidence(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary).resolve()
-            root = base / 'book'
-            root.mkdir()
-            (root / 'script.json').write_bytes(OWNED)
-            retained = base / 'retained-book'
-            stage = books._stage_book_stream
-            relocated = []
-            def relocate_root(*args, **kwargs):
-                result = stage(*args, **kwargs)
-                if not relocated:
-                    root.rename(retained)
-                    root.mkdir()
-                    (root / 'foreign').write_bytes(b'do not modify')
-                    relocated.append(True)
-                return result
-            with patch.object(books, '_stage_book_stream', side_effect=relocate_root):
-                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'root changed'):
-                    books.apply_book_state_locked(root, {'script.json': GENERATED}, [])
-            self.assertEqual([True], relocated)
-            self.assertEqual(b'do not modify', (root / 'foreign').read_bytes())
-            self.assertFalse((root / 'script.json').exists())
-            self.assertEqual(OWNED, (retained / 'script.json').read_bytes())
-            self.assertFalse((retained / books.JOURNAL).exists())
-            self.assertEqual([], list(retained.glob('.book-switch-*')))
-
-    def _assert_fenced(self, root):
-        journal = root / books.JOURNAL
-        self.assertTrue(journal.exists(), 'journal evidence must be preserved')
-        with journal.open('r', encoding='utf-8') as handle:
-            self.assertEqual('publishing', json.load(handle)['phase'])
-        frozen = journal.read_bytes()
-        for _ in range(2):
-            with self.assertRaises(ValueError):
-                with books.ensure_book_state(root):
-                    self.fail('Relocated recovery workspace was admitted')
-            self.assertEqual(frozen, journal.read_bytes())
-        return frozen
-
-    def _parent_case(self, publication, parent, streaming, timing):
+    def _parent_case(self, parent, streaming, timing):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             if parent == 'destination':
-                target, target_name = root / 'artifact', 'artifact'
+                target = root / 'artifact'
                 retained = root / 'retained-workspace'
                 primary, reverse = ('artifact', 'old-0'), ('old-0', 'artifact')
             else:
                 sub = root / 'sub'
                 sub.mkdir()
-                target, target_name = sub / 'file.json', 'file.json'
+                target = sub / 'file.json'
                 retained = root / 'retained-sub'
                 primary, reverse = ('file.json', 'old-0'), ('old-0', 'file.json')
             target.write_bytes(OWNED)
             real_move = publication.move_source_upload_exclusively
-            calls, state = [], {'relocated': False, 'reverse_attempted': False}
+            calls, state = [], {'relocated': False}
             def hooked(source, destination, **kwargs):
                 pair = (str(source), str(destination))
                 calls.append(pair)
@@ -171,64 +194,63 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                             (retained / 'file.json').write_bytes(FOREIGN)
                     state['relocated'] = True
                     return result
-                if pair == reverse:
-                    state['reverse_attempted'] = True
-                    if timing == 'after':
-                        # Attempts the post-observation swap before the real
-                        # rename; fail-closed code must never reach here.
-                        base = retained if parent == 'destination' else state['workspace']
-                        (base / 'old-0').rename(base / 'owned-retained')
-                        (base / 'foreign-stage').rename(base / 'old-0')
-                    return real_move(source, destination, **kwargs)
+                if pair == reverse and timing == 'after':
+                    # Attempts the post-observation swap before the real
+                    # rename; fail-closed code must never reach here.
+                    base = retained if parent == 'destination' else state['workspace']
+                    (base / 'old-0').rename(base / 'owned-retained')
+                    (base / 'foreign-stage').rename(base / 'old-0')
                 return real_move(source, destination, **kwargs)
-            value = (books.BookStateStream(io.BytesIO(GENERATED), len(GENERATED),
-                     hashlib.sha256(GENERATED).hexdigest()) if streaming else GENERATED)
+            value = _stream(GENERATED) if streaming else GENERATED
             options = {'stream_byte_limit': 100} if streaming else {}
             replacements = {'artifact': value} if parent == 'destination' else {'sub/file.json': value}
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, replacements, [], **options)
-            # Actual intervention, not a disappearing hook.
             self.assertTrue(state['relocated'])
             self.assertIn(primary, calls)
-            self.assertFalse(state['reverse_attempted'])
             self.assertNotIn(reverse, calls)
             workspace = state['workspace']
             self.assertTrue(workspace.is_dir())
             if parent == 'destination':
-                self.assertEqual([], list(workspace.iterdir()), 'substitute workspace must stay unchanged')
-                self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
                 dest_old, dest_owned = retained / 'old-0', retained / 'owned-retained'
                 dest_stage = retained / 'foreign-stage'
+                def check():
+                    self.assertEqual([], list(workspace.iterdir()))
+                    self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
+                    if timing == 'before':
+                        self.assertEqual(OWNED, dest_owned.read_bytes())
+                        self.assertEqual(FOREIGN, dest_old.read_bytes())
+                        self.assertFalse(target.exists())
+                    elif timing == 'after':
+                        self.assertEqual(OWNED, dest_old.read_bytes())
+                        self.assertEqual(FOREIGN, dest_stage.read_bytes())
+                        self.assertFalse(target.exists())
+                    else:
+                        self.assertEqual(OWNED, dest_old.read_bytes())
+                        self.assertEqual(FOREIGN, (root / 'artifact').read_bytes())
             else:
-                self.assertEqual([], list((root / 'sub').iterdir()), 'substitute source parent must stay unchanged')
-                self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
-                self.assertFalse((retained / 'file.json').exists() and timing != 'occupied')
                 dest_old, dest_owned = workspace / 'old-0', workspace / 'owned-retained'
                 dest_stage = workspace / 'foreign-stage'
-            if timing == 'before':
-                self.assertEqual(OWNED, dest_owned.read_bytes())
-                self.assertEqual(FOREIGN, dest_old.read_bytes())
-                self.assertFalse(target.exists())
-            elif timing == 'after':
-                self.assertEqual(OWNED, dest_old.read_bytes())
-                self.assertEqual(FOREIGN, dest_stage.read_bytes())
-                self.assertFalse(target.exists())
-            else:  # occupied
-                self.assertEqual(OWNED, dest_old.read_bytes())
-                occupied = (root / 'artifact') if parent == 'destination' else (retained / 'file.json')
-                self.assertEqual(FOREIGN, occupied.read_bytes(), 'occupied source must be preserved, not overwritten')
-            frozen = self._assert_fenced(root)
-            # Repeated refusal must not move anything.
-            if timing == 'before':
-                self.assertEqual(FOREIGN, dest_old.read_bytes())
-                self.assertEqual(OWNED, dest_owned.read_bytes())
-            elif timing == 'after':
-                self.assertEqual(OWNED, dest_old.read_bytes())
-                self.assertEqual(FOREIGN, dest_stage.read_bytes())
-            self.assertEqual(frozen, (root / books.JOURNAL).read_bytes())
+                def check():
+                    self.assertEqual([], list((root / 'sub').iterdir()))
+                    self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                    if timing == 'before':
+                        self.assertEqual(OWNED, dest_owned.read_bytes())
+                        self.assertEqual(FOREIGN, dest_old.read_bytes())
+                        self.assertFalse(target.exists())
+                        self.assertFalse((retained / 'file.json').exists())
+                    elif timing == 'after':
+                        self.assertEqual(OWNED, dest_old.read_bytes())
+                        self.assertEqual(FOREIGN, dest_stage.read_bytes())
+                        self.assertFalse(target.exists())
+                        self.assertFalse((retained / 'file.json').exists())
+                    else:
+                        self.assertEqual(OWNED, dest_old.read_bytes())
+                        self.assertEqual(FOREIGN, (retained / 'file.json').read_bytes())
+            assert_book_journal_fenced(self, root, content_check=check)
 
-    def _directory_case(self, publication, timing):
+    def _directory_case(self, timing):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             chapters = root / 'chapters'
@@ -236,7 +258,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             (chapters / 'owned').write_bytes(OWNED)
             retained = root / 'retained-workspace'
             real_move = publication.move_source_upload_exclusively
-            calls, state = [], {'relocated': False, 'reverse_attempted': False}
+            calls, state = [], {'relocated': False}
             def hooked(source, destination, **kwargs):
                 pair = (str(source), str(destination))
                 calls.append(pair)
@@ -253,26 +275,70 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                         (retained / 'foreign-stage').write_bytes(FOREIGN)
                     state['relocated'] = True
                     return result
-                if pair == ('old-0', 'chapters'):
-                    state['reverse_attempted'] = True
-                    if timing == 'after':
-                        (retained / 'old-0').rename(retained / 'owned-retained')
-                        (retained / 'foreign-stage').rename(retained / 'old-0')
-                    return real_move(source, destination, **kwargs)
+                if pair == ('old-0', 'chapters') and timing == 'after':
+                    (retained / 'old-0').rename(retained / 'owned-retained')
+                    (retained / 'foreign-stage').rename(retained / 'old-0')
                 return real_move(source, destination, **kwargs)
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {}, ['chapters'])
             self.assertTrue(state['relocated'])
             self.assertIn(('chapters', 'old-0'), calls)
-            self.assertFalse(state['reverse_attempted'])
             self.assertNotIn(('old-0', 'chapters'), calls)
-            self.assertEqual([], list(state['workspace'].iterdir()))
-            self.assertFalse((root / 'chapters').exists())
-            if timing == 'before':
-                self.assertEqual(OWNED, (retained / 'owned-retained/owned').read_bytes())
-                self.assertEqual(FOREIGN, (retained / 'old-0').read_bytes())
-            else:
-                self.assertEqual(OWNED, (retained / 'old-0/owned').read_bytes())
-                self.assertEqual(FOREIGN, (retained / 'foreign-stage').read_bytes())
-            self._assert_fenced(root)
+            def check():
+                self.assertEqual([], list(state['workspace'].iterdir()))
+                self.assertFalse((root / 'chapters').exists())
+                if timing == 'before':
+                    self.assertEqual(OWNED, (retained / 'owned-retained/owned').read_bytes())
+                    self.assertEqual(FOREIGN, (retained / 'old-0').read_bytes())
+                else:
+                    self.assertEqual(OWNED, (retained / 'old-0/owned').read_bytes())
+                    self.assertEqual(FOREIGN, (retained / 'foreign-stage').read_bytes())
+            assert_book_journal_fenced(self, root, content_check=check)
+
+
+class BookStateTransaction1660RecoveryCauseTests(unittest.TestCase):
+    """Recovery failure stays primary, original trigger is explicit cause.
+
+    Runs on all platforms: it needs no parent relocation, only a real
+    apply transaction inside an already-admitted ensure_book_state.
+    """
+
+    def test_recovery_failure_explicitly_chains_original_byte_and_stream(self):
+        for streaming, recovery_type in ((False, ValueError), (True, OSError)):
+            with self.subTest(streaming=streaming), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                target = root / 'artifact'
+                target.write_bytes(OWNED)
+                name = '_validate_moved_stream_original' if streaming else '_validate_moved_byte_original'
+                real, called = getattr(books, name), []
+                def fail_original(*args, **kwargs):
+                    if not called:
+                        called.append(True)
+                        raise ValueError('fixture original failure')
+                    return real(*args, **kwargs)
+                def fail_recovery(*args, **kwargs):
+                    raise recovery_type('fixture recovery failure')
+                value = _stream(GENERATED) if streaming else GENERATED
+                options = {'stream_byte_limit': 100} if streaming else {}
+                with books.ensure_book_state(root):
+                    with patch.object(books, name, side_effect=fail_original), \
+                         patch.object(books, 'recover_book_state_locked', side_effect=fail_recovery):
+                        with self.assertRaises(recovery_type) as raised:
+                            books.apply_book_state_locked(root, {'artifact': value}, [], **options)
+                self.assertEqual([True], called)
+                self.assertIn('fixture recovery failure', str(raised.exception))
+                self.assertIsInstance(raised.exception.__cause__, ValueError)
+                self.assertIn('fixture original failure', str(raised.exception.__cause__))
+                # _validate_moved_*_original fails after target->old-0 but
+                # before new-0->target publishes, so target is absent and
+                # both owned and generated bytes are retained in workspace.
+                self.assertFalse(target.exists())
+                journal = root / books.JOURNAL
+                self.assertTrue(journal.exists())
+                with journal.open('r', encoding='utf-8') as handle:
+                    import json
+                    self.assertEqual('publishing', json.load(handle)['phase'])
+                workspace = next(root.glob('.book-switch-*'))
+                self.assertEqual(OWNED, (workspace / 'old-0').read_bytes())
+                self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())

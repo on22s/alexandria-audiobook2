@@ -189,6 +189,32 @@ def assert_directory_payload_names(case, directory, expected, *, lock_targets):
     case.assertEqual(sorted(expected), sorted(names))
 
 
+def assert_book_journal_fenced(case, root, *, content_check=None):
+    """Refuse recovery twice on the same frozen publishing journal.
+
+    content_check, if given, is executed before the first refusal and
+    after EACH refusal, so callers keep their per-iteration byte
+    assertions at the exact observed state.
+    """
+    import json
+    import book_state_transaction as books
+    journal = root / books.JOURNAL
+    case.assertTrue(journal.exists(), 'journal evidence must be preserved')
+    with journal.open('r', encoding='utf-8') as handle:
+        case.assertEqual('publishing', json.load(handle)['phase'])
+    if content_check is not None:
+        content_check()
+    frozen = journal.read_bytes()
+    for _ in range(2):
+        with case.assertRaises(ValueError):
+            with books.ensure_book_state(root):
+                case.fail('Relocated recovery workspace was admitted')
+        case.assertEqual(frozen, journal.read_bytes())
+        if content_check is not None:
+            content_check()
+    return frozen
+
+
 def create_test_api_server(app):
     """Create an embedded ASGI server without closing other tests' log handlers."""
     import uvicorn

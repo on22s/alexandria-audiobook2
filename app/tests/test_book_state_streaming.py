@@ -1388,15 +1388,10 @@ print(len(result['entries']))
             # in the fd-pinned relocated directory and the journal fences.
             self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
             self.assertFalse(list(root.glob('.book-switch-*/new-0')))
-            journal = root / books.JOURNAL
-            self.assertTrue(journal.exists())
-            frozen = journal.read_bytes()
-            for _ in range(2):
-                with self.assertRaises(ValueError):
-                    with books.ensure_book_state(root):
-                        self.fail('Relocated recovery workspace was admitted')
-                self.assertEqual(frozen, journal.read_bytes())
+            def check():
                 self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
+            from tests.test_support import assert_book_journal_fenced
+            assert_book_journal_fenced(self, root, content_check=check)
 
     def test_file_created_at_publication_is_not_overwritten_even_with_same_bytes(self):
         for external in (b'other bytes', b'new'):

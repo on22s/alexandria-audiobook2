@@ -1281,7 +1281,7 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     source_dir_fd=source_fd, destination_dir_fd=destination_fd)
                 try:
                     require_named_parents()
-                except BaseException:
+                except BaseException as parent_error:
                     # A parent renamed after the pre-move check still leaves the
                     # descriptor valid, but named-parent authority is lost: the
                     # destination name may now select a foreign entry and the
@@ -1293,9 +1293,17 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     # transaction is fenced rather than automatically rolled
                     # back. Ordinary rollback with valid parents is unchanged
                     # because this branch is only taken on parent change.
-                    os.fsync(source_fd)
-                    if source_fd != destination_fd:
-                        os.fsync(destination_fd)
+                    # Exception priority: the original parent/interrupt error
+                    # always wins over a secondary directory-sync OSError,
+                    # which is retained as its explicit cause. A new interrupt
+                    # raised by sync itself is not caught (only OSError is),
+                    # so it is never converted to ValueError.
+                    try:
+                        os.fsync(source_fd)
+                        if source_fd != destination_fd:
+                            os.fsync(destination_fd)
+                    except OSError as sync_error:
+                        raise parent_error from sync_error
                     raise
                 os.fsync(source_fd)
                 if source_fd != destination_fd:
@@ -2555,7 +2563,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         pass
             else:
                 release_root_guard()
-                recover_book_state_locked(root)
+                try:
+                    recover_book_state_locked(root)
+                except BaseException as recovery_error:
+                    # Recovery failure is a critical new fact and stays
+                    # primary (type preserved); the original trigger is
+                    # explicitly chained, consistent with cleanup_error
+                    # handling below. Successful rollback is unchanged.
+                    raise recovery_error from original_error
         elif not journal_publication_attempted and (root_fd is not None or os.path.lexists(workspace)):
             try:
                 _cleanup_unpublished_stream_workspace(
