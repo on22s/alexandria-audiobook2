@@ -470,6 +470,25 @@ async def get_voices():
     return await asyncio.to_thread(_ensure_voice_listing)
 
 
+def _validate_consumed_description(speaker, entry):
+    """Refuse an entry whose category now consumes a malformed description.
+
+    The one narrow consumed-field rule shared by active reads, proposal
+    merges and guarded saves: a custom/design entry with a present
+    non-None non-string description is corrupt data. Absent/null stays
+    the legitimate unconfigured contract; other categories leave the
+    legacy value byte-preserved and untouched. Domain ValueError so
+    HTTP facades map it consistently; callers run it on the RESULTING
+    merged entry (preview or save), never on untouched entries.
+    """
+    if isinstance(entry, dict) and voice_category(entry) in ("custom", "design"):
+        description = entry.get("description")
+        if description is not None and not isinstance(description, str):
+            raise ValueError(
+                f"Speaker '{speaker}' has a malformed voice description; "
+                "restore the saved voice configuration before continuing.")
+
+
 def get_voice_rows(script_data, voice_config):
     """Build one backend eligibility/roster view for legacy and guarded reads."""
     # Most-spoken characters first (owner, 2026-10-09): the same order casting
@@ -515,41 +534,44 @@ def get_voice_rows(script_data, voice_config):
             "restore the saved voice configuration before continuing.")
     # A present-but-non-object ACTIVE entry is corrupt saved data, not an
     # unconfigured voice: refuse clearly instead of reading it as {} /
-    # persona_pending. Absent active keys stay unconfigured; inactive
-    # legacy keys are not in the roster, are not validated here, and
-    # are never touched by this read. Domain ValueError (not HTTPException)
-    # so compound callers (book_workspace/collection_overview) can map it
-    # to their unavailable/partial contract; HTTP facades map it to 400.
+    # persona_pending. The canonical null representation is the ONE
+    # exception: null means unconfigured (readable, persona_pending,
+    # no persistence/default writes on reads) in the canonical
+    # consumer contract. Absent active keys stay unconfigured;
+    # inactive legacy keys are not in the roster, are not validated
+    # here, and are never touched by this read. Domain ValueError (not
+    # HTTPException) so compound callers can map it to their
+    # unavailable/partial contract; HTTP facades map it to 400.
     for name in roster:
-        if name in voice_config and not isinstance(voice_config[name], dict):
+        if name in voice_config and voice_config[name] is not None and not isinstance(voice_config[name], dict):
             raise ValueError(
                 f"Speaker '{name}' has a malformed voice entry (not an object); "
                 "restore the saved voice configuration before continuing.")
-        if name in voice_config and voice_category(voice_config[name]) in ("custom", "design"):
-            _description = voice_config[name].get("description")
-            if _description is not None and not isinstance(_description, str):
-                raise ValueError(
-                    f"Speaker '{name}' has a malformed voice description; "
-                    "restore the saved voice configuration before continuing.")
+        if name in voice_config and isinstance(voice_config[name], dict):
+            _validate_consumed_description(name, voice_config[name])
     rows = []
     for name in roster:
         entry = voice_config.get(name, {})
         row = {"name": name, "config": entry, "line_count": line_counts.get(name, 0),
                "persona_pending": not voice_is_set(entry)}
+        # Null (unconfigured) entries keep their canonical None config
+        # in the row; read-only logic below uses an empty view and
+        # never writes defaults back.
+        entry_view = entry if isinstance(entry, dict) else {}
         # Per-line gender/age from pass 2, only when the run asked for them, so
         # a book generated without the switch gets exactly the old rows.
         # Alias eligibility matches the canonical runtime
         # (tts.get_resolved_speaker): only a non-blank string alias counts.
         # A whitespace/non-string legacy value is ignored by the runtime, so
         # it must not suppress persona states here either.
-        _effective_alias = row["config"].get("alias_of") or row["config"].get("alias")
+        _effective_alias = entry_view.get("alias_of") or entry_view.get("alias")
         _has_effective_alias = isinstance(_effective_alias, str) and bool(_effective_alias.strip())
         if name in state_targets and not _has_effective_alias:
             # Nullable contract: versions null/absent means no saved states.
             # A present non-object versions container (or a non-object saved
             # state for a current target) is malformed ACTIVE data: refuse
             # via domain ValueError instead of raising AttributeError.
-            saved = row["config"].get("versions", {})
+            saved = entry_view.get("versions", {})
             if saved is None:
                 saved = {}
             if not isinstance(saved, dict):
@@ -557,12 +579,17 @@ def get_voice_rows(script_data, voice_config):
                     f"Speaker '{name}' has malformed voice versions (not an object); "
                     "restore the saved voice configuration before continuing.")
             for _target in state_targets[name]:
-                if _target["version_id"] in saved and not isinstance(saved[_target["version_id"]], dict):
+                # Null saved state is absent/unconfigured (voice_is_set
+                # and is_state_version_current already treat it so);
+                # only non-null non-objects are malformed.
+                if (_target["version_id"] in saved and saved[_target["version_id"]] is not None
+                        and not isinstance(saved[_target["version_id"]], dict)):
                     raise ValueError(
                         f"Speaker '{name}' has a malformed saved voice state "
                         f"'{_target['version_id']}'; restore the saved voice configuration "
                         "before continuing.")
-                if _target["version_id"] in saved and voice_category(saved[_target["version_id"]]) in ("custom", "design"):
+                if (_target["version_id"] in saved and isinstance(saved[_target["version_id"]], dict)
+                        and voice_category(saved[_target["version_id"]]) in ("custom", "design")):
                     _saved_description = saved[_target["version_id"]].get("description")
                     if _saved_description is not None and not isinstance(_saved_description, str):
                         raise ValueError(
@@ -625,7 +652,7 @@ def _ensure_voice_listing():
             if not isinstance(script_data, list):
                 raise ValueError("Active script must contain an entry list")
             voice_config = snapshot["voices"]
-        except ValueError as exc:
+        except (ValueError, RecursionError) as exc:
             raise HTTPException(status_code=400, detail=(
                 "Active book data is invalid and cannot be read. "
                 "Restore the book state or reload the script, then try again.")) from exc
@@ -1297,8 +1324,11 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
             for voice_name, config in config_data.items():
                 existing = current_config.get(voice_name)
                 # A present-but-non-object saved entry is malformed data:
-                # refuse instead of silently replacing it with {}.
-                if voice_name in current_config and not isinstance(existing, dict):
+                # refuse instead of silently replacing it with {}. The
+                # canonical null (unconfigured) entry is the exception:
+                # an explicitly confirmed/ordinary valid update may
+                # initialize a null target safely.
+                if voice_name in current_config and existing is not None and not isinstance(existing, dict):
                     raise ValueError(
                         f"Speaker '{voice_name}' has a malformed voice entry (not an object).")
                 metadata = dict(existing) if isinstance(existing, dict) else {}
@@ -1340,6 +1370,7 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                     if not _voice_adapter_identity_same(
                             old_type, old_adapter, new_type, new_adapter):
                         candidate["adapter_generation_sha256"] = None
+                _validate_consumed_description(voice_name, candidate)
                 get_validated_voice_changes(voice_name, metadata, candidate, allow_state_removal=book_token is not None)
                 updated[voice_name] = candidate
             return updated
@@ -1389,7 +1420,7 @@ def _ensure_voice_snapshot():
             script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
             if not isinstance(script, list):
                 raise ValueError("Active script must contain an entry list")
-        except ValueError as exc:
+        except (ValueError, RecursionError) as exc:
             raise HTTPException(status_code=400, detail=(
                 "Active book data is invalid and cannot be read. "
                 "Restore the book state or reload the script, then try again.")) from exc
@@ -1458,7 +1489,10 @@ async def save_guarded_voice_config(request: GuardedVoiceSaveRequest):
 
 
 class SingleVoicePreviewRequest(BaseModel):
-    source_speaker: str = Field(min_length=1, max_length=200)
+    # No length cap here: the canonical roster has no speaker-name
+    # length limit, so a cap would refuse legitimate long names.
+    # Membership in the loaded active roster + CAS stays authoritative.
+    source_speaker: str = Field(min_length=1)
     revision: str = Field(pattern=BOOK_TOKEN_PATTERN)
     book_token: str = Field(pattern=BOOK_TOKEN_PATTERN)
 
@@ -1498,7 +1532,10 @@ def _direct_source_asset(source_speaker, source_config):
             f"Speaker '{source_speaker}' has a version timeline. "
             "Choose a speaker whose base voice is direct, then use its voice for the book."))
     strategy = source_config.get("narrator_strategy")
-    if strategy not in (None, "global"):
+    # Empty string is the legacy global spelling (summary normalizes
+    # None/"global"/"" to the same effective strategy); support it
+    # narrowly, keeping dynamic and malformed-type refusals.
+    if strategy not in (None, "", "global"):
         raise HTTPException(status_code=422, detail=(
             f"Speaker '{source_speaker}' uses an active narrator strategy ('{strategy}'). "
             "Choose a speaker whose base voice is direct, then use its voice for the book."))
@@ -1572,8 +1609,21 @@ def _direct_source_asset(source_speaker, source_config):
             raise HTTPException(status_code=422, detail=(
                 f"Speaker '{source_speaker}' has an unsafe adapter identity. "
                 "Choose a complete direct base asset, then use its voice for the book."))
-        adapter_path = _text("adapter_path") or get_library_voice_config(
-            {"type": voice_type, "adapter_id": adapter_id})["adapter_path"]
+        # Present adapter_path must be a nonblank string: whitespace-only
+        # or non-string present values are corruption (422), never
+        # silently replaced by the canonical fallback. Legacy absent /
+        # None / empty keeps the canonical fallback. A legitimate
+        # nonblank path keeps its EXACT spelling (never stripped).
+        _raw_path = source_config.get("adapter_path")
+        if _raw_path is not None and _raw_path != "":
+            if not isinstance(_raw_path, str) or not _raw_path.strip():
+                raise HTTPException(status_code=422, detail=(
+                    f"Speaker '{source_speaker}' has a malformed adapter path; "
+                    "restore the saved voice configuration before applying it."))
+            adapter_path = _raw_path
+        else:
+            adapter_path = get_library_voice_config(
+                {"type": voice_type, "adapter_id": adapter_id})["adapter_path"]
         # Transfer the chosen source's pin P unchanged to targets. Never
         # recompute it from current disk Q: TTS must still refuse Q vs P.
         # The normalized adapter_id is used for the fallback path and the
@@ -1737,6 +1787,16 @@ def build_single_voice_proposal(voices, script, source_speaker):
         # Revalidate the per-speaker patch when the approval reset was added.
         if "voice_status" in patch:
             VoiceConfigItem(**patch)
+        # Resulting-entry boundary: the patch is applied over the stored
+        # entry by the guarded save merge, so refuse here (before any
+        # proposal can back a save) when the RESULTING type would consume
+        # a malformed legacy description — with no coercion/dropping of
+        # persona metadata, and only for this relevant updated speaker.
+        _merged_entry = {**(before if isinstance(before, dict) else {}), **patch}
+        try:
+            _validate_consumed_description(name, _merged_entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         proposed[name] = patch
         # The client renders only name/line_count/changes; before/after
         # summaries and a top-level asset copy are dead payload (#1724 C096/C097).
@@ -1760,7 +1820,13 @@ def _ensure_single_voice_preview(request):
         book_token = get_book_snapshot_token(snapshot)
         if book_token != request.book_token:
             raise VoiceConfigConflict("Active book changed; reload voices before previewing")
-        script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
+        # Narrow JSON seam only: deep stored script JSON is corrupt data
+        # (ValueError -> route 400). A RecursionError from the proposal
+        # builder below is a programmer failure and must propagate.
+        try:
+            script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
+        except RecursionError as exc:
+            raise ValueError("Active script JSON is too deeply nested") from exc
         config = snapshot["voices"]
         revision = get_voice_config_revision(config)
         if revision != request.revision:
@@ -1781,7 +1847,11 @@ async def preview_single_voice(request: SingleVoicePreviewRequest):
     except ValueError as exc:
         # Corrupt script/voice JSON or book state (JSONDecodeError and
         # UnicodeDecodeError both subclass ValueError) is a clear refusal,
-        # never an unhandled 500 (#1724 C004).
+        # never an unhandled 500 (#1724 C004). Deep stored script JSON
+        # is converted to ValueError at the narrow parse seam inside
+        # _ensure_single_voice_preview; a RecursionError elsewhere
+        # (e.g. in the proposal builder) is a programmer failure and
+        # propagates instead of being masked as corrupt data.
         raise HTTPException(status_code=400, detail=(
             "Active book data is corrupt and cannot be previewed. "
             "Restore the book state or reload the script, then preview again.")) from exc

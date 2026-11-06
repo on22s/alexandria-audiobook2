@@ -10401,6 +10401,7 @@
   ],
   "test_script_dispatch_responsiveness": [
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_api_ping_progresses_while_single_batch_and_retry_preflight_waits",
+    "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_batch_preflight_capture_refusal_maps_to_400_no_claim",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_batch_preparation_reads_each_real_source_once_and_preserves_request",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_cancelled_request_cannot_reserve_a_late_preflight_worker",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_single_and_batch_reject_same_unattested_narrator_without_state_mutation"
@@ -10706,7 +10707,8 @@
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows",
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_voice_handlers_and_book_actions_wait_for_latest_save_or_abort_on_failure",
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_ambiguous_history_survives_definite_retry_and_blocked_flush_surfaces_onerror",
-    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_coalescing_failure_and_revision_acknowledgement"
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_coalescing_failure_and_revision_acknowledgement",
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_presend_refusal_is_not_sent_but_prior_unknown_stays_ambiguous"
   ],
   "test_server_vram_release": [
     "tests.test_server_vram_release.ServerVramReleaseTests.test_shared_stage_reclaim_uses_same_polling_and_retains_dispatch_after_cap_or_unknown_telemetry",
@@ -10921,6 +10923,7 @@
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_preview_pending_fetch_discarded_on_book_switch",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_status_describes_snapshot_not_live_state",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_stale_source_rejection_after_new_book_success_is_ignored",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_stored_self_alias_survives_unrelated_save_and_explicit_none_clears",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_unavailable_selection_guidance_requires_book_reload_not_voices",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_unavailable_selection_refuses_server_book_before_publishing",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_unscoped_refresh_refuses_other_tab_book_and_keeps_globals",
@@ -14142,8 +14145,13 @@
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_changed_revision_or_book_renders_even_with_fresh_resources",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_navigation_reuses_resources_and_cards_but_checks_metadata_and_expires",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_partial_resource_failure_retries_and_save_guards_survive_reuse",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_pending_after_write_unscoped_fresh_load_fulfills_saved_new",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_pending_navigation_shares_startup_load_but_explicit_refresh_stays_fresh",
-    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_real_navigation_requests_reuse_and_regular_call_still_forces"
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_post_save_load_never_stamps_old_rows_with_new_revision",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_real_navigation_requests_reuse_and_regular_call_still_forces",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_save_narrator_strategy_ack_old_load_never_publishes_new_revision",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_snapshot_resolution_microtask_ack_never_labels_old_rows",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_waiter_secondary_pending_stale_after_write_falls_through_to_fresh"
   ],
   "test_voice_panel_restore_js": [
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
@@ -14392,10 +14400,17 @@
   "test_voices_regressions": [
     "tests.test_voices_regressions.DialogueCollectionWorkTests.test_per_character_uniqueness_is_linear_and_keeps_first_seen_order",
     "tests.test_voices_regressions.LibraryConfigShapeTests.test_unusable_config_is_not_saved_to_cast_or_changed",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_active_null_is_readable_unconfigured_without_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_deep_stored_json_refuses_400_no_writes",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_genuine_programmer_error_still_propagates",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_active_description_and_trait_shapes_refuse_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_adapter_path_and_empty_strategy_and_long_speaker",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_design_description_refuses_400_active_and_saved",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_saved_state_description_refuses_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_null_target_apply_initializes_and_null_source_refuses",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_preview_deep_stored_script_refuses_400_no_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_preview_proposal_recursion_error_propagates_not_masked_as_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_type_activation_preview_and_ordinary_save_refuse_before_invalidation",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_unconsumed_trait_and_noncustom_description_controls",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_valid_absent_null_and_inactive_controls",
     "tests.test_voices_regressions.MissingBulkBookTests.test_missing_selected_books_report_errors_without_blocking_valid_books",

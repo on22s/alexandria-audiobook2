@@ -171,10 +171,17 @@ class BackendSeamTests(unittest.TestCase):
         self.assertIn('persona_states', arthur_direct)
 
     def test_get_voice_rows_domain_error_not_http(self):
-        with self.assertRaises(ValueError):
-            get_voice_rows(_script('ALICE'), {'ALICE': None})
+        # Canonical null means unconfigured (DSF11018): readable, never
+        # an error, and never rewritten by the read.
+        rows = get_voice_rows(_script('ALICE'), {'ALICE': None})
+        self.assertEqual('ALICE', rows[0]['name'])
+        self.assertIsNone(rows[0]['config'])
+        self.assertTrue(rows[0]['persona_pending'])
         with self.assertRaises(ValueError):
             get_voice_rows(_script('ALICE'), None)
+        # Truly malformed non-null scalar/list entries still refuse.
+        with self.assertRaises(ValueError):
+            get_voice_rows(_script('ALICE'), {'ALICE': 7})
         # Absent stays unconfigured; inactive malformed preserved (no raise)
         rows = get_voice_rows(_script('ALICE'), {'GHOST': None})
         self.assertEqual('ALICE', rows[0]['name'])
@@ -191,8 +198,10 @@ class BackendSeamTests(unittest.TestCase):
                 (library / f'{name}.json').write_text(json.dumps(entries))
                 (library / f'{name}.meta.json').write_text(json.dumps({'book_id': name}))
                 (library / f'{name}.voice_config.json').write_text(json.dumps(voices_map))
-            save('Bad', {'ALICE': None})
+            save('Bad', {'ALICE': 7})
             save('Good', {'ALICE': {'type': 'custom', 'description': 'Synthetic voice'}})
+            # Null-as-unconfigured control: a null book stays readable,
+            # not unavailable, with bytes unchanged.
             before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
             rows = get_collection_overview(str(library), ['Bad', 'Good'], get_voice_rows)
             by_name = {r.get('name') or r.get('book_id') or r.get('title'): r for r in rows}
@@ -213,14 +222,18 @@ class BackendSeamTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'annotated_script.json').write_text(json.dumps(entries))
-            (root / 'voice_config.json').write_text(json.dumps({'ALICE': None}))
+            (root / 'voice_config.json').write_text(json.dumps({'ALICE': 7}))
             (root / 'state.json').write_text('{"active_book_id":"b","book_generation":"one"}')
             mgr = ProjectManager(str(root))
             with self.assertRaises(ValueError):
                 get_book_workspace(str(root), {}, get_voice_rows, mgr.get_chunk_audio_path)
-        entry = {'exists': True, 'sha': 'x', 'raw': json.dumps({'ALICE': None}).encode()}
+        entry = {'exists': True, 'sha': 'x', 'raw': json.dumps({'ALICE': 7}).encode()}
         stage = _voices_stage_from_entry(entry, _script('ALICE'), get_voice_rows)
         self.assertEqual('unavailable', stage['status'])
+        # Null stays unconfigured in the stage contract too.
+        entry = {'exists': True, 'sha': 'x', 'raw': json.dumps({'ALICE': None}).encode()}
+        stage = _voices_stage_from_entry(entry, _script('ALICE'), get_voice_rows)
+        self.assertNotEqual('unavailable', stage['status'])
 
     def test_proposal_amplification_bound_patched_budget(self):
         import project_scope_voices
@@ -377,7 +390,7 @@ const a=src.indexOf('function singleVoiceEscapeLabel');
 const ctx={console};vm.createContext(ctx);
 vm.runInContext(src.slice(a,src.indexOf('async function previewSingleVoiceBook',a)),ctx);
 const out=ctx.singleVoiceEscapeLabel('A\nB\tC\rD\u0001E');
-assert.strictEqual(out,'A\\nB\\tC\\rD\\u0001E');
+assert.strictEqual(out,'A\\nB\\tC\\rD\\u{1}E');
 assert.strictEqual(ctx.singleVoiceEscapeLabel('plain'),'plain');
 '''
         self.run_node(code, str(SINGLE))

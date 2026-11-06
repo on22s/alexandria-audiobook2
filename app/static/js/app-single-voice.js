@@ -285,16 +285,18 @@ function refreshSingleVoiceSpeakers() {
 // without changing stored names: control/newline characters become visible
 // escapes so one name cannot masquerade as several lines.
 function singleVoiceEscapeLabel(name) {
-    // Visible escaping for line/bidi controls that could fake modal
-    // rows or reorder a label: U+2028/U+2029/U+0085 (line/paragraph
-    // separators), bidi controls (U+061C, U+200E/U+200F, U+202A-202E,
-    // U+2066-2069) and other format controls. Stored names are
-    // unchanged; only this confirmation display is escaped.
-    return String(name).replace(/[\u0000-\u001f\u007f\u0085\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, char => {
+    // Display-only escaping of invisible control/format characters using
+    // the platform Unicode data (standard Cc/Cf property escapes plus the
+    // line/paragraph separators), never a new hand-enumerated table:
+    // every invisible format control — BMP and astral — becomes an
+    // explicit code-point escape, so one label cannot masquerade as
+    // another. Stored names/asset identities are unchanged; legitimate
+    // Unicode (letters, marks, emoji) is never normalized or altered.
+    return String(name).replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, char => {
         if (char === '\n') { return '\\n'; }
         if (char === '\r') { return '\\r'; }
         if (char === '\t') { return '\\t'; }
-        return '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0');
+        return '\\u{' + char.codePointAt(0).toString(16) + '}';
     });
 }
 

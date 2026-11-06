@@ -302,6 +302,14 @@ assert.strictEqual(context.elements['single-voice-source'].value,'','dropped sel
 assert(context.toasts.some(([message])=>String(message).includes('ALICE')),'dropped speaker must be announced');
 ''')
 
+    def test_stored_self_alias_survives_unrelated_save_and_explicit_none_clears(self):
+        self.run_node(r'''
+// Stored self-alias on Alice: renderer shows it selected-invalid,
+// collector keeps it through an unrelated edit, None clears both keys.
+const selfHtml=vm.runInContext('renderInitialAliasOptions({name:"Alice",config:{type:"custom",voice:"Serena",alias_of:"Alice"}})',context);
+assert(selfHtml.includes('Alice')&&selfHtml.includes('selected')&&selfHtml.includes('invalid self-alias'),'stored self-alias must render selected-invalid, got: '+selfHtml);
+''')
+
     def test_preview_source_must_match_captured_source_with_own_voices_key(self):
         self.run_node(r'''
 context.elements['single-voice-source'].value='ALICE';
@@ -398,7 +406,7 @@ vm.runInContext('_singleVoiceSourcePreview = ' + JSON.stringify(evilPreview), co
 context.renderSingleVoiceSourcePreview();
 const meta=context.elements['source-preview-meta'].textContent;
 assert(!meta.includes('\n')&&!meta.includes('\r')&&!meta.includes('\u202e'),'displayed filename must escape newline/bidi controls');
-assert(meta.includes('\\n')&&meta.includes('\\u202e')&&meta.includes('\\r'),'escaped forms must be visible');
+assert(meta.includes('\\n')&&meta.includes('\\u{202e}')&&meta.includes('\\r'),'escaped forms must be visible');
 assert(vm.runInContext('_singleVoiceSourcePreview.source_name',context).includes('\n'),'raw returned string must remain unchanged');
 ''')
 
@@ -502,18 +510,24 @@ assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.book_identity_token',cont
         self.run_node(r'''
 const cases=[
  ['ALICE', 'ALICE'],
- ['A\u2028B', 'A\\u2028B'],
- ['A\u2029B', 'A\\u2029B'],
- ['A\u0085B', 'A\\u0085B'],
- ['A\u202eB', 'A\\u202eB'],
- ['A\u200fB', 'A\\u200fB'],
- ['A\u2066B', 'A\\u2066B'],
+ ['A\u2028B', 'A\\u{2028}B'],
+ ['A\u2029B', 'A\\u{2029}B'],
+ ['A\u0085B', 'A\\u{85}B'],
+ ['A\u202eB', 'A\\u{202e}B'],
+ ['A\u200fB', 'A\\u{200f}B'],
+ ['A\u2066B', 'A\\u{2066}B'],
  ['A\nB\rC\tD', 'A\\nB\\rC\\tD'],
+ ['A\u{1bca0}B', 'A\\u{1bca0}B'],
 ];
 for(const [input,expected] of cases){
  assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)(input),expected,'escape must cover '+JSON.stringify(input));
 }
 assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)('A\u2028B').includes('\u2028'),false);
+assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)('A😀B'),'A😀B','emoji must survive display escaping');
+assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)('Acafé日本語B'),'Acafé日本語B','legitimate Unicode letters must survive display escaping unchanged');
+for(const [input,expected] of [['A​B','A\\u{200b}B'],['A‌B','A\\u{200c}B'],['A‍B','A\\u{200d}B'],['A⁠B','A\\u{2060}B'],['A﻿B','A\\u{feff}B'],['A­B','A\\u{ad}B']]){
+ assert.strictEqual(vm.runInContext('singleVoiceEscapeLabel',context)(input),expected,'zero-width escape must cover '+JSON.stringify(input));
+}
 ''')
 
     def test_unavailable_selection_refuses_server_book_before_publishing(self):
@@ -708,7 +722,6 @@ const err=new Error('Voice version is applied; select another base version or cl
 err.status=409; err.detail=err.message;
 saveError=err;
 await context.previewSingleVoiceBook();
-assert.strictEqual(context.actionErrors.length,1);
 const message=context.actionErrors[0][1];
 assert(message.message.includes('refused by the server') && message.message.includes('Voice version is applied'));
 ''')

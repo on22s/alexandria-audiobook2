@@ -3283,7 +3283,14 @@ async def generate_script_batch_preflight(request: BatchScriptRequest):
                 for task in request.tasks]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await asyncio.to_thread(build_batch_script_preflight, jobs)
+    # Same read-only domain boundary as batch/start: confined/group
+    # capture refusals (hardlink, missing companion, changed source)
+    # are 400, never 500. Cancellation and genuine programmer
+    # exceptions propagate unchanged.
+    try:
+        return await asyncio.to_thread(build_batch_script_preflight, jobs)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @contextlib.contextmanager

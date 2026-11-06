@@ -4168,7 +4168,6 @@
             "type": "string"
           },
           "source_speaker": {
-            "maxLength": 200,
             "minLength": 1,
             "title": "Source Speaker",
             "type": "string"

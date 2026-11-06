@@ -94,6 +94,18 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
                     asyncio.run(run());claim.assert_not_called()
                 self.assertEqual(before,(root/'state.json').read_bytes())
 
+    def test_batch_preflight_capture_refusal_maps_to_400_no_claim(self):
+        import asyncio
+        from fastapi import BackgroundTasks, HTTPException
+        from routers import script
+        request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='missing.txt')])
+        with patch.object(script, 'UPLOADS_DIR', '/nonexistent-1724'), \
+             patch.object(script, 'load_app_config', return_value={}):
+            with self.assertRaises(HTTPException) as caught:
+                asyncio.run(script.generate_script_batch_preflight(request))
+        self.assertEqual(400, caught.exception.status_code)
+        self.assertFalse(core.is_task_running('batch_script'))
+
     def test_batch_preparation_reads_each_real_source_once_and_preserves_request(self):
         with self.fixture() as (root,_app):
             (root/'second.txt').write_text('A different source story.')

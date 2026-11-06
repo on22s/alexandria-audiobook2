@@ -43,11 +43,16 @@ ensure(blank);assert.deepEqual(blank.options.map(o=>o.value),['']);assert.equal(
         self.run_js(r'''
 context.window._voicesNames=['Alice','Zed','Bob'];
 assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'Zed'}}),'<option value="Zed" selected>Zed</option>');
-for(const alias of ['','Alice']){assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:alias}}),'');}
+assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:''}}),'');
+// A stored self-alias is preserved visibly as a selected invalid
+// option (not auto-blanked); new choices still exclude self.
+assert(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'Alice'}}).includes('invalid self-alias'));
 // DS3001: a saved alias whose target is not in the active roster
 // (inactive legacy target) must still render selected, not blank.
 assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'missing'}}),'<option value="missing" selected>missing</option>');
 const s=select('alias','Zed');assert.equal(s.value,'Zed');ensure(s);assert.equal(s.value,'Zed');assert.deepEqual(s.options.map(o=>o.value),['','Zed','Bob']);s.value='';ensure(s);assert.equal(s.value,'');
+// Stored self-alias survives roster materialization selected.
+const selfS=select('alias','Alice');ensure(selfS);assert.equal(selfS.value,'Alice');assert.deepEqual(selfS.options.map(o=>o.value),['','Alice','Zed','Bob']);assert(selfS.options[1].textContent.includes('invalid self-alias'));
 ''')
 
     def test_cached_options_and_roster_invalidation_preserve_unsaved_value(self):
