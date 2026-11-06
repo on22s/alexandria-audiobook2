@@ -1277,39 +1277,26 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                         if (first.st_dev, first.st_ino) != (second.st_dev, second.st_ino):
                             raise ValueError('Book move parent changed; recovery evidence was preserved')
                 require_named_parents()
-                def compensation_version(info):
-                    # Rename can change ctime; the other source fields must
-                    # still match before selecting its destination name again.
-                    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
-                            info.st_size, info.st_mtime_ns)
-                moved_entry = compensation_version(os.stat(source_rel.name,
-                    dir_fd=source_fd, follow_symlinks=False))
                 move_source_upload_exclusively(source_rel.name, destination_rel.name,
                     source_dir_fd=source_fd, destination_dir_fd=destination_fd)
                 try:
                     require_named_parents()
-                except BaseException as parent_error:
+                except BaseException:
                     # A parent renamed after the pre-move check still leaves the
-                    # descriptor valid. Preserve existing owned-entry rollback,
-                    # but refuse a destination that no longer matches its source.
-                    # This is an observation, not an inode-conditional POSIX
-                    # rename; the caller's journal/conflict fence remains needed.
-                    try:
-                        current = os.stat(destination_rel.name, dir_fd=destination_fd,
-                                          follow_symlinks=False)
-                        if compensation_version(current) != moved_entry:
-                            raise ValueError('Book move compensation entry changed')
-                        move_source_upload_exclusively(destination_rel.name,
-                            source_rel.name, source_dir_fd=destination_fd,
-                            destination_dir_fd=source_fd)
-                        os.fsync(source_fd)
-                        if source_fd != destination_fd:
-                            os.fsync(destination_fd)
-                    except BaseException as rollback_error:
-                        raise ValueError(
-                            'Book move parent changed and compensation failed; '
-                            'recovery evidence was preserved') from rollback_error
-                    raise parent_error
+                    # descriptor valid, but named-parent authority is lost: the
+                    # destination name may now select a foreign entry and the
+                    # source name may be occupied by one. No stat can make a
+                    # POSIX rename conditional on source inode identity
+                    # (RENAME_NOREPLACE only protects destination existence),
+                    # so never reverse either name here. Preserve the moved
+                    # entry, the journal and the caller's recovery fence; the
+                    # transaction is fenced rather than automatically rolled
+                    # back. Ordinary rollback with valid parents is unchanged
+                    # because this branch is only taken on parent change.
+                    os.fsync(source_fd)
+                    if source_fd != destination_fd:
+                        os.fsync(destination_fd)
+                    raise
                 os.fsync(source_fd)
                 if source_fd != destination_fd:
                     os.fsync(destination_fd)

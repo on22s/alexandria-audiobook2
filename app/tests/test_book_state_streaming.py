@@ -1383,10 +1383,20 @@ print(len(result['entries']))
                     books.apply_book_state_locked(root, {'sub/new.wav': stream(b'private')}, [],
                                                   stream_byte_limit=100)
             self.assertTrue(swapped[0])
-            self.assertFalse((other / 'relocated/new.wav').exists())
-            self.assertEqual(
-                b'private', next(root.glob('.book-switch-*/new-0')).read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            # Fail-closed: the destination parent was relocated before the
+            # move, so no reverse move may return new.wav to new-0. It stays
+            # in the fd-pinned relocated directory and the journal fences.
+            self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
+            self.assertFalse(list(root.glob('.book-switch-*/new-0')))
+            journal = root / books.JOURNAL
+            self.assertTrue(journal.exists())
+            frozen = journal.read_bytes()
+            for _ in range(2):
+                with self.assertRaises(ValueError):
+                    with books.ensure_book_state(root):
+                        self.fail('Relocated recovery workspace was admitted')
+                self.assertEqual(frozen, journal.read_bytes())
+                self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
 
     def test_file_created_at_publication_is_not_overwritten_even_with_same_bytes(self):
         for external in (b'other bytes', b'new'):

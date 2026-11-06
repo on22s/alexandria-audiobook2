@@ -45,22 +45,21 @@ class BookStateTransactionTests(unittest.TestCase):
                         with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                             books.apply_book_state_locked(root, {'artifact':value}, [], **options)
                     self.assertEqual([True], relocated)
-                    self.assertEqual(not replacement, target.exists())
-                    original = retained / 'owned-retained' if replacement else target
+                    # Fail-closed (issue 1660 residual race): parent authority
+                    # loss never reverses a name, even when the owned entry
+                    # still matches. The entry stays in the retained workspace
+                    # and recovery fences on the preserved journal in both
+                    # the plain and foreign-replacement cases.
+                    self.assertFalse(target.exists())
+                    original = retained / ('owned-retained' if replacement else 'old-0')
                     self.assertEqual(b'owned original', original.read_bytes())
                     if replacement:
                         self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
-                    else:
-                        self.assertFalse((retained / 'old-0').exists())
                     self.assertEqual(generated, (retained / 'new-0').read_bytes())
                     journal = root / books.JOURNAL
-                    if not replacement:
-                        # The matching owned entry is still rolled back, so
-                        # ordinary recovery can finish and clear the journal.
-                        self.assertFalse(journal.exists())
-                        with books.ensure_book_state(root):
-                            self.assertEqual(b'owned original', target.read_bytes())
-                        continue
+                    self.assertTrue(journal.exists())
+                    with journal.open('r', encoding='utf-8') as handle:
+                        self.assertEqual('publishing', json.load(handle)['phase'])
                     frozen = journal.read_bytes()
                     for _ in range(2):
                         with self.assertRaises(ValueError):
@@ -68,6 +67,7 @@ class BookStateTransactionTests(unittest.TestCase):
                                 self.fail('Relocated recovery workspace was admitted')
                         self.assertEqual(frozen, journal.read_bytes())
                         self.assertEqual(b'owned original', original.read_bytes())
+                        self.assertFalse(target.exists())
                         if replacement:
                             self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
 

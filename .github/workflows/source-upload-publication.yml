@@ -7,6 +7,9 @@ on:
       - 'app/publication_source.py'
       - 'app/adapter_publication.py'
       - 'app/routers/script.py'
+      - 'app/book_state_transaction.py'
+      - 'app/tests/test_book_state_transaction.py'
+      - 'app/tests/test_book_state_transaction_1660_compensation_race.py'
       - 'app/tests/test_source_upload_publication.py'
       - 'app/tests/test_source_upload_stage.py'
       - '.github/workflows/source-upload-publication.yml'
@@ -30,3 +33,6 @@ jobs:
           python-version: '3.10'
       - name: Verify native exclusive publication and process-death boundaries
         run: python -S -m unittest tests.test_source_upload_publication tests.test_source_upload_stage -v
+      - name: Verify POSIX book move compensation fence (stdlib only)
+        if: runner.os != 'Windows'
+        run: python -S -m unittest tests.test_book_state_transaction_1660_compensation_race -v
