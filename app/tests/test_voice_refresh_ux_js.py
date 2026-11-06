@@ -35,6 +35,45 @@ assert(!/could not/i.test(toasts[0][0]),'must carry NO could-not failure label, 
 assert(!/could not be confirmed/i.test(toasts[0][0]) && !/may have been saved/i.test(toasts[0][0]),'must not invent an unknown save outcome, got '+toasts[0][0]);
 ''')
 
+    def test_committed_seed_apply_obsolete_refresh_keeps_saved_context(self):
+        self.run_js(r'''
+const c=client();
+vm.runInContext(source.slice(source.indexOf('function showToast('),source.indexOf('function showConfirm(')),c.ctx);
+const toasts=[];c.ctx.showToast=(message,type)=>toasts.push([message,type]);
+const posts=[];c.ctx.API.post=async(url,data)=>{posts.push({url,data});return{changes:[1],backup:'voice_config.json.bak-fixture'};};
+vm.runInContext('_voiceSaveSnapshot={revision:"0".repeat(64),book_token:"b".repeat(64),seed_changes:[{name:"Alice",seed:"7"}]};_voiceCardsRevision="0".repeat(64);_voiceCardsBookToken="b".repeat(64);',c.ctx);
+c.ctx.voiceSaveQueue={isDirty:()=>false};
+c.ctx.flushVoiceSaves=async()=>{};
+c.ctx.loadVoices=async()=>{throw Object.assign(new Error('A newer voice save superseded this refresh; existing edits were preserved.'),{voiceLoadObsolete:true});};
+await c.ctx.applyStableVoiceSeeds();
+assert.strictEqual(posts.length,1,'committed seed POST must happen exactly once (no retry), got '+posts.join(','));
+assert.strictEqual(posts[0].url,'/api/voice_config/seed_unseeded');
+assert.strictEqual(toasts.length,1,'exactly one presenter toast expected, got '+JSON.stringify(toasts));
+assert.strictEqual(toasts[0][1],'warning','known-committed obsolete refresh must present as warning, got '+toasts[0][1]);
+assert(/saved/i.test(toasts[0][0]),'warning must retain the known-saved context, got '+toasts[0][0]);
+assert(/superseded/i.test(toasts[0][0]),'warning must name supersession, got '+toasts[0][0]);
+assert(!/failed/i.test(toasts[0][0]) && !/could not/i.test(toasts[0][0]),'must carry NO failure label, got '+toasts[0][0]);
+assert(!/may have been saved/i.test(toasts[0][0]),'must not invent an unknown-save claim, got '+toasts[0][0]);
+''')
+
+    def test_committed_seed_apply_http_refresh_failure_keeps_saved_guidance(self):
+        self.run_js(r'''
+const c=client();
+vm.runInContext(source.slice(source.indexOf('function showToast('),source.indexOf('function showConfirm(')),c.ctx);
+const toasts=[];c.ctx.showToast=(message,type)=>toasts.push([message,type]);
+const posts=[];c.ctx.API.post=async(url,data)=>{posts.push({url,data});return{changes:[1],backup:'voice_config.json.bak-fixture'};};
+vm.runInContext('_voiceSaveSnapshot={revision:"0".repeat(64),book_token:"b".repeat(64),seed_changes:[{name:"Alice",seed:"7"}]};_voiceCardsRevision="0".repeat(64);_voiceCardsBookToken="b".repeat(64);',c.ctx);
+c.ctx.voiceSaveQueue={isDirty:()=>false};
+c.ctx.flushVoiceSaves=async()=>{};
+c.ctx.loadVoices=async()=>{throw Object.assign(new Error('snapshot exploded'),{status:503});};
+await c.ctx.applyStableVoiceSeeds();
+assert.strictEqual(posts.length,1,'committed seed POST must happen exactly once');
+assert.strictEqual(toasts.length,1);
+assert.strictEqual(toasts[0][1],'error','genuine HTTP refresh failure must stay visible/error, got '+toasts[0][1]);
+assert(/Stable seeds saved, but Voices could not be refreshed/i.test(toasts[0][0]),'saved-but-unrefreshed guidance must be kept, got '+toasts[0][0]);
+assert(/seeds were saved/i.test(toasts[0][0]) && /snapshot exploded/i.test(toasts[0][0]),'guidance + detail must be retained, got '+toasts[0][0]);
+''')
+
     def test_http_status_error_with_marker_stays_visible_error(self):
         self.run_js(r'''
 const c=client();

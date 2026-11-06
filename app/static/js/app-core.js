@@ -5120,7 +5120,14 @@
                 try { await loadVoices(false); }
                 catch (refreshError) {
                     refreshed = false;
-                    showActionError('Stable seeds saved, but Voices could not be refreshed', refreshError, 'The seeds were saved. Reload Voices to see them before applying again.');
+                    if (isLocalVoiceLoadObsolete(refreshError)) {
+                        // Known-committed caller: keep the saved context
+                        // the generic neutral warning would drop, without
+                        // claiming a failed mutation or retrying the POST.
+                        showToast('Stable seeds saved, but the Voices display refresh was superseded by a newer local change. Reload Voices to see them before applying again.', 'warning', 10000);
+                    } else {
+                        showActionError('Stable seeds saved, but Voices could not be refreshed', refreshError, 'The seeds were saved. Reload Voices to see them before applying again.');
+                    }
                 }
                 if (refreshed) { showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000); }
             } catch (e) {

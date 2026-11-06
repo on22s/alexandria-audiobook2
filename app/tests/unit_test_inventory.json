@@ -8473,7 +8473,8 @@
   "test_preparer_cancel_cleanup": [
     "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_active_cancel_still_requests_cancellation",
     "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_cleanup_window_cancel_refuses_but_smoke_waits_for_claim_release",
-    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_stuck_cleanup_smoke_times_out_and_idle_cancel_is_immediate"
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_stuck_cleanup_smoke_times_out_and_idle_cancel_is_immediate",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_wait_for_task_requires_actual_bool_false"
   ],
   "test_preparer_completed_resume": [
     "tests.test_preparer_completed_resume.PreparerCompletedResumeTests.test_blank_incomplete_and_pre_resume_words_do_not_load_model",
@@ -14351,6 +14352,8 @@
     "tests.test_voice_reference_import.UploadRouteTests.test_refusals_leave_no_file_and_no_manifest_entry"
   ],
   "test_voice_refresh_ux_js": [
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_seed_apply_http_refresh_failure_keeps_saved_guidance",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_seed_apply_obsolete_refresh_keeps_saved_context",
     "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_select_then_superseded_reload_is_warning_not_failure",
     "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_http_status_error_with_marker_stays_visible_error",
     "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_save_ack_style_supersession_uses_same_neutral_presenter",
