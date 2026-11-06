@@ -53,7 +53,7 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
                     (root/'state.json').write_text(json.dumps(state))
                     Path(script.three_pass_manifest_path(script.SCRIPT_PATH)).write_text('{"status":"failed"}')
                 def slow(*args,**kwargs):
-                    entered.set();release.wait(1);finished.set()
+                    entered.set();release.wait(5);finished.set()
                     return ('Alexis entered. Alexis spoke. Alexis left.',[]) if route.endswith('/retry') else None
                 async def run():
                     transport=httpx.ASGITransport(app=app)
@@ -61,15 +61,24 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
                         payload={'tasks':[{'filename':'book.txt'}]} if route.endswith('/start') else {}
                         request=asyncio.create_task(client.post(route,json=payload))
                         try:
-                            await asyncio.sleep(.03)
+                            # Event barrier (bounded): only ping once the
+                            # slow preflight has actually entered and is
+                            # held in its worker. run_in_executor is the
+                            # probe's own tool, independent of the app's
+                            # asyncio.to_thread offload under test.
+                            loop=asyncio.get_running_loop()
+                            barrier_ok=await loop.run_in_executor(None, entered.wait, 5)
+                            self.assertTrue(barrier_ok,'slow preflight never entered its worker')
                             ping=await client.get('/ping');self.assertEqual(200,ping.status_code)
-                            self.assertTrue(entered.is_set());self.assertFalse(finished.is_set(),'preflight blocked unrelated API progress')
+                            self.assertFalse(request.done(),'request must still be held in preflight while ping progresses')
+                            self.assertFalse(finished.is_set(),'preflight blocked unrelated API progress')
                         finally:release.set();response=await request
                         self.assertEqual(200,response.status_code,response.text)
                 target='_read_and_validate_batch_script_source' if route.endswith('/retry') else 'three_pass_refusal'
                 with patch.object(script,target,side_effect=slow):asyncio.run(run())
                 self.assertFalse(core.is_task_running('script'));self.assertFalse(core.is_task_running('batch_script'))
                 self.assertEqual({},core._task_claims)
+
 
     def test_single_and_batch_reject_same_unattested_narrator_without_state_mutation(self):
         for route in ('/api/generate_script','/api/generate_script/batch/start'):

@@ -79,8 +79,14 @@ def _capture_raw_source(path, *, owning_root=None, include_bytes=True):
                               limit=512 * 1024**2, include_bytes=include_bytes)
 
 
-def _read_source_snapshot(path, *, include_bytes=False, owning_root=None):
-    """Read a raw selected source through the shared confined capture seam."""
+def _read_source_snapshot(path, *, include_bytes=False, owning_root=None,
+                          missing_as_fnf=False):
+    """Read a raw selected source through the shared confined capture seam.
+
+    A plain missing source raises ValueError by default (existing
+    contract); callers whose contract is FileNotFoundError opt in
+    explicitly via missing_as_fnf=True.
+    """
     from docx_publication import capture_docx_group
     group = capture_docx_group(path, owning_root=owning_root)
     if group is not None:
@@ -88,6 +94,8 @@ def _read_source_snapshot(path, *, include_bytes=False, owning_root=None):
     proof, raw = _capture_raw_source(path, owning_root=owning_root,
                                      include_bytes=include_bytes)
     if not proof.get('exists'):
+        if missing_as_fnf:
+            raise FileNotFoundError(str(path))
         raise ValueError('Selected source is unavailable')
     return proof['sha256'], raw
 

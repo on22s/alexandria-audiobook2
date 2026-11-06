@@ -1,6 +1,5 @@
 """Native source files through batch start/background sizing; no generation subprocess."""
 import asyncio
-import builtins
 import copy
 from contextlib import ExitStack, nullcontext
 import importlib.util
@@ -163,6 +162,27 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
                 self.assertEqual(400,error.exception.status_code)
                 self.assertIn('Source changed while preparing',error.exception.detail)
                 refusal.assert_not_called()
+
+    def test_cp1252_and_utf8_decode_like_generation_preparation(self):
+        import hashlib
+        cases = [
+            ('Alexis Alexis Alexis. Café — “quiet.”', 'utf-8'),
+            ('Alexis Alexis Alexis. Café — “quiet.”', 'cp1252'),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt'
+            for text, encoding in cases:
+                with self.subTest(encoding=encoding):
+                    raw=text.encode(encoding); path.write_bytes(raw)
+                    request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+                    with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                        jobs=script.get_prepared_batch_script_jobs(request)
+                    # Same decoded text/policy as actual get_prepared_source.
+                    from three_pass_generate import get_prepared_source
+                    prepared, _ = get_prepared_source(str(path))
+                    self.assertEqual(prepared, jobs[0]['prepared_source']['text'])
+                    self.assertEqual(hashlib.sha256(raw).hexdigest(), jobs[0]['prepared_source']['identity'][0])
+                    self.assertEqual(raw, path.read_bytes())
 
     def test_crlf_cr_newlines_normalize_like_textio_under_raw_identity(self):
         import hashlib

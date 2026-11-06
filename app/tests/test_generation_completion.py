@@ -98,6 +98,23 @@ class GenerationCompletionTests(unittest.TestCase):
         # Valid control: unlinking the alias restores verification.
         self.assertIsNone(get_generation_completion_error(self.output, self.source))
 
+    def test_incomplete_docx_group_refuses_at_initial_capture(self):
+        from generation_completion import get_generation_input
+        # A TXT whose basename matches the DOCX group pattern but with
+        # no companions must refuse at INITIAL binding (before any
+        # generation), not bind raw bytes that later verification refuses.
+        group_name = 'book-aa2docx-' + 'a' * 32 + '.txt'
+        incomplete = self.source.parent / group_name
+        incomplete.write_text('Complete-looking synthetic prose.', encoding='utf-8')
+        with self.assertRaises(ValueError):
+            get_generation_input(incomplete)
+        # Ordinary missing and ordinary TXT controls stay clear.
+        with self.assertRaises(FileNotFoundError):
+            get_generation_input(self.source.parent / 'missing.txt')
+        text, digest = get_generation_input(self.source)
+        self.assertEqual('complete source', text)
+        self.assertEqual(get_file_sha256(self.source), digest)
+
     def test_source_text_and_raw_hash_come_from_one_read_with_existing_newline_policy(self):
         import hashlib
         from generation_completion import get_generation_input
@@ -140,3 +157,40 @@ class GenerationSourceCollisionTests(unittest.TestCase):
                     generation.main()
                 load.assert_not_called(); client.assert_not_called()
             self.assertEqual('Synthetic source.', source.read_text())
+
+
+class GenerationDocxGroupBindingTests(unittest.IsolatedAsyncioTestCase):
+    _docx = __import__('tests.test_docx_upload', fromlist=['DocxUploadTests']).DocxUploadTests
+    environment = _docx.environment
+    upload = _docx.upload
+    accept = _docx.accept
+
+    async def test_valid_docx_group_binds_publishes_and_verifies(self):
+        from generation_completion import get_generation_input, get_generation_completion_error
+        from generate_script import publish_completed_generation
+        from tests.test_docx_preview import archive
+        async with self.environment() as (root, uploads, client):
+            response = await self.accept(client, archive())
+            self.assertEqual(200, response.status_code, response.text)
+            path = uploads / response.json()['stored_filename']
+            text, digest = get_generation_input(path)
+            self.assertIn('Synthetic', text)
+            # Bind -> publish -> verify with the same group-aware seam.
+            with tempfile.TemporaryDirectory() as tmp:
+                output = Path(tmp) / 'book.json'
+                output.write_text(json.dumps([{'text': 'short complete book'}]))
+                manifest = {'status': 'verified', 'total_chunks': 1, 'accepted_chunk_count': 1,
+                            'fingerprint': {'chunk_sha256': ['a' * 64]},
+                            'chunks': [{'chunk_number': 1, 'source_sha256': 'a' * 64}]}
+                publish_completed_generation(str(output), [{'text': 'short complete book'}],
+                                             manifest, str(path), digest)
+                self.assertIsNone(get_generation_completion_error(output, path))
+                # Changed group after bind cannot publish.
+                names = __import__('docx_publication', fromlist=['get_docx_group_names']).get_docx_group_names(str(path))
+                (uploads / names['receipt']).unlink()
+                before = output.read_bytes()
+                with self.assertRaises(ValueError):
+                    publish_completed_generation(str(output), [{'text': 'replacement'}],
+                                                 {**manifest, 'status': 'verified'}, str(path), digest)
+                self.assertEqual(before, output.read_bytes())
+                self.assertIsNotNone(get_generation_completion_error(output, path))

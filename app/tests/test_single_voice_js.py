@@ -302,6 +302,49 @@ assert.strictEqual(context.elements['single-voice-source'].value,'','dropped sel
 assert(context.toasts.some(([message])=>String(message).includes('ALICE')),'dropped speaker must be announced');
 ''')
 
+    def test_preview_source_must_match_captured_source_with_own_voices_key(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='ALICE';
+confirmAnswer=true;
+const oldPost=context.API.post;
+context.API.post=async(url,body,options)=>{
+ const value=await oldPost(url,body,options);
+ if(url==='/api/voice_config/single-voice-preview'){return {...value,source_speaker:'BOB'};}
+ return value;
+};
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,0,'echoed other source must write nothing');
+assert.strictEqual(context.confirmMessages.length,0,'echoed other source must show no modal');
+assert.strictEqual(context.actionErrors.length,1);
+assert(context.actionErrors[0][1].message.includes('Invalid voice preview'));
+context.API.post=async(url,body,options)=>{
+ const value=await oldPost(url,body,options);
+ if(url==='/api/voice_config/single-voice-preview'){return {...value,voices:Object.create({ALICE:{type:'custom',voice:'Serena'},BOB:{type:'custom',voice:'Serena'}})};}
+ return value;
+};
+await context.previewSingleVoiceBook();
+assert.strictEqual(writes.length,0,'inherited voices key must write nothing');
+assert.strictEqual(context.actionErrors.length,2);
+''')
+
+    def test_preview_supports_own_proto_source_name(self):
+        self.run_node(r'''
+context.elements['single-voice-source'].value='__proto__';
+confirmAnswer=false;
+const oldPost=context.API.post;
+context.API.post=async(url,body,options)=>{
+ const value=await oldPost(url,body,options);
+ if(url==='/api/voice_config/single-voice-preview'){
+  const voices=JSON.parse('{"__proto__":{"type":"custom","voice":"Serena","ready":false},"ALICE":{"type":"custom","voice":"Serena","ready":false}}');
+  return {...value,source_speaker:'__proto__',speakers:[{name:'__proto__',line_count:1,changes:[]},{name:'ALICE',line_count:1,changes:[]}],affected_speakers:2,affected_lines:2,voices};
+ }
+ return value;
+};
+await context.previewSingleVoiceBook();
+assert(context.confirmMessages.some(m=>m.includes('__proto__')),'own __proto__ source must reach the modal');
+assert.strictEqual(writes.length,0,'cancel must write nothing');
+''')
+
     def test_preview_rejects_array_voices_and_roster_mismatch(self):
         out = self.run_node(r'''
 context.elements['single-voice-source'].value='ALICE';

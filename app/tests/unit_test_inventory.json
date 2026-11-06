@@ -1032,6 +1032,7 @@
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_busy_batch_refuses_before_source_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cache_hit_reuses_decoded_text_without_rereading",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_changed_source_revalidates_narrator_even_if_size_and_mtime_match",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cp1252_and_utf8_decode_like_generation_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_crlf_cr_newlines_normalize_like_textio_under_raw_identity",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_hardlinked_and_missing_sources_are_refused_not_cached",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
@@ -5349,11 +5350,13 @@
     "tests.test_generation_completion.GenerationCompletionTests.test_changed_input_or_unverified_generation_preserves_previous_output",
     "tests.test_generation_completion.GenerationCompletionTests.test_changed_source_or_output_invalidates_old_manifest",
     "tests.test_generation_completion.GenerationCompletionTests.test_hardlinked_source_with_same_bytes_refuses_completion_and_publication",
+    "tests.test_generation_completion.GenerationCompletionTests.test_incomplete_docx_group_refuses_at_initial_capture",
     "tests.test_generation_completion.GenerationCompletionTests.test_interrupted_51_entry_book_cannot_pass_complete_check",
     "tests.test_generation_completion.GenerationCompletionTests.test_malformed_status_counts_order_and_missing_evidence_reject",
     "tests.test_generation_completion.GenerationCompletionTests.test_native_publication_binds_completed_artifact_without_mutating_manifest",
     "tests.test_generation_completion.GenerationCompletionTests.test_short_complete_book_does_not_need_arbitrary_entry_minimum",
     "tests.test_generation_completion.GenerationCompletionTests.test_source_text_and_raw_hash_come_from_one_read_with_existing_newline_policy",
+    "tests.test_generation_completion.GenerationDocxGroupBindingTests.test_valid_docx_group_binds_publishes_and_verifies",
     "tests.test_generation_completion.GenerationSourceCollisionTests.test_cli_refuses_collision_before_loading_source_or_constructing_client",
     "tests.test_generation_completion.GenerationSourceCollisionTests.test_publication_refuses_source_path_aliases_without_changing_source_or_manifest"
   ],
@@ -10701,6 +10704,7 @@
   "test_serialized_save_queue": [
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows",
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_voice_handlers_and_book_actions_wait_for_latest_save_or_abort_on_failure",
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_ambiguous_history_survives_definite_retry_and_blocked_flush_surfaces_onerror",
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_coalescing_failure_and_revision_acknowledgement"
   ],
   "test_server_vram_release": [
@@ -10908,6 +10912,8 @@
     "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_confirm_applies_once_through_canonical_queue",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_failure_sends_no_save",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_rejects_array_voices_and_roster_mismatch",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_source_must_match_captured_source_with_own_voices_key",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_supports_own_proto_source_name",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_reload_clears_binding_on_literal_change_without_event",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_confirmation_binds_and_clears",
     "tests.test_single_voice_js.SingleVoiceJsTests.test_source_preview_filename_labels_are_escaped",
@@ -12113,9 +12119,11 @@
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_failed_cast_publication_restores_both_files_and_keeps_old_audio_fenced",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_suggestion",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_invalid_second_suggestion_cannot_partially_publish_or_invalidate",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_library_only_priority_nan_and_deep_refuse_before_invalidation",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_manual_persona_recovery_invalidates_changed_style_and_alias_audio",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_reapplying_identical_effective_voice_preserves_audio",
-    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only"
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_valid_finite_priority_commits_both_with_invalidation"
   ],
   "test_suggestion_candidate_queue_js": [
     "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_cast_or_book_switch_refuses_late_suggestions_and_candidate_writes",
@@ -14324,6 +14332,7 @@
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_genuine_programmer_error_still_propagates",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_active_description_and_trait_shapes_refuse_400",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_saved_state_description_refuses_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_unconsumed_trait_and_noncustom_description_controls",
     "tests.test_voices_regressions.MalformedFieldShapeTests.test_valid_absent_null_and_inactive_controls",
     "tests.test_voices_regressions.MissingBulkBookTests.test_missing_selected_books_report_errors_without_blocking_valid_books",
     "tests.test_voices_regressions.SuggestionSelectionMetadataTests.test_new_adapter_clears_active_markers_and_preserves_history",

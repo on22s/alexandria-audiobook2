@@ -3027,6 +3027,11 @@ def _resolve_batch_script_input(filename: str) -> str:
     return input_path
 
 
+def _batch_source_identity_from_proof(proof):
+    """One proof -> batch identity tuple formula for producer + getter."""
+    return (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
+
+
 def _capture_and_validate_batch_script_source(job):
     """Capture, decode and validate one batch source; return its proof.
 
@@ -3049,19 +3054,20 @@ def _capture_and_validate_batch_script_source(job):
                                          include_bytes=True)
         if not proof.get('exists'):
             raise FileNotFoundError(str(job['input_path']))
-        # Preserve the original TextIO universal-newline policy
-        # (CRLF/CR -> LF) via the shared helper, before mojibake and
-        # known-source normalization. Identity stays on the original
-        # raw bytes above, not on the normalized text.
-        from source_encoding import get_normalized_source_newlines
-        text = fix_mojibake(get_normalized_source_newlines(raw.decode('utf-8')))
+        # Same shared decoder as preview/generation (UTF-8, then
+        # CP1252), preserving the universal-newline policy before
+        # mojibake and known-source normalization. Identity stays on
+        # the original raw bytes above, not on the decoded text.
+        from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+        decoded, _encoding = get_decoded_source_text(raw)
+        text = fix_mojibake(get_normalized_source_newlines(decoded))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")
     if narrator and not is_narrator_attested(narrator, text):
         raise ValueError(
             f"{job['filename']}: first-person narrator must appear by name "
             "at least three times in the source")
-    identity = (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
+    identity = _batch_source_identity_from_proof(proof)
     return text, normalization_count, identity
 
 
@@ -3089,7 +3095,7 @@ def get_batch_script_source_identity(path):
     proof, _raw = _capture_raw_source(path, owning_root=None, include_bytes=False)
     if not proof.get('exists'):
         raise FileNotFoundError(str(path))
-    return (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
+    return _batch_source_identity_from_proof(proof)
 
 
 def get_validated_batch_script_source(job):

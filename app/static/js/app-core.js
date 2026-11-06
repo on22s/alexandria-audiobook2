@@ -678,10 +678,14 @@
                 const voiceLoad = loadVoices(false, voiceLoadOptions);
                 Promise.resolve(voiceLoad).catch(error => {
                     const message = String(error?.message || error || '');
-                    // Exact known obsolete prefixes only: a genuine error
-                    // that merely contains "superseded" (e.g. a speaker
-                    // named 'superseded' in a 400) must stay visible.
-                    if (/^(A newer voice load superseded|Active book changed while (loading|refreshing) voices)/.test(message)) { return; }
+                    // Exact known obsolete prefixes only, and only for
+                    // LOCAL ownership errors (no HTTP status): a real
+                    // API error with status 400/503 whose detail starts
+                    // with an obsolete prefix must remain visible, as
+                    // must any error merely containing "superseded"
+                    // (e.g. a speaker named 'superseded' in a 400).
+                    const hasStatus = error && typeof error.status === 'number';
+                    if (!hasStatus && /^(A newer voice load superseded|Active book changed while (loading|refreshing) voices)/.test(message)) { return; }
                     showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
                 });
             } else if (selectedLink.dataset.tab === 'designer') {
@@ -836,7 +840,12 @@
             // sending; {explicitRetry:true} or discard may reconcile it.
             async function flush(options = {}) {
                 if (guardAmbiguous && ambiguous && isDirty() && !options.explicitRetry) {
-                    throw new Error('Voice save outcome is unconfirmed and is retained for explicit recovery. Use Discard edits and reload in Voices to reconcile before retrying.');
+                    // Surface the blocked outcome (timer callers swallow
+                    // the throw) without making another write; the
+                    // retained draft and explicit recovery stay intact.
+                    const blocked = new Error('Voice save outcome is unconfirmed and is retained for explicit recovery. Use Discard edits and reload in Voices to reconcile before retrying.');
+                    onError(blocked);
+                    throw blocked;
                 }
                 clearTimeout(timer);
                 timer = null;
@@ -855,7 +864,12 @@
                         } catch (error) {
                             if (!pending) { pending = batch; }
                             if (guardAmbiguous) {
-                                ambiguous = !isDefiniteVoiceSaveRefusal(error);
+                                // Sticky: a later definite refusal does
+                                // not prove an earlier unknown attempt
+                                // did not commit. Only a successful
+                                // validated ACK or explicit discard
+                                // clears historical ambiguity.
+                                ambiguous = ambiguous || !isDefiniteVoiceSaveRefusal(error);
                             }
                             onError(error);
                             throw error;

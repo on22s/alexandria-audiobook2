@@ -1175,7 +1175,8 @@ class MalformedFieldShapeTests(unittest.TestCase):
                 ('gender_list', [{"speaker": "Hero", "speaker_gender": ["male"], "speaker_age_group": "adult"}], {}),
                 ('age_list', [{"speaker": "Hero", "speaker_gender": "male", "speaker_age_group": ["adult"]}], {}),
                 ('gender_only', [{"speaker": "Hero", "speaker_gender": "male"}], {}),
-                ('age_only', [{"speaker": "Hero", "speaker_age_group": "adult"}], {}),
+                ('legacy_type_gender_list', [{"type": "Hero", "speaker_gender": ["male"], "speaker_age_group": "adult"}], {}),
+                ('whitespace_speaker_gender_list', [{"speaker": "  ", "speaker_gender": ["male"], "speaker_age_group": "adult"}], {}),
             ]
             for label, script_rows, voice in cases:
                 with self.subTest(case=label):
@@ -1185,6 +1186,29 @@ class MalformedFieldShapeTests(unittest.TestCase):
                     response = client.get('/api/voices')
                     self.assertEqual(400, response.status_code, response.text)
                     self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+
+    def test_unconsumed_trait_and_noncustom_description_controls(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            # Age-only rows are ignored by both consumers (gender absent).
+            script.write_text(json.dumps([{"speaker": "Hero", "speaker_age_group": ["adult"]}]))
+            config.write_text('{}')
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            # Speakerless gender metadata is consumed by neither consumer.
+            script.write_text(json.dumps([{"speaker_gender": ["male"], "speaker_age_group": "adult"}]))
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual([], response.json())
+            # Non-custom unused numeric description stays readable and
+            # byte-preserved; only custom description is consumed.
+            script.write_text(json.dumps([{"speaker": "Hero"}]))
+            config.write_text(json.dumps({"Hero": {"type": "lora", "adapter_id": "a", "description": 123}}))
+            before = config.read_bytes()
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(response.json()[0]["persona_pending"])
+            self.assertEqual(before, config.read_bytes())
 
     def test_malformed_saved_state_description_refuses_400(self):
         from speaker_traits import get_persona_state_targets

@@ -394,6 +394,12 @@ async function previewSingleVoiceBook() {
             || !/^[0-9a-f]{64}$/.test(preview.revision || '') || !/^[0-9a-f]{64}$/.test(preview.book_token || '')) {
             throw new Error('Invalid voice preview; nothing was applied.');
         }
+        // Fail closed on an unbound preview source: the echoed source
+        // must be the one captured before awaits and an OWN key of the
+        // voices map (an inherited name is not a server proposal).
+        if (preview.source_speaker !== source || !Object.hasOwn(preview.voices, source)) {
+            throw new Error('Invalid voice preview; nothing was applied.');
+        }
         // Roster consistency: the voices map must cover exactly the previewed
         // speakers, otherwise the modal could call a changing speaker
         // "unchanged" (#1724 C032, C056).

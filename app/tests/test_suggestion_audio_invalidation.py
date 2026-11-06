@@ -122,6 +122,35 @@ class SuggestionAudioInvalidationTests(unittest.TestCase):
             self.assertEqual(400, response.status_code, response.text)
             self.assertEqual(before, {path: path.read_bytes() for path in paths})
 
+    def test_library_only_priority_nan_and_deep_refuse_before_invalidation(self):
+        # cast_name path: raw NaN or too-deep library-only priority must
+        # refuse 400 with voice/chunks/state/library bytes unchanged
+        # (canonical library still readable afterwards).
+        for payload in ('NaN', '{"n":' * 200 + '1' + '}' * 200):
+            with self.subTest(payload=payload[:12]), self.fixture() as (root, client, manager):
+                paths = [root / 'voices.json', root / 'chunks.json', root / 'state.json', root / 'library.json']
+                before = {path: path.read_bytes() for path in paths}
+                raw = ('{"character":"Hero","cast":"series","suggestion":'
+                       '{"adapter_id":"new","book_id":"active-book","character_style":"calm","priority":'
+                       + payload + '}}')
+                response = client.post('/api/suggest_voices/apply', content=raw,
+                                       headers={'Content-Type': 'application/json'})
+                self.assertEqual(400, response.status_code, response.text)
+                self.assertEqual(before, {path: path.read_bytes() for path in paths})
+                self.assertIn('finite JSON values', response.json()['detail'])
+                json.loads((root / 'library.json').read_bytes())
+
+    def test_valid_finite_priority_commits_both_with_invalidation(self):
+        with self.fixture() as (root, client, manager):
+            before = copy.deepcopy(manager.load_chunks())
+            suggestion = {'adapter_id': 'new', 'book_id': 'active-book', 'character_style': 'calm', 'priority': 3}
+            response = client.post('/api/suggest_voices/apply', json={'character': 'Hero', 'cast': 'series', 'suggestion': suggestion})
+            self.assertEqual(200, response.status_code, response.text)
+            self.assert_affected_only(before, manager.load_chunks(), manager)
+            library = json.loads((root / 'library.json').read_bytes())
+            member = library['casts']['series']['members']['hero']
+            self.assertEqual(3, member['assignments']['active-book']['priority'])
+
     def test_damaged_cast_library_refuses_suggestions_before_any_audio_invalidation(self):
         with self.fixture() as (root, client, _manager):
             library_path = root / 'library.json'

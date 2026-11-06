@@ -16,24 +16,25 @@ def get_file_sha256(path):
 def get_generation_input(path, *, owning_root=None):
     """Read source text and its raw-byte identity from one snapshot.
 
-    Raw bytes come through the shared confined capture seam
-    (project_scope_files.capture_scope_file), so descriptor, plain-path
-    and hardlink guards apply exactly as for the selection readers: an
-    aliased source parent is refused instead of followed (DS3076).
+    The snapshot is the SAME group-aware confined capture the
+    completion/publication re-verification uses (_read_source_snapshot):
+    a TXT whose basename matches the DOCX group pattern therefore
+    binds only as a complete verified DOCX group (receipt + original
+    proofs), and an incomplete group refuses here, before generation,
+    instead of binding raw bytes that later verification refuses.
     `owning_root` confines the read where the HTTP generation context
     knows the book data directory; explicit CLI sources keep their
     source-parent authority and remain supported in ordinary dirs.
     """
-    from script_selection_binding import _capture_raw_source
-    proof, data = _capture_raw_source(path, owning_root=owning_root,
-                                      include_bytes=True)
-    if not proof.get('exists'):
-        raise FileNotFoundError(str(path))
+    from script_selection_binding import _read_source_snapshot
+    digest, data = _read_source_snapshot(path, include_bytes=True,
+                                         owning_root=owning_root,
+                                         missing_as_fnf=True)
     if data is None:
         raise ValueError('Selected source is unavailable')
     text, _encoding = get_decoded_source_text(data)
     text = get_normalized_source_newlines(text)
-    return text, proof['sha256']
+    return text, digest
 
 
 def get_generation_completion_error(output_path, input_path):

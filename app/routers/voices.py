@@ -482,22 +482,26 @@ def get_voice_rows(script_data, voice_config):
         if name in lines and isinstance(entry, dict):
             lines[name].append(entry)
     # Narrow domain-boundary validation of malformed external field
-    # shapes (CF60009): speaker_traits Counter-hashes gender/age and
-    # voice_is_set .strip()s description, so a present non-string
-    # value is corrupt book data (ValueError -> 400), never a 500.
-    # Absent trait fields stay ordinary (no pass-2 traits); absent/
-    # null description stays the legitimate unconfigured contract;
-    # inactive entries are not validated here. No broad TypeError /
-    # AttributeError catch and no silent coercion: genuine programmer
-    # errors still propagate.
+    # shapes (CF60009, narrowed): only fields actually consumed are
+    # validated. Trait summary consumes roster rows with speaker_gender
+    # present; the state timeline consumes dict rows with speaker_gender
+    # and a truthy raw speaker (including whitespace-only and legacy
+    # type-derived speakers via the roster). Speakerless or age-only
+    # metadata is ignored exactly as before. voice_is_set consumes
+    # description only for the canonical custom category. Absent/null
+    # description stays the legitimate unconfigured contract; inactive
+    # entries are not validated. No broad TypeError/AttributeError
+    # catch and no silent coercion: genuine programmer errors propagate.
     for entry in script_data:
-        if not isinstance(entry, dict):
+        if not isinstance(entry, dict) or "speaker_gender" not in entry:
             continue
-        has_gender = "speaker_gender" in entry
-        has_age = "speaker_age_group" in entry
-        if has_gender != has_age or (
-                (has_gender and not isinstance(entry.get("speaker_gender"), str))
-                or (has_age and not isinstance(entry.get("speaker_age_group"), str))):
+        consumed = (get_script_speaker(entry) in lines
+                    or bool(entry.get("speaker")))
+        if not consumed:
+            continue
+        if ("speaker_age_group" not in entry
+                or not isinstance(entry.get("speaker_gender"), str)
+                or not isinstance(entry.get("speaker_age_group"), str)):
             raise ValueError(
                 "Active script has malformed speaker trait fields; "
                 "restore the book state or reload the script, then try again.")
@@ -518,7 +522,7 @@ def get_voice_rows(script_data, voice_config):
             raise ValueError(
                 f"Speaker '{name}' has a malformed voice entry (not an object); "
                 "restore the saved voice configuration before continuing.")
-        if name in voice_config:
+        if name in voice_config and voice_category(voice_config[name]) == "custom":
             _description = voice_config[name].get("description")
             if _description is not None and not isinstance(_description, str):
                 raise ValueError(
@@ -555,7 +559,7 @@ def get_voice_rows(script_data, voice_config):
                         f"Speaker '{name}' has a malformed saved voice state "
                         f"'{_target['version_id']}'; restore the saved voice configuration "
                         "before continuing.")
-                if _target["version_id"] in saved:
+                if _target["version_id"] in saved and voice_category(saved[_target["version_id"]]) == "custom":
                     _saved_description = saved[_target["version_id"]].get("description")
                     if _saved_description is not None and not isinstance(_saved_description, str):
                         raise ValueError(
@@ -2546,6 +2550,19 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                             character, cfg, counts[character], book_id, casting, members.get(key))
                         usage = get_cast_adapter_usage(lib, cast_name, identities)
                     applied.append(character)
+                # Validate the FINAL proposed library INSIDE the
+                # transform, after lib-only values (e.g. an untyped
+                # suggestion.priority) are constructed but before
+                # _apply_book_voice_update invalidates chunks or any
+                # publisher writes either file. The voice-map validator
+                # cannot see library-only fields, so a nonfinite/deep
+                # priority must refuse here as a clear 400 with every
+                # file byte-identical.
+                if cast_name:
+                    try:
+                        ensure_voice_config_storable(lib)
+                    except ValueError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
                 return voice_config
 
             def publish_pair(updated, path):
