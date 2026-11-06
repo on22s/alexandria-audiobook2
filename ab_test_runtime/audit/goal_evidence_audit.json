@@ -1050,17 +1050,27 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-06T02:24:00",
+  "written": "2026-11-06T04:44:45",
   "host": "RealMitch",
   "git": {
-   "commit": "253ce9a451579bcaa6d70b01b05fb5fd6a3cf1a2",
-   "branch": "feat/1727-audiobookshelf-delivery",
+   "commit": "55df053eb975a30c6aff9598ea6950680b6499f5",
+   "branch": "feat/1532-library-trash",
    "dirty": true,
-   "source_state": "dirty:59fb29b749e8",
+   "source_state": "dirty:831e786a6d0d",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_audiobookshelf_delivery.py",
-    "M  app/tests/test_local_ui_assets.py"
+    "M  app/api_contract/openapi.json",
+    "M  app/api_contract/routes.json",
+    "M  app/casting_catalog.py",
+    "M  app/routers/casting.py",
+    "M  app/routers/voice_library.py",
+    "M  app/static/js/app-casting-research.js",
+    "M  app/static/js/app-casting.js",
+    "M  app/tests/casting_research_fixture.js",
+    "M  app/tests/casting_ui_fixture.js",
+    "A  app/tests/test_casting_trash.py",
+    "M  app/tests/unit_test_inventory.json",
+    "A  docs/casting-library-trash.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

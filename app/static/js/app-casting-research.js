@@ -254,12 +254,12 @@
         function captureCircleExclusions(colors) {
             st.circleCommitted = new Set(colors);
             st.circleSnapshots = new Map([...colors].map(color => [color, new Set(
-                state().voices.filter(voice => (getMark(voice.id).circles || []).includes(color)).map(voice => voice.id))]));
+                libraryVoices().filter(voice => (getMark(voice.id).circles || []).includes(color)).map(voice => voice.id))]));
         }
         function pendingIndicator() {
             const staged = new Set([...st.circlePending, ...st.circleCommitted]);
             const changed = [...staged].some(color => st.circlePending.has(color) !== st.circleCommitted.has(color)
-                || state().voices.some(voice => (getMark(voice.id).circles || []).includes(color)
+                || libraryVoices().some(voice => (getMark(voice.id).circles || []).includes(color)
                     !== Boolean(st.circleSnapshots.get(color)?.has(voice.id))));
             if (changed) {
                 return 'Circle exclusions staged: ' + [...staged].sort().join(', ') + '. Refresh results to apply.';
@@ -300,7 +300,7 @@
         function renderGroup(host, field, title, list, limit) {
             if (!host) { return; }
             const focus = captureFocus();
-            const registry = field === 'collection' ? (state().voices || list) : list;
+            const registry = field === 'collection' ? modeVoices() : list;
             const counts = countChips(registry, field);
             const shown = counts.slice(0, limit);
             for (const [key] of st.chips) {
@@ -485,17 +485,43 @@
             for (const field of fields) { expected[field] = clone(mark[field]); }
             return expected;
         }
+        function currentMode() {
+            return state().mode === 'trashed' ? 'trashed' : 'active';
+        }
+        function libraryVoices() {
+            return (state().voices || []).filter(voice => lifecycleOfId(voice.id) !== 'deleted');
+        }
+        function modeVoices() {
+            if (typeof options.getModeVoices === 'function') { return options.getModeVoices(); }
+            const mode = currentMode();
+            return (state().voices || []).filter(voice => {
+                const lifecycle = (state().marks[voice.id] || {}).lifecycle;
+                return (lifecycle === 'trashed' || lifecycle === 'deleted' ? lifecycle : 'active') === mode;
+            });
+        }
+        function lifecycleOfId(id) {
+            const lifecycle = getMark(id).lifecycle;
+            return lifecycle === 'trashed' || lifecycle === 'deleted' ? lifecycle : 'active';
+        }
         function applyServerMarks(marks) {
             if (!marks || typeof marks !== 'object') { return; }
             for (const [id, mark] of Object.entries(marks)) {
-                if (mark && typeof mark === 'object') { state().marks[id] = normalize(mark); }
+                if (!mark || typeof mark !== 'object') { continue; }
+                if (mark.lifecycle === 'deleted') { state().marks[id] = {lifecycle: 'deleted'}; continue; }
+                state().marks[id] = normalize(mark);
             }
         }
         function pushUndo(action, changes) {
             st.undo.push({action, changes: changes.map(change => ({voice_id: change.voice_id,
-                                                                  patch: {...change.patch}, before: clone(change.expected)}))});
+                                                                  patch: {...change.patch}, before: clone(change.expected),
+                                                                  expected_lifecycle: change.expected_lifecycle || lifecycleOfId(change.voice_id)}))});
             if (st.undo.length > MAX_UNDO) { st.undo.shift(); }
             st.redo = [];
+        }
+        function pruneUndoFor(ids) {
+            const affected = new Set(ids);
+            st.undo = st.undo.filter(entry => !entry.changes.some(change => affected.has(change.voice_id)));
+            st.redo = st.redo.filter(entry => !entry.changes.some(change => affected.has(change.voice_id)));
         }
         function isConflict(error) {
             return Boolean(error) && (error.status === 409
@@ -533,7 +559,7 @@
                         notify('info', 'Unlock the affected marks before changing them.');
                         return {ok: false, locked: true};
                     }
-                    changes.push({voice_id: id, patch: {...patch}, expected: expectedFor(id, keys)});
+                    changes.push({voice_id: id, patch: {...patch}, expected: expectedFor(id, keys), expected_lifecycle: lifecycleOfId(id)});
                 }
                 if (!changes.length) {
                     notify('info', 'Nothing would change for the selected voices.');
@@ -591,7 +617,8 @@
                 const changes = entry.changes.map(change => {
                     const patch = direction === 'undo' ? change.before : change.patch;
                     const expected = direction === 'undo' ? change.patch : change.before;
-                    return {voice_id: change.voice_id, patch: clone(patch), expected: clone(expected)};
+                    return {voice_id: change.voice_id, patch: clone(patch), expected: clone(expected),
+                            expected_lifecycle: change.expected_lifecycle || lifecycleOfId(change.voice_id)};
                 });
                 st.saving = true;
                 syncToolbar(visible());
@@ -655,7 +682,7 @@
             return next;
         }
         function getSharedTagColor(value) {
-            for (const voice of state().voices) {
+            for (const voice of libraryVoices()) {
                 const mark = getMark(voice.id), tag = matchingTag(mark, value);
                 const color = tag && tagColorOf(mark, tag);
                 if (color) { return color; }
@@ -691,7 +718,7 @@
                 return Promise.resolve({ok: false});
             }
             // One tag name has one colour: every voice carrying it changes in the same atomic write.
-            const others = state().voices.filter(item => item.id !== voice.id && matchingTag(getMark(item.id), tag));
+            const others = libraryVoices().filter(item => item.id !== voice.id && matchingTag(getMark(item.id), tag));
             return applyBulk('Set tag colour', [voice.id, ...others.map(item => item.id)], (mark, id) => {
                 const key = matchingTag(mark, tag);
                 if (!key) {
@@ -756,7 +783,11 @@
             ui.selectPage = makeButton('select-page', 'Select shown page', 'btn btn-sm btn-outline-secondary', selectShownPage);
             ui.invert = makeButton('invert', 'Invert selection', 'btn btn-sm btn-outline-secondary', invertSelection);
             ui.clearSelection = makeButton('clear-selection', 'Clear selection', 'btn btn-sm btn-outline-secondary', clearSelection);
-            selection.append(ui.selectionCount, ui.selectFiltered, ui.selectPage, ui.invert, ui.clearSelection);
+            ui.viewTrash = makeButton('view-trash', 'View trash', 'btn btn-sm btn-outline-secondary', switchMode, 'View trashed voices');
+            ui.trash = makeButton('trash', 'Trash selected', 'btn btn-sm btn-outline-warning', () => lifecycleAction('trash'), 'Move selected voices to Trash');
+            ui.restore = makeButton('restore', 'Restore selected', 'btn btn-sm btn-outline-success', () => lifecycleAction('restore'), 'Restore selected voices from Trash');
+            ui.delete = makeButton('delete', 'Delete permanently', 'btn btn-sm btn-outline-danger', () => lifecycleAction('delete'), 'Permanently delete selected voices from the catalogue');
+            selection.append(ui.selectionCount, ui.selectFiltered, ui.selectPage, ui.invert, ui.clearSelection, ui.viewTrash, ui.trash, ui.restore, ui.delete);
             host.append(selection);
 
             const bulk = node('div', undefined, 'casting-research-row casting-bulkbar mb-2');
@@ -1153,6 +1184,21 @@
             }
             ui.undo.disabled = blocked || !st.undo.length;
             ui.redo.disabled = blocked || !st.redo.length;
+            if (ui.viewTrash) {
+                ui.viewTrash.disabled = blocked;
+                ui.viewTrash.textContent = currentMode() === 'trashed' ? 'Exit trash' : 'View trash';
+                ui.viewTrash.setAttribute('aria-label', currentMode() === 'trashed' ? 'Exit trash' : 'View trash');
+            }
+            if (ui.trash) {
+                ui.trash.hidden = currentMode() !== 'active';
+                ui.trash.disabled = blocked || !count || ui.trash.hidden;
+            }
+            for (const control of [ui.restore, ui.delete]) {
+                if (control) {
+                    control.hidden = currentMode() !== 'trashed';
+                    control.disabled = blocked || !count || control.hidden;
+                }
+            }
             if (ui.lockStars) { ui.lockStars.input.checked = prefs.lockStars; }
             if (ui.lockCircles) { ui.lockCircles.input.checked = prefs.lockCircles; }
             if (ui.seconds) {
@@ -1310,6 +1356,91 @@
             }
         }
 
+        function switchMode() {
+            if (writesBlocked()) { blockedNotice(); return; }
+            if (typeof playback.stop === 'function') { playback.stop(); }
+            state().mode = currentMode() === 'trashed' ? 'active' : 'trashed';
+            state().review = null;
+            state().shown = 48;
+            st.selection.clear();
+            st.pageIndex = 0;
+            st.loaded = st.pageSize;
+            if (typeof options.renderFilters === 'function') { options.renderFilters(); }
+            filtersChanged();
+            render();
+        }
+        function lifecycleStillCurrent(ids, mode, epoch) {
+            return state().epoch === epoch && currentMode() === mode && ids.every(id => st.selection.has(id));
+        }
+        function applyLifecycle(to, ids, expected, action, mode, epoch) {
+            if (!ids.length || !lifecycleStillCurrent(ids, mode, epoch)) { return Promise.resolve({ok: false, stale: true}); }
+            if (st.needsReload) {
+                notify('warning', 'Reload the casting library to reconcile before saving again.');
+                return Promise.resolve({ok: false});
+            }
+            const captured = [...ids];
+            return queueWrite(async () => {
+                if (!lifecycleStillCurrent(captured, mode, epoch)) { return {ok: false, stale: true}; }
+                const changes = captured.map(id => ({voice_id: id, to, expected_lifecycle: expected}));
+                st.saving = true;
+                syncToolbar(visible());
+                try {
+                    const result = await API.post('/api/casting/lifecycle/batch', {changes});
+                    if (state().epoch !== epoch) { requireReconciliation(); return {ok: false, stale: true}; }
+                    if (!result || !result.marks || typeof result.marks !== 'object' || Array.isArray(result.marks)
+                        || !Array.isArray(result.activity) || Object.keys(result.marks).length !== captured.length
+                        || captured.some(id => !Object.prototype.hasOwnProperty.call(result.marks, id)
+                            || !result.marks[id] || result.marks[id].lifecycle !== to)) {
+                        throw new Error('The lifecycle reply is incomplete. Reload the casting library to reconcile.');
+                    }
+                    applyServerMarks(result.marks);
+                    pruneUndoFor(captured);
+                    for (const id of captured) { st.selection.delete(id); }
+                    st.activity = activityList(result.activity);
+                    st.needsReload = false;
+                    pruneSelection();
+                    if (typeof playback.stop === 'function') { playback.stop(); }
+                    if (typeof options.renderFilters === 'function') { options.renderFilters(); }
+                    render();
+                    if (typeof options.afterSave === 'function') { options.afterSave(); }
+                    return {ok: true};
+                } catch (error) {
+                    if (state().epoch !== epoch) { return {ok: false, stale: true}; }
+                    handleWriteError(action, error);
+                    return {ok: false, error};
+                } finally {
+                    if (state().epoch === epoch) {
+                        st.saving = false;
+                        syncToolbar(visible());
+                    }
+                }
+            });
+        }
+        function lifecycleAction(kind) {
+            const ids = [...st.selection];
+            if (!ids.length) { notify('info', 'Select at least one voice first.'); return; }
+            if (writesBlocked()) { blockedNotice(); return; }
+            const mode = currentMode(), epoch = state().epoch;
+            if (kind === 'trash') {
+                if (mode !== 'active') { return; }
+                applyLifecycle('trashed', ids, 'active', 'Trash voices', mode, epoch);
+                return;
+            }
+            if (kind === 'restore') {
+                if (mode !== 'trashed') { return; }
+                applyLifecycle('active', ids, 'trashed', 'Restore voices', mode, epoch);
+                return;
+            }
+            if (mode !== 'trashed' || !confirmAction) { return; }
+            confirmAction('Permanently delete ' + ids.length + ' selected voice(s) from the catalogue? This removes the catalogue entry only; shared audio, files and existing assigned books are preserved. Trashed voices are kept indefinitely until you delete them here.', {title: 'Delete permanently?', actionLabel: 'Delete permanently'}).then(answer => {
+                if (!answer) { return; }
+                if (!lifecycleStillCurrent(ids, mode, epoch)) {
+                    notify('warning', 'The selection, Trash mode or library changed. Review the selection before deleting.');
+                    return;
+                }
+                applyLifecycle('deleted', ids, 'trashed', 'Delete permanently', mode, epoch);
+            });
+        }
         function markButton(voice, shape, color, symbolsOnly) {
             const mark = getMark(voice.id);
             const on = (mark[shape] || []).includes(color);

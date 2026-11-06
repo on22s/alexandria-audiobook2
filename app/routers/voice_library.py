@@ -37,7 +37,8 @@ from core import (
     get_trait_assignment_metadata,
 )
 from voice_manifest import get_resolved_adapter_id_mapping
-from casting_catalog import get_catalog_voice, get_voice_clone_config
+from casting_catalog import (CastingMarksCorrupt, get_casting_marks, get_casting_marks_path,
+                            get_catalog_voice, get_voice_clone_config, get_voice_lifecycle)
 from routers.voices import _apply_book_voice_update
 from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
@@ -414,14 +415,22 @@ def save_catalog_member(request: CatalogMemberRequest):
     voice = get_catalog_voice(DESIGNED_VOICES_DIR, request.voice_id)
     if voice is None:
         raise HTTPException(status_code=404, detail="Catalogue voice not found; refresh the library.")
-    config = get_voice_clone_config(voice, name)
-    if config is None:
-        raise HTTPException(status_code=409, detail="This voice has no preview audio to clone from.")
     key = get_cast_member_key(name, voice['book_id'])
 
     def save(lib):
         if cast_name not in lib["casts"]:
             raise HTTPException(status_code=404, detail="Collection not found; create the cast first.")
+        try:
+            lifecycle = get_voice_lifecycle(get_casting_marks(get_casting_marks_path(VOICE_LIBRARY_PATH)), request.voice_id)
+        except CastingMarksCorrupt as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
+        if lifecycle == "deleted":
+            raise HTTPException(status_code=404, detail="Catalogue voice not found; refresh the library.")
+        if lifecycle == "trashed":
+            raise HTTPException(status_code=409, detail="This voice is in Trash; restore it before casting")
+        config = get_voice_clone_config(voice, name)
+        if config is None:
+            raise HTTPException(status_code=409, detail="This voice has no preview audio to clone from.")
         members = lib["casts"][cast_name].setdefault("members", {})
         if key in members:
             raise HTTPException(status_code=409, detail="That member name is already in the collection; choose another name.")
@@ -429,7 +438,7 @@ def save_catalog_member(request: CatalogMemberRequest):
         return {"cast": cast_name, "key": key, "name": name}
 
     try:
-        return _mutate_voice_library(save)
+        return _mutate_voice_library(save, companion_paths=(get_casting_marks_path(VOICE_LIBRARY_PATH),))
     except TimeoutError as error:
         raise HTTPException(status_code=503, detail="Voice library is busy; try again.") from error
 
