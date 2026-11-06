@@ -58,6 +58,7 @@ class BookStateTransactionTests(unittest.TestCase):
                     self.assertEqual(generated, (retained / 'new-0').read_bytes())
                     def check():
                         self.assertEqual(b'owned original', original.read_bytes())
+                        self.assertEqual(generated, (retained / 'new-0').read_bytes())
                         self.assertFalse(target.exists())
                         if replacement:
                             self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
