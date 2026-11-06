@@ -44,7 +44,7 @@ function setup({snapshotVoices = [{name: 'ADAM'}, {name: 'EVE'}], confirm = true
         },
         post: async (url, body) => {
             calls.push(['POST', url, body]);
-            if (url === '/api/casting/marks') { const {voice_id, ...patch} = body; return {voice_id, mark: patch}; }
+            if (url === '/api/casting/marks') { const {voice_id, expected_lifecycle, ...patch} = body; return {voice_id, mark: patch}; }
             if (url === '/api/voice_library/match') { return {book_token: TOKEN, proposals: [{character: 'ADAM', match: {key: 'abel', exact: false}}]}; }
             if (url === '/api/voice_library/apply') { return {count: 1, warnings: []}; }
             if (url === '/api/voice_library/casts') { collections.push({name: body.name, members: []}); return {status: 'created'}; }
@@ -101,7 +101,7 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     // Status change posts one mark and updates the view.
     const statusSelect = env.get('results').querySelectorAll('select').find(s => s.attrs['aria-label'] === 'Review status for AICHEL');
     statusSelect.value = 'callback'; statusSelect.dispatchEvent({type: 'change'}); await settle();
-    eq(env.calls.at(-1), ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/aichel_1', status: 'callback'}]);
+    eq(env.calls.at(-1), ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/aichel_1', status: 'callback', expected_lifecycle: 'active'}]);
     eq(env.w.CastingLibrary.state().marks['persona/dh_1/aichel_1'], {status: 'callback'});
 
     // Use for character: fresh snapshot, server-built config, existing candidate add then select, both book-fenced.
@@ -151,7 +151,7 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     ok(env.get('review-body').querySelectorAll('h3')[0].textContent === 'AICHEL');
     env.calls.length = 0;
     env.get('review-modal').dispatchEvent({type: 'keydown', key: 'r', preventDefault() {}}); await settle();
-    eq(env.calls[0], ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/aichel_1', status: 'reject'}]);
+    eq(env.calls[0], ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/aichel_1', status: 'reject', expected_lifecycle: 'active'}]);
     eq(env.w.CastingLibrary.state().review.index, 1);  // last voice: stays put
     env.calls.length = 0;
     env.w.CastingLibrary.onReviewKey({key: 's', target: {tagName: 'TEXTAREA'}}); await settle();
@@ -161,7 +161,7 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     env.get('review-modal').dispatchEvent({type: 'keydown', key: ' ', preventDefault() {}}); await settle();
     eq(env.w.played.at(-1), '/designed_voices/persona/dh_1/abel%201/preview.wav');
     env.get('review-modal').dispatchEvent({type: 'keydown', key: 'c', preventDefault() {}}); await settle();
-    eq(env.calls.at(-1), ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/abel_1', status: 'callback'}]);
+    eq(env.calls.at(-1), ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/abel_1', status: 'callback', expected_lifecycle: 'active'}]);
     eq(env.w.CastingLibrary.state().review.index, 1);  // marked, then advanced
 
     const duplicate = {...VOICES[0], id: 'persona/other/regenerated', name: '  abel  ', book_id: 'Other',

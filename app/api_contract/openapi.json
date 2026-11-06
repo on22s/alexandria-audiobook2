@@ -1010,6 +1010,60 @@
         "title": "CastMatchBulkRequest",
         "type": "object"
       },
+      "CastingLifecycleBatchRequest": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/CastingLifecycleChange"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "CastingLifecycleBatchRequest",
+        "type": "object"
+      },
+      "CastingLifecycleChange": {
+        "properties": {
+          "expected_lifecycle": {
+            "enum": [
+              "active",
+              "trashed",
+              "deleted"
+            ],
+            "title": "Expected Lifecycle",
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "active",
+              "trashed",
+              "deleted"
+            ],
+            "title": "To",
+            "type": "string"
+          },
+          "voice_id": {
+            "maxLength": 400,
+            "minLength": 1,
+            "pattern": "^(persona/[^/\\\\]+/[^/\\\\]+|designer/[A-Za-z0-9_.-]+)$",
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id",
+          "to",
+          "expected_lifecycle"
+        ],
+        "title": "CastingLifecycleChange",
+        "type": "object"
+      },
       "CastingMarkBatchRequest": {
         "properties": {
           "action": {
@@ -1041,6 +1095,16 @@
             "additionalProperties": true,
             "title": "Expected",
             "type": "object"
+          },
+          "expected_lifecycle": {
+            "default": "active",
+            "enum": [
+              "active",
+              "trashed",
+              "deleted"
+            ],
+            "title": "Expected Lifecycle",
+            "type": "string"
           },
           "patch": {
             "additionalProperties": true,
@@ -1092,6 +1156,16 @@
               }
             ],
             "title": "Collections"
+          },
+          "expected_lifecycle": {
+            "default": "active",
+            "enum": [
+              "active",
+              "trashed",
+              "deleted"
+            ],
+            "title": "Expected Lifecycle",
+            "type": "string"
           },
           "notes": {
             "anyOf": [
@@ -7108,6 +7182,42 @@
           }
         },
         "summary": "Casting Clone Config"
+      }
+    },
+    "/api/casting/lifecycle/batch": {
+      "post": {
+        "operationId": "casting_lifecycle_batch_api_casting_lifecycle_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastingLifecycleBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Casting Lifecycle Batch"
       }
     },
     "/api/casting/marks": {

@@ -19,7 +19,7 @@
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
     const panelStates = new Map();
-    let s = {voices: [], marks: {}, skipped: [], view: 'cards', shown: PAGE, chips: new Set(), epoch: 0, bound: false,
+    let s = {voices: [], marks: {}, skipped: [], view: 'cards', shown: PAGE, chips: new Set(), epoch: 0, bound: false, mode: 'active',
              speakers: [], speakerRequest: 0, review: null, playing: null, queue: null, variant: '', collections: [], shared: [],
              collectionEpoch: 0, research: null, playSeconds: 8, playFull: false, playToken: 0, timer: null};
 
@@ -45,6 +45,13 @@
         return {...DEFAULTS, ...stored, tags: [...(stored.tags || [])], tag_colors: copyTagColors(stored.tag_colors),
                 stars: [...(stored.stars || [])], circles: [...(stored.circles || [])],
                 collections: [...(stored.collections || [])]};
+    }
+    function lifecycleOf(id) {
+        const lifecycle = (s.marks[id] || {}).lifecycle;
+        return lifecycle === 'trashed' || lifecycle === 'deleted' ? lifecycle : 'active';
+    }
+    function getModeVoices() {
+        return s.voices.filter(voice => lifecycleOf(voice.id) === s.mode);
     }
     function copyTagColors(value) {
         const colors = {};
@@ -190,7 +197,7 @@
                 chips: [...s.chips], health: el('health').value, variant: s.variant};
     }
     function visible() {
-        return sortVoices(filterVoices(s.voices, s.marks, el('search').value, picks()), s.marks, el('sort').value);
+        return sortVoices(filterVoices(getModeVoices(), s.marks, el('search').value, picks()), s.marks, el('sort').value);
     }
     function fillSelect(id, values, anyLabel) {
         const sel = el(id), current = sel.value;
@@ -200,18 +207,19 @@
         sel.value = values.includes(current) ? current : '';
     }
     function renderFilters() {
-        fillSelect('book', [...new Set(s.voices.map(v => v.book_id))].sort(), 'All books');
-        fillSelect('gender', [...new Set(s.voices.map(v => v.tags.gender))], 'Any');
-        fillSelect('age', [...new Set(s.voices.flatMap(v => v.tags.ages))], 'Any');
+        const modeList = getModeVoices();
+        fillSelect('book', [...new Set(modeList.map(v => v.book_id))].sort(), 'All books');
+        fillSelect('gender', [...new Set(modeList.map(v => v.tags.gender))], 'Any');
+        fillSelect('age', [...new Set(modeList.flatMap(v => v.tags.ages))], 'Any');
         fillSelect('status', STATUSES, 'Any');
         const selected = el('health').value;
-        const counts = getHealthCounts(s.voices, s.skipped);
+        const counts = getHealthCounts(modeList, s.skipped);
         el('health').replaceChildren(...[['', 'All data health'], ...Object.entries(HEALTH).map(([key, label]) =>
             [key, label + ' (' + counts[key] + ')'])].map(([value, text]) => {
             const option = node('option', text); option.value = value; return option;
         }));
         el('health').value = selected;
-        el('health-counts').replaceChildren(node('span', 'Whole library: ', 'text-muted'),
+        el('health-counts').replaceChildren(node('span', s.mode === 'trashed' ? 'Trash: ' : 'Active library: ', 'text-muted'),
             ...Object.entries(HEALTH).map(([key, label]) => node('span', label + ': ' + counts[key], 'badge bg-secondary me-1')));
     }
     function renderCoverage(list) {
@@ -320,13 +328,15 @@
     }
     function castControls(voice) {
         const box = node('div', undefined, 'input-group input-group-sm mt-2');
+        const trashed = lifecycleOf(voice.id) === 'trashed';
         const sel = node('select', undefined, 'form-select');
         sel.setAttribute('aria-label', 'Character to use ' + voice.name + ' for');
         const first = node('option', s.speakers.length ? 'Use for character…' : 'No characters in the active book');
         first.value = ''; sel.append(first);
         for (const name of s.speakers) { const o = node('option', name); o.value = name; sel.append(o); }
         const use = button('Use', 'btn btn-outline-success', () => castVoice(voice, sel.value, use), 'Use ' + voice.name + ' for the chosen character');
-        use.disabled = !voice.audio_present || !s.speakers.length;
+        use.disabled = !voice.audio_present || !s.speakers.length || trashed;
+        if (trashed) { use.setAttribute('title', 'Restore this voice from Trash before using it'); }
         box.append(sel, use);
         return box;
     }
@@ -436,19 +446,21 @@
             el('skipped').append(node('p', s.skipped.length + ' skipped folders (not searchable as voices).', 'text-warning'));
             for (const entry of s.skipped) { el('skipped').append(node('div', entry.id + ': ' + entry.reason)); }
         }
-        const reviewed = s.voices.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
+        const modeList = getModeVoices();
+        const reviewed = modeList.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
         const unknown = parseQuery(el('search').value).unknown;
-        status(`Showing ${page.length} of ${list.length} (${s.voices.length} voices, ${reviewed} reviewed)`
+        status(`Showing ${page.length} of ${list.length} (${modeList.length} voices, ${reviewed} reviewed)`
                + (unknown.length ? `. Unknown field: ${unknown.join(', ')}` : ''));
-        if (!s.voices.length) {
-            el('results').replaceChildren(node('p', 'No designed voices yet. Generate personas in the Voices step, or save voices in the Designer.', 'text-muted mb-0'));
+        if (!modeList.length) {
+            el('results').replaceChildren(node('p', s.mode === 'trashed' ? 'Trash is empty.'
+                : 'No active voices. Check Trash, generate personas in the Voices step, or save voices in the Designer.', 'text-muted mb-0'));
         } else if (!list.length) {
             el('results').replaceChildren(node('p', 'No voices match these filters.', 'text-muted mb-0'));
         } else if (s.view === 'table') {
             el('results').replaceChildren(table(page));
         } else {
             const row = node('div', undefined, 'row g-3');
-            const groups = getNameGroups(s.voices);
+            const groups = getNameGroups(modeList);
             row.append(...page.map(voice => card(voice, groups)));
             el('results').replaceChildren(row);
         }
@@ -464,10 +476,12 @@
 
     function collectionControls(voice) {
         const box = node('div', undefined, 'input-group input-group-sm mt-2');
+        const trashed = lifecycleOf(voice.id) === 'trashed';
         const name = node('input', undefined, 'form-control');
         name.value = voice.name; name.setAttribute('maxlength', '200');
         name.setAttribute('aria-label', 'Saved cast member name for ' + voice.name);
         const add = button('Add to saved cast', 'btn btn-outline-secondary', async () => {
+            if (trashed) { showToast('Restore this voice from Trash before adding it to a saved cast.', 'warning'); return; }
             const cast = el('collection').value, member = name.value.trim();
             if (!cast || !member) { showToast('Choose a saved cast and member name first.', 'info'); return; }
             add.disabled = true;
@@ -476,9 +490,11 @@
                 showToast('Added ' + member + ' to ' + cast + '.', 'success');
                 s.collectionEpoch++; el('collection-review').replaceChildren();
             } catch (error) { showActionError('Add catalogue voice to saved cast', error); }
-            finally { add.disabled = !voice.audio_present; }
+            finally { add.disabled = !voice.audio_present || lifecycleOf(voice.id) !== 'active'; }
         });
-        add.disabled = !voice.audio_present; box.append(name, add); return box;
+        add.disabled = !voice.audio_present || trashed;
+        if (trashed) { add.setAttribute('title', 'Restore this voice from Trash before adding it to a saved cast'); }
+        box.append(name, add); return box;
     }
     async function loadCollections() {
         const epoch = s.epoch, library = await API.get('/api/voice_library');
@@ -551,7 +567,7 @@
     async function saveMark(voice, patch) {
         if (s.research) { return s.research.saveMark(voice, patch); }
         try {
-            const result = await API.post('/api/casting/marks', {voice_id: voice.id, ...patch});
+            const result = await API.post('/api/casting/marks', {voice_id: voice.id, ...patch, expected_lifecycle: lifecycleOf(voice.id)});
             s.marks[voice.id] = result.mark;
             render();
             if (s.review) { renderReview(); }
@@ -579,6 +595,8 @@
     }
     async function castVoice(voice, speaker, control) {
         if (!speaker) { showToast('Choose a character first.', 'info'); return; }
+        if (lifecycleOf(voice.id) === 'trashed') { showToast('Restore this voice from Trash before using it.', 'warning'); return; }
+        if (lifecycleOf(voice.id) === 'deleted') { showToast('This voice was permanently deleted from the catalogue.', 'warning'); return; }
         control.disabled = true;
         try {
             if (!await showConfirm(`Use ${voice.name} (${voice.book_id}) for ${speaker}? ${speaker}'s current voice is kept as a saved candidate.`,
@@ -587,6 +605,10 @@
             if (!snapshot || !s.speakers.includes(speaker)) { throw new Error(`${speaker} is no longer in the active book. Reload and try again.`); }
             const token = snapshot.book_token;
             const built = await API.get(`/api/casting/clone_config?voice_id=${encodeURIComponent(voice.id)}&speaker=${encodeURIComponent(speaker)}`);
+            if (lifecycleOf(voice.id) !== 'active') {
+                showToast('Restore this voice before using it from the casting library.', 'warning');
+                return;
+            }
             const candidate = 'casting-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
             const base = `/api/voices/${encodeURIComponent(speaker)}/candidates`;
             await API.post(base, {candidate_id: candidate, config: built.config, book_token: token});
@@ -595,7 +617,7 @@
         } catch (error) {
             showActionError('Use voice', error, 'Reload the Voices step and the casting library, then try again.');
         } finally {
-            control.disabled = !voice.audio_present || !s.speakers.length;
+            control.disabled = lifecycleOf(voice.id) !== 'active' || !voice.audio_present || !s.speakers.length;
         }
     }
     function stopPlayback() {
@@ -774,8 +796,11 @@
             state: () => s,
             visible,
             render,
+            renderFilters,
             helpers: {markOf: id => markOf(s.marks, id), fieldValues, countValues, customTagBadge},
             getMark: id => markOf(s.marks, id),
+            getModeVoices,
+            lifecycleOf,
             confirm: (message, optionsList) => typeof showConfirm === 'function'
                 ? showConfirm(message, optionsList) : Promise.resolve(false),
             stopPlayback: stopQueuePlayback,
@@ -849,6 +874,7 @@
             if (epoch !== s.epoch) { return; }
             s.voices = library.voices || [];
             s.marks = library.marks || {};
+            if (s.mode !== 'active' && s.mode !== 'trashed') { s.mode = 'active'; }
             s.skipped = library.skipped || [];
             if (s.skipped.length) { loadStatus(`${s.skipped.length} voice folder(s) could not be read and are not shown.`); }
             renderFilters();
@@ -860,7 +886,7 @@
             showActionError('Load casting library', error);
         }
     };
-    window.CastingLibrary = {parseQuery, filterVoices, countValues, sortVoices, markOf, previewUrl, onReviewKey,
+    window.CastingLibrary = {parseQuery, filterVoices, countValues, sortVoices, markOf, previewUrl, onReviewKey, getModeVoices, lifecycleOf,
                              getNameKey, getNameGroups, getHealthCounts, getCoverage, chipKey, chipPair,
                              state: () => s};
 })();

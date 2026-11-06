@@ -2062,6 +2062,27 @@
     "tests.test_casting_tags.CastingTagTests.test_tone_and_texture_match_whole_terms_including_hyphenated_ones",
     "tests.test_casting_tags.CastingTagTests.test_vocabularies_match_the_concept_sizes"
   ],
+  "test_casting_trash": [
+    "tests.test_casting_trash.CastingTrashTests.test_atomic_write_failure_preserves_original_bytes",
+    "tests.test_casting_trash.CastingTrashTests.test_batch_uses_each_voices_lifecycle_precondition",
+    "tests.test_casting_trash.CastingTrashTests.test_bulk_lifecycle_publishes_every_change_and_one_activity_event",
+    "tests.test_casting_trash.CastingTrashTests.test_clone_and_catalog_member_refuse_trashed_and_deleted_but_saved_cast_still_applies",
+    "tests.test_casting_trash.CastingTrashTests.test_concurrent_lifecycle_batches_lose_no_marks",
+    "tests.test_casting_trash.CastingTrashTests.test_conflicting_same_voice_batches_have_exactly_one_winner",
+    "tests.test_casting_trash.CastingTrashTests.test_deleted_cannot_be_restored_or_edited_through_any_route",
+    "tests.test_casting_trash.CastingTrashTests.test_deleted_voiceless_member_returns_not_found_without_mutation",
+    "tests.test_casting_trash.CastingTrashTests.test_full_trash_restore_trash_delete_persistence_and_minimal_tombstone",
+    "tests.test_casting_trash.CastingTrashTests.test_legacy_marks_default_to_active_and_trash_preserves_annotations",
+    "tests.test_casting_trash.CastingTrashTests.test_lifecycle_batch_is_all_or_none_for_stale_unknown_duplicate_and_malformed",
+    "tests.test_casting_trash.CastingTrashTests.test_lifecycle_bounds_and_path_traversal_are_refused_without_writing",
+    "tests.test_casting_trash.CastingTrashTests.test_lifecycle_schema_is_closed_and_bad_enums_return_422",
+    "tests.test_casting_trash.CastingTrashTests.test_malformed_lifecycle_is_refused_without_overwriting_bytes",
+    "tests.test_casting_trash.CastingTrashTests.test_mid_batch_stale_precondition_preserves_every_byte",
+    "tests.test_casting_trash.CastingTrashTests.test_normal_mark_writes_reject_invalid_expected_lifecycle",
+    "tests.test_casting_trash.CastingTrashTests.test_ordinary_single_and_batch_patches_cannot_set_lifecycle",
+    "tests.test_casting_trash.CastingTrashTests.test_source_files_manifest_library_and_saved_cast_bytes_survive_delete",
+    "tests.test_casting_trash.CastingTrashTests.test_stale_active_mark_on_trashed_rejects_and_explicit_trashed_update_succeeds"
+  ],
   "test_casting_ui_js": [
     "tests.test_casting_ui_js.CastingUiTests.test_filters_text_rendering_marks_cast_flow_and_review_keys",
     "tests.test_casting_ui_js.CastingUiTests.test_scale_fixture_pages_catalogue_and_counts_every_voice_once"

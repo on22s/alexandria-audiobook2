@@ -32,8 +32,15 @@ MARK_DEFAULTS = {'status': 'unreviewed', 'priority': 'none', 'notes': '', 'tags'
 METADATA_KEY = '__studio__'
 MAX_ACTIVITY = 100
 MAX_ACTION_LENGTH = 100
+LIFECYCLES = ('active', 'trashed', 'deleted')
+LEGAL_LIFECYCLE_TRANSITIONS = (('active', 'trashed'), ('trashed', 'active'), ('trashed', 'deleted'))
 _PERSONA_ID = re.compile(r'^persona/[^/\\]+/[^/\\]+$')
 _DESIGNER_ID = re.compile(r'^designer/[A-Za-z0-9_.-]+$')
+
+
+def get_casting_marks_path(voice_library_path):
+    """-> the casting_marks.json path in the same data root as the voice library."""
+    return os.path.join(os.path.dirname(os.path.abspath(voice_library_path)), 'casting_marks.json')
 
 
 def get_persona_clone_entry(preview_path, ref_text, description, speaker):
@@ -166,6 +173,8 @@ def _load_marks_document(marks_path):
     for key, value in data.items():
         if not isinstance(key, str) or (key != METADATA_KEY and not isinstance(value, dict)):
             raise CastingMarksCorrupt('casting marks contain a malformed entry')
+        if key != METADATA_KEY and 'lifecycle' in value and value['lifecycle'] not in LIFECYCLES:
+            raise CastingMarksCorrupt('stored lifecycle is invalid; repair the marks file before editing')
         if key != METADATA_KEY and 'tag_colors' in value:
             try:
                 tags = _validated_text_list(value.get('tags', []), MAX_TAGS, MAX_TAG_LENGTH, 'tags')
@@ -203,6 +212,8 @@ def normalize_casting_mark(mark):
     """-> the mark with canonical defaults on absent fields; the input is not mutated."""
     if mark is not None and not isinstance(mark, dict):
         raise CastingMarksCorrupt('a stored casting mark is not an object')
+    if mark is not None and 'lifecycle' in mark and mark['lifecycle'] not in LIFECYCLES:
+        raise CastingMarksCorrupt('stored lifecycle is invalid; repair the marks file before editing')
     full = {**MARK_DEFAULTS, **(mark or {})}
     for key, value in full.items():
         if isinstance(value, list):
@@ -210,6 +221,31 @@ def normalize_casting_mark(mark):
         elif isinstance(value, dict):
             full[key] = dict(value)
     return full
+
+
+def get_mark_lifecycle(mark):
+    """-> the lifecycle of one stored mark; absent means active."""
+    if mark is None:
+        return 'active'
+    if not isinstance(mark, dict):
+        raise CastingMarksCorrupt('a stored casting mark is not an object')
+    lifecycle = mark.get('lifecycle', 'active')
+    if lifecycle not in LIFECYCLES:
+        raise CastingMarksCorrupt('stored lifecycle is invalid; repair the marks file before editing')
+    return lifecycle
+
+
+def get_voice_lifecycle(marks, voice_id):
+    """-> the lifecycle for voice_id from a marks mapping; absent means active."""
+    if not isinstance(marks, dict):
+        raise CastingMarksCorrupt('casting marks are not a mapping')
+    return get_mark_lifecycle(marks.get(voice_id))
+
+
+def _validated_lifecycle(value, name):
+    if value not in LIFECYCLES:
+        raise ValueError(name + ' must be one of: ' + ', '.join(LIFECYCLES))
+    return value
 
 
 def _validated_text_list(values, limit, max_length, name):
@@ -296,11 +332,17 @@ def _merge_casting_mark(existing, clean):
     return mark
 
 
-def save_casting_mark(marks_path, voice_id, patch):
+def save_casting_mark(marks_path, voice_id, patch, expected_lifecycle='active'):
     """Merge a validated patch into one voice's marks; -> the voice's marks."""
+    expected_lifecycle = _validated_lifecycle(expected_lifecycle, 'expected_lifecycle')
     clean = get_validated_mark_patch(patch)
     with file_lock(marks_path):
         document = _load_marks_document(marks_path)
+        current_lifecycle = get_mark_lifecycle(document.get(voice_id))
+        if current_lifecycle == 'deleted':
+            raise CastingMarkConflict(f'{voice_id} was permanently deleted; reload the library')
+        if current_lifecycle != expected_lifecycle:
+            raise CastingMarkConflict(f'{voice_id} lifecycle changed since it was read; reload the library')
         mark = _merge_casting_mark(document.get(voice_id), clean)
         document[voice_id] = mark
         atomic_json_write(document, marks_path)
@@ -343,15 +385,21 @@ def save_casting_mark_batch(marks_path, changes, action, known_voice_ids):
         if voice_id not in known_voice_ids:
             raise CastingMarkNotFound(f'Voice not found in the casting library: {voice_id}; reload it')
         seen.add(voice_id)
+        expected_lifecycle = _validated_lifecycle(change.get('expected_lifecycle', 'active'), 'expected_lifecycle')
         prepared.append((voice_id, get_validated_mark_patch(change.get('patch')),
-                         get_validated_mark_patch(change.get('expected'))))
+                        get_validated_mark_patch(change.get('expected')), expected_lifecycle))
     with file_lock(marks_path):
         document = _load_marks_document(marks_path)
         events = list(_activity_events(document))
         planned = {}
-        for voice_id, clean, expected in prepared:
+        for voice_id, clean, expected, expected_lifecycle in prepared:
             if set(expected) != set(clean):
                 raise ValueError('expected must contain exactly the keys being changed')
+            current_lifecycle = get_mark_lifecycle(document.get(voice_id))
+            if current_lifecycle == 'deleted':
+                raise CastingMarkConflict(f'{voice_id} was permanently deleted; reload the library')
+            if current_lifecycle != expected_lifecycle:
+                raise CastingMarkConflict(f'{voice_id} lifecycle changed since it was read; reload the library')
             current = normalize_casting_mark(document.get(voice_id))
             for field, value in expected.items():
                 if current[field] != value:
@@ -362,6 +410,58 @@ def save_casting_mark_batch(marks_path, changes, action, known_voice_ids):
                  'action': action, 'count': len(planned)}
         document[METADATA_KEY] = {**(document.get(METADATA_KEY) or {}),
                                  'events': (events + [event])[-MAX_ACTIVITY:]}
+        atomic_json_write(document, marks_path)
+        activity = list(document[METADATA_KEY]['events'])
+    return planned, activity
+
+
+def save_casting_lifecycle_batch(marks_path, changes, action, known_voice_ids):
+    """All-or-none lifecycle batch; -> ({voice_id: full mark or tombstone}, activity)."""
+    action = _validated_action(action)
+    if not isinstance(changes, list) or not changes or len(changes) > 1000:
+        raise ValueError('a lifecycle batch needs between 1 and 1000 changes')
+    prepared, seen, targets = [], set(), set()
+    for change in changes:
+        if not isinstance(change, dict):
+            raise ValueError('every change must be an object')
+        voice_id = change.get('voice_id')
+        if not isinstance(voice_id, str) or not voice_id:
+            raise ValueError('every change needs a voice id')
+        if voice_id in seen:
+            raise ValueError(f'duplicate voice id in one batch: {voice_id}')
+        if voice_id not in known_voice_ids:
+            raise CastingMarkNotFound(f'Voice not found in the casting library: {voice_id}; reload it')
+        seen.add(voice_id)
+        target = _validated_lifecycle(change.get('to'), 'to')
+        expected_lifecycle = _validated_lifecycle(change.get('expected_lifecycle'), 'expected_lifecycle')
+        targets.add(target)
+        if (expected_lifecycle, target) not in LEGAL_LIFECYCLE_TRANSITIONS:
+            raise CastingMarkConflict(f'illegal lifecycle transition for {voice_id}: {expected_lifecycle} to {target}')
+        prepared.append((voice_id, target, expected_lifecycle))
+    if len(targets) != 1:
+        raise ValueError('every change in a lifecycle batch must have the same target lifecycle')
+    with file_lock(marks_path):
+        document = _load_marks_document(marks_path)
+        events = list(_activity_events(document))
+        planned = {}
+        for voice_id, target, expected_lifecycle in prepared:
+            current_lifecycle = get_mark_lifecycle(document.get(voice_id))
+            if current_lifecycle == 'deleted':
+                raise CastingMarkConflict(f'{voice_id} was permanently deleted; reload the library')
+            if current_lifecycle != expected_lifecycle:
+                raise CastingMarkConflict(f'{voice_id} lifecycle changed since it was read; reload the library')
+            if target == 'deleted':
+                planned[voice_id] = {'lifecycle': 'deleted'}
+            else:
+                existing = document.get(voice_id)
+                if existing is not None and not isinstance(existing, dict):
+                    raise CastingMarksCorrupt('the stored mark is not an object')
+                planned[voice_id] = {**(existing or {}), 'lifecycle': target}
+        document.update(planned)
+        event = {'id': uuid.uuid4().hex, 'at': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+                  'action': action, 'count': len(planned)}
+        document[METADATA_KEY] = {**(document.get(METADATA_KEY) or {}),
+                                  'events': (events + [event])[-MAX_ACTIVITY:]}
         atomic_json_write(document, marks_path)
         activity = list(document[METADATA_KEY]['events'])
     return planned, activity
