@@ -170,6 +170,121 @@ const drawn=c.draws.map(v=>v.config.voice);
 assert(drawn.includes('New')&&!drawn.includes('Old'),'drawn voices must be New with zero Old, got '+drawn.join(','));
 ''')
 
+    def test_refresh_local_epoch_switch_classifies_obsolete_before_server_mismatch(self):
+        self.run_js(r'''
+const c=client();c.ctx.currentBookFilename='book.json';c.ctx._bookSelectionEpoch=1;
+const tokenA='a'.repeat(64),tokenB='c'.repeat(64),book='b'.repeat(64);
+c.ctx._selectedUploadIdentity={filename:'book.json',token:tokenA};
+vm.runInContext(`_voiceSaveSnapshot={revision:"${'0'.repeat(64)}",book_token:"${book}",book_identity_token:"${tokenA}",voices:[]}`,c.ctx);
+c.saveGate.resolve();
+const snapB={revision:'0'.repeat(64),book_token:book,book_identity_token:tokenB,voices:[]};
+async function refreshHeld(opts){
+  const p=c.ctx.refreshVoiceMetadata(opts);p.catch(()=>{});await turn();
+  return {p,gate:c.gates.get('/api/voice_config/snapshot')};
+}
+// Unscoped binding: local epoch switch during GET + other-tab token
+// snapshot must classify as local-obsolete, never visible server mismatch.
+let h=await refreshHeld(undefined);
+c.ctx._bookSelectionEpoch=2;
+h.gate.resolve(snapB);
+let e=await h.p.catch(err=>err);
+assert(e?.voiceLoadObsolete===true,'unscoped local epoch switch must be marked obsolete before server comparison, got '+(e?.message||e));
+// expectedIdentityToken-only binding: same ordering.
+c.ctx._bookSelectionEpoch=1;
+h=await refreshHeld({expectedIdentityToken:tokenA});
+c.ctx._bookSelectionEpoch=2;
+h.gate.resolve(snapB);
+e=await h.p.catch(err=>err);
+assert(e?.voiceLoadObsolete===true,'token-only local epoch switch must be marked obsolete before server comparison, got '+(e?.message||e));
+// Real A->B local switch (filename AND epoch change) during GET must
+// classify obsolete via the shared local guard, never the generic
+// queue 'Voice edits changed' error.
+c.ctx._bookSelectionEpoch=1;c.ctx.currentBookFilename='book.json';
+h=await refreshHeld(undefined);
+c.ctx.currentBookFilename='other.json';c.ctx._bookSelectionEpoch=2;
+h.gate.resolve(snapB);
+e=await h.p.catch(err=>err);
+assert(e?.voiceLoadObsolete===true&&!/Voice edits changed/.test(String(e?.message||'')), 'filename+epoch switch must be marked obsolete, not a queue error, got '+(e?.message||e));
+c.ctx.currentBookFilename='book.json';
+// Stable-local control: same other-tab snapshot with no local switch
+// remains a visible (unmarked) server mismatch.
+c.ctx._bookSelectionEpoch=1;
+h=await refreshHeld(undefined);
+h.gate.resolve(snapB);
+e=await h.p.catch(err=>err);
+assert(e?.voiceLoadObsolete!==true&&/Active book changed while refreshing voices/.test(String(e?.message||'')), 'stable-local server mismatch must stay visible/unmarked, got '+(e?.message||e));
+''')
+
+    def test_narrator_ack_before_metadata_response_never_regresses_global(self):
+        self.run_js(r'''
+const c=client();c.ctx.currentBookFilename='book.json';c.ctx._bookSelectionEpoch=1;
+const token='a'.repeat(64),book='b'.repeat(64);
+c.ctx._selectedUploadIdentity={filename:'book.json',token};
+Object.assign(c.ctx,{getVoiceListFocusSnapshot:()=>null,getVoicePanelSnapshot:()=>null,restoreVoicePanels:()=>{},restoreVoiceListFocus:()=>{}});
+let toast=null;const actionErrors=[];
+c.ctx.showToast=(message,kind)=>{toast=[message,kind];};
+c.ctx.showActionError=(action,error)=>{actionErrors.push([action,String(error&&error.message||error)]);};
+c.ctx.API.post=async(url,payload)=>{assert.strictEqual(url,'/api/narrator/strategy');return {revision:'1'.repeat(64)};};
+vm.runInContext(`_voiceSaveSnapshot={revision:"${'0'.repeat(64)}",book_token:"${book}",book_identity_token:"${token}",voices:[{name:"Alice",config:{type:"custom",voice:"Old"}}]}`,c.ctx);
+vm.runInContext(source.slice(source.indexOf('window.saveNarratorStrategy'),source.indexOf('window.updateNarratorPreviewFields')),c.ctx);
+c.saveGate.resolve();
+const prior=c.ctx.loadVoices(true);prior.catch(()=>{});await turn();
+assert(c.reads.includes('/api/voice_config/snapshot'),'metadata GET must be in flight (held)');
+// Actual narrator ACK during the held GET installs rev1 immutably.
+await c.ctx.saveNarratorStrategy('global');
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',c.ctx),'1'.repeat(64));
+assert.deepStrictEqual(toast,['Narrator strategy saved.','success']);
+// Release the OLD rev0 GET response plus catalogs.
+c.gates.get('/api/voice_config/snapshot').resolve({revision:'0'.repeat(64),book_token:book,book_identity_token:token,voices:[{name:'Alice',config:{type:'custom',voice:'Old'}}]});
+for(const [url,g] of c.gates){if(url!=='/api/voice_config/snapshot'){g.resolve(url==='/api/voice_library'?{count:12}:[{id:'catalog'}]);}}
+const priorResult=await prior.catch(err=>err);
+assert(priorResult?.voiceLoadObsolete===true||/superseded/.test(String(priorResult?.message||'')), 'held stale GET must abort marked obsolete, got '+(priorResult?.message||priorResult));
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',c.ctx),'1'.repeat(64),'acknowledged revision must be preserved, never regressed to rev0');
+assert(vm.runInContext('_voiceCardsRevision',c.ctx)!=='0'.repeat(64),'card revision must not regress to rev0');
+assert.strictEqual(c.el('voices-list').innerHTML,'old cards','old rows must never publish after the ACK');
+assert.strictEqual(c.draws.length,0,'old rows must never be drawn');
+assert.deepStrictEqual(actionErrors,[]);
+// Follow-up fresh load works and shows the acknowledged state.
+c.snapshot={revision:'1'.repeat(64),book_token:book,book_identity_token:token,voices:[{name:'Alice',config:{type:'custom',voice:'New'}}]};
+const follow=c.ctx.loadVoices(false);follow.catch(()=>{});await turn();
+for(let n=0;n<8;n++){await turn();for(const [url,g] of c.gates){g.resolve(url==='/api/voice_config/snapshot'?c.snapshot:url==='/api/voice_library'?{count:12}:[{id:'catalog'}]);}}
+await follow;
+assert.strictEqual(vm.runInContext('_voiceCardsRevision',c.ctx),'1'.repeat(64));
+assert.strictEqual(vm.runInContext('_voicesByName.Alice.config.voice',c.ctx),'New');
+''')
+
+    def test_fresh_read_before_old_get_resolves_after_narrator_ack_fulfills_new(self):
+        self.run_js(r'''
+const c=client();c.ctx.currentBookFilename='book.json';c.ctx._bookSelectionEpoch=1;
+const token='a'.repeat(64),book='b'.repeat(64);
+c.ctx._selectedUploadIdentity={filename:'book.json',token};
+Object.assign(c.ctx,{getVoiceListFocusSnapshot:()=>null,getVoicePanelSnapshot:()=>null,restoreVoicePanels:()=>{},restoreVoiceListFocus:()=>{}});
+c.ctx.showToast=()=>{};c.ctx.showActionError=()=>{};
+c.ctx.API.post=async(url,payload)=>{assert.strictEqual(url,'/api/narrator/strategy');return {revision:'1'.repeat(64)};};
+c.ctx.initial={revision:'0'.repeat(64),book_token:book,book_identity_token:token,voices:[{name:'Alice',config:{type:'custom',voice:'Old'}}]};
+vm.runInContext('_voiceSaveSnapshot=initial',c.ctx);
+vm.runInContext(source.slice(source.indexOf('window.saveNarratorStrategy'),source.indexOf('window.updateNarratorPreviewFields')),c.ctx);
+c.saveGate.resolve();
+const prior=c.ctx.loadVoices(true);prior.catch(()=>{});await turn();
+await c.ctx.saveNarratorStrategy('global');
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',c.ctx),'1'.repeat(64));
+// Fresh same-key read BEFORE the old GET resolves: it must not adopt
+// the provably obsolete pending (pending provenance was bound at
+// pending-load creation, so the ACK makes it stale for early reuse).
+const fresh=c.ctx.loadVoices(false);fresh.catch(()=>{});
+for(const [url,g] of c.gates){g.resolve(url==='/api/voice_config/snapshot'?c.ctx.initial:url==='/api/voice_library'?{count:12}:[{id:'catalog'}]);}
+const priorResult=await prior.catch(err=>err);
+assert(priorResult?.voiceLoadObsolete===true||/superseded/.test(String(priorResult?.message||'')), 'prior must abort marked obsolete, got '+(priorResult?.message||priorResult));
+for(let n=0;n<10;n++){await turn();for(const [url,g] of c.gates){g.resolve(url==='/api/voice_config/snapshot'?{revision:'1'.repeat(64),book_token:book,book_identity_token:token,voices:[{name:'Alice',config:{type:'custom',voice:'New'}}]}:url==='/api/voice_library'?{count:12}:[{id:'catalog'}]);}}
+await fresh;
+assert.strictEqual(c.reads.filter(p=>p==='/api/voice_config/snapshot').length,2,'fresh read must issue its own second GET, got '+c.reads.join(','));
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',c.ctx),'1'.repeat(64));
+assert.strictEqual(vm.runInContext('_voiceCardsRevision',c.ctx),'1'.repeat(64));
+assert.strictEqual(vm.runInContext('_voicesByName.Alice.config.voice',c.ctx),'New','fresh read must publish the acknowledged New rows');
+const drawn=c.draws.map(v=>v.config.voice);
+assert(drawn.includes('New')&&!drawn.includes('Old'),'drawn voices must be New with zero Old, got '+drawn.join(','));
+''')
+
     def test_pending_navigation_shares_startup_load_but_explicit_refresh_stays_fresh(self):
         self.run_js(r'''
 const c=client();const startup=c.ctx.loadVoices();const navigation=c.ctx.loadVoices(false);await turn();assert.strictEqual(c.reads.length,0);c.saveGate.resolve();await turn();assert.strictEqual(c.reads.length,5,'pending navigation must share the startup fetches');c.resolveAll();await Promise.all([startup,navigation]);assert.strictEqual(c.draws.length,1);

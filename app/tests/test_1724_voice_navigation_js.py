@@ -232,7 +232,7 @@ const ctx={window:{location:{hash:''},history:{pushState(){},replaceState(){}},a
  document:{querySelectorAll:s=>s==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]},
  showActionError:(action,error,recovery)=>errors.push([action,error&&error.message,recovery]),
  rememberTab(){},
- loadVoices:()=>mode==='superseded'?Promise.reject(Object.assign(new Error('A newer voice load superseded this request; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='refreshing'?Promise.reject(Object.assign(new Error('Active book changed while refreshing voices; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='server_mismatch'?Promise.reject(new Error('Active book changed while loading voices; voice edits were preserved.')):mode==='named'?Promise.reject(new Error("Speaker 'superseded' has a malformed voice entry (not an object); restore the saved voice configuration before continuing.")):mode==='http_prefix'?Promise.reject(Object.assign(new Error('Active book changed while loading voices; voice edits were preserved.'),{status:503})):Promise.reject(new Error('snapshot exploded')),
+ loadVoices:()=>mode==='superseded'?Promise.reject(Object.assign(new Error('A newer voice load superseded this request; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='refreshing'?Promise.reject(Object.assign(new Error('Active book changed while refreshing voices; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='server_mismatch'?Promise.reject(new Error('Active book changed while loading voices; voice edits were preserved.')):mode==='named'?Promise.reject(new Error("Speaker 'superseded' has a malformed voice entry (not an object); restore the saved voice configuration before continuing.")):mode==='http_prefix'?Promise.reject(Object.assign(new Error('Active book changed while loading voices; voice edits were preserved.'),{status:503})):mode==='marked_http'?Promise.reject(Object.assign(new Error('A newer voice load superseded this request; existing edits were preserved.'),{voiceLoadObsolete:true,status:503})):Promise.reject(new Error('snapshot exploded')),
  pollLmStudioStatus(){},loadChunks(){},loadFinalAudio(){}};
 vm.createContext(ctx);vm.runInContext(navSlice,ctx);
 let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish'));
@@ -255,11 +255,14 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must fi
  await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
  assert.strictEqual(errors.length,3,'status-bearing API error starting with an obsolete prefix must stay visible');
  assert(errors[2][1].includes('Active book changed while loading voices'));
- mode='real';ctx.activateTab('voices',false);
- await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
- assert.strictEqual(errors.length,4,'real load failure must be visible');
- assert.strictEqual(errors[3][0],'Could not load voices');
- assert(errors[3][1].includes('snapshot exploded'));
+ mode='marked_http';ctx.activateTab('voices',false);
+  await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
+  assert.strictEqual(errors.length,4,'HTTP-status error must stay visible even with an accidental obsolete marker');
+  mode='real';ctx.activateTab('voices',false);
+  await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
+  assert.strictEqual(errors.length,5,'real load failure must be visible');
+ assert.strictEqual(errors[4][0],'Could not load voices');
+ assert(errors[4][1].includes('snapshot exploded'));
  finished=true;
 })().catch(error=>{console.error(error);process.exitCode=1;});
 '''

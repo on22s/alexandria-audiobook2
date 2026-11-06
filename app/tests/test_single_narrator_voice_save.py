@@ -413,6 +413,50 @@ class SingleVoicePreviewSaveTests(unittest.TestCase):
             carol = next(row for row in preview.json()["speakers"] if row["name"] == "CAROL")
             self.assertEqual([], carol["changes"], "None->global must not report 'voice changed'")
 
+    def test_empty_strategy_same_asset_preserves_approval_and_dynamic_still_resets(self):
+        # CRM1400: stored narrator_strategy="" is the legacy global
+        # spelling (canonical summary normalizes it to "global"), so a
+        # same-asset target must show NO reset and keep its approval
+        # through preview + guarded save; a real dynamic override on the
+        # same asset still discloses the reset and loses approval.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            client, path, script, original = self.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["CAROL"] = {"type": "custom", "voice": "Serena", "seed": "-1",
+                               "narrator_strategy": "", "ready": False,
+                               "voice_status": "approved"}
+            config["BOB"] = {"type": "custom", "voice": "Serena", "seed": "-1",
+                             "narrator_strategy": "focus", "ready": False,
+                             "voice_status": "approved"}
+            path.write_text(json.dumps(config))
+            snapshot = client.get("/api/voice_config/snapshot").json()
+            preview = client.post("/api/voice_config/single-voice-preview", json={
+                "source_speaker": "ALICE", "revision": snapshot["revision"],
+                "book_token": snapshot["book_token"]})
+            self.assertEqual(200, preview.status_code, preview.text)
+            body = preview.json()
+            carol = next(row for row in body["speakers"] if row["name"] == "CAROL")
+            self.assertEqual([], carol["changes"],
+                             "empty-string strategy is effective global: no reset disclosed")
+            self.assertNotIn("voice_status", body["voices"]["CAROL"],
+                             "same-asset empty-strategy target keeps its approval")
+            bob = next(row for row in body["speakers"] if row["name"] == "BOB")
+            self.assertIn("narrator strategy reset to global", bob["changes"],
+                          "real dynamic override still discloses the reset")
+            self.assertEqual("unassigned", body["voices"]["BOB"].get("voice_status"))
+            result = client.post("/api/voice_config/save", json={
+                "revision": body["revision"], "book_token": body["book_token"],
+                "voices": body["voices"]})
+            self.assertEqual(200, result.status_code, result.text)
+            saved = json.loads(path.read_bytes())
+            self.assertEqual("approved", saved["CAROL"]["voice_status"],
+                             "guarded save must preserve the empty-strategy target's approval")
+            self.assertEqual("global", saved["CAROL"]["narrator_strategy"])
+            self.assertEqual("unassigned", saved["BOB"]["voice_status"],
+                             "dynamic-override target loses approval on apply")
+            self.assertEqual("global", saved["BOB"]["narrator_strategy"])
+
 
 class SingleVoiceAssetDescriptorTests(unittest.TestCase):
     """Bulk-readiness removal: no single_voice_asset metadata, no bulk action.
@@ -573,11 +617,12 @@ class AdapterPinTransferTests(unittest.TestCase):
 
 class MalformedAndApprovalTests(unittest.TestCase):
     def test_malformed_active_entry_refuses_without_write(self):
-        # Present non-object ACTIVE entries (incl. null) are corrupt saved
-        # data, not unconfigured voices: every actual HTTP path refuses
-        # clearly (GET listing, GET snapshot, preview, direct POST) with
-        # no file change and no silent {} replacement.
-        for malformed in (None, "not-a-dict", 42, ["bad"]):
+        # Present non-object ACTIVE entries (excluding null, the canonical
+        # unconfigured representation) are corrupt saved data, not
+        # unconfigured voices: every actual HTTP path refuses clearly
+        # (GET listing, GET snapshot, preview, direct POST) with no file
+        # change and no silent {} replacement.
+        for malformed in ("not-a-dict", 42, ["bad"]):
             with self.subTest(malformed=malformed), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
                 fixture = SingleVoicePreviewSaveTests()
                 client, path, script, original = fixture.fixture(
@@ -611,6 +656,41 @@ class MalformedAndApprovalTests(unittest.TestCase):
                 self.assertEqual(before, path.read_bytes(), "direct POST refusal must not write")
                 self.assertEqual(malformed, json.loads(path.read_bytes())["BOB"],
                                  "malformed data must not be silently erased/normalized")
+
+    def test_null_active_entry_is_readable_unconfigured_and_preserves_bytes(self):
+        # Null is the canonical unconfigured representation (not
+        # malformed): actual HTTP reads stay 200 with the null preserved
+        # byte-for-byte, a null SELECTED source refuses 422, and an
+        # explicit valid proposal still initializes the null target on
+        # guarded save.
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = None
+            path.write_text(json.dumps(config))
+            before = path.read_bytes()
+            listing = client.get("/api/voices")
+            self.assertEqual(200, listing.status_code, listing.text)
+            rows = {row["name"]: row for row in listing.json()}
+            self.assertIsNone(rows["BOB"]["config"])
+            self.assertTrue(rows["BOB"]["persona_pending"])
+            self.assertEqual(before, path.read_bytes(), "null read must not write")
+            snapshot_resp = client.get("/api/voice_config/snapshot")
+            self.assertEqual(200, snapshot_resp.status_code, snapshot_resp.text)
+            self.assertIsNone(snapshot_resp.json()["config"]["BOB"])
+            self.assertEqual(before, path.read_bytes(), "null snapshot read must not write")
+            guards = _canonical_guards(Path(tmp))
+            preview = client.post("/api/voice_config/single-voice-preview", json={
+                "source_speaker": "BOB", **guards})
+            self.assertEqual(422, preview.status_code, preview.text)
+            self.assertEqual(before, path.read_bytes(), "null-source refusal must not write")
+            _, _, _ = preview_and_save(client, "ALICE")
+            saved = json.loads(path.read_bytes())
+            self.assertEqual("custom", saved["BOB"]["type"],
+                             "explicit valid apply must initialize the null target")
+            self.assertEqual("Serena", saved["BOB"]["voice"])
 
     def test_absent_active_and_inactive_malformed_keys_load_and_preserve(self):
         # Absent active key = normal unconfigured speaker. INACTIVE

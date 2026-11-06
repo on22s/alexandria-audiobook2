@@ -76,6 +76,19 @@ def _json_nesting_exceeds(value, limit):
     return False
 
 
+def is_voice_config_depth_exceeded(config):
+    """Whether a voice map nests beyond the one shared depth bound.
+
+    The single iterative rule used by BOTH the structured read boundary
+    (``get_book_snapshot``) and the pre-write validator below: refusal
+    must not depend on how deep the runtime's JSON decoder/encoder
+    happens to recurse (Python 3.12 parses nesting that 3.10 rejects in
+    ``json.loads`` itself, leaving the response encoder to fail outside
+    the route's error mapping). Pure iteration, no serialization.
+    """
+    return _json_nesting_exceeds(config, _MAX_VOICE_CONFIG_DEPTH)
+
+
 def ensure_voice_config_storable(config):
     """Refuse a final map the actual storage encoding cannot write.
 
@@ -92,7 +105,7 @@ def ensure_voice_config_storable(config):
     Legitimate voice maps nest only a handful of levels; 100 leaves a
     wide reserve below every runtime's ceiling.
     """
-    if _json_nesting_exceeds(config, _MAX_VOICE_CONFIG_DEPTH):
+    if is_voice_config_depth_exceeded(config):
         raise ValueError("Voice configuration values must be finite JSON values")
     try:
         get_voice_config_revision(config)

@@ -1411,6 +1411,44 @@ class MalformedFieldShapeTests(unittest.TestCase):
         self.assertIn('ALICE', proposal['voices'])
         self.assertEqual('custom', proposal['voices']['ALICE']['type'])
 
+    def test_voice_map_depth_above_shared_bound_refuses_on_any_decoder(self):
+        # Deterministic #11078 portability case: nesting well above the
+        # shared 100 bound but far below every decoder's recursion
+        # ceiling, so json.loads succeeds on BOTH Python 3.10 and 3.12.
+        # The structured read boundary must refuse 400 with no writes
+        # regardless of decoder runtime (the response encoder must never
+        # be the component that fails outside the route mapping).
+        deep = b'{"n":' * 200 + b'1' + b'}' * 200
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text('[{"speaker": "Hero"}]')
+            config.write_bytes(b'{"Hero":' + deep + b'}')
+            state = root / 'state.json'
+            before = {p: p.read_bytes() for p in (script, config, state)}
+            response = client.get('/api/voices')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+            response = client.get('/api/voice_config/snapshot')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)})
+
+    def test_voice_map_depth_under_shared_bound_is_readable_and_preserved(self):
+        # Under-limit control: deep-but-legitimate unused metadata
+        # (inactive key, nesting well under 100) stays readable and
+        # byte-preserved; the shared bound must not refuse valid maps.
+        deep = b'{"n":' * 50 + b'1' + b'}' * 50
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            script.write_text('[{"speaker": "Hero"}]')
+            config.write_bytes(b'{"Hero": {"type": "custom", "description": "x"}, "Inactive": ' + deep + b'}')
+            before = config.read_bytes()
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(before, config.read_bytes())
+            response = client.get('/api/voice_config/snapshot')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(before, config.read_bytes())
+
     def test_deep_stored_json_refuses_400_no_writes(self):
         deep = b'{"n":' * 3000 + b'1' + b'}' * 3000
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

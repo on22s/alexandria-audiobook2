@@ -1762,7 +1762,10 @@ def build_single_voice_proposal(voices, script, source_speaker):
             changes.append("alias cleared")
         if isinstance(before, dict) and (before.get("version_timeline") or before.get("active_version")):
             changes.append("version timeline/active version cleared")
-        if isinstance(before, dict) and before.get("narrator_strategy") not in (None, "global"):
+        # Effective strategy via the canonical summary (None/""/"global"
+        # all normalize to "global" there): only a real dynamic override
+        # is disclosed as a reset, never a legacy empty spelling.
+        if isinstance(before, dict) and before_summary["narrator_strategy"] != "global":
             changes.append("narrator strategy reset to global")
         if isinstance(before, dict) and before.get("active_candidate"):
             # UI-only marker: the saved candidate no longer names the

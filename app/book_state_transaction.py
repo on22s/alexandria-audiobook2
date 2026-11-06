@@ -2625,6 +2625,16 @@ def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True)
         raise ValueError("Voice configuration JSON is too deeply nested") from error
     if not isinstance(state, dict) or not isinstance(voices, dict):
         raise ValueError("Book state and voices must be objects")
+    # Structured read boundary (portable #11078): some runtimes parse
+    # deep voice JSON successfully where others raise RecursionError in
+    # json.loads above, leaving the response encoder to fail outside the
+    # route's ValueError mapping. Enforce the ONE shared 100-depth bound
+    # (iterative, no serialization) on every read, independent of the
+    # decoder runtime. No coercion/drop; programmer failures stay visible
+    # (this check itself only raises the corrupt-data ValueError).
+    from voice_config_store import is_voice_config_depth_exceeded
+    if is_voice_config_depth_exceeded(voices):
+        raise ValueError("Voice configuration JSON is too deeply nested")
     identity = {key:state.get(key) for key in ("active_book_id", "input_file_path", "book_generation")}
     book_id = state.get("active_book_id") or Path(state.get("input_file_path") or "").stem or "active_book"
     return {"identity":identity, "book_id":book_id, "script_bytes":script_bytes,

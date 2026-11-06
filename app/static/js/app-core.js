@@ -694,7 +694,9 @@
                     // mismatch (same message text, unmarked) remain
                     // visible, as does any error merely containing
                     // "superseded" (e.g. speaker named 'superseded').
-                    if (error?.voiceLoadObsolete === true) { return; }
+                    // An HTTP-status error stays visible even if a
+                    // local-obsolete marker is accidentally present.
+                    if (error?.voiceLoadObsolete === true && typeof error?.status !== 'number') { return; }
                     showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
                 });
             } else if (selectedLink.dataset.tab === 'designer') {
@@ -4946,19 +4948,48 @@
             // canonical queue seam (DS3014) before any read is sent.
             await flushVoiceSaves();
             const localRevision = voiceSaveQueue.getRevision();
+            // CRM1402: bind this read to the snapshot/write provenance
+            // captured after the flush and BEFORE the GET. A narrator
+            // ACK (or a newer refresh publication) during the GET
+            // replaces the global snapshot; the held response must
+            // then be rejected BEFORE it can overwrite that newer
+            // global. Existing snapshot/queue provenance only — no
+            // new counter or controller.
+            const snapshotAtReadStart = (typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                ? _voiceSaveSnapshot : null;
+            const revisionAtReadStart = snapshotAtReadStart?.revision;
+            const bookTokenAtReadStart = snapshotAtReadStart?.book_token;
             const rosterFilename = currentBookFilename;
             // Read deadline (DS3024): a hung snapshot GET must not leave
             // callers such as the single-voice preview busy forever. Reuses
             // the shared API._withDeadline seam; no extra controllers.
             const snapshot = await API.get('/api/voice_config/snapshot',
                 {timeoutMs: 60000, timeoutMessage: 'The voice snapshot timed out. Your voice edits are retained; try again.'});
-            if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision() || rosterFilename !== currentBookFilename) {
+            // CRM1401 shared local rule (ONE branch for every binding,
+            // BEFORE both the generic queue guard and any server token
+            // comparison): provable local epoch/filename/selection
+            // supersession — including a real A->B switch, which changes
+            // filename AND epoch — is classified marked-obsolete, never
+            // as a visible queue/server error.
+            if (window._bookSelectionEpoch !== selectionEpoch
+                    || rosterFilename !== currentBookFilename
+                    || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
+                    || (expectedSelection && window._existingUploadSelectionPending)) {
+                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved.');
+            }
+            // Genuine queue errors stay visible when the local context
+            // is stable (filename is owned by the local rule above).
+            if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision()) {
                 throw new Error('Voice edits changed while refreshing. Your edits are still pending; try again.');
             }
-            if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
-                    || window._bookSelectionEpoch !== selectionEpoch
-                    || window._existingUploadSelectionPending)) {
-                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved.');
+            // CRM1402 stale-read check: a newer ACK/refresh intervened
+            // during the GET (global snapshot object or its revision /
+            // book-token primitives moved since the read started).
+            // Reject before any global replacement below.
+            if (_voiceSaveSnapshot !== snapshotAtReadStart
+                    || _voiceSaveSnapshot?.revision !== revisionAtReadStart
+                    || _voiceSaveSnapshot?.book_token !== bookTokenAtReadStart) {
+                throw obsoleteVoiceLoadError('A newer voice save superseded this refresh; existing edits were preserved.');
             }
             if (expectedSelection && snapshot.book_identity_token !== expectedSelection.token) {
                 // Server identity mismatch (another tab switched the
@@ -4968,12 +4999,6 @@
             }
             if (expectedIdentityToken && snapshot.book_identity_token !== expectedIdentityToken) {
                 throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
-            }
-            if (expectedIdentityToken
-                    && (window._bookSelectionEpoch !== selectionEpoch
-                        || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
-                        || rosterFilename !== currentBookFilename)) {
-                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved.');
             }
             // Unscoped binding (DS3074): with no explicit expected
             // identity, the snapshot must match the authoritative local
@@ -4998,13 +5023,9 @@
                 throw new Error('Invalid voice snapshot; your voice settings were not replaced.');
             }
             // Owner fencing (CR2005/2007): a stale refresh must never
-            // publish metadata after a newer loadVoices request, a local
-            // book/epoch change, or a same-name generation switch. The
-            // epoch check here also covers unscoped legacy callers that
-            // pass no expected identity.
-            if (window._bookSelectionEpoch !== selectionEpoch || rosterFilename !== currentBookFilename) {
-                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved.');
-            }
+            // publish metadata after a newer loadVoices request or a
+            // same-name generation switch. Local book/epoch supersession
+            // is already classified by the shared local rule above.
             if (opts.ownerGeneration !== undefined && loadVoices.generation !== opts.ownerGeneration) {
                 throw obsoleteVoiceLoadError('A newer voice load superseded this refresh; existing edits were preserved.');
             }
@@ -5438,8 +5459,18 @@
             loadVoices.pendingIdentity = identityKey;
             loadVoices.pendingSkipDefault = !!opts.skipDefaultSave;
             loadVoices.pendingQueueRevision = voiceSaveQueue.getRevision();
-            loadVoices.pendingOwnRevision = undefined;
-            loadVoices.pendingOwnBookToken = undefined;
+            // CRM1402 pending freshness (#11015): bind the EXISTING
+            // pending provenance fields to the known snapshot's
+            // revision/book-token at pending-load creation, BEFORE
+            // metadata resolves. A narrator ACK during the GET moves
+            // the global revision without bumping the queue revision
+            // and before pendingOwnRevision could be set from the
+            // response, so an undefined binding would let an early
+            // same-key reuse adopt a provably obsolete pending. The
+            // own-response binding below replaces these once this
+            // load's metadata actually resolves.
+            loadVoices.pendingOwnRevision = _voiceSaveSnapshot?.revision;
+            loadVoices.pendingOwnBookToken = _voiceSaveSnapshot?.book_token;
             try { return await loading; }
             finally { if (loadVoices.pending === loading) { loadVoices.pending = null; loadVoices.pendingIdentity = null; } }
         }
