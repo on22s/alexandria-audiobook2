@@ -563,6 +563,8 @@
             'onDesignedVoiceSelect': 'Assign the selected saved designed voice to this character.',
             'handleCloneVoiceUpload': 'Import the selected recording and its required reference details for voice cloning.',
             'saveVoicesDebounced': 'Save the edited voice assignment settings after a short delay.',
+            'loadSingleVoiceSourcePreview': 'Load a read-only excerpt of this book’s source text for inspection. It starts no generation job and does not change the source.',
+            'previewSingleVoiceBook': 'Preview how one voice would apply to every character, reviewing the affected voices before confirming. It may flush your already-authorized pending edits, but applies nothing until you confirm.',
             'reapplyCastSaveThreshold': 'Recalculate which cast-save matches meet the displayed threshold.',
             'loadDesignLines': 'Load this character’s dialogue lines so one can be used to design a voice.',
         };

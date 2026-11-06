@@ -11000,6 +11000,7 @@
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_identity_programmer_error_propagates",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_replacement_with_failing_manifest_refuses_and_preserves_all_bytes",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_malformed_active_entry_refuses_without_write",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_no_pin_key_is_not_materialized_by_metadata_only_save",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_null_active_entry_is_readable_unconfigured_and_preserves_bytes",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_top_level_malformed_map_snapshot_refuses_not_500",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_unchanged_autosave_preserves_pin_byte_identically",

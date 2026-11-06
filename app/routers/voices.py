@@ -1434,7 +1434,12 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                     old_adapter = metadata.get("adapter_id") or None
                     if not _voice_adapter_identity_same(
                             old_type, old_adapter, new_type, new_adapter):
-                        candidate["adapter_generation_sha256"] = None
+                        # Only clear a pin the metadata actually held:
+                        # materializing None where no pin ever existed is
+                        # unwanted metadata noise (explicit/omitted-pin
+                        # semantics above are unchanged).
+                        if "adapter_generation_sha256" in metadata:
+                            candidate["adapter_generation_sha256"] = None
                 _validate_consumed_description(voice_name, candidate)
                 get_validated_voice_changes(voice_name, metadata, candidate, allow_state_removal=book_token is not None)
                 updated[voice_name] = candidate

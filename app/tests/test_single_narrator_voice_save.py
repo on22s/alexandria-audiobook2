@@ -7,6 +7,7 @@ guarded queue contract. Every supported asset type is covered.
 """
 from contextlib import ExitStack
 from pathlib import Path
+import copy
 import json
 import tempfile
 import unittest
@@ -796,6 +797,82 @@ class MalformedAndApprovalTests(unittest.TestCase):
                                        json={"book_token": guards["book_token"]})
                 self.assertEqual(409, response.status_code, response.text)
             self.assertEqual(before, path.read_bytes())
+
+    def test_no_pin_key_is_not_materialized_by_metadata_only_save(self):
+        # Orphan-cleanup style save on a non-LoRA entry with NO pin key
+        # must not gain adapter_generation_sha256:None; explicit null
+        # unpin, same-asset inheritance and replacement clearing keep
+        # their existing semantics.
+        pin = "f" * 64
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = {"type": "clone", "ref_audio": "base.wav",
+                             "versions": {"v1": {"type": "clone", "ref_audio": "a.wav"}}}
+            path.write_text(json.dumps(config))
+            expected = copy.deepcopy(config)
+            del expected["BOB"]["versions"]["v1"]
+            guards = _canonical_guards(Path(tmp))
+            response = client.post('/api/voice_config/save', json={
+                **guards, "voices": expected})
+            self.assertEqual(200, response.status_code, response.text)
+            saved = json.loads(path.read_bytes())
+            self.assertNotIn("adapter_generation_sha256", saved["BOB"],
+                             "no pin key may be materialized on unrelated cleanup")
+            self.assertEqual(expected["BOB"]["ref_audio"], saved["BOB"]["ref_audio"])
+            # Same-asset pin inheritance.
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": pin}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              return_value={"voice-a": "voice-a"}):
+                response = client.post('/api/voice_config/save', json={
+                    **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-a"}}})
+                self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(pin, json.loads(path.read_text())["BOB"]["adapter_generation_sha256"])
+            # Explicit null unpin wins over inheritance.
+            guards = _canonical_guards(Path(tmp))
+            response = client.post('/api/voice_config/save', json={
+                **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-a",
+                                             "adapter_generation_sha256": None}}})
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertIsNone(json.loads(path.read_text())["BOB"]["adapter_generation_sha256"])
+            # Genuine replacement clears a REAL old pin P (restore it
+            # first; clearing an already-None pin would prove nothing).
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": pin}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              return_value={"voice-a": "voice-a", "voice-b": "voice-b"}):
+                response = client.post('/api/voice_config/save', json={
+                    **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-b"}}})
+                self.assertEqual(200, response.status_code, response.text)
+            saved = json.loads(path.read_text())["BOB"]
+            self.assertEqual("voice-b", saved["adapter_id"])
+            self.assertIsNone(saved["adapter_generation_sha256"],
+                              "replacement must clear the restored P, not an already-None pin")
+            # No-pin legacy LoRA identity change with a failing manifest
+            # must still refuse 409 (key-presence repair must not bypass
+            # unknown-manifest admission just because old pin is absent).
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a"}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            before_pin_case = path.read_bytes()
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              side_effect=ValueError("adapter publication recovery is required")):
+                response = client.post('/api/voice_config/save', json={
+                    **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-b"}}})
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertIn("could not be verified", response.json()["detail"])
+            self.assertEqual(before_pin_case, path.read_bytes(),
+                             "refused identity change must not write")
 
     def test_absent_active_and_inactive_malformed_keys_load_and_preserve(self):
         # Absent active key = normal unconfigured speaker. INACTIVE
