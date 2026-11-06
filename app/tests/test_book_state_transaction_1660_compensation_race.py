@@ -57,7 +57,8 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             with self.subTest(timing=timing):
                 self._directory_case(timing)
 
-    def test_sync_oserror_preserves_parent_error_as_primary_with_sync_cause(self):
+    def _run_sync_move(self, sync_raise):
+        """Real POSIX _move + relocation; sync_raise fails first post-move fsync."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             workspace = root / 'workspace'
@@ -67,62 +68,100 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             retained = root / 'retained'
             real_move, real_fsync = publication.move_source_upload_exclusively, os.fsync
             state = {'moved': False, 'sync_failed': False}
+            sync_calls = []
             def relocate(source_name, dest_name, **kwargs):
                 result = real_move(source_name, dest_name, **kwargs)
                 if not state['moved']:
                     workspace.rename(retained)
                     workspace.mkdir()
+                    state['moved'] = True
+                return result
+            def hooked_sync(fd):
+                if state['moved']:
+                    sync_calls.append((fd, os.fstat(fd).st_ino))
+                    if not state['sync_failed']:
+                        state['sync_failed'] = True
+                        raise sync_raise
+                return real_fsync(fd)
+            with patch.object(publication, 'move_source_upload_exclusively', relocate), \
+                 patch.object(books.os, 'fsync', hooked_sync):
+                try:
+                    books._move(source, workspace / 'old-0', exclusive=True, anchor=root)
+                except BaseException as error:
+                    raised = error
+                else:
+                    raised = None
+            self.assertTrue(state['moved'])
+            self.assertTrue(state['sync_failed'])
+            self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
+            self.assertFalse(source.exists())
+            self.assertEqual([], list(workspace.iterdir()))
+            return raised, sync_calls, root.stat().st_ino, retained.stat().st_ino
+
+    def test_sync_oserror_preserves_parent_error_as_primary_with_sync_cause(self):
+        raised, sync_calls, root_ino, retained_ino = self._run_sync_move(
+            OSError(errno.EIO, 'fixture directory sync failure'))
+        self.assertIsInstance(raised, ValueError)
+        self.assertIn('parent changed', str(raised))
+        self.assertIsInstance(raised.__cause__, OSError)
+        self.assertIn('fixture directory sync failure', str(raised.__cause__))
+        # Both distinct parent fds attempted, source (root) first.
+        self.assertGreaterEqual(len(sync_calls), 2)
+        self.assertEqual(root_ino, sync_calls[0][1])
+        self.assertEqual(retained_ino, sync_calls[1][1])
+        self.assertNotEqual(sync_calls[0][0], sync_calls[1][0])
+
+    def test_sync_keyboard_interrupt_is_not_converted_to_value_error(self):
+        raised, sync_calls, root_ino, _retained_ino = self._run_sync_move(KeyboardInterrupt())
+        self.assertIsInstance(raised, KeyboardInterrupt)
+        self.assertIsInstance(raised.__context__, ValueError)
+        self.assertIn('parent changed', str(raised.__context__))
+        self.assertEqual(root_ino, sync_calls[0][1])
+
+    def test_sync_oserror_apply_journal_fence_integration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target = root / 'artifact'
+            target.write_bytes(OWNED)
+            retained = root / 'retained-workspace'
+            real_move, real_fsync = publication.move_source_upload_exclusively, os.fsync
+            state = {'moved': False, 'sync_failed': False}
+            sync_calls = []
+            def relocate(source_name, dest_name, **kwargs):
+                result = real_move(source_name, dest_name, **kwargs)
+                if str(source_name) == 'artifact' and str(dest_name) == 'old-0' and not state['moved']:
+                    workspace = next(root.glob('.book-switch-*'))
+                    workspace.rename(retained)
+                    workspace.mkdir(mode=0o700)
                     state['moved'] = True
                 return result
             def fail_sync(fd):
-                if state['moved'] and not state['sync_failed']:
-                    state['sync_failed'] = True
-                    raise OSError(errno.EIO, 'fixture directory sync failure')
+                if state['moved']:
+                    sync_calls.append((fd, os.fstat(fd).st_ino))
+                    if not state['sync_failed']:
+                        state['sync_failed'] = True
+                        raise OSError(errno.EIO, 'fixture directory sync failure')
                 return real_fsync(fd)
             with patch.object(publication, 'move_source_upload_exclusively', relocate), \
                  patch.object(books.os, 'fsync', fail_sync):
-                with self.assertRaises(ValueError) as raised:
-                    books._move(source, workspace / 'old-0', exclusive=True, anchor=root)
+                with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
+                    books.apply_book_state_locked(root, {'artifact': GENERATED}, [])
             self.assertTrue(state['moved'])
             self.assertTrue(state['sync_failed'])
-            self.assertIn('parent changed', str(raised.exception))
-            self.assertIsInstance(raised.exception.__cause__, OSError)
-            self.assertIn('fixture directory sync failure', str(raised.exception.__cause__))
-            self.assertFalse(source.exists())
-            self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
-            self.assertEqual([], list(workspace.iterdir()))
-
-    def test_sync_keyboard_interrupt_is_not_converted_to_value_error(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary).resolve()
-            workspace = root / 'workspace'
-            workspace.mkdir()
-            source = root / 'artifact'
-            source.write_bytes(OWNED)
-            retained = root / 'retained'
-            real_move, real_fsync = publication.move_source_upload_exclusively, os.fsync
-            state = {'moved': False, 'sync_failed': False}
-            def relocate(source_name, dest_name, **kwargs):
-                result = real_move(source_name, dest_name, **kwargs)
-                if not state['moved']:
-                    workspace.rename(retained)
-                    workspace.mkdir()
-                    state['moved'] = True
-                return result
-            def interrupt_sync(fd):
-                if state['moved'] and not state['sync_failed']:
-                    state['sync_failed'] = True
-                    raise KeyboardInterrupt()
-                return real_fsync(fd)
-            with patch.object(publication, 'move_source_upload_exclusively', relocate), \
-                 patch.object(books.os, 'fsync', interrupt_sync):
-                with self.assertRaises(KeyboardInterrupt) as raised:
-                    books._move(source, workspace / 'old-0', exclusive=True, anchor=root)
-            self.assertTrue(state['moved'])
-            self.assertTrue(state['sync_failed'])
-            self.assertIsInstance(raised.exception.__context__, ValueError)
-            self.assertIn('parent changed', str(raised.exception.__context__))
-            self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
+            self.assertGreaterEqual(len(sync_calls), 2)
+            self.assertEqual(root.stat().st_ino, sync_calls[0][1])
+            self.assertEqual(retained.stat().st_ino, sync_calls[1][1])
+            # Recovery failure is primary; its explicit cause is the parent
+            # error, whose explicit cause is the first sync OSError.
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('parent changed', str(raised.exception.__cause__))
+            self.assertIsInstance(raised.exception.__cause__.__cause__, OSError)
+            self.assertIn('fixture directory sync failure', str(raised.exception.__cause__.__cause__))
+            def check():
+                self.assertFalse(target.exists())
+                self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
+                self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
+            assert_book_journal_fenced(self, root, content_check=check)
 
     def test_ordinary_rollback_with_valid_parents_byte_and_stream(self):
         for streaming in (False, True):

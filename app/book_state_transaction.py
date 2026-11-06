@@ -1294,16 +1294,20 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     # back. Ordinary rollback with valid parents is unchanged
                     # because this branch is only taken on parent change.
                     # Exception priority: the original parent/interrupt error
-                    # always wins over a secondary directory-sync OSError,
-                    # which is retained as its explicit cause. A new interrupt
-                    # raised by sync itself is not caught (only OSError is),
-                    # so it is never converted to ValueError.
-                    try:
-                        os.fsync(source_fd)
-                        if source_fd != destination_fd:
-                            os.fsync(destination_fd)
-                    except OSError as sync_error:
-                        raise parent_error from sync_error
+                    # always wins over secondary directory-sync OSErrors.
+                    # Attempt both distinct parent fds even if the first
+                    # sync fails, retaining the FIRST OSError as explicit
+                    # cause. Only OSError is caught, so a new interrupt from
+                    # sync propagates as itself, never as ValueError.
+                    first_sync_error = None
+                    for fd in dict.fromkeys((source_fd, destination_fd)):
+                        try:
+                            os.fsync(fd)
+                        except OSError as error:
+                            if first_sync_error is None:
+                                first_sync_error = error
+                    if first_sync_error is not None:
+                        raise parent_error from first_sync_error
                     raise
                 os.fsync(source_fd)
                 if source_fd != destination_fd:
