@@ -310,6 +310,20 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
         _require_script_speaker(speaker)
         def update(current):
             config = copy.deepcopy(current)
+            # Canonical-null + malformed-entry seam: explicit null is
+            # declared unconfigured, so entry-consuming actions refuse
+            # clearly (422) instead of crashing on None or fabricating
+            # defaults. Absent keys keep the existing create-{} behavior;
+            # explicit ordinary/bulk assignment never reaches this seam.
+            _stored_entry = config.get(speaker)
+            if speaker in config and _stored_entry is None:
+                raise HTTPException(status_code=422, detail=(
+                    f"Speaker '{speaker}' has no voice configured; "
+                    "assign a voice before modifying it."))
+            if _stored_entry is not None and not isinstance(_stored_entry, dict):
+                raise HTTPException(status_code=422, detail=(
+                    f"Speaker '{speaker}' has a malformed voice entry (not an object). "
+                    "Restore the saved voice configuration before continuing."))
             mutator(config.setdefault(speaker, {}))
             return config
         config = _apply_book_voice_update(update)
@@ -347,6 +361,25 @@ def require_current_state_target(speaker, version_id, book_token, *, script=None
     return get_current_persona_state(speaker, version_id, script=script)
 
 
+def _require_versions_dict(speaker, entry):
+    """The one shared versions-container policy for every mutation seam.
+
+    Canonical null/absent means no saved versions (existing empty
+    semantics, returned as {}); a present non-object container is
+    malformed data and refuses with an actionable HTTPException 400
+    BEFORE any mutator consumes it or any write/invalidation happens.
+    Legitimate dict histories pass through untouched (never healed).
+    """
+    versions = entry.get("versions") if isinstance(entry, dict) else None
+    if versions is None:
+        return {}
+    if not isinstance(versions, dict):
+        raise HTTPException(status_code=400, detail=(
+            f"Speaker '{speaker}' has malformed voice versions (not an object); "
+            "restore the saved voice configuration before continuing."))
+    return versions
+
+
 def get_validated_voice_changes(speaker, before, after, *, check_timeline=False, allow_state_removal=False,
                                 trusted_states=()):
     """Validate state invariants for every public voice-config write path.
@@ -355,16 +388,10 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
     (they pass `trusted_states`). A client may keep the stored value but never
     introduce or change one, and `state_<24 hex>` ids are reserved for state
     versions (#1040 review C6)."""
-    # Central consumed-container validation: a present non-object
-    # versions container (canonical null/absent excepted) is malformed
-    # data, refused clearly here — the one seam every write path and the
-    # single-voice proposal share — instead of an AttributeError deep in
-    # .items(). Legitimate dict histories pass untouched.
-    for _versions_value in (before.get("versions"), after.get("versions")):
-        if _versions_value is not None and not isinstance(_versions_value, dict):
-            raise ValueError(
-                f"Speaker '{speaker}' has malformed voice versions (not an object); "
-                "restore the saved voice configuration before continuing.")
+    # Central consumed-container validation via the one shared policy
+    # above (HTTPException so every facade answers 4xx, never 500).
+    _require_versions_dict(speaker, before)
+    _require_versions_dict(speaker, after)
     old_versions, versions = before.get("versions") or {}, after.get("versions") or {}
     for version_id, version in versions.items():
         if not isinstance(version, dict) or version_id in trusted_states:
@@ -429,7 +456,7 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
 def get_validated_voice_target(entry, speaker, version_id, book_token):
     if book_token is None:
         raise HTTPException(status_code=409, detail="State actions require the current book token")
-    version = (entry.get("versions") or {}).get(version_id)
+    version = _require_versions_dict(speaker, entry).get(version_id)
     if not isinstance(version, dict):
         raise HTTPException(status_code=404, detail="Generate this state persona first")
     if "persona_state" in version:
@@ -679,16 +706,17 @@ def _ensure_voice_listing():
 @router.post("/api/voices/{speaker}/versions")
 async def save_voice_version(speaker: str, request: VoiceVersionRequest):
     def save_version(current):
+        _versions = _require_versions_dict(speaker, current)
         config = dict(request.config or {key: value for key, value in current.items()
                                          if key not in VERSION_OVERLAY_EXCLUDED})
         if config.get("type") not in {None, "custom", "clone", "design", "lora", "builtin_lora", "ensemble"}:
             raise HTTPException(status_code=422, detail="Unsupported voice version type")
-        previous = (current.get("versions") or {}).get(request.version_id) or {}
+        previous = _versions.get(request.version_id) or {}
         if "persona_state" in previous:
             # Saving over a state version keeps its server-owned state (C5).
             config["persona_state"] = previous["persona_state"]
         age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
-        updated = {**current, "versions": {**(current.get("versions") or {}),
+        updated = {**current, "versions": {**_versions,
                     request.version_id: {**config, "age_group": age}}}
         get_validated_voice_changes(speaker, current, updated)
         current["versions"] = updated["versions"]
@@ -702,9 +730,10 @@ async def remove_voice_version(speaker: str, version_id: str, book_token: Option
     def remove(entry):
         if book_token is None:
             raise HTTPException(status_code=409, detail="State actions require the current book token")
-        if version_id not in (entry.get("versions") or {}):
+        _versions = _require_versions_dict(speaker, entry)
+        if version_id not in _versions:
             raise HTTPException(status_code=404, detail="Voice version not found")
-        versions = {key: value for key, value in entry["versions"].items() if key != version_id}
+        versions = {key: value for key, value in _versions.items() if key != version_id}
         get_validated_voice_changes(speaker, entry, {**entry, "versions": versions}, allow_state_removal=True)
         entry["versions"] = versions
     entry, revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token)
@@ -716,7 +745,7 @@ async def remove_voice_version(speaker: str, version_id: str, book_token: Option
 async def select_voice_version(speaker: str, version_id: str, request: VoiceBookScope = VoiceBookScope()):
     await asyncio.to_thread(_require_script_speaker, speaker)
     def select(entry):
-        version = (entry.get("versions") or {}).get(version_id)
+        version = _require_versions_dict(speaker, entry).get(version_id)
         if not isinstance(version, dict):
             raise HTTPException(status_code=404, detail="Voice version not found")
         if "persona_state" in version:
@@ -1258,11 +1287,24 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                 raise HTTPException(status_code=409, detail="Active book changed; recover this persona again for the current book")
             def update(current_config):
                 config = copy.deepcopy(current_config)
+                # Same canonical-null/malformed-entry seam as the shared
+                # mutator: explicit null is unconfigured (clear 422, no
+                # crash/fabrication); absent keys keep create-{} behavior.
+                _stored_base = config.get(request.speaker)
+                if request.speaker in config and _stored_base is None:
+                    raise HTTPException(status_code=422, detail=(
+                        f"Speaker '{request.speaker}' has no voice configured; "
+                        "assign a voice before recovering a persona for it."))
+                if _stored_base is not None and not isinstance(_stored_base, dict):
+                    raise HTTPException(status_code=422, detail=(
+                        f"Speaker '{request.speaker}' has a malformed voice entry (not an object). "
+                        "Restore the saved voice configuration before continuing."))
                 base = config.get(request.speaker, {})
+                _require_versions_dict(request.speaker, base)
                 before = copy.deepcopy(base)
                 if request.state_version:
                     target = get_current_persona_state(request.speaker, request.state_version)
-                    entry = copy.deepcopy(base.get("versions", {}).get(request.state_version) or {})
+                    entry = copy.deepcopy(_require_versions_dict(request.speaker, base).get(request.state_version) or {})
                     entry.update(get_state_version_identity(target))
                     entry["persona_status"] = "generated"
                 else:
@@ -1272,7 +1314,9 @@ async def recover_persona(background_tasks: BackgroundTasks, request: PersonaRec
                 if not entry.get("type"):
                     entry["type"] = "design"
                 if request.state_version:
-                    base.setdefault("versions", {})[request.state_version] = entry
+                    _recovered_versions = _require_versions_dict(request.speaker, base)
+                    _recovered_versions[request.state_version] = entry
+                    base["versions"] = _recovered_versions
                 get_validated_voice_changes(request.speaker, before, base,
                                             trusted_states={request.state_version} if request.state_version else ())
                 config[request.speaker] = base
@@ -1304,9 +1348,12 @@ def _voice_adapter_identity_same(old_type, old_adapter_id, new_type, new_adapter
     moves of the same id are the same asset, and a manifest rename
     (previous_ids) resolves both spellings to one current id through the
     existing voice_manifest seam. If identity equivalence cannot be
-    established (resolution raises), fail closed and retain the pin
-    rather than silently unpinning. Only a genuine replacement with a
-    different resolved identity, or a type change, is a different asset.
+    established (manifest/admission/data/I/O failure), fail CLOSED by
+    refusing the write (409) — never assume identity equality (which
+    would persist a stale pin on a new adapter) and never clear/unpin on
+    unknown lookup. Only a genuine replacement with a different resolved
+    identity, or a type change, is a different asset. Unexpected
+    programmer errors propagate unchanged.
     """
     if (old_type or "custom") != (new_type or "custom"):
         return False
@@ -1317,8 +1364,10 @@ def _voice_adapter_identity_same(old_type, old_adapter_id, new_type, new_adapter
     try:
         resolved = get_resolved_adapter_id_mapping(
             LORA_MODELS_DIR, [str(old_adapter_id), str(new_adapter_id)])
-    except Exception:
-        return True
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=(
+            "Adapter identity could not be verified; restore the adapter "
+            "manifest or reload voices before saving.")) from exc
     return (os.path.normcase(str(resolved[str(old_adapter_id)]))
             == os.path.normcase(str(resolved[str(new_adapter_id)])))
 

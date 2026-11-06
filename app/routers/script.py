@@ -3060,7 +3060,18 @@ def _capture_and_validate_batch_script_source(job):
     # decoder (UTF-8, then CP1252), universal-newline policy, then
     # mojibake. Identity stays on the original raw bytes / group
     # proof above, never on the decoded text.
-    decoded, _encoding = get_decoded_source_text(raw)
+    decoded, encoding = get_decoded_source_text(raw)
+    if encoding == "utf-8/replace":
+        # Lossy tier: bytes undecodable as UTF-8 or CP1252. Refuse
+        # explicitly before preflight/dispatch can offer damaged text
+        # as clean; the existing ValueError boundaries map this to a
+        # clear 400 on both batch routes. Retained bytes are untouched.
+        # Genuinely CP1252-decodable text remains supported by design
+        # and cannot be assumed wrong (residual human-inspection limit).
+        raise ValueError(
+            f"{job['filename']}: source text could not be decoded as "
+            "UTF-8 or CP1252; it contains undecodable bytes. Save the "
+            "source as UTF-8 or CP1252 text and try again.")
     text = fix_mojibake(get_normalized_source_newlines(decoded))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")

@@ -194,6 +194,36 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), digest)
             self.assertEqual(before, {name: (source.parent / name).read_bytes() for name in names.values()})
 
+    def test_lossy_replace_tier_refuses_before_preflight_and_dispatch(self):
+        # DSF25007-2: bytes undecodable as UTF-8 or CP1252 (CP1252-
+        # undefined bytes forcing the utf-8/replace tier) must refuse
+        # clearly at the capture seam — prepared jobs and the preflight
+        # sizing path both surface the ValueError (routes map it to 400)
+        # before any dispatch; retained bytes stay untouched. Genuinely
+        # CP1252-decodable text remains supported by design and cannot
+        # be assumed wrong (residual human-inspection limit, documented
+        # in the seam comment).
+        from fastapi import HTTPException
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'book.txt'
+            path.write_bytes(b'Alexis Alexis Alexis. \x81\xff invalid utf-8 \xc3\x28')
+            before = path.read_bytes()
+            request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'could not be decoded as UTF-8 or CP1252'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+                self.assertEqual(400, error.exception.status_code)
+                self.assertIn('could not be decoded as UTF-8 or CP1252', error.exception.detail)
+                with self.assertRaisesRegex(ValueError, 'could not be decoded as UTF-8 or CP1252'):
+                    script.build_batch_script_preflight(
+                        [{'filename': 'book.txt', 'input_path': str(path),
+                          'first_person_narrator': None}])
+            self.assertEqual(before, path.read_bytes(), 'retained bytes must stay untouched')
+
     def test_cp1252_and_utf8_decode_like_generation_preparation(self):
         import hashlib
         cases = [

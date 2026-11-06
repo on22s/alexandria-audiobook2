@@ -692,6 +692,111 @@ class MalformedAndApprovalTests(unittest.TestCase):
                              "explicit valid apply must initialize the null target")
             self.assertEqual("Serena", saved["BOB"]["voice"])
 
+    def test_adapter_replacement_with_failing_manifest_refuses_and_preserves_all_bytes(self):
+        # DSF25005: identity resolution failure on DIFFERENT adapters must
+        # refuse 409 BEFORE any config/invalidation side effect — never
+        # assume equality (stale pin on B) and never clear/unpin on
+        # unknown lookup. All original bytes remain.
+        pin = "f" * 64
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": pin}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            root = Path(tmp)
+            before = {str(p.relative_to(root)): p.read_bytes()
+                      for p in root.rglob('*') if p.is_file() and not p.name.endswith('.lock')}
+            for failure in (ValueError("adapter publication recovery is required: run x"),
+                            OSError("manifest unreadable")):
+                with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                                  side_effect=failure):
+                    response = client.post('/api/voice_config/save', json={
+                        **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-b"}}})
+                    self.assertEqual(409, response.status_code, response.text)
+                    self.assertIn("could not be verified", response.json()["detail"])
+            after = {str(p.relative_to(root)): p.read_bytes()
+                     for p in root.rglob('*') if p.is_file() and not p.name.endswith('.lock')}
+            self.assertEqual(before, after, "refused save must not write any file")
+            saved = json.loads(path.read_bytes())
+            self.assertEqual(pin, saved["BOB"]["adapter_generation_sha256"])
+            self.assertEqual("voice-a", saved["BOB"]["adapter_id"])
+
+    def test_adapter_identity_programmer_error_propagates(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": "f" * 64}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              side_effect=RuntimeError("programmer boom")):
+                with self.assertRaises(RuntimeError):
+                    client.post('/api/voice_config/save', json={
+                        **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-b"}}})
+
+    def test_adapter_identity_alias_and_different_controls(self):
+        pin = "f" * 64
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": pin}
+            path.write_text(json.dumps(config))
+            # Successfully resolved alias (both spellings -> current):
+            # same asset, pin kept, save succeeds.
+            guards = _canonical_guards(Path(tmp))
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              return_value={"voice-a": "current", "voice-b": "current"}):
+                response = client.post('/api/voice_config/save', json={
+                    **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-b"}}})
+                self.assertEqual(200, response.status_code, response.text)
+            saved = json.loads(path.read_bytes())
+            self.assertEqual(pin, saved["BOB"]["adapter_generation_sha256"])
+            # Successfully resolved DIFFERENT identity: pin cleared.
+            guards = _canonical_guards(Path(tmp))
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              return_value={"voice-b": "voice-b", "voice-c": "voice-c"}):
+                response = client.post('/api/voice_config/save', json={
+                    **guards, "voices": {"BOB": {"type": "lora", "adapter_id": "voice-c"}}})
+                self.assertEqual(200, response.status_code, response.text)
+            saved = json.loads(path.read_bytes())
+            self.assertIsNone(saved["BOB"]["adapter_generation_sha256"])
+            self.assertEqual("voice-c", saved["BOB"]["adapter_id"])
+
+    def test_version_select_with_failing_manifest_refuses_no_writes(self):
+        pin = "f" * 64
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            fixture = SingleVoicePreviewSaveTests()
+            client, path, script, original = fixture.fixture(
+                Path(tmp), stack, {"type": "custom", "voice": "Serena"})
+            config = json.loads(path.read_bytes())
+            config["BOB"] = {"type": "lora", "adapter_id": "voice-a",
+                             "adapter_path": "lora_models/voice-a",
+                             "adapter_generation_sha256": pin,
+                             "versions": {"v1": {"type": "lora", "adapter_id": "voice-b",
+                                                 "adapter_path": "lora_models/voice-b"}}}
+            path.write_text(json.dumps(config))
+            guards = _canonical_guards(Path(tmp))
+            before = path.read_bytes()
+            with patch.object(voices, 'get_resolved_adapter_id_mapping',
+                              side_effect=ValueError("adapter publication recovery is required")):
+                response = client.post('/api/voices/BOB/versions/v1/select',
+                                       json={"book_token": guards["book_token"]})
+                self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, path.read_bytes())
+
     def test_absent_active_and_inactive_malformed_keys_load_and_preserve(self):
         # Absent active key = normal unconfigured speaker. INACTIVE
         # malformed legacy key = untouched, does not block the roster.

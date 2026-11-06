@@ -1127,6 +1127,7 @@
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cp1252_and_utf8_decode_like_generation_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_crlf_cr_newlines_normalize_like_textio_under_raw_identity",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_hardlinked_and_missing_sources_are_refused_not_cached",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_lossy_replace_tier_refuses_before_preflight_and_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text"
   ],
@@ -10988,10 +10989,14 @@
     "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_target_already_holding_source_pin_preserves_it",
     "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_unpinned_source_explicitly_clears_old_target_pin",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_absent_active_and_inactive_malformed_keys_load_and_preserve",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_identity_alias_and_different_controls",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_identity_programmer_error_propagates",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_replacement_with_failing_manifest_refuses_and_preserves_all_bytes",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_malformed_active_entry_refuses_without_write",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_null_active_entry_is_readable_unconfigured_and_preserves_bytes",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_top_level_malformed_map_snapshot_refuses_not_500",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_unchanged_autosave_preserves_pin_byte_identically",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_version_select_with_failing_manifest_refuses_no_writes",
     "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_voice_approval_reset_only_where_effective_voice_changes",
     "tests.test_single_narrator_voice_save.SingleVoiceAssetDescriptorTests.test_direct_source_asset_still_validates_proposals",
     "tests.test_single_narrator_voice_save.SingleVoiceAssetDescriptorTests.test_no_bulk_ready_action_or_helper",
@@ -13948,6 +13953,13 @@
     "tests.test_verify_adapter_stops.StopGateTests.test_full_runaway_fails_and_working_adapter_passes",
     "tests.test_verify_adapter_stops.StopGateTests.test_partial_runaway_fails",
     "tests.test_verify_adapter_stops.StopGateTests.test_the_old_median_rule_passed_it"
+  ],
+  "test_version_route_refusal_v28": [
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_absent_entry_approval_and_explicit_save_preserved",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_malformed_versions_routes_refuse_400_no_writes",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_null_entry_mutations_refuse_422_no_writes",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_valid_dict_history_preserved_through_timeline",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_valid_versions_controls_still_work"
   ],
   "test_voice_alias_saved": [
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_clearing_the_alias_in_the_tab_clears_it_in_the_file",
