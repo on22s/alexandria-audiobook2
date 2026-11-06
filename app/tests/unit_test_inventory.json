@@ -1026,11 +1026,13 @@
     "tests.test_batch_path_identity.BatchPathIdentityTests.test_report_sources_match_actual_workers_and_exclude_skipped_names"
   ],
   "test_batch_prepared_sources": [
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_aba_revert_during_preparation_never_binds_changed_text_under_original_identity",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_actual_start_and_background_preflight_read_each_source_once",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_atomic_claim_rechecks_busy_state_after_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_busy_batch_refuses_before_source_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cache_hit_reuses_decoded_text_without_rereading",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_changed_source_revalidates_narrator_even_if_size_and_mtime_match",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_crlf_cr_newlines_normalize_like_textio_under_raw_identity",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_hardlinked_and_missing_sources_are_refused_not_cached",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text"

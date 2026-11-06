@@ -3027,21 +3027,47 @@ def _resolve_batch_script_input(filename: str) -> str:
     return input_path
 
 
-def _read_and_validate_batch_script_source(job):
-    """Read one batch source and reject unattested narrator metadata."""
+def _capture_and_validate_batch_script_source(job):
+    """Capture, decode and validate one batch source; return its proof.
+
+    Returns (text, normalizations, identity) where identity is derived
+    from THE SAME bounded captured bytes that were decoded, normalized
+    and narrator-validated here — never a separate stat/hash read — so
+    a cached text can never be bound under a different content identity
+    (A/B/A fast-edit/revert). DOCX groups use the verified group
+    capture; other sources use the confined raw capture. The decoded
+    text is not mutated into the caller's job (Rule 17).
+    """
     from docx_publication import capture_docx_group
+    from script_selection_binding import _capture_raw_source
     group = capture_docx_group(job['input_path'])
     if group is not None:
         text = fix_mojibake(group['text_bytes'].decode('utf-8'))
+        proof = group['proofs']['text']
     else:
-        with open(job["input_path"], encoding="utf-8") as source:
-            text = fix_mojibake(source.read())
+        proof, raw = _capture_raw_source(job['input_path'], owning_root=None,
+                                         include_bytes=True)
+        if not proof.get('exists'):
+            raise FileNotFoundError(str(job['input_path']))
+        # Preserve the original TextIO universal-newline policy
+        # (CRLF/CR -> LF) via the shared helper, before mojibake and
+        # known-source normalization. Identity stays on the original
+        # raw bytes above, not on the normalized text.
+        from source_encoding import get_normalized_source_newlines
+        text = fix_mojibake(get_normalized_source_newlines(raw.decode('utf-8')))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")
     if narrator and not is_narrator_attested(narrator, text):
         raise ValueError(
             f"{job['filename']}: first-person narrator must appear by name "
             "at least three times in the source")
+    identity = (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
+    return text, normalization_count, identity
+
+
+def _read_and_validate_batch_script_source(job):
+    """Read one batch source and reject unattested narrator metadata."""
+    text, normalization_count, _identity = _capture_and_validate_batch_script_source(job)
     return text, normalization_count
 
 
@@ -3365,8 +3391,12 @@ def get_prepared_batch_script_jobs(request):
             raise ValueError(refusal)
         prepared = []
         for job in jobs:
-            identity = get_batch_script_source_identity(job["input_path"])
-            text, normalizations = _read_and_validate_batch_script_source(job)
+            # The cached text and its identity come from the one
+            # captured record; the recheck below compares the CURRENT
+            # digest-only identity against THAT captured identity, so
+            # an A/B/A edit during preparation refuses before sizing
+            # and dispatch instead of binding B under A.
+            text, normalizations, identity = _capture_and_validate_batch_script_source(job)
             if get_batch_script_source_identity(job["input_path"]) != identity:
                 raise ValueError(f"Source changed while preparing: {job['filename']}")
             sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows, context)

@@ -27,17 +27,24 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
         context.start();self.addCleanup(context.stop)
 
     def test_actual_start_and_background_preflight_read_each_source_once(self):
+        # One FULL text/decode capture per source (include_bytes=True
+        # through the confined seam); digest-only revalidations
+        # (include_bytes=False) are the separate cache checks and are
+        # counted separately — this is not claimed as one physical read.
+        import script_selection_binding
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             root = Path(tmp); uploads = root/'uploads'; uploads.mkdir(); scripts = root/'scripts'; scripts.mkdir()
             sources = [uploads/'first.txt', uploads/'second.txt']
             for path in sources:
                 path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
             request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename=p.name) for p in sources])
-            before = request.model_dump(); reads = []; actual_open = builtins.open
-            def observed(file, *args, **kwargs):
-                if str(file) in [str(p) for p in sources]:
-                    reads.append(str(file))
-                return actual_open(file,*args,**kwargs)
+            before = request.model_dump()
+            full_captures = []; digest_captures = []
+            actual_capture = script_selection_binding._capture_raw_source
+            def observed_capture(path, **kwargs):
+                bucket = full_captures if kwargs.get('include_bytes') else digest_captures
+                bucket.append(str(path))
+                return actual_capture(path, **kwargs)
             stack.enter_context(patch.object(script,'UPLOADS_DIR',str(uploads)))
             stack.enter_context(patch.object(script,'SCRIPTS_DIR',str(scripts)))
             stack.enter_context(patch.object(script,'ensure_book_state',side_effect=lambda *args:nullcontext()))
@@ -46,14 +53,16 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             stack.enter_context(patch.object(script,'ensure_ideal_settings',return_value=(True,{},'fixture')))
             stack.enter_context(patch.object(script,'_init_task_log',return_value=str(root/'task.log')))
             worker = stack.enter_context(patch.object(script,'_run_batch_script_job'))
-            stack.enter_context(patch.object(builtins,'open',side_effect=observed))
+            stack.enter_context(patch.object(script_selection_binding,'_capture_raw_source',side_effect=observed_capture))
             async def run():
                 background = BackgroundTasks()
                 result = await script.generate_script_batch_start(request,background)
                 self.assertEqual('started',result['status'])
                 await background()
             asyncio.run(run())
-            self.assertCountEqual([str(p) for p in sources],reads)
+            self.assertCountEqual([str(p) for p in sources], full_captures)
+            self.assertTrue(all(str(p) in digest_captures for p in sources),
+                            'each source must also be digest-revalidated')
             self.assertEqual(2,worker.call_count)
             self.assertEqual(before,request.model_dump())
             for call in worker.call_args_list:
@@ -117,7 +126,7 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
             with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
                 jobs=script.get_prepared_batch_script_jobs(request)
-                with patch.object(script,'_read_and_validate_batch_script_source',side_effect=AssertionError('cache hit must not re-read')) as reread:
+                with patch.object(script,'_capture_and_validate_batch_script_source',side_effect=AssertionError('cache hit must not re-read')) as reread:
                     self.assertEqual((jobs[0]['prepared_source']['text'],jobs[0]['prepared_source']['normalizations']),
                                      script.get_validated_batch_script_source(jobs[0]))
                     reread.assert_not_called()
@@ -139,7 +148,7 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'book.txt';path.write_text('Original source')
             request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
-            actual=script._read_and_validate_batch_script_source
+            actual=script._capture_and_validate_batch_script_source
             def changed(job):
                 result=actual(job)
                 path.write_text('Changed source!')
@@ -147,10 +156,50 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             from fastapi import HTTPException
             with patch.object(script,'UPLOADS_DIR',tmp), \
                  patch.object(script,'load_app_config',return_value={}), \
-                 patch.object(script,'_read_and_validate_batch_script_source',side_effect=changed), \
+                 patch.object(script,'_capture_and_validate_batch_script_source',side_effect=changed), \
                  patch.object(script,'three_pass_refusal') as refusal:
                 with self.assertRaises(HTTPException) as error:
                     script.get_prepared_batch_script_jobs(request)
                 self.assertEqual(400,error.exception.status_code)
                 self.assertIn('Source changed while preparing',error.exception.detail)
                 refusal.assert_not_called()
+
+    def test_crlf_cr_newlines_normalize_like_textio_under_raw_identity(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt'
+            raw=b'Alexis Alexis Alexis.\r\nSecond line.\rThird line.\nFourth.'
+            path.write_bytes(raw)
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+            expected='Alexis Alexis Alexis.\nSecond line.\nThird line.\nFourth.'
+            self.assertEqual(expected,jobs[0]['prepared_source']['text'])
+            self.assertEqual(expected,script.get_validated_batch_script_source(jobs[0])[0])
+            # Identity is the original raw-byte SHA, source unchanged.
+            self.assertEqual(hashlib.sha256(raw).hexdigest(),jobs[0]['prepared_source']['identity'][0])
+            self.assertEqual(raw,path.read_bytes())
+
+    def test_aba_revert_during_preparation_never_binds_changed_text_under_original_identity(self):
+        # Controlled A/B/A (root probe shape): captured B text must not
+        # be stored under A's identity when the file reverts to A.
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';original='Original source';other='Changed source!'
+            self.assertEqual(len(original),len(other))
+            path.write_text(original,encoding='utf-8');before=path.stat()
+            actual=script._capture_and_validate_batch_script_source
+            def changed_then_reverted(job):
+                path.write_text(other,encoding='utf-8')
+                try:
+                    return actual(job)
+                finally:
+                    path.write_text(original,encoding='utf-8')
+                    os.utime(path,ns=(before.st_atime_ns,before.st_mtime_ns))
+            from fastapi import HTTPException
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}),patch.object(script,'_capture_and_validate_batch_script_source',side_effect=changed_then_reverted):
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+            self.assertEqual(400,error.exception.status_code)
+            self.assertIn('Source changed while preparing',error.exception.detail)
+            self.assertEqual(original,path.read_text())

@@ -90,8 +90,8 @@ class ScriptDispatchResponsivenessTests(unittest.TestCase):
             (root/'second.txt').write_text('A different source story.')
             request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt'),
                                                      script.BatchScriptTask(filename='second.txt')])
-            before=request.dict();read=script._read_and_validate_batch_script_source
-            with patch.object(script,'_read_and_validate_batch_script_source',wraps=read) as observed:
+            before=request.dict();read=script._capture_and_validate_batch_script_source
+            with patch.object(script,'_capture_and_validate_batch_script_source',wraps=read) as observed:
                 self.assertEqual([None,None],script.get_validated_batch_script_narrators(request))
             self.assertEqual([str(root/'book.txt'),str(root/'second.txt')],
                              [call.args[0]['input_path'] for call in observed.call_args_list])
