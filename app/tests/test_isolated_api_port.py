@@ -89,18 +89,23 @@ class IsolatedApiCleanupTests(unittest.TestCase):
         server._alexandria_control=None
         job=SimpleNamespace(handle=object(),active=1)
         job.get_active_process_count=lambda:job.active
-        server._alexandria_windows_owner=SimpleNamespace(job=job)
-        control=MagicMock();server._alexandria_control=control
+        control=MagicMock();control.job=job
+        server._alexandria_windows_owner=control
+        server._alexandria_control=control
         control.sendall.side_effect=lambda message:setattr(job,'active',0)
+        control.terminate.side_effect=lambda:setattr(job,'active',0)
         original=RuntimeError('readiness refused')
         with patch.object(runner.subprocess,'Popen',return_value=server), \
              patch.object(runner,'start_owned_subprocess',return_value=server,create=True), \
              patch.object(runner,'get_isolated_server_port',return_value=18765), \
              patch.object(runner,'urlopen',side_effect=original), \
              patch.object(ownership.sys,'platform','win32'), \
-             patch.object(runner.os,'killpg',side_effect=AttributeError('killpg unavailable')):
+             patch.object(runner.os,'killpg',side_effect=AttributeError('killpg unavailable'),create=True) as killpg:
             with self.assertRaises(RuntimeError) as caught:runner.main([])
         self.assertIs(original,caught.exception)
-        server.wait.assert_called_once_with(timeout=10)
+        server.wait.assert_called_once_with()
         control.sendall.assert_called_once_with(b'15\n')
+        control.terminate.assert_called_once_with()
+        self.assertEqual(0,job.get_active_process_count())
+        killpg.assert_not_called()
         control.close.assert_called_once_with()
