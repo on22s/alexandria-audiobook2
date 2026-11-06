@@ -85,6 +85,7 @@ class ProjectReproducibleTakeTests(unittest.TestCase):
     def make_manager(self, reproducible, engine):
         manager = object.__new__(project.ProjectManager)
         manager.root_dir = self.tempdir.name
+        manager.engine = None
         manager.voice_config_path = os.path.join(self.tempdir.name, "voices.json")
         with open(manager.voice_config_path, "w", encoding="utf-8") as handle:
             json.dump({}, handle)
