@@ -1050,17 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T18:17:46",
+  "written": "2026-11-05T18:21:15",
   "host": "RealMitch",
   "git": {
-   "commit": "f003e6a924ad91f94889c6895a542519c4f248f2",
+   "commit": "71bdf5636f291b4e6722da869940ee036a0055d4",
    "branch": "feat/1718-reason-aware-retry",
-   "dirty": true,
-   "source_state": "dirty:1e150e1c7143",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/tests/test_reproducible_takes.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
