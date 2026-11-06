@@ -14909,8 +14909,11 @@
     "tests.test_windows_book_move.WindowsBookMoveGuardTests.test_untrusted_outside_target_is_refused_before_native_access"
   ],
   "test_windows_cleanup_escalation": [
+    "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_closed_owner_channel_does_not_hide_unconfirmed_cleanup",
+    "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_closed_posix_owner_channel_requires_bounded_exit",
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_force_failure_propagates_before_wait_on_both_platforms",
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_native_runner_is_explicitly_wired_and_refuses_other_hosts",
+    "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_reaped_owner_does_not_replace_original_shutdown_error",
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_verifier_retains_posix_policy_and_escalates_only_on_windows"
   ],
   "test_windows_export_qualification": [

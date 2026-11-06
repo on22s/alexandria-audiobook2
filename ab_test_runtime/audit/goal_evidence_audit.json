@@ -1050,15 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-06T16:26:40",
+  "written": "2026-11-06T16:41:21",
   "host": "RealMitch",
   "git": {
-   "commit": "741beea1854b217e52419ef1fd10b4c9a4d379bc",
+   "commit": "0415dc3b9f59ef8b3322c963dac095190a6309be",
    "branch": "feat/1734-calibre-opds",
-   "dirty": false,
-   "source_state": "clean",
+   "dirty": true,
+   "source_state": "dirty:98578dd2900f",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/subprocess_ownership.py",
+    "M  app/tests/test_windows_cleanup_escalation.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
