@@ -1955,6 +1955,72 @@
                             </select>
                             <div id="existing-uploads-status" class="mt-2 small" role="status" aria-live="polite"></div>
                             <div id="upload-status" class="mt-2"></div>
+                            <details id="calibre-panel" class="border rounded p-3 mt-3">
+                                <summary>Optional: browse an OPDS catalog</summary>
+                                <p class="small mt-2">Save catalog settings explicitly, then browse categories and preview source metadata. Browsing and preview never download, capture, import, select, or synthesize a book. After a preview, an explicit capture downloads that exact source to a staged capture; an explicit import then publishes it as an existing upload without selecting a book. Passwords are never shown again after saving.</p>
+                                <label class="form-label mt-2" for="calibre-root-url">Catalog root URL</label>
+                                <input class="form-control" id="calibre-root-url" onchange="onCalibreConfigChange()" placeholder="https://catalog.example/opds">
+                                <label class="form-label mt-2" for="calibre-username">Username (optional)</label>
+                                <input class="form-control" id="calibre-username" onchange="onCalibreConfigChange()" autocomplete="off">
+                                <label class="form-label mt-2" for="calibre-password">Password</label>
+                                <input class="form-control" id="calibre-password" type="password" onchange="onCalibreConfigChange()" autocomplete="off">
+                                <div class="form-text">Leave blank to keep the stored password.</div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="calibre-clear-password" onchange="onCalibreConfigChange()">
+                                    <label class="form-check-label" for="calibre-clear-password">Clear the stored password on the next save</label>
+                                </div>
+                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                    <button type="button" class="btn btn-outline-secondary" id="calibre-load-config" onclick="loadCalibreConfig()">Load saved settings</button>
+                                    <button type="button" class="btn btn-primary" id="calibre-save-config" onclick="saveCalibreConfig()">Save catalog settings</button>
+                                    <button type="button" class="btn btn-outline-primary" id="calibre-browse-root" onclick="browseCalibreRoot()" disabled>Browse catalog</button>
+                                </div>
+                                <p id="calibre-status" class="small mt-2" role="status" aria-live="polite">Load or save settings before browsing.</p>
+                                <p id="calibre-page-title" class="small mt-2"></p>
+                                <p id="calibre-page-info" class="small"></p>
+                                <div id="calibre-entries"></div>
+                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                    <button type="button" class="btn btn-outline-secondary" id="calibre-next-page" onclick="browseCalibreNextPage()" disabled>Next page</button>
+                                    <button type="button" class="btn btn-outline-secondary" id="calibre-start-page" onclick="browseCalibreStartPage()" disabled>First page</button>
+                                </div>
+                                <section id="calibre-review-panel" class="border rounded p-3 mt-3" hidden aria-label="Cross-origin destination review">
+                                    <p class="mb-1">Cross-origin destination requires review:</p>
+                                    <p id="calibre-review-url" style="overflow-wrap:anywhere"></p>
+                                    <p id="calibre-review-origin"></p>
+                                    <p id="calibre-review-operation"></p>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-primary" id="calibre-review-approve" onclick="approveCalibreReview()">Approve this exact destination</button>
+                                        <button type="button" class="btn btn-secondary" id="calibre-review-cancel" onclick="cancelCalibreReview()">Cancel review</button>
+                                    </div>
+                                </section>
+                                <section id="calibre-preview-panel" class="border rounded p-3 mt-3" hidden aria-label="Catalog metadata preview">
+                                    <pre id="calibre-preview-out" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+                                    <p class="small">Explicit capture only. This contacts the catalog for the previewed acquisition link; it does not import or select a book.</p>
+                                    <button type="button" class="btn btn-primary" id="calibre-capture-start" onclick="startCalibreCapture()" disabled>Capture this exact source</button>
+                                </section>
+                                <section id="calibre-confirmation-panel" class="border rounded p-3 mt-3" hidden aria-label="Captured source confirmation">
+                                    <p class="mb-1">Captured source (read-only):</p>
+                                    <pre id="calibre-confirmation-provider" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+                                    <p id="calibre-confirmation-stable-id"></p>
+                                    <p id="calibre-confirmation-source" style="overflow-wrap:anywhere"></p>
+                                    <p id="calibre-confirmation-final" style="overflow-wrap:anywhere"></p>
+                                    <p id="calibre-confirmation-sha256" style="overflow-wrap:anywhere"></p>
+                                    <p id="calibre-confirmation-size"></p>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-primary" id="calibre-import-confirm" onclick="importCalibreCapture()" disabled>Import this captured source</button>
+                                        <button type="button" class="btn btn-secondary" id="calibre-discard-capture" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
+                                    </div>
+                                </section>
+                                <section id="calibre-job-panel" class="border rounded p-3 mt-3" hidden aria-label="Calibre capture job">
+                                    <p id="calibre-job-status" class="small" role="status" aria-live="polite"></p>
+                                    <pre id="calibre-job-out" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+                                    <pre id="calibre-import-receipt" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-outline-secondary" id="calibre-check-status" onclick="checkCalibreCaptureStatus()" disabled>Check capture status</button>
+                                        <button type="button" class="btn btn-outline-danger" id="calibre-cancel-capture" onclick="cancelCalibreCapture()" disabled>Cancel capture</button>
+                                        <button type="button" class="btn btn-secondary" id="calibre-job-discard" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
+                                    </div>
+                                </section>
+                            </details>
                             <label class="form-label mt-3" for="script-first-person-narrator">First-person narrator (optional)</label>
                             <input class="form-control" id="script-first-person-narrator" maxlength="100" placeholder="e.g. ALEXIS IVANOVITCH">
                             <div class="form-text">Enter the narrator's exact character name only when the book is narrated in first person.</div>
@@ -4050,6 +4116,7 @@
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-audiobookshelf.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-calibre.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>

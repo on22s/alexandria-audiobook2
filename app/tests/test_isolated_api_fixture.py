@@ -52,7 +52,7 @@ class IsolatedApiFixtureTests(unittest.TestCase):
              patch.object(runner.sys, "argv", ["run_isolated_api_tests.py", "--full"]):
             self.assertEqual(7, runner.main())
             request.assert_called_once_with("http://127.0.0.1:18765/api/config", timeout=1)
-            stop.assert_called_once_with(server, timeout=10)
+            stop.assert_called_once_with(server, timeout=10, force_after_grace=runner.sys.platform == 'win32')
         self.assertFalse(Path(observed["data_dir"]).exists(), "disposable state must be removed")
         self.assertEqual(["-m", "tests.test_api", "--url", "http://127.0.0.1:18765", "--full"],
                          observed["suite_command"][1:])

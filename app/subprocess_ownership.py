@@ -102,6 +102,7 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
     """Stop owned work, retaining the caller's grace and forced-tail policy."""
     graceful_signal = signal.SIGINT if interrupt and sys.platform != 'win32' else signal.SIGTERM
     deadline = time.monotonic() + timeout
+    owner_reaped = False
     try:
         if is_subprocess_tree_running(process):
             try:
@@ -124,13 +125,22 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
                     send_subprocess_signal(process, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            except OSError:
-                if not force_after_grace:
+            except BrokenPipeError:
+                if sys.platform == 'win32' or getattr(process, '_alexandria_control', None) is None:
                     raise
-    if force_after_grace:
-        process.wait()
-    else:
-        process.wait(timeout=timeout)
+                # The POSIX owner may finish and close its channel before the
+                # force tail arrives. Only its bounded, confirmed exit proves
+                # descendant cleanup; a live owner must still fail loudly.
+                process.wait(timeout=timeout)
+                owner_reaped = True
+            except OSError:
+                # A failed force tail must reach the owner's cleanup recovery.
+                raise
+    if not owner_reaped:
+        if force_after_grace:
+            process.wait()
+        else:
+            process.wait(timeout=timeout)
 
 
 def run_owned_capture(command, *, timeout, **kwargs):

@@ -1957,6 +1957,7 @@
             window.resetCharacterRosterBook?.();
             window.resetExportMasteringView?.(); window.resetExportQualityView?.(); window.resetAbsPreview?.();
             window.resetEditorRepairPreview?.();
+            window.resetCalibreSourceView?.();
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
             window.resetM4bPublicationBook?.();
@@ -2409,6 +2410,7 @@
             const select = document.getElementById('existing-upload-select');
             if (!select.value) { return; }
             window.resetDocxPreview?.();
+            window.resetCalibreSourceView?.();
             const filename = select.value;
             let book = currentBookFilename;
             const request = {};
@@ -2573,6 +2575,7 @@
 
         document.getElementById('file-upload').addEventListener('change', async () => {
             window.resetDocxPreview?.();
+            window.resetCalibreSourceView?.();
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
             if (fileInput.files.length === 0) { return; }
