@@ -737,7 +737,14 @@
 
         function _refreshCloneImportSubmit() {
             const f = _cloneImportFields();
-            f.submit.disabled = _cloneImportPendingGeneration === _cloneImportGeneration || !(f.refText.value.trim() && f.rightsConfirmed.checked);
+            const importing = _cloneImportPendingGeneration === _cloneImportGeneration;
+            const busy = _cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || importing;
+            f.fields.disabled = _cloneCleanupAccepting || importing;
+            document.getElementById('clone-cleanup-fields').disabled = _cloneCleanupAccepting || importing;
+            document.getElementById('clone-cleanup-prepare').disabled = busy;
+            document.getElementById('clone-cleanup-reject').disabled = busy || !_cloneCleanup;
+            document.getElementById('clone-cleanup-accept').disabled = busy || !_cloneCleanup;
+            f.submit.disabled = busy || !(f.refText.value.trim() && f.rightsConfirmed.checked);
         }
 
         let _cloneChannelPicker = null;
@@ -757,26 +764,37 @@
             f.sourceUrl.value = '';
             f.rightsBasis.value = '';
             f.rightsConfirmed.checked = false;
-            f.refText.oninput = _refreshCloneImportSubmit;
-            f.rightsConfirmed.onchange = _refreshCloneImportSubmit;
+            f.refText.oninput = () => { _invalidateCloneCleanup(); _refreshCloneImportSubmit(); };
+            f.rightsConfirmed.onchange = () => { _invalidateCloneCleanup(); _refreshCloneImportSubmit(); };
+            f.sourceTitle.oninput = () => { _invalidateCloneCleanup(); };
+            f.sourceUrl.oninput = () => { _invalidateCloneCleanup(); };
+            f.rightsBasis.oninput = () => { _invalidateCloneCleanup(); };
+            document.getElementById('clone-cleanup-gain').onchange = () => { _invalidateCloneCleanup(); };
+            document.getElementById('clone-cleanup-remove-dc').onchange = () => { _invalidateCloneCleanup(); };
+            document.getElementById('clone-channel-picker').onchange = () => { _invalidateCloneCleanup(); };
+            _resetCloneCleanup();
             _refreshCloneImportSubmit();
             const modalEl = document.getElementById('cloneImportModal');
             const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
             modalEl.addEventListener('hidden.bs.modal', () => {
-                if (generation !== _cloneImportGeneration) { return; }
-                f.fields.disabled = false;
-                _cloneImportGeneration++;
+                const current = generation === _cloneImportGeneration;
+                _invalidateCloneCleanup();
                 _cloneChannelPicker?.dispose();
                 _cloneChannelPicker = null;
-                f.submit.onclick = null;
+                if (current) {
+                    f.fields.disabled = false;
+                    _cloneImportGeneration++;
+                    f.submit.onclick = null;
+                }
             }, { once: true });
             f.submit.onclick = async () => {
-                if (generation !== _cloneImportGeneration || _cloneImportPendingGeneration === generation) { return; }
+                if (_cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || generation !== _cloneImportGeneration || _cloneImportPendingGeneration === generation) { return; }
                 if (!f.refText.value.trim() || !f.rightsConfirmed.checked) {
                     _refreshCloneImportSubmit();
                     return;
                 }
                 _cloneImportPendingGeneration = generation;
+                _refreshCloneImportSubmit();
                 f.fields.disabled = true;
                 f.submit.disabled = true;
                 f.submit.textContent = 'Importing…';
@@ -841,6 +859,221 @@
                 return false;
             }
         }
+
+        let _cloneCleanup = null;
+        let _cloneCleanupController = null;
+        let _cloneCleanupEpoch = 0;
+        let _cloneCleanupAccepting = false;
+        let _cloneCleanupPreparing = false;
+        let _cloneCleanupDiscarding = false;
+        function _resetCloneCleanup() {
+            _cloneCleanupController?.abort();
+            _cloneCleanupController = null;
+            _cloneCleanup = null;
+            _cloneCleanupEpoch++;
+            _cloneCleanupAccepting = false;
+            _cloneCleanupPreparing = false;
+            _cloneCleanupDiscarding = false;
+            _refreshCloneImportSubmit();
+            document.getElementById('clone-import-status').textContent = '';
+            const players = document.getElementById('clone-cleanup-players');
+            if (players) { players.hidden = true; }
+            for (const id of ['clone-cleanup-original', 'clone-cleanup-candidate']) {
+                const el = document.getElementById(id);
+                if (el) { el.pause?.(); el.removeAttribute?.('src'); }
+            }
+            document.getElementById('clone-cleanup-listened-original').checked = false;
+            document.getElementById('clone-cleanup-listened-candidate').checked = false;
+            const summary = document.getElementById('clone-cleanup-summary');
+            if (summary) { summary.textContent = ''; }
+        }
+        function _invalidateCloneCleanup() {
+            const token = _cloneCleanup?.cleanup_token;
+            _resetCloneCleanup();
+            if (token) {
+                fetch(`/api/clone_voices/cleanup/${encodeURIComponent(token)}`, {method: 'DELETE'}).catch(() => {});
+            }
+        }
+        function _renderCleanupSummary(data) {
+            const summary = document.getElementById('clone-cleanup-summary');
+            if (!summary) { return; }
+            const gain = data.plan?.operations?.find(op => op.op === 'gain')?.value ?? '?';
+            const dcEnabled = data.plan?.operations?.find(op => op.op === 'dc_offset_removal')?.enabled;
+            const dc = typeof dcEnabled === 'boolean' ? (dcEnabled ? 'on' : 'off') : 'unknown';
+            const candidate = data.candidate_measures || {};
+            const verification = data.verification || {};
+            summary.textContent = `Plan: gain ${gain}, DC removal ${dc}, channel ${data.audio_channel || 'mix'}. Candidate: ${candidate.duration_s ?? '?'} s, peak ${candidate.peak ?? '?'}, samples checked ${verification.samples_checked ?? '?'}, max sample difference ${verification.max_abs_difference ?? '?'}. ASR, speaker identity and naturalness are UNMEASURED.`;
+            const original = data.measures || {};
+            summary.textContent += " Original: " + (original.duration_s ?? "?") + " s, peak " + (original.peak ?? "?") + ", clipping " + (original.clipping_ratio ?? "?") + ", silence " + (original.silence_ratio ?? "?") + ". Candidate clipping " + (candidate.clipping_ratio ?? "?") + ", silence " + (candidate.silence_ratio ?? "?") + ". Original SHA256: " + (data.normalized_original_sha256 ?? "?") + ". Candidate SHA256: " + (data.candidate_sha256 ?? "?") + ". Plan SHA256: " + (data.plan_digest ?? "?") + ".";
+        }
+        document.getElementById('clone-cleanup-prepare').onclick = async () => {
+            if (_cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }
+            const generation = _cloneImportGeneration;
+            let epoch = ++_cloneCleanupEpoch;
+            const f = _cloneImportFields();
+            if (!f.refText.value.trim() || !f.rightsConfirmed.checked) {
+                showToast('Enter the exact transcript and confirm rights before preparing a cleaned candidate.', 'warning');
+                return;
+            }
+            const selection = _cloneChannelPicker ? _cloneChannelPicker.getSelection() : {channel: 'mix', token: null};
+            const body = new FormData();
+            body.append('audio_channel', selection.channel);
+            body.append('gain', document.getElementById('clone-cleanup-gain').value || '1');
+            body.append('remove_dc', document.getElementById('clone-cleanup-remove-dc').checked ? 'true' : 'false');
+            body.append('ref_text', f.refText.value.trim());
+            body.append('source_title', f.sourceTitle.value.trim());
+            body.append('source_url', f.sourceUrl.value.trim());
+            body.append('rights_basis', f.rightsBasis.value.trim());
+            body.append('rights_confirmed', f.rightsConfirmed.checked ? 'true' : 'false');
+            _cloneCleanupPreparing = true;
+            _refreshCloneImportSubmit();
+            try {
+                const previous = _cloneCleanup?.cleanup_token;
+                if (previous) {
+                    const discarded = await fetch(
+                        '/api/clone_voices/cleanup/' + encodeURIComponent(previous), {method: 'DELETE'});
+                    if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) { return; }
+                    if (!discarded.ok) {
+                        showToast('The previous preview could not be discarded. It is kept; retry before preparing another candidate.', 'warning');
+                        return;
+                    }
+                    _resetCloneCleanup();
+                    epoch = _cloneCleanupEpoch;
+                    _cloneCleanupPreparing = true;
+                    _refreshCloneImportSubmit();
+                }
+                if (selection.pending) { selection.token = await selection.pending; }
+                if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) { return; }
+                if (!selection.token) { showToast('Preview the channel first so the cleaned candidate uses the same audio.', 'warning'); return; }
+                body.append('preview_token', selection.token);
+                _cloneCleanupController?.abort();
+                _cloneCleanupController = new AbortController();
+                const signal = _cloneCleanupController.signal;
+                const res = await fetch('/api/clone_voices/cleanup/prepare', {method: 'POST', body, signal});
+                const data = await res.json();
+                if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) {
+                    if (data.cleanup_token) { fetch('/api/clone_voices/cleanup/' + encodeURIComponent(data.cleanup_token), {method: 'DELETE'}).catch(() => {}); }
+                    return;
+                }
+                if (!res.ok) { showActionError('Cleanup refused', {message: data.detail || 'Prepare failed', status: res.status}, 'Your file, transcript and current selection are unchanged.'); return; }
+                _cloneCleanup = data;
+                document.getElementById('clone-cleanup-original').src = '/api/clone_voices/cleanup/' + data.cleanup_token + '/audio?which=original';
+                document.getElementById('clone-cleanup-candidate').src = '/api/clone_voices/cleanup/' + data.cleanup_token + '/audio?which=candidate';
+                document.getElementById('clone-cleanup-players').hidden = false;
+                document.getElementById('clone-cleanup-listened-original').checked = false;
+                document.getElementById('clone-cleanup-listened-candidate').checked = false;
+                _renderCleanupSummary(data);
+                document.getElementById('clone-import-status').textContent = 'Candidate prepared and verified. Listen to both before accepting; nothing has been imported yet.';
+            } catch (error) {
+                if (error.name !== 'AbortError' && generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) { showToast('Cleanup preparation failed. Nothing was imported.', 'warning'); }
+            } finally {
+                if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
+                    _cloneCleanupPreparing = false;
+                    _refreshCloneImportSubmit();
+                }
+            }
+        };
+        document.getElementById('clone-cleanup-reject').onclick = async () => {
+            if (!_cloneCleanup || _cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }
+            const generation = _cloneImportGeneration;
+            const epoch = _cloneCleanupEpoch;
+            const token = _cloneCleanup.cleanup_token;
+            _cloneCleanupDiscarding = true;
+            _refreshCloneImportSubmit();
+            let response = null;
+            try {
+                response = await fetch('/api/clone_voices/cleanup/' + encodeURIComponent(token), {method: 'DELETE'});
+            } catch (error) {
+                response = null;
+            }
+            if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) { return; }
+            _cloneCleanupDiscarding = false;
+            if (response && response.ok) {
+                _resetCloneCleanup();
+                document.getElementById('clone-import-status').textContent = 'Preview removed if present; already accepted voices remain in the library. Your current selection is unchanged.';
+            } else {
+                _refreshCloneImportSubmit();
+                document.getElementById('clone-import-status').textContent = 'Preview discard failed on the server. The preview is kept so you can retry. Check the voice library if an earlier acceptance was uncertain.';
+            }
+        };
+        document.getElementById('clone-cleanup-accept').onclick = async () => {
+            const generation = _cloneImportGeneration;
+            const epoch = _cloneCleanupEpoch;
+            if (!_cloneCleanup || _cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }
+            const f = _cloneImportFields();
+            if (!f.refText.value.trim() || !f.rightsConfirmed.checked || !document.getElementById('clone-cleanup-listened-original').checked || !document.getElementById('clone-cleanup-listened-candidate').checked) {
+                showToast('Enter the transcript, confirm rights, and listen to both Original and Candidate first.', 'warning');
+                return;
+            }
+            _cloneCleanupAccepting = true;
+            _refreshCloneImportSubmit();
+            const body = new FormData();
+            body.append('cleanup_token', _cloneCleanup.cleanup_token);
+            body.append('ref_text', f.refText.value.trim());
+            body.append('source_title', f.sourceTitle.value.trim());
+            body.append('source_url', f.sourceUrl.value.trim());
+            body.append('rights_basis', f.rightsBasis.value.trim());
+            body.append('rights_confirmed', 'true');
+            body.append('listened_original', 'true');
+            body.append('listened_candidate', 'true');
+            body.append('raw_source_sha256', _cloneCleanup.raw_source_sha256);
+            body.append('normalized_original_sha256', _cloneCleanup.normalized_original_sha256);
+            body.append('candidate_sha256', _cloneCleanup.candidate_sha256);
+            body.append('plan_digest_value', _cloneCleanup.plan_digest);
+            body.append('provenance_digest_value', _cloneCleanup.provenance_digest || '');
+            body.append('audio_channel', _cloneCleanup.audio_channel || 'mix');
+            try {
+                const res = await fetch('/api/clone_voices/cleanup/accept', {method: 'POST', body});
+                if (!res.ok) {
+                    if (res.status >= 500 && res.status !== 503) { throw new Error('Server did not confirm the publication outcome.'); }
+                    let detail = 'Accept failed';
+                    try { detail = (await res.json()).detail || detail; } catch (error) { detail = 'Accept refused without a readable explanation'; }
+                    if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
+                        const transient = res.status === 409 || res.status === 503;
+                        if (!transient) {
+                            _resetCloneCleanup();
+                            document.getElementById('clone-import-status').textContent = 'Candidate is no longer ready. Review the refusal and prepare a fresh preview.';
+                        }
+                        showActionError('Cleanup acceptance refused', {message: detail, status: res.status}, transient ? 'The preview is kept for retry; your current selection is unchanged.' : 'The preview has been retired; your current selection is unchanged.');
+                    }
+                    return;
+                }
+                let completedEpoch = epoch;
+                if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
+                    _resetCloneCleanup();
+                    completedEpoch = _cloneCleanupEpoch;
+                }
+                try {
+                    window._cloneVoicesCache = await API.get('/api/clone_voices/list');
+                    await loadVoices();
+                    showToast('Cleaned candidate accepted as a new voice. Choose it from the voice list when you are ready.', 'success');
+                } catch (refreshError) {
+                    console.error('Accepted cleanup refresh failed:', refreshError);
+                    showToast('Cleaned candidate was accepted as a new voice, but the voice list could not be refreshed. Do not accept or import again. Check that Alexandria is running, then reopen Voices.', 'warning');
+                }
+                if (generation === _cloneImportGeneration && completedEpoch === _cloneCleanupEpoch) {
+                    const modalEl = document.getElementById('cloneImportModal');
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            } catch (error) {
+                if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
+                    _resetCloneCleanup();
+                    document.getElementById('clone-import-status').textContent = 'Acceptance may have completed. Check the voice library before any new import.';
+                }
+                try {
+                    window._cloneVoicesCache = await API.get('/api/clone_voices/list');
+                    await loadVoices();
+                } catch (refreshError) {
+                    console.error('Uncertain cleanup refresh failed:', refreshError);
+                }
+                showToast('Cleanup acceptance may have completed even though its reply was lost. Do not accept or import again until you check the voice library. Your current selection is unchanged.', 'warning');
+            } finally {
+                if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
+                    _cloneCleanupAccepting = false;
+                    _refreshCloneImportSubmit();
+                }
+            }
+        };
 
         window.playCloneVoice = async (btn) => {
             const card = btn.closest('.card-body');

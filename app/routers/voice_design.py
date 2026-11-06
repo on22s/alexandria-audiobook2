@@ -1,6 +1,7 @@
 import asyncio
 import filecmp
 import logging
+import math
 import os
 from pathlib import Path
 import shutil
@@ -217,6 +218,478 @@ def _delete_voice_design(voice_id):
 
 CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
 ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg"}
+import hashlib
+import json
+import uuid
+
+import reference_cleanup
+from reference_cleanup import acquire_cleanup_slot, apply_affine_cleanup, plan_digest, sha256_file, verify_affine_candidate, validate_cleanup_plan
+from voice_reference_import import check_reference_audio, measure_reference_audio
+
+CLEANUP_SECONDS = 1800
+CLEANUP_MAX = 8
+MAX_REF_TEXT = 4000
+MAX_SOURCE_TITLE = 512
+MAX_SOURCE_URL = 2048
+MAX_RIGHTS_BASIS = 1024
+
+
+def validate_reference_provenance(ref_text, source_title, source_url, rights_basis, rights_confirmed):
+    def bound(value, limit, label):
+        text = value.strip() if isinstance(value, str) else ""
+        if len(text) > limit:
+            raise ValueError(f"{label} is too long (at most {limit} characters).")
+        return text
+    ref_text = bound(ref_text, MAX_REF_TEXT, "Transcript")
+    source_title = bound(source_title, MAX_SOURCE_TITLE, "Source title")
+    source_url = bound(source_url, MAX_SOURCE_URL, "Source URL")
+    rights_basis = bound(rights_basis, MAX_RIGHTS_BASIS, "Rights basis")
+    if not ref_text:
+        raise ValueError("The exact transcript of the clip is required (ref_text).")
+    if rights_confirmed is not True:
+        raise ValueError("Confirm you have the right to use this voice (rights_confirmed).")
+    return ref_text, source_title, source_url, rights_basis
+
+
+def provenance_digest(provenance):
+    return hashlib.sha256(json.dumps(provenance, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")).hexdigest()
+
+
+def _probe_source_channels(path):
+    try:
+        import soundfile as sf
+        return int(sf.info(path).channels)
+    except Exception:
+        try:
+            return get_audio_channel_count(path, run_owned_capture)
+        except Exception as error:
+            raise ValueError("Could not determine the source audio channels.") from error
+
+
+def _require_disk_space():
+    has_space, free_gb = check_disk_space(UPLOADS_DIR, 2.0)
+    if has_space:
+        return
+    if free_gb == 0.0:
+        raise ValueError("Disk space check unavailable.")
+    raise ValueError("At least 2 GB free space is required.")
+
+
+def _is_busy_error(error):
+    return "already running" in str(error)
+
+
+def _raise_cleanup_error(error):
+    if isinstance(error, TimeoutError) or _is_busy_error(error):
+        raise HTTPException(status_code=503, detail="Cleanup is temporarily unavailable; try again shortly.") from error
+    raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+def _cleanup_root():
+    return Path(UPLOADS_DIR) / ".reference-cleanup"
+
+
+def _validate_cleanup_token(token):
+    if not isinstance(token, str) or len(token) != 32 or any(ch not in "0123456789abcdef" for ch in token):
+        raise ValueError("Invalid cleanup handle.")
+
+
+def _cleanup_lock(token, timeout=10):
+    _validate_cleanup_token(token)
+    if not _cleanup_root().is_dir():
+        raise ValueError("Cleanup session expired or was removed. Prepare the candidate again.")
+    return file_lock(str(_cleanup_root() / (".lock-" + token[0])), timeout=timeout)
+
+
+def _load_cleanup_session(token):
+    _validate_cleanup_token(token)
+    directory = _cleanup_root() / token
+    if not directory.is_dir():
+        raise ValueError("Cleanup session expired or was removed. Prepare the candidate again.")
+    try:
+        session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError("Cleanup session is corrupt. Prepare the candidate again.") from error
+    try:
+        if not isinstance(session, dict) or session["token"] != token:
+            raise ValueError("session identity changed")
+        if type(session["created"]) not in (int, float) or not math.isfinite(session["created"]):
+            raise ValueError("invalid session time")
+        if type(session["consumed"]) is not bool:
+            raise ValueError("invalid consumed state")
+        _validate_cleanup_token(session["publication_id"])
+        for key in ("raw_source_sha256", "normalized_original_sha256", "candidate_sha256", "plan_digest", "provenance_digest"):
+            digest = session[key]
+            if not isinstance(digest, str) or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+                raise ValueError("invalid digest")
+        plan = session["plan"]
+        reference_cleanup.require_cleanup_plan(plan)
+        if plan_digest(plan) != session["plan_digest"]:
+            raise ValueError("invalid cleanup plan")
+        provenance = session["provenance"]
+        validate_reference_provenance(**provenance)
+        if provenance_digest(provenance) != session["provenance_digest"]:
+            raise ValueError("invalid provenance")
+        get_audio_channel_filter(session["audio_channel"])
+        if not isinstance(session["source_filename"], str) or type(session["source_channels"]) is not int or session["source_channels"] < 1:
+            raise ValueError("invalid source metadata")
+        for key in ("original_measures", "candidate_measures", "verification"):
+            if not isinstance(session[key], dict):
+                raise ValueError("invalid verification metadata")
+    except (KeyError, TypeError, ValueError, OverflowError) as error:
+        raise ValueError("Cleanup session is corrupt. Prepare the candidate again.") from error
+    if time.time() - session["created"] > CLEANUP_SECONDS:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise ValueError("Cleanup session expired. Prepare the candidate again.")
+    if session.get("consumed"):
+        raise ValueError("Cleanup session was already accepted or rejected.")
+    return directory, session
+
+
+def _save_cleanup_session(directory, session):
+    from utils import atomic_json_write
+    atomic_json_write(session, str(Path(directory) / "session.json"))
+
+
+def _remove_cleanup_session(token):
+    _validate_cleanup_token(token)
+    directory = _cleanup_root() / token
+    if directory.is_dir():
+        with _cleanup_lock(token):
+            if directory.is_dir():
+                shutil.rmtree(directory)
+
+
+def _cleanup_session_expired(directory):
+    try:
+        session = json.loads((directory / "session.json").read_text(encoding="utf-8"))
+        created = session.get("created") if isinstance(session, dict) else None
+        if isinstance(created, (int, float)) and not isinstance(created, bool) and math.isfinite(created):
+            return time.time() - created > CLEANUP_SECONDS
+    except (OSError, ValueError):
+        pass
+    try:
+        return time.time() - directory.stat().st_mtime > CLEANUP_SECONDS
+    except OSError:
+        return False
+
+
+def _sweep_expired_cleanup_sessions():
+    root = _cleanup_root()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with file_lock(str(root / ".create")):
+        for directory in list(root.iterdir()):
+            if not directory.is_dir() or len(directory.name) != 32 or any(ch not in "0123456789abcdef" for ch in directory.name):
+                continue
+            if not _cleanup_session_expired(directory):
+                continue
+            try:
+                with _cleanup_lock(directory.name, timeout=0):
+                    if directory.is_dir() and _cleanup_session_expired(directory):
+                        shutil.rmtree(directory, ignore_errors=True)
+            except TimeoutError:
+                continue
+
+
+def _find_cleanup_publication(publication_id, manifest=None):
+    if not publication_id:
+        return None
+    if manifest is None:
+        manifest = _load_manifest(CLONE_VOICES_MANIFEST, for_update=True)
+    for entry in manifest:
+        receipt = entry.get("cleanup_receipt") if isinstance(entry, dict) else None
+        if isinstance(receipt, dict) and receipt.get("publication_id") == publication_id:
+            return entry
+    return None
+
+
+@router.post("/api/clone_voices/cleanup/prepare")
+async def cleanup_prepare(request: Request, preview_token: str = Form(""), audio_channel: str = Form("mix"),
+                           gain: float = Form(1.0), remove_dc: bool = Form(False),
+                           ref_text: str = Form(""), source_title: str = Form(""),
+                           source_url: str = Form(""), rights_basis: str = Form(""),
+                           rights_confirmed: bool = Form(False)):
+    try:
+        plan = validate_cleanup_plan(gain, remove_dc)
+        get_audio_channel_filter(audio_channel)
+        provenance_values = validate_reference_provenance(ref_text, source_title, source_url, rights_basis, rights_confirmed)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    provenance = {"ref_text": provenance_values[0], "source_title": provenance_values[1],
+                  "source_url": provenance_values[2], "rights_basis": provenance_values[3], "rights_confirmed": True}
+    cancelled = threading.Event()
+    async def watch_disconnect():
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await asyncio.sleep(0.1)
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        session, token = await asyncio.to_thread(
+            _prepare_cleanup_sync, preview_token, audio_channel, plan, provenance, cancelled)
+    except (ValueError, TimeoutError) as error:
+        _raise_cleanup_error(error)
+    finally:
+        cancelled.set()
+        watcher.cancel()
+    return {"status": "prepared", "cleanup_token": token, "plan": plan, "audio_channel": audio_channel,
+            "plan_digest": session["plan_digest"], "raw_source_sha256": session["raw_source_sha256"],
+            "normalized_original_sha256": session["normalized_original_sha256"],
+            "candidate_sha256": session["candidate_sha256"], "measures": session["original_measures"],
+            "candidate_measures": session["candidate_measures"], "candidate_problems": [],
+            "verification": session["verification"],
+            "provenance": session["provenance"], "provenance_digest": session["provenance_digest"],
+            "source_filename": session["source_filename"], "source_channels": session["source_channels"],
+            "integrity": "verified",
+            "asr": "UNMEASURED", "speaker_identity": "UNMEASURED", "naturalness": "UNMEASURED"}
+
+
+def _prepare_cleanup_sync(preview_token, audio_channel, plan, provenance, cancelled):
+    with acquire_cleanup_slot():
+        if cancelled.is_set():
+            raise ValueError("Cleanup preparation was cancelled.")
+        _require_disk_space()
+        _sweep_expired_cleanup_sessions()
+        root = _cleanup_root()
+        token = uuid.uuid4().hex
+        directory = root / token
+        with file_lock(str(root / ".create")):
+            if sum(p.is_dir() for p in root.iterdir()) >= CLEANUP_MAX:
+                raise ValueError("Too many pending cleanup sessions. Close one or wait for expiry.")
+            directory.mkdir(mode=0o700)
+        with _cleanup_lock(token):
+            source_path = str(directory / "source.wav")
+            try:
+                metadata = get_audio_channel_staging().copy_stage(preview_token, source_path, "clone")
+                raw_sha = sha256_file(source_path, cancelled)
+                original_path = str(directory / "original.wav")
+                candidate_path = str(directory / "candidate.wav")
+                measures, problems = import_reference_audio(source_path, original_path, channel=audio_channel)
+                if problems:
+                    raise ValueError("Original refused: " + "; ".join(problems))
+                source_channels = _probe_source_channels(source_path)
+                apply_affine_cleanup(original_path, candidate_path, plan)
+                valid, verify_problems, records = verify_affine_candidate(original_path, candidate_path, plan)
+                candidate_measures = measure_reference_audio(candidate_path)
+                candidate_problems = check_reference_audio(candidate_measures)
+                if not valid or candidate_problems:
+                    raise ValueError("Candidate refused: " + "; ".join(verify_problems + candidate_problems))
+                if cancelled.is_set():
+                    raise ValueError("Cleanup preparation was cancelled.")
+                session = {"token": token, "created": time.time(), "consumed": False, "plan": plan,
+                           "plan_digest": plan_digest(plan), "audio_channel": audio_channel,
+                           "publication_id": uuid.uuid4().hex,
+                           "provenance": provenance, "provenance_digest": provenance_digest(provenance),
+                           "source_filename": metadata.get("filename", ""), "source_channels": source_channels,
+                           "raw_source_sha256": raw_sha, "normalized_original_sha256": measures["sha256"],
+                           "candidate_sha256": candidate_measures["sha256"], "original_measures": measures,
+                           "candidate_measures": candidate_measures, "verification": records,
+                           "asr": "UNMEASURED", "speaker_identity": "UNMEASURED", "naturalness": "UNMEASURED"}
+                if cancelled.is_set():
+                    raise ValueError("Cleanup preparation was cancelled.")
+                _save_cleanup_session(directory, session)
+                if cancelled.is_set():
+                    shutil.rmtree(directory, ignore_errors=True)
+                    raise ValueError("Cleanup preparation was cancelled.")
+                return session, token
+            except BaseException:
+                if directory.is_dir():
+                    shutil.rmtree(directory, ignore_errors=True)
+                raise
+
+
+@router.get("/api/clone_voices/cleanup/{token}/audio")
+async def cleanup_audio(token: str, which: str = "original"):
+    if which not in ("original", "candidate"):
+        raise HTTPException(status_code=400, detail="Choose original or candidate player.")
+    def _read():
+        with _cleanup_lock(token):
+            directory, session = _load_cleanup_session(token)
+            path = directory / (which + ".wav")
+            if not path.is_file():
+                raise ValueError("Cleanup audio is unavailable.")
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != session[("normalized_original_sha256" if which == "original" else "candidate_sha256")]:
+                raise ValueError("Cleanup audio changed since preparation.")
+            return data
+    try:
+        data = await asyncio.to_thread(_read)
+    except (ValueError, TimeoutError) as error:
+        _raise_cleanup_error(error)
+    return Response(data, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+
+@router.post("/api/clone_voices/cleanup/accept")
+async def cleanup_accept(request: Request, cleanup_token: str = Form(""), ref_text: str = Form(""),
+                          source_title: str = Form(""), source_url: str = Form(""),
+                          rights_basis: str = Form(""), rights_confirmed: bool = Form(False),
+                          listened_original: bool = Form(False), listened_candidate: bool = Form(False),
+                          raw_source_sha256: str = Form(""), normalized_original_sha256: str = Form(""),
+                          candidate_sha256: str = Form(""), plan_digest_value: str = Form(""),
+                          provenance_digest_value: str = Form(""),
+                          audio_channel: str = Form("mix")):
+    try:
+        provenance_values = validate_reference_provenance(ref_text, source_title, source_url, rights_basis, rights_confirmed)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if listened_original is not True or listened_candidate is not True:
+        raise HTTPException(status_code=400, detail="Listen to both Original and Candidate before accepting.")
+    _validate_cleanup_token_or_400(cleanup_token)
+    provenance = {"ref_text": provenance_values[0], "source_title": provenance_values[1],
+                  "source_url": provenance_values[2], "rights_basis": provenance_values[3], "rights_confirmed": True}
+    cancelled = threading.Event()
+    async def watch_disconnect():
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await asyncio.sleep(0.1)
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        result = await asyncio.to_thread(
+            _accept_cleanup_sync, cleanup_token, provenance, provenance_digest(provenance),
+            (raw_source_sha256, normalized_original_sha256, candidate_sha256, plan_digest_value, provenance_digest_value, audio_channel), cancelled)
+    except (ValueError, TimeoutError) as error:
+        _raise_cleanup_error(error)
+    finally:
+        cancelled.set()
+        watcher.cancel()
+    return result
+
+
+def _validate_cleanup_token_or_400(token):
+    try:
+        _validate_cleanup_token(token)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+def _accept_cleanup_sync(cleanup_token, provenance, digest, echoes, cancelled):
+    raw_echo, normalized_echo, candidate_echo, plan_echo, provenance_echo, audio_channel = echoes
+    with acquire_cleanup_slot(), _cleanup_lock(cleanup_token):
+        directory, session = _load_cleanup_session(cleanup_token)
+        existing = _find_cleanup_publication(session.get("publication_id", ""))
+        if existing is not None:
+            shutil.rmtree(directory, ignore_errors=True)
+            return {"status": "accepted", "voice_id": existing["id"], "filename": existing["filename"],
+                    "measures": {k: existing[k] for k in ("duration_s", "sample_rate", "peak", "silence_ratio", "clipping_ratio", "sha256") if k in existing},
+                    "cleanup_receipt": existing["cleanup_receipt"], "already_accepted": True}
+        if (raw_echo, normalized_echo, candidate_echo, plan_echo, provenance_echo, audio_channel) != (
+                session["raw_source_sha256"], session["normalized_original_sha256"], session["candidate_sha256"],
+                session["plan_digest"], session["provenance_digest"], session["audio_channel"]):
+            raise ValueError("Cleanup details changed since preparation. Prepare the candidate again.")
+        if provenance != session.get("provenance") or digest != session.get("provenance_digest"):
+            raise ValueError("Transcript or rights details changed since preparation. Prepare the candidate again.")
+        if plan_digest(session["plan"]) != session["plan_digest"]:
+            raise ValueError("Cleanup plan changed since preparation. Prepare the candidate again.")
+        if cancelled.is_set():
+            raise ValueError("Cleanup acceptance was cancelled.")
+        _require_disk_space()
+        original_path = str(directory / "original.wav")
+        candidate_path = str(directory / "candidate.wav")
+        original_measures = measure_reference_audio(original_path)
+        measures = measure_reference_audio(candidate_path)
+        if original_measures["sha256"] != session["normalized_original_sha256"] or measures["sha256"] != session["candidate_sha256"] or sha256_file(str(directory / "source.wav"), cancelled) != session["raw_source_sha256"]:
+            raise ValueError("Cleanup audio changed since preparation.")
+        valid, problems, records = verify_affine_candidate(original_path, candidate_path, session["plan"])
+        problems = problems + check_reference_audio(measures)
+        if not valid or problems:
+            raise ValueError("Candidate refused: " + "; ".join(problems))
+        if cancelled.is_set():
+            raise ValueError("Cleanup acceptance was cancelled.")
+        stem = Path(session.get("source_filename") or "reference").stem or "reference"
+        base_name = stem[:72] + "-cleaned"
+        try:
+            safe_name = _require_safe_filename(base_name, "Invalid filename")
+        except Exception:
+            safe_name = "reference-cleaned"
+        voice_id = get_unique_id(safe_name)
+        dest_filename = f"{voice_id}.wav"
+        dest_path = os.path.join(CLONE_VOICES_DIR, dest_filename)
+        if os.path.exists(dest_path):
+            raise ValueError("Cleanup destination already exists. Prepare the candidate again.")
+        staged_path = os.path.join(CLONE_VOICES_DIR, f".{dest_filename}.tmp-{session['publication_id']}")
+        lineage_root = Path(UPLOADS_DIR) / ".reference-cleanup-lineage" / voice_id
+        lineage_created = False
+        try:
+            shutil.copyfile(candidate_path, staged_path)
+            with open(staged_path, "r+b") as handle:
+                os.fsync(handle.fileno())
+            if sha256_file(staged_path, cancelled) != session["candidate_sha256"]:
+                raise ValueError("Cleanup candidate changed during publication.")
+            lineage_base = Path(UPLOADS_DIR) / ".reference-cleanup-lineage"
+            lineage_base.mkdir(parents=True, exist_ok=True, mode=0o700)
+            lineage_root.mkdir(parents=True, mode=0o700)
+            lineage_created = True
+            for name, source, expected in (("source.wav", directory / "source.wav", session["raw_source_sha256"]), ("original.wav", directory / "original.wav", session["normalized_original_sha256"])):
+                staged_lineage = lineage_root / ("." + name + ".tmp")
+                shutil.copyfile(source, staged_lineage)
+                with open(staged_lineage, "r+b") as handle:
+                    os.fsync(handle.fileno())
+                if sha256_file(staged_lineage, cancelled) != expected:
+                    raise ValueError("Cleanup lineage changed during publication.")
+                os.replace(staged_lineage, lineage_root / name)
+            if cancelled.is_set():
+                raise ValueError("Cleanup acceptance was cancelled.")
+            receipt = {"origin": "affine-cleanup", "plan": session["plan"], "plan_digest": plan_digest(session["plan"]),
+                       "selected_bounds": None, "bounds_mode": "full-length", "publication_id": session["publication_id"],
+                       "raw_source_sha256": session["raw_source_sha256"],
+                       "normalized_original_sha256": session["normalized_original_sha256"],
+                       "candidate_sha256": measures["sha256"],
+                       "provenance": provenance, "provenance_digest": digest,
+                       "source_filename": session.get("source_filename", ""), "source_channels": session.get("source_channels"),
+                       "lineage": {"raw_source": f".reference-cleanup-lineage/{voice_id}/source.wav",
+                                   "normalized_original": f".reference-cleanup-lineage/{voice_id}/original.wav"},
+                       "implementation": reference_cleanup.IMPLEMENTATION, "encoder": reference_cleanup.ENCODER,
+                       "verification": records,
+                       "asr": "UNMEASURED", "speaker_identity": "UNMEASURED", "naturalness": "UNMEASURED"}
+            entry = {"id": voice_id, "name": safe_name, "filename": dest_filename, "ref_text": provenance["ref_text"],
+                     "audio_channel": audio_channel, "source_channels": session.get("source_channels"),
+                     "source_title": provenance["source_title"], "source_url": provenance["source_url"],
+                     "rights_basis": provenance["rights_basis"], "rights_confirmed": True,
+                     "imported_at": time.time(), "cleanup_receipt": receipt, **measures}
+            with file_lock(CLONE_VOICES_MANIFEST):
+                manifest = _load_manifest(CLONE_VOICES_MANIFEST, for_update=True)
+                if _find_cleanup_publication(session["publication_id"], manifest=manifest) is not None:
+                    raise ValueError("Cleanup candidate was already accepted.")
+                if os.path.exists(dest_path):
+                    raise ValueError("Cleanup destination already exists. Prepare the candidate again.")
+                if cancelled.is_set():
+                    raise ValueError("Cleanup acceptance was cancelled.")
+                os.replace(staged_path, dest_path)
+                try:
+                    manifest.append(entry)
+                    if cancelled.is_set():
+                        raise ValueError("Cleanup acceptance was cancelled.")
+                    _save_manifest(CLONE_VOICES_MANIFEST, manifest)
+                except BaseException:
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+                    raise
+        except BaseException:
+            if os.path.exists(staged_path):
+                os.remove(staged_path)
+            if lineage_created and lineage_root.is_dir() and _find_cleanup_publication(session.get("publication_id", "")) is None:
+                shutil.rmtree(lineage_root, ignore_errors=True)
+            raise
+        session["consumed"] = True
+        try:
+            _save_cleanup_session(directory, session)
+        except BaseException:
+            return {"status": "accepted", "voice_id": voice_id, "filename": dest_filename, "measures": measures,
+                    "cleanup_receipt": receipt, "session_cleanup_pending": True}
+        shutil.rmtree(directory, ignore_errors=True)
+        return {"status": "accepted", "voice_id": voice_id, "filename": dest_filename, "measures": measures, "cleanup_receipt": receipt}
+
+
+@router.delete("/api/clone_voices/cleanup/{token}")
+async def cleanup_reject(token: str):
+    try:
+        await asyncio.to_thread(_remove_cleanup_session, token)
+    except (ValueError, TimeoutError) as error:
+        _raise_cleanup_error(error)
+    return {"status": "discarded", "detail": "Preview removed if present; already accepted voices remain in the library."}
 
 def get_audio_channel_staging():
     return AudioChannelStaging(UPLOADS_DIR)
@@ -313,15 +786,11 @@ async def clone_voices_upload(file: Optional[UploadFile] = File(None),
     ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTS:
         raise HTTPException(status_code=400, detail=f"Unsupported format. Use: {', '.join(ALLOWED_AUDIO_EXTS)}")
-    # Called directly (tests) the Form defaults arrive as Form objects, not values.
-    def form_str(value):
-        return value.strip() if isinstance(value, str) else ""
-    ref_text, source_title, source_url, rights_basis = (
-        form_str(ref_text), form_str(source_title), form_str(source_url), form_str(rights_basis))
-    if not ref_text:
-        raise HTTPException(status_code=400, detail="The exact transcript of the clip is required (ref_text).")
-    if rights_confirmed is not True:
-        raise HTTPException(status_code=400, detail="Confirm you have the right to use this voice (rights_confirmed).")
+    try:
+        ref_text, source_title, source_url, rights_basis = validate_reference_provenance(
+            ref_text, source_title, source_url, rights_basis, rights_confirmed)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     base_name = os.path.splitext(filename)[0]
     safe_name = _require_safe_filename(base_name, "Invalid filename")
@@ -342,15 +811,17 @@ async def clone_voices_upload(file: Optional[UploadFile] = File(None),
         await _save_upload_limited(file, upload_path, 512 * 1024**2)
     def _import():
         try:
-            measures, problems = import_reference_audio(upload_path, dest_path, **(
-                {"channel": audio_channel} if audio_channel != "mix" else {}))
+            measures, problems = import_reference_audio(upload_path, dest_path, channel=audio_channel)
             source_channels = None
             if not problems:
                 try:
-                    import soundfile as sf
-                    source_channels = int(sf.info(upload_path).channels)
-                except (RuntimeError, OSError):
-                    source_channels = get_audio_channel_count(upload_path, run_owned_capture)
+                    source_channels = _probe_source_channels(upload_path)
+                except ValueError as error:
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+                    raise HTTPException(status_code=400, detail=str(error)) from error
+        except HTTPException:
+            raise
         except BaseException:
             if os.path.exists(dest_path):
                 os.remove(dest_path)
@@ -401,6 +872,14 @@ async def clone_voices_delete(voice_id: str):
         if not entry:
             raise HTTPException(status_code=404, detail="Clone voice not found")
         wav_path = get_voice_asset_path(CLONE_VOICES_DIR, entry)
+        receipt = entry.get("cleanup_receipt") if isinstance(entry, dict) else None
+        if isinstance(receipt, dict):
+            entry_id = entry.get("id")
+            if isinstance(entry_id, str) and entry_id and entry_id not in (".", "..") and "/" not in entry_id and "\\" not in entry_id:
+                lineage_base = Path(UPLOADS_DIR) / ".reference-cleanup-lineage"
+                lineage_root = lineage_base / entry_id
+                if lineage_root.parent == lineage_base and lineage_root.exists():
+                    shutil.rmtree(lineage_root)
         _save_manifest(CLONE_VOICES_MANIFEST,
                        [v for v in manifest if v["id"] != voice_id])
         if os.path.exists(wav_path):

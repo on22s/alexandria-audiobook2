@@ -191,12 +191,12 @@ class CloneImportEventLoopTests(unittest.IsolatedAsyncioTestCase):
             real_import = voice_design.import_reference_audio
             rate = 44100
             document = _wav_bytes(np.stack([_tone(4.0,rate),_tone(4.0,rate,hz=330)],axis=1),rate)
-            def paused_import(source, destination):
+            def paused_import(source, destination, *, channel="mix"):
                 worker_ids.append(threading.get_ident())
                 attempted.set()
                 if not release.wait(3):
                     raise AssertionError('Reference fixture was never released')
-                return real_import(source, destination)
+                return real_import(source, destination, channel=channel)
             fields = {'ref_text':'Exact fixture sentence.','rights_confirmed':'true',
                       'source_title':'CPU fixture','rights_basis':'own fixture'}
             with patch.object(voice_design,'CLONE_VOICES_DIR',str(root)), \
@@ -227,11 +227,11 @@ class CloneImportEventLoopTests(unittest.IsolatedAsyncioTestCase):
             root = Path(tmp)
             attempted, release, published = threading.Event(), threading.Event(), threading.Event()
             real_import, real_append = voice_design.import_reference_audio, voice_design._append_manifest_entry
-            def paused_import(source,destination):
+            def paused_import(source,destination,*,channel="mix"):
                 attempted.set()
                 if not release.wait(3):
                     raise AssertionError('Reference fixture was never released')
-                return real_import(source,destination)
+                return real_import(source,destination,channel=channel)
             def append(path,entry):
                 real_append(path,entry)
                 published.set()
