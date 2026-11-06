@@ -749,6 +749,133 @@
         "title": "BenchmarkStartRequest",
         "type": "object"
       },
+      "Body_cleanup_accept_api_clone_voices_cleanup_accept_post": {
+        "properties": {
+          "audio_channel": {
+            "default": "mix",
+            "title": "Audio Channel",
+            "type": "string"
+          },
+          "candidate_sha256": {
+            "default": "",
+            "title": "Candidate Sha256",
+            "type": "string"
+          },
+          "cleanup_token": {
+            "default": "",
+            "title": "Cleanup Token",
+            "type": "string"
+          },
+          "listened_candidate": {
+            "default": false,
+            "title": "Listened Candidate",
+            "type": "boolean"
+          },
+          "listened_original": {
+            "default": false,
+            "title": "Listened Original",
+            "type": "boolean"
+          },
+          "normalized_original_sha256": {
+            "default": "",
+            "title": "Normalized Original Sha256",
+            "type": "string"
+          },
+          "plan_digest_value": {
+            "default": "",
+            "title": "Plan Digest Value",
+            "type": "string"
+          },
+          "provenance_digest_value": {
+            "default": "",
+            "title": "Provenance Digest Value",
+            "type": "string"
+          },
+          "raw_source_sha256": {
+            "default": "",
+            "title": "Raw Source Sha256",
+            "type": "string"
+          },
+          "ref_text": {
+            "default": "",
+            "title": "Ref Text",
+            "type": "string"
+          },
+          "rights_basis": {
+            "default": "",
+            "title": "Rights Basis",
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "default": false,
+            "title": "Rights Confirmed",
+            "type": "boolean"
+          },
+          "source_title": {
+            "default": "",
+            "title": "Source Title",
+            "type": "string"
+          },
+          "source_url": {
+            "default": "",
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "title": "Body_cleanup_accept_api_clone_voices_cleanup_accept_post",
+        "type": "object"
+      },
+      "Body_cleanup_prepare_api_clone_voices_cleanup_prepare_post": {
+        "properties": {
+          "audio_channel": {
+            "default": "mix",
+            "title": "Audio Channel",
+            "type": "string"
+          },
+          "gain": {
+            "default": 1.0,
+            "title": "Gain",
+            "type": "number"
+          },
+          "preview_token": {
+            "default": "",
+            "title": "Preview Token",
+            "type": "string"
+          },
+          "ref_text": {
+            "default": "",
+            "title": "Ref Text",
+            "type": "string"
+          },
+          "remove_dc": {
+            "default": false,
+            "title": "Remove Dc",
+            "type": "boolean"
+          },
+          "rights_basis": {
+            "default": "",
+            "title": "Rights Basis",
+            "type": "string"
+          },
+          "rights_confirmed": {
+            "default": false,
+            "title": "Rights Confirmed",
+            "type": "boolean"
+          },
+          "source_title": {
+            "default": "",
+            "title": "Source Title",
+            "type": "string"
+          },
+          "source_url": {
+            "default": "",
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "title": "Body_cleanup_prepare_api_clone_voices_cleanup_prepare_post",
+        "type": "object"
+      },
       "Body_clone_voices_upload_api_clone_voices_upload_post": {
         "properties": {
           "audio_channel": {
@@ -8763,6 +8890,160 @@
           }
         },
         "summary": "Get Word Timing Audio"
+      }
+    },
+    "/api/clone_voices/cleanup/accept": {
+      "post": {
+        "operationId": "cleanup_accept_api_clone_voices_cleanup_accept_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_cleanup_accept_api_clone_voices_cleanup_accept_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Accept"
+      }
+    },
+    "/api/clone_voices/cleanup/prepare": {
+      "post": {
+        "operationId": "cleanup_prepare_api_clone_voices_cleanup_prepare_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_cleanup_prepare_api_clone_voices_cleanup_prepare_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Prepare"
+      }
+    },
+    "/api/clone_voices/cleanup/{token}": {
+      "delete": {
+        "operationId": "cleanup_reject_api_clone_voices_cleanup__token__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Reject"
+      }
+    },
+    "/api/clone_voices/cleanup/{token}/audio": {
+      "get": {
+        "operationId": "cleanup_audio_api_clone_voices_cleanup__token__audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "which",
+            "required": false,
+            "schema": {
+              "default": "original",
+              "title": "Which",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cleanup Audio"
       }
     },
     "/api/clone_voices/list": {

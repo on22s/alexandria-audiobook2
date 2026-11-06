@@ -3894,19 +3894,40 @@
                     <fieldset id="clone-import-fields" aria-label="Reference clip details">
                     <div id="clone-channel-picker" class="mb-2"></div>
                     <label class="form-label mb-1" for="clone-import-ref-text">Exact transcript of the clip <span class="text-danger">*</span></label>
-                    <textarea class="form-control form-control-sm mb-2" id="clone-import-ref-text" rows="2" placeholder="Word for word, including punctuation."></textarea>
+                    <textarea class="form-control form-control-sm mb-2" id="clone-import-ref-text" maxlength="4000" rows="2" placeholder="Word for word, including punctuation."></textarea>
                     <label class="form-label mb-1" for="clone-import-source-title">Source title</label>
-                    <input class="form-control form-control-sm mb-2" id="clone-import-source-title" placeholder="Where the clip comes from (optional)">
+                    <input class="form-control form-control-sm mb-2" id="clone-import-source-title" maxlength="512" placeholder="Where the clip comes from (optional)">
                     <label class="form-label mb-1" for="clone-import-source-url">Source URL</label>
-                    <input class="form-control form-control-sm mb-2" id="clone-import-source-url" placeholder="https://… (optional)">
+                    <input class="form-control form-control-sm mb-2" id="clone-import-source-url" maxlength="2048" placeholder="https://… (optional)">
                     <label class="form-label mb-1" for="clone-import-rights-basis">Rights basis</label>
-                    <input class="form-control form-control-sm mb-2" id="clone-import-rights-basis" placeholder="Own recording, licence, written permission… (optional)">
+                    <input class="form-control form-control-sm mb-2" id="clone-import-rights-basis" maxlength="1024" placeholder="Own recording, licence, written permission… (optional)">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="clone-import-rights-confirmed">
                         <label class="form-check-label" for="clone-import-rights-confirmed">I have the right to use this voice <span class="text-danger">*</span></label>
                     </div>
                     </fieldset>
-                    <div class="form-text mt-2">The clip is converted to 24 kHz mono and refused if it is under 3 s, over 30 s, clipped, or mostly silence.</div>
+                    <fieldset id="clone-cleanup-fields" aria-label="Optional cleanup">
+                        <label class="form-label mb-1" for="clone-cleanup-gain">Cleanup gain (1.0 = unchanged)</label>
+                        <input class="form-control form-control-sm mb-2" id="clone-cleanup-gain" type="number" step="0.1" min="0.25" max="4" value="1">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="clone-cleanup-remove-dc">
+                            <label class="form-check-label" for="clone-cleanup-remove-dc">Remove DC offset</label>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clone-cleanup-prepare">Prepare cleaned candidate</button>
+                        <div id="clone-cleanup-summary" class="form-text text-break mt-2" role="status"></div>
+                        <div id="clone-cleanup-players" hidden>
+                            <label class="form-label mb-1 mt-2" for="clone-cleanup-original">Original</label>
+                            <audio class="d-block mw-100" id="clone-cleanup-original" controls preload="none"></audio>
+                            <label class="form-label mb-1 mt-2" for="clone-cleanup-candidate">Candidate — cleanup preview (not imported)</label>
+                            <audio class="d-block mw-100" id="clone-cleanup-candidate" controls preload="none"></audio>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="clone-cleanup-listened-original"><label class="form-check-label" for="clone-cleanup-listened-original">I listened to the Original</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="clone-cleanup-listened-candidate"><label class="form-check-label" for="clone-cleanup-listened-candidate">I listened to the Candidate</label></div>
+                            <button type="button" class="btn btn-primary btn-sm" id="clone-cleanup-accept">Accept cleaned candidate</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="clone-cleanup-reject">Discard preview</button>
+                            <div class="form-text">ASR, speaker identity and naturalness are UNMEASURED. Accepting creates a new voice; your current selection does not change until you choose it.</div>
+                        </div>
+                    </fieldset>
+                    <div class="form-text mt-2">The clip is converted to 24 kHz mono and refused if it is under 3 s, over 30 s, clipped, or mostly silence. Cleanup only adjusts gain and optional DC offset over the full clip; it never trims.</div>
                 </div>
                 <div class="modal-footer py-2">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>

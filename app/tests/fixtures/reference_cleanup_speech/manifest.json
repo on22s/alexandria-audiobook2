@@ -1,0 +1,24 @@
+{
+    "sample_rate":  24000,
+    "asr":  "UNMEASURED",
+    "controls":  [
+                     {
+                         "requested_transcript":  "The red lantern shines beside the quiet river today.",
+                         "sha256":  "3f5e8c0a7170e41eb10182bad91e0ce9d7fba99afbffc045a85a083777a697c3",
+                         "file":  "original.wav"
+                     },
+                     {
+                         "requested_transcript":  "The blue lantern shines beside the quiet river today.",
+                         "sha256":  "2eb6e71c328055ebe73b766a4aba306035b7af535758796e30324f56895d4094",
+                         "file":  "changed-word.wav"
+                     }
+                 ],
+    "source":  "Locally generated synthetic test speech, not a private or recorded human voice",
+    "subtype":  "PCM_16",
+    "generator":  "generate.ps1",
+    "voice":  "Microsoft David Desktop",
+    "changed_word":  [
+                         "red",
+                         "blue"
+                     ]
+}
