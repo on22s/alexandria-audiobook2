@@ -1050,15 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T19:45:18",
+  "written": "2026-11-05T19:48:15",
   "host": "RealMitch",
   "git": {
-   "commit": "d6b1201c8d64fc8fb9af0c62d9b86b60f6c2bcf7",
+   "commit": "403abb26f6f6bb47dbfde429bda17d72f8e1b0f8",
    "branch": "feat/1724-single-narrator-final",
-   "dirty": false,
-   "source_state": "clean",
+   "dirty": true,
+   "source_state": "dirty:79ae3328e185",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    " M app/api_contract/openapi.json",
+    " M app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
