@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T12:15:08",
+  "written": "2026-11-05T18:21:15",
   "host": "RealMitch",
   "git": {
-   "commit": "a066589e5611037c783a2da818823dc38230a6a9",
-   "branch": "fix/1710-evaluation-device",
+   "commit": "71bdf5636f291b4e6722da869940ee036a0055d4",
+   "branch": "feat/1718-reason-aware-retry",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

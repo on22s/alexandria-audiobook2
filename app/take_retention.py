@@ -27,6 +27,8 @@ _CAPTURED_FIELDS = ('text', 'speaker', 'instruct', 'take', 'audio_revision',
 def get_captured_take(row):
     from project import get_chunk_generation_inputs
     captured = {key: copy.deepcopy(row.get(key)) for key in _CAPTURED_FIELDS}
+    if row.get('speech_retry_attempts') is not None:
+        captured['speech_retry_attempts'] = copy.deepcopy(row['speech_retry_attempts'])
     captured['generation_inputs'] = copy.deepcopy(get_chunk_generation_inputs(row))
     captured['provenance'] = 'selected artifact snapshot; exact generation dependencies not certified'
     return captured

@@ -1939,7 +1939,7 @@
                 window.setTtsCapabilityModes?.(config.capabilities?.tts_modes);
                 window.setSynthesisWindowControls?.(config.tts?.synthesis_windows, config.capabilities?.tts_modes);
                 window.setSynthesisRecoveryControls?.(config.tts?.synthesis_recovery);
-                window.setSpeechVerificationControls?.(config.tts?.speech_verification);
+                window.setSpeechVerificationControls?.(config.tts?.speech_verification, config.tts?.speech_retry);
                 // Local/Remote LLM profiles: keep both in memory, show the active one.
                 llmProfiles.local = config.llm_local || config.llm || {base_url:'', api_key:'local', model_name:''};
                 llmProfiles.remote = config.llm_remote || {base_url:'', api_key:'local', model_name:''};
