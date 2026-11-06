@@ -132,7 +132,7 @@ def apply_saved_narration_markup(manager, index, expected_book_token, expected_u
             if preview["pause_after"] is not None and decision != "keep":
                 updated["pause_after"] = preview["pause_after"]
             updated.update(status="pending", audio_path=None, error=None)
-            for key in ("drift", "outlier", "speech_verification", "word_timing"):
+            for key in ("drift", "outlier", "speech_verification", "speech_retry_attempts", "word_timing"):
                 if key in updated:
                     updated[key] = None
             result = _get_result_digest(updated)

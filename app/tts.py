@@ -40,6 +40,7 @@ from synthesis_recovery_context import (ensure_synthesis_recovery_batch_parent,
                                         get_synthesis_batch_output_path)
 from synthesis_settings import get_enabled_synthesis_recovery_settings
 from speech_verification_settings import get_enabled_speech_verification_settings
+from speech_retry import SEED_STEP, get_enabled_speech_retry_settings, get_speech_retry_budget
 from synthesis_input import (ensure_speech_input_capture, is_speech_input_capture_active,
     capture_speech_input, get_captured_speech_input, promote_speech_input, capture_composite_speech_input)
 from synthesis_recovery_serving import (ensure_native_recovery_serving_current,
@@ -364,7 +365,7 @@ def get_pronunciation_render_context(voices, chunk, index, model_settings, *, so
             for key, value in context.items()}
 
 
-CHUNK_SEED_PRIME = 1_000_003
+CHUNK_SEED_PRIME = SEED_STEP
 
 
 def get_chunk_seed(text, take=0):
@@ -873,6 +874,7 @@ class TTSEngine:
         # evidence identity returned by get_model_settings.
         self._synthesis_recovery = get_enabled_synthesis_recovery_settings(tts_config.get("synthesis_recovery"))
         self._speech_verification = get_enabled_speech_verification_settings(tts_config.get('speech_verification'))
+        self._speech_retry = get_enabled_speech_retry_settings(tts_config.get('speech_retry'))
         from external_tts_client import get_external_tts_urls, get_external_tts_settings
         external_settings = get_external_tts_settings(tts_config)
         self._url = external_settings['url']
@@ -2038,6 +2040,9 @@ class TTSEngine:
     def get_speech_verification_policy(self):
         return copy.deepcopy(getattr(self, '_speech_verification', None))
 
+    def get_speech_retry_policy(self):
+        return copy.deepcopy(getattr(self, '_speech_retry', None))
+
     def _get_synthesis_window_plan(self, text, category, voice_data=None, voice_config=None):
         settings = getattr(self, "_synthesis_windows", None)
         if settings is None:
@@ -2198,6 +2203,10 @@ class TTSEngine:
         staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
         cancelled = threading.Event()
         deadline = time.monotonic() + self._external_timeout
+        retry_budget = get_speech_retry_budget()
+        if retry_budget is not None:
+            retry_budget.check_active()
+            deadline = min(deadline, retry_budget.deadline)
         capture_inputs = is_speech_input_capture_active()
 
         def work():

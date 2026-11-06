@@ -1517,9 +1517,14 @@
 <details class="settings-advanced mb-3" id="speech-verification-settings">
     <summary>Generated speech checks (experimental)</summary>
     <div class="form-check mt-2 mb-2">
-        <input class="form-check-input" type="checkbox" id="speech-verification-enabled" disabled>
+        <input class="form-check-input" type="checkbox" id="speech-verification-enabled" disabled onchange="{updateSpeechRetryControls();}">
         <label class="form-check-label" for="speech-verification-enabled">Check new takes for missing or extra speech</label>
     </div>
+    <div class="form-check mt-2 mb-2">
+        <input class="form-check-input" type="checkbox" id="speech-retry-enabled" disabled title="Retry once when finished speech evidence corroborates missing or extra speech" onchange="{updateSpeechRetryControls();}">
+        <label class="form-check-label" for="speech-retry-enabled">Retry once when finished speech checks corroborate missing or extra speech</label>
+    </div>
+    <p class="form-text">Off by default and requires the speech checks above to be enabled. Save Configuration to apply. When enabled, one additional synthesis attempt may follow finished evidence that corroborates missing or extra speech. Unavailable, acoustic-review, or unknown results never trigger a retry: the attempt is refused and any prior take is kept, and a line with no prior take ends in error with no audio for that attempt. Turn this off to publish a labelled take when the verifier cannot complete. Native batches run one line at a time.</p>
     <p class="form-text">Off by default. Save Configuration to check subsequent renders against the exact text sent for synthesis. A confirmed material defect rejects the new attempt and keeps the prior take. Review differences and unavailable checks in the Editor.</p>
     <p class="form-text">Initial coverage: English mono audio with the installed Linux CPU whisper.cpp bundle. Uses cached Small.en and, for suspicious results, a distinct Large-v3 model. Checks can add substantial time and RAM. Short lines also receive a bounded acoustic check. Unsupported inputs or missing resources report unavailable. No models are downloaded automatically; listening review is still needed.</p>
 </details>
