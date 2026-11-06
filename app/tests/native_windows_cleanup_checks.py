@@ -1,0 +1,263 @@
+"""Explicit native Windows cleanup checks; other hosts refuse before app imports."""
+import sys
+
+if sys.platform != 'win32':
+    print('Native Windows cleanup checks require Windows; nothing was verified.', file=sys.stderr)
+    raise SystemExit(2)
+
+import contextlib
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import time
+import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import verify_release as verifier
+import run_isolated_api_tests as runner
+from subprocess_ownership import is_subprocess_tree_running, start_owned_subprocess
+
+
+def _base_python():
+    return getattr(sys, '_base_executable', None) or sys.executable
+
+
+class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
+    def _start_owned_sleep(self, termination_grace=1, **extra):
+        return start_owned_subprocess(
+            [_base_python(), "-c", "import time; time.sleep(30)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            creationflags=(
+                subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+            ),
+            termination_grace=termination_grace,
+            **extra,
+        )
+
+    def _close_owned(self, proc):
+        control = getattr(proc, "_alexandria_control", None)
+        if control is not None:
+            control.close()
+        proc.wait(timeout=3)
+        if proc.stdout is not None:
+            proc.stdout.close()
+
+    def test_verifier_stop_process_group_honors_full_grace_then_forces(
+        self,
+    ):
+        unrelated = subprocess.Popen(
+            [_base_python(), "-c", "import time; time.sleep(30)"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        proc = None
+        try:
+            proc = self._start_owned_sleep(termination_grace=1)
+            time.sleep(0.3)
+            self.assertTrue(is_subprocess_tree_running(proc))
+            started = time.monotonic()
+            # Must not raise the spurious Windows taskkill OSError that
+            # masks the real result. Must honor the full 1s grace (no
+            # early force at ~0.08s) before the exact Job force tail.
+            verifier.stop_process_group(proc, timeout=1)
+            elapsed = time.monotonic() - started
+            self.assertGreaterEqual(elapsed, 0.7, "forced before full grace")
+            self.assertLess(elapsed, 3.0, "did not bound cleanup")
+            self.assertFalse(
+                is_subprocess_tree_running(proc),
+                "owned tree still running after stop",
+            )
+            self.assertIsNotNone(proc.poll(), "supervisor not reaped")
+            self.assertIsNone(
+                unrelated.poll(), "unrelated process was signaled"
+            )
+        finally:
+            if proc is not None:
+                self._close_owned(proc)
+            if unrelated.poll() is None:
+                unrelated.terminate()
+                unrelated.wait(timeout=3)
+            else:
+                unrelated.wait(timeout=3)
+
+    def test_isolated_server_finally_does_not_mask_success(self):
+        # Stand in for the uvicorn server with an owned headless sleeper.
+        # Readiness + suite are mocked; only the finally stop/close under
+        # test is real. Before the fix the graceful taskkill OSError with
+        # no original error re-raises and main() fails despite suite rc 0.
+        unrelated = subprocess.Popen(
+            [_base_python(), "-c", "import time; time.sleep(30)"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        server = None
+        try:
+            server = self._start_owned_sleep(termination_grace=1)
+            time.sleep(0.3)
+            # Keep native taskkill and Job cleanup real while shortening
+            # the runner's ten-second grace for this disposable fixture.
+            real_stop = runner.stop_owned_subprocess
+            real_run = runner.subprocess.run
+
+            def bounded_stop(process, timeout=10, **kwargs):
+                # Keep the caller's escalation policy (force flag must be
+                # preserved) but bound grace to 1s for a focused test.
+                return real_stop(process, timeout=1, **kwargs)
+
+            def suite_or_real_run(command, **kwargs):
+                # Only the suite call is faked. The graceful taskkill
+                # subprocess.run must stay real or this test mocks away
+                # the very failure it reproduces.
+                if "tests.test_api" in [str(c) for c in command]:
+                    return SimpleNamespace(returncode=0)
+                return real_run(command, **kwargs)
+
+            class _CM:
+                def __enter__(self):
+                    return None
+
+                def __exit__(self, *a):
+                    return False
+
+            with (
+                patch.object(
+                    runner,
+                    "start_owned_subprocess",
+                    return_value=server,
+                ),
+                patch.object(
+                    runner, "get_isolated_server_port", return_value=18765
+                ),
+                patch.object(
+                    runner,
+                    "urlopen",
+                    return_value=_CM(),
+                ),
+                patch.object(
+                    runner.subprocess,
+                    "run",
+                    side_effect=suite_or_real_run,
+                ),
+                patch.object(runner, "stop_owned_subprocess", side_effect=bounded_stop),
+                patch.object(
+                    runner,
+                    "use_private_cpu_fixture_lock",
+                    return_value=contextlib.nullcontext(),
+                ),
+            ):
+                result = runner.main([])
+            self.assertEqual(0, result, "cleanup masked the passing suite")
+            self.assertFalse(is_subprocess_tree_running(server))
+            self.assertIsNotNone(server.poll())
+            self.assertIsNone(unrelated.poll(), "unrelated process was signaled")
+        finally:
+            if server is not None:
+                self._close_owned(server)
+            if unrelated.poll() is None:
+                unrelated.terminate()
+                unrelated.wait(timeout=3)
+            else:
+                unrelated.wait(timeout=3)
+
+    def test_job_graceful_request_still_reports_headless_failure_loudly(self):
+        # Guard against over-suppression: the Job-layer graceful request
+        # itself must still raise (not silently succeed) for a headless
+        # console child. The caller-level escalation must not change that.
+        from windows_subprocess_job import WindowsSubprocessJob
+
+        child = subprocess.Popen(
+            [_base_python(), "-c", "import time; time.sleep(30)"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        job = WindowsSubprocessJob()
+        try:
+            job.apply_process_membership(int(child._handle))
+            with self.assertRaisesRegex(
+                OSError, "Windows taskkill failed for job member"
+            ):
+                job.request_termination(owner_pid=999999, timeout=2)
+            job.terminate()
+            job.ensure_stopped()
+            self.assertEqual(0, job.get_active_process_count())
+            child.wait(timeout=5)
+        finally:
+            job.close()
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=3)
+
+    def test_detached_descendant_is_stopped_by_job_force_tail(self):
+        # Kernel-membership proof: a detached descendant (new session) must
+        # not survive the Job force tail. Worker records its child pid.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pid_path = root / "child.pid"
+            worker = (
+                "import subprocess,sys,time,pathlib;"
+                "c=subprocess.Popen([sys.executable,'-c',"
+                "'import time;time.sleep(30)'],start_new_session=True,"
+                "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);"
+                "pathlib.Path(sys.argv[1]).write_text(str(c.pid));"
+                "time.sleep(30)"
+            )
+            unrelated = subprocess.Popen(
+                [_base_python(), "-c", "import time; time.sleep(30)"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            proc = None
+            try:
+                proc = start_owned_subprocess(
+                    [_base_python(), "-c", worker, str(pid_path)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    ),
+                    termination_grace=1,
+                )
+                deadline = time.monotonic() + 10
+                child_pid = None
+                while time.monotonic() < deadline:
+                    if pid_path.exists():
+                        child_pid = int(pid_path.read_text())
+                        break
+                    if proc.poll() is not None:
+                        break
+                    time.sleep(0.05)
+                self.assertIsNotNone(child_pid, "detached child not started")
+                job = proc._alexandria_windows_owner.job
+                self.assertIn(child_pid, job.get_process_ids(), 'child was never admitted')
+                verifier.stop_process_group(proc, timeout=1)
+                self.assertEqual([], job.get_process_ids())
+                self.assertEqual(0, job.get_active_process_count())
+                self.assertFalse(is_subprocess_tree_running(proc))
+                self.assertIsNone(unrelated.poll())
+            finally:
+                if proc is not None:
+                    self._close_owned(proc)
+                if unrelated.poll() is None:
+                    unrelated.terminate()
+                    unrelated.wait(timeout=3)
+                else:
+                    unrelated.wait(timeout=3)
+
+
+def main():
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    return 0 if result.wasSuccessful() and result.testsRun == 4 and not result.skipped else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

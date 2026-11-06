@@ -378,6 +378,11 @@ does and, where there is a measurement, what we recommend and why. Escape dismis
 
 ### 2 · Script
 
+- **Calibre OPDS catalog** (optional): explicitly browse one configured catalog,
+  preview a supported EPUB's provider metadata, capture it, then confirm import.
+  Choose the imported file from existing uploads to select it. Catalog credentials
+  stay in the local OS credential store; cross-origin destinations need exact
+  review. See [Calibre OPDS import](docs/calibre-opds.md) for limits and recovery.
 - **DOCX preview**: single-book DOCX policy v2 imports require an exact text preview
   and explicit acceptance. The original archive, derived TXT and binding receipt
   are retained separately. Unsupported Word structures are refused; ordinary

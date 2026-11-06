@@ -33,7 +33,7 @@ from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
 from diagnostics import redact_text
@@ -1393,6 +1393,180 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                 raise cleanup_cancelled
         finally:
             storage_lock.__exit__(None, None, None)
+
+# --- Calibre OPDS import (thin wrapper; service lazy-singleton keyed by DATA_DIR,
+# injectable in tests via ``_calibre_services``; no networking in construction) ---
+
+from calibre_catalog import CatalogError as _CalibreCatalogError
+from calibre_import import ImportRefused as _CalibreImportRefused
+from fastapi import Query as _CalibreQuery
+
+_calibre_services = {}
+_calibre_services_lock = threading.Lock()
+
+
+def _get_calibre_pair():
+    with _calibre_services_lock:
+        pair = _calibre_services.get(DATA_DIR)
+        if pair is None:
+            from calibre_catalog import CalibreCatalogService
+            from calibre_import import CalibreImportService
+            catalog = CalibreCatalogService(DATA_DIR)
+            service = CalibreImportService(DATA_DIR, catalog=catalog,
+                                           max_upload_bytes=MAX_SCRIPT_UPLOAD_BYTES)
+            pair = (catalog, service)
+            _calibre_services[DATA_DIR] = pair
+        return pair
+
+
+def _calibre_error(exc):
+    raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
+
+class CalibreConfigRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    root_url: Optional[str] = Field(default=None, max_length=2048)
+    username: Optional[str] = Field(default=None, max_length=200)
+    password: Optional[Any] = Field(default=None)
+
+
+class CalibreTokenRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    token: str = Field(pattern=r'^[0-9a-f]{32}$')
+
+
+class CalibreImportRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confirmation_token: str = Field(pattern=r'^[0-9a-f]{32}$')
+    sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+@router.get("/api/calibre/config")
+async def get_calibre_config():
+    catalog, _service = _get_calibre_pair()
+    return await asyncio.to_thread(catalog.get_config)
+
+
+@router.post("/api/calibre/config")
+async def save_calibre_config(request: CalibreConfigRequest):
+    catalog, service = _get_calibre_pair()
+    if request.password is not None and not isinstance(request.password, str):
+        raise HTTPException(status_code=400, detail='Password must be a string.')
+    try:
+        result = await asyncio.to_thread(
+            catalog.save_config, request.root_url, request.username, request.password)
+    except _CalibreCatalogError as exc:
+        _calibre_error(exc)
+    service.on_config_changed()
+    return result
+
+
+@router.post("/api/calibre/browse-root")
+async def calibre_browse_root():
+    catalog, _service = _get_calibre_pair()
+    try:
+        return await asyncio.to_thread(catalog.browse_root_page)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.post("/api/calibre/browse-next")
+async def calibre_browse_next(request: CalibreTokenRequest):
+    catalog, _service = _get_calibre_pair()
+    try:
+        return await asyncio.to_thread(catalog.browse_next_page, request.token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.get("/api/calibre/preview")
+async def calibre_preview(preview_token: str = _CalibreQuery(pattern=r'^[0-9a-f]{32}$')):
+    catalog, _service = _get_calibre_pair()
+    try:
+        # Pure server-held metadata only; explicit capture is the sole EPUB action.
+        return await asyncio.to_thread(catalog.get_metadata_preview, preview_token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.post("/api/calibre/review/approve")
+async def calibre_review_approve(request: CalibreTokenRequest):
+    catalog, _service = _get_calibre_pair()
+    try:
+        return await asyncio.to_thread(catalog.approve_review, request.token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.post("/api/calibre/capture")
+async def calibre_capture(request: CalibreTokenRequest):
+    catalog, service = _get_calibre_pair()
+    try:
+        review = await asyncio.to_thread(catalog.request_capture_review, request.token)
+        if review.get("review_required"):
+            return review
+        job_token = await asyncio.to_thread(service.start_capture, request.token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+    return {"job_token": job_token, "status": "capturing"}
+
+
+@router.get("/api/calibre/capture/status")
+async def calibre_capture_status(job_token: str = _CalibreQuery(pattern=r'^[0-9a-f]{32}$')):
+    _catalog, service = _get_calibre_pair()
+    try:
+        await asyncio.to_thread(service.purge_expired)
+        return await asyncio.to_thread(service.get_capture_status, job_token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.post("/api/calibre/capture/cancel")
+async def calibre_capture_cancel(request: CalibreTokenRequest):
+    _catalog, service = _get_calibre_pair()
+    try:
+        return await asyncio.to_thread(service.cancel_capture, request.token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+@router.post("/api/calibre/capture/discard")
+async def calibre_capture_discard(request: CalibreTokenRequest):
+    _catalog, service = _get_calibre_pair()
+    try:
+        return await asyncio.to_thread(service.discard_capture, request.token)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
+
+async def _calibre_upload_through_authority(raw_bytes, synthetic_name):
+    """Handoff the verified immutable snapshot to the upload authority."""
+    import io as _io
+    handle = _io.BytesIO(raw_bytes)
+    try:
+        upload = UploadFile(file=handle, filename=synthetic_name)
+        return await upload_file(file=upload, select_active=False,
+                                 include_extraction_report=True,
+                                 docx_preview=False, docx_confirmed=False,
+                                 docx_preview_digest=None)
+    finally:
+        try:
+            handle.close()
+        except Exception:
+            pass
+
+
+@router.post("/api/calibre/import")
+async def calibre_import(request: CalibreImportRequest):
+    _catalog, service = _get_calibre_pair()
+    def uploader(raw_bytes, synthetic_name):
+        return asyncio.run(_calibre_upload_through_authority(raw_bytes, synthetic_name))
+    try:
+        return await asyncio.to_thread(service.import_confirmed, request.confirmation_token,
+                                       request.sha256, uploader)
+    except (_CalibreCatalogError, _CalibreImportRefused) as exc:
+        _calibre_error(exc)
+
 
 class GenerateScriptRequest(BaseModel):
     strip_front_matter: bool = True

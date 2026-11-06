@@ -78,7 +78,7 @@ print('PORT_OWNERSHIP='+json.dumps({'port':runner.get_isolated_server_port(Path(
                      patch.object(runner.subprocess,'run',side_effect=AssertionError('failed startup reached suite')):
                     with self.assertRaises(expected):runner.main([])
                 self.assertFalse(observed['root'].exists())
-                stop.assert_called_once_with(server,timeout=10)
+                stop.assert_called_once_with(server,timeout=10,force_after_grace=runner.sys.platform == 'win32')
 
 
 class IsolatedApiCleanupTests(unittest.TestCase):

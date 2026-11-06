@@ -125,8 +125,8 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
             except ProcessLookupError:
                 pass
             except OSError:
-                if not force_after_grace:
-                    raise
+                # A failed force tail must reach the owner's cleanup recovery.
+                raise
     if force_after_grace:
         process.wait()
     else:

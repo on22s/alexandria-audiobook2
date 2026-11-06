@@ -112,7 +112,8 @@ def main(argv=None):
             original_error = sys.exc_info()[1]
             try:
                 try:
-                    stop_owned_subprocess(server, timeout=10)
+                    stop_owned_subprocess(server, timeout=10,
+                                          force_after_grace=sys.platform == 'win32')
                 finally:
                     control = getattr(server, "_alexandria_control", None)
                     if control is not None:
