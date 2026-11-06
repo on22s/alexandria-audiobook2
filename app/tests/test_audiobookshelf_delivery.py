@@ -901,10 +901,24 @@ class DeliveryTests(unittest.TestCase):
         finally:
             session.close()
 
-    def test_real_backend_structurally_qualified(self):
+    def test_unavailable_real_keyring_backend_refuses_before_secret_access(self):
         import keyring
-        backend = keyring.get_keyring()
-        self.assertTrue(delivery._is_secure_backend(backend))
+        from keyring.backends.fail import Keyring
+        # A real headless backend is valid on CI; it must fail closed rather
+        # than requiring the test machine to have an unlocked native store.
+        with patch.object(delivery, '_get_keyring', return_value=keyring), \
+                patch.object(keyring, 'get_keyring', return_value=Keyring()), \
+                patch.object(keyring, 'set_password') as store, \
+                patch.object(keyring, 'get_password') as read, \
+                patch.dict(os.environ, {delivery.ENV_KEY_NAME: '', delivery.ENV_SERVER_NAME: ''}):
+            for operation in (lambda: delivery.save_api_key(self.base, 'synthetic-secret'),
+                              lambda: delivery.get_api_key(self.base)):
+                with self.assertRaises(delivery.DeliveryError) as caught:
+                    operation()
+                self.assertEqual(503, caught.exception.status)
+                self.assertNotIn('synthetic-secret', str(caught.exception))
+            store.assert_not_called()
+            read.assert_not_called()
 
     def test_stalled_socket_is_bounded_by_timeout(self):
         self.server.mode = 'stall'
