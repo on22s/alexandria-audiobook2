@@ -9,7 +9,7 @@ class SavedScriptHydrationTests(unittest.TestCase):
         source = Path(__file__).resolve().parent.parent / 'static/js/app-scripts.js'
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');const posts=[],events=[],toasts=[];
-const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},applyCurrentBookFilename:name=>events.push(name),showToast:(...args)=>toasts.push(args)};
+const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,currentBookFilename:'',API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},applyCurrentBookFilename:name=>{events.push(name);ctx.currentBookFilename=name;ctx.window._selectedUploadIdentity=null;},showToast:(...args)=>toasts.push(args)};
 for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadChunks','refreshVoiceMetadata','loadVoices','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
 ctx.window=ctx;vm.createContext(ctx);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript('),source.indexOf('async function deleteScript(name)')),ctx);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
@@ -20,6 +20,64 @@ const e=ctx.loadScript('E');await turn();posts[4].reject(Error('current error'))
 '''
         result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_invalid_load_token_sets_unavailable_identity_not_adoption(self):
+        # DS3074 fail-closed: a load response with no valid identity
+        # must leave an explicit unavailable local context, so the next
+        # unscoped read cannot adopt an arbitrary server book. A later
+        # explicit reload with a valid token replaces it (recovery).
+        source = Path(__file__).resolve().parent.parent / 'static/js/app-scripts.js'
+        code = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');const source=fs.readFileSync(process.argv[1],'utf8');
+const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,showToast(){},showActionError(){},currentBookFilename:''};
+ctx.window=ctx;vm.createContext(ctx);
+let mode='invalid';const events=[];
+ctx.API={post:async(url,body)=>{return mode==='invalid'?{status:'loaded',name:body.name,book_identity_token:null}:{status:'loaded',name:body.name,book_identity_token:'c'.repeat(64)};}};
+ctx.applyCurrentBookFilename=name=>{ctx.currentBookFilename=name;ctx.window._selectedUploadIdentity=null;events.push(name);};
+for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadChunks','refreshVoiceMetadata','loadVoices','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
+const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript('),source.indexOf('async function deleteScript(name)')),ctx);
+let finished=false;process.on('beforeExit',()=>assert(finished));
+(async()=>{
+ await ctx.loadScript('B');
+ assert.deepStrictEqual(events,['B.json']);
+ assert(ctx.window._selectedUploadIdentity&&ctx.window._selectedUploadIdentity.unavailable===true&&ctx.window._selectedUploadIdentity.token===null,'invalid token must set explicit unavailable identity');
+ assert.strictEqual(ctx.window._selectedUploadIdentity.filename,'B.json');
+ mode='valid';
+ await ctx.loadScript('B');
+ assert.strictEqual(ctx.window._selectedUploadIdentity.token,'c'.repeat(64),'explicit reload with valid token must recover');
+ assert(!ctx.window._selectedUploadIdentity.unavailable);
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_load_ack_then_hydration_failure_reports_committed_truth(self):
+        # DS3011/DS3018: after the load POST acknowledges, a hydration
+        # failure must report loaded-but-unrefreshed, not load failed.
+        source = Path(__file__).resolve().parent.parent / 'static/js/app-scripts.js'
+        code = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');const source=fs.readFileSync(process.argv[1],'utf8');
+const errors=[],toasts=[];
+const ctx={document:{getElementById:()=>({style:{}})},console:{error(){}},showConfirm:async()=>true,flushVoiceSaves:async()=>{},ensureCastListEditsDiscardable:async()=>true,showToast:(...args)=>toasts.push(args),showActionError:(...args)=>errors.push(args),currentBookFilename:''};
+ctx.window=ctx;vm.createContext(ctx);
+ctx.API={post:async(url,body)=>{return {status:'loaded',name:body.name,book_identity_token:'c'.repeat(64)};}};
+ctx.applyCurrentBookFilename=name=>{ctx.currentBookFilename=name;ctx.window._selectedUploadIdentity=null;};
+for(const name of ['clearCastListEditor','clearCharacterAliases','resetDesignerForm','clearVoiceSuggestions','loadCharacterAliases','loadCastList','loadSavedScripts','loadDesignedVoices']){ctx[name]=async()=>{};}
+ctx.loadChunks=async()=>{};ctx.refreshVoiceMetadata=async()=>{throw new Error('hydration exploded');};ctx.loadVoices=async()=>{};
+const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function enqueueBookSelection('),core.indexOf('function getCurrentBookName(')),ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(source.indexOf('async function loadScript('),source.indexOf('async function deleteScript(name)')),ctx);
+let finished=false;process.on('beforeExit',()=>assert(finished));
+(async()=>{
+ await ctx.loadScript('B');
+ // The sliced showActionError routes through showToast: the committed
+ // truth message must appear there with the hydration detail.
+ assert(toasts.some(message=>String(message[0]).includes('Script loaded, but Voices could not be refreshed')),'committed truth must be surfaced');
+ assert(toasts.some(message=>String(message[0]).includes('hydration exploded')),'hydration detail must be preserved');
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered(self):
         source = Path(__file__).resolve().parent.parent / 'static/js/app-scripts.js'
@@ -35,7 +93,8 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'async cases must
   const context={document:{getElementById:()=>({style:{}})},console:{error:()=>{}},showConfirm:async()=>failure!=='confirm',
    ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{calls.push('flush');if(failure==='flush'){throw Error('flush failed');}},
    API:{post:async(url,body)=>{assert.equal(url,'/api/scripts/load');assert.equal(body.name,'book');calls.push('post');if(failure==='post'){throw Error('post failed');}return {name:'book'};}},
-   applyCurrentBookFilename:name=>{assert.equal(name,'book.json');calls.push('book');},
+   currentBookFilename:'',
+   applyCurrentBookFilename:name=>{assert.equal(name,'book.json');calls.push('book');context.currentBookFilename=name;context.window._selectedUploadIdentity=null;},
    clearCharacterAliases:()=>calls.push('clear-aliases'),resetDesignerForm:()=>calls.push('reset'),clearVoiceSuggestions:()=>calls.push('clear-suggestions'),
    showToast:(message,type)=>toasts.push([message,type]),
    loadCharacterAliases:show=>{assert.equal(show,false);calls.push('aliases');return new Promise(resolve=>{aliasDone=resolve;});},

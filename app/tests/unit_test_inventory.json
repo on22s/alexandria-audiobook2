@@ -1,4 +1,59 @@
 {
+  "test_1724_deepseek_repairs_v3": [
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_absent_and_inactive_malformed_legacy_stay_ordinary",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_corrupt_listing_refuses_both_files_without_writing",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_explicit_pin_and_null_always_win",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_filesystem_oserror_is_honest_refusal_not_500",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_invalid_map_refuses_before_audio_invalidation",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_null_means_absent_but_list_refuses",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_nested_versions_string_refuses_on_preview_too",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_omitted_pin_genuine_replacement_clears_p",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_omitted_pin_same_asset_path_spelling_preserves_p",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_suggestions_writer_clears_unrelated_pin_only_on_replacement",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_version_select_writer_clears_unrelated_pin_only_on_replacement",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_whitespace_alias_same_voice_no_false_approval_reset",
+    "tests.test_1724_deepseek_repairs_v3.DeepSeekRepairsV3BackendTests.test_whitespace_and_nonstring_alias_do_not_suppress_persona_states",
+    "tests.test_1724_deepseek_repairs_v3.ReadAdmissionEntryTests.test_ensure_book_state_entry_failures",
+    "tests.test_1724_deepseek_repairs_v3.ReadAdmissionEntryTests.test_lock_entry_timeout_is_busy",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_returned_identity_belongs_to_loaded_book_not_later_book",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_token_captured_under_lease_survives_interleaving_book_switch",
+    "tests.test_1724_deepseek_repairs_v3.SavedScriptLoadIdentityTests.test_unverifiable_identity_returns_none",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_both_generation_readers_refuse_swapped_parent",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_digest_only_read_requests_no_bytes",
+    "tests.test_1724_deepseek_repairs_v3.SourceParentSubstitutionTests.test_plain_source_valid_controls"
+  ],
+  "test_1724_r2_regressions": [
+    "tests.test_1724_r2_regressions.AdmissionRouteTests.test_invalid_journal_maps_to_409_no_mutation",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_adapter_id_whitespace_normalized_and_dotdot_refused",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_collection_and_workspace_unavailable_not_500",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_get_voice_rows_domain_error_not_http",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_legacy_alias_suppresses_persona_states",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_nonstring_alias_refused",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_pin_explicit_wins_on_same_id_path_move",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_proposal_amplification_bound_patched_budget",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_proposal_amplification_exact_boundary",
+    "tests.test_1724_r2_regressions.BackendSeamTests.test_snapshot_nan_is_400_not_500",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_catalog_failure_warns_after_saved",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_pending_apply_guard_during_await",
+    "tests.test_1724_r2_regressions.ControllerHarnessTests.test_source_preview_B_before_voices",
+    "tests.test_1724_r2_regressions.GuideAndEscapeJsTests.test_escape_label_executed",
+    "tests.test_1724_r2_regressions.GuideAndEscapeJsTests.test_guide_home_to_tab_container",
+    "tests.test_1724_r2_regressions.LoadFencingJsTests.test_old_last_never_publishes",
+    "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_generated_map_roundtrip_invariant",
+    "tests.test_1724_r2_regressions.ReservedNameCollectorHttpTests.test_reserved_names_roundtrip_http",
+    "tests.test_1724_r2_regressions.SourceIdentityJsTests.test_selected_upload_authoritative_over_stale_snapshot",
+    "tests.test_1724_r2_regressions.WaitingLoadCoalesceTests.test_same_book_waiter_coalesces_on_newer_load",
+    "tests.test_1724_r2_regressions.WaitingLoadRecoveryTests.test_failed_newer_load_does_not_supersede_waiter",
+    "tests.test_1724_r2_regressions.WaitingLoadRestoredTests.test_restored_tab_waiter_coalesces_on_newer_same_book_load",
+    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_legitimate_when_no_newer",
+    "tests.test_1724_r2_regressions.WaitingLoadTests.test_waiting_obsolete_does_not_supersede_newer",
+    "tests.test_1724_r2_regressions.WaitingLoadUnavailableControlTests.test_unavailable_selection_never_falls_back_to_old_snapshot"
+  ],
+  "test_1724_voice_navigation_js": [
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_guide_read_only_voices_open_writes_no_defaults",
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_ordinary_voices_navigation_still_autosaves_defaults",
+    "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_tab_load_rejections_visible_except_benign_supersession"
+  ],
   "test_action_error_guidance_js": [
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_designer_preview_failure_keeps_inputs_and_escapes_diagnostics",
     "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_export_refusal_releases_admission_without_polling_or_false_success",
@@ -1062,12 +1117,20 @@
     "tests.test_batch_path_identity.BatchPathIdentityTests.test_report_sources_match_actual_workers_and_exclude_skipped_names"
   ],
   "test_batch_prepared_sources": [
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_aba_revert_during_preparation_never_binds_changed_text_under_original_identity",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_actual_start_and_background_preflight_read_each_source_once",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_atomic_claim_rechecks_busy_state_after_preparation",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_busy_batch_refuses_before_source_preparation",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cache_hit_reuses_decoded_text_without_rereading",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_canonical_docx_crlf_cr_matches_single_and_prepared_readers",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_changed_source_revalidates_narrator_even_if_size_and_mtime_match",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_cp1252_and_utf8_decode_like_generation_preparation",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_crlf_cr_newlines_normalize_like_textio_under_raw_identity",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_hardlinked_and_missing_sources_are_refused_not_cached",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_lossy_replace_tier_refuses_before_preflight_and_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
-    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text"
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_utf16_bom_nul_refuses_before_preflight_and_dispatch"
   ],
   "test_batch_processor_preflight": [
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt",
@@ -5401,11 +5464,14 @@
   "test_generation_completion": [
     "tests.test_generation_completion.GenerationCompletionTests.test_changed_input_or_unverified_generation_preserves_previous_output",
     "tests.test_generation_completion.GenerationCompletionTests.test_changed_source_or_output_invalidates_old_manifest",
+    "tests.test_generation_completion.GenerationCompletionTests.test_hardlinked_source_with_same_bytes_refuses_completion_and_publication",
+    "tests.test_generation_completion.GenerationCompletionTests.test_incomplete_docx_group_refuses_at_initial_capture",
     "tests.test_generation_completion.GenerationCompletionTests.test_interrupted_51_entry_book_cannot_pass_complete_check",
     "tests.test_generation_completion.GenerationCompletionTests.test_malformed_status_counts_order_and_missing_evidence_reject",
     "tests.test_generation_completion.GenerationCompletionTests.test_native_publication_binds_completed_artifact_without_mutating_manifest",
     "tests.test_generation_completion.GenerationCompletionTests.test_short_complete_book_does_not_need_arbitrary_entry_minimum",
     "tests.test_generation_completion.GenerationCompletionTests.test_source_text_and_raw_hash_come_from_one_read_with_existing_newline_policy",
+    "tests.test_generation_completion.GenerationDocxGroupBindingTests.test_valid_docx_group_binds_publishes_and_verifies",
     "tests.test_generation_completion.GenerationSourceCollisionTests.test_cli_refuses_collision_before_loading_source_or_constructing_client",
     "tests.test_generation_completion.GenerationSourceCollisionTests.test_publication_refuses_source_path_aliases_without_changing_source_or_manifest"
   ],
@@ -7568,6 +7634,16 @@
     "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_stale_inputs",
     "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_wrong_book_uid_decision_and_duplicate"
   ],
+  "test_narrator_ack_preservation_js": [
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_array_revision_ack_is_unconfirmed_not_success",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_book_switch_before_send_retains_draft_with_no_write",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_card_edit_while_post_held_preserves_acknowledged_strategy",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_failed_narrator_save_then_ordinary_save_keeps_server_strategy",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_invalid_ack_revision_is_unconfirmed_not_success",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_newer_strategy_ack_then_ordinary_save_preserves_newer",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_ordinary_edit_after_ack_preserves_strategy",
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_preflight_not_sent_is_reported_not_sent_not_unknown"
+  ],
   "test_narrator_and_unknown": [
     "tests.test_narrator_and_unknown.NarratorPriorTest.test_a_narrator_who_is_not_in_the_book_is_rejected",
     "tests.test_narrator_and_unknown.NarratorPriorTest.test_first_person_awareness_allows_the_narrator_to_speak",
@@ -8393,6 +8469,12 @@
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_changed_audio_is_rejected_before_preparer_runs",
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_large_audio_hash_uses_bounded_reads_and_preserves_exact_digest",
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
+  ],
+  "test_preparer_cancel_cleanup": [
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_active_cancel_still_requests_cancellation",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_cleanup_window_cancel_refuses_but_smoke_waits_for_claim_release",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_stuck_cleanup_smoke_times_out_and_idle_cancel_is_immediate",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_wait_for_task_requires_actual_bool_false"
   ],
   "test_preparer_completed_resume": [
     "tests.test_preparer_completed_resume.PreparerCompletedResumeTests.test_blank_incomplete_and_pre_resume_words_do_not_load_model",
@@ -10421,7 +10503,9 @@
   ],
   "test_saved_script_hydration_js": [
     "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_confirmed_saved_loads_are_serialized_and_only_latest_publishes",
-    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered"
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_hydration_overlaps_but_voices_wait_for_both_and_admission_stays_ordered",
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_invalid_load_token_sets_unavailable_identity_not_adoption",
+    "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_load_ack_then_hydration_failure_reports_committed_truth"
   ],
   "test_scene_context_listening": [
     "tests.test_scene_context_listening.ArmInstructionTests.test_each_arm_sends_exactly_its_stated_instruction",
@@ -10520,6 +10604,7 @@
   ],
   "test_script_dispatch_responsiveness": [
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_api_ping_progresses_while_single_batch_and_retry_preflight_waits",
+    "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_batch_preflight_capture_refusal_maps_to_400_no_claim",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_batch_preparation_reads_each_real_source_once_and_preserves_request",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_cancelled_request_cannot_reserve_a_late_preflight_worker",
     "tests.test_script_dispatch_responsiveness.ScriptDispatchResponsivenessTests.test_single_and_batch_reject_same_unattested_narrator_without_state_mutation"
@@ -10824,7 +10909,9 @@
   "test_serialized_save_queue": [
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows",
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_voice_handlers_and_book_actions_wait_for_latest_save_or_abort_on_failure",
-    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_coalescing_failure_and_revision_acknowledgement"
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_ambiguous_history_survives_definite_retry_and_blocked_flush_surfaces_onerror",
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_coalescing_failure_and_revision_acknowledgement",
+    "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_presend_refusal_is_not_sent_but_prior_unknown_stays_ambiguous"
   ],
   "test_server_vram_release": [
     "tests.test_server_vram_release.ServerVramReleaseTests.test_shared_stage_reclaim_uses_same_polling_and_retains_dispatch_after_cap_or_unknown_telemetry",
@@ -10916,6 +11003,7 @@
     "tests.test_shared_source_encoding.SharedSourceEncodingTests.test_cp1252_snapshot_keeps_existing_single_pass_newline_normalization",
     "tests.test_shared_source_encoding.SharedSourceEncodingTests.test_missing_file_still_fails_in_both_readers",
     "tests.test_shared_source_encoding.SharedSourceEncodingTests.test_prepared_source_normalizes_line_endings_before_publisher_cleanup",
+    "tests.test_shared_source_encoding.SharedSourceEncodingTests.test_prepared_source_without_expected_sha_refuses_alias_and_hardlink",
     "tests.test_shared_source_encoding.SharedSourceEncodingTests.test_undefined_legacy_byte_remains_damage_and_trips_existing_gate"
   ],
   "test_shipped_book_lexicon_coverage": [
@@ -10937,6 +11025,121 @@
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline",
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_requires_disabled_baseline_and_equivalent_outputs"
+  ],
+  "test_single_narrator_http_ui": [
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_ambiguous_bulk_write_is_not_auto_replayed_by_reads",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_book_navigation_does_not_replay_ambiguous_bulk",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_builtin_lora_path_preserved_when_catalog_missing",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_bulk_apply_clears_active_candidate_marker",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_bulk_apply_rerenders_and_later_edit_does_not_revert",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_failed_post_save_refresh_keeps_stale_fence_until_recovery",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_inactive_alias_preserved_state_resolves_at_runtime",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_inactive_alias_target_preserved_through_real_save",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_legacy_alias_resolves_to_target_after_real_save",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_legacy_alias_roundtrip_through_real_save",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_lost_reply_after_commit_is_unknown_and_never_retried",
+    "tests.test_single_narrator_http_ui.SingleNarratorHttpUiTests.test_manifest_renamed_adapter_keeps_pin_through_collector"
+  ],
+  "test_single_narrator_source_preview": [
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_accepts_canonical_docx_group_and_refuses_foreign_root",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_accepts_real_canonical_docx_group",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_bom_and_leading_whitespace_policy",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_distinguishes_corrupt_from_missing_state",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_is_bounded_and_bound_to_active_source",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_matches_shared_generation_reader_for_cwd_relative_source",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_duplicate_or_nonfinite_state",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_empty_raw_docx_and_raw_epub",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_garbled_and_blank_text",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_hard_linked_source_as_integrity_failure",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_invisible_format_only_excerpt",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_json_source",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_missing_unsupported_and_outside_sources",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_outside_data_dir",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_refuses_swapped_source_parent",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_preview_tracks_source_and_book_changes",
+    "tests.test_single_narrator_source_preview.SingleNarratorSourcePreviewTests.test_saved_json_remains_honestly_unavailable"
+  ],
+  "test_single_narrator_voice_save": [
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_custom_clone_replacement_clears_old_lora_pin",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_malformed_source_pin_refuses",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_runtime_still_refuses_disk_q_against_pin_p",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_source_lora_with_inactive_voice_stays_pinned",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_source_pin_transfers_to_targets",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_source_pin_without_stored_path_uses_canonical_fallback",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_target_already_holding_source_pin_preserves_it",
+    "tests.test_single_narrator_voice_save.AdapterPinTransferTests.test_unpinned_source_explicitly_clears_old_target_pin",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_absent_active_and_inactive_malformed_keys_load_and_preserve",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_identity_alias_and_different_controls",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_identity_programmer_error_propagates",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_adapter_replacement_with_failing_manifest_refuses_and_preserves_all_bytes",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_malformed_active_entry_refuses_without_write",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_no_pin_key_is_not_materialized_by_metadata_only_save",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_null_active_entry_is_readable_unconfigured_and_preserves_bytes",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_top_level_malformed_map_snapshot_refuses_not_500",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_unchanged_autosave_preserves_pin_byte_identically",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_version_select_with_failing_manifest_refuses_no_writes",
+    "tests.test_single_narrator_voice_save.MalformedAndApprovalTests.test_voice_approval_reset_only_where_effective_voice_changes",
+    "tests.test_single_narrator_voice_save.SingleVoiceAssetDescriptorTests.test_direct_source_asset_still_validates_proposals",
+    "tests.test_single_narrator_voice_save.SingleVoiceAssetDescriptorTests.test_no_bulk_ready_action_or_helper",
+    "tests.test_single_narrator_voice_save.SingleVoiceAssetDescriptorTests.test_rows_have_no_single_voice_asset_metadata",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_adapter_id_only_assets_derive_canonical_path",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_alias_ensemble_versioned_and_strategised_sources_refuse",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_applied_assets_bulk_ready_despite_preserved_descriptions",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_corrupt_script_json_refuses_without_write",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_corrupt_voice_json_refuses_without_write",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_empty_strategy_same_asset_preserves_approval_and_dynamic_still_resets",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_every_asset_type_applies_one_effective_voice",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_legacy_alias_cleared_by_bulk_and_ordinary_save",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_lora_without_adapter_id_still_refuses",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_narrator_strategy_none_is_not_a_voice_change",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_non_dict_source_and_unsafe_adapter_refuse",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_preview_is_read_only_and_lists_overrides",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_raw_design_description_source_is_refused",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_response_shape_has_no_dead_payload",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_stale_revision_and_book_token_reject_preview_and_save",
+    "tests.test_single_narrator_voice_save.SingleVoicePreviewSaveTests.test_target_descriptions_are_preserved"
+  ],
+  "test_single_voice_js": [
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_5xx_save_is_unknown_not_definite",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_apply_saved_then_refresh_fails_reports_saved_truthfully",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_book_change_during_modal_refuses",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_book_switch_during_pre_flush_is_detected",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_bulk_apply_rerenders_real_cards_and_later_edit_does_not_revert",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_bulk_readiness_is_absent_and_percard_ready_preserved",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_busy_guard_gives_feedback",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_confirm_shows_clone_source_asset_and_cancel_writes_nothing",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_confirm_shows_lora_source_asset_id_path_and_pin",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_definite_refusal_preserves_detail",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_dropped_speaker_selection_is_announced",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_escape_label_covers_line_and_bidi_controls",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_excerpt_count_uses_code_points",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_legacy_alias_rendered_and_preserved",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_lost_response_after_commit_is_unknown_not_nothing",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_newer_edit_after_modal_is_preserved_not_flushed",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_newly_pending_edits_during_modal_refuse_without_flushing",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_other_tab_book_not_bulk_approved",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_other_tab_source_not_confirmed",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_post_save_loadvoices_failure_is_persisted",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_pre_flush_saved_then_preview_fails_reports_saved_edits",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preflush_lost_response_is_unknown",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_cancel_sends_no_bulk_write",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_confirm_applies_once_through_canonical_queue",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_failure_sends_no_save",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_rejects_array_voices_and_roster_mismatch",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_source_must_match_captured_source_with_own_voices_key",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_preview_supports_own_proto_source_name",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_reload_clears_binding_on_literal_change_without_event",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_source_confirmation_binds_and_clears",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_source_preview_filename_labels_are_escaped",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_source_preview_pending_fetch_discarded_on_book_switch",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_source_status_describes_snapshot_not_live_state",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_stale_source_rejection_after_new_book_success_is_ignored",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_stored_self_alias_survives_unrelated_save_and_explicit_none_clears",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_unavailable_selection_guidance_requires_book_reload_not_voices",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_unavailable_selection_refuses_server_book_before_publishing",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_unscoped_refresh_refuses_other_tab_book_and_keeps_globals",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_voices_load_populates_speaker_select",
+    "tests.test_single_voice_js.SingleVoiceJsTests.test_zero_line_speaker_modal_copy_is_honest"
   ],
   "test_snapshot_atomic_write": [
     "tests.test_snapshot_atomic_write.SnapshotAtomicWriteTests.test_failed_replacement_preserves_old_snapshot_and_cleans_temporary_file",
@@ -12193,9 +12396,11 @@
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_failed_cast_publication_restores_both_files_and_keeps_old_audio_fenced",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_suggestion",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_invalid_second_suggestion_cannot_partially_publish_or_invalidate",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_library_only_priority_nan_and_deep_refuse_before_invalidation",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_manual_persona_recovery_invalidates_changed_style_and_alias_audio",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_reapplying_identical_effective_voice_preserves_audio",
-    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only"
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_valid_finite_priority_commits_both_with_invalidation"
   ],
   "test_suggestion_candidate_queue_js": [
     "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_cast_or_book_switch_refuses_late_suggestions_and_candidate_writes",
@@ -12615,9 +12820,13 @@
   ],
   "test_task_guides": [
     "tests.test_task_guides.TaskGuideTests.test_every_guide_target_and_illustration_is_bundled",
+    "tests.test_task_guides.TaskGuideTests.test_first_book_hidden_settings_section_is_revealed_by_guide",
+    "tests.test_task_guides.TaskGuideTests.test_guide_voices_navigation_requests_read_only_load",
     "tests.test_task_guides.TaskGuideTests.test_merge_navigation_preserves_keyboard_action_and_pending_return",
     "tests.test_task_guides.TaskGuideTests.test_navigation_return_steps_and_unknown_target_are_read_only",
-    "tests.test_task_guides.TaskGuideTests.test_pending_editor_edits_block_navigation_without_saving_or_discarding"
+    "tests.test_task_guides.TaskGuideTests.test_pending_editor_edits_block_navigation_without_saving_or_discarding",
+    "tests.test_task_guides.TaskGuideTests.test_single_narrator_hidden_target_gives_visible_feedback",
+    "tests.test_task_guides.TaskGuideTests.test_single_narrator_uses_generic_guide_navigation_without_interception"
   ],
   "test_task_outcomes_js": [
     "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_all_three_recovery_callers_reject_zero_failure_and_negated_summaries",
@@ -13826,6 +14035,13 @@
     "tests.test_verify_adapter_stops.StopGateTests.test_partial_runaway_fails",
     "tests.test_verify_adapter_stops.StopGateTests.test_the_old_median_rule_passed_it"
   ],
+  "test_version_route_refusal_v28": [
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_absent_entry_approval_and_explicit_save_preserved",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_malformed_versions_routes_refuse_400_no_writes",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_null_entry_mutations_refuse_422_no_writes",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_valid_dict_history_preserved_through_timeline",
+    "tests.test_version_route_refusal_v28.VersionRouteRefusalTests.test_valid_versions_controls_still_work"
+  ],
   "test_voice_alias_saved": [
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_clearing_the_alias_in_the_tab_clears_it_in_the_file",
     "tests.test_voice_alias_saved.AliasSurvivesSaveTests.test_the_renderer_resolves_the_saved_alias",
@@ -13952,9 +14168,12 @@
   ],
   "test_voice_config_revision": [
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_book_switch_reload_source_change_and_input_selection_reject_old_book",
+    "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_deep_programmatic_map_reaches_storable_validator_before_invalidation",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_initial_empty_book_and_bad_tokens_are_handled_without_false_admission",
+    "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_nonfinite_and_deep_nesting_refuse_before_any_write",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_revision_is_order_independent_and_includes_unknown_fields_and_zero",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_stale_revision_after_another_tab_or_audit_edit_cannot_overwrite_bytes",
+    "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_storable_validator_preserves_revision_and_bounds_nesting",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_success_acknowledges_exact_revision_and_preserves_audit",
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_two_concurrent_clients_have_one_winner_for_the_same_revision"
   ],
@@ -14142,10 +14361,18 @@
   ],
   "test_voice_navigation_reuse_js": [
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_changed_revision_or_book_renders_even_with_fresh_resources",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_fresh_read_before_old_get_resolves_after_narrator_ack_fulfills_new",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_narrator_ack_before_metadata_response_never_regresses_global",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_navigation_reuses_resources_and_cards_but_checks_metadata_and_expires",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_partial_resource_failure_retries_and_save_guards_survive_reuse",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_pending_after_write_unscoped_fresh_load_fulfills_saved_new",
     "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_pending_navigation_shares_startup_load_but_explicit_refresh_stays_fresh",
-    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_real_navigation_requests_reuse_and_regular_call_still_forces"
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_post_save_load_never_stamps_old_rows_with_new_revision",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_real_navigation_requests_reuse_and_regular_call_still_forces",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_refresh_local_epoch_switch_classifies_obsolete_before_server_mismatch",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_save_narrator_strategy_ack_old_load_never_publishes_new_revision",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_snapshot_resolution_microtask_ack_never_labels_old_rows",
+    "tests.test_voice_navigation_reuse_js.VoiceNavigationReuseJsTests.test_waiter_secondary_pending_stale_after_write_falls_through_to_fresh"
   ],
   "test_voice_panel_restore_js": [
     "tests.test_voice_panel_restore_js.VoicePanelRestoreJsTests.test_preserves_completed_panels_and_rejects_pending_or_other_books"
@@ -14197,6 +14424,14 @@
     "tests.test_voice_reference_import.ReferenceImportFailureAndBoundaryTests.test_real_pcm_duration_limits_use_exact_frame_count",
     "tests.test_voice_reference_import.UploadRouteTests.test_a_valid_clip_is_normalised_and_recorded_with_provenance",
     "tests.test_voice_reference_import.UploadRouteTests.test_refusals_leave_no_file_and_no_manifest_entry"
+  ],
+  "test_voice_refresh_ux_js": [
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_seed_apply_http_refresh_failure_keeps_saved_guidance",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_seed_apply_obsolete_refresh_keeps_saved_context",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_select_then_superseded_reload_is_warning_not_failure",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_http_status_error_with_marker_stays_visible_error",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_save_ack_style_supersession_uses_same_neutral_presenter",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_server_mismatch_names_explicit_book_recovery"
   ],
   "test_voice_removal_safeguards_js": [
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_candidate_accessible_names_escape_ids_and_favourite_state",
@@ -14261,6 +14496,7 @@
   "test_voice_transport_deadline": [
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_custom_read_deadline_message_aborts_stalled_request",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_fetch_and_both_response_body_stalls_retain_drafts_and_block_load",
+    "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_snapshot_get_has_read_deadline_and_untimed_get_keeps_default_transport",
     "tests.test_voice_transport_deadline.VoiceTransportDeadlineTests.test_success_http_and_json_failures_clear_deadlines_without_changing_transport"
   ],
   "test_voice_version_inheritance_js": [
@@ -14393,12 +14629,31 @@
   "test_voices_regressions": [
     "tests.test_voices_regressions.DialogueCollectionWorkTests.test_per_character_uniqueness_is_linear_and_keeps_first_seen_order",
     "tests.test_voices_regressions.LibraryConfigShapeTests.test_unusable_config_is_not_saved_to_cast_or_changed",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_active_null_is_readable_unconfigured_without_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_deep_stored_json_refuses_400_no_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_explicit_null_source_refuses_as_unconfigured_not_malformed",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_genuine_programmer_error_still_propagates",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_active_description_and_trait_shapes_refuse_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_adapter_path_and_empty_strategy_and_long_speaker",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_design_description_refuses_400_active_and_saved",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_saved_state_description_refuses_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_malformed_versions_container_refuses_save_and_preview_no_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_null_target_apply_initializes_and_null_source_refuses",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_null_target_metadata_only_update_does_not_pick_default_voice",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_preview_deep_stored_script_refuses_400_no_writes",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_preview_proposal_recursion_error_propagates_not_masked_as_400",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_state_input_file_path_nonstring_refuses_clearly_when_consumed",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_type_activation_preview_and_ordinary_save_refuse_before_invalidation",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_unconsumed_trait_and_noncustom_description_controls",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_valid_absent_null_and_inactive_controls",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_voice_map_depth_above_shared_bound_refuses_on_any_decoder",
+    "tests.test_voices_regressions.MalformedFieldShapeTests.test_voice_map_depth_under_shared_bound_is_readable_and_preserved",
     "tests.test_voices_regressions.MissingBulkBookTests.test_missing_selected_books_report_errors_without_blocking_valid_books",
     "tests.test_voices_regressions.SuggestionSelectionMetadataTests.test_new_adapter_clears_active_markers_and_preserves_history",
     "tests.test_voices_regressions.TranscriptContainerValidationTests.test_actual_enricher_cli_refuses_bad_shapes_and_preserves_prior_output",
     "tests.test_voices_regressions.VoiceListShapeTests.test_non_object_rows_do_not_hide_valid_speakers_or_change_source",
-    "tests.test_voices_regressions.VoiceListShapeTests.test_wrong_config_shapes_use_empty_config_without_overwriting_file",
-    "tests.test_voices_regressions.VoiceListShapeTests.test_wrong_top_level_script_shapes_return_empty_list_without_writes",
+    "tests.test_voices_regressions.VoiceListShapeTests.test_wrong_config_shapes_refuse_without_overwriting_file",
+    "tests.test_voices_regressions.VoiceListShapeTests.test_wrong_top_level_script_shapes_refuse_without_writes",
     "tests.test_voices_regressions.VoiceMetadataIdentityTests.test_explicit_candidate_id_supports_replace_select_favorite_and_delete",
     "tests.test_voices_regressions.VoiceMetadataIdentityTests.test_explicit_version_age_wins_nested_config_on_save_and_select",
     "tests.test_voices_regressions.VoicesTests.test_age_parser_handles_invalid_ambiguous_and_decade_values",

@@ -613,12 +613,11 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
                 current_binding = (root / BINDING_NAME).read_bytes()
                 response = client.post('/api/scripts/save', json={'name':'alias'})
                 self.assertEqual(409, response.status_code, response.text)
-                # Isolate the later alias fence from the earlier provenance
-                # hard-link rejection, which independently protects this case.
-                with patch.object(routes, 'get_saved_publication_source_bytes', return_value=None):
-                    response = client.post('/api/scripts/save', json={'name':'alias'})
-                self.assertEqual(409, response.status_code, response.text)
-                self.assertIn('ambiguous path alias', response.json()['detail'])
+                # The hardlinked alias is refused by the earlier source/
+                # script identity fence (409, files preserved); the later
+                # ambiguous-alias fence is not reached for this case.
+                self.assertIn('The selected source or script identity changed; existing files were preserved.',
+                              response.json()['detail'])
                 self.assertEqual(edited, alias.read_bytes())
                 self.assertEqual(edited, (root / 'scripts/bound.json').read_bytes())
                 self.assertEqual(current_binding, (root / BINDING_NAME).read_bytes())

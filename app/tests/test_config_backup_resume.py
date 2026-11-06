@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE
+from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE, copy_completion_dependencies
 from tests.test_support import requires_linux_queue_tools
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -30,8 +30,7 @@ class ConfigBackupResumeTests(unittest.TestCase):
         (chains/name).chmod(0o755)
         logs=root/'ab_test_runtime/logs';logs.mkdir(parents=True)
         (root/'app/env/bin').mkdir(parents=True)
-        for module_name in ('generation_completion.py','source_encoding.py'):
-            (root/'app'/module_name).write_bytes((ROOT/'app'/module_name).read_bytes())
+        copy_completion_dependencies(root/'app', ROOT)
         inputs=root/'ab_test_runtime/results/collect_all_20260722-155801/inputs';inputs.mkdir(parents=True)
         for book in ('mushoku18','grimgar06','mushoku23','arc4_volume10wn'):
             (inputs/(book+'.txt')).write_text('CPU complete source '+book)

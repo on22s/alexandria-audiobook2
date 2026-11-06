@@ -59,9 +59,10 @@ class VoiceTransportDeadlineTests(unittest.TestCase):
   const requests=[];
   const a=client(storage,null);
   a.context.fetch=async(url,options)=>{
-   if(!options){return{ok:true,json:async()=>({revision:revision(0),book_token:book,book_id:'synthetic',voices:[],config:{}})};}
+   const method=options?.method||'GET';
+   if(url==='/api/voice_config/snapshot'){assert.strictEqual(method,'GET');return{ok:true,json:async()=>({revision:revision(0),book_token:book,book_id:'synthetic',voices:[],config:{}})};}
    if(url==='/api/scripts/load'){loadPosts++;throw Error('unexpected load');}
-   assert.strictEqual(url,'/api/voice_config/save');requests.push(options);
+   assert.strictEqual(url,'/api/voice_config/save');assert.strictEqual(method,'POST');requests.push(options);
    const success={ok:true,json:async()=>({book_token:book,revision:revision(1)})};
    if(mode==='normal'){return success;}
    if(mode==='conflict'){return{ok:false,status:409,statusText:'Conflict',json:async()=>({detail:'Voice configuration changed; reload it before saving'})};}
@@ -85,12 +86,31 @@ class VoiceTransportDeadlineTests(unittest.TestCase):
   release();await turn();await turn();
   assert(a.context.isDirty(),'late ACK cannot acknowledge an expired write');
   assert.strictEqual(getSnapshot(a.context),snapshot);assert.deepStrictEqual(fs.readFileSync(process.argv[2]),originalDraft);
-  mode='conflict';await assert.rejects(a.context.flushVoiceSaves(),/configuration changed/);
+  mode='conflict';await assert.rejects(a.context.flushVoiceSaves({explicitRetry:true}),/configuration changed/);
   assert(a.context.isDirty());assert.strictEqual(JSON.parse(requests[1].body).revision,revision(0));
   assert.deepStrictEqual(fs.readFileSync(process.argv[2]),originalDraft);
-  mode='normal';await a.context.flushVoiceSaves();
+  mode='normal';await a.context.flushVoiceSaves({explicitRetry:true});
   assert(!a.context.isDirty());assert.strictEqual(storage.length,0);assert.strictEqual(loadPosts,0);
  }
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_snapshot_get_has_read_deadline_and_untimed_get_keeps_default_transport(self):
+        self.run_node(r'''
+(async()=>{
+ const storage=storageFor(process.argv[2]),a=client(storage,null),timers=useTimers(a.context),calls=[];
+ let signal;
+ a.context.fetch=async function(url,options){calls.push({url,argc:arguments.length,options});signal=options?.signal;return await new Promise(()=>{});};
+ const pending=a.context.refreshVoiceMetadata();await turn();
+ assert.strictEqual(calls.length,1);assert.strictEqual(calls[0].url,'/api/voice_config/snapshot');
+ assert.strictEqual(calls[0].argc,2,'timed GET passes an options object');assert(signal,'timed snapshot GET must carry an AbortSignal');
+ const deadlines=[...timers.values()].filter(item=>item.delay===60000);assert.strictEqual(deadlines.length,1,'snapshot GET must own one finite 60-second deadline');
+ deadlines[0].fn();await assert.rejects(bounded(pending),/timed out/);assert(signal.aborted);assert.strictEqual(timers.size,0,'expiry retires its timer');
+ // Ordinary untimed API.get keeps the original default transport: fetch(url) with no options argument.
+ const calls2=[];a.context.fetch=async function(url,options){calls2.push({url,argc:arguments.length,options});return{ok:true,json:async()=>({answer:'ok'})};};
+ assert.strictEqual((await vm.runInContext("API.get('/synthetic-read')",a.context)).answer,'ok');
+ assert.strictEqual(calls2.length,1);assert.strictEqual(calls2[0].argc,1,'untimed GET must call fetch(url) with no options argument');assert.strictEqual(calls2[0].options,undefined);
  finished=true;
 })().catch(error=>{console.error(error);process.exitCode=1;});
 ''')

@@ -26,6 +26,83 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'asynchronous sav
         result=subprocess.run(['node','-e',code,str(STATIC/'app-core.js')],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
+    def test_ambiguous_history_survives_definite_retry_and_blocked_flush_surfaces_onerror(self):
+        code=r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync(process.argv[1],'utf8');const start=source.indexOf('function createSerializedSaveQueue('),end=source.indexOf('// --- API Helpers ---',start);assert(start>=0);
+const timers=new Map();let id=0;const context={setTimeout(fn){timers.set(++id,fn);return id;},clearTimeout(id){timers.delete(id);}};vm.runInNewContext(source.slice(start,end),context);
+let finished=false;process.on('beforeExit',()=>assert(finished,'asynchronous assertions must finish'));
+(async()=>{
+ // unknown -> explicit retry 409 (definite) -> implicit flush still blocked, no extra write
+ let mode='unknown',writes=0;const errors=[];
+ const queue=context.createSerializedSaveQueue({guardAmbiguous:true,
+  write:async()=>{writes++;if(mode==='unknown'){const e=new Error('transport lost');e.status=500;throw e;}if(mode==='definite'){const e=new Error('stale revision');e.status=409;throw e;}},
+  onError:error=>errors.push(error.message)});
+ queue.enqueue({text:'first'});
+ await assert.rejects(queue.flush(),/transport lost/);
+ assert.strictEqual(writes,1);assert(queue.isDirty());
+ mode='definite';
+ await assert.rejects(queue.flush({explicitRetry:true}),/stale revision/);
+ assert.strictEqual(writes,2,'explicit retry must send');
+ const errorsBefore=errors.length;
+ await assert.rejects(queue.flush(),/unconfirmed/,'implicit flush must stay blocked after definite retry');
+ assert.strictEqual(writes,2,'blocked implicit flush must make no write');
+ assert(errors.length>errorsBefore,'blocked outcome must surface through onError');
+ assert(queue.isDirty(),'draft must be retained while blocked');
+ // definite initial 400 remains definite: explicit retry allowed to send again is not required;
+ // a success ACK recovers.
+ mode='ok';await queue.flush({explicitRetry:true});
+ assert.strictEqual(writes,3);assert(!queue.isDirty());
+ // unknown -> new edit -> timer guard surfaces onError, retains latest draft, no write
+ let mode2='unknown',writes2=0;const errors2=[];
+ const q2=context.createSerializedSaveQueue({guardAmbiguous:true,delay:5,
+  write:async()=>{writes2++;const e=new Error('lost again');e.status=503;throw e;},
+  onError:error=>errors2.push(error.message)});
+ q2.enqueue({text:'v1'});
+ await assert.rejects(q2.flush(),/lost again/);
+ q2.enqueue({text:'v2 latest'});
+ const e2Before=errors2.length;
+ const entry=timers.entries().next().value;timers.delete(entry[0]);entry[1]();
+ await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+ assert.strictEqual(writes2,1,'timer guard must make no write');
+ assert(errors2.length>e2Before,'timer blocked outcome must surface through onError');
+ assert(q2.isDirty());
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result=subprocess.run(['node','-e',code,str(STATIC/'app-core.js')],capture_output=True,text=True,timeout=15)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
+    def test_presend_refusal_is_not_sent_but_prior_unknown_stays_ambiguous(self):
+        code=r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync(process.argv[1],'utf8');const start=source.indexOf('function createSerializedSaveQueue('),end=source.indexOf('// --- API Helpers ---',start);assert(start>=0);
+const timers=new Map();let id=0;const context={setTimeout(fn){timers.set(++id,fn);return id;},clearTimeout(id){timers.delete(id);}};vm.runInNewContext(source.slice(start,end),context);
+let finished=false;process.on('beforeExit',()=>assert(finished,'asynchronous assertions must finish'));
+(async()=>{
+ // Known pre-send refusal: zero POST, draft retained, explicit retry allowed (not ambiguous).
+ let posts=0;let mode='presend';const presend=Object.assign(new Error('before send: nothing was sent'),{voiceSaveNotSent:true});
+ const q=context.createSerializedSaveQueue({guardAmbiguous:true,write:async()=>{if(mode==='presend'){throw presend;}posts++;},onError:()=>{}});
+ q.enqueue({text:'draft'});
+ await assert.rejects(q.flush(),/nothing was sent/);
+ assert.strictEqual(posts,0);assert(q.isDirty());
+ // Prior unknown, then pre-send refusal: still ambiguous, implicit blocked, no write.
+ let mode2='unknown',writes=0;
+ const q2=context.createSerializedSaveQueue({guardAmbiguous:true,
+  write:async()=>{writes++;if(mode2==='unknown'){const e=new Error('transport lost');e.status=500;throw e;}throw presend;},onError:()=>{}});
+ q2.enqueue({text:'x'});
+ await assert.rejects(q2.flush(),/transport lost/);
+ mode2='presend';
+ await assert.rejects(q2.flush({explicitRetry:true}),/nothing was sent/);
+ assert.strictEqual(writes,2);
+ await assert.rejects(q2.flush(),/unconfirmed/,'prior unknown must survive a later pre-send refusal');
+ assert.strictEqual(writes,2);assert(q2.isDirty());
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result=subprocess.run(['node','-e',code,str(STATIC/'app-core.js')],capture_output=True,text=True,timeout=15)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
     def test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows(self):
         code=r'''
 const assert=require('assert'),fs=require('fs'),vm=require('vm');const core=fs.readFileSync(process.argv[1],'utf8'),work=fs.readFileSync(process.argv[2],'utf8'),artifact=process.argv[3];
@@ -52,7 +129,7 @@ const bookContext=core.slice(core.indexOf("let currentBookFilename = ''"),core.i
 let finished=false;process.on('beforeExit',()=>assert(finished,'voice/book action assertions must finish'));
 (async()=>{for(const operation of ['save','load','failure']){
  let value={ALICE:{description:'older'}},persisted=null,requests=0;const writes=[],gates=[],errors=[],toasts=[],elements={'voice-save-status':{innerHTML:''},'save-script-name':{value:'saved book'}};
- const context={window:{addEventListener(){},localStorage:{setItem(){},getItem(){return null;},removeItem(){}}},document:{getElementById:id=>elements[id]||(elements[id]={style:{}}),querySelectorAll:()=>[{}]},setTimeout:()=>1,clearTimeout(){},console:{error:()=>{}},collectVoiceConfig:()=>value,API:{post:async(url,body)=>{if(url!=='/api/voice_config/save'){assert.strictEqual(url,operation==='save'?'/api/scripts/save':'/api/scripts/load');requests++;assert.strictEqual(persisted.ALICE.description,'newer');return{status:'saved',name:'next'};}writes.push(body.voices);await new Promise((resolve,reject)=>gates.push({resolve,reject}));persisted=body.voices;return{status:'saved',book_token:body.book_token,revision:String(writes.length).padStart(64,'0')};}},fetch:async()=>{throw Error('book actions must use shared API');},showConfirm:async()=>true,showToast:(message,type)=>{toasts.push([message,type]);if(type==='error'){errors.push(message);}},ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},resetDesignerForm(){},clearVoiceSuggestions(){},clearCharacterAliases(){},loadCharacterAliases:async()=>{},loadChunks:async()=>{},refreshVoiceMetadata:async()=>{},loadVoices:async()=>{},loadSavedScripts(){},loadDesignedVoices(){}};
+ const context={window:{addEventListener(){},localStorage:{setItem(){},getItem(){return null;},removeItem(){}}},document:{getElementById:id=>elements[id]||(elements[id]={style:{}}),querySelectorAll:()=>[{}]},setTimeout:()=>1,clearTimeout(){},console:{error:()=>{}},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;'),collectVoiceConfig:()=>value,API:{post:async(url,body)=>{if(url!=='/api/voice_config/save'){assert.strictEqual(url,operation==='save'?'/api/scripts/save':'/api/scripts/load');requests++;assert.strictEqual(persisted.ALICE.description,'newer');return{status:'saved',name:'next'};}writes.push(body.voices);await new Promise((resolve,reject)=>gates.push({resolve,reject}));persisted=body.voices;return{status:'saved',book_token:body.book_token,revision:String(writes.length).padStart(64,'0')};}},fetch:async()=>{throw Error('book actions must use shared API');},showConfirm:async()=>true,showToast:(message,type)=>{toasts.push([message,type]);if(type==='error'){errors.push(message);}},ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},resetDesignerForm(){},clearVoiceSuggestions(){},clearCharacterAliases(){},loadCharacterAliases:async()=>{},loadChunks:async()=>{},refreshVoiceMetadata:async()=>{},loadVoices:async()=>{},loadSavedScripts(){},loadDesignedVoices(){}};
  vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(helper+saves+bookContext+actions+"_voiceSaveSnapshot={revision:\"0\".repeat(64),book_token:\"b\".repeat(64),book_identity_token:\"b\".repeat(64)};",context);context.saveVoicesDebounced();const initial=context.flushVoiceSaves().catch(()=>{});value={ALICE:{description:'newer'}};context.saveVoicesDebounced();const action=operation==='save'?context.saveScript():context.loadScript('next');await new Promise(resolve=>setImmediate(resolve));assert.strictEqual(requests,0);assert.strictEqual(writes.length,1);
  if(operation==='failure'){gates.shift().reject(new Error('fixture failed save'));await Promise.all([action,initial]);assert.strictEqual(requests,0);assert.strictEqual(writes.length,1);assert(elements['voice-save-status'].innerHTML.includes('save failed'));assert.strictEqual(errors.length,1);continue;}
  gates.shift().resolve();await new Promise(resolve=>setImmediate(resolve));assert.strictEqual(writes.length,2);assert.strictEqual(requests,0);assert(!elements['voice-save-status'].innerHTML.includes('>saved'),'older acknowledgement cannot show saved');gates.shift().resolve();await Promise.all([action,initial]);assert.strictEqual(requests,1);assert.strictEqual(errors.length,0);if(operation==='load'){assert.strictEqual(context.getCurrentBookName(),'next');assert(toasts.some(([message,type])=>message.includes('loaded')&&type==='success'));}

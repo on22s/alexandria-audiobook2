@@ -15,9 +15,9 @@ function client(){
  const ctx={currentBookFilename:'',ensureVoiceRosterCache:()=>{},window:null,performance:{now:()=>0},document:{getElementById:el},console:{debug:(...args)=>debug.push(args)},API:{get:url=>{reads.push(url);const gate=deferred();gates.set(url,gate);return gate.promise;}},
  voiceSaveQueue:{flush:()=>saveGate.promise,getRevision:()=>revision,isDirty:()=>dirty},renderVoiceDrafts(){},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},saveVoicesDebounced(){throw Error('unexpected default save');},
  createVoiceCard:voice=>{draws.push(voice);return `<card>${voice.name}:${ctx._designedVoicesCache[0].id}:${ctx._cloneVoicesCache[0].id}:${ctx._loraModelsCache[0].id}</card>`;}};ctx.window=ctx;
- vm.createContext(ctx);const load=(a,b)=>{const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),ctx);};
+ vm.createContext(ctx);const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
  load('function getVoiceCardMetadata(', 'function createVoiceCard(');
- load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves()', 'async function discardVoiceEditsAndReload()');
+ load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
  vm.runInContext('let _voiceSaveSnapshot=null;let _voiceRecoveryDrafts=[];',ctx);
  ctx.loadCastLibrary=async()=>{const lib=await ctx.API.get('/api/voice_library');ctx._lineCounts={Alice:lib.count};};
  ctx._designedVoicesCache=[{id:'old-design'}];ctx._cloneVoicesCache=[{id:'old-clone'}];ctx._loraModelsCache=[{id:'old-lora'}];

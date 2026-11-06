@@ -127,7 +127,11 @@ def wait_for_task(task, timeout=120, poll_interval=2):
         r = get(f"/api/status/{task}", timeout=10)
         last_status_code = r.status_code
         last_body = r.text[:200]
-        if r.status_code == 200 and not r.json().get("running"):
+        # Owned-idle requires an ACTUAL boolean False: a missing/null/
+        # non-bool running flag in a malformed 200 body must never
+        # falsely pass the final bounded cleanup proof (the production
+        # status contract is always bool from core.is_task_running).
+        if r.status_code == 200 and r.json().get("running") is False:
             return True
         time.sleep(poll_interval)
     if last_status_code != 200:
@@ -1086,8 +1090,14 @@ def test_batch_preparer_cancel():
             raise TestFailure(f"Unexpected cancellation refusal: {r.text[:200]}")
         state = get("/api/status/batch_preparer")
         assert_status(state, 200)
-        if state.json().get("running") is not False:
-            raise TestFailure("Idle cancellation refusal left a running batch preparer")
+        # The owned-liveness status may legitimately still report
+        # running here: the claimed worker sets raw running=False
+        # before finish_run/cleanup and claim release. Only its TYPE
+        # is asserted instantaneously; the bounded wait_for_task below
+        # requires the final owned-idle/lock release (and fails on
+        # timeout), so no stuck cleanup can pass as idle.
+        if not isinstance(state.json().get("running"), bool):
+            raise TestFailure("Status endpoint must report a boolean running flag")
     else:
         assert_status(r, 200)
         if r.json().get("status") != "cancel_requested":

@@ -1,6 +1,5 @@
 """Native source files through batch start/background sizing; no generation subprocess."""
 import asyncio
-import builtins
 import copy
 from contextlib import ExitStack, nullcontext
 import importlib.util
@@ -27,17 +26,24 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
         context.start();self.addCleanup(context.stop)
 
     def test_actual_start_and_background_preflight_read_each_source_once(self):
+        # One FULL text/decode capture per source (include_bytes=True
+        # through the confined seam); digest-only revalidations
+        # (include_bytes=False) are the separate cache checks and are
+        # counted separately — this is not claimed as one physical read.
+        import script_selection_binding
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             root = Path(tmp); uploads = root/'uploads'; uploads.mkdir(); scripts = root/'scripts'; scripts.mkdir()
             sources = [uploads/'first.txt', uploads/'second.txt']
             for path in sources:
                 path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
             request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename=p.name) for p in sources])
-            before = request.model_dump(); reads = []; actual_open = builtins.open
-            def observed(file, *args, **kwargs):
-                if str(file) in [str(p) for p in sources]:
-                    reads.append(str(file))
-                return actual_open(file,*args,**kwargs)
+            before = request.model_dump()
+            full_captures = []; digest_captures = []
+            actual_capture = script_selection_binding._capture_raw_source
+            def observed_capture(path, **kwargs):
+                bucket = full_captures if kwargs.get('include_bytes') else digest_captures
+                bucket.append(str(path))
+                return actual_capture(path, **kwargs)
             stack.enter_context(patch.object(script,'UPLOADS_DIR',str(uploads)))
             stack.enter_context(patch.object(script,'SCRIPTS_DIR',str(scripts)))
             stack.enter_context(patch.object(script,'ensure_book_state',side_effect=lambda *args:nullcontext()))
@@ -46,14 +52,16 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             stack.enter_context(patch.object(script,'ensure_ideal_settings',return_value=(True,{},'fixture')))
             stack.enter_context(patch.object(script,'_init_task_log',return_value=str(root/'task.log')))
             worker = stack.enter_context(patch.object(script,'_run_batch_script_job'))
-            stack.enter_context(patch.object(builtins,'open',side_effect=observed))
+            stack.enter_context(patch.object(script_selection_binding,'_capture_raw_source',side_effect=observed_capture))
             async def run():
                 background = BackgroundTasks()
                 result = await script.generate_script_batch_start(request,background)
                 self.assertEqual('started',result['status'])
                 await background()
             asyncio.run(run())
-            self.assertCountEqual([str(p) for p in sources],reads)
+            self.assertCountEqual([str(p) for p in sources], full_captures)
+            self.assertTrue(all(str(p) in digest_captures for p in sources),
+                            'each source must also be digest-revalidated')
             self.assertEqual(2,worker.call_count)
             self.assertEqual(before,request.model_dump())
             for call in worker.call_args_list:
@@ -111,11 +119,35 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             path.unlink()
             with self.assertRaises(FileNotFoundError):script.get_validated_batch_script_source(jobs[0])
 
+    def test_cache_hit_reuses_decoded_text_without_rereading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+                with patch.object(script,'_capture_and_validate_batch_script_source',side_effect=AssertionError('cache hit must not re-read')) as reread:
+                    self.assertEqual((jobs[0]['prepared_source']['text'],jobs[0]['prepared_source']['normalizations']),
+                                     script.get_validated_batch_script_source(jobs[0]))
+                    reread.assert_not_called()
+
+    def test_hardlinked_and_missing_sources_are_refused_not_cached(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';path.write_text('Narration. "A spoken line." More narration.', encoding='utf-8')
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+                os.link(path, Path(tmp)/'alias.txt')
+                with self.assertRaises(ValueError):
+                    script.get_validated_batch_script_source(jobs[0])
+                path.unlink();(Path(tmp)/'alias.txt').unlink()
+                with self.assertRaises(FileNotFoundError):
+                    script.get_validated_batch_script_source(jobs[0])
+
     def test_source_changed_during_preparation_is_refused_before_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'book.txt';path.write_text('Original source')
             request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
-            actual=script._read_and_validate_batch_script_source
+            actual=script._capture_and_validate_batch_script_source
             def changed(job):
                 result=actual(job)
                 path.write_text('Changed source!')
@@ -123,10 +155,166 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
             from fastapi import HTTPException
             with patch.object(script,'UPLOADS_DIR',tmp), \
                  patch.object(script,'load_app_config',return_value={}), \
-                 patch.object(script,'_read_and_validate_batch_script_source',side_effect=changed), \
+                 patch.object(script,'_capture_and_validate_batch_script_source',side_effect=changed), \
                  patch.object(script,'three_pass_refusal') as refusal:
                 with self.assertRaises(HTTPException) as error:
                     script.get_prepared_batch_script_jobs(request)
                 self.assertEqual(400,error.exception.status_code)
                 self.assertIn('Source changed while preparing',error.exception.detail)
                 refusal.assert_not_called()
+
+    def test_canonical_docx_crlf_cr_matches_single_and_prepared_readers(self):
+        import hashlib
+        from tests.test_docx_preview import archive
+        from docx_preview import extract_docx_preview
+        from docx_publication import publish_docx_upload
+        from source_upload_publication import create_source_upload_stage
+        from generation_completion import get_generation_input
+        from three_pass_generate import get_prepared_source
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = archive('<w:p><w:r><w:t>A first synthetic line.&#13;&#10;A second line.&#13;A third line.</w:t></w:r></w:p>')
+            stage = create_source_upload_stage(root, limit=len(original))
+            try:
+                stage.write(original)
+                source, names = publish_docx_upload(stage, extract_docx_preview(original), 'synthetic.docx', remaining=1000000)
+            finally:
+                stage.close()
+            source = Path(source)
+            before = {name: (source.parent / name).read_bytes() for name in names.values()}
+            single, digest = get_generation_input(source)
+            batch, _count, identity = script._capture_and_validate_batch_script_source(
+                {'input_path': str(source), 'filename': source.name})
+            prepared, _report = get_prepared_source(str(source))
+            self.assertEqual(single, batch)
+            self.assertEqual(single, prepared)
+            self.assertNotIn('\r', batch)
+            self.assertEqual(digest, identity[0])
+            # Raw group proof: digest is of the retained extracted text bytes.
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), digest)
+            self.assertEqual(before, {name: (source.parent / name).read_bytes() for name in names.values()})
+
+    def test_lossy_replace_tier_refuses_before_preflight_and_dispatch(self):
+        # DSF25007-2: bytes undecodable as UTF-8 or CP1252 (CP1252-
+        # undefined bytes forcing the utf-8/replace tier) must refuse
+        # clearly at the capture seam — prepared jobs and the preflight
+        # sizing path both surface the ValueError (routes map it to 400)
+        # before any dispatch; retained bytes stay untouched. Genuinely
+        # CP1252-decodable text remains supported by design and cannot
+        # be assumed wrong (residual human-inspection limit, documented
+        # in the seam comment).
+        from fastapi import HTTPException
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'book.txt'
+            path.write_bytes(b'Alexis Alexis Alexis. \x81\xff invalid utf-8 \xc3\x28')
+            before = path.read_bytes()
+            request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'could not be decoded as UTF-8 or CP1252'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+                self.assertEqual(400, error.exception.status_code)
+                self.assertIn('could not be decoded as UTF-8 or CP1252', error.exception.detail)
+                with self.assertRaisesRegex(ValueError, 'could not be decoded as UTF-8 or CP1252'):
+                    script.build_batch_script_preflight(
+                        [{'filename': 'book.txt', 'input_path': str(path),
+                          'first_person_narrator': None}])
+            self.assertEqual(before, path.read_bytes(), 'retained bytes must stay untouched')
+
+    def test_utf16_bom_nul_refuses_before_preflight_and_dispatch(self):
+        # DSF25007-2 variant: UTF-16 BOM + NUL bytes decode through the
+        # CP1252 fallback (not the replace tier), so the tier guard alone
+        # admits them — but NUL is a known unsupported control per the
+        # canonical shared gate, which canonical generation refuses.
+        # The capture seam must refuse explicitly (400 on both routes).
+        from fastapi import HTTPException
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'book.txt'
+            path.write_bytes('Alexis Alexis Alexis. Hello world.'.encode('utf-16'))
+            before = path.read_bytes()
+            request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+                self.assertEqual(400, error.exception.status_code)
+                self.assertIn('unsupported control', error.exception.detail)
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script.build_batch_script_preflight(
+                        [{'filename': 'book.txt', 'input_path': str(path),
+                          'first_person_narrator': None}])
+            self.assertEqual(before, path.read_bytes(), 'retained bytes must stay untouched')
+            # Embedded NUL in otherwise valid UTF-8 is likewise refused.
+            path.write_bytes(b'Alexis Alexis Alexis. Hello\x00 world.')
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+
+    def test_cp1252_and_utf8_decode_like_generation_preparation(self):
+        import hashlib
+        cases = [
+            ('Alexis Alexis Alexis. Café — “quiet.”', 'utf-8'),
+            ('Alexis Alexis Alexis. Café — “quiet.”', 'cp1252'),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt'
+            for text, encoding in cases:
+                with self.subTest(encoding=encoding):
+                    raw=text.encode(encoding); path.write_bytes(raw)
+                    request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+                    with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                        jobs=script.get_prepared_batch_script_jobs(request)
+                    # Same decoded text/policy as actual get_prepared_source.
+                    from three_pass_generate import get_prepared_source
+                    prepared, _ = get_prepared_source(str(path))
+                    self.assertEqual(prepared, jobs[0]['prepared_source']['text'])
+                    self.assertEqual(hashlib.sha256(raw).hexdigest(), jobs[0]['prepared_source']['identity'][0])
+                    self.assertEqual(raw, path.read_bytes())
+
+    def test_crlf_cr_newlines_normalize_like_textio_under_raw_identity(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt'
+            raw=b'Alexis Alexis Alexis.\r\nSecond line.\rThird line.\nFourth.'
+            path.write_bytes(raw)
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}):
+                jobs=script.get_prepared_batch_script_jobs(request)
+            expected='Alexis Alexis Alexis.\nSecond line.\nThird line.\nFourth.'
+            self.assertEqual(expected,jobs[0]['prepared_source']['text'])
+            self.assertEqual(expected,script.get_validated_batch_script_source(jobs[0])[0])
+            # Identity is the original raw-byte SHA, source unchanged.
+            self.assertEqual(hashlib.sha256(raw).hexdigest(),jobs[0]['prepared_source']['identity'][0])
+            self.assertEqual(raw,path.read_bytes())
+
+    def test_aba_revert_during_preparation_never_binds_changed_text_under_original_identity(self):
+        # Controlled A/B/A (root probe shape): captured B text must not
+        # be stored under A's identity when the file reverts to A.
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'book.txt';original='Original source';other='Changed source!'
+            self.assertEqual(len(original),len(other))
+            path.write_text(original,encoding='utf-8');before=path.stat()
+            actual=script._capture_and_validate_batch_script_source
+            def changed_then_reverted(job):
+                path.write_text(other,encoding='utf-8')
+                try:
+                    return actual(job)
+                finally:
+                    path.write_text(original,encoding='utf-8')
+                    os.utime(path,ns=(before.st_atime_ns,before.st_mtime_ns))
+            from fastapi import HTTPException
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script,'UPLOADS_DIR',tmp),patch.object(script,'load_app_config',return_value={}),patch.object(script,'_capture_and_validate_batch_script_source',side_effect=changed_then_reverted):
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+            self.assertEqual(400,error.exception.status_code)
+            self.assertIn('Source changed while preparing',error.exception.detail)
+            self.assertEqual(original,path.read_text())

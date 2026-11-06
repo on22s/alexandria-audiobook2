@@ -3706,7 +3706,7 @@ def get_output_paths(data_dir, requested_output=None):
 
 
 def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
-                        expected_source_sha256=None):
+                        expected_source_sha256=None, owning_root=None):
     """-> (text, unicode_report): the source exactly as generation sees it.
 
     One sequence for every caller that sends the book to a model - generation
@@ -3715,15 +3715,19 @@ def get_prepared_source(path, strip_front_matter=True, report=lambda message: No
     receives the same notices main() has always printed. Raises ValueError for
     a source the shared gate refuses.
     """
-    if expected_source_sha256 is None:
-        book, source_encoding = read_source_text(path)
-    else:
-        from script_selection_binding import _read_source_snapshot, _digest
-        from source_encoding import get_decoded_source_text
-        digest, raw = _read_source_snapshot(path, include_bytes=True)
-        if digest != _digest(expected_source_sha256):
-            raise ValueError('Selected source changed before it was read for generation')
-        book, source_encoding = get_decoded_source_text(raw)
+    # One raw capture/decoding authority for BOTH branches: the confined
+    # snapshot refuses aliased/hardlinked sources exactly as the bound
+    # generation path does, so cast-list and speaker-review callers
+    # (which pass no expected digest) can never build a cast from
+    # outside bytes generation would refuse. The expected digest is
+    # compared only when supplied.
+    from script_selection_binding import _read_source_snapshot, _digest
+    from source_encoding import get_decoded_source_text
+    digest, raw = _read_source_snapshot(path, include_bytes=True,
+                                        owning_root=owning_root)
+    if expected_source_sha256 is not None and digest != _digest(expected_source_sha256):
+        raise ValueError('Selected source changed before it was read for generation')
+    book, source_encoding = get_decoded_source_text(raw)
     book = get_normalized_source_newlines(book)
     if source_encoding != "utf-8":
         report(f"Read {path} as {source_encoding} (not valid UTF-8)")
@@ -3854,16 +3858,21 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
 
+    # HTTP generation (active-book identity present) runs with the known
+    # owning book root; an explicit CLI source keeps its parent authority.
+    owning_root = data_dir if args.active_book_token is not None else None
     input_source_sha256 = None
     if args.literal_source_preserving:
         from script_selection_binding import _read_source_snapshot
-        input_source_sha256, _ = _read_source_snapshot(args.input_file)
+        input_source_sha256, _ = _read_source_snapshot(
+            args.input_file, owning_root=owning_root)
     try:
         expected_source_sha256 = (args.active_source_sha256
                                   if args.active_book_token is not None
                                   else input_source_sha256)
         book, unicode_report = get_prepared_source(
             args.input_file, args.strip_front_matter, report=print,
+            owning_root=owning_root,
             **({'expected_source_sha256': expected_source_sha256}
                if expected_source_sha256 is not None else {}))
     except ValueError as exc:

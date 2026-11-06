@@ -11,7 +11,7 @@ import tempfile
 import unittest
 import shlex
 import re
-from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE
+from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE, copy_completion_dependencies
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHAIN = os.path.join(REPO, "run_chains", "unseen_books_20260819b.sh")
@@ -200,8 +200,7 @@ class UnseenCheckoutPathsTests(unittest.TestCase):
             wrong_wrapper.chmod(0o755)
             library=checkout/'run_chains/lib';library.mkdir()
             (library/'config_backup.sh').write_bytes(Path(REPO,'run_chains/lib/config_backup.sh').read_bytes())
-            for module_name in ('generation_completion.py', 'source_encoding.py'):
-                (app / module_name).write_bytes(Path(REPO, 'app', module_name).read_bytes())
+            copy_completion_dependencies(app, REPO)
             (app / 'env/bin/python').symlink_to(sys.executable)
             curl = binaries / 'curl'
             curl.write_text('#!/bin/bash\nprintf qwen3\n')

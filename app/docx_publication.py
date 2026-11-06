@@ -28,15 +28,33 @@ def get_docx_group_names(path):
             'receipt': stem + '.docx-receipt.json'}
 
 
-def capture_docx_group(path, *, byte_limit=MAX_ARCHIVE + MAX_TEXT + 65536, cancel_check=None):
-    """Validate receipt against bounded descriptor captures; return those same bytes."""
+def capture_docx_group(path, *, byte_limit=MAX_ARCHIVE + MAX_TEXT + 65536, cancel_check=None,
+                      owning_root=None):
+    """Validate receipt against bounded descriptor captures; return those same bytes.
+
+    `owning_root` fixes the authority boundary: every group member is
+    captured relative to that root. Without it the root is the source
+    parent (existing callers' contract). Callers that must prove the
+    group lives under a trusted directory pass the owning root, so a
+    source parent substituted outside it cannot feed outside bytes.
+    """
     names = get_docx_group_names(path)
     if names is None:
         return None
+    capture_root = Path(path).parent if owning_root is None else Path(os.path.abspath(owning_root))
+    parent_abs = Path(os.path.abspath(Path(path).parent))
+    if owning_root is not None:
+        try:
+            parent_relative = parent_abs.relative_to(capture_root)
+        except ValueError:
+            raise ValueError('DOCX group is outside the owning root.')
+        # No dot-part check here: both operands are abspath-normalized, so a
+        # successful relative_to() can never yield '.'/'..'/'' parts (#1724 C081).
     proofs, payloads = {}, {}
     remaining = byte_limit
     for kind, limit in (('receipt', 65536), ('original', MAX_ARCHIVE), ('text', MAX_TEXT)):
-        proof, raw = capture_scope_file(Path(path).parent, names[kind],
+        member_relative = Path(parent_relative, names[kind]).as_posix() if owning_root is not None else names[kind]
+        proof, raw = capture_scope_file(capture_root, member_relative,
             limit=min(limit, max(1, remaining)), include_bytes=kind != 'original',
             cancel_check=cancel_check)
         if not proof['exists']:
@@ -73,7 +91,11 @@ def capture_docx_group(path, *, byte_limit=MAX_ARCHIVE + MAX_TEXT + 65536, cance
         separators=(',', ':')).encode('utf-8')).hexdigest()
     if receipt['preview_digest'] != digest:
         raise ValueError('DOCX preview digest mismatch')
-    return {'kind': 'docx', 'proofs': proofs, 'text_bytes': payloads['text']}
+    # Surface the receipt's verified imported identity (DS3007): the
+    # receipt was validated above against the captured proofs, so its
+    # uploaded_filename is trustworthy provenance, not a guess.
+    return {'kind': 'docx', 'proofs': proofs, 'text_bytes': payloads['text'],
+            'uploaded_filename': receipt['uploaded_filename']}
 
 
 def publish_docx_upload(original, preview, filename, *, remaining):
