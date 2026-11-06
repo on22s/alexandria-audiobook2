@@ -1050,22 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-06T10:13:05",
+  "written": "2026-11-06T10:17:33",
   "host": "RealMitch",
   "git": {
-   "commit": "ad5a68b5aae2b0b9698aa9c7d8b844fc9eeed840",
+   "commit": "caba46b160afdacb939a326b7ac8c77e58c6639d",
    "branch": "feat/1724-single-narrator-final",
-   "dirty": true,
-   "source_state": "dirty:2db13743dd27",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/routers/voices.py",
-    "M  app/static/js/app-help.js",
-    "M  app/tests/test_config_backup_resume.py",
-    "M  app/tests/test_single_narrator_voice_save.py",
-    "M  app/tests/test_unseen_books_reporting.py",
-    "M  app/tests/unseen_fixture_support.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
