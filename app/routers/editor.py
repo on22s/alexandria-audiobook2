@@ -17,12 +17,12 @@ import time
 import uuid
 import zipfile
 from contextlib import contextmanager
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse, Response
 from starlette.background import BackgroundTask
-from pydantic import BaseModel, Field, StrictInt, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, StrictBool, field_validator
 from publication_preview import get_publication_review, get_publication_preview, get_publication_selection
 from config_settings import load_app_config
 from export_limits import MAX_PAUSE_MS
@@ -1118,6 +1118,242 @@ def _get_export_mastering_sync(token):
     with ensure_book_state(DATA_DIR):
         check_chunk_identity(0, token)
     return {'book_token': token, 'reports': reports, 'unavailable': unavailable}
+
+
+class AbsConfigRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    base_url: str = Field(max_length=2048)
+    # Any JSON value at parse time: Pydantic's 422 echoes a non-string
+    # api_key verbatim despite SecretStr, so the type is checked manually in
+    # _save_abs_config_sync with a sanitized 400 (N4). Strings still work.
+    api_key: Optional[Any] = Field(default=None)
+    library_id: Optional[str] = Field(default=None, max_length=200)
+    folder_id: Optional[str] = Field(default=None, max_length=200)
+
+
+class AbsPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
+    export_file: str = Field(pattern=r'^(cloned_audiobook\.mp3|audiobook\.m4b)$')
+    library_id: str = Field(max_length=200)
+    folder_id: str = Field(max_length=200)
+    title: str = Field(max_length=500)
+    author: Optional[str] = Field(default='', max_length=1000)
+    series: Optional[str] = Field(default='', max_length=1000)
+    base_url: str = Field(max_length=2048)
+
+
+class AbsSendRequest(AbsPreviewRequest):
+    preview_id: str = Field(max_length=64)
+    right_to_share: StrictBool = False
+    acknowledge_unknown: StrictBool = False
+
+
+class AbsReconcileRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    delivery_id: str = Field(max_length=64)
+
+
+class AbsCancelRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    preview_id: str = Field(max_length=64)
+
+
+def _abs_book_check(token):
+    with ensure_book_state(DATA_DIR):
+        check_chunk_identity(0, token)
+
+
+@router.post('/api/abs/config')
+async def save_abs_config(request: AbsConfigRequest):
+    return await asyncio.to_thread(_save_abs_config_sync, request)
+
+
+def _save_abs_config_sync(request):
+    import audiobookshelf_delivery as delivery
+    stored = None
+    if request.api_key is not None and not isinstance(request.api_key, str):
+        raise HTTPException(status_code=400, detail='API key must be a string.')
+    try:
+        raw_key = request.api_key if isinstance(request.api_key, str) else None
+        if raw_key is not None and raw_key.strip():
+            stored = delivery.save_api_key(request.base_url, raw_key)
+        config = delivery.save_server_config(DATA_DIR, request.base_url,
+                                             request.library_id, request.folder_id)
+        key_present = bool(delivery.get_api_key(config['base_url']))
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    return {'base_url': config['base_url'], 'has_key': key_present,
+            'key_store': stored, 'library_id': config.get('library_id'),
+            'folder_id': config.get('folder_id')}
+
+
+@router.get('/api/abs/config')
+async def get_abs_config():
+    import audiobookshelf_delivery as delivery
+    config = delivery.get_server_config(DATA_DIR)
+    base_url = config.get('base_url')
+    try:
+        key_present = bool(base_url and delivery.get_api_key(base_url))
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    return {'base_url': base_url, 'has_key': key_present,
+            'library_id': config.get('library_id'), 'folder_id': config.get('folder_id')}
+
+
+@router.get('/api/abs/libraries')
+async def list_abs_libraries(base_url: Annotated[Optional[str], Query(max_length=2048)] = None):
+    return await asyncio.to_thread(_list_abs_libraries_sync, base_url)
+
+
+def _list_abs_libraries_sync(base_url):
+    import audiobookshelf_delivery as delivery
+    config = delivery.get_server_config(DATA_DIR)
+    try:
+        server = delivery._validate_base_url(base_url or config.get('base_url'))
+        token = delivery.get_api_key(server)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if not token:
+        raise HTTPException(status_code=401, detail='No API key stored for this server. Save one first.')
+    try:
+        libraries = delivery.get_libraries(server, token)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    return {'base_url': server, 'libraries': libraries}
+
+
+@router.post('/api/abs/preview')
+async def preview_abs_send(request: AbsPreviewRequest):
+    return await asyncio.to_thread(_preview_abs_send_sync, request)
+
+
+def _preview_abs_send_sync(request):
+    import audiobookshelf_delivery as delivery
+    _abs_book_check(request.expected_book_token)
+    config = delivery.get_server_config(DATA_DIR)
+    saved_base = config.get('base_url')
+    if not saved_base:
+        raise HTTPException(status_code=400, detail='Configure the server first (Save server).')
+    try:
+        requested_base = delivery._validate_base_url(request.base_url)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if requested_base != saved_base:
+        raise HTTPException(status_code=409, detail='The server URL changed. Save the new server first, then preview again.')
+    try:
+        token = delivery.get_api_key(saved_base)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if not token:
+        raise HTTPException(status_code=401, detail='No API key stored for this server.')
+    try:
+        preview = delivery.save_preview(DATA_DIR, process_state, request.expected_book_token,
+                                        request.export_file, request.library_id,
+                                        request.folder_id, request.title,
+                                        request.author or '', request.series or '',
+                                        base_url=requested_base, token=token)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    public = dict(preview)
+    public.pop('created_at', None)
+    return public
+
+
+@router.post('/api/abs/send')
+async def send_abs_export(request: AbsSendRequest):
+    if not request.right_to_share:
+        raise HTTPException(status_code=400, detail='Confirm you have the right to share this export before sending.')
+    return await asyncio.to_thread(_send_abs_export_sync, request)
+
+
+def _send_abs_export_sync(request):
+    import audiobookshelf_delivery as delivery
+    _abs_book_check(request.expected_book_token)
+    config = delivery.get_server_config(DATA_DIR)
+    base_url = config.get('base_url')
+    if not base_url:
+        raise HTTPException(status_code=400, detail='Configure the server first.')
+    try:
+        requested_base = delivery._validate_base_url(request.base_url)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if requested_base != base_url:
+        raise HTTPException(status_code=409, detail='The server URL changed after the preview. Preview again.')
+    try:
+        token = delivery.get_api_key(base_url)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if not token:
+        raise HTTPException(status_code=401, detail='No API key stored for this server.')
+    confirm = {'book_token': request.expected_book_token, 'export_file': request.export_file,
+               'library_id': request.library_id, 'folder_id': request.folder_id,
+               'title': request.title, 'author': request.author or '', 'series': request.series or '',
+               'base_url': requested_base}
+    try:
+        entry = delivery.send_preview(DATA_DIR, process_state, base_url, token,
+                                      request.preview_id, confirm,
+                                      acknowledge_unknown=request.acknowledge_unknown)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    return entry
+
+
+@router.get('/api/abs/deliveries')
+async def list_abs_deliveries(expected_book_token: Annotated[str, Query(pattern=r'^[0-9a-f]{64}$')]):
+    return await asyncio.to_thread(_list_abs_deliveries_sync, expected_book_token)
+
+
+def _list_abs_deliveries_sync(token):
+    import audiobookshelf_delivery as delivery
+    _abs_book_check(token)
+    entries = [entry for entry in delivery.get_ledger(DATA_DIR)
+               if entry.get('book_token') == token]
+    return {'book_token': token, 'deliveries': entries}
+
+
+@router.post('/api/abs/reconcile')
+async def reconcile_abs_delivery(request: AbsReconcileRequest):
+    return await asyncio.to_thread(_reconcile_abs_delivery_sync, request)
+
+
+def _reconcile_abs_delivery_sync(request):
+    import audiobookshelf_delivery as delivery
+    # Reconcile against the ledger-bound server only; never fall back to the
+    # saved config server or reuse a key from a different saved server.
+    entry = next((item for item in delivery.get_ledger(DATA_DIR)
+                  if item.get('id') == request.delivery_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail='No such delivery record.')
+    entry_server = entry.get('server') or entry.get('base_url')
+    if not entry_server:
+        raise HTTPException(status_code=409, detail='The delivery record names no server; re-export and send again.')
+    server = entry_server
+    try:
+        token = delivery.get_api_key(server)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    if not token:
+        raise HTTPException(status_code=401, detail='No API key stored for this server.')
+    try:
+        updated = delivery.reconcile_delivery(DATA_DIR, request.delivery_id, server, token)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
+    return updated
+
+
+@router.get('/api/abs/progress')
+async def get_abs_progress(preview_id: Annotated[str, Query(max_length=64)]):
+    import audiobookshelf_delivery as delivery
+    state = delivery.get_upload_progress(preview_id)
+    return {'preview_id': preview_id, 'progress': state}
+
+
+@router.post('/api/abs/cancel')
+async def cancel_abs_send(request: AbsCancelRequest):
+    import audiobookshelf_delivery as delivery
+    cancelling = delivery.cancel_preview_upload(request.preview_id)
+    return {'preview_id': request.preview_id, 'cancelling': cancelling}
 
 
 @router.post("/api/merge")

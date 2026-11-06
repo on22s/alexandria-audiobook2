@@ -3598,6 +3598,34 @@
                                 <p id="export-mastering-status" role="status" aria-live="polite" class="small mt-2">Off by default. Export explicitly, then check the measured results.</p>
                                 <div id="export-mastering-reports" class="small"></div>
                             </details>
+                            <details id="abs-delivery-options" class="workflow-disclosure mt-3 text-start">
+                                <summary>Send to Audiobookshelf (manual)</summary>
+                                <p class="small mt-2">Sends one finished, integrity-checked MP3 or M4B export to your Audiobookshelf server. Nothing leaves this machine until you preview the exact destination, bytes, and metadata below and confirm. The local export is kept on cancel or failure, and delivery status never changes export status. Review the <a href="https://api.audiobookshelf.org/" rel="noreferrer" data-help-key="audiobookshelfApiDocs">Audiobookshelf API docs</a> for the upload endpoint.</p>
+                                <div class="row g-2">
+                                    <div class="col-md-7"><label class="form-label small" for="abs-server-url">Server URL</label><input id="abs-server-url" type="text" class="form-control form-control-sm" placeholder="http://localhost:13378" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-5"><label class="form-label small" for="abs-api-key">API key (stored in the OS credential store, never shown again)</label><input id="abs-api-key" type="password" class="form-control form-control-sm" autocomplete="off" placeholder="Leave empty to keep the stored key"></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-export-format">Export</label><select id="abs-export-format" class="form-select form-select-sm" onchange="resetAbsPreview()"><option value="cloned_audiobook.mp3">MP3 (cloned_audiobook.mp3)</option><option value="audiobook.m4b">M4B (audiobook.m4b)</option></select></div>
+                                    <div class="col-md-5"><label class="form-label small" for="abs-title">Title (sent to Audiobookshelf)</label><input id="abs-title" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="saveAbsConfig()">Save server</button></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-library">Library</label><select id="abs-library" class="form-select form-select-sm" onchange="fillAbsFolders(); resetAbsPreview()"></select></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-folder">Folder</label><select id="abs-folder" class="form-select form-select-sm" onchange="resetAbsPreview()"></select></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-author">Author (optional)</label><input id="abs-author" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-series">Series (optional)</label><input id="abs-series" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="loadAbsLibraries()">Load libraries</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAbsSend()">Preview destination and file</button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="abs-send-btn" onclick="sendAbsExport()" disabled>Send to Audiobookshelf</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="abs-cancel-btn" onclick="cancelAbsSend()" style="display:none">Cancel send</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadAbsDeliveries()">Check delivery status</button>
+                                </div>
+                                <label class="form-check small mt-2"><input type="checkbox" class="form-check-input" id="abs-right-to-share" onchange="updateAbsSendEnabled()"><span class="form-check-label">I confirm this export uses only content and voices I have rights to share with my Audiobookshelf server</span></label>
+                                <p class="small">After sending, choose Verify delivery to compare the remote file with this export. Until its bytes match, delivery stays unconfirmed and duplicate sends stay blocked. Rights confirmation does not override that check.</p>
+                                <p id="abs-status" class="small mt-2" role="status" aria-live="polite"></p>
+                                <p id="abs-progress" class="small mt-2" role="status" aria-live="polite"></p>
+                                <pre id="abs-preview-out" class="small editor-line-text"></pre>
+                                <div id="abs-deliveries" class="small"></div>
+                            </details>
                             <a class="text-decoration-none" data-bs-toggle="collapse" href="#m4b-options" role="button" aria-expanded="false">
                                 <i class="fas fa-book-reader me-1"></i>M4B Export Options <i class="fas fa-chevron-down fa-xs ms-1"></i>
                             </a>
@@ -3976,6 +4004,7 @@
     <script src="/static/js/app-sound-mixes.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-audiobookshelf.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-reports.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-help.js?v=__APP_BUILD__"></script>

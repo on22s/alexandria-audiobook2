@@ -77,5 +77,10 @@ msgpack>=1.2.1
 multidict>=6.9.1
 fsspec>=2026.6.0
 
+# Audiobookshelf delivery (issue #1727) stores its API key in the OS credential
+# store via keyring. The module imports it lazily and fails closed (explicit
+# ALEXANDRIA_ABS_API_KEY env fallback only) when it is missing, so the app
+# still starts without it — but delivery config must not be assumed usable.
+keyring>=24.3.0
 # Seekable, pre-write bounded muxing for mixed M4B delivery (Python 3.10).
 av==17.0.0

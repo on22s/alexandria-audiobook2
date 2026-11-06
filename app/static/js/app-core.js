@@ -1835,7 +1835,7 @@
             // A reloaded script can change even when its filename stays the same.
             window.resetSpeakerLabelReview?.();
             window.resetCharacterRosterBook?.();
-            window.resetExportMasteringView?.(); window.resetExportQualityView?.();
+            window.resetExportMasteringView?.(); window.resetExportQualityView?.(); window.resetAbsPreview?.();
             window.resetEditorRepairPreview?.();
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
@@ -7214,7 +7214,7 @@
                 chunkSnapshotRevision = null;
                 throw new Error('Editor snapshot is unavailable.');
             }
-            if (chunkSnapshotBookToken !== snapshot.book_token) { window.resetExportQualityView?.(); }
+            if (chunkSnapshotBookToken !== snapshot.book_token) { window.resetExportQualityView?.(); window.resetAbsPreview?.(); }
             chunkSnapshotBookToken = snapshot.book_token;
             let chunks;
             if (snapshot.full) {
