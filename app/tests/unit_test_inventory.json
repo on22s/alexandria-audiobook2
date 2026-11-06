@@ -8470,6 +8470,11 @@
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_large_audio_hash_uses_bounded_reads_and_preserves_exact_digest",
     "tests.test_preparer_benchmark.PreparerBenchmarkTests.test_worker_reports_transcript_identity_from_preparer_output"
   ],
+  "test_preparer_cancel_cleanup": [
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_active_cancel_still_requests_cancellation",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_cleanup_window_cancel_refuses_but_smoke_waits_for_claim_release",
+    "tests.test_preparer_cancel_cleanup.PreparersCancelCleanupTests.test_stuck_cleanup_smoke_times_out_and_idle_cancel_is_immediate"
+  ],
   "test_preparer_completed_resume": [
     "tests.test_preparer_completed_resume.PreparerCompletedResumeTests.test_blank_incomplete_and_pre_resume_words_do_not_load_model",
     "tests.test_preparer_completed_resume.PreparerCompletedResumeTests.test_completed_checkpoint_skips_model_but_tags_and_exports_native_audio",

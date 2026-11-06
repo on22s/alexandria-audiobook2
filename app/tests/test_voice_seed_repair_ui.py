@@ -123,7 +123,7 @@ const start=source.indexOf('let _voiceSeedRepairPending ='),end=source.indexOf('
 assert(start>=0 && end>start,'Seed UI handlers must be installed');
 const posts=[],events=[],toasts=[];let dirty=false,failFlush=false;
 const ctx={window:null,_voiceSaveSnapshot:native,_voiceCardsRevision:native.revision,_voiceCardsBookToken:native.book_token,
-voiceSaveQueue:{isDirty:()=>dirty},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),
+voiceSaveQueue:{isDirty:()=>dirty,getRevision:()=>0},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),
 flushVoiceSaves:async()=>{events.push('flush');if(failFlush){throw Error('pending edit failed');}},
 loadVoices:async full=>{assert.strictEqual(full,false);events.push('load');},showToast:message=>toasts.push(message),
 API:{post:async(url,data)=>{events.push('post');posts.push({url,data});return{changes:native.seed_changes,backup:'voice_config.json.bak-fixture'};}}};
@@ -138,8 +138,16 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'All seed UI asse
 (async()=>{
 const container={innerHTML:''};ctx.document={getElementById:id=>id==='voices-list'?container:null};
 ctx.performance={now:()=>0};ctx._voiceResourcesRefreshedAt=-Infinity;ctx._voiceRecoveryDrafts=[];
-ctx.refreshVoiceMetadata=async()=>native.voices;ctx.refreshVoicesScope=()=>{};ctx.updateNarratorPreviewFields=()=>{};
-ctx.loadCastLibrary=async()=>{};ctx.API.get=async()=>[];ctx.createVoiceCard=()=>'<article>fixture card</article>';
+// Current-book identity for the REAL loadVoices/refreshVoiceMetadata
+// guards (established navigation-fixture pattern): a valid matching
+// snapshot only — no auto-adoption of any other book.
+ctx.currentBookFilename='seed-book.json';ctx._bookSelectionEpoch=1;
+ctx.renderVoiceDrafts=()=>{};ctx.ensureVoiceRosterCache=()=>{};
+ctx.getVoiceListFocusSnapshot=()=>null;ctx.getVoicePanelSnapshot=()=>null;ctx.restoreVoicePanels=()=>{};ctx.restoreVoiceListFocus=()=>{};
+ctx.getStateVoiceCardsMarkup=voices=>voices.map(()=>'<article>fixture card</article>').join('');
+ctx.refreshVoicesScope=()=>{};ctx.updateNarratorPreviewFields=()=>{};
+ctx.loadCastLibrary=async()=>{};ctx.API.get=async url=>url==='/api/voice_config/snapshot'?native:[];ctx.createVoiceCard=()=>'<article>fixture card</article>';
+vm.runInContext(source.slice(source.indexOf('async function refreshVoiceMetadata()'),source.indexOf('let _voiceResourcesRefreshedAt =')),ctx);
 ctx.renderReadyCount=()=>{};ctx.onToggleHideReady=()=>{};ctx.window._voicesByName={};
 vm.runInContext(source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard(')),ctx);
 vm.runInContext(source.slice(source.indexOf('async function loadVoices('),source.indexOf('window.selectVoiceVersion =')),ctx);
