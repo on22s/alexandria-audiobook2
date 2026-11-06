@@ -3045,22 +3045,22 @@ def _capture_and_validate_batch_script_source(job):
     """
     from docx_publication import capture_docx_group
     from script_selection_binding import _capture_raw_source
+    from source_encoding import get_decoded_source_text, get_normalized_source_newlines
     group = capture_docx_group(job['input_path'])
     if group is not None:
-        text = fix_mojibake(group['text_bytes'].decode('utf-8'))
         proof = group['proofs']['text']
+        raw = group['text_bytes']
     else:
         proof, raw = _capture_raw_source(job['input_path'], owning_root=None,
                                          include_bytes=True)
         if not proof.get('exists'):
             raise FileNotFoundError(str(job['input_path']))
-        # Same shared decoder as preview/generation (UTF-8, then
-        # CP1252), preserving the universal-newline policy before
-        # mojibake and known-source normalization. Identity stays on
-        # the original raw bytes above, not on the decoded text.
-        from source_encoding import get_decoded_source_text, get_normalized_source_newlines
-        decoded, _encoding = get_decoded_source_text(raw)
-        text = fix_mojibake(get_normalized_source_newlines(decoded))
+    # ONE shared preparation policy after either capture: shared
+    # decoder (UTF-8, then CP1252), universal-newline policy, then
+    # mojibake. Identity stays on the original raw bytes / group
+    # proof above, never on the decoded text.
+    decoded, _encoding = get_decoded_source_text(raw)
+    text = fix_mojibake(get_normalized_source_newlines(decoded))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")
     if narrator and not is_narrator_attested(narrator, text):

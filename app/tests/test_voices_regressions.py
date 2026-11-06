@@ -1210,6 +1210,35 @@ class MalformedFieldShapeTests(unittest.TestCase):
             self.assertFalse(response.json()[0]["persona_pending"])
             self.assertEqual(before, config.read_bytes())
 
+    def test_malformed_design_description_refuses_400_active_and_saved(self):
+        from speaker_traits import get_persona_state_targets
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp); client, script, config = self._client(root, stack)
+            # Active design with numeric description -> 400, no writes.
+            script.write_text(json.dumps([{"speaker": "Hero"}]))
+            config.write_text(json.dumps({"Hero": {"type": "design", "description": 123}}))
+            before = {p: p.read_bytes() for p in (script, config)}
+            response = client.get('/api/voices')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+            # Valid textual design remains readable (set, not pending).
+            config.write_text(json.dumps({"Hero": {"type": "design", "description": "Warm baritone"}}))
+            response = client.get('/api/voices')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(response.json()[0]["persona_pending"])
+            # Saved-state design version with numeric description -> 400.
+            rows = []
+            for age in ('teen', 'adult'):
+                rows.extend({"speaker": "Hero", "text": f"{age} line {i}.", "speaker_gender": "male",
+                             "speaker_age_group": age} for i in range(10))
+            version_id = get_persona_state_targets(rows)["Hero"][0]["version_id"]
+            script.write_text(json.dumps(rows))
+            config.write_text(json.dumps({"Hero": {"versions": {version_id: {"type": "design", "description": 123}}}}))
+            before = {p: p.read_bytes() for p in (script, config)}
+            response = client.get('/api/voices')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertEqual(before, {p: p.read_bytes() for p in (script, config)})
+
     def test_malformed_saved_state_description_refuses_400(self):
         from speaker_traits import get_persona_state_targets
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

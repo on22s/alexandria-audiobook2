@@ -487,11 +487,14 @@ def get_voice_rows(script_data, voice_config):
     # present; the state timeline consumes dict rows with speaker_gender
     # and a truthy raw speaker (including whitespace-only and legacy
     # type-derived speakers via the roster). Speakerless or age-only
-    # metadata is ignored exactly as before. voice_is_set consumes
-    # description only for the canonical custom category. Absent/null
-    # description stays the legitimate unconfigured contract; inactive
-    # entries are not validated. No broad TypeError/AttributeError
-    # catch and no silent coercion: genuine programmer errors propagate.
+    # metadata is ignored exactly as before. Description is consumed
+    # only for custom AND design categories (voice_is_set .strip()s
+    # custom descriptions; TTS design generation .strip()s design
+    # descriptions) — unused legacy descriptions on other categories
+    # stay byte-preserved. Absent/null description stays the legitimate
+    # unconfigured contract; inactive entries are not validated. No
+    # broad TypeError/AttributeError catch and no silent coercion:
+    # genuine programmer errors propagate.
     for entry in script_data:
         if not isinstance(entry, dict) or "speaker_gender" not in entry:
             continue
@@ -522,7 +525,7 @@ def get_voice_rows(script_data, voice_config):
             raise ValueError(
                 f"Speaker '{name}' has a malformed voice entry (not an object); "
                 "restore the saved voice configuration before continuing.")
-        if name in voice_config and voice_category(voice_config[name]) == "custom":
+        if name in voice_config and voice_category(voice_config[name]) in ("custom", "design"):
             _description = voice_config[name].get("description")
             if _description is not None and not isinstance(_description, str):
                 raise ValueError(
@@ -559,7 +562,7 @@ def get_voice_rows(script_data, voice_config):
                         f"Speaker '{name}' has a malformed saved voice state "
                         f"'{_target['version_id']}'; restore the saved voice configuration "
                         "before continuing.")
-                if _target["version_id"] in saved and voice_category(saved[_target["version_id"]]) == "custom":
+                if _target["version_id"] in saved and voice_category(saved[_target["version_id"]]) in ("custom", "design"):
                     _saved_description = saved[_target["version_id"]].get("description")
                     if _saved_description is not None and not isinstance(_saved_description, str):
                         raise ValueError(

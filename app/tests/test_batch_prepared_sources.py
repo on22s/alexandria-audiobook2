@@ -163,6 +163,37 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
                 self.assertIn('Source changed while preparing',error.exception.detail)
                 refusal.assert_not_called()
 
+    def test_canonical_docx_crlf_cr_matches_single_and_prepared_readers(self):
+        import hashlib
+        from tests.test_docx_preview import archive
+        from docx_preview import extract_docx_preview
+        from docx_publication import publish_docx_upload
+        from source_upload_publication import create_source_upload_stage
+        from generation_completion import get_generation_input
+        from three_pass_generate import get_prepared_source
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = archive('<w:p><w:r><w:t>A first synthetic line.&#13;&#10;A second line.&#13;A third line.</w:t></w:r></w:p>')
+            stage = create_source_upload_stage(root, limit=len(original))
+            try:
+                stage.write(original)
+                source, names = publish_docx_upload(stage, extract_docx_preview(original), 'synthetic.docx', remaining=1000000)
+            finally:
+                stage.close()
+            source = Path(source)
+            before = {name: (source.parent / name).read_bytes() for name in names.values()}
+            single, digest = get_generation_input(source)
+            batch, _count, identity = script._capture_and_validate_batch_script_source(
+                {'input_path': str(source), 'filename': source.name})
+            prepared, _report = get_prepared_source(str(source))
+            self.assertEqual(single, batch)
+            self.assertEqual(single, prepared)
+            self.assertNotIn('\r', batch)
+            self.assertEqual(digest, identity[0])
+            # Raw group proof: digest is of the retained extracted text bytes.
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), digest)
+            self.assertEqual(before, {name: (source.parent / name).read_bytes() for name in names.values()})
+
     def test_cp1252_and_utf8_decode_like_generation_preparation(self):
         import hashlib
         cases = [
