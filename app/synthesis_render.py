@@ -40,6 +40,11 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
     from audio_mastering import get_audio_sha256
     from audio_validation import GeneratedAudioError
     from tts import ensure_audio_export_active
+    from speech_retry import get_speech_retry_budget
+
+    retry_budget = get_speech_retry_budget()
+    if retry_budget is not None:
+        retry_budget.check_active()
 
     prepared_text = get_synthesis_plan_text(plan)
     if len(plan.windows) < 2:
@@ -59,6 +64,8 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
             results, windows, metadata = [], [], []
             for index, window in enumerate(plan.windows):
                 ensure_audio_export_active(cancel_check)
+                if retry_budget is not None:
+                    retry_budget.check_active()
                 path = Path(directory)/f'window-{index}.wav'
                 row = recovery.capture(index, path) if recovery is not None else None
                 if row is not None:
@@ -87,6 +94,8 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                         ensure_audio_export_active(cancel_check)
                         raise
                     ensure_audio_export_active(cancel_check)
+                    if retry_budget is not None:
+                        retry_budget.check_active()
                     if not success:
                         raise RuntimeError(f'Internal synthesis window {index + 1} failed')
                     info = get_synthesis_audio_info(path)
@@ -104,7 +113,9 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                 results.append((index, path))
             if recovery is not None:
                 recovery.check()
-            private_parent = recovery is not None or workspace_parent is not None
+            if retry_budget is not None:
+                retry_budget.check_active()
+            private_parent = recovery is not None or workspace_parent is not None or retry_budget is not None
             assembled = Path(directory) / 'assembled-parent.wav' if private_parent else output
             scratch = {} if workspace_parent is None else {'scratch_directory': Path(directory) / 'join'}
             receipt = assemble_synthesis_windows(plan, results, assembled, policy=policy, cancel_check=cancel_check, **scratch)
@@ -113,12 +124,16 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                 recovery.check()
                 receipt['recovery'] = recovery.get_receipt()
             if private_parent:
+                if retry_budget is not None:
+                    retry_budget.check_active()
                 from audio_validation import publish_audio_output
                 from audio_generation_owner import (AudioGenerationCancelled, get_audio_generation_owner,
                                                     ensure_audio_generation_publication)
                 from tts import ExportCancelled
                 try:
                     with ensure_audio_generation_publication():
+                        if retry_budget is not None:
+                            retry_budget.check_deadline()
                         checker = None if get_audio_generation_owner() is not None else cancel_check
                         if not publish_audio_output(assembled, output, cancel_check=checker):
                             raise ExportCancelled('Internal recovery publication cancelled')

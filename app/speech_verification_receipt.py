@@ -407,6 +407,7 @@ def get_speech_verification_chunk_view(chunk, book_token, resolve_audio):
         state, reason = 'not_recorded', None
     row['recorded_input_state'], row['recorded_input_reason'] = state, reason
     row['recorded_pronunciation_state'] = get_recorded_pronunciation_state(chunk)
+    row.pop('speech_retry_attempts', None)
     return row
 
 

@@ -4759,6 +4759,13 @@
             "title": "Reproducible Takes",
             "type": "boolean"
           },
+          "speech_retry": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Speech Retry",
+            "type": "object"
+          },
           "speech_verification": {
             "additionalProperties": {
               "$ref": "#/components/schemas/JsonValue"
