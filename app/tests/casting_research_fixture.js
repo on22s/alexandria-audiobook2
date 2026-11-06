@@ -61,11 +61,13 @@ const HTML = `
   </div>
 </div>`;
 
-const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [], circles: [], collections: []};
+const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [], circles: [], collections: [], lifecycle: 'active'};
 const normalize = mark => {
+    if (mark && typeof mark === 'object' && mark.lifecycle === 'deleted') { return {lifecycle: 'deleted'}; }
     const full = {...DEFAULTS, ...(mark || {})};
     for (const key of ['tags', 'stars', 'circles', 'collections']) { full[key] = [...(full[key] || [])]; }
     full.tag_colors = {...(full.tag_colors && typeof full.tag_colors === 'object' && !Array.isArray(full.tag_colors) ? full.tag_colors : {})};
+    if (!['active', 'trashed', 'deleted'].includes(full.lifecycle)) { full.lifecycle = 'active'; }
     return full;
 };
 const tags = (gender, ages, tones, textures = []) => ({gender, ages, tones, textures});
@@ -122,6 +124,7 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
     const store = makeStore(storage);
     const env = {w: browserWindow, calls, errors, toasts, timers, cleared, observers, audios, serverMarks, store, tabObservers: [],
                  audioMode: 'deferred', failNextBatch: false, confirm, batchGate: null,
+                 lifecycleGate: null, failNextLifecycle: false, failNextLifecycleStatus: 409,
                  voices: JSON.parse(JSON.stringify(voices))};
     browserWindow.localStorage = store;
     browserWindow.MutationObserver = class {
@@ -132,9 +135,14 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
         get: async url => {
             calls.push(['GET', url]);
             if (url === '/api/casting/voices') {
-                const visible = {};
-                for (const voice of env.voices) { visible[voice.id] = JSON.parse(JSON.stringify(serverMarks[voice.id] || {})); }
-                return {voices: JSON.parse(JSON.stringify(env.voices)), marks: visible, skipped: [],
+                const visible = {}, visibleVoices = [];
+                for (const voice of env.voices) {
+                    const mark = normalize(serverMarks[voice.id]);
+                    if (mark.lifecycle === 'deleted') { continue; }
+                    visibleVoices.push(voice);
+                    visible[voice.id] = JSON.parse(JSON.stringify(serverMarks[voice.id] || {}));
+                }
+                return {voices: JSON.parse(JSON.stringify(visibleVoices)), marks: visible, skipped: [],
                         activity: JSON.parse(JSON.stringify(serverActivity))};
             }
             if (url === '/api/voice_config/snapshot') { return {book_token: 'token', voices: [{name: 'ADAM'}, {name: 'EVE'}]}; }
@@ -144,6 +152,70 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
         },
         post: async (url, body) => {
             calls.push(['POST', url, JSON.parse(JSON.stringify(body))]);
+            if (url === '/api/casting/lifecycle/batch') {
+                if (env.lifecycleGate) { await env.lifecycleGate; }
+                if (env.failNextLifecycle) {
+                    env.failNextLifecycle = false;
+                    const error = new Error('lifecycle refused');
+                    error.status = env.failNextLifecycleStatus;
+                    throw error;
+                }
+                const changes = body.changes;
+                if (!Array.isArray(changes) || !changes.length || changes.length > 1000) {
+                    const error = new Error('bad lifecycle batch');
+                    error.status = 422;
+                    throw error;
+                }
+                const valid = ['active', 'trashed', 'deleted'];
+                const legal = {'active|trashed': true, 'trashed|active': true, 'trashed|deleted': true};
+                const seen = new Set(), staged = {};
+                let target = null;
+                for (const change of changes) {
+                    if (!change || typeof change.voice_id !== 'string' || !change.voice_id) {
+                        const error = new Error('every change needs a voice id');
+                        error.status = 400;
+                        throw error;
+                    }
+                    if (seen.has(change.voice_id)) {
+                        const error = new Error('duplicate voice');
+                        error.status = 400;
+                        throw error;
+                    }
+                    seen.add(change.voice_id);
+                    if (!env.voices.some(voice => voice.id === change.voice_id)) {
+                        const error = new Error('Voice not found in the casting library: ' + change.voice_id);
+                        error.status = 404;
+                        throw error;
+                    }
+                    if (!valid.includes(change.to) || !valid.includes(change.expected_lifecycle)) {
+                        const error = new Error('lifecycle must be one of active, trashed, deleted');
+                        error.status = 400;
+                        throw error;
+                    }
+                    if (target === null) { target = change.to; }
+                    if (change.to !== target) {
+                        const error = new Error('one batch must share one lifecycle target');
+                        error.status = 400;
+                        throw error;
+                    }
+                    const current = normalize(serverMarks[change.voice_id]);
+                    if (current.lifecycle === 'deleted' || current.lifecycle !== change.expected_lifecycle
+                        || !legal[current.lifecycle + '|' + change.to]) {
+                        const error = new Error(change.voice_id + ' changed since it was read (lifecycle)');
+                        error.status = 409;
+                        throw error;
+                    }
+                    staged[change.voice_id] = change.to === 'deleted'
+                        ? {lifecycle: 'deleted'} : {...current, lifecycle: change.to};
+                }
+                for (const [id, mark] of Object.entries(staged)) { serverMarks[id] = mark; }
+                const derived = target === 'trashed' ? 'Trash voices' : target === 'active' ? 'Restore voices' : 'Delete permanently';
+                const event = {id: 'event-' + (serverActivity.length + 1), at: '2026-11-03T10:00:0' + (serverActivity.length % 9) + '.000Z',
+                               action: derived, count: changes.length};
+                serverActivity.push(event);
+                if (serverActivity.length > 100) { serverActivity.shift(); }
+                return {marks: JSON.parse(JSON.stringify(staged)), activity: JSON.parse(JSON.stringify(serverActivity))};
+            }
             if (url === '/api/casting/marks/batch') {
                 if (env.batchGate) { await env.batchGate; }
                 if (env.failNextBatch) {
@@ -157,6 +229,23 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
                     if (seen.has(change.voice_id)) { throw new Error('duplicate voice'); }
                     seen.add(change.voice_id);
                     const patch = change.patch, expected = change.expected;
+                    if (patch && Object.prototype.hasOwnProperty.call(patch, 'lifecycle')) {
+                        const error = new Error('lifecycle is not an allowed mark field');
+                        error.status = 400;
+                        throw error;
+                    }
+                    if (change.expected_lifecycle !== undefined && !['active', 'trashed', 'deleted'].includes(change.expected_lifecycle)) {
+                        const error = new Error('expected_lifecycle must be one of active, trashed, deleted');
+                        error.status = 400;
+                        throw error;
+                    }
+                    const currentLifecycle = normalize(serverMarks[change.voice_id]).lifecycle;
+                    const wantedLifecycle = change.expected_lifecycle === undefined ? 'active' : change.expected_lifecycle;
+                    if (currentLifecycle === 'deleted' || currentLifecycle !== wantedLifecycle) {
+                        const error = new Error(change.voice_id + ' changed since it was read (lifecycle)');
+                        error.status = 409;
+                        throw error;
+                    }
                     if (JSON.stringify(Object.keys(patch).sort()) !== JSON.stringify(Object.keys(expected).sort())) {
                         const error = new Error('expected must contain exactly the keys being changed');
                         error.status = 400;
@@ -180,7 +269,19 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
                 return {marks: JSON.parse(JSON.stringify(staged)), activity: JSON.parse(JSON.stringify(serverActivity))};
             }
             if (url === '/api/casting/marks') {
-                const {voice_id, ...patch} = body;
+                const {voice_id, expected_lifecycle, ...patch} = body;
+                if (Object.prototype.hasOwnProperty.call(patch, 'lifecycle')) {
+                    const error = new Error('lifecycle is not an allowed mark field');
+                    error.status = 400;
+                    throw error;
+                }
+                const currentLifecycle = normalize(serverMarks[voice_id]).lifecycle;
+                const wantedLifecycle = expected_lifecycle === undefined ? 'active' : expected_lifecycle;
+                if (currentLifecycle === 'deleted' || currentLifecycle !== wantedLifecycle) {
+                    const error = new Error(voice_id + ' changed since it was read (lifecycle)');
+                    error.status = 409;
+                    throw error;
+                }
                 serverMarks[voice_id] = normalize({...(serverMarks[voice_id] || {}), ...patch});
                 return {voice_id, mark: JSON.parse(JSON.stringify(serverMarks[voice_id]))};
             }
@@ -246,6 +347,7 @@ const markButton = (env, id, shape, color) => $(env, 'results').querySelectorAll
     .find(node => node.dataset.castingMark === id && node.dataset.shape === shape && node.dataset.color === color);
 const batchCalls = env => env.calls.filter(call => call[1] === '/api/casting/marks/batch');
 const firstBatch = env => batchCalls(env)[0];
+const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting/lifecycle/batch');
 
 (async () => {
     let env = setup();
@@ -1188,6 +1290,322 @@ const firstBatch = env => batchCalls(env)[0];
         $(env, 'results').querySelectorAll('button').find(button => / variants$/.test(button.textContent)).click();
         await settle();
         eq(researchFilters.chips.size, 0, 'opening variants clears research filters that would hide the group');
+    }
+
+    {
+        const researchPanelFor = (targetEnv, name, summary) => {
+            let card = selectByLabel(targetEnv, 'Review status for ' + name).parentElement;
+            while (card && !String(card.className).split(' ').includes('card')) { card = card.parentElement; }
+            return card.querySelectorAll('details').find(panel => panel.children[0].textContent === summary);
+        };
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        const trashButton = $(env, 'research-trash');
+        const viewTrashButton = $(env, 'research-view-trash');
+        const restoreButton = $(env, 'research-restore');
+        const deleteButton = $(env, 'research-delete');
+        const clearButton = $(env, 'research-clear-selection');
+        ok(trashButton, 'active mode exposes the bulk Trash button by its stable id');
+        ok(viewTrashButton, 'View trash is exposed by its stable id');
+        ok(clearButton, 'clear-selection remains present');
+        ok(viewTrashButton.parentElement === clearButton.parentElement, 'View trash sits beside Clear selection');
+        const clearIndex = [...clearButton.parentElement.children].indexOf(clearButton);
+        const viewTrashIndex = [...viewTrashButton.parentElement.children].indexOf(viewTrashButton);
+        ok(Math.abs(viewTrashIndex - clearIndex) === 1, 'View trash is adjacent to Clear selection');
+        ok(!restoreButton || restoreButton.hidden || restoreButton.disabled, 'Restore is not offered in active mode');
+        ok(!deleteButton || deleteButton.hidden || deleteButton.disabled, 'Delete permanently is not offered in active mode');
+        includes(viewTrashButton.textContent, 'trash', 'the mode toggle names trash');
+        panelForOpen: {
+            researchPanelFor(env, 'ABEL', 'Tags, research collections & notes').open = true;
+        }
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        const beforeTrashCalls = lifecycleCalls(env).length;
+        await click(env, trashButton);
+        eq(lifecycleCalls(env).length, beforeTrashCalls + 1, 'bulk Trash posts exactly one lifecycle request');
+        const trashCall = lifecycleCalls(env).at(-1);
+        eq(trashCall[2].changes.map(change => change.voice_id).sort(), ['persona/dh/abel', 'persona/dh/echo']);
+        ok(trashCall[2].changes.every(change => change.to === 'trashed' && change.expected_lifecycle === 'active'),
+           'bulk Trash carries correct ids, target and expected states');
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'trashed');
+        eq(env.serverMarks['persona/dh/echo'].lifecycle, 'trashed');
+        eq(env.serverMarks['persona/dh/echo'].stars, ['red', 'blue'], 'trash preserves stars');
+        eq(env.serverMarks['persona/dh/echo'].circles, ['blue'], 'trash preserves circles');
+        eq(env.serverMarks['persona/dh/echo'].collections, ['Leads'], 'trash preserves research collections');
+        eq(env.serverMarks['persona/dh/echo'].tags, ['keep'], 'trash preserves tags');
+        ok(!labels(env).includes('ABEL') && !labels(env).includes('ECHO'), 'trashed voices leave active mode');
+        eq(labels(env).length, 3, 'active mode keeps only the untrashed voices');
+        await env.w.loadCastingLibrary(); await settle();
+        eq(labels(env).length, 3, 'trash persists through loadCastingLibrary');
+        ok(!labels(env).includes('ECHO'), 'a reloaded active view still hides trashed voices');
+        await click(env, $(env, 'research-view-trash'));
+        eq(labels(env).sort(), ['ABEL', 'ECHO'], 'trash mode shows only trashed voices');
+        ok(researchPanelFor(env, 'ABEL', 'Tags, research collections & notes').open, 'panels preserve state across the mode switch');
+        const trashTone = chip(env, 'tones', 'warm');
+        ok(trashTone, 'trash facets are computed from trashed voices');
+        eq(trashTone.textContent, 'warm 1', 'trash facet counts do not count active voices');
+        const trashCalm = chip(env, 'tones', 'calm');
+        eq(trashCalm.textContent, 'calm 1', 'trash tone counts exclude active calm voices');
+        ok(chip(env, 'research-filter-collection', 'Leads'), 'trash research collections are computed from trashed voices');
+        eq(chip(env, 'research-filter-collection', 'Leads').textContent, 'Leads 1');
+        includes($(env, 'health-counts').textContent, 'Duplicate names: 0', 'health counts are scoped to the mode');
+        const activeTrash = $(env, 'research-trash');
+        ok(activeTrash.hidden, 'Trash is hidden rather than merely disabled in trash mode');
+        ok($(env, 'research-restore'), 'Restore replaces Trash in trash mode');
+        ok($(env, 'research-delete'), 'Delete permanently replaces Trash in trash mode');
+        await click(env, $(env, 'research-select-filtered'));
+        eq(env.w.CastingLibrary.state().research.state().selection.size, 2, 'selection in trash mode cannot cross into active voices');
+        await click(env, $(env, 'research-view-trash'));
+        eq(env.w.CastingLibrary.state().research.state().selection.size, 0, 'switching modes clears cross-mode selection');
+        eq(labels(env).length, 3, 'Exit trash returns to active voices');
+        ok(!chip(env, 'research-filter-collection', 'Leads') || chip(env, 'research-filter-collection', 'Leads').textContent === 'Leads 0',
+           'active collection facets do not count trashed voices');
+        await click(env, $(env, 'research-view-trash'));
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        const beforeRestore = lifecycleCalls(env).length;
+        await click(env, $(env, 'research-restore'));
+        eq(lifecycleCalls(env).length, beforeRestore + 1, 'Restore posts one lifecycle request');
+        eq(lifecycleCalls(env).at(-1)[2].changes, [{voice_id: 'persona/dh/abel', to: 'active', expected_lifecycle: 'trashed'}]);
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'active');
+        eq(labels(env), ['ECHO'], 'restored voices leave trash mode');
+        await click(env, $(env, 'research-view-trash'));
+        ok(labels(env).includes('ABEL'), 'restored voice returns to active mode after Exit trash');
+        eq(env.serverMarks['persona/dh/echo'].stars, ['red', 'blue'], 'annotations survive trash and restore');
+        eq(env.serverMarks['persona/dh/echo'].notes, '', 'notes survive trash and restore');
+        await click(env, $(env, 'research-view-trash'));
+        eq(labels(env), ['ECHO']);
+        env.w.CastingLibrary.state().review = null;
+        await click(env, $(env, 'review'));
+        eq(env.w.CastingLibrary.state().review.list.map(voice => voice.id), ['persona/dh/echo'], 'review is scoped to trash mode');
+        env.w.CastingLibrary.state().review = null;
+        const audiosBeforeTrashPlay = env.audios.length;
+        await click(env, $(env, 'play-all'));
+        ok(env.audios.length > audiosBeforeTrashPlay, 'playback starts in trash mode');
+        ok(env.audios.at(-1).src.includes('echo'), 'play-all in trash mode plays only trashed voices');
+        await click(env, $(env, 'play-all'));
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        env.confirm = false;
+        const beforeDeclinedDelete = lifecycleCalls(env).length;
+        await click(env, $(env, 'research-delete'));
+        eq(lifecycleCalls(env).length, beforeDeclinedDelete, 'a declined permanent delete sends zero requests');
+        eq(env.serverMarks['persona/dh/echo'].lifecycle, 'trashed');
+        env.confirm = true;
+        await click(env, $(env, 'research-delete'));
+        eq(lifecycleCalls(env).length, beforeDeclinedDelete + 1, 'an accepted permanent delete posts one request');
+        eq(lifecycleCalls(env).at(-1)[2].changes, [{voice_id: 'persona/dh/echo', to: 'deleted', expected_lifecycle: 'trashed'}]);
+        eq(env.serverMarks['persona/dh/echo'], {lifecycle: 'deleted'}, 'permanent delete reduces the mark to a tombstone');
+        eq(labels(env), [], 'deleted voices are hidden in trash mode');
+        await click(env, $(env, 'research-view-trash'));
+        ok(!labels(env).includes('ECHO'), 'deleted voices are hidden in active mode too');
+        eq(env.w.CastingLibrary.state().research.state().undo.length, 0, 'lifecycle operations add no undo entry');
+        await env.w.loadCastingLibrary(); await settle();
+        ok(!labels(env).includes('ECHO'), 'deleted voices stay hidden after refresh with no auto-expiration');
+        eq(env.serverMarks['persona/dh/echo'], {lifecycle: 'deleted'}, 'the tombstone persists forever');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        env.serverMarks['persona/dh/abel'].lifecycle = 'trashed';
+        const beforeConflict = lifecycleCalls(env).length;
+        await click(env, $(env, 'research-trash'));
+        eq(lifecycleCalls(env).length, beforeConflict + 1, 'a stale lifecycle change is attempted once');
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'trashed', 'a 409 lifecycle conflict writes nothing');
+        const blockedCalls = lifecycleCalls(env).length + batchCalls(env).length;
+        await click(env, $(env, 'research-select-filtered'));
+        await change(env, $(env, 'research-bulk-status'), 'shortlist');
+        eq(lifecycleCalls(env).length + batchCalls(env).length, blockedCalls, '409 blocks further writes until reload');
+        ok(env.toasts.some(([type, message]) => /Reload|reload/.test(message)), '409 explains that reload is required');
+        await env.w.loadCastingLibrary(); await settle();
+        await click(env, $(env, 'research-view-trash'));
+        eq(labels(env), ['ABEL'], 'reload reconciles the externally trashed voice');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        env.lifecycleGate = new Promise(resolve => { env.releaseLifecycle = resolve; });
+        const pendingTrash = click(env, $(env, 'research-trash'));
+        await settle();
+        eq(lifecycleCalls(env).length, 1, 'the lifecycle POST is in flight before reload');
+        await env.w.loadCastingLibrary(); await settle();
+        env.releaseLifecycle(); await pendingTrash;
+        await env.w.CastingLibrary.state().research.state().chain;
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'trashed', 'the dispatched request commits after reload');
+        eq(env.w.CastingLibrary.state().marks['persona/dh/abel'].lifecycle, 'active', 'the old-epoch reply cannot overwrite the reloaded snapshot');
+        ok(env.w.CastingLibrary.state().research.state().needsReload, 'a committed old-epoch reply demands reconciliation');
+        await env.w.loadCastingLibrary(); await settle();
+        ok(!labels(env).includes('ABEL'), 'a fresh reload reconciles the actual committed state');
+        ok($(env, 'research-undo').disabled, 'a stale lifecycle reply adds no undo entry');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        await click(env, $(env, 'research-trash'));
+        await click(env, $(env, 'research-view-trash'));
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        let releaseConfirm;
+        env.w.showConfirm = () => new Promise(resolve => { releaseConfirm = resolve; });
+        const pendingDelete = click(env, $(env, 'research-delete'));
+        await click(env, $(env, 'research-view-trash'));
+        const beforeStaleConfirm = lifecycleCalls(env).length;
+        releaseConfirm(true); await pendingDelete;
+        eq(lifecycleCalls(env).length, beforeStaleConfirm, 'a confirmation that goes stale after a mode switch does not dispatch');
+        eq(env.serverMarks['persona/dh/echo'].lifecycle, 'trashed');
+        await click(env, $(env, 'research-view-trash'));
+        eq(labels(env), ['ECHO'], 'the stale-confirmed voice remains trashed');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        await click(env, $(env, 'research-trash'));
+        await click(env, $(env, 'research-view-trash'));
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        let releaseReloadConfirm;
+        env.w.showConfirm = () => new Promise(resolve => { releaseReloadConfirm = resolve; });
+        const pendingReloadDelete = click(env, $(env, 'research-delete'));
+        await env.w.loadCastingLibrary(); await settle();
+        const beforeReloadConfirm = lifecycleCalls(env).length;
+        releaseReloadConfirm(true); await pendingReloadDelete;
+        eq(lifecycleCalls(env).length, beforeReloadConfirm, 'a confirmation that goes stale after reload does not dispatch');
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'trashed');
+    }
+
+    {
+        env = setup({marks: {
+            'persona/dh/abel': {tags: ['shared'], tag_colors: {shared: 'red'}},
+            'persona/dh/echo': {tags: ['shared'], tag_colors: {shared: 'red'}, lifecycle: 'trashed'},
+        }});
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, selectByLabel(env, 'Colour for tag shared on ABEL'), 'blue');
+        eq(env.serverMarks['persona/dh/echo'].tag_colors.shared, 'blue', 'shared tag colours include trashed voices');
+        const sharedChanges = batchCalls(env).at(-1)[2].changes;
+        eq(sharedChanges.map(change => [change.voice_id, change.expected_lifecycle]).sort(),
+           [['persona/dh/abel', 'active'], ['persona/dh/echo', 'trashed']], 'cross-mode colour writes bind each lifecycle');
+
+        env = setup({marks: {
+            'persona/dh/abel': {circles: ['blue']},
+            'persona/dh/echo': {circles: ['blue'], lifecycle: 'trashed'},
+        }});
+        await env.w.loadCastingLibrary(); await settle();
+        const circles = env.w.CastingLibrary.state().research;
+        circles.cycleChip('circle', 'blue');
+        circles.cycleChip('circle', 'blue');
+        await click(env, $(env, 'research-refresh-circles'));
+        ok(!labels(env).includes('ABEL'), 'committed circle exclusions hide active matches');
+        await click(env, $(env, 'research-view-trash'));
+        ok(!labels(env).includes('ECHO'), 'committed circle exclusions also hide trash matches');
+
+        for (const reply of [{}, {marks: {}, activity: []}, {marks: {'persona/dh/abel': null}, activity: []},
+                            {marks: {'persona/dh/abel': {lifecycle: 'active'}}, activity: []}]) {
+            env = setup();
+            await env.w.loadCastingLibrary(); await settle();
+            const originalPost = env.w.API.post;
+            env.w.API.post = async (url, body) => {
+                const response = await originalPost(url, body);
+                return url === '/api/casting/lifecycle/batch' ? reply : response;
+            };
+            await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+            await click(env, $(env, 'research-trash'));
+            ok(env.w.CastingLibrary.state().research.state().needsReload, 'malformed lifecycle results require reconciliation');
+            ok($(env, 'research-trash').disabled, 'uncertain lifecycle results block further writes');
+            eq(env.serverMarks['persona/dh/abel'].lifecycle, 'trashed', 'the server may have committed before a malformed reply');
+            eq(env.w.CastingLibrary.state().marks['persona/dh/abel'].status, 'shortlist', 'malformed replies do not replace local annotations');
+            await env.w.loadCastingLibrary(); await settle();
+            ok(!labels(env).includes('ABEL'), 'reload reconciles the committed lifecycle');
+        }
+    }
+
+    {
+        let env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        includes($(env, 'health-counts').textContent, 'Missing audio: 1');
+        await change(env, cardCheckbox(env, 'persona/lotm/cain'), true);
+        await click(env, $(env, 'research-trash'));
+        includes($(env, 'health-counts').textContent, 'Missing audio: 0', 'Trash refreshes active health counts immediately');
+        ok(!Array.from($(env, 'book').children).some(option => option.value === 'LOTM'), 'active book facets drop the trashed-only book');
+        await click(env, $(env, 'research-view-trash'));
+        includes($(env, 'health-counts').textContent, 'Trash: ', 'the health heading follows the mode');
+        includes($(env, 'health-counts').textContent, 'Missing audio: 1', 'Trash health counts differ from Active');
+        eq(Array.from($(env, 'book').children).map(option => option.value), ['', 'LOTM'], 'Trash book facets include only trash voices');
+        eq(Array.from($(env, 'age').children).map(option => option.value), ['', 'Young Adult'], 'Trash age facets are mode-specific');
+        await change(env, cardCheckbox(env, 'persona/lotm/cain'), true);
+        await click(env, $(env, 'research-restore'));
+        includes($(env, 'health-counts').textContent, 'Missing audio: 0', 'Restore refreshes Trash health counts');
+        eq(Array.from($(env, 'book').children).map(option => option.value), [''], 'Restore removes empty Trash book facets');
+        await click(env, $(env, 'research-view-trash'));
+        includes($(env, 'health-counts').textContent, 'Active library: ');
+        ok($(env, 'research-restore').hidden && $(env, 'research-delete').hidden, 'restore and delete are hidden in Active mode');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        env.lifecycleGate = new Promise(resolve => { env.releaseLifecycle = resolve; });
+        const pendingTrash = click(env, $(env, 'research-trash'));
+        await settle();
+        eq(lifecycleCalls(env).length, 1, 'the captured selection was dispatched');
+        await click(env, $(env, 'research-clear-selection'));
+        input($(env, 'search'), 'ECHO'); await settle();
+        env.releaseLifecycle(); await pendingTrash;
+        await env.w.CastingLibrary.state().research.state().chain;
+        eq(env.w.CastingLibrary.state().marks['persona/dh/abel'].lifecycle, 'trashed', 'a benign selection/filter change does not discard a committed reply');
+        ok(!env.w.CastingLibrary.state().research.state().needsReload, 'benign UI changes do not require reconciliation');
+        eq(labels(env), ['ECHO'], 'the current search survives lifecycle reply adoption');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, selectByLabel(env, 'Review status for ABEL'), 'callback');
+        await change(env, selectByLabel(env, 'Review status for ECHO'), 'shortlist');
+        eq(env.w.CastingLibrary.state().research.state().undo.length, 2, 'two real mark writes populate undo');
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        await click(env, $(env, 'research-trash'));
+        eq(env.w.CastingLibrary.state().research.state().undo.length, 1, 'Trash prunes only undo entries touching the changed voice');
+        await click(env, $(env, 'research-view-trash'));
+        await change(env, selectByLabel(env, 'Review status for ECHO'), 'reject');
+        eq(env.w.CastingLibrary.state().research.state().undo.length, 2, 'a trashed mark edit creates a real undo entry');
+        await change(env, cardCheckbox(env, 'persona/dh/echo'), true);
+        env.confirm = true;
+        await click(env, $(env, 'research-delete'));
+        eq(env.w.CastingLibrary.state().research.state().undo.length, 1, 'Delete prunes the trashed voice undo entry');
+        const writesBeforeUndo = batchCalls(env).length;
+        await click(env, $(env, 'research-undo'));
+        eq(batchCalls(env).length, writesBeforeUndo + 1, 'an unrelated retained undo really dispatches');
+        eq(env.serverMarks['persona/dh/abel'].status, 'shortlist', 'unrelated undo restores its original value');
+        eq(env.serverMarks['persona/dh/echo'], {lifecycle: 'deleted'}, 'executed undo cannot resurrect the deleted voice');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        env.failNextLifecycle = true;
+        env.failNextLifecycleStatus = 500;
+        await click(env, $(env, 'research-trash'));
+        eq(lifecycleCalls(env).length, 1, 'a non-conflict failure is attempted only once');
+        eq(env.serverMarks['persona/dh/abel'].lifecycle, 'active', 'a refused write leaves server state intact');
+        ok(env.w.CastingLibrary.state().research.state().needsReload, 'uncertain server failure blocks further writes');
+
+        env = setup();
+        await env.w.loadCastingLibrary(); await settle();
+        await click(env, $(env, 'play-all'));
+        const playing = env.audios.at(-1);
+        ok(playing && !playing.paused, 'a real queue is playing before Trash');
+        await change(env, cardCheckbox(env, 'persona/dh/abel'), true);
+        await click(env, $(env, 'research-trash'));
+        ok(playing.paused, 'lifecycle changes stop the old playback queue');
+
+        env = setup({marks: {'persona/dh/echo': {circles: ['blue'], lifecycle: 'trashed'}}});
+        await env.w.loadCastingLibrary(); await settle();
+        await change(env, $(env, 'research-lock-circles'), false);
+        await click(env, chip(env, 'research-filter-circle', 'blue'));
+        await click(env, chip(env, 'research-filter-circle', 'blue'));
+        await click(env, $(env, 'research-refresh-circles'));
+        const echoMark = env.w.CastingLibrary.state().marks['persona/dh/echo'];
+        echoMark.circles = [];
+        await click(env, $(env, 'research-clear-selection'));
+        includes($(env, 'results').textContent + $(env, 'research').textContent, 'Circle exclusions staged:', 'circle snapshot drift in Trash is visible from Active mode');
+
+        env = setup({marks: Object.fromEntries(VOICES.map(voice => [voice.id, {lifecycle: 'deleted'}]))});
+        await env.w.loadCastingLibrary(); await settle();
+        includes($(env, 'results').textContent, 'No active voices.', 'an all-deleted catalogue is not described as first-run');
+        await click(env, $(env, 'research-view-trash'));
+        includes($(env, 'results').textContent, 'Trash is empty.', 'an all-deleted catalogue still has an accurate Trash empty state');
     }
 
     console.log(JSON.stringify({passed: true, assertions}));
