@@ -184,6 +184,16 @@
             'editor-quality-filter': {what: 'Filter the take review queue by saved findings, historical speech evidence or missing checks. Compare retained candidates without changing audio; restoration requires an explicit action. Unknown evidence is not a clean result.'},
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
 
+            // Manual Audiobookshelf delivery
+            'abs-server-url': {what: 'Audiobookshelf server address. Use HTTPS, or HTTP for localhost only. Saving selects the server; it does not upload audio.'},
+            'abs-api-key': {what: 'API key for this Audiobookshelf server. Saved in the OS credential store and never returned to the page. Leave blank to keep the stored key.'},
+            'abs-export-format': {what: 'Choose a completed, current MP3 or M4B export to deliver. The preview checks its saved identity before sending.'},
+            'abs-title': {what: 'Title to send with the audiobook. Changing it clears the delivery preview.'},
+            'abs-library': {what: 'Destination library returned by Load libraries. Loading libraries contacts the selected server without uploading audio.'},
+            'abs-folder': {what: 'Destination folder within the selected library. Preview checks that the folder belongs to that library.'},
+            'abs-author': {what: 'Optional author metadata sent with the audiobook. Leave blank to omit it.'},
+            'abs-series': {what: 'Optional series metadata sent with the audiobook. Leave blank to omit it.'},
+            'abs-right-to-share': {what: 'Confirm that you have permission to share the current export and its voices. Confirmation enables Send only after a current preview.'},
             // Result tab
             'export-quality-noise': {what: 'Level below which every audio channel counts as silent during the next MP3, M4B or chapter check. Authored pauses are excluded; Audacity checks track structure instead.'},
             'export-quality-gap': {what: 'Minimum unexpected silent interval reported during the next assembled export, in seconds. It warns by default; enable rejection to refuse these gaps before replacing a delivery.'},
@@ -310,6 +320,14 @@
         };
 
         const ACTION_HELP = {
+            'audiobookshelfApiDocs': 'Open the official Audiobookshelf API documentation. Does not upload audio or send your API key.',
+            'saveAbsConfig': 'Save the selected Audiobookshelf server and its API key in the OS credential store. Does not send the audiobook.',
+            'loadAbsLibraries': 'Contact the selected Audiobookshelf server to list accessible libraries and folders. Does not upload audio.',
+            'previewAbsSend': 'Check the current export and destination, then display their identity before you confirm sending. Contacts the server to check the destination.',
+            'sendAbsExport': 'Upload the previewed export after rights confirmation. Local audio is retained. Verify delivery afterwards to confirm the remote file bytes.',
+            'cancelAbsSend': 'Request cancellation of the active upload. The server may already have received bytes; the outcome remains unconfirmed until verified.',
+            'loadAbsDeliveries': 'Show the current book?s saved delivery outcomes without uploading or retrying. Unconfirmed outcomes block duplicate sends.',
+            'reconcileAbsDelivery': 'Download a candidate remote file and compare its complete size and SHA-256 with the recorded export. Only matching bytes confirm delivery.',
             'acceptDocxPreview': 'Confirm the exact displayed DOCX extraction, retain its original archive and receipt, then select the derived text. Does not start generation.',
             'cancelDocxPreview': 'Discard this DOCX preview without selecting a new source. An acceptance already sent may retain confirmed files for recovery.',
             'openRetainedDocxDetails': 'Read bounded retained-file metadata, including partial DOCX groups and observed quota bytes. No content verification or deletion. Shows storage location and offline backup/remove guidance.',

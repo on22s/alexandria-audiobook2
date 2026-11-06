@@ -1,6 +1,242 @@
 {
   "components": {
     "schemas": {
+      "AbsCancelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "preview_id": {
+            "maxLength": 64,
+            "title": "Preview Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "title": "AbsCancelRequest",
+        "type": "object"
+      },
+      "AbsConfigRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "maxLength": 2048,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "library_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library Id"
+          }
+        },
+        "required": [
+          "base_url"
+        ],
+        "title": "AbsConfigRequest",
+        "type": "object"
+      },
+      "AbsPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Author"
+          },
+          "base_url": {
+            "maxLength": 2048,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "export_file": {
+            "pattern": "^(cloned_audiobook\\.mp3|audiobook\\.m4b)$",
+            "title": "Export File",
+            "type": "string"
+          },
+          "folder_id": {
+            "maxLength": 200,
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "library_id": {
+            "maxLength": 200,
+            "title": "Library Id",
+            "type": "string"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Series"
+          },
+          "title": {
+            "maxLength": 500,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "export_file",
+          "library_id",
+          "folder_id",
+          "title",
+          "base_url"
+        ],
+        "title": "AbsPreviewRequest",
+        "type": "object"
+      },
+      "AbsReconcileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "delivery_id": {
+            "maxLength": 64,
+            "title": "Delivery Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delivery_id"
+        ],
+        "title": "AbsReconcileRequest",
+        "type": "object"
+      },
+      "AbsSendRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledge_unknown": {
+            "default": false,
+            "title": "Acknowledge Unknown",
+            "type": "boolean"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Author"
+          },
+          "base_url": {
+            "maxLength": 2048,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "expected_book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Book Token",
+            "type": "string"
+          },
+          "export_file": {
+            "pattern": "^(cloned_audiobook\\.mp3|audiobook\\.m4b)$",
+            "title": "Export File",
+            "type": "string"
+          },
+          "folder_id": {
+            "maxLength": 200,
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "library_id": {
+            "maxLength": 200,
+            "title": "Library Id",
+            "type": "string"
+          },
+          "preview_id": {
+            "maxLength": 64,
+            "title": "Preview Id",
+            "type": "string"
+          },
+          "right_to_share": {
+            "default": false,
+            "title": "Right To Share",
+            "type": "boolean"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Series"
+          },
+          "title": {
+            "maxLength": 500,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_book_token",
+          "export_file",
+          "library_id",
+          "folder_id",
+          "title",
+          "base_url",
+          "preview_id"
+        ],
+        "title": "AbsSendRequest",
+        "type": "object"
+      },
       "AppConfig": {
         "properties": {
           "generation": {
@@ -5905,6 +6141,321 @@
           }
         },
         "summary": "Read Index"
+      }
+    },
+    "/api/abs/cancel": {
+      "post": {
+        "operationId": "cancel_abs_send_api_abs_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsCancelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Abs Send"
+      }
+    },
+    "/api/abs/config": {
+      "get": {
+        "operationId": "get_abs_config_api_abs_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Abs Config"
+      },
+      "post": {
+        "operationId": "save_abs_config_api_abs_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Abs Config"
+      }
+    },
+    "/api/abs/deliveries": {
+      "get": {
+        "operationId": "list_abs_deliveries_api_abs_deliveries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "expected_book_token",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Book Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Abs Deliveries"
+      }
+    },
+    "/api/abs/libraries": {
+      "get": {
+        "operationId": "list_abs_libraries_api_abs_libraries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "base_url",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Base Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Abs Libraries"
+      }
+    },
+    "/api/abs/preview": {
+      "post": {
+        "operationId": "preview_abs_send_api_abs_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Abs Send"
+      }
+    },
+    "/api/abs/progress": {
+      "get": {
+        "operationId": "get_abs_progress_api_abs_progress_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "preview_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Preview Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Abs Progress"
+      }
+    },
+    "/api/abs/reconcile": {
+      "post": {
+        "operationId": "reconcile_abs_delivery_api_abs_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconcile Abs Delivery"
+      }
+    },
+    "/api/abs/send": {
+      "post": {
+        "operationId": "send_abs_export_api_abs_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsSendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Abs Export"
       }
     },
     "/api/annotated_script": {
