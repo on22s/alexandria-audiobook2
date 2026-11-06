@@ -10,7 +10,8 @@ function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{reso
 function setup(){
  const elements={};const toasts=[];const posts=[];const gets=[];
  const ids=['cast-list-panel','design-voice-name','design-source-name','design-description','design-sample-text','design-alias-select',
- 'design-preview-audio','design-preview-container','design-status','btn-design-preview','btn-design-save','design-save-status'];
+ 'design-preview-audio','design-preview-container','design-status','btn-design-preview','btn-design-save','design-save-status',
+ 'clone-cleanup-prepare','clone-cleanup-accept','clone-cleanup-reject'];
  for(const id of ids){elements[id]={value:'',innerHTML:'',style:{},dataset:{},options:[],disabled:false,focusCount:0,focus(){this.focusCount++;},appendChild(option){this.options.push(option);}};}
  const context={ensureVoiceRosterOptions:()=>true,window:{},document:{getElementById:id=>elements[id],createElement:()=>({}),querySelector:()=>({click(){}})},
  API:{post:(...args)=>{const d=deferred();posts.push({args,...d});return d.promise;},get:(...args)=>{const d=deferred();gets.push({args,...d});return d.promise;}},

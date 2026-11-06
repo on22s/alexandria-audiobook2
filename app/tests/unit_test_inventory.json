@@ -13784,6 +13784,7 @@
   ],
   "test_ui_help_js": [
     "tests.test_ui_help_js.UiHelpTests.test_all_static_interactive_items_have_explanations",
+    "tests.test_ui_help_js.UiHelpTests.test_cleanup_help_distinguishes_preview_accept_and_discard",
     "tests.test_ui_help_js.UiHelpTests.test_delayed_help_lifecycle",
     "tests.test_ui_help_js.UiHelpTests.test_disabled_label_lifecycle",
     "tests.test_ui_help_js.UiHelpTests.test_dynamic_disabled_child_replacement",

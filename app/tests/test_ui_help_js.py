@@ -126,6 +126,21 @@ const missing=items.filter(item=>!helpFor(new Element(item.tag,item.attrs)));
 assert.deepStrictEqual(missing,[],'undocumented static items');
 ''')
 
+    def test_cleanup_help_distinguishes_preview_accept_and_discard(self):
+        self.run_js(r'''
+load();
+const gain=helpFor(new Element('input',{id:'clone-cleanup-gain'})).toLowerCase();
+assert(gain.includes('0.25')&&gain.includes('4.0')&&gain.includes('full-length'));
+assert(helpFor(new Element('input',{id:'clone-cleanup-remove-dc'})).includes('quality'));
+for(const name of ['original','candidate']){
+ const text=helpFor(new Element('input',{id:'clone-cleanup-listened-'+name}));
+ assert(text.includes('listened')&&text.includes('not automated'));
+}
+assert(helpFor(new Element('button',{id:'clone-cleanup-prepare'})).includes('does not import'));
+assert(helpFor(new Element('button',{id:'clone-cleanup-accept'})).includes('new immutable reference'));
+assert(helpFor(new Element('button',{id:'clone-cleanup-reject'})).includes('accepted voices remain'));
+''')
+
     def test_lookups_reject_prototype_names_and_unknown_field_saves(self):
         self.run_js(r'''
 load();for(const id of ['constructor','__proto__','toString']){assert.strictEqual(helpFor(new Element('input',{id})), '');}
