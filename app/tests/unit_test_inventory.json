@@ -14345,6 +14345,12 @@
     "tests.test_voice_reference_import.UploadRouteTests.test_a_valid_clip_is_normalised_and_recorded_with_provenance",
     "tests.test_voice_reference_import.UploadRouteTests.test_refusals_leave_no_file_and_no_manifest_entry"
   ],
+  "test_voice_refresh_ux_js": [
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_committed_select_then_superseded_reload_is_warning_not_failure",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_http_status_error_with_marker_stays_visible_error",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_save_ack_style_supersession_uses_same_neutral_presenter",
+    "tests.test_voice_refresh_ux_js.VoiceRefreshUxJsTests.test_server_mismatch_names_explicit_book_recovery"
+  ],
   "test_voice_removal_safeguards_js": [
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_candidate_accessible_names_escape_ids_and_favourite_state",
     "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_cast_selection_changes_do_not_delete_or_clear_the_new_selection",

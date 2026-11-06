@@ -36,6 +36,7 @@ const link={dataset:{tab:'audio'},classList:{add(){},remove(){}},setAttribute(){
 const ctx={window:{location:{hash:'#audio'},innerWidth:1200},rememberTab(){},getTabLink:()=>link,document:{getElementById:el,querySelectorAll:selector=>selector==='.nav-link'?[link]:[el('audio-tab')]},console:{error(){}},fetch:(url,options)=>{assert.strictEqual(url,'/api/audiobook');assert.strictEqual(options.method,'HEAD');assert.strictEqual(options.cache,'no-store');return new Promise((resolve,reject)=>pending.push({resolve,reject}));}};
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('let finalAudioRequest ='),source.indexOf('async function pollLogs(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function isLocalVoiceLoadObsolete'),source.indexOf('function getActionErrorMessage(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function activateTab('),source.indexOf('function restoreTab(')),ctx);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{

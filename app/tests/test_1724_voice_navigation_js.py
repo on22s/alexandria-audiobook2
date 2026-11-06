@@ -97,7 +97,7 @@ const context={currentTabName:'home',currentBookFilename:'book.txt',_bookSelecti
  setTimeout:()=>1,clearTimeout(){},AbortController,console:{error(){},debug(){}},performance:{now:()=>Date.now()},AVAILABLE_VOICES:['Serena','Ryan'],
  getLibraryVoiceReference:()=>null,getTraitBadgeHtml:()=>'',getVoiceCandidateMarkup:()=>'',renderStyleTimeline:()=>'',getSavedAdapterOption:()=>'',disableStaleCardControls:s=>s,getLoraModelsById:()=>new Map(),loadCastLibrary:async()=>{},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},renderVoiceSuggestions(){},getVoicePanelSnapshot:()=>({bookToken:null,panels:[]}),restoreVoicePanels(){},getVoiceListFocusSnapshot:()=>null,restoreVoiceListFocus(){},getVoiceSeedRepairMarkup:()=>'',renderPersonaRecoveryTargets(){},applyTtsCapabilityGuidance(){},ensureVoiceRosterCache(){},renderVoiceDrafts(){},pollLmStudioStatus(){},loadChunks(){},loadFinalAudio(){},loadDesignedVoices(){},loadLoraDatasets(){},loadLoraModels(){},dsbLoadProjects(){},loadPreparerOutputs(){},loadVoicelabConfig(){},voicelabInspect(){},refreshVoicelabHealth(){},loadReports(){},loadCheckpoints(){},loadRunHistory(){},refreshBenchmarkStatus(){},bootstrap:{Collapse:{getOrCreateInstance:()=>({hide(){}})}}};
 vm.createContext(context);
-vm.runInContext(helper+api+saves+refresh+core.slice(literalStart,literalEnd)+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+navSlice,context);
+vm.runInContext(helper+api+saves+refresh+core.slice(literalStart,literalEnd)+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+core.slice(core.indexOf('function isLocalVoiceLoadObsolete'),core.indexOf('function getActionErrorMessage('))+navSlice,context);
 context.elements=elements;context.document=document;
 context.API=vm.runInContext('API',context);
 context.window._bookSelectionEpoch=1;
@@ -234,7 +234,7 @@ const ctx={window:{location:{hash:''},history:{pushState(){},replaceState(){}},a
  rememberTab(){},
  loadVoices:()=>mode==='superseded'?Promise.reject(Object.assign(new Error('A newer voice load superseded this request; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='refreshing'?Promise.reject(Object.assign(new Error('Active book changed while refreshing voices; existing edits were preserved.'),{voiceLoadObsolete:true})):mode==='server_mismatch'?Promise.reject(new Error('Active book changed while loading voices; voice edits were preserved.')):mode==='named'?Promise.reject(new Error("Speaker 'superseded' has a malformed voice entry (not an object); restore the saved voice configuration before continuing.")):mode==='http_prefix'?Promise.reject(Object.assign(new Error('Active book changed while loading voices; voice edits were preserved.'),{status:503})):mode==='marked_http'?Promise.reject(Object.assign(new Error('A newer voice load superseded this request; existing edits were preserved.'),{voiceLoadObsolete:true,status:503})):Promise.reject(new Error('snapshot exploded')),
  pollLmStudioStatus(){},loadChunks(){},loadFinalAudio(){}};
-vm.createContext(ctx);vm.runInContext(navSlice,ctx);
+vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function isLocalVoiceLoadObsolete'),source.indexOf('function getActionErrorMessage(')),ctx);vm.runInContext(navSlice,ctx);
 let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish'));
 (async()=>{
  ctx.activateTab('voices',false);

@@ -116,10 +116,31 @@
         }
 
         function showActionError(action, error, recovery, type = 'error') {
+            if (isLocalVoiceLoadObsolete(error)) {
+                showToast(getActionErrorMessage(action, error, recovery), 'warning', 10000);
+                return;
+            }
             showToast(getActionErrorMessage(action, error, recovery), type, 10000);
         }
 
+        // One shared owned-local-obsolete classification for every
+        // voice-load error presenter (inside the formatter extraction
+        // range so sliced harnesses carry it): ONLY explicitly marked
+        // local supersession without an HTTP status is benign.
+        // HTTP-status errors stay visible/danger even with an
+        // accidental marker.
+        function isLocalVoiceLoadObsolete(error) {
+            return error?.voiceLoadObsolete === true && typeof error?.status !== 'number';
+        }
+
         function getActionErrorMessage(action, error, recovery) {
+            if (isLocalVoiceLoadObsolete(error)) {
+                // No failure-labelled action prefix: a stale local READ
+                // must never be presented as a failed mutation. The
+                // supersession may come from a newer load OR a save/ACK
+                // snapshot change, so no save outcome is claimed here.
+                return 'The Voices display refresh was superseded by a newer local change. Check current Voices before repeating the action.';
+            }
             const detail = error?.message || String(error);
             const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(detail);
             const guidance = unreachable
@@ -696,7 +717,7 @@
                     // "superseded" (e.g. speaker named 'superseded').
                     // An HTTP-status error stays visible even if a
                     // local-obsolete marker is accidentally present.
-                    if (error?.voiceLoadObsolete === true && typeof error?.status !== 'number') { return; }
+                    if (isLocalVoiceLoadObsolete(error)) { return; }
                     showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
                 });
             } else if (selectedLink.dataset.tab === 'designer') {
@@ -4975,7 +4996,7 @@
                     || rosterFilename !== currentBookFilename
                     || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
                     || (expectedSelection && window._existingUploadSelectionPending)) {
-                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved.');
+                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
             }
             // Genuine queue errors stay visible when the local context
             // is stable (filename is owned by the local rule above).
@@ -4995,10 +5016,10 @@
                 // Server identity mismatch (another tab switched the
                 // server book; local context unchanged): visible, never
                 // silenced as obsolete.
-                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
             }
             if (expectedIdentityToken && snapshot.book_identity_token !== expectedIdentityToken) {
-                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
             }
             // Unscoped binding (DS3074): with no explicit expected
             // identity, the snapshot must match the authoritative local
@@ -5011,11 +5032,11 @@
             if (!expectedSelection && !expectedIdentityToken) {
                 if (capturedSelection && capturedSelection.filename === capturedFilename) {
                     if (snapshot.book_identity_token !== capturedSelection.token) {
-                        throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
                     }
                 } else if (capturedPrevToken) {
                     if (snapshot.book_identity_token !== capturedPrevToken) {
-                        throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
                     }
                 }
             }
@@ -6482,7 +6503,7 @@
                 if (!isCastApplyContextCurrent(context)) { return; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}${getCastApplyWarningsHtml(res.warnings)}`);
                 await loadVoices();  // re-render cards with the applied configs
-            } catch (e) { if (!isCastApplyContextCurrent(context)) { return; } setCastStatus(escapeHtml(getActionErrorMessage("Applying cast voices failed", e, "Reload Voices and review the current book assignments before applying again.")), true); }
+            } catch (e) { if (!isCastApplyContextCurrent(context)) { return; } setCastStatus(escapeHtml(getActionErrorMessage("Applying cast voices failed", e, "Reload Voices and review the current book assignments before applying again.")), !isLocalVoiceLoadObsolete(e)); }
         }
 
         // --- Apply a cast to multiple saved books at once ---
