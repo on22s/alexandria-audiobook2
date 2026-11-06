@@ -155,6 +155,8 @@
             'speaker-review-partial': {what: 'Allow reviewing labels from an attribution checkpoint that has not finished.'},
             'speaker-review-consent': {what: 'Confirms that the shown book and reference excerpts may be sent to this model endpoint. Remote providers may charge for it.'},
             'save-script-name': {what: 'Name to save the current script under in the script library.'},
+            'source-preview-confirm': {what: 'Confirms the loaded source-text excerpt snapshot for the current book in this tab. Reload the preview to check the current source.'},
+            'single-voice-source': {what: 'Speaker whose existing voice to review for book-wide use. Preview lists every affected speaker before anything is applied.'},
 
             // Voices tab
             'voices-state-filter': {what: 'Show all characters, or only those with or without state cards (per-state voices, e.g. a time skip).'},
@@ -561,6 +563,8 @@
             'onDesignedVoiceSelect': 'Assign the selected saved designed voice to this character.',
             'handleCloneVoiceUpload': 'Import the selected recording and its required reference details for voice cloning.',
             'saveVoicesDebounced': 'Save the edited voice assignment settings after a short delay.',
+            'loadSingleVoiceSourcePreview': 'Load a read-only excerpt of this book’s source text for inspection. It starts no generation job and does not change the source.',
+            'previewSingleVoiceBook': 'Preview how one voice would apply to every character, reviewing the affected voices before confirming. It may flush your already-authorized pending edits, but applies nothing until you confirm.',
             'reapplyCastSaveThreshold': 'Recalculate which cast-save matches meet the displayed threshold.',
             'loadDesignLines': 'Load this character’s dialogue lines so one can be used to design a voice.',
         };

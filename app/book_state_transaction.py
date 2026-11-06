@@ -2609,15 +2609,42 @@ def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True)
     """Read immutable persona inputs; caller holds the book-operation lock."""
     root = Path(data_dir)
     state_path = root / "state.json"
-    state = json.loads(state_path.read_bytes()) if state_path.exists() else {}
+    # Deep already-stored JSON must be a clear corrupt-data refusal,
+    # never an unhandled RecursionError 500: convert only this
+    # data-read parse boundary to ValueError.
+    try:
+        state = json.loads(state_path.read_bytes()) if state_path.exists() else {}
+    except RecursionError as error:
+        raise ValueError("Book state JSON is too deeply nested") from error
     script_path = root / "annotated_script.json"
     script_bytes = script_path.read_bytes() if script_path.exists() or not allow_missing_script else None
     voice_path = root / "voice_config.json"
-    voices = json.loads(voice_path.read_bytes()) if include_voices and voice_path.exists() else {}
+    try:
+        voices = json.loads(voice_path.read_bytes()) if include_voices and voice_path.exists() else {}
+    except RecursionError as error:
+        raise ValueError("Voice configuration JSON is too deeply nested") from error
     if not isinstance(state, dict) or not isinstance(voices, dict):
         raise ValueError("Book state and voices must be objects")
+    # Structured read boundary (portable #11078): some runtimes parse
+    # deep voice JSON successfully where others raise RecursionError in
+    # json.loads above, leaving the response encoder to fail outside the
+    # route's ValueError mapping. Enforce the ONE shared 100-depth bound
+    # (iterative, no serialization) on every read, independent of the
+    # decoder runtime. No coercion/drop; programmer failures stay visible
+    # (this check itself only raises the corrupt-data ValueError).
+    from voice_config_store import is_voice_config_depth_exceeded
+    if is_voice_config_depth_exceeded(voices):
+        raise ValueError("Voice configuration JSON is too deeply nested")
     identity = {key:state.get(key) for key in ("active_book_id", "input_file_path", "book_generation")}
-    book_id = state.get("active_book_id") or Path(state.get("input_file_path") or "").stem or "active_book"
+    # Narrow consumed-path validation only: the Path fallback below
+    # consumes input_file_path solely when no active_book_id is present.
+    # A malformed (non-string) spelling there is corrupt state data
+    # (clear ValueError), never an unmapped TypeError; str/None/missing
+    # fallbacks and all other state metadata are preserved untouched.
+    _input_file_path = state.get("input_file_path")
+    if not state.get("active_book_id") and _input_file_path is not None and not isinstance(_input_file_path, str):
+        raise ValueError("Book state input_file_path must be a string")
+    book_id = state.get("active_book_id") or Path(_input_file_path or "").stem or "active_book"
     return {"identity":identity, "book_id":book_id, "script_bytes":script_bytes,
             "script_sha256":hashlib.sha256(script_bytes).hexdigest() if script_bytes is not None else None, "voices":voices}
 

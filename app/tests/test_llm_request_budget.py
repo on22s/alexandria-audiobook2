@@ -148,7 +148,7 @@ class ProfileBudgetAdmissionTests(unittest.TestCase):
         request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='sample.txt')])
         with patch.object(script,'check_global_gpu_lock'), patch.object(script,'_resolve_batch_script_input',return_value='/tmp/sample.txt'), \
              patch.object(script,'get_batch_script_source_identity',return_value=(1,)), \
-             patch.object(script,'_read_and_validate_batch_script_source',return_value=('Narration. "Hello."',0)), \
+             patch.object(script,'_capture_and_validate_batch_script_source',return_value=('Narration. "Hello."',0,(1,))), \
              patch.object(script,'get_validated_batch_script_source',return_value=('Narration. "Hello."',0)), \
              patch.object(script,'load_app_config',return_value=config), \
              patch('lmstudio_settings.get_current_status',return_value={'context_length':None}), \

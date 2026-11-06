@@ -13,11 +13,34 @@
             return voiceRosterCache;
         }
 
+        // One effective-alias rule for rendering: alias_of wins, legacy
+        // alias is the fallback. Do not spread `alias_of || alias` elsewhere.
+        // Canonical nonblank-string rule (DS3039): whitespace/non-string
+        // values are ignored by the runtime, so they display as no alias.
+        // Stored names/bytes are never normalized on read. A nonblank
+        // self-alias is NOT ignored: get_resolved_speaker raises a cycle
+        // ValueError for it, and that truth is preserved here.
+        function getEffectiveVoiceAlias(config) {
+            const alias = config?.alias_of || config?.alias || '';
+            return (typeof alias === 'string' && alias.trim()) ? alias : '';
+        }
+
         function renderInitialAliasOptions(voice) {
-            const roster = ensureVoiceRosterCache();
-            const alias = voice.config?.alias_of || '';
-            return alias && alias !== voice.name && roster.nameSet.has(alias)
-                ? `<option value="${escapeHtml(alias)}" selected>${escapeHtml(alias)}</option>` : '';
+            const alias = getEffectiveVoiceAlias(voice.config);
+            // Preserve a saved alias even when its target is no longer
+            // an active roster speaker (DS3001): the select cannot
+            // represent it from the roster alone, and omitting it would
+            // make every unrelated autosave clear both alias keys.
+            // A stored self-alias is likewise preserved visibly as a
+            // selected invalid option (runtime cycle truth); normal
+            // choices still exclude creating a new self-alias, and the
+            // user clears it explicitly via None. Explicit None in the
+            // collector still clears both keys.
+            if (!(typeof alias === 'string' && alias.trim())) { return ''; }
+            if (alias === voice.name) {
+                return `<option value="${escapeHtml(alias)}" selected>${escapeHtml(alias)} (invalid self-alias)</option>`;
+            }
+            return `<option value="${escapeHtml(alias)}" selected>${escapeHtml(alias)}</option>`;
         }
 
         function ensureVoiceRosterOptions(select) {
@@ -29,7 +52,11 @@
             if (select.dataset.rosterGeneration === String(roster.generation)) { return true; }
             const self = kind === 'alias' ? select.closest('.voice-card')?.dataset.voice : null;
             const names = kind === 'alias' ? roster.names.filter(name => name !== self) : roster.editorNames;
-            const current = kind === 'alias' && select.value === self ? '' : select.value;
+            // A stored self-alias remains selected (invalid/stale
+            // option) until explicitly cleared; it is never rewritten
+            // to empty here. New choices still exclude self.
+            const rawCurrent = select.value;
+            const current = rawCurrent;
             const fragment = document.createDocumentFragment();
             const append = (value, label) => {
                 const option = document.createElement('option');
@@ -37,7 +64,7 @@
             };
             if (kind === 'alias') { append('', '-- None --'); }
             if (kind === 'speaker' && !current) { append('', '-- No speaker selected --'); }
-            if (current && !names.includes(current)) { append(current, `${current} (custom)`); }
+            if (current && !names.includes(current)) { append(current, current === self ? `${current} (invalid self-alias)` : `${current} (custom)`); }
             for (const name of names) { append(name, name); }
             select.replaceChildren(fragment);
             select.value = current;
@@ -89,10 +116,31 @@
         }
 
         function showActionError(action, error, recovery, type = 'error') {
+            if (isLocalVoiceLoadObsolete(error)) {
+                showToast(getActionErrorMessage(action, error, recovery), 'warning', 10000);
+                return;
+            }
             showToast(getActionErrorMessage(action, error, recovery), type, 10000);
         }
 
+        // One shared owned-local-obsolete classification for every
+        // voice-load error presenter (inside the formatter extraction
+        // range so sliced harnesses carry it): ONLY explicitly marked
+        // local supersession without an HTTP status is benign.
+        // HTTP-status errors stay visible/danger even with an
+        // accidental marker.
+        function isLocalVoiceLoadObsolete(error) {
+            return error?.voiceLoadObsolete === true && typeof error?.status !== 'number';
+        }
+
         function getActionErrorMessage(action, error, recovery) {
+            if (isLocalVoiceLoadObsolete(error)) {
+                // No failure-labelled action prefix: a stale local READ
+                // must never be presented as a failed mutation. The
+                // supersession may come from a newer load OR a save/ACK
+                // snapshot change, so no save outcome is claimed here.
+                return 'The Voices display refresh was superseded by a newer local change. Check current Voices before repeating the action.';
+            }
             const detail = error?.message || String(error);
             const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(detail);
             const guidance = unreachable
@@ -613,7 +661,7 @@
             const name = window.location.hash.slice(1);
             return getTabLink(name) ? name : null;
         }
-        function activateTab(name, updateHistory = true) {
+        function activateTab(name, updateHistory = true, tabOptions = null) {
             const selectedLink = getTabLink(name);
             if (!selectedLink) { return; }
             const target = document.getElementById(name + '-tab');
@@ -651,7 +699,27 @@
             } else if (selectedLink.dataset.tab === 'audio') {
                 loadFinalAudio();
             } else if (selectedLink.dataset.tab === 'voices') {
-                loadVoices(false);
+                // Tab-load error boundary (DS3006): this fire-and-forget
+                // load must not become an unhandled rejection. A benign
+                // superseded/obsolete rejection means a newer load or
+                // book already owns the UI, so it stays silent; a real
+                // load failure is shown visibly. Await-callers of
+                // loadVoices keep their own rejection truth unchanged.
+                const voiceLoadOptions = (tabOptions && tabOptions.readOnlyVoices)
+                    ? {skipDefaultSave: true} : null;
+                const voiceLoad = loadVoices(false, voiceLoadOptions);
+                Promise.resolve(voiceLoad).catch(error => {
+                    // Silence ONLY explicit local-obsolete errors
+                    // (provable local ownership/epoch supersession).
+                    // HTTP-status errors and unexpected server book
+                    // mismatch (same message text, unmarked) remain
+                    // visible, as does any error merely containing
+                    // "superseded" (e.g. speaker named 'superseded').
+                    // An HTTP-status error stays visible even if a
+                    // local-obsolete marker is accidentally present.
+                    if (isLocalVoiceLoadObsolete(error)) { return; }
+                    showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
+                });
             } else if (selectedLink.dataset.tab === 'designer') {
                 loadDesignedVoices();
             } else if (selectedLink.dataset.tab === 'casting') {
@@ -784,14 +852,33 @@
             applyTheme(saved);
         })();
 
-        function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {} }) {
+        function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {}, guardAmbiguous = false }) {
             let pending = null;
             let inFlight = null;
             let timer = null;
             let revision = 0;
             let savedRevision = 0;
+            // Ambiguous outcome (DS3014, voice queue only): a write that
+            // failed WITHOUT a definite server refusal (400/409/422) may
+            // have committed. Ordinary implicit flushes (navigation,
+            // reads, timers, pagehide) must not auto-replay it; the
+            // existing explicit Discard-edits-and-reload recovery (which
+            // discards + clears this flag) is the reconciliation path.
+            // Generic queues opt out entirely (guardAmbiguous=false).
+            let ambiguous = false;
 
-            async function flush() {
+            // ONE canonical flush policy for guarded queues: an ordinary
+            // implicit flush must refuse an ambiguous outcome without
+            // sending; {explicitRetry:true} or discard may reconcile it.
+            async function flush(options = {}) {
+                if (guardAmbiguous && ambiguous && isDirty() && !options.explicitRetry) {
+                    // Surface the blocked outcome (timer callers swallow
+                    // the throw) without making another write; the
+                    // retained draft and explicit recovery stay intact.
+                    const blocked = new Error('Voice save outcome is unconfirmed and is retained for explicit recovery. Use Discard edits and reload in Voices to reconcile before retrying.');
+                    onError(blocked);
+                    throw blocked;
+                }
                 clearTimeout(timer);
                 timer = null;
                 if (inFlight) {
@@ -808,9 +895,24 @@
                             await write(batch.value, batch.revision);
                         } catch (error) {
                             if (!pending) { pending = batch; }
+                            if (guardAmbiguous) {
+                                // Sticky: a later definite refusal does
+                                // not prove an earlier unknown attempt
+                                // did not commit. Only a successful
+                                // validated ACK or explicit discard
+                                // clears historical ambiguity. An owned
+                                // pre-send refusal (explicitly marked
+                                // voiceSaveNotSent) provably sent no
+                                // request, so it never ADDS ambiguity —
+                                // but it also never clears a prior one.
+                                if (error?.voiceSaveNotSent !== true) {
+                                    ambiguous = ambiguous || !isDefiniteVoiceSaveRefusal(error);
+                                }
+                            }
                             onError(error);
                             throw error;
                         }
+                        ambiguous = false;
                         savedRevision = batch.revision;
                         if (savedRevision === revision) { onSaved(); }
                     }
@@ -847,10 +949,20 @@
                 }
                 pending = null;
                 savedRevision = discardedRevision;
+                ambiguous = false;
             }
 
             function getRevision() { return revision; }
             return { enqueue, flush, isDirty, discard, getRevision };
+        }
+
+        // One definite voice-save refusal rule for every voice queue and
+        // single-voice catch: a documented validation/CAS status
+        // (400/409/422) guarantees no commit. Transport failures,
+        // timeouts, aborts and 5xx are unknown outcomes, never definite.
+        function isDefiniteVoiceSaveRefusal(error) {
+            const status = error && typeof error.status === 'number' ? error.status : null;
+            return status === 400 || status === 409 || status === 422;
         }
 
         const taskStartButtons = {
@@ -892,39 +1004,47 @@
                 err.detail = detail; // structured 422 bodies (e.g. gate findings) stay readable
                 throw err;
             },
-            get: async (url) => {
-                const res = await fetch(url);
-                await API._handleError(res);
-                return res.json();
+            get: async (url, {timeoutMs = null, timeoutMessage = 'The request timed out. Check the selected book and try again.'} = {}) => {
+                return API._withDeadline(async signal => {
+                    // Untimed GETs keep the original default transport exactly:
+                    // fetch(url) with no options argument. Only a timed GET
+                    // carries an AbortSignal.
+                    const res = signal ? await fetch(url, {signal}) : await fetch(url);
+                    await API._handleError(res);
+                    return res.json();
+                }, timeoutMs, timeoutMessage);
             },
             post: async (url, data, {timeoutMs = null, timeoutMessage = 'The voice save timed out. Your edits are retained; the server save could not be confirmed.'} = {}) => {
-                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-                    throw new Error('The request deadline must be a positive finite duration.');
-                }
-                const controller = timeoutMs === null ? null : new AbortController();
-                let timer;
-                const request = async () => {
+                return API._withDeadline(async signal => {
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data),
-                        ...(controller ? {signal: controller.signal} : {}),
+                        ...(signal ? {signal} : {}),
                     });
                     await API._handleError(res);
                     return await res.json();
-                };
-                if (!controller) { return request(); }
+                }, timeoutMs, timeoutMessage);
+            },
+            // One fetch-with-deadline seam shared by GET and POST (CR2039):
+            // AbortController aborts fetch and body consumption; timer is
+            // always cleared. Placed after post so the
+            // _handleError..get extraction boundary stays intact.
+            _withDeadline: (requestFactory, timeoutMs, timeoutMessage) => {
+                if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+                    throw new Error('The request deadline must be a positive finite duration.');
+                }
+                if (timeoutMs === null) { return requestFactory(null); }
+                const controller = new AbortController();
+                let timer;
                 const deadline = new Promise((resolve, reject) => {
                     timer = setTimeout(() => {
                         reject(new Error(timeoutMessage));
                         controller.abort();
                     }, timeoutMs);
                 });
-                try {
-                    return await Promise.race([request(), deadline]);
-                } finally {
-                    clearTimeout(timer);
-                }
+                return Promise.race([requestFactory(controller.signal), deadline])
+                    .finally(() => { if (timer !== undefined) { clearTimeout(timer); } });
             },
             del: async (url) => {
                 const res = await fetch(url, { method: 'DELETE' });
@@ -1840,6 +1960,7 @@
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
             window.resetM4bPublicationBook?.();
+            window.resetSingleVoiceBook?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();
@@ -4596,7 +4717,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(label)} ${config.alias_of ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(config.alias_of)}">${escapeHtml(config.alias_of)}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(getEffectiveVoiceAlias(config))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -4834,23 +4955,100 @@
         };
 
         async function refreshVoiceMetadata() {
-            const expectedSelection = arguments[0]?.expectedSelection || null;
+            const opts = (arguments[0] && typeof arguments[0] === 'object') ? arguments[0] : {};
+            const expectedSelection = opts.expectedSelection || null;
+            const expectedIdentityToken = opts.expectedIdentityToken || null;
             const selectionEpoch = window._bookSelectionEpoch;
+            // Local context captured BEFORE any fetch (DS3074): unscoped
+            // reads bind to this, never to the adopted snapshot itself.
+            const capturedSelection = window._selectedUploadIdentity || null;
+            const capturedPrevToken = (typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                ? _voiceSaveSnapshot.book_identity_token : null;
+            const capturedFilename = currentBookFilename;
+            // flushVoiceSaves refuses an ambiguous outcome at the
+            // canonical queue seam (DS3014) before any read is sent.
             await flushVoiceSaves();
             const localRevision = voiceSaveQueue.getRevision();
+            // CRM1402: bind this read to the snapshot/write provenance
+            // captured after the flush and BEFORE the GET. A narrator
+            // ACK (or a newer refresh publication) during the GET
+            // replaces the global snapshot; the held response must
+            // then be rejected BEFORE it can overwrite that newer
+            // global. Existing snapshot/queue provenance only — no
+            // new counter or controller.
+            const snapshotAtReadStart = (typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                ? _voiceSaveSnapshot : null;
+            const revisionAtReadStart = snapshotAtReadStart?.revision;
+            const bookTokenAtReadStart = snapshotAtReadStart?.book_token;
             const rosterFilename = currentBookFilename;
-            const snapshot = await API.get('/api/voice_config/snapshot');
-            if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision() || rosterFilename !== currentBookFilename) {
+            // Read deadline (DS3024): a hung snapshot GET must not leave
+            // callers such as the single-voice preview busy forever. Reuses
+            // the shared API._withDeadline seam; no extra controllers.
+            const snapshot = await API.get('/api/voice_config/snapshot',
+                {timeoutMs: 60000, timeoutMessage: 'The voice snapshot timed out. Your voice edits are retained; try again.'});
+            // CRM1401 shared local rule (ONE branch for every binding,
+            // BEFORE both the generic queue guard and any server token
+            // comparison): provable local epoch/filename/selection
+            // supersession — including a real A->B switch, which changes
+            // filename AND epoch — is classified marked-obsolete, never
+            // as a visible queue/server error.
+            if (window._bookSelectionEpoch !== selectionEpoch
+                    || rosterFilename !== currentBookFilename
+                    || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)
+                    || (expectedSelection && window._existingUploadSelectionPending)) {
+                throw obsoleteVoiceLoadError('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
+            }
+            // Genuine queue errors stay visible when the local context
+            // is stable (filename is owned by the local rule above).
+            if (voiceSaveQueue.isDirty() || localRevision !== voiceSaveQueue.getRevision()) {
                 throw new Error('Voice edits changed while refreshing. Your edits are still pending; try again.');
             }
-            if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
-                    || window._bookSelectionEpoch !== selectionEpoch
-                    || window._existingUploadSelectionPending
-                    || snapshot.book_identity_token !== expectedSelection.token)) {
-                throw new Error('Active book changed while refreshing voices; existing edits were preserved.');
+            // CRM1402 stale-read check: a newer ACK/refresh intervened
+            // during the GET (global snapshot object or its revision /
+            // book-token primitives moved since the read started).
+            // Reject before any global replacement below.
+            if (_voiceSaveSnapshot !== snapshotAtReadStart
+                    || _voiceSaveSnapshot?.revision !== revisionAtReadStart
+                    || _voiceSaveSnapshot?.book_token !== bookTokenAtReadStart) {
+                throw obsoleteVoiceLoadError('A newer voice save superseded this refresh; existing edits were preserved.');
+            }
+            if (expectedSelection && snapshot.book_identity_token !== expectedSelection.token) {
+                // Server identity mismatch (another tab switched the
+                // server book; local context unchanged): visible, never
+                // silenced as obsolete.
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
+            }
+            if (expectedIdentityToken && snapshot.book_identity_token !== expectedIdentityToken) {
+                throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
+            }
+            // Unscoped binding (DS3074): with no explicit expected
+            // identity, the snapshot must match the authoritative local
+            // context captured before the fetch — the local selection
+            // token when this tab selected a book, otherwise the
+            // previously published snapshot token. Another tab's book
+            // switch changes neither, so its snapshot is refused here
+            // instead of silently replacing this tab's globals/cards.
+            // First load (no local context) accepts, as before.
+            if (!expectedSelection && !expectedIdentityToken) {
+                if (capturedSelection && capturedSelection.filename === capturedFilename) {
+                    if (snapshot.book_identity_token !== capturedSelection.token) {
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
+                    }
+                } else if (capturedPrevToken) {
+                    if (snapshot.book_identity_token !== capturedPrevToken) {
+                        throw new Error('Active book changed while refreshing voices; existing edits were preserved. Load the book again from Scripts or re-upload its source to recover.');
+                    }
+                }
             }
             if (!Array.isArray(snapshot.voices) || !/^[0-9a-f]{64}$/.test(snapshot.revision) || !/^[0-9a-f]{64}$/.test(snapshot.book_token)) {
                 throw new Error('Invalid voice snapshot; your voice settings were not replaced.');
+            }
+            // Owner fencing (CR2005/2007): a stale refresh must never
+            // publish metadata after a newer loadVoices request or a
+            // same-name generation switch. Local book/epoch supersession
+            // is already classified by the shared local rule above.
+            if (opts.ownerGeneration !== undefined && loadVoices.generation !== opts.ownerGeneration) {
+                throw obsoleteVoiceLoadError('A newer voice load superseded this refresh; existing edits were preserved.');
             }
             _voiceSaveSnapshot = snapshot;
             const voices = snapshot.voices;
@@ -4861,7 +5059,28 @@
             ensureVoiceRosterCache();
             window._voicesByName = Object.fromEntries(voices.map(v => [v.name, v]));
             renderVoiceDrafts();
+            if (typeof refreshSingleVoiceSpeakers === 'function') { refreshSingleVoiceSpeakers(); }
+            // Carry the exact snapshot with the returned rows: the
+            // loader must never re-sample the mutable global after an
+            // await to label these rows. Non-enumerable, so iteration,
+            // JSON and every other caller are unaffected. The snapshot
+            // primitives are copied NOW (synchronously with the rows)
+            // so a later in-place writer cannot relabel them.
+            Object.defineProperty(voices, 'snapshot', {value: snapshot, enumerable: false, configurable: true, writable: true});
+            Object.defineProperty(voices, 'snapshotRevision', {value: snapshot.revision, enumerable: false, configurable: true, writable: true});
+            Object.defineProperty(voices, 'snapshotBookToken', {value: snapshot.book_token, enumerable: false, configurable: true, writable: true});
             return voices;
+        }
+
+        // Explicit local-obsolete classification: ONLY errors produced
+        // by provable local ownership/epoch supersession carry this
+        // marker. A server book-identity mismatch (another tab
+        // switched the server book while this tab's context is
+        // unchanged) must stay visible and is never marked.
+        function obsoleteVoiceLoadError(message) {
+            const error = new Error(message);
+            error.voiceLoadObsolete = true;
+            return error;
         }
 
         let _voiceResourcesRefreshedAt = -Infinity;
@@ -4895,8 +5114,22 @@
                 const result = await API.post('/api/voice_config/seed_unseeded', {
                     revision: snapshot.revision, book_token: snapshot.book_token,
                 });
-                await loadVoices(false);
-                showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000);
+                // The seed write committed: a later refresh failure must
+                // report saved-but-unrefreshed, not a failed repair.
+                let refreshed = true;
+                try { await loadVoices(false); }
+                catch (refreshError) {
+                    refreshed = false;
+                    if (isLocalVoiceLoadObsolete(refreshError)) {
+                        // Known-committed caller: keep the saved context
+                        // the generic neutral warning would drop, without
+                        // claiming a failed mutation or retrying the POST.
+                        showToast('Stable seeds saved, but the Voices display refresh was superseded by a newer local change. Reload Voices to see them before applying again.', 'warning', 10000);
+                    } else {
+                        showActionError('Stable seeds saved, but Voices could not be refreshed', refreshError, 'The seeds were saved. Reload Voices to see them before applying again.');
+                    }
+                }
+                if (refreshed) { showToast(`Applied ${result.changes.length} stable seeds.${result.backup ? ' Backup: ' + result.backup : ''} Existing audio was kept.`, 'success', 8000); }
             } catch (e) {
                 showActionError("Stable seed repair failed", e, "Reload Voices and review the current seed suggestions before applying again; the book or voice settings may have changed.");
             } finally {
@@ -4957,8 +5190,147 @@
             }
         }
 
-        async function loadVoices(refreshResources = true) {
-            if (!refreshResources && loadVoices.pending) { return loadVoices.pending; }
+        async function loadVoices(refreshResources = true, options = null) {
+            // Release a retained stale-card fence (DS3075) only after a
+            // successful CURRENT canonical reload/rerender in this load.
+            // Nested so sliced test harnesses carry it with loadVoices.
+            // The owning apply marked it stale; a book switch already
+            // cleared the flag via resetSingleVoiceBook, and a newer apply
+            // owns a different object, so only the exact stale owner whose
+            // generation is still current is released here.
+            function releaseStaleSingleVoiceFenceLocal() {
+                const owner = window._singleVoiceApplying;
+                if (!owner || !owner.stale) { return; }
+                if (typeof _singleVoiceGeneration !== 'undefined'
+                        && owner.generation !== _singleVoiceGeneration) { return; }
+                window._singleVoiceApplying = false;
+                owner.controls.forEach(({control, wasDisabled}) => { control.disabled = wasDisabled; });
+            }
+            const opts = (options && typeof options === 'object') ? options : {};
+            const expectedSelection = opts.expectedSelection || null;
+            const expectedIdentityToken = opts.expectedIdentityToken || (expectedSelection ? expectedSelection.token : null);
+            const selectionEpoch = window._bookSelectionEpoch;
+            const rosterFilename = currentBookFilename;
+            const identityKey = expectedSelection ? `sel:${expectedSelection.token}`
+                : (expectedIdentityToken ? `id:${expectedIdentityToken}`
+                // Legacy unscoped callers bind to the CURRENT book context
+                // (filename+epoch+selection), never a wildcard: a pending
+                // load for book A must not be reused or rendered for B.
+                // A restored tab with NO local selection object still
+                // binds to its already-known logical identity: the
+                // previous snapshot fallback token (DS3045 restored-book
+                // case), never a wildcard another load could self-adopt.
+                // A selected object is authoritative even when its token
+                // is null/unavailable: the older snapshot must never
+                // override it (same conditional authority as
+                // singleVoiceCaptureIdentity).
+                : `ctx:${rosterFilename}:${selectionEpoch}:${
+                    window._selectedUploadIdentity
+                        ? (window._selectedUploadIdentity.token || '')
+                        : ((typeof _voiceSaveSnapshot !== 'undefined' && _voiceSaveSnapshot)
+                            ? _voiceSaveSnapshot.book_identity_token : '')}`);
+            // Single provenance rule for "a confirmed write made the
+            // pending load obsolete" (11015/11019): dirty queue, queue
+            // revision moved since the pending load started, or its own
+            // snapshot is no longer the global snapshot. Both pending
+            // adoption sites below use this one predicate.
+            function isPendingWriteStale() {
+                return voiceSaveQueue.isDirty()
+                    || (loadVoices.pendingQueueRevision !== undefined
+                        && voiceSaveQueue.getRevision() !== loadVoices.pendingQueueRevision)
+                    || (loadVoices.pendingOwnRevision !== undefined
+                        && (_voiceSaveSnapshot?.revision !== loadVoices.pendingOwnRevision
+                            || _voiceSaveSnapshot?.book_token !== loadVoices.pendingOwnBookToken));
+            }
+            if (!refreshResources && loadVoices.pending) {
+                // Never adopt a pending request that a confirmed write
+                // has already made obsolete (11015/11019 freshness):
+                // compare captured primitive write/snapshot provenance
+                // (existing queue + snapshot fields only — never a
+                // mutable old snapshot reference). A stale pending
+                // settles through the waiter/fresh-load logic below;
+                // the fresh read then fetches the saved rows instead
+                // of rejecting with the pre-write promise.
+                const pendingWriteStale = isPendingWriteStale();
+                if (loadVoices.pendingIdentity === identityKey && !!loadVoices.pendingSkipDefault === !!opts.skipDefaultSave && !pendingWriteStale) { return loadVoices.pending; }
+                // Never reuse another identity's pending render: wait for it
+                // to settle, then fall through to a fresh load for this identity.
+                // Capture the generation/context BEFORE waiting: if a newer
+                // forced request claims ownership (or the book/epoch changes)
+                // during the wait, this waiter is obsolete and must abort
+                // WITHOUT incrementing generation or publishing anything —
+                // otherwise a stale waiter resuming after its await would
+                // supersede the truly newer load.
+                const generationAtWait = loadVoices.generation || 0;
+                // Supersession is publication, not a bare counter bump
+                // (DS3082): a newer load that fails renders nothing, so
+                // waiting for it and then claiming a fresh load is the
+                // correct recovery. A newer load for the same logical
+                // book coalesces (DS3045); a live newer load for another
+                // book still supersedes this waiter.
+                const publishedAtWait = loadVoices.publishedGeneration || 0;
+                const waitedPending = loadVoices.pending;
+                try { await waitedPending; } catch (e) { /* fall through to fresh load */ }
+                if (rosterFilename !== currentBookFilename || selectionEpoch !== window._bookSelectionEpoch
+                        || (expectedSelection && window._selectedUploadIdentity !== expectedSelection)) {
+                    throw obsoleteVoiceLoadError('Active book changed while loading voices; voice edits were preserved.');
+                }
+                // Compatible coalescing (DS3045): a newer load for the
+                // SAME logical book satisfies this waiter — reuse its
+                // pending promise or its published result instead of a
+                // false supersede. Sameness is the identity key, or the
+                // same book-identity token carried in either key form
+                // (sel:<token> vs ctx:...:<token>).
+                const waiterToken = expectedIdentityToken || expectedSelection?.token || null;
+                const sameLogicalBook = key => key === identityKey
+                    || (!!waiterToken && String(key || '').split(':').pop() === waiterToken);
+                // Reuse cannot span a newer write (published snapshot no
+                // longer the current global snapshot) or an incompatible
+                // skipDefaultSave policy (read-only guide vs ordinary).
+                const publishedStillCurrent = loadVoices.publishedSnapshot === _voiceSaveSnapshot
+                    && !voiceSaveQueue.isDirty();
+                const publishedPolicyMatches = !!loadVoices.publishedSkipDefault === !!opts.skipDefaultSave;
+                // The secondary pending return must apply the SAME
+                // write-provenance check as the early return above: a
+                // pending load started before a confirmed write (its
+                // captured queue revision no longer current, its own
+                // snapshot no longer the global, or edits are dirty)
+                // must never be adopted as this waiter's result.
+                const pendingNow = loadVoices.pending;
+                const pendingNowStale = pendingNow ? isPendingWriteStale() : false;
+                if (pendingNow && sameLogicalBook(loadVoices.pendingIdentity)
+                        && !!loadVoices.pendingSkipDefault === !!opts.skipDefaultSave && !pendingNowStale) { return pendingNow; }
+                if ((loadVoices.publishedGeneration || 0) > publishedAtWait) {
+                    if (sameLogicalBook(loadVoices.publishedIdentity) && publishedStillCurrent && publishedPolicyMatches) { return loadVoices.publishedResult; }
+                    if (sameLogicalBook(loadVoices.publishedIdentity)) {
+                        // Same book but a newer write/policy intervened:
+                        // fall through to a fresh load for this identity
+                        // instead of reusing the stale publication.
+                    } else {
+                        throw obsoleteVoiceLoadError('A newer voice load superseded this request; existing edits were preserved.');
+                    }
+                }
+                if ((loadVoices.generation || 0) !== generationAtWait
+                        && loadVoices.pending && loadVoices.pending !== waitedPending
+                        && !(pendingNowStale && loadVoices.pending
+                            && sameLogicalBook(loadVoices.pendingIdentity))) {
+                    // A live newer load for another logical book owns
+                    // the UI: this waiter is obsolete. A newer load
+                    // that settled FAILED (nothing pending, nothing
+                    // published) falls through to a fresh load (DS3082).
+                    throw obsoleteVoiceLoadError('A newer voice load superseded this request; existing edits were preserved.');
+                }
+            }
+            // Request ownership: a forced/newer load increments the
+            // generation and fences every older load's side effects
+            // (snapshot, resource caches, cards), even if the older load's
+            // network responses arrive last.
+            const generation = (loadVoices.generation || 0) + 1;
+            loadVoices.generation = generation;
+            const isOwner = () => generation === loadVoices.generation
+                && rosterFilename === currentBookFilename
+                && selectionEpoch === window._bookSelectionEpoch
+                && (!expectedSelection || window._selectedUploadIdentity === expectedSelection);
             const loading = (async () => {
                 await flushVoiceSaves();
                 const reuseResources = !refreshResources && performance.now() - _voiceResourcesRefreshedAt < 10000;
@@ -4966,8 +5338,14 @@
                 const refreshedResources = [];
                 const failedResources = [];
                 if (!reuseResources) { _voiceResourcesRefreshedAt = -Infinity; }
-                // Fetch independent lists together; render only after dropdowns and
-                // per-character cast counts are ready. Keep old optional lists on error.
+                // Start snapshot + resources together, but capture THIS
+                // load's own snapshot the moment the refresh resolves —
+                // never re-read the mutable global after the resource
+                // awaits to label rows (DSF11019: an ACK can install a
+                // newer snapshot while resources are held, and old rows
+                // must never be stamped with the new revision).
+                const refreshPromise = refreshVoiceMetadata({expectedSelection, expectedIdentityToken: expectedIdentityToken || undefined, ownerGeneration: generation});
+                const stagedResources = [];
                 const resources = reuseResources ? [] : [
                     ['_designedVoicesCache', '/api/voice_design/list', 'designed-voices'],
                     ['_cloneVoicesCache', '/api/clone_voices/list', 'clone-voices'],
@@ -4976,24 +5354,85 @@
                     try {
                         const list = await API.get(path);
                         if (!Array.isArray(list)) { throw new Error('Voice resource list is malformed'); }
-                        window[key] = list;
-                        refreshedResources.push(path);
+                        stagedResources.push([key, list, path]);
                     }
                     catch (e) { resourcesComplete = false; failedResources.push(path); console.debug(`${label} cache refresh failed`, e); }
                 });
-                const [voices] = await Promise.all([
-                    refreshVoiceMetadata(), ...resources,
+                const resourcesPromise = Promise.all([
+                    ...resources,
                     ...(reuseResources ? [] : [loadCastLibrary().catch(e => { resourcesComplete = false; failedResources.push('/api/voice_library'); console.debug('cast library refresh failed', e); })]),
                 ]);
+                const voices = await refreshPromise;
+                // Immutable provenance from the refresh result itself
+                // (attached synchronously inside refresh), never the
+                // mutable global sampled in this later continuation. A
+                // result without its own binding fails closed: no render,
+                // no stamping — never guess the current global.
+                const ownSnapshot = voices.snapshot;
+                const ownRevision = voices.snapshotRevision;
+                const ownBookToken = voices.snapshotBookToken;
+                if (!ownSnapshot || typeof ownRevision !== 'string' || typeof ownBookToken !== 'string') {
+                    throw obsoleteVoiceLoadError('A newer voice load superseded this request; existing edits were preserved.');
+                }
+                // Record THIS load's captured provenance for the
+                // early-coalescing staleness comparison (only while
+                // this load still owns the pending slot).
+                if (loadVoices.generation === generation) {
+                    loadVoices.pendingOwnRevision = ownRevision;
+                    loadVoices.pendingOwnBookToken = ownBookToken;
+                }
+                const ownByName = Object.fromEntries(voices.map(v => [v.name, v]));
+                await resourcesPromise;
+                // A newer write/refresh intervened while resources were
+                // held: these rows belong to ownSnapshot, not to the
+                // current global. Abort without rendering or stamping —
+                // never render old rows under a new revision (that old
+                // DOM would revert the confirmed save on the next
+                // ordinary collector save).
+                if (_voiceSaveSnapshot !== ownSnapshot
+                        || _voiceSaveSnapshot.revision !== ownRevision
+                        || _voiceSaveSnapshot.book_token !== ownBookToken) {
+                    throw obsoleteVoiceLoadError('A newer voice load superseded this request; existing edits were preserved.');
+                }
+                if (!isOwner()) {
+                    throw obsoleteVoiceLoadError('Active book changed while loading voices; voice edits were preserved.');
+                }
+                stagedResources.forEach(([key, list, path]) => {
+                    window[key] = list;
+                    refreshedResources.push(path);
+                });
+                if (expectedSelection && (window._selectedUploadIdentity !== expectedSelection
+                        || window._bookSelectionEpoch !== selectionEpoch)) {
+                    throw obsoleteVoiceLoadError('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (expectedSelection && _voiceSaveSnapshot.book_identity_token !== expectedSelection.token) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (expectedIdentityToken && (window._bookSelectionEpoch !== selectionEpoch
+                        || rosterFilename !== currentBookFilename)) {
+                    throw obsoleteVoiceLoadError('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (expectedIdentityToken && _voiceSaveSnapshot.book_identity_token !== expectedIdentityToken) {
+                    throw new Error('Active book changed while loading voices; voice edits were preserved.');
+                }
+                if (!isOwner()) {
+                    throw obsoleteVoiceLoadError('Active book changed while loading voices; voice edits were preserved.');
+                }
                 if (!reuseResources) {
                     _voiceResourcesRefreshedAt = resourcesComplete ? performance.now() : -Infinity;
                 }
-                if (reuseResources && _voiceCardsRevision === _voiceSaveSnapshot.revision
-                        && _voiceCardsBookToken === _voiceSaveSnapshot.book_token) {
-                    return {refreshedResources, failedResources};
+                if (reuseResources && _voiceCardsRevision === ownRevision
+                        && _voiceCardsBookToken === ownBookToken) {
+                    loadVoices.publishedGeneration = generation;
+                    loadVoices.publishedIdentity = identityKey;
+                    loadVoices.publishedSnapshot = ownSnapshot;
+                    loadVoices.publishedSkipDefault = !!opts.skipDefaultSave;
+                    loadVoices.publishedResult = {refreshedResources, failedResources};
+                    releaseStaleSingleVoiceFenceLocal();
+                    return loadVoices.publishedResult;
                 }
                 refreshVoicesScope();
-                const narrator = window._voicesByName.NARRATOR || window._voicesByName.Narrator;
+                const narrator = ownByName.NARRATOR || ownByName.Narrator;
                 const narratorSelect = document.getElementById('narrator-strategy');
                 if (narratorSelect && narrator?.config?.narrator_strategy) {
                     narratorSelect.value = narrator.config.narrator_strategy;
@@ -5004,20 +5443,29 @@
                 const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
                 if (voices.length === 0) {
                     container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
-                    _voiceCardsRevision = _voiceSaveSnapshot.revision;
-                    _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
-                    return {refreshedResources, failedResources};
+                    _voiceCardsRevision = ownRevision;
+                    _voiceCardsBookToken = ownBookToken;
+                    loadVoices.publishedGeneration = generation;
+                    loadVoices.publishedIdentity = identityKey;
+                    loadVoices.publishedSnapshot = ownSnapshot;
+                    loadVoices.publishedSkipDefault = !!opts.skipDefaultSave;
+                    loadVoices.publishedResult = {refreshedResources, failedResources};
+                    releaseStaleSingleVoiceFenceLocal();
+                    return loadVoices.publishedResult;
                 }
-                container.innerHTML = getVoiceSeedRepairMarkup(_voiceSaveSnapshot) + getStateVoiceCardsMarkup(voices);
+                container.innerHTML = getVoiceSeedRepairMarkup(ownSnapshot) + getStateVoiceCardsMarkup(voices);
                 window.applyTtsCapabilityGuidance?.();
-                _voiceCardsRevision = _voiceSaveSnapshot.revision;
-                _voiceCardsBookToken = _voiceSaveSnapshot.book_token;
+                _voiceCardsRevision = ownRevision;
+                _voiceCardsBookToken = ownBookToken;
                 if (typeof renderPersonaRecoveryTargets === 'function') { renderPersonaRecoveryTargets(); }
                 renderReadyCount();
                 onToggleHideReady();
 
-                // If any voice has no saved config, save defaults immediately
-                if (!_voiceRecoveryDrafts.some(record => record.book_token === _voiceSaveSnapshot.book_token) && voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
+                // If any voice has no saved config, save defaults immediately.
+                // Read-only navigations (task guides) pass skipDefaultSave
+                // so opening Voices never implicitly publishes defaults for
+                // unconfigured speakers; ordinary navigation is unchanged.
+                if (!opts.skipDefaultSave && !_voiceRecoveryDrafts.some(record => record.book_token === ownBookToken) && voices.some(v => !v.config || Object.keys(v.config).length === 0)) {
                     saveVoicesDebounced();
                 }
 
@@ -5027,11 +5475,32 @@
                 }
                 restoreVoicePanels(container, panels, _voiceCardsBookToken);
                 restoreVoiceListFocus(container, focus, _voiceCardsBookToken);
-                return {refreshedResources, failedResources};
+                loadVoices.publishedGeneration = generation;
+                loadVoices.publishedIdentity = identityKey;
+                loadVoices.publishedSnapshot = ownSnapshot;
+                loadVoices.publishedSkipDefault = !!opts.skipDefaultSave;
+                loadVoices.publishedResult = {refreshedResources, failedResources};
+                releaseStaleSingleVoiceFenceLocal();
+                return loadVoices.publishedResult;
             })();
             loadVoices.pending = loading;
+            loadVoices.pendingIdentity = identityKey;
+            loadVoices.pendingSkipDefault = !!opts.skipDefaultSave;
+            loadVoices.pendingQueueRevision = voiceSaveQueue.getRevision();
+            // CRM1402 pending freshness (#11015): bind the EXISTING
+            // pending provenance fields to the known snapshot's
+            // revision/book-token at pending-load creation, BEFORE
+            // metadata resolves. A narrator ACK during the GET moves
+            // the global revision without bumping the queue revision
+            // and before pendingOwnRevision could be set from the
+            // response, so an undefined binding would let an early
+            // same-key reuse adopt a provably obsolete pending. The
+            // own-response binding below replaces these once this
+            // load's metadata actually resolves.
+            loadVoices.pendingOwnRevision = _voiceSaveSnapshot?.revision;
+            loadVoices.pendingOwnBookToken = _voiceSaveSnapshot?.book_token;
             try { return await loading; }
-            finally { if (loadVoices.pending === loading) { loadVoices.pending = null; } }
+            finally { if (loadVoices.pending === loading) { loadVoices.pending = null; loadVoices.pendingIdentity = null; } }
         }
 
         window.selectVoiceVersion = async function selectVoiceVersion(select) {
@@ -5090,7 +5559,20 @@
                 if (!token) { throw new Error('Reload Voices before saving the narrator strategy.'); }
                 const result = await API.post('/api/narrator/strategy', {strategy, book_token: token});
                 if (!isCurrentBook()) { return; }
-                if (/^[0-9a-f]{64}$/.test(result.revision)) { _voiceSaveSnapshot.revision = result.revision; }
+                // A 2xx ACK without the canonical revision shape is an
+                // UNCONFIRMED outcome, never a validated success: report
+                // it honestly (the write may have committed), invent no
+                // revision, and leave snapshot metadata/server state and
+                // retained drafts unmodified by the bad ACK.
+                if (typeof result?.revision !== 'string' || !/^[0-9a-f]{64}$/.test(result.revision)) {
+                    throw new Error('Narrator strategy save could not be confirmed: the server response did not include a valid revision. It may have been saved. Reload Voices to check the saved narrator strategy before changing it again.');
+                }
+                // Immutable snapshot replacement (the canonical
+                // queue ACK does the same): mutating the object in
+                // place would make returned rows' snapshot binding
+                // point at this NEW revision, defeating the
+                // loader's stale-row detection.
+                _voiceSaveSnapshot = { ..._voiceSaveSnapshot, revision: result.revision };
                 if (isLatest()) { showToast('Narrator strategy saved.', 'success'); }
             })();
             window._narratorStrategySave = saving;
@@ -5709,7 +6191,8 @@
             const request = (window._castLibraryRequest || 0) + 1;
             window._castLibraryRequest = request;
             const book = currentBookFilename;
-            const isCurrent = () => request === window._castLibraryRequest && book === currentBookFilename;
+            const epoch = window._bookSelectionEpoch;
+            const isCurrent = () => request === window._castLibraryRequest && book === currentBookFilename && epoch === window._bookSelectionEpoch;
             let lib;
             try { lib = await API.get('/api/voice_library'); }
             catch (error) { if (!isCurrent()) { return; } throw error; }
@@ -6027,7 +6510,7 @@
                 if (!isCastApplyContextCurrent(context)) { return; }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>Applied ${res.count} voice${res.count !== 1 ? 's' : ''}${getCastApplyWarningsHtml(res.warnings)}`);
                 await loadVoices();  // re-render cards with the applied configs
-            } catch (e) { if (!isCastApplyContextCurrent(context)) { return; } setCastStatus(escapeHtml(getActionErrorMessage("Applying cast voices failed", e, "Reload Voices and review the current book assignments before applying again.")), true); }
+            } catch (e) { if (!isCastApplyContextCurrent(context)) { return; } setCastStatus(escapeHtml(getActionErrorMessage("Applying cast voices failed", e, "Reload Voices and review the current book assignments before applying again.")), !isLocalVoiceLoadObsolete(e)); }
         }
 
         // --- Apply a cast to multiple saved books at once ---
@@ -6426,7 +6909,11 @@
 
         function collectVoiceConfig() {
             const cards = document.querySelectorAll('.voice-card');
-            const config = {};
+            // Null-prototype maps: a script-supplied speaker named
+            // "__proto__" (or constructor/toString/...) must become an OWN
+            // serialized entry, not invoke the Object.prototype __proto__
+            // setter and silently drop the assignment.
+            const config = Object.create(null);
             const modelsById = getLoraModelsById();
 
             cards.forEach(card => {
@@ -6461,20 +6948,31 @@
                 } else if (type === 'builtin_lora') {
                     const adapterId = card.querySelector('.builtin-lora-select').value;
                     const adapterEntry = modelsById.get(adapterId);
+                    // Preserve the stored path for the SAME asset when
+                    // the catalog is unavailable/missing the entry
+                    // (DS3002): an empty path would make the speaker
+                    // unrenderable after any autosave. A real adapter
+                    // replacement never inherits the old path.
+                    const storedPath = (metadata.type === 'builtin_lora'
+                        && (metadata.adapter_id || '') === adapterId
+                        && typeof metadata.adapter_path === 'string') ? metadata.adapter_path : '';
                     config[name] = {
                         type: 'builtin_lora',
                         adapter_id: adapterId,
-                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || '',
+                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || storedPath,
                         character_style: card.querySelector('.builtin-lora-style').value,
                         seed: "-1"
                     };
                 } else if (type === 'lora') {
                     const adapterId = card.querySelector('.lora-adapter-select').value;
                     const adapterEntry = modelsById.get(adapterId);
+                    const storedPath = (metadata.type === 'lora'
+                        && (metadata.adapter_id || '') === adapterId
+                        && typeof metadata.adapter_path === 'string') ? metadata.adapter_path : '';
                     config[name] = {
                         type: 'lora',
                         adapter_id: adapterId,
-                        adapter_path: adapterEntry?.adapter_path || (adapterId ? `lora_models/${adapterId}` : ''),
+                        adapter_path: adapterEntry?.adapter_path || adapterEntry?.path || storedPath || (adapterId ? `lora_models/${adapterId}` : ''),
                         character_style: card.querySelector('.lora-character-style').value,
                         seed: "-1"
                     };
@@ -6496,12 +6994,35 @@
                 const preserved = { ...metadata };
                 // Form fields describe the selected voice type; retain all
                 // other server metadata without copying inactive voice inputs.
-                for (const key of ['type', 'voice', 'character_style', 'default_style', 'seed', 'ref_audio', 'ref_text', 'adapter_id', 'adapter_path', 'description', 'members', 'alias_of', 'ready']) {
+                // The narrator strategy is owned by its dedicated
+                // endpoint (saveNarratorStrategy -> /api/narrator/strategy):
+                // ordinary card saves must OMIT it so the guarded save's
+                // exclude-unset merge preserves the server-acknowledged
+                // value. Preserving it from _voicesByName here would
+                // re-send the pre-ACK value (including drafts captured
+                // while the strategy POST was in flight) and silently
+                // revert the acknowledged strategy.
+                for (const key of ['type', 'voice', 'character_style', 'default_style', 'seed', 'ref_audio', 'ref_text', 'adapter_id', 'adapter_path', 'description', 'members', 'alias_of', 'ready', 'narrator_strategy']) {
                     delete preserved[key];
                 }
                 config[name] = { ...preserved, ...config[name], seed: String(card.querySelector('.voice-seed')?.value ?? metadata.seed ?? config[name].seed).trim() || "-1" };
+                // Adapter pin seam (DS3047): on an apparent type/id
+                // change, OMIT the pin entirely so the guarded save's
+                // canonical omitted-pin helper (manifest-resolved
+                // identity) decides preserve-vs-clear. Sending an
+                // explicit null here would bypass that decision and
+                // unpin a renamed same-asset adapter. The preserved
+                // metadata P must not be sent on a true replacement
+                // either, hence the delete (not a null assignment).
+                // Same type+id keeps the preserved pin byte-identically.
+                { const oldType = metadata.type || 'custom';
+                  const newType = config[name].type || '';
+                  const isLoRA = t => t === 'lora' || t === 'builtin_lora';
+                  if ((isLoRA(oldType) || isLoRA(newType)) && (oldType !== newType || (metadata.adapter_id || '') !== (config[name].adapter_id || ''))) {
+                      delete config[name].adapter_generation_sha256;
+                  } }
             });
-            const merged = {};
+            const merged = Object.create(null);
             cards.forEach(card => {
                 const name = card.dataset.voice;
                 if (!card.dataset.version) { merged[name] = config[getVoiceCardKey(card)]; }
@@ -6661,9 +7182,16 @@
 
         const voiceSaveQueue = createSerializedSaveQueue({
             delay: 800,
+            guardAmbiguous: true,
             write: async draft => {
+                // Owned pre-send binding guard: provably no request is
+                // sent, so mark it definitely-not-sent (never a server
+                // refusal or an unknown outcome). The generic queue
+                // classification honors only this explicit marker.
                 if (!_voiceSaveSnapshot || _voiceSaveSnapshot.book_token !== draft.book_token) {
-                    throw new Error('The active book changed. Your unsaved voice edits were retained.');
+                    const presend = new Error('The active book changed before this voice save was sent. Nothing was sent; your unsaved voice edits were retained.');
+                    presend.voiceSaveNotSent = true;
+                    throw presend;
                 }
                 const result = await API.post('/api/voice_config/save', {
                     revision: _voiceSaveSnapshot.revision,
@@ -6699,12 +7227,36 @@
                 console.error('Failed to save voice config:', error);
                 const statusEl = document.getElementById('voice-save-status');
                 if (statusEl) {
-                    statusEl.innerHTML = '<i class="fas fa-times text-danger me-1"></i>save failed — edits retained <button type="button" class="btn btn-link btn-sm" onclick="discardVoiceEditsAndReload()">Discard edits and reload</button>';
+                    // Surface the specific blocked-unknown / not-sent /
+                    // retained-draft reason through the existing
+                    // action/error formatter (original detail and cause
+                    // preserved); unknown vs no-write distinctions stay
+                    // in the underlying error itself. If the formatter
+                    // is unavailable in this slice context, fall back to
+                    // the raw detail rather than replacing the error.
+                    let detail;
+                    try {
+                        detail = getActionErrorMessage('Voice save failed', error,
+                            'Your edits are retained in this browser. Use Discard edits and reload in Voices to reconcile; do not retry blindly.');
+                    } catch (_formatterError) {
+                        detail = `Voice save failed. Details: ${(error && (error.message || error.detail)) || 'Voice save failed.'} Your edits retained in this browser; use Discard edits and reload in Voices to reconcile.`;
+                    }
+                    let escaped;
+                    try {
+                        escaped = escapeHtml(detail);
+                    } catch (_escapeError) {
+                        escaped = String(detail).replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+                    }
+                    statusEl.innerHTML = `<i class="fas fa-times text-danger me-1"></i>${escaped} <button type="button" class="btn btn-link btn-sm" onclick="discardVoiceEditsAndReload()">Discard edits and reload</button>`;
                 }
             },
         });
 
         function saveVoicesDebounced() {
+            if (window._singleVoiceApplying) {
+                showToast('A book-wide voice change is being saved; card edits are paused until Voices refreshes.', 'warning');
+                return;
+            }
             if (document.querySelectorAll('.voice-card').length === 0) { return; }
             if (!_voiceSaveSnapshot) {
                 showToast('Wait for voices to finish loading before editing them.', 'warning');
@@ -6713,8 +7265,11 @@
             enqueueVoiceDraft(collectVoiceConfig());
         }
 
-        async function flushVoiceSaves() {
-            await voiceSaveQueue.flush();
+        // Ordinary implicit flushes refuse an ambiguous outcome at the
+        // queue seam (DS3014); only an explicit retry reconciles it,
+        // alongside the existing Discard-edits-and-reload recovery.
+        async function flushVoiceSaves(options = {}) {
+            await voiceSaveQueue.flush(options);
         }
 
         async function discardVoiceEditsAndReload() {

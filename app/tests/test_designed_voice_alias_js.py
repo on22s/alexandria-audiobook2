@@ -66,6 +66,8 @@ const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
 const save = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview =')) + source.slice(source.indexOf('function getDesignerSaveSnapshot()'), source.indexOf('window.playDesignedVoice ='));
 const open = source.slice(source.indexOf('window.openDesignedVoiceForEdit ='), source.indexOf('window.openVoiceDesignEditor ='));
+const core = fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]), 'app-core.js'), 'utf8');
+const aliasHelper = core.slice(core.indexOf('function getEffectiveVoiceAlias('), core.indexOf('function renderInitialAliasOptions('));
 const identity = source.slice(source.indexOf('function getDesignerFormSnapshot('), source.indexOf('window.generateDesignPreview ='));
 
 async function run(lookupFails) {
@@ -100,7 +102,7 @@ async function run(lookupFails) {
         }, post: async () => ({})},
         showToast() {}, loadDesignedVoices() {}, saveVoicesDebounced() {autosaves++;}
     };
-    vm.runInNewContext(identity + save + open, context);
+    vm.runInNewContext(aliasHelper + identity + save + open, context);
     await context.window.openDesignedVoiceForEdit('id1');
     if (lookupFails) {
         context.window._currentPreviewFile = 'voice.wav';

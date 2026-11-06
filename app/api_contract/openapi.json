@@ -4465,6 +4465,32 @@
         "title": "Selection",
         "type": "object"
       },
+      "SingleVoicePreviewRequest": {
+        "properties": {
+          "book_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Book Token",
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          },
+          "source_speaker": {
+            "minLength": 1,
+            "title": "Source Speaker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_speaker",
+          "revision",
+          "book_token"
+        ],
+        "title": "SingleVoicePreviewRequest",
+        "type": "object"
+      },
       "SkipChunkRequest": {
         "properties": {
           "chunk": {
@@ -5458,6 +5484,17 @@
               }
             ],
             "title": "Active Version"
+          },
+          "adapter_generation_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Generation Sha256"
           },
           "adapter_id": {
             "anyOf": [
@@ -13568,6 +13605,22 @@
         "summary": "Preview Speaker Repair"
       }
     },
+    "/api/single-narrator/source-preview": {
+      "get": {
+        "operationId": "get_single_narrator_source_preview_api_single_narrator_source_preview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Single Narrator Source Preview"
+      }
+    },
     "/api/sound_design/assets": {
       "get": {
         "operationId": "list_sound_assets_api_sound_design_assets_get",
@@ -15351,6 +15404,42 @@
           }
         },
         "summary": "Apply Voice Seed Repair"
+      }
+    },
+    "/api/voice_config/single-voice-preview": {
+      "post": {
+        "operationId": "preview_single_voice_api_voice_config_single_voice_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SingleVoicePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Single Voice"
       }
     },
     "/api/voice_config/snapshot": {

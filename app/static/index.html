@@ -2006,6 +2006,15 @@
                                     <button type="button" id="roster-discard" class="btn btn-sm btn-outline-danger" disabled>Discard saved undo</button>
                                 </div>
                             </details>
+                            <section id="source-preview-panel" class="border rounded p-3 mt-3" aria-labelledby="source-preview-title">
+                                <h6 id="source-preview-title">Source text preview</h6>
+                                <p class="small text-muted">Read-only excerpt of the actual extracted source for this book. Loading it starts no inference and creates no new user edit, but standard pending transaction recovery can run.</p>
+                                <pre id="source-preview-text" class="text-wrap border rounded p-2" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:12rem;overflow:auto">No source preview loaded for this book.</pre>
+                                <p id="source-preview-meta" class="small"></p>
+                                <p id="source-preview-status" class="small" role="status" aria-live="polite"></p>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadSingleVoiceSourcePreview()">Load source preview</button>
+                                <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="source-preview-confirm" onchange="onSingleVoiceSourceConfirm()"><label class="form-check-label" for="source-preview-confirm">I confirmed the loaded excerpt above (first 4000 characters) for the current book.</label></div>
+                            </section>
                         </div>
                     </div>
 
@@ -2426,6 +2435,15 @@
                         <div id="suggest-catalog-status" class="text-warning small" role="status" aria-live="polite"></div>
                     </div>
                     <p class="form-text" id="voice-approval-help">Persona means the character description; Voice means the sound assigned to the character. Reviewed records that you checked it; Approved records that you accept it; Rejected records that it needs another choice. These are separate review states for the persona and the voice.</p>
+                    <section id="single-voice-control" class="border rounded p-3 mb-3" aria-labelledby="single-voice-title">
+                        <h6 id="single-voice-title">Use one voice for the whole book</h6>
+                        <p class="small text-muted">Pick one existing voice on any card below (built-in, LoRA, clone or saved-designed), choose that speaker here, review every affected speaker, then confirm. Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice; confirming applies one guarded voice save. After listening to a sample, mark each speaker Ready with the existing per-card Ready controls below. Sample, render and export afterwards use the existing Editor and Result controls.</p>
+                        <div class="input-group input-group-sm" style="width:auto;">
+                            <label class="input-group-text" for="single-voice-source">Use this speaker's voice for the book</label>
+                            <select class="form-select" id="single-voice-source"><option value="">Choose a speaker whose voice you picked…</option></select>
+                            <button class="btn btn-outline-primary" type="button" onclick="previewSingleVoiceBook()">Review book-wide voice</button>
+                        </div>
+                    </section>
                     <div id="voices-list"></div>
                 </div>
             </div>
@@ -3996,6 +4014,7 @@
     <script src="/static/js/app-synthesis-windows.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speech-verification.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-guides.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-single-voice.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-narration-markup.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-audio-channels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-workbench.js?v=__APP_BUILD__"></script>

@@ -124,8 +124,27 @@
                     if (!isCurrent()) { return; }
                     const body = expectedRevision ? { name, expected_revision: expectedRevision } : { name };
                     const loaded = await API.post('/api/scripts/load', body);
+                    // The server load committed at this acknowledgment:
+                    // any later local helper/hydration failure must
+                    // report loaded-but-unrefreshed, not a failed load.
+                    request.loadedCommitted = true;
                     if (!isCurrent()) { return; }
                     applyCurrentBookFilename(`${loaded.name}.json`);
+                    // Bind this tab's next unscoped voice read to the
+                    // book just loaded here (DS3074), exactly like an
+                    // upload selection: another tab's book switch must
+                    // not be adopted as this tab's saved-script state.
+                    if (/^[0-9a-f]{64}$/.test(loaded.book_identity_token || '')) {
+                        window._selectedUploadIdentity = { filename: currentBookFilename, token: loaded.book_identity_token, request };
+                    } else {
+                        // Unverifiable identity (DS3074): preserve an
+                        // explicit unavailable local context so the next
+                        // unscoped read fails closed instead of treating
+                        // itself as startup and adopting whatever book
+                        // the server currently holds. An explicit reload
+                        // that obtains a valid token replaces this.
+                        window._selectedUploadIdentity = { filename: currentBookFilename, token: null, unavailable: true, request };
+                    }
                     document.getElementById('cast-list-panel').style.display = 'none';
                     clearCastListEditor();
                     clearCharacterAliases();
@@ -145,7 +164,15 @@
             } catch (e) {
                 if (!isCurrent()) { return; }
                 console.error('Error loading script:', e);
-                showActionError("Error loading script", e, "Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.");
+                if (request?.loadedCommitted) {
+                    if (window._selectedUploadIdentity?.unavailable) {
+                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded, but its identity is unavailable. Reload or reselect this book (load it again from Scripts) before trying Voices again; Reload Voices cannot resolve an unavailable book identity.');
+                    } else {
+                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded. Reload Voices to see it before trying Load again.');
+                    }
+                } else {
+                    showActionError("Error loading script", e, "Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.");
+                }
             } finally {
                 if (loading && loadScript.pending === loading) { loadScript.pending = null; }
             }
@@ -547,14 +574,17 @@
                             aliasSelect.appendChild(opt);
                         });
                         const entry = voices.find(v => v.name === voice.name);
-                        if (entry && entry.config && entry.config.alias_of) {
-                            if (!Array.from(aliasSelect.options).some(option => option.value === entry.config.alias_of)) {
+                        // One shared helper (app-core.js loads first):
+                        // never reimplement the effective-alias rule here.
+                        const effectiveAlias = getEffectiveVoiceAlias(entry?.config || {});
+                        if (entry && entry.config && effectiveAlias) {
+                            if (!Array.from(aliasSelect.options).some(option => option.value === effectiveAlias)) {
                                 const opt = document.createElement('option');
-                                opt.value = entry.config.alias_of;
-                                opt.text = entry.config.alias_of;
+                                opt.value = effectiveAlias;
+                                opt.text = effectiveAlias;
                                 aliasSelect.appendChild(opt);
                             }
-                            aliasSelect.value = entry.config.alias_of;
+                            aliasSelect.value = effectiveAlias;
                         } else {
                             aliasSelect.value = '';
                         }

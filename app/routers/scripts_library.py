@@ -671,9 +671,21 @@ def _load_script_sync(request: ScriptLoadRequest):
             removals.append(VOICE_CONFIG_PATH)
         apply_book_state_locked(DATA_DIR, replacements,
                                 [os.path.relpath(path, DATA_DIR) for path in removals])
+        # Identity seam for the loading tab (DS3074): derive the response
+        # token from the committed B state WHILE STILL under this load's
+        # book-state lease, using the exact state record just committed.
+        # An unscoped current-state read after releasing ownership could
+        # return another tab's newer book C for a load of B. Failure to
+        # derive yields None, which the client treats as no authority:
+        # its next unscoped read must not adopt any server book.
+        try:
+            book_identity_token = get_book_operation_token(DATA_DIR, state=state)
+        except (OSError, ValueError):
+            book_identity_token = None
 
     logger.info(f"Script '{request.name}' loaded")
-    return {"status": "loaded", "name": request.name}
+    return {"status": "loaded", "name": request.name,
+            "book_identity_token": book_identity_token}
 
 
 class ScriptPreflightRequest(BaseModel):

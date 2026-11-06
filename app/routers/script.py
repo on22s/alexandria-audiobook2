@@ -2,7 +2,7 @@ from book_state_transaction import ensure_saved_book_state
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
-                                    apply_book_state_locked)
+                                    apply_book_state_locked, get_book_operation_token)
 import asyncio
 import contextlib
 import copy
@@ -70,7 +70,7 @@ from pass_quality import (split_outer_quote_regions, validate_attribution,
                           validate_instruct, validate_segment_quality)
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
-from utils import file_lock
+from utils import file_lock, is_path_inside
 from alexandria_alignment import validate_epub_archive
 from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
@@ -908,6 +908,219 @@ async def select_existing_upload(request: ExistingUploadRequest):
     path, token = await asyncio.to_thread(_select_upload, request.filename, include_identity=True)
     return {"status": "selected", "stored_filename": os.path.basename(path), "path": path,
             "book_identity_token": token}
+
+
+SINGLE_NARRATOR_PREVIEW_CHARS = 4000
+
+
+def _get_single_narrator_source_preview():
+    """Bounded, book-bound source preview for the single-narrator guide (#1724).
+
+    Read-only: takes no path input, reads only the active book's recorded
+    source (state.json input_file_path), applies the existing ownership/size
+    controls, and never writes. Returns a truncated excerpt plus the source
+    digest and book token so the client can bind inspection to this source.
+
+    The read is descriptor-confined via project_scope_files.capture_scope_file
+    (both for DOCX groups and for plain TXT/MD sources): a realpath/lstat
+    check followed by open() is not sufficient here because a swapped source
+    parent (e.g. a junction substituted after the check) would otherwise
+    feed outside bytes under the trusted pathname. capture_scope_file opens
+    via os.open and freezes the file version before/after the read, so any
+    swap mid-read fails instead of returning outside bytes.
+    """
+    from docx_publication import capture_docx_group
+    from project_scope_files import capture_scope_file
+    from source_encoding import get_decoded_source_text
+
+    def load_book_state():
+        # Bounded strict selection-state reader shared with script
+        # generation (duplicate keys, nonfinite numbers, size and
+        # descriptor confinement). Missing is distinct from corrupt or
+        # unreadable: safe_load_json would fold both into {} and
+        # misreport a corrupt book as "No input file selected".
+        from script_selection_binding import _read_selection_state
+        try:
+            return _read_selection_state(DATA_DIR, required=False)
+        except ValueError:
+            raise HTTPException(status_code=409, detail=(
+                "Active book state is corrupt; restore it before previewing the source."))
+        except OSError:
+            raise HTTPException(status_code=409, detail=(
+                "Active book state is unreadable; restore it before previewing the source."))
+
+    with ensure_book_state(DATA_DIR):
+        state = load_book_state()
+        source_path = state.get("input_file_path")
+        if not isinstance(source_path, str) or not source_path:
+            raise HTTPException(status_code=400, detail="No input file selected for the active book.")
+        # Resolve exactly like the shared generation/source capture
+        # resolver (_capture_raw_source): relative spellings resolve
+        # against the process CWD, never silently against DATA_DIR, so
+        # preview shows the exact source generation reads. Confine to
+        # DATA_DIR by spelling (no trust yet); the descriptor capture
+        # below re-checks containment and freezes file identity.
+        root_abs = Path(os.path.abspath(DATA_DIR))
+        source_abs = Path(os.path.abspath(source_path))
+        try:
+            relative = source_abs.relative_to(root_abs)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        if not relative.parts:
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        # No dot-part check: both operands are abspath-normalized, so a
+        # successful relative_to() can never yield '.'/'..'/'' parts (#1724 C082).
+        resolved = os.path.realpath(source_abs)
+        if not is_path_inside(resolved, os.path.realpath(DATA_DIR)):
+            raise HTTPException(status_code=403, detail="Active source is outside the book data directory.")
+        try:
+            group = capture_docx_group(source_abs, owning_root=DATA_DIR)
+        except ValueError:
+            raise HTTPException(status_code=409, detail=(
+                "Active source could not be verified; inspect it in Script instead."))
+        except OSError:
+            # A member deleted/made unreadable mid-capture is a clear refusal,
+            # never an unhandled 500 (#1724 C028).
+            raise HTTPException(status_code=409, detail=(
+                "Active source could not be verified; inspect it in Script instead."))
+        imported_source_name = None
+        if group is not None:
+            raw = group["text_bytes"]
+            if not isinstance(raw, bytes):
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
+            # Reuse the capture proof digest instead of re-hashing (#1724 C065).
+            source_sha256 = group["proofs"]["text"]["sha256"]
+            # Verified imported identity from the DOCX receipt (DS3007):
+            # the selected/imported document is distinct from the
+            # retained extracted-text file the excerpt actually shows.
+            imported_source_name = group.get("uploaded_filename")
+        else:
+            extension = os.path.splitext(str(source_abs))[1].lower()
+            if extension in (".docx", ".epub"):
+                # Raw zip bytes are never source text: only the retained
+                # DOCX group's text or an EPUB-derived extracted file previews.
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this file format; inspect the "
+                    "extracted text in Script instead."))
+            # JSON is a retained annotated script, not original source
+            # prose: refuse honestly with saved-script guidance instead of
+            # relabelling JSON as the extracted source.
+            if extension == ".json":
+                # Saved-library books stay honestly unavailable: no
+                # verified prose link survives as readable original text,
+                # and the annotated JSON is not original prose. No
+                # provenance read is attempted here (DS3077).
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this saved book: no retained "
+                    "original prose is linked to its saved script, and the annotated "
+                    "JSON is not original prose. Inspect the saved script in Script "
+                    "instead."))
+            if extension not in SELECTABLE_SOURCE_EXTENSIONS:
+                raise HTTPException(status_code=409, detail=(
+                    "Source preview is unavailable for this file format; inspect the "
+                    "extracted text in Script instead."))
+            try:
+                proof, raw = capture_scope_file(DATA_DIR, relative.as_posix(),
+                    limit=MAX_SCRIPT_UPLOAD_BYTES + 1, include_bytes=True)
+            except ValueError:
+                # The shared capture helper conflates size/hardlink/type in
+                # untyped messages: use a conservative integrity refusal
+                # instead of fragile English-substring classification.
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
+            except FileNotFoundError:
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            except OSError:
+                raise HTTPException(status_code=409, detail=(
+                    "Active source could not be verified; inspect it in Script instead."))
+            if not proof.get('exists'):
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            if not isinstance(raw, bytes):
+                raise HTTPException(status_code=404, detail="Active source file not found.")
+            source_sha256 = proof["sha256"]
+        # One size/empty/source_name policy for both branches (#1724 C062).
+        if len(raw) > MAX_SCRIPT_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+        if not raw:
+            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+        source_name = Path(source_abs).name
+        # Reuse the shared decoder policy; programmer errors (e.g. a
+        # non-bytes raw from an internal defect) propagate instead of being
+        # swallowed as a 409. Only UTF-16/32 BOM and NUL refuse; a UTF-8
+        # BOM that the canonical decoder represents is ordinary text.
+        if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
+        text, encoding = get_decoded_source_text(raw)
+        if encoding == "utf-8/replace":
+            # The decoder's last-resort replacement would show garbled text as
+            # a confirmable excerpt; fail loud instead (#1724 C034).
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
+        if '\x00' in text:
+            raise HTTPException(status_code=409, detail=(
+                "Active source text could not be decoded; inspect it in Script instead."))
+        # Zero-length check only (CR2068): do not strip-scan the whole
+        # book. The bounded excerpt check below refuses empty, whitespace-
+        # leading and whitespace-only previews honestly without certifying
+        # whole-book emptiness; decoder/BOM/NUL/counts above are unchanged.
+        if not text:
+            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+        _excerpt = text[:SINGLE_NARRATOR_PREVIEW_CHARS]
+        if not _excerpt.strip():
+            raise HTTPException(status_code=400, detail=(
+                "Source excerpt is empty or blank in the displayed excerpt; import a book whose beginning is readable before confirming."))
+        # Zero-width/format-only excerpts (U+200B/U+2060/BOM-only) render
+        # as nothing: refuse when the bounded excerpt has no readable,
+        # non-format content. BOM followed by text stays valid; this
+        # scans only the bounded excerpt, never the whole source.
+        if not ''.join(char for char in _excerpt
+                       if not char.isspace()
+                       and unicodedata.category(char) not in ('Cf', 'Cc')):
+            raise HTTPException(status_code=400, detail=(
+                "Source excerpt is empty or blank in the displayed excerpt; import a book whose beginning is readable before confirming."))
+        # Derive the operation token from the already-loaded state instead
+        # of re-reading state.json for every token use. Token derivation
+        # can raise ValueError (filesystem admission/alias race): map it
+        # to an honest 409, never an unhandled 500. Narrow try only.
+        try:
+            book_token = get_book_operation_token(DATA_DIR, state=state)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading the preview.")) from exc
+        # Re-read state identity after the read so a concurrent selection cannot
+        # bind this excerpt to a different book than the one returned.
+        state_after = load_book_state()
+        if state_after.get("input_file_path") != source_path:
+            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+        try:
+            token_after = get_book_operation_token(DATA_DIR, state=state_after)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=(
+                "Active book could not be verified while reading the preview.")) from exc
+        if token_after != book_token:
+            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+        return {"book_token": book_token, "source_name": source_name,
+                "imported_source_name": imported_source_name,
+                "source_sha256": source_sha256, "encoding": encoding,
+                "total_chars": len(text), "truncated": len(text) > SINGLE_NARRATOR_PREVIEW_CHARS,
+                "text_start": text[:SINGLE_NARRATOR_PREVIEW_CHARS]}
+
+
+@router.get("/api/single-narrator/source-preview")
+async def get_single_narrator_source_preview():
+    try:
+        return await asyncio.to_thread(_get_single_narrator_source_preview)
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Book state is busy; retry the preview shortly.") from None
+    except (ValueError, OSError) as exc:
+        # Admission/recovery failures (root swap, invalid/legacy journal,
+        # lock-file OSError) from ensure_book_state and token derivation
+        # are honest 409 refusals, never unhandled 500. HTTPException is
+        # not a ValueError/OSError, so inner 400/403/404 refusals pass through.
+        raise HTTPException(status_code=409, detail=(
+            "Active book could not be verified while reading the preview.")) from exc
 
 
 
@@ -2815,27 +3028,101 @@ def _resolve_batch_script_input(filename: str) -> str:
     return input_path
 
 
-def _read_and_validate_batch_script_source(job):
-    """Read one batch source and reject unattested narrator metadata."""
+def _batch_source_identity_from_proof(proof):
+    """One proof -> batch identity tuple formula for producer + getter."""
+    return (proof['sha256'], proof['size'], tuple(proof['file_version'] or ()))
+
+
+def _capture_and_validate_batch_script_source(job):
+    """Capture, decode and validate one batch source; return its proof.
+
+    Returns (text, normalizations, identity) where identity is derived
+    from THE SAME bounded captured bytes that were decoded, normalized
+    and narrator-validated here — never a separate stat/hash read — so
+    a cached text can never be bound under a different content identity
+    (A/B/A fast-edit/revert). DOCX groups use the verified group
+    capture; other sources use the confined raw capture. The decoded
+    text is not mutated into the caller's job (Rule 17).
+    """
     from docx_publication import capture_docx_group
+    from script_selection_binding import _capture_raw_source
+    from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+    from utils import get_unsafe_text_controls
     group = capture_docx_group(job['input_path'])
     if group is not None:
-        text = fix_mojibake(group['text_bytes'].decode('utf-8'))
+        proof = group['proofs']['text']
+        raw = group['text_bytes']
     else:
-        with open(job["input_path"], encoding="utf-8") as source:
-            text = fix_mojibake(source.read())
+        proof, raw = _capture_raw_source(job['input_path'], owning_root=None,
+                                         include_bytes=True)
+        if not proof.get('exists'):
+            raise FileNotFoundError(str(job['input_path']))
+    # ONE shared preparation policy after either capture: shared
+    # decoder (UTF-8, then CP1252), universal-newline policy, then
+    # mojibake. Identity stays on the original raw bytes / group
+    # proof above, never on the decoded text.
+    decoded, encoding = get_decoded_source_text(raw)
+    if encoding == "utf-8/replace":
+        # Lossy tier: bytes undecodable as UTF-8 or CP1252. Refuse
+        # explicitly before preflight/dispatch can offer damaged text
+        # as clean; the existing ValueError boundaries map this to a
+        # clear 400 on both batch routes. Retained bytes are untouched.
+        # Genuinely CP1252-decodable text remains supported by design
+        # and cannot be assumed wrong (residual human-inspection limit).
+        raise ValueError(
+            f"{job['filename']}: source text could not be decoded as "
+            "UTF-8 or CP1252; it contains undecodable bytes. Save the "
+            "source as UTF-8 or CP1252 text and try again.")
+    # Canonical unsafe-control gate (same shared helper the preflight
+    # audit and canonical preparation use): e.g. UTF-16 BOM/NUL bytes
+    # decode through the CP1252 fallback without hitting the replace
+    # tier above, but NUL and other Cc/Cs/bidi controls are known
+    # unsupported and canonical generation refuses them. Refuse here,
+    # before preflight/dispatch can offer them; ordinary whitespace
+    # stays valid. Valid UTF-8/CP1252 without unsafe controls passes.
+    _unsafe_controls = get_unsafe_text_controls(decoded)
+    if _unsafe_controls:
+        raise ValueError(
+            f"{job['filename']}: source text contains unsupported control "
+            f"characters ({', '.join(_unsafe_controls)}); canonical "
+            "generation refuses them. Save the source as UTF-8 or CP1252 "
+            "text without control characters and try again.")
+    text = fix_mojibake(get_normalized_source_newlines(decoded))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")
     if narrator and not is_narrator_attested(narrator, text):
         raise ValueError(
             f"{job['filename']}: first-person narrator must appear by name "
             "at least three times in the source")
+    identity = _batch_source_identity_from_proof(proof)
+    return text, normalization_count, identity
+
+
+def _read_and_validate_batch_script_source(job):
+    """Read one batch source and reject unattested narrator metadata."""
+    text, normalization_count, _identity = _capture_and_validate_batch_script_source(job)
     return text, normalization_count
 
 
 def get_batch_script_source_identity(path):
-    stat = os.stat(path)
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    """Content-authoritative identity for the prepared-source cache.
+
+    The cached decoded text may be reused only while the exact source
+    bytes are unchanged. A stat tuple alone cannot prove that: timestamp
+    resolution is OS/filesystem dependent, and a same-sized rewrite can
+    restore mtime (and on some filesystems leave the whole stat tuple
+    unchanged) while the bytes change. Hash the raw bytes through the
+    shared confined capture seam (plain-path, single-link regular-file
+    and 512 MiB bounds, digest-only stream) and keep the file version
+    alongside it, so a touch still misses conservatively. A missing
+    source raises FileNotFoundError, matching the previous os.stat
+    contract; an aliased/hardlinked source raises ValueError.
+    """
+    from script_selection_binding import _capture_raw_source
+    proof, _raw = _capture_raw_source(path, owning_root=None, include_bytes=False)
+    if not proof.get('exists'):
+        raise FileNotFoundError(str(path))
+    return _batch_source_identity_from_proof(proof)
 
 
 def get_validated_batch_script_source(job):
@@ -3023,7 +3310,14 @@ async def generate_script_batch_preflight(request: BatchScriptRequest):
                 for task in request.tasks]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await asyncio.to_thread(build_batch_script_preflight, jobs)
+    # Same read-only domain boundary as batch/start: confined/group
+    # capture refusals (hardlink, missing companion, changed source)
+    # are 400, never 500. Cancellation and genuine programmer
+    # exceptions propagate unchanged.
+    try:
+        return await asyncio.to_thread(build_batch_script_preflight, jobs)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @contextlib.contextmanager
@@ -3137,8 +3431,12 @@ def get_prepared_batch_script_jobs(request):
             raise ValueError(refusal)
         prepared = []
         for job in jobs:
-            identity = get_batch_script_source_identity(job["input_path"])
-            text, normalizations = _read_and_validate_batch_script_source(job)
+            # The cached text and its identity come from the one
+            # captured record; the recheck below compares the CURRENT
+            # digest-only identity against THAT captured identity, so
+            # an A/B/A edit during preparation refuses before sizing
+            # and dispatch instead of binding B under A.
+            text, normalizations, identity = _capture_and_validate_batch_script_source(job)
             if get_batch_script_source_identity(job["input_path"]) != identity:
                 raise ValueError(f"Source changed while preparing: {job['filename']}")
             sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows, context)

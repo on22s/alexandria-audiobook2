@@ -8,7 +8,7 @@ HARNESS = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const handlers={};const containers=Object.fromEntries(['voices-list','chunks-table-body'].map(id=>[id,{dataset:{},addEventListener(type,fn){handlers[id+type]=fn;}}]));
-const context={currentBookFilename:'',window:{_voicesNames:['Zed','Alice','Alice','  Bob  '],_voiceRosterBookToken:'book-a'},
+const context={currentBookFilename:'',_voiceSaveSnapshot:null,window:{_voicesNames:['Zed','Alice','Alice','  Bob  '],_voiceRosterBookToken:'book-a'},
  escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'),
  document:{getElementById:id=>containers[id],createElement:()=>({value:'',textContent:''}),createDocumentFragment:()=>({children:[],appendChild(o){this.children.push(o);}})}};
 vm.createContext(context);
@@ -43,8 +43,16 @@ ensure(blank);assert.deepEqual(blank.options.map(o=>o.value),['']);assert.equal(
         self.run_js(r'''
 context.window._voicesNames=['Alice','Zed','Bob'];
 assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'Zed'}}),'<option value="Zed" selected>Zed</option>');
-for(const alias of ['','Alice','missing']){assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:alias}}),'');}
+assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:''}}),'');
+// A stored self-alias is preserved visibly as a selected invalid
+// option (not auto-blanked); new choices still exclude self.
+assert(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'Alice'}}).includes('invalid self-alias'));
+// DS3001: a saved alias whose target is not in the active roster
+// (inactive legacy target) must still render selected, not blank.
+assert.equal(context.renderInitialAliasOptions({name:'Alice',config:{alias_of:'missing'}}),'<option value="missing" selected>missing</option>');
 const s=select('alias','Zed');assert.equal(s.value,'Zed');ensure(s);assert.equal(s.value,'Zed');assert.deepEqual(s.options.map(o=>o.value),['','Zed','Bob']);s.value='';ensure(s);assert.equal(s.value,'');
+// Stored self-alias survives roster materialization selected.
+const selfS=select('alias','Alice');ensure(selfS);assert.equal(selfS.value,'Alice');assert.deepEqual(selfS.options.map(o=>o.value),['','Alice','Zed','Bob']);assert(selfS.options[1].textContent.includes('invalid self-alias'));
 ''')
 
     def test_cached_options_and_roster_invalidation_preserve_unsaved_value(self):
@@ -119,7 +127,7 @@ Object.assign(context,{showConfirm:async()=>true,flushVoiceSaves:async()=>{},ens
  applyCurrentBookFilename:name=>{context.currentBookFilename=name;},clearCastListEditor:()=>{},clearCharacterAliases:()=>{},resetDesignerForm:()=>{},
  showToast:()=>{},clearVoiceSuggestions:()=>{},loadCharacterAliases:async()=>{},loadCastList:async()=>{},loadSavedScripts:()=>{},loadDesignedVoices:()=>{},
  showActionError:(...args)=>errors.push(args),voiceSaveQueue:{getRevision:()=>0,isDirty:()=>false},renderVoiceDrafts:()=>{},
- API:{post:async()=>({name:'new'}),get:async()=>({voices:[{name:'New'},{name:'Alternate'}],revision:'a'.repeat(64),book_token:'b'.repeat(64)})},
+ API:{post:async()=>({name:'new',book_identity_token:'b'.repeat(64)}),get:async()=>({voices:[{name:'New'},{name:'Alternate'}],revision:'a'.repeat(64),book_token:'b'.repeat(64),book_identity_token:'b'.repeat(64)})},
  loadChunks:async force=>{if(force){const html=context.buildSpeakerSelect({id:0,speaker:'New'});editorSelect=select('speaker','New');editorSelect.dataset.rosterBook=html.match(/data-roster-book="([^"]+)"/)[1];}}
 });
 const queueStart=source.indexOf('function enqueueBookSelection(');vm.runInContext(source.slice(queueStart,source.indexOf('function getCurrentBookName(',queueStart)),context);

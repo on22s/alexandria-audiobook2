@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-06T05:19:07",
+  "written": "2026-11-06T10:17:33",
   "host": "RealMitch",
   "git": {
-   "commit": "f249e2f3e99950066012f7bb064a844a5f176de5",
-   "branch": "feat/1532-library-trash",
+   "commit": "caba46b160afdacb939a326b7ac8c77e58c6639d",
+   "branch": "feat/1724-single-narrator-final",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

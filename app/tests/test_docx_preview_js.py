@@ -20,7 +20,7 @@ context.encodeURIComponent=encodeURIComponent;
 const pending=[],selections=[];
 context.fetch=(url,options)=>new Promise((resolve,reject)=>pending.push({url,options,resolve,reject}));
 context.API={post:async(url,body)=>{selections.push({url,body});return {stored_filename:body.filename,book_identity_token:'a'.repeat(64)};}};
-vm.runInContext(source.slice(source.indexOf('_handleError: async (res) => {'),source.indexOf('get: async (url) => {')).replace('_handleError:', 'API._handleError =').replace(/,\s*$/, ';'),context);
+vm.runInContext(source.slice(source.indexOf('_handleError: async (res) => {'),source.indexOf('get: async (url')).replace('_handleError:', 'API._handleError =').replace(/,\s*$/, ';'),context);
 let discardAllowed=true;
 context.ensureCastListEditsDiscardable=async()=>discardAllowed;
 context.clearCastListEditor=()=>{};context.loadCastList=async()=>{};context.loadExistingScriptUploads=async()=>{};
