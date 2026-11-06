@@ -1050,15 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-05T18:21:15",
+  "written": "2026-11-06T02:24:00",
   "host": "RealMitch",
   "git": {
-   "commit": "71bdf5636f291b4e6722da869940ee036a0055d4",
-   "branch": "feat/1718-reason-aware-retry",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "253ce9a451579bcaa6d70b01b05fb5fd6a3cf1a2",
+   "branch": "feat/1727-audiobookshelf-delivery",
+   "dirty": true,
+   "source_state": "dirty:59fb29b749e8",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/tests/test_audiobookshelf_delivery.py",
+    "M  app/tests/test_local_ui_assets.py"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
