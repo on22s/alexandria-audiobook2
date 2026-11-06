@@ -189,12 +189,13 @@ def assert_directory_payload_names(case, directory, expected, *, lock_targets):
     case.assertEqual(sorted(expected), sorted(names))
 
 
-def assert_book_journal_fenced(case, root, *, content_check=None):
+def assert_book_journal_fenced(case, root, *, content_check=None, expected_reason):
     """Refuse recovery twice on the same frozen publishing journal.
 
     content_check, if given, is executed before the first refusal and
     after EACH refusal, so callers keep their per-iteration byte
-    assertions at the exact observed state.
+    assertions at the exact observed state. expected_reason is a regex
+    for the specific ValueError recovery refusal.
     """
     import json
     import book_state_transaction as books
@@ -206,9 +207,9 @@ def assert_book_journal_fenced(case, root, *, content_check=None):
         content_check()
     frozen = journal.read_bytes()
     for _ in range(2):
-        with case.assertRaises(ValueError):
+        with case.assertRaisesRegex(ValueError, expected_reason):
             with books.ensure_book_state(root):
-                case.fail('Relocated recovery workspace was admitted')
+                case.fail('Book journal recovery was admitted')
         case.assertEqual(frozen, journal.read_bytes())
         if content_check is not None:
             content_check()
