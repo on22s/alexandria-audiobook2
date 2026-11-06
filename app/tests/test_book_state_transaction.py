@@ -63,7 +63,7 @@ class BookStateTransactionTests(unittest.TestCase):
                             self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
                     from tests.test_support import assert_book_journal_fenced
                     assert_book_journal_fenced(self, root, content_check=check,
-                        expected_reason='original artifact is missing or changed')
+                        expected_message='Active-book original artifact is missing or changed')
 
     def test_failed_journal_publication_preserves_edited_journal_and_workspace(self):
         import source_upload_publication as publication

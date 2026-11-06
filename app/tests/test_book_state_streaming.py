@@ -1392,7 +1392,7 @@ print(len(result['entries']))
                 self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
             from tests.test_support import assert_book_journal_fenced
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_reason='parent changed')
+                expected_message='Book artifact parent changed; recovery evidence was preserved')
 
     def test_file_created_at_publication_is_not_overwritten_even_with_same_bytes(self):
         for external in (b'other bytes', b'new'):

@@ -116,7 +116,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
         self.assertIsInstance(raised.__cause__, OSError)
         self.assertIn('fixture directory sync failure', str(raised.__cause__))
         # Both distinct parent fds attempted, source (root) first.
-        self.assertGreaterEqual(len(sync_calls), 2)
+        self.assertEqual(2, len(sync_calls))
         self.assertEqual(root_ino, sync_calls[0][1])
         self.assertEqual(retained_ino, sync_calls[1][1])
         self.assertNotEqual(sync_calls[0][0], sync_calls[1][0])
@@ -128,7 +128,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
         self.assertIn('parent changed', str(raised))
         self.assertIsInstance(raised.__cause__, OSError)
         self.assertIn('fixture destination sync failure', str(raised.__cause__))
-        self.assertGreaterEqual(len(sync_calls), 2)
+        self.assertEqual(2, len(sync_calls))
         self.assertEqual(root_ino, sync_calls[0][1])
         self.assertEqual(retained_ino, sync_calls[1][1])
         self.assertNotEqual(sync_calls[0][0], sync_calls[1][0])
@@ -141,8 +141,16 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
         self.assertIn('parent changed', str(raised))
         self.assertIsInstance(raised.__cause__, OSError)
         self.assertIn('fixture first sync failure', str(raised.__cause__))
-        self.assertNotIn('second sync failure', str(raised.__cause__))
-        self.assertGreaterEqual(len(sync_calls), 2)
+        seen, chain = set(), []
+        error = raised
+        while error is not None and id(error) not in seen:
+            seen.add(id(error))
+            chain.append(error)
+            error = error.__cause__ if error.__cause__ is not None else error.__context__
+        self.assertIn('fixture first sync failure', str(chain[1]))
+        for entry in chain:
+            self.assertNotIn('second sync failure', str(entry))
+        self.assertEqual(2, len(sync_calls))
         self.assertEqual(root_ino, sync_calls[0][1])
         self.assertEqual(retained_ino, sync_calls[1][1])
         self.assertNotEqual(sync_calls[0][0], sync_calls[1][0])
@@ -150,6 +158,8 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
     def test_sync_keyboard_interrupt_is_not_converted_to_value_error(self):
         raised, sync_calls, root_ino, _retained_ino = self._run_sync_move({0: KeyboardInterrupt()})
         self.assertIsInstance(raised, KeyboardInterrupt)
+        self.assertEqual(1, len(sync_calls))
+        self.assertIsNone(raised.__cause__)
         self.assertIsInstance(raised.__context__, ValueError)
         self.assertIn('parent changed', str(raised.__context__))
         self.assertEqual(root_ino, sync_calls[0][1])
@@ -184,7 +194,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     books.apply_book_state_locked(root, {'artifact': GENERATED}, [])
             self.assertTrue(state['moved'])
             self.assertTrue(state['sync_failed'])
-            self.assertGreaterEqual(len(sync_calls), 2)
+            self.assertEqual(2, len(sync_calls))
             self.assertEqual(root.stat().st_ino, sync_calls[0][1])
             self.assertEqual(retained.stat().st_ino, sync_calls[1][1])
             # Recovery failure is primary; its explicit cause is the parent
@@ -198,7 +208,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                 self.assertEqual(OWNED, (retained / 'old-0').read_bytes())
                 self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_reason='original artifact is missing or changed')
+                expected_message='Active-book original artifact is missing or changed')
 
     def test_ordinary_rollback_with_valid_parents_byte_and_stream(self):
         for streaming in (False, True):
@@ -325,8 +335,8 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                         self.assertEqual(OWNED, dest_old.read_bytes())
                         self.assertEqual(FOREIGN, (retained / 'file.json').read_bytes())
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_reason=('parent changed' if parent == 'source'
-                                 else 'original artifact is missing or changed'))
+                expected_message=('Book artifact parent changed; recovery evidence was preserved' if parent == 'source'
+                                 else 'Active-book original artifact is missing or changed'))
 
     def _directory_case(self, timing):
         with tempfile.TemporaryDirectory() as temporary:
@@ -373,7 +383,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     self.assertEqual(OWNED, (retained / 'old-0/owned').read_bytes())
                     self.assertEqual(FOREIGN, (retained / 'foreign-stage').read_bytes())
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_reason='original artifact is missing or changed')
+                expected_message='Active-book original artifact is missing or changed')
 
     def _nested_directory_case(self, timing):
         with tempfile.TemporaryDirectory() as temporary:
@@ -403,8 +413,9 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     state['relocated'] = True
                     return result
                 if pair == ('old-0', 'chapters') and timing == 'after':
-                    (workspace / 'old-0').rename(workspace / 'owned-retained')
-                    (workspace / 'foreign-stage').rename(workspace / 'old-0')
+                    nested_workspace = state['workspace']
+                    (nested_workspace / 'old-0').rename(nested_workspace / 'owned-retained')
+                    (nested_workspace / 'foreign-stage').rename(nested_workspace / 'old-0')
                 return real_move(source, destination, **kwargs)
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
@@ -423,7 +434,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     self.assertEqual(OWNED, (workspace / 'old-0/owned').read_bytes())
                     self.assertEqual(FOREIGN, (workspace / 'foreign-stage').read_bytes())
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_reason='parent changed')
+                expected_message='Book artifact parent changed; recovery evidence was preserved')
 
 
 class BookStateTransaction1660RecoveryCauseTests(unittest.TestCase):
