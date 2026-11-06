@@ -5536,7 +5536,7 @@
                 // it honestly (the write may have committed), invent no
                 // revision, and leave snapshot metadata/server state and
                 // retained drafts unmodified by the bad ACK.
-                if (!/^[0-9a-f]{64}$/.test(result?.revision || '')) {
+                if (typeof result?.revision !== 'string' || !/^[0-9a-f]{64}$/.test(result.revision)) {
                     throw new Error('Narrator strategy save could not be confirmed: the server response did not include a valid revision. It may have been saved. Reload Voices to check the saved narrator strategy before changing it again.');
                 }
                 // Immutable snapshot replacement (the canonical

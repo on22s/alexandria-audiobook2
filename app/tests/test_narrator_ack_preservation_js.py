@@ -131,8 +131,29 @@ assert.strictEqual(serverStrategy,'chapter','transport case: server committed be
 assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',context),beforeRevision,'bad ACK must invent no revision');
 assert(context.actionErrors.length>=1,'unconfirmed outcome must surface honestly');
 assert(/could not be confirmed/i.test(context.actionErrors[0][1]),'message must say unconfirmed, got '+context.actionErrors[0][1]);
-assert(!/may have been saved/i.test(context.actionErrors[0][1]) || /may have been saved/i.test(context.actionErrors[0][1]),'must not claim failure proves no save');
+assert(/may have been saved/i.test(context.actionErrors[0][1]),'unconfirmed message must retain that the server may have committed, got '+context.actionErrors[0][1]);
 assert.strictEqual(context.toasts.filter(t=>/saved/i.test(t[0])).length,0,'bad ACK must never toast validated success');
+''')
+        self.assertEqual(0, len(r['writes']))
+
+    def test_array_revision_ack_is_unconfirmed_not_success(self):
+        r = self.run_node(r'''
+let serverStrategy='global';
+context.API.post=async(url,body)=>{
+ if(url==='/api/narrator/strategy'){
+  serverStrategy=body.strategy; // server actually commits...
+  return{strategy:body.strategy,revision:['a'.repeat(64)]}; // ...but revision is an ARRAY (regex coercion trap)
+ }
+ return previousPost(url,body);
+};
+const beforeRevision=vm.runInContext('_voiceSaveSnapshot.revision',context);
+await context.window.saveNarratorStrategy('chapter');
+assert.strictEqual(serverStrategy,'chapter','transport case: server committed before the array ACK');
+assert.strictEqual(vm.runInContext('_voiceSaveSnapshot.revision',context),beforeRevision,'array revision must never be installed');
+assert(context.actionErrors.length>=1,'unconfirmed outcome must surface honestly');
+assert(/could not be confirmed/i.test(context.actionErrors[0][1]),'message must say unconfirmed, got '+context.actionErrors[0][1]);
+assert(/may have been saved/i.test(context.actionErrors[0][1]),'unconfirmed message must retain that the server may have committed, got '+context.actionErrors[0][1]);
+assert.strictEqual(context.toasts.filter(t=>/saved/i.test(t[0])).length,0,'array ACK must never toast validated success');
 ''')
         self.assertEqual(0, len(r['writes']))
 

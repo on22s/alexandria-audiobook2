@@ -7633,6 +7633,7 @@
     "tests.test_narration_markup_routes.NarrationMarkupRouteTests.test_wrong_book_uid_decision_and_duplicate"
   ],
   "test_narrator_ack_preservation_js": [
+    "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_array_revision_ack_is_unconfirmed_not_success",
     "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_book_switch_before_send_retains_draft_with_no_write",
     "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_card_edit_while_post_held_preserves_acknowledged_strategy",
     "tests.test_narrator_ack_preservation_js.NarratorAckPreservationJsTests.test_failed_narrator_save_then_ordinary_save_keeps_server_strategy",
