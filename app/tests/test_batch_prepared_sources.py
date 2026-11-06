@@ -224,6 +224,40 @@ class BatchPreparedSourcesTests(OwnedScriptTestCase):
                           'first_person_narrator': None}])
             self.assertEqual(before, path.read_bytes(), 'retained bytes must stay untouched')
 
+    def test_utf16_bom_nul_refuses_before_preflight_and_dispatch(self):
+        # DSF25007-2 variant: UTF-16 BOM + NUL bytes decode through the
+        # CP1252 fallback (not the replace tier), so the tier guard alone
+        # admits them — but NUL is a known unsupported control per the
+        # canonical shared gate, which canonical generation refuses.
+        # The capture seam must refuse explicitly (400 on both routes).
+        from fastapi import HTTPException
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'book.txt'
+            path.write_bytes('Alexis Alexis Alexis. Hello world.'.encode('utf-16'))
+            before = path.read_bytes()
+            request = script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+                with self.assertRaises(HTTPException) as error:
+                    script.get_prepared_batch_script_jobs(request)
+                self.assertEqual(400, error.exception.status_code)
+                self.assertIn('unsupported control', error.exception.detail)
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script.build_batch_script_preflight(
+                        [{'filename': 'book.txt', 'input_path': str(path),
+                          'first_person_narrator': None}])
+            self.assertEqual(before, path.read_bytes(), 'retained bytes must stay untouched')
+            # Embedded NUL in otherwise valid UTF-8 is likewise refused.
+            path.write_bytes(b'Alexis Alexis Alexis. Hello\x00 world.')
+            with patch.object(script, 'UPLOADS_DIR', tmp), \
+                 patch.object(script, 'load_app_config', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'unsupported control'):
+                    script._capture_and_validate_batch_script_source(
+                        {'input_path': str(path), 'filename': 'book.txt'})
+
     def test_cp1252_and_utf8_decode_like_generation_preparation(self):
         import hashlib
         cases = [

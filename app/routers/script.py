@@ -3047,6 +3047,7 @@ def _capture_and_validate_batch_script_source(job):
     from docx_publication import capture_docx_group
     from script_selection_binding import _capture_raw_source
     from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+    from utils import get_unsafe_text_controls
     group = capture_docx_group(job['input_path'])
     if group is not None:
         proof = group['proofs']['text']
@@ -3072,6 +3073,20 @@ def _capture_and_validate_batch_script_source(job):
             f"{job['filename']}: source text could not be decoded as "
             "UTF-8 or CP1252; it contains undecodable bytes. Save the "
             "source as UTF-8 or CP1252 text and try again.")
+    # Canonical unsafe-control gate (same shared helper the preflight
+    # audit and canonical preparation use): e.g. UTF-16 BOM/NUL bytes
+    # decode through the CP1252 fallback without hitting the replace
+    # tier above, but NUL and other Cc/Cs/bidi controls are known
+    # unsupported and canonical generation refuses them. Refuse here,
+    # before preflight/dispatch can offer them; ordinary whitespace
+    # stays valid. Valid UTF-8/CP1252 without unsafe controls passes.
+    _unsafe_controls = get_unsafe_text_controls(decoded)
+    if _unsafe_controls:
+        raise ValueError(
+            f"{job['filename']}: source text contains unsupported control "
+            f"characters ({', '.join(_unsafe_controls)}); canonical "
+            "generation refuses them. Save the source as UTF-8 or CP1252 "
+            "text without control characters and try again.")
     text = fix_mojibake(get_normalized_source_newlines(decoded))
     text, normalization_count = normalize_known_source_corruptions(text)
     narrator = job.get("first_person_narrator")

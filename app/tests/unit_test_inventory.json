@@ -1129,7 +1129,8 @@
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_hardlinked_and_missing_sources_are_refused_not_cached",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_lossy_replace_tier_refuses_before_preflight_and_dispatch",
     "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_changed_during_preparation_is_refused_before_dispatch",
-    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text"
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_source_replacement_and_removal_cannot_reuse_cached_text",
+    "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_utf16_bom_nul_refuses_before_preflight_and_dispatch"
   ],
   "test_batch_processor_preflight": [
     "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt",
