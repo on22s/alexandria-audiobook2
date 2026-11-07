@@ -1050,19 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T11:11:27",
+  "written": "2026-11-07T14:05:29",
   "host": "RealMitch",
   "git": {
-   "commit": "8fa8d7f44926d9d87ae15bb473b829635c447181",
-   "branch": "fix/1784-upload-rename-retry",
+   "commit": "760f2ef536b4af670b8cffc159c6531e6d5dd761",
+   "branch": "fix/1660-compensation-race",
    "dirty": true,
-   "source_state": "dirty:98b7d6fbca1a",
+   "source_state": "dirty:e1377e3be715",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  .github/workflows/tests.yml",
-    "A  app/tests/test_source_upload_held_routes.py",
-    "M  app/tests/test_source_upload_publication.py",
-    "M  app/tests/unit_test_inventory.json"
+    " M app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
