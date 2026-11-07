@@ -93,28 +93,70 @@ def sync_adapter_tree(path):
         sync_adapter_directory(directory)
 
 
-def get_adapter_bundle_sha256(root):
+def get_adapter_bundle_sha256(root, cancel_check=None):
     """Identify complete original bundles, including preserved assets and links."""
     rows = []
-    for directory, dirs, files in os.walk(root):
+    def version(info):
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+                info.st_ctime_ns, info.st_mode, info.st_nlink)
+    def check_cancellation():
+        if cancel_check is not None and cancel_check():
+            from audio_generation_owner import AudioGenerationCancelled
+            raise AudioGenerationCancelled()
+    def raise_walk_error(error):
+        raise error
+    for directory, dirs, files in os.walk(root, onerror=raise_walk_error):
+        check_cancellation()
         dirs.sort()
         files.sort()
+        directory_before = os.lstat(directory)
+        if not stat.S_ISDIR(directory_before.st_mode):
+            raise ValueError(f"adapter bundle directory changed: {directory}")
         rows.append((os.path.relpath(directory, root), "directory",
-                     stat.S_IMODE(os.lstat(directory).st_mode)))
+                     stat.S_IMODE(directory_before.st_mode)))
         for name in dirs + files:
+            check_cancellation()
             path = os.path.join(directory, name)
-            mode = os.lstat(path).st_mode
+            before = os.lstat(path)
+            mode = before.st_mode
             relative = os.path.relpath(path, root)
             if stat.S_ISLNK(mode):
-                rows.append((relative, "link", os.readlink(path)))
+                try:
+                    link = os.readlink(path)
+                    after = os.lstat(path)
+                except OSError as error:
+                    raise ValueError(f"adapter bundle artifact changed: {path}") from error
+                if version(after) != version(before):
+                    raise ValueError(f"adapter bundle artifact changed: {path}")
+                rows.append((relative, "link", link))
             elif stat.S_ISREG(mode):
                 digest = hashlib.sha256()
-                with open(path, "rb") as handle:
-                    for block in iter(lambda: handle.read(1024 * 1024), b""):
-                        digest.update(block)
-                rows.append((relative, "file", stat.S_IMODE(mode), digest.hexdigest()))
+                flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(path, flags)
+                try:
+                    handle = os.fdopen(fd, "rb")
+                    fd = None
+                    with handle:
+                        opened = os.fstat(handle.fileno())
+                        if (not stat.S_ISREG(opened.st_mode)
+                                or version(opened) != version(before)):
+                            raise ValueError(f"adapter bundle artifact changed: {path}")
+                        while True:
+                            check_cancellation()
+                            block = handle.read(1024 * 1024)
+                            if not block:
+                                break
+                            digest.update(block)
+                        if version(os.fstat(handle.fileno())) != version(opened):
+                            raise ValueError(f"adapter bundle artifact changed: {path}")
+                finally:
+                    if fd is not None:
+                        os.close(fd)
+                rows.append((relative, "file", stat.S_IMODE(opened.st_mode), digest.hexdigest()))
             elif not stat.S_ISDIR(mode):
                 raise ValueError(f"unsupported adapter bundle artifact: {path}")
+        if version(os.lstat(directory)) != version(directory_before):
+            raise ValueError(f"adapter bundle directory changed: {directory}")
     return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 

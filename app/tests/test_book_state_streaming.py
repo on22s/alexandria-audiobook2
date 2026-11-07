@@ -132,6 +132,115 @@ class BookStateStreamingTests(unittest.TestCase):
             self.assertTrue((root / books.JOURNAL).exists())
             self.assertEqual(b'generated', target.read_bytes())
 
+    def test_byte_recovery_digest_honors_cancellation_between_blocks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'file'
+            payload = b'x' * (2 * 1024 * 1024 + 1)
+            target.write_bytes(payload)
+            version = books._book_target_version(target)
+            row = {
+                'new_file_identity': [version[0], version[1]],
+                'new_sha256': hashlib.sha256(payload).hexdigest(),
+            }
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 4
+            with self.assertRaises(AudioGenerationCancelled):
+                books._validate_moved_byte_replacement(row, target, cancel_check=cancel)
+            self.assertEqual(4, len(checks))
+
+    def test_byte_recovery_directory_digest_preserves_non_ascii_native_hash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'bundle'
+            target.mkdir()
+            (target / 'café.txt').write_bytes(b'content')
+            expected = books._get_digest(target)
+            checks = []
+            actual = books._get_digest(target, cancel_check=lambda: checks.append(True) and False)
+            self.assertEqual(expected, actual)
+            self.assertGreaterEqual(len(checks), 3)
+
+    def test_committed_byte_backup_validation_honors_digest_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'target'
+            workspace = root / 'missing-workspace'
+            payload = b'x' * (2 * 1024 * 1024 + 1)
+            target.write_bytes(payload)
+            version = books._book_target_version(target)
+            row = {
+                'existed': False,
+                'old_sha256': None,
+                'new_sha256': hashlib.sha256(payload).hexdigest(),
+                'new_file_identity': [version[0], version[1]],
+            }
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 5
+            with self.assertRaises(AudioGenerationCancelled):
+                books._validate_committed_byte_backups(
+                    workspace, [row], [target], cancel_check=cancel)
+            self.assertEqual(5, len(checks))
+
+    def test_committed_byte_workspace_enumeration_honors_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / 'workspace'
+            workspace.mkdir()
+            (workspace / 'foreign').write_bytes(b'foreign')
+            target = root / 'absent'
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 3
+            with self.assertRaises(AudioGenerationCancelled):
+                books._validate_committed_byte_backups(
+                    workspace,
+                    [{'existed': False, 'new_sha256': None}],
+                    [target], cancel_check=cancel)
+            self.assertEqual(3, len(checks))
+
+    def test_byte_cleanup_inventory_honors_cancellation_during_enumeration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'bundle'
+            target.mkdir()
+            for index in range(8):
+                (target / f'{index}.bin').write_bytes(b'x')
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 4
+            with self.assertRaises(AudioGenerationCancelled):
+                books._cleanup_tree_inventory(target, cancel_check=cancel)
+            self.assertEqual(4, len(checks))
+
+    def test_stream_workspace_cleanup_validation_honors_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            rows = []
+            for index in range(5):
+                path = workspace / f'old-{index}'
+                path.write_bytes(b'')
+                version = books._book_target_version(path)
+                rows.append({
+                    'existed': True,
+                    'old_sha256': hashlib.sha256(b'').hexdigest(),
+                    'old_file_identity': [version[item] for item in (0, 1, 2, 3, 5, 6)],
+                    'new_sha256': None,
+                })
+            data = {'phase': 'committed', 'entries': rows,
+                    'stream_limits': {'bytes': 100, 'entries': 20}}
+            checks = []
+            def cancel():
+                checks.append(True)
+                return len(checks) == 3
+            with self.assertRaises(AudioGenerationCancelled):
+                books._validate_stream_workspace_for_cleanup(
+                    workspace, data, cancel_check=cancel)
+            self.assertEqual(3, len(checks))
+
     @unittest.skipIf(os.name == 'nt', 'POSIX parent identity evidence')
     def test_committed_removal_preserves_evidence_if_parent_is_removed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -942,8 +1051,8 @@ print(len(result['entries']))
             (directory / 'owned').write_bytes(b'owned')
             validate = books._validate_stream_workspace_for_cleanup
             moved = []
-            def swap_after_validation(workspace, document):
-                result = validate(workspace, document)
+            def swap_after_validation(workspace, document, cancel_check=None):
+                result = validate(workspace, document, cancel_check=cancel_check)
                 relocated = outside / 'workspace'
                 Path(workspace).rename(relocated)
                 Path(workspace).symlink_to(relocated, target_is_directory=True)
@@ -1002,8 +1111,8 @@ print(len(result['entries']))
             (root / 'audio.wav').write_bytes(b'old audio')
             validate = books._validate_stream_workspace_for_cleanup
             injected = []
-            def inject_after_validation(workspace, data):
-                owned = validate(workspace, data)
+            def inject_after_validation(workspace, data, cancel_check=None):
+                owned = validate(workspace, data, cancel_check=cancel_check)
                 if data['phase'] == 'committed' and not injected:
                     foreign = workspace / 'foreign'
                     foreign.write_bytes(b'user data')
@@ -1085,6 +1194,141 @@ print(len(result['entries']))
             self.assertEqual(get_adapter_bundle_sha256(str(directory)),
                              books._bounded_book_digest(directory, budget))
 
+    def test_adapter_bundle_digest_propagates_walk_errors(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            def denied(_root, onerror=None):
+                onerror(PermissionError('fixture walk refusal'))
+                return ()
+            with patch.object(adapter_publication.os, 'walk', side_effect=denied):
+                with self.assertRaisesRegex(PermissionError, 'fixture walk refusal'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+
+    def test_regular_byte_digest_refuses_entry_replaced_during_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            retained = Path(temporary) / 'retained'
+            target.write_bytes(b'owned')
+            real_open = books.os.open
+            swapped = []
+            def replace_on_open(path, flags, *args, **kwargs):
+                if Path(path) == target and not swapped:
+                    target.rename(retained)
+                    target.write_bytes(b'foreign')
+                    swapped.append(True)
+                return real_open(path, flags, *args, **kwargs)
+            with patch.object(books.os, 'open', side_effect=replace_on_open):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    books._get_digest(target)
+            self.assertEqual([True], swapped)
+            self.assertEqual(b'owned', retained.read_bytes())
+            self.assertEqual(b'foreign', target.read_bytes())
+
+    def test_adapter_digest_closes_descriptor_when_fdopen_fails(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            real_open = adapter_publication.os.open
+            descriptors = []
+            def capture_open(*args, **kwargs):
+                descriptor = real_open(*args, **kwargs)
+                descriptors.append(descriptor)
+                return descriptor
+            with patch.object(adapter_publication.os, 'open', side_effect=capture_open), \
+                 patch.object(adapter_publication.os, 'fdopen', side_effect=RuntimeError('fixture fdopen failure')):
+                with self.assertRaisesRegex(RuntimeError, 'fixture fdopen failure'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertEqual(1, len(descriptors))
+            try:
+                with self.assertRaises(OSError):
+                    os.fstat(descriptors[0])
+            finally:
+                try:
+                    os.close(descriptors[0])
+                except OSError:
+                    pass
+
+    def test_adapter_digest_refuses_file_changed_while_reading(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            opened = target.stat()
+            changed = type('ChangedStat', (), {
+                'st_dev': opened.st_dev, 'st_ino': opened.st_ino,
+                'st_size': opened.st_size, 'st_mtime_ns': opened.st_mtime_ns + 1,
+                'st_ctime_ns': opened.st_ctime_ns, 'st_mode': opened.st_mode,
+                'st_nlink': opened.st_nlink,
+            })()
+            with patch.object(adapter_publication.os, 'fstat', side_effect=(opened, changed)):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
+    def test_adapter_digest_refuses_symlink_changed_while_reading(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'first').write_bytes(b'first')
+            (root / 'second').write_bytes(b'second')
+            link = root / 'link'
+            retained = root / 'retained-link'
+            link.symlink_to('first')
+            real_readlink = adapter_publication.os.readlink
+            swapped = []
+            def replace_link(path):
+                if Path(path) == link and not swapped:
+                    link.rename(retained)
+                    link.symlink_to('second')
+                    swapped.append(True)
+                return real_readlink(path)
+            with patch.object(adapter_publication.os, 'readlink', side_effect=replace_link):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertEqual([True], swapped)
+            self.assertEqual('first', os.readlink(retained))
+            self.assertEqual('second', os.readlink(link))
+
+    def test_adapter_digest_refuses_directory_changed_during_walk(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'artifact').write_bytes(b'owned')
+            real_lstat = adapter_publication.os.lstat
+            original = real_lstat(root)
+            changed = type('ChangedStat', (), {
+                'st_dev': original.st_dev, 'st_ino': original.st_ino,
+                'st_size': original.st_size, 'st_mtime_ns': original.st_mtime_ns + 1,
+                'st_ctime_ns': original.st_ctime_ns, 'st_mode': original.st_mode,
+                'st_nlink': original.st_nlink,
+            })()
+            root_calls = []
+            def drift_root(path, *args, **kwargs):
+                result = real_lstat(path, *args, **kwargs)
+                if Path(path) == root:
+                    root_calls.append(True)
+                    if len(root_calls) == 2:
+                        return changed
+                return result
+            with patch.object(adapter_publication.os, 'lstat', side_effect=drift_root):
+                with self.assertRaisesRegex(ValueError, 'directory changed'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertEqual(2, len(root_calls))
+
+    def test_windows_cleanup_child_processing_honors_cancellation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index in range(3):
+                (root / str(index)).write_bytes(b'owned')
+            checks = []
+            def cancel_after_collection():
+                checks.append(True)
+                return len(checks) == 5
+            with self.assertRaises(AudioGenerationCancelled):
+                books._capture_cleanup_tree_path(root, cancel_check=cancel_after_collection)
+            self.assertEqual(5, len(checks))
+
     def test_existing_destinations_obey_aggregate_byte_and_entry_limits(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1128,6 +1372,34 @@ print(len(result['entries']))
                 books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [],
                                               stream_byte_limit=len(original), cancel_check=cancel)
             self.assertEqual(original, (root / 'audio.wav').read_bytes())
+            self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_apply_forwards_cancellation_to_post_commit_validation_and_finish(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'audio.wav').write_bytes(b'old')
+            cancel = lambda: False
+            verify = books._verify_committed_stream_targets
+            finish = books._finish_transaction
+            validation_checks = []
+            finish_checks = []
+            def observe_validation(rows, targets, budget):
+                validation_checks.append(budget.cancel_check)
+                return verify(rows, targets, budget)
+            def observe_finish(*args, **kwargs):
+                finish_checks.append(kwargs.get('cancel_check'))
+                return finish(*args, **kwargs)
+            with patch.object(books, '_verify_committed_stream_targets',
+                              side_effect=observe_validation), \
+                 patch.object(books, '_finish_transaction', side_effect=observe_finish), \
+                 books.ensure_book_state(root):
+                books.apply_book_state_locked(
+                    root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100,
+                    cancel_check=cancel)
+            self.assertGreaterEqual(len(validation_checks), 2)
+            self.assertTrue(all(check is cancel for check in validation_checks))
+            self.assertEqual([cancel], finish_checks)
+            self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 
     def test_large_input_is_staged_in_chunks_and_committed_with_metadata(self):
@@ -1338,9 +1610,10 @@ print(len(result['entries']))
             with patch.object(books, '_move', side_effect=edit_before_move):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100)
+            self.assertEqual(b'concurrent edit', target.read_bytes())
             journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual(b'concurrent edit', (root / journal['workspace'] / 'old-0').read_bytes())
-            self.assertFalse(target.exists())
+            backup = root / journal['workspace'] / 'old-0'
+            self.assertFalse(backup.exists())
 
     @unittest.skipIf(os.name == 'nt', 'Anchored book moves are not yet supported on Windows')
     def test_symlink_swapped_at_rename_does_not_write_outside_project(self):
@@ -1390,9 +1663,9 @@ print(len(result['entries']))
             self.assertFalse(list(root.glob('.book-switch-*/new-0')))
             def check():
                 self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
-            from tests.test_support import assert_book_journal_fenced
+            from tests.test_support import PARENT_CHANGED_MESSAGE, assert_book_journal_fenced
             assert_book_journal_fenced(self, root, content_check=check,
-                expected_message='Book artifact parent changed; recovery evidence was preserved')
+                expected_message=PARENT_CHANGED_MESSAGE, expected_cause_type=OSError)
 
     def test_file_created_at_publication_is_not_overwritten_even_with_same_bytes(self):
         for external in (b'other bytes', b'new'):

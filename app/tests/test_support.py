@@ -189,13 +189,26 @@ def assert_directory_payload_names(case, directory, expected, *, lock_targets):
     case.assertEqual(sorted(expected), sorted(names))
 
 
-def assert_book_journal_fenced(case, root, *, content_check=None, expected_message):
+PARENT_CHANGED_MESSAGE = 'Book artifact parent changed; recovery evidence was preserved'
+MOVE_PARENT_CHANGED_MESSAGE = 'Book move parent changed; recovery evidence was preserved'
+ORIGINAL_MISSING_MESSAGE = 'Active-book original artifact is missing or changed'
+ROOT_CHANGED_MESSAGE = 'Book move root changed; recovery evidence was preserved'
+ROOT_ADMISSION_MESSAGE = 'Book root changed during admission; alias scope no longer matches'
+WORKSPACE_CHANGED_MESSAGE = 'Book transaction workspace changed; recovery evidence was preserved'
+
+
+def assert_book_journal_fenced(case, root, *, content_check=None, expected_message, expected_cause_type=None):
     """Refuse recovery twice on the same frozen publishing journal.
 
     content_check, if given, is executed before the first refusal and
     after EACH refusal, so callers keep their per-iteration byte
     assertions at the exact observed state. expected_message is the
     complete ValueError message for the specific recovery refusal.
+    expected_cause_type, if given, requires the refusal's explicit
+    __cause__ to be that type on each refusal (e.g. OSError for the
+    open-failure conversion, distinguishing it from a bare identity
+    mismatch with the same message). Callers without a cause contract
+    leave it None.
     """
     import json
     import book_state_transaction as books
@@ -211,6 +224,8 @@ def assert_book_journal_fenced(case, root, *, content_check=None, expected_messa
             with books.ensure_book_state(root):
                 case.fail('Book journal recovery was admitted')
         case.assertEqual(expected_message, str(raised.exception))
+        if expected_cause_type is not None:
+            case.assertIsInstance(raised.exception.__cause__, expected_cause_type)
         case.assertEqual(frozen, journal.read_bytes())
         if content_check is not None:
             content_check()
