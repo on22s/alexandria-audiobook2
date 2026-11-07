@@ -334,6 +334,46 @@ class TranslatedEditionJSTests(unittest.TestCase):
         self.assertIn('a preview from another book is never shown for this book', panel)
         self.assertIn('selecting an uploaded source leaves old files on disk', panel)
         self.assertIn('does not copy proposals into the saved book', panel)
+        # The final behaviour: no download happens, and a run that would
+        # need one is refused before it starts, not disclosed as possible.
+        self.assertIn('Nothing is downloaded and no text leaves this machine', panel)
+        self.assertIn('refuses to start rather than let Argos fetch a sentence-splitting model', panel)
+        self.assertIn('the refusal names the file', panel)
+        self.assertNotIn('may fetch', panel)
+        self.assertNotIn('disclos', panel)
+
+
+    def test_a_build_starting_while_the_toggle_loads_keeps_its_feedback(self):
+        # The pair check finishes, the toggle is awaiting the saved-proposal
+        # reply, and a build starts in that window. Its "Building" feedback
+        # must survive the stale reply (the epoch guard in the loader).
+        self.run_js(r'''
+(async()=>{
+  latestProposal={...proposal,stale:false};
+  let releaseLatest=null;let holdLatest=true;
+  context.API.get=async path=>{calls.push(['GET',path]);
+    if(path.includes('latest-proposal')){
+      if(holdLatest){await new Promise(r=>{releaseLatest=r;});}
+      return {proposal:latestProposal,malformed_proposals:[]};}
+    if(path.includes('/proposals/'))return {...proposal,stale:false};
+    return {available:true,reason:'ready',pairs:[{from_code:'en',to_code:'fr',from_name:'English',to_name:'French'}]};};
+  el('panel').open=true;
+  const toggle=context.onTranslatedEditionPanelToggle();
+  await new Promise(setImmediate);await new Promise(setImmediate);
+  el('pair').value='en->fr';
+  let resolveCreate;releaseCreate={promise:new Promise(r=>{resolveCreate=r;})};
+  const build=context.createTranslatedEditionProposal();
+  await new Promise(setImmediate);
+  assert(el('feedback').textContent.includes('Building translation preview'));
+  holdLatest=false;releaseLatest();
+  await toggle;
+  await new Promise(setImmediate);
+  assert(el('feedback').textContent.includes('Building translation preview'),
+         'the stale proposal reply overwrote the build feedback: '+el('feedback').textContent);
+  releaseCreate=null;resolveCreate();await build;
+  assert(text(el('review')).includes('Proposal, not approved'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
 
 
     def test_excerpt_only_note_names_the_untranslated_remainder(self):

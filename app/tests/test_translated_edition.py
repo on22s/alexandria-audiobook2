@@ -1,11 +1,12 @@
 """Unit tests for the translation preview builder; synthetic text only."""
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import translated_edition
@@ -47,14 +48,50 @@ def get_fake_argos(packages):
     return parent, package, calls
 
 
+def get_fake_sbd(cache_dir, *, bundled_model=None, stanza=None, broken=False):
+    """A fake argostranslate.sbd that guards MiniSBD's downloading function.
+
+    ``get_model_file`` both records and raises: the preview must prove the
+    splitter model is local by reading the file, never by calling the
+    function that would download it.
+    """
+    downloads = []
+
+    def get_model_file(name, progress_callback=None):
+        downloads.append(name)
+        raise AssertionError("get_model_file (the downloader) must not be called")
+
+    class FakeMiniSbdSentencizer:
+        # Mirrors upstream: a package-bundled model path wins, else the
+        # language code that MiniSBD maps to <code>.onnx.
+        def __init__(self, pkg):
+            if broken:
+                raise RuntimeError("splitter cannot be resolved")
+            self.lang = (str(bundled_model) if bundled_model is not None
+                         else pkg.from_code)
+
+    sbd_module = ModuleType("argostranslate.sbd")
+    sbd_module.MiniSBDSentencizer = FakeMiniSbdSentencizer
+    sbd_module.minisbd_models = SimpleNamespace(
+        MODELS={"en": "en.onnx", "fr": "fr.onnx"},
+        cache_dir=str(cache_dir),
+        get_model_file=get_model_file)
+    sbd_module.stanza = stanza
+    sbd_module.downloads = downloads
+    return sbd_module
+
+
 class FakePackage:
-    def __init__(self, from_code, to_code, package_type="translate", version="9.9"):
+    def __init__(self, from_code, to_code, package_type="translate", version="9.9",
+                 package_path=None, packaged_sbd_path=None):
         self.from_code = from_code
         self.to_code = to_code
         self.from_name = from_code.upper()
         self.to_name = to_code.upper()
         self.package_version = version
         self.type = package_type
+        self.package_path = Path(package_path) if package_path else None
+        self.packaged_sbd_path = packaged_sbd_path
 
 
 class InstalledPairsTests(unittest.TestCase):
@@ -87,16 +124,18 @@ class InstalledPairsTests(unittest.TestCase):
         self.assertEqual([], calls)
 
     def test_argos_translator_runtime_without_translate_is_unavailable(self):
-        fake, package, calls = get_fake_argos([FakePackage("en", "fr")])
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
         with patch.dict(sys.modules, {"argostranslate": fake,
                                       "argostranslate.package": package,
-                                      "argostranslate.translate": None}):
+                                      "argostranslate.translate": None,
+                                      "argostranslate.settings": settings_module}):
             with self.assertRaisesRegex(ValueError, "runtime is unavailable"):
                 translated_edition.build_argos_translator("en", "fr")
         self.assertEqual([], calls)
 
-    def _fake_argos_with_device(self, packages, device):
-        from types import SimpleNamespace
+    def _fake_argos_with_device(self, packages, device, *, chunk_type="ARGOSTRANSLATE",
+                                splitter=None, splitter_model=True):
         fake, package, calls = get_fake_argos(packages)
         translate_module = ModuleType("argostranslate.translate")
         translate_module.translate = lambda text, from_code, to_code: "FR: " + text
@@ -104,8 +143,18 @@ class InstalledPairsTests(unittest.TestCase):
         settings_module = ModuleType("argostranslate.settings")
         settings_module.device = device
         settings_module.model_provider = SimpleNamespace(name="OPENNMT")
-        settings_module.chunk_type = SimpleNamespace(name="ARGOSTRANSLATE")
+        settings_module.chunk_type = SimpleNamespace(name=chunk_type)
         fake.settings = settings_module
+        if splitter is None:
+            # Default: a splitter model already on disk, so the preflight
+            # proves locality without touching the downloader.
+            splitter_dir = Path(tempfile.mkdtemp())
+            self.addCleanup(shutil.rmtree, splitter_dir, True)
+            for pkg in packages:
+                if splitter_model:
+                    (splitter_dir / f"{pkg.from_code}.onnx").write_bytes(b"stub")
+            splitter = get_fake_sbd(splitter_dir)
+        fake.sbd = splitter
         return fake, package, translate_module, settings_module, calls
 
     def test_argos_translator_refuses_non_cpu_device(self):
@@ -130,7 +179,6 @@ class InstalledPairsTests(unittest.TestCase):
             with self.subTest(provider=provider):
                 fake, package, translate_module, settings_module, calls = \
                     self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
-                from types import SimpleNamespace
                 translate_module.translate = lambda *args: calls.append("translate")
                 settings_module.model_provider = SimpleNamespace(name=provider)
                 with patch.dict(sys.modules, {"argostranslate": fake,
@@ -164,7 +212,6 @@ class InstalledPairsTests(unittest.TestCase):
         # imports sbd) is touched, so nothing is fetched to build it.
         fake, package, translate_module, settings_module, calls = \
             self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
-        from types import SimpleNamespace
         translate_module.translate = lambda *args: calls.append("translate")
         settings_module.chunk_type = SimpleNamespace(name="SPACY")
         with patch.dict(sys.modules, {"argostranslate": fake,
@@ -174,6 +221,123 @@ class InstalledPairsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "sentence splitter is spaCy"):
                 translated_edition.build_argos_translator("en", "fr")
         self.assertEqual([], calls)
+
+    def test_argos_translator_refuses_a_missing_splitter_model_without_downloading(self):
+        # MiniSBD's SBDetect calls minisbd.models.get_model_file, which
+        # downloads <lang>.onnx on first use. A pair whose splitter model is
+        # not already on disk must be refused, and the file must be checked
+        # without calling the function that downloads.
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device(
+                [FakePackage("en", "fr")], "cpu", splitter_model=False)
+        translate_module.translate = lambda *args: calls.append("translate")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            with self.assertRaisesRegex(
+                    ValueError, r"sentence-splitter model is not installed locally"):
+                translated_edition.build_argos_translator("en", "fr")
+            with self.assertRaises(ValueError) as refusal:
+                translated_edition.require_local_sentence_splitter(
+                    "en", "fr", SimpleNamespace(name="ARGOSTRANSLATE"))
+            # The refusal names the missing file and promises no download.
+            self.assertIn("en.onnx", str(refusal.exception))
+            self.assertIn("nothing was downloaded", str(refusal.exception))
+        self.assertEqual([], calls)
+        self.assertEqual([], fake.sbd.downloads)
+
+    def test_argos_translator_uses_a_splitter_model_already_on_disk(self):
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            translate = translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual("FR: Synthetic line.", translate("Synthetic line."))
+        self.assertEqual([], fake.sbd.downloads)
+
+    def test_argos_translator_accepts_a_package_bundled_splitter_model(self):
+        # Upstream uses a model shipped inside the package
+        # (<package>/minisbd/*.onnx) instead of the cache; that path is a
+        # local file, so no download is needed and the pair must work.
+        bundled_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, bundled_dir, True)
+        bundled = bundled_dir / "en.onnx"
+        bundled.write_bytes(b"stub")
+        empty_cache = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, empty_cache, True)
+        splitter = get_fake_sbd(empty_cache, bundled_model=bundled)
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device(
+                [FakePackage("en", "fr", packaged_sbd_path="minisbd")], "cpu",
+                splitter=splitter)
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            translate = translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual("FR: Synthetic line.", translate("Synthetic line."))
+        self.assertEqual([], splitter.downloads)
+
+    def test_argos_translator_refuses_a_stanza_sentence_splitter(self):
+        # StanzaSentencizer builds a stanza.Pipeline whose resources are
+        # fetched when they are not already in the package directory. That
+        # cannot be proven local here, so both routes to Stanza are refused.
+        cases = (("STANZA", None), ("ARGOSTRANSLATE", "stanza"))
+        for chunk_type, packaged in cases:
+            with self.subTest(chunk_type=chunk_type, packaged=packaged):
+                cache = Path(tempfile.mkdtemp())
+                self.addCleanup(shutil.rmtree, cache, True)
+                splitter = get_fake_sbd(cache, stanza=SimpleNamespace())
+                fake, package, translate_module, settings_module, calls = \
+                    self._fake_argos_with_device(
+                        [FakePackage("en", "fr", packaged_sbd_path=packaged)], "cpu",
+                        chunk_type=chunk_type, splitter=splitter)
+                translate_module.translate = lambda *args: calls.append("translate")
+                with patch.dict(sys.modules, {"argostranslate": fake,
+                                              "argostranslate.package": package,
+                                              "argostranslate.translate": translate_module,
+                                              "argostranslate.settings": settings_module}):
+                    with self.assertRaisesRegex(ValueError, "Stanza"):
+                        translated_edition.build_argos_translator("en", "fr")
+                self.assertEqual([], calls)
+                self.assertEqual([], splitter.downloads)
+
+    def test_argos_translator_fails_closed_on_an_unknown_splitter(self):
+        # An unknown or unset chunk type has no proven local splitter: fail
+        # closed rather than hand text to an upstream path we cannot check.
+        for name in ("NONE", None):
+            with self.subTest(chunk_type=name):
+                fake, package, translate_module, settings_module, calls = \
+                    self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+                settings_module.chunk_type = SimpleNamespace(name=name)
+                translate_module.translate = lambda *args: calls.append("translate")
+                with patch.dict(sys.modules, {"argostranslate": fake,
+                                              "argostranslate.package": package,
+                                              "argostranslate.translate": translate_module,
+                                              "argostranslate.settings": settings_module}):
+                    with self.assertRaisesRegex(ValueError, "not supported by this preview"):
+                        translated_edition.build_argos_translator("en", "fr")
+                self.assertEqual([], calls)
+
+    def test_argos_translator_fails_closed_when_the_splitter_cannot_be_resolved(self):
+        cache = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, cache, True)
+        splitter = get_fake_sbd(cache, broken=True)
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device(
+                [FakePackage("en", "fr")], "cpu", splitter=splitter)
+        translate_module.translate = lambda *args: calls.append("translate")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            with self.assertRaisesRegex(ValueError, "Cannot confirm"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
+        self.assertEqual([], splitter.downloads)
 
     def test_argos_translator_runs_on_cpu_device(self):
         fake, package, translate_module, settings_module, calls = \

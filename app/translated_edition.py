@@ -25,12 +25,15 @@ not ``cpu``, the local (OpenNMT) model provider, and a spaCy sentence
 splitter (whose import can download its model), and the router allows only
 one preview at a time.
 
-Downloads: the preview itself never fetches a pair, an index or a package
-(``get_installed_packages`` only reads the local install folder), but the
-upstream sentence splitters may fetch a missing splitter model on first
-use (MiniSBD downloads the language ONNX; Stanza may fetch missing
-resources). The panel copy says so rather than promising "nothing is
-downloaded".
+No downloads: the preview never fetches a pair, an index or a package
+(``get_installed_packages`` only reads the local install folder), and it
+refuses to start when upstream would have to fetch a sentence-splitter
+model (``require_local_sentence_splitter``): MiniSBD's
+``minisbd.models.get_model_file`` downloads a missing ``<lang>.onnx``, and
+Stanza fetches missing pipeline resources. The check reads the same local
+files upstream would use and never calls the downloading function, so a
+pair without a locally present splitter model is refused with a clear
+message instead of starting a download.
 
 Excerpt bound: the first ``PROPOSAL_ROW_LIMIT`` (25) Script rows. A proposal
 is never labelled complete when any row is unsupported, failed, skipped,
@@ -48,6 +51,7 @@ in this module approves or publishes a translation.
 """
 import importlib
 import json
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -122,14 +126,120 @@ def is_pair_supported(pairs, from_code, to_code):
                for pair in pairs or [])
 
 
+_SPLITTER_MODEL_ABSENT = (
+    "Argos sentence-splitter model is not installed locally ({path}); it "
+    "would be downloaded on first use, so the preview is refused. Install "
+    "it separately; nothing was downloaded.")
+_SPLITTER_STANZA = (
+    "Argos would use its Stanza sentence splitter, which can fetch missing "
+    "resources on first use; this preview refuses it")
+_SPLITTER_UNDETERMINED = (
+    "Cannot confirm that Argos' sentence-splitter model is already installed "
+    "locally, so the preview is refused; nothing was downloaded")
+
+
+def _unsupported_splitter(chunk_name):
+    return (f"Argos sentence-splitter setting {chunk_name!r} is not supported "
+            "by this preview; refused")
+
+
+def _get_installed_package(from_code, to_code):
+    """The installed Argos package for a direct pair, or None (local read)."""
+    try:
+        from argostranslate import package as argos_package
+        packages = argos_package.get_installed_packages()
+    except Exception:
+        return None
+    for pkg in packages:
+        if (getattr(pkg, "type", None) == "translate"
+                and getattr(pkg, "from_code", None) == from_code
+                and getattr(pkg, "to_code", None) == to_code):
+            return pkg
+    return None
+
+
+def require_local_sentence_splitter(from_code, to_code, chunk_type):
+    """Refuse unless the splitter model Argos would use is already on disk.
+
+    Upstream resolves one sentence splitter per package
+    (``argostranslate/translate.py``: ``PackageTranslation.__init__``) and
+    builds it lazily on the first ``translate`` call. Two of them can fetch
+    over the network:
+
+    - ``MiniSBDSentencizer.split_sentences`` builds ``minisbd.SBDetect``,
+      whose first statement is ``get_model_file(lang)``. That downloads
+      ``<lang>.onnx`` (``minisbd/models.py``) into
+      ``minisbd_models.cache_dir`` unless the model is already a file there
+      or the package bundles one under ``<package>/minisbd/``.
+    - ``StanzaSentencizer`` builds a ``stanza.Pipeline(dir=<package>/stanza)``,
+      which fetches missing resources.
+
+    This mirrors the selection in ``PackageTranslation.__init__`` and reads
+    the same file MiniSBD would read, using upstream's own
+    ``MiniSBDSentencizer`` and ``minisbd_models`` values so the mapping and
+    cache location cannot drift. It never calls ``get_model_file`` (the
+    function that downloads) and it fails closed: an unknown chunk type, a
+    Stanza splitter, a missing package, or a splitter that cannot be
+    resolved is refused rather than tried.
+
+    Importing ``argostranslate.sbd`` runs its module-level ``cache_spacy()``
+    when the chunk type is spaCy, so a spaCy setting must already have been
+    refused before this is called (``build_argos_translator`` does that).
+    """
+    chunk_name = getattr(chunk_type, "name", None)
+    if chunk_name == "STANZA":
+        raise ValueError(_SPLITTER_STANZA)
+    if chunk_name not in ("DEFAULT", "ARGOSTRANSLATE", "MINISBD"):
+        # spaCy is refused earlier; anything else (NONE, unknown, missing)
+        # has no proven local splitter.
+        raise ValueError(_unsupported_splitter(chunk_name))
+    pkg = _get_installed_package(from_code, to_code)
+    if pkg is None:
+        raise ValueError(f"Language pair is not installed: {from_code} -> {to_code}")
+    try:
+        from argostranslate import sbd
+    except Exception as error:
+        raise ValueError("Translation runtime is unavailable") from error
+    try:
+        packaged = str(getattr(pkg, "packaged_sbd_path", "") or "")
+        if (chunk_name in ("DEFAULT", "ARGOSTRANSLATE")
+                and "stanza" in packaged
+                and getattr(sbd, "stanza", None) is not None):
+            # The default branch prefers a stanza model bundled in the
+            # package, exactly as PackageTranslation.__init__ does.
+            raise ValueError(_SPLITTER_STANZA)
+        language = sbd.MiniSBDSentencizer(pkg).lang
+    except ValueError:
+        raise
+    except Exception as error:
+        raise ValueError(_SPLITTER_UNDETERMINED) from error
+    minisbd_models = getattr(sbd, "minisbd_models", None)
+    models = getattr(minisbd_models, "MODELS", None)
+    cache_dir = getattr(minisbd_models, "cache_dir", None)
+    filename = models.get(language) if isinstance(models, dict) else None
+    if filename is None:
+        # Upstream's get_model_file returns an existing file path as-is,
+        # which is how a package-bundled model is used.
+        if isinstance(language, str) and os.path.isfile(language):
+            return
+        raise ValueError(_SPLITTER_UNDETERMINED)
+    if not isinstance(cache_dir, str) or not cache_dir:
+        raise ValueError(_SPLITTER_UNDETERMINED)
+    path = os.path.join(cache_dir, str(filename))
+    if not os.path.isfile(path):
+        raise ValueError(_SPLITTER_MODEL_ABSENT.format(path=path))
+
+
 def build_argos_translator(from_code, to_code):
     """Return a local Argos text translator for one directly installed pair.
 
     Pure read plus local inference on demand. Raises ValueError, without
-    downloading anything, when the package is unavailable or the pair has no
-    direct package (pivoting is never used silently). Also raises ValueError
-    unless every effective Argos setting keeps the preview local and
-    CPU-only: the device (``argostranslate.settings.device``, from
+    downloading anything, when the package is unavailable, the pair has no
+    direct package (pivoting is never used silently), or the sentence
+    splitter Argos would use is not already installed locally (see
+    ``require_local_sentence_splitter``). Also raises ValueError unless
+    every effective Argos setting keeps the preview local and CPU-only: the
+    device (``argostranslate.settings.device``, from
     ``ARGOS_DEVICE_TYPE``, default ``cpu``) must be ``cpu`` — anything else
     would run model inference on the GPU (``translate.py`` passes
     ``settings.device`` to CTranslate2 and ``sbd.py`` passes
@@ -167,6 +277,10 @@ def build_argos_translator(from_code, to_code):
         raise ValueError(
             "Translation sentence splitter is spaCy, which downloads its "
             "model; refused")
+    # The splitter runs on the first translate() call, and two of Argos'
+    # splitters fetch their resources then. Prove the needed model is local
+    # before the translate module (and thus a build) is reachable.
+    require_local_sentence_splitter(from_code, to_code, chunk_type)
     try:
         argos_translate = importlib.import_module("argostranslate.translate")
     except Exception as error:

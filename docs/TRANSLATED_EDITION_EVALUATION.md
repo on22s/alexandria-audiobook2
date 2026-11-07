@@ -123,7 +123,17 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   sentence splitters) outside `process_state` and the GPU lock. It also
   refuses a non-OpenNMT (cloud) `model_provider` and a spaCy sentence
   splitter (whose import can download its model); the settings reads
-  happen before the translate module is imported. Registered like the other routers in `app/app.py`;
+  happen before the translate module is imported. Because the splitter is
+  built on the first `translate` call and can fetch its own model then,
+  `require_local_sentence_splitter` proves the model Argos would use is
+  already on disk before the preview starts: it resolves the same
+  `MiniSBDSentencizer` upstream would build, reads the same
+  `minisbd_models.cache_dir`/`MODELS` values, and refuses with the missing
+  path rather than reaching `minisbd.models.get_model_file` (the
+  downloading function, which is never called). A package-bundled
+  `minisbd/*.onnx` counts as local; a Stanza splitter (chunk type `STANZA`,
+  or a stanza model bundled in the package) is refused, as are an unknown
+  chunk type and any splitter that cannot be resolved. Registered like the other routers in `app/app.py`;
   `app/api_contract/{openapi,routes}.json` regenerated with
   `app/update_api_contract_snapshots.py`. The create endpoint contains no
   approve or publish action.
@@ -148,7 +158,12 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   active workspace never blocking the load, and a failed proposal-folder
   removal not failing a committed load, a trailing-punctuation number not
   flagging a correct translation, a separator/digit-script number change
-  flagged for review, a non-CPU Argos device refused, a second
+  flagged for review, a non-CPU Argos device refused, a cloud model
+  provider and a spaCy splitter refused before the translate module is
+  imported, a missing sentence-splitter model refused (with
+  `minisbd.models.get_model_file` proven never called), an on-disk or
+  package-bundled splitter model accepted, a Stanza splitter and an unknown
+  chunk type refused, a second
   concurrent preview refused, the most-recent-proposal lookup (including
   malformed files not hiding a good one, a damaged but valid-JSON file
   refused instead of rendered, a candidate vanishing mid-scan, and another
@@ -186,20 +201,27 @@ and `argostranslate/package.py` at
   This implementation refuses both: direct installed pairs only, and it
   never calls an index or download function. It also refuses a non-local
   (cloud) `model_provider`, so text can never leave the machine through
-  Argos' cloud providers. What the preview still cannot prevent is the
-  upstream sentence splitter fetching a missing splitter model on
-  first use (MiniSBD downloads its language ONNX; a spaCy splitter can
-  download at import) — the panel copy discloses that instead of
-  promising no downloads at all.
+  Argos' cloud providers. The upstream sentence splitters can also fetch
+  their own model on first use (MiniSBD downloads its language ONNX; a
+  spaCy splitter can download at import; Stanza fetches pipeline
+  resources), so the preview proves that model is already on disk before
+  it starts and otherwise refuses with the missing path — the panel copy
+  states that refusal instead of disclosing a possible download.
 
 ## Limits
 
-- No Argos pair is installed in the test environment, so every test runs
-  through a fake injector. **Nothing here measures real translation
-  quality** — not fidelity, not fluency, not speaker-name handling in
-  any real model. The checks that exist (numbers, empty output, copied
-  source, unsupported rows, stale source) are hygiene signals, not a
-  quality claim.
+- **Real translation was never run for this evaluation.** No Argos pair is
+  installed in the test environment, so every test runs through a fake
+  injector and the splitter preflight is exercised with fake modules.
+  **Nothing here measures real translation quality** — not fidelity, not
+  fluency, not speaker-name handling in any real model. The checks that
+  exist (numbers, empty output, copied source, unsupported rows, stale
+  source) are hygiene signals, not a quality claim.
+- The preview only starts when the sentence-splitter model Argos would use
+  is already present locally (a `minisbd/` model bundled in the package, or
+  the cached `<lang>.onnx` under Argos' data directory). A pair with
+  neither cannot be previewed: there is no download button or consent flow
+  in this slice, so the model must be installed separately first.
 - The excerpt is bounded at 25 rows (a reviewable prefix, not a book).
   There is no batching, no TTS integration, no whole-book run, and no
   path from proposal to approved edition in this slice.
@@ -229,8 +251,9 @@ every mechanism this idea needs (snapshots, atomic writes, explicit
 per-area UI, reviewable artifacts) — and lacked only the translation
 step itself. The preview built for this issue is small enough to keep
 as an opt-in, evaluation-only surface **provided** it stays labelled a
-proposal, keeps no approve/publish path, and imports Argos optionally
-with no new dependency. A real translated edition — with model
+proposal, keeps no approve/publish path, refuses rather than downloads when
+Argos would need a sentence-splitter model that is not already installed,
+and imports Argos optionally with no new dependency. A real translated edition — with model
 licensing checked per package, quality measured on known-bad controls
 and human review, and a separately admitted generation step — is a
 larger, separate decision than this slice and should not be implied by

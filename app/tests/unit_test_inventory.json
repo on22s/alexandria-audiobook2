@@ -13578,15 +13578,21 @@
     "tests.test_training_ui_contract.TrainingUiContractTests.test_test_audio_url_remains_one_src_attribute"
   ],
   "test_translated_edition": [
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_accepts_a_package_bundled_splitter_model",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_fails_closed_on_an_unknown_splitter",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_fails_closed_when_the_device_is_ambiguous",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_fails_closed_when_the_splitter_cannot_be_resolved",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_a_cloud_model_provider",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_a_missing_model_provider",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_a_missing_splitter_model_without_downloading",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_a_spacy_sentence_splitter",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_a_stanza_sentence_splitter",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_non_cpu_device",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_when_settings_cannot_be_imported",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_without_download",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_runs_on_cpu_device",
     "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_runtime_without_translate_is_unavailable",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_uses_a_splitter_model_already_on_disk",
     "tests.test_translated_edition.InstalledPairsTests.test_reports_only_direct_translate_packages",
     "tests.test_translated_edition.InstalledPairsTests.test_unavailable_without_package",
     "tests.test_translated_edition.ProposalTests.test_argos_translator_unavailable_refused",
@@ -13638,6 +13644,7 @@
     "tests.test_translated_edition_api.TranslatedEditionAPITests.test_unsupported_pair_and_bad_id_are_refused"
   ],
   "test_translated_edition_js": [
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_a_build_starting_while_the_toggle_loads_keeps_its_feedback",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_a_partial_preview_says_why_it_is_not_complete",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_a_slow_pair_list_does_not_overwrite_the_saved_preview_message",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_book_change_discards_an_in_flight_pairs_refresh",
