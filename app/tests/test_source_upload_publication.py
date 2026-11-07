@@ -579,29 +579,6 @@ class UploadRenameRetryTests(unittest.TestCase):
         self.assertFalse(self.stage.publication_started)
         self.assertIsNone(self.stage.published_path)
 
-    @unittest.skipIf(os.name != 'nt', 'Real publication needs Windows handles')
-    def test_windows_publish_retries_sharing_violation_and_publishes_once(self):
-        original = self.stage._rename_windows
-        calls = []
-        delays = []
-        def flaky(destination):
-            calls.append(destination)
-            if len(calls) == 1:
-                raise _sharing_violation()
-            return original(destination)
-        with patch.object(self.stage, '_rename_windows', side_effect=flaky), \
-                patch('source_upload_stage.time.sleep', side_effect=delays.append):
-            observed = []
-            result = publication.publish_completed_upload(
-                self.stage, 'book.txt', observed.append, limit=len(self.payload))
-        self.assertEqual(2, len(calls))
-        self.assertEqual([0.05], delays)
-        self.assertEqual(str(self.root / 'book.txt'), result)
-        self.assertEqual([result], observed)
-        self.assertEqual(self.payload, Path(result).read_bytes())
-        self.assertEqual(1, Path(result).stat().st_nlink)
-        self.assertTrue(self.stage.publication_started)
-        self.assertEqual(result, self.stage.published_path)
 
     def test_persistent_sharing_violation_is_bounded_and_uncommitted(self):
         delays = []
@@ -722,53 +699,6 @@ class UploadRenameRetryTests(unittest.TestCase):
         self.assertEqual(errno.EACCES, restored.errno)
         self.assertEqual(32, restored.winerror)
         self.assertIn('held by another program', str(restored))
-
-    @unittest.skipIf(os.name != 'nt', 'Real publication needs Windows handles')
-    def test_windows_publish_held_cleans_companion_and_retry_keeps_name(self):
-        """32-forever through the real publish() branch, then a same-name retry.
-
-        Fakes only the native call, so the real _rename_windows conversion,
-        companion reservation/cleanup and numbered-name selection all run.
-        """
-        companion = _companion_bytes(self.payload)
-        rename_calls = []
-        native = self.stage._api.SetFileInformationByHandle
-
-        def held_rename(handle, information_class, buffer, length):
-            if information_class == 3:  # FileRenameInfo
-                rename_calls.append(information_class)
-                ctypes.set_last_error(32)
-                return 0
-            return native(handle, information_class, buffer, length)
-
-        with patch.object(self.stage._api, 'SetFileInformationByHandle', held_rename), \
-                patch('source_upload_stage.time.sleep', return_value=None):
-            with self.assertRaises(UploadPublicationHeldError) as caught:
-                publication.publish_completed_upload(
-                    self.stage, 'book.txt', lambda path: self.fail('no visibility callback'),
-                    limit=len(self.payload), companion_bytes=companion)
-        self.assertEqual(5, len(rename_calls))
-        self.assertEqual(32, caught.exception.winerror)
-        self.assertEqual(32, getattr(caught.exception.__cause__, 'winerror', None))
-        self.assertFalse(self.stage.publication_started)
-        self.assertIsNone(self.stage.published_path)
-        self.assertFalse((self.root / 'book.txt').exists())
-        self.assertFalse((self.root / 'book.txt.publication.json').exists())
-        self.stage.close()
-        self.assertEqual([], list(self.root.iterdir()))
-
-        # A genuine retry must not step to book_2.txt: the failed attempt
-        # leaves no companion and no destination behind.
-        retry = publication.create_source_upload_stage(self.root, limit=len(self.payload))
-        self.addCleanup(retry.close)
-        retry.write(self.payload)
-        result = publication.publish_completed_upload(
-            retry, 'book.txt', lambda path: None, limit=len(self.payload),
-            companion_bytes=companion)
-        self.assertEqual(str(self.root / 'book.txt'), result)
-        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
-        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
-        self.assertFalse((self.root / 'book_2.txt').exists())
 
 
 class UploadHeldRouteTests(unittest.IsolatedAsyncioTestCase):

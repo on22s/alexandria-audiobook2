@@ -2572,6 +2572,9 @@
                         && window._existingUploadSelectionRequest === candidate.request
                         && window._bookSelectionEpoch === candidate.epoch)) { return; }
                 window.resetDocxPreview();
+                // Same same-file retry rule as the preview catch above:
+                // clear the input so picking this DOCX again fires 'change'.
+                document.getElementById('file-upload').value = '';
                 status.textContent = 'DOCX acceptance or selection was not confirmed. Check existing uploads and the current book before retrying. ' + error.message;
             }
         };
@@ -2621,6 +2624,9 @@
                 });
             } catch (e) {
                 if (!isCurrent()) { return; }
+                // Clear the input so re-picking the same file fires 'change'
+                // again; otherwise the "try again" message cannot be acted on.
+                fileInput.value = '';
                 window.renderEpubExtractionReport?.(null);
                 statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
             }
