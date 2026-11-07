@@ -3185,7 +3185,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 345,
+    "index": 355,
     "methods": [
       "GET"
     ],
@@ -3194,7 +3194,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 346,
+    "index": 356,
     "methods": [
       "POST"
     ],
@@ -3203,7 +3203,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 347,
+    "index": 357,
     "methods": [
       "GET"
     ],
@@ -3212,7 +3212,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 348,
+    "index": 358,
     "methods": [
       "GET"
     ],
@@ -3221,7 +3221,7 @@
     "type": "APIRoute"
   },
   {
-    "index": 349,
+    "index": 359,
     "methods": [
       "POST"
     ],

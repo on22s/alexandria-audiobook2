@@ -69,6 +69,15 @@ After regenerating API snapshots with the repository generator, the API
 contract check passed. The separate API-contract/HTML-wiring regression
 set ran **21 tests, 21 passed, 0 skipped, raw exit 0**.
 
+After rebasing onto the translation-preview merge, the 29-module set above
+plus workspace, local assets, three translated-edition modules and API
+contract regressions ran **480 tests: 479 passed, 1 existing POSIX-only skip,
+0 failures/errors, raw exit 0; 145.377 seconds**. This replaces neither the
+earlier run nor the independent review count. The first rebased pass had
+one deterministic-snapshot failure from CRLF checkout bytes; the official
+API generator restored LF and refreshed five route ordinals before the
+final rerun. The separate contract suite passed all 17 tests.
+
 ## Discriminating repair evidence
 
 | Area | Before repair | Repaired behavior/evidence |
@@ -177,8 +186,10 @@ the page loads it. The asset, workspace and R2 suites then ran 35 tests:
 35 passed, zero skips, zero failures/errors, RC 0. These small follow-ups
 postdate the independent freeze.
 
-The broad readiness run also reports failures and platform skips, including
-WinError 1314 while existing chapter-download fixtures create symlinks. It is
-diagnostic evidence, not a clean local release gate; its initial run predates
-the navigation follow-up. Hosted checks and final readiness outcomes will be
-recorded separately when actually completed.
+The broad Windows readiness run passed compilation and test inventory, then
+reported failures and platform skips, including WinError 1314 while existing
+chapter-download fixtures create symlinks. It was deliberately interrupted
+before updating the checkout; the verifier recorded unit-gate failure and
+raw exit 1, with no final test total. It is diagnostic evidence, not a clean
+local release gate; its initial run predates the navigation follow-up.
+Hosted checks remain pending and will be recorded when completed.
