@@ -1,4 +1,6 @@
 """Translation preview panel: labelled proposal, safe text, stale and cancel paths."""
+from html.parser import HTMLParser
+import json
 from pathlib import Path
 import subprocess
 import unittest
@@ -6,6 +8,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 SOURCE = Path(__file__).resolve().parents[1] / 'static/js/app-translated-edition.js'
 CORE = Path(__file__).resolve().parents[1] / 'static/js/app-core.js'
+INDEX = Path(__file__).resolve().parents[1] / 'static/index.html'
 SETUP = r'''
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}for(const node of nodes){this.appendChild(node);}};
@@ -35,10 +38,101 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
 '''
 
 
+class _PanelParser(HTMLParser):
+    """Parse the real translated-edition panel out of index.html, in order."""
+
+    def __init__(self):
+        super().__init__()
+        self.items = []
+        self.stack = []
+        self.in_panel = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if not self.in_panel:
+            if attrs.get('id') != 'translated-edition-panel':
+                return
+            self.in_panel = True
+        parent = self.stack[-1] if self.stack else None
+        index = len(self.items)
+        self.items.append({'tag': tag, 'attrs': attrs, 'parent': parent, 'text': ''})
+        if tag not in {'br', 'hr', 'img', 'input'}:
+            self.stack.append(index)
+
+    def handle_endtag(self, tag):
+        if not self.in_panel:
+            return
+        for position in range(len(self.stack) - 1, -1, -1):
+            if self.items[self.stack[position]]['tag'] == tag:
+                ended_panel = self.stack[position] == 0
+                del self.stack[position:]
+                if ended_panel:
+                    self.in_panel = False
+                break
+
+    def handle_data(self, data):
+        if self.in_panel and self.stack:
+            self.items[self.stack[-1]]['text'] += data
+
+
+def _real_panel_setup():
+    parser = _PanelParser()
+    parser.feed(INDEX.read_text(encoding='utf-8'))
+    assert parser.items, 'translated-edition panel not found in index.html'
+    items = json.dumps(parser.items)
+    return r'''
+Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
+Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}for(const node of nodes){this.appendChild(node);}};
+const text=node=>node.textContent+node.children.map(text).join('');
+const realItems=''' + items + r''';
+const realElements=[];
+for(const item of realItems){
+ const element=new Element(item.tag,item.attrs);
+ element.textContent=item.text.trim();
+ if(item.parent!==null&&item.parent!==undefined){realElements[item.parent].appendChild(element);}
+ else{body.appendChild(element);}
+ realElements.push(element);
+}
+const el=id=>document.getElementById('translated-edition-'+id);el('pair').value='';
+const calls=[];let unavailable=false,stale=false,failCreate=false,releaseCreate=null,latestProposal=null,malformedLatest=[],releasePairs=null;
+const proposal={proposal_id:'a'.repeat(32),label:'proposal, not approved',status:'partial',stale,
+ source_script_sha256:'b'.repeat(64),target_language:'fr',
+ excerpt:{row_count:2},counts:{translated:1,flagged:1,unsupported:0,failed:1},
+ rows:[{index:0,speaker:'<script>',source_text:'<img src=x>',translated_text:'FR text',status:'translated',flags:['number_changed'],error:null},
+ {index:1,speaker:'BOB',source_text:'Plain row.',translated_text:'',status:'failed',flags:[],error:'synthetic translator failure'}]};
+context.window=context;context._existingUploadSelectionRequest={};
+context.API={get:async path=>{calls.push(['GET',path]);
+ if(path.includes('latest-proposal')){return {proposal:latestProposal,malformed_proposals:malformedLatest};}
+ if(path.includes('/proposals/')){return {...proposal,stale};}
+ if(path.includes('/pairs')&&releasePairs){await releasePairs.promise;}
+ return unavailable?{available:false,reason:'unavailable',pairs:[]}
+ :{available:true,reason:'ready',pairs:[{from_code:'en',to_code:'fr',from_name:'English',to_name:'French',package_version:'1.0'}]};},
+ post:async(path,payload)=>{calls.push(['POST',path,payload]);
+ if(path.includes('/cancel')){return {cancelled:true,reason:'cancel_requested'};}
+ if(releaseCreate){await releaseCreate.promise;}
+ if(failCreate){throw Error('Language pair is not installed: en -> de');}
+ return proposal;}};
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
+for(const element of realElements){
+ for(const [name,code] of Object.entries(element.attrs)){
+  if(name.startsWith('on')&&typeof code==='string'){
+   element.addEventListener(name.slice(2),()=>{vm.runInContext(code,context);});
+  }
+ }
+}
+'''
+
+
 class TranslatedEditionJSTests(unittest.TestCase):
     def run_js(self, script):
         script = "let finished=false;process.on('beforeExit',()=>assert(finished,'Test did not finish'));\n" + script.replace('})().catch', '})().then(()=>{finished=true;}).catch')
         result = subprocess.run(['node', '-e', DOM_FIXTURE + SETUP + script, str(SOURCE)],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def run_real_panel_js(self, script):
+        script = "let finished=false;process.on('beforeExit',()=>assert(finished,'Test did not finish'));\n" + script.replace('})().catch', '})().then(()=>{finished=true;}).catch')
+        result = subprocess.run(['node', '-e', DOM_FIXTURE + _real_panel_setup() + script, str(SOURCE)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
@@ -312,6 +406,53 @@ class TranslatedEditionJSTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_real_panel_markup_wires_pair_selection_to_create_and_post(self):
+        # End to end through the real index.html panel markup and its inline
+        # handlers: open the panel, pairs arrive, a change event on the
+        # select enables Create, and a click on Create triggers the POST.
+        # This fails on a74df763, where the select had no onchange handler
+        # and Create could never become enabled.
+        self.run_real_panel_js(r'''
+(async()=>{
+ assert.equal(el('pair').children.length,1,'real placeholder option missing');
+ assert(el('create').disabled);
+ el('panel').open=true;
+ el('panel').fire('toggle');
+ for(let i=0;i<5;i++){await new Promise(setImmediate);}
+ assert(el('pair').children.some(c=>c.value==='en->fr'),'pair list did not arrive on open');
+ assert(el('create').disabled,'Create enabled before a pair was chosen');
+ el('pair').value='en->fr';
+ el('pair').fire('change');
+ assert(!el('create').disabled,'a change event on the select did not enable Create');
+ el('create').fire('click');
+ for(let i=0;i<5;i++){await new Promise(setImmediate);}
+ const posted=calls.find(c=>c[0]==='POST'&&c[1]==='/api/translated_edition/proposals');
+ assert(posted,'clicking Create did not trigger the POST');
+ assert.equal(posted[2].source_language,'en');assert.equal(posted[2].target_language,'fr');
+ assert(text(el('review')).includes('Proposal, not approved'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_every_panel_inline_handler_resolves_to_a_defined_function(self):
+        # Every on* handler named in the real panel markup must resolve to
+        # a function the panel script actually defines (and exposes globally
+        # for inline handlers), so this class of break cannot recur.
+        self.run_real_panel_js(r'''
+(async()=>{
+ const handlers=realElements.flatMap(element=>
+  Object.entries(element.attrs)
+   .filter(([name,code])=>name.startsWith('on')&&typeof code==='string')
+   .map(([name,code])=>[element.id||element.tagName,name,code]));
+ assert(handlers.length>=5,'expected toggle, change, refresh, create and cancel handlers, got '+JSON.stringify(handlers));
+ for(const [id,name,code] of handlers){
+  const match=/^\s*([A-Za-z_$][\w$]*)\s*\(/.exec(code);
+  assert(match,'handler '+name+' on '+id+' does not call a named function: '+code);
+  assert.equal(typeof context[match[1]],'function',
+   'handler '+name+' on '+id+' calls '+match[1]+', which the script does not define');
+ }
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_book_change_says_what_the_panel_can_show(self):
         self.run_js(r'''
 (async()=>{
@@ -322,6 +463,10 @@ class TranslatedEditionJSTests(unittest.TestCase):
  assert(el('feedback').textContent.includes('never shown for this book'));
  assert(!el('feedback').textContent.includes('was removed'));
  assert(!el('feedback').textContent.includes('Checking installed language pairs'));
+ assert(!el('feedback').textContent.includes('Book changed'),
+  'reset must not claim a book change at plain page load: '+el('feedback').textContent);
+ assert(!el('feedback').textContent.includes('Refresh the installed pairs'),
+  're-opening the panel refreshes pairs automatically: '+el('feedback').textContent);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 

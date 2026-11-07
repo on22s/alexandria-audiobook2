@@ -31,7 +31,7 @@ function resetTranslatedEditionBook() {
     translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
-    translatedEditionElement('feedback').textContent = 'Book changed or reloaded. The panel is cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book. Refresh the installed pairs and build a new preview.';
+    translatedEditionElement('feedback').textContent = 'Panel cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book.';
     updateTranslatedEditionControls();
 }
 
