@@ -97,9 +97,9 @@ python tests/native_windows_transaction_checks.py
 
 Set `PYTHONPATH` to `.`. The `windows-owner` job runs it after installing the
 script-router dependencies it imports. It rejects a non-Windows host with exit 2
-and accepts only 33 successful tests with zero skips: recovery-archive directory
+and accepts only 34 successful tests with zero skips: recovery-archive directory
 guards and unsafe-entry observations (11), native staging identities and handles in the book transaction (5),
-book-move cleanup and sharing handles (4), published-script cancellation
+book-move identity, generation-read failures, cleanup and sharing handles (5), published-script cancellation
 through the owned job (3), short-name/ancestor path admission (2), and sound-upload
 stage hardlink, contention and retained-delete-failure contracts (3), and shared
 directory guards with real upload/Saved Scripts requests and a live working-

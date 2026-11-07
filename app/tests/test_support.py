@@ -189,6 +189,49 @@ def assert_directory_payload_names(case, directory, expected, *, lock_targets):
     case.assertEqual(sorted(expected), sorted(names))
 
 
+PARENT_CHANGED_MESSAGE = 'Book artifact parent changed; recovery evidence was preserved'
+MOVE_PARENT_CHANGED_MESSAGE = 'Book move parent changed; recovery evidence was preserved'
+ORIGINAL_MISSING_MESSAGE = 'Active-book original artifact is missing or changed'
+ROOT_CHANGED_MESSAGE = 'Book move root changed; recovery evidence was preserved'
+ROOT_ADMISSION_MESSAGE = 'Book root changed during admission; alias scope no longer matches'
+WORKSPACE_CHANGED_MESSAGE = 'Book transaction workspace changed; recovery evidence was preserved'
+
+
+def assert_book_journal_fenced(case, root, *, content_check=None, expected_message, expected_cause_type=None):
+    """Refuse recovery twice on the same frozen publishing journal.
+
+    content_check, if given, is executed before the first refusal and
+    after EACH refusal, so callers keep their per-iteration byte
+    assertions at the exact observed state. expected_message is the
+    complete ValueError message for the specific recovery refusal.
+    expected_cause_type, if given, requires the refusal's explicit
+    __cause__ to be that type on each refusal (e.g. OSError for the
+    open-failure conversion, distinguishing it from a bare identity
+    mismatch with the same message). Callers without a cause contract
+    leave it None.
+    """
+    import json
+    import book_state_transaction as books
+    journal = root / books.JOURNAL
+    case.assertTrue(journal.exists(), 'journal evidence must be preserved')
+    with journal.open('r', encoding='utf-8') as handle:
+        case.assertEqual('publishing', json.load(handle)['phase'])
+    if content_check is not None:
+        content_check()
+    frozen = journal.read_bytes()
+    for _ in range(2):
+        with case.assertRaises(ValueError) as raised:
+            with books.ensure_book_state(root):
+                case.fail('Book journal recovery was admitted')
+        case.assertEqual(expected_message, str(raised.exception))
+        if expected_cause_type is not None:
+            case.assertIsInstance(raised.exception.__cause__, expected_cause_type)
+        case.assertEqual(frozen, journal.read_bytes())
+        if content_check is not None:
+            content_check()
+    return frozen
+
+
 def create_test_api_server(app):
     """Create an embedded ASGI server without closing other tests' log handlers."""
     import uvicorn

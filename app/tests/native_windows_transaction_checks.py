@@ -574,6 +574,26 @@ class NativeWindowsBookMoveTests(unittest.TestCase):
             parent.rename(root / 'moved')
             self.assertTrue((root / 'moved').is_dir())
 
+    def test_generation_oserror_is_normalized_before_move(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / 'artifact'
+            owned = b'owned original'
+            source.write_bytes(owned)
+            version = books._book_target_version(source)
+            identity = [version[index] for index in (0, 1, 2, 3, 5, 6)]
+            failure = OSError('fixture generation failure')
+            with patch.object(books, 'get_book_file_generation',
+                              side_effect=failure) as generation:
+                with self.assertRaises(ValueError) as raised:
+                    books._move(source, root / 'old-0', exclusive=True, anchor=root,
+                                expected_source_identity=identity, expected_source_generation=1)
+            generation.assert_called_once_with(source)
+            self.assertIs(raised.exception.__cause__, failure)
+            self.assertEqual(owned, source.read_bytes())
+            self.assertEqual(version, books._book_target_version(source))
+            self.assertFalse(os.path.lexists(root / 'old-0'))
+
 
 class NativeWindowsPublicationCancellationTests(unittest.TestCase):
     fixture = PublicationCancellationTests.fixture
@@ -911,7 +931,7 @@ class NativeWindowsUploadRenameRetryTests(unittest.TestCase):
 
 
 
-NATIVE_TEST_COUNT = 33
+NATIVE_TEST_COUNT = 34
 
 
 def main():

@@ -45,31 +45,26 @@ class BookStateTransactionTests(unittest.TestCase):
                         with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                             books.apply_book_state_locked(root, {'artifact':value}, [], **options)
                     self.assertEqual([True], relocated)
-                    self.assertEqual(not replacement, target.exists())
-                    original = retained / 'owned-retained' if replacement else target
+                    # Fail-closed (issue 1660 residual race): parent authority
+                    # loss never reverses a name, even when the owned entry
+                    # still matches. The entry stays in the retained workspace
+                    # and recovery fences on the preserved journal in both
+                    # the plain and foreign-replacement cases.
+                    self.assertFalse(target.exists())
+                    original = retained / ('owned-retained' if replacement else 'old-0')
                     self.assertEqual(b'owned original', original.read_bytes())
                     if replacement:
                         self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
-                    else:
-                        self.assertFalse((retained / 'old-0').exists())
                     self.assertEqual(generated, (retained / 'new-0').read_bytes())
-                    journal = root / books.JOURNAL
-                    if not replacement:
-                        # The matching owned entry is still rolled back, so
-                        # ordinary recovery can finish and clear the journal.
-                        self.assertFalse(journal.exists())
-                        with books.ensure_book_state(root):
-                            self.assertEqual(b'owned original', target.read_bytes())
-                        continue
-                    frozen = journal.read_bytes()
-                    for _ in range(2):
-                        with self.assertRaises(ValueError):
-                            with books.ensure_book_state(root):
-                                self.fail('Relocated recovery workspace was admitted')
-                        self.assertEqual(frozen, journal.read_bytes())
+                    def check():
                         self.assertEqual(b'owned original', original.read_bytes())
+                        self.assertEqual(generated, (retained / 'new-0').read_bytes())
+                        self.assertFalse(target.exists())
                         if replacement:
                             self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
+                    from tests.test_support import WORKSPACE_CHANGED_MESSAGE, assert_book_journal_fenced
+                    assert_book_journal_fenced(self, root, content_check=check,
+                        expected_message=WORKSPACE_CHANGED_MESSAGE)
 
     def test_failed_journal_publication_preserves_edited_journal_and_workspace(self):
         import source_upload_publication as publication
@@ -380,10 +375,45 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     changed.append(True)
                 return result
             with patch.object(books, '_save_journal', side_effect=replace_staged):
-                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'replacement'):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        ValueError, 'cleanup was refused') as raised:
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('replacement', str(raised.exception.__cause__))
             self.assertEqual(b'original', target.read_bytes())
             self.assertTrue((root/books.JOURNAL).exists())
+
+    def test_byte_emergency_cleanup_preserves_workspace_if_journal_changed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            foreign = b'{"foreign":"journal"}'
+            changed = []
+            validate = books._validate_staged_replacement
+            checks = []
+            def replace_journal_then_refuse(*args, **kwargs):
+                checks.append(True)
+                if len(checks) == 2:
+                    journal = root / books.JOURNAL
+                    journal.unlink()
+                    journal.write_bytes(foreign)
+                    changed.append(True)
+                    raise ValueError('staged replacement changed')
+                return validate(*args, **kwargs)
+            with patch.object(books, '_validate_staged_replacement',
+                              side_effect=replace_journal_then_refuse):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        ValueError, 'journal changed') as raised:
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(changed)
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('replacement changed', str(raised.exception.__cause__))
+            self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
+            stages = list(root.glob('.book-switch-*/new-0'))
+            self.assertEqual(1, len(stages))
+            self.assertEqual(b'generated', stages[0].read_bytes())
+            self.assertEqual(b'original', target.read_bytes())
 
     @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
     def test_symlinked_book_ancestor_is_rejected_before_staging(self):
@@ -429,11 +459,11 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             target.write_bytes(b'original')
             validate = books._validate_byte_cleanup_targets
             changed = []
-            def change_before_validation(rows, targets, phase):
+            def change_before_validation(rows, targets, phase, cancel_check=None):
                 if phase == 'committed' and not changed:
                     target.write_bytes(b'writer edit')
                     changed.append(True)
-                return validate(rows, targets, phase)
+                return validate(rows, targets, phase, cancel_check=cancel_check)
             with patch.object(books, '_validate_byte_cleanup_targets',
                               side_effect=change_before_validation):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
@@ -535,8 +565,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertTrue(injected)
             journal = json.loads((root / books.JOURNAL).read_text())
             backup = root / journal['workspace'] / 'old-0'
-            self.assertEqual(b'writer edit', backup.read_bytes())
-            self.assertFalse(target.exists())
+            self.assertEqual(b'writer edit', target.read_bytes())
+            self.assertFalse(backup.exists())
 
     @unittest.skipIf(os.name == 'nt', 'POSIX mode semantics required')
     def test_byte_transaction_preserves_mode_change_during_original_move(self):
@@ -551,10 +581,9 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             with patch.object(books, '_move', side_effect=chmod_before_backup):
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
-            candidates = [p for p in (target, *root.glob('.book-switch-*/old-0')) if p.exists()]
-            self.assertEqual(1, len(candidates))
-            self.assertEqual(0o640, candidates[0].stat().st_mode & 0o777)
-            self.assertEqual(b'original', candidates[0].read_bytes())
+            self.assertEqual(0o640, target.stat().st_mode & 0o777)
+            self.assertEqual(b'original', target.read_bytes())
+            self.assertEqual([], list(root.glob('.book-switch-*/old-0')))
 
     @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
     def test_byte_transaction_preserves_backup_edited_before_commit(self):
@@ -650,8 +679,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             target.write_bytes(b'original')
             validate = books._validate_committed_byte_backups
             planted = []
-            def add_after_validation(workspace, rows, targets):
-                result = validate(workspace, rows, targets)
+            def add_after_validation(workspace, rows, targets, cancel_check=None):
+                result = validate(workspace, rows, targets, cancel_check=cancel_check)
                 foreign = Path(workspace) / 'foreign'
                 foreign.write_bytes(b'user data')
                 planted.append(foreign)
@@ -672,8 +701,10 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             cleanup = books._cleanup_validated_byte_workspace
             foreign = b'{"foreign":"journal"}'
             replaced = []
-            def replace_after_cleanup(directory, workspace, document, targets, journal_version):
-                result = cleanup(directory, workspace, document, targets, journal_version)
+            def replace_after_cleanup(directory, workspace, document, targets, journal_version,
+                                      cancel_check=None):
+                result = cleanup(directory, workspace, document, targets, journal_version,
+                                 cancel_check=cancel_check)
                 journal = root / books.JOURNAL
                 journal.unlink()
                 journal.write_bytes(foreign)
@@ -714,8 +745,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             books._save_journal(root, document)
             validate = books._validate_committed_byte_backups
             foreign = b'{"foreign":"new transaction"}'
-            def replace_after_read(workspace_path, rows, targets):
-                result = validate(workspace_path, rows, targets)
+            def replace_after_read(workspace_path, rows, targets, cancel_check=None):
+                result = validate(workspace_path, rows, targets, cancel_check=cancel_check)
                 journal = root / books.JOURNAL
                 journal.unlink()
                 journal.write_bytes(foreign)
@@ -737,8 +768,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             (directory / 'nested' / 'owned').write_bytes(b'owned')
             validate = books._validate_byte_workspace_for_cleanup
             planted = []
-            def add_nested(workspace, document):
-                result = validate(workspace, document)
+            def add_nested(workspace, document, cancel_check=None):
+                result = validate(workspace, document, cancel_check=cancel_check)
                 foreign = Path(workspace) / 'old-0' / 'nested' / 'foreign'
                 foreign.write_bytes(b'user data')
                 planted.append(foreign)
@@ -758,8 +789,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             (directory / 'nested' / 'owned').write_bytes(b'owned')
             validate = books._validate_stream_workspace_for_cleanup
             planted = []
-            def add_nested(workspace, document):
-                result = validate(workspace, document)
+            def add_nested(workspace, document, cancel_check=None):
+                result = validate(workspace, document, cancel_check=cancel_check)
                 foreign = Path(workspace) / 'old-1' / 'nested' / 'foreign'
                 foreign.write_bytes(b'user data')
                 planted.append(foreign)
@@ -808,8 +839,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             target.write_bytes(b'original')
             validate = books._validate_stream_workspace_for_cleanup
             changed = []
-            def change_target_after_validation(workspace, document):
-                result = validate(workspace, document)
+            def change_target_after_validation(workspace, document, cancel_check=None):
+                result = validate(workspace, document, cancel_check=cancel_check)
                 if document['phase'] == 'committed' and not changed:
                     target.write_bytes(b'writer edit')
                     changed.append(True)
@@ -923,6 +954,23 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     {'new-0': (stage_stat.st_dev, stage_stat.st_ino)},
                     require_stage_versions=True)
             self.assertEqual(b'preserve', stage.read_bytes())
+
+    def test_cleanup_refuses_renamed_away_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / '.book-switch-test'
+            retained = root / 'retained-workspace'
+            workspace.mkdir()
+            stage = workspace / 'new-0'
+            stage.write_bytes(b'preserve')
+            workspace_stat = workspace.stat()
+            stage_stat = stage.stat()
+            workspace.rename(retained)
+            with self.assertRaisesRegex(ValueError, 'workspace changed'):
+                books._cleanup_unpublished_stream_workspace(
+                    workspace, (workspace_stat.st_dev, workspace_stat.st_ino),
+                    {'new-0': (stage_stat.st_dev, stage_stat.st_ino)})
+            self.assertEqual(b'preserve', (retained / 'new-0').read_bytes())
 
     def test_missing_second_stage_version_preserves_all_stages_and_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
