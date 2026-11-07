@@ -1246,6 +1246,22 @@ print(len(result['entries']))
                     Path(temporary), books._BookScanBudget(1024, 8, None)),
                 digest)
 
+    def test_adapter_bundle_digest_preserves_non_ascii_encoding(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'café'
+            target.write_bytes(b'owned')
+            rows = [
+                ('.', 'directory', stat.S_IMODE(root.lstat().st_mode)),
+                ('café', 'file', stat.S_IMODE(target.lstat().st_mode),
+                 hashlib.sha256(b'owned').hexdigest()),
+            ]
+            expected = hashlib.sha256(
+                json.dumps(rows, ensure_ascii=False).encode('utf-8')).hexdigest()
+            self.assertEqual(
+                expected, adapter_publication.get_adapter_bundle_sha256(temporary))
+
     def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
         import adapter_publication
         with tempfile.TemporaryDirectory() as temporary:
