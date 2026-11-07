@@ -93,17 +93,6 @@ def sync_adapter_tree(path):
         sync_adapter_directory(directory)
 
 
-def encode_tree_digest_rows(rows):
-    """Encode tree rows compatibly for native and bounded digests."""
-    serialized = json.dumps(rows, ensure_ascii=False)
-    try:
-        return serialized.encode("utf-8")
-    except UnicodeEncodeError:
-        # Preserve existing digests for ordinary Unicode names. Surrogate-escaped
-        # POSIX names had no prior digest because strict UTF-8 encoding failed.
-        return json.dumps(rows, ensure_ascii=True).encode("utf-8")
-
-
 def get_adapter_bundle_sha256(root, cancel_check=None):
     """Identify complete original bundles, including preserved assets and links."""
     try:
@@ -183,7 +172,13 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
             raise ValueError(f"adapter bundle directory changed: {directory}") from error
         if version(directory_after) != version(directory_before):
             raise ValueError(f"adapter bundle directory changed: {directory}")
-    encoded = encode_tree_digest_rows(rows)
+    serialized = json.dumps(rows, ensure_ascii=False)
+    try:
+        encoded = serialized.encode("utf-8")
+    except UnicodeEncodeError:
+        # Preserve existing digests for ordinary Unicode names. Surrogate-escaped
+        # POSIX names had no prior digest because strict UTF-8 encoding failed.
+        encoded = json.dumps(rows, ensure_ascii=True).encode("utf-8")
     for path, expected in artifact_versions:
         check_cancellation()
         try:

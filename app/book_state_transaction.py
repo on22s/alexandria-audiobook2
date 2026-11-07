@@ -16,8 +16,8 @@ import tempfile
 import uuid
 from pathlib import Path
 from utils import file_lock
-from adapter_publication import (encode_tree_digest_rows, get_adapter_bundle_sha256,
-                                 sync_adapter_directory, save_adapter_publication_bytes)
+from adapter_publication import (get_adapter_bundle_sha256, sync_adapter_directory,
+                                 save_adapter_publication_bytes)
 
 JOURNAL = '.active_book_transaction.json'
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
@@ -823,7 +823,10 @@ def _bounded_book_digest(path, budget):
         _check_stream_cancellation(budget.cancel_check)
         if _book_target_version(candidate) != version:
             raise ValueError('Book destination changed during scan')
-    return hashlib.sha256(encode_tree_digest_rows(rows)).hexdigest()
+    # POSIX paths may contain surrogate-escaped bytes. ASCII JSON preserves a
+    # deterministic representation without attempting to encode surrogates as
+    # UTF-8, which would leak a raw UnicodeEncodeError out of admission.
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=True).encode('utf-8')).hexdigest()
 
 
 def _validate_stream_target(row, target, old_version, budget):
