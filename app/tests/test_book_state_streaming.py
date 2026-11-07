@@ -1,4 +1,5 @@
 """Recoverable book transaction staging for bounded, pinned binary streams."""
+import errno
 import hashlib
 import io
 import json
@@ -1220,6 +1221,26 @@ print(len(result['entries']))
                 adapter_publication.get_adapter_bundle_sha256('')
         walk.assert_not_called()
 
+    def test_adapter_bundle_digest_rejects_invalid_root_type(self):
+        import adapter_publication
+        with self.assertRaisesRegex(ValueError, 'root is required'):
+            adapter_publication.get_adapter_bundle_sha256(None)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX surrogate-escaped filename required')
+    def test_adapter_bundle_digest_accepts_surrogate_escaped_filename(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            name = os.fsdecode(b'adapter-\xff')
+            try:
+                (Path(temporary) / name).write_bytes(b'owned')
+            except OSError as error:
+                if error.errno != errno.EILSEQ:
+                    raise
+                self.skipTest('this filesystem refuses non-UTF-8 names')
+            self.assertRegex(
+                adapter_publication.get_adapter_bundle_sha256(temporary),
+                r'^[0-9a-f]{64}$')
+
     def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
         import adapter_publication
         with tempfile.TemporaryDirectory() as temporary:
@@ -1340,20 +1361,26 @@ print(len(result['entries']))
             target = Path(temporary) / 'artifact'
             target.write_bytes(b'owned')
             real_lstat = adapter_publication.os.lstat
-            calls = []
+            dumps = adapter_publication.json.dumps
+            finalizing = []
             cancelled = []
+            def mark_finalizing(*args, **kwargs):
+                finalizing.append(True)
+                return dumps(*args, **kwargs)
             def cancel_after_final_lstat(path, *args, **kwargs):
                 info = real_lstat(path, *args, **kwargs)
-                calls.append(Path(path))
-                if len(calls) == 5:
+                if finalizing and Path(path) == target:
                     cancelled.append(True)
                 return info
-            with patch.object(adapter_publication.os, 'lstat',
+            with patch.object(adapter_publication.json, 'dumps',
+                              side_effect=mark_finalizing), \
+                 patch.object(adapter_publication.os, 'lstat',
                               side_effect=cancel_after_final_lstat):
                 with self.assertRaises(AudioGenerationCancelled):
                     adapter_publication.get_adapter_bundle_sha256(
                         temporary, cancel_check=lambda: bool(cancelled))
-            self.assertEqual(5, len(calls))
+            self.assertTrue(finalizing)
+            self.assertTrue(cancelled)
 
     def test_regular_byte_digest_refuses_entry_replaced_during_open(self):
         with tempfile.TemporaryDirectory() as temporary:
