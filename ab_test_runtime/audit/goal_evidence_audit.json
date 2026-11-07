@@ -1050,16 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-06T17:08:37",
+  "written": "2026-11-07T04:28:16",
   "host": "RealMitch",
   "git": {
-   "commit": "141a324974b19bd8458a8be1a48449b13adff61d",
-   "branch": "feat/1734-calibre-opds",
+   "commit": "4f9418df8128f9676f43682b5a6a293cd6cfd4b9",
+   "branch": "feat/1720-1779-readalong",
    "dirty": true,
-   "source_state": "dirty:a75b365d3162",
+   "source_state": "dirty:bbd5179c772c",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_isolated_api_port.py"
+    "M  app/tests/test_local_ui_assets.py",
+    "M  docs/readalong-acceptance.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

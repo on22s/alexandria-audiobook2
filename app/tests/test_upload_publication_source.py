@@ -128,29 +128,53 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                                  files={'file': (name, raw, 'application/epub+zip')})
 
     async def test_capture_preserves_exact_origin_and_distinct_deduplicated_editions(self):
+        # R5 original-bytes authority: identical bytes (renamed) are a
+        # duplicate; a different EPUB with identical extracted text refuses
+        # with 409 before any provenance/retained change, instead of adding
+        # a second candidate whose bytes were never retained.
         async with self.environment() as (root, uploads, client):
             first = epub(); second = epub('Other edition')
-            for raw, name in ((first, 'first.epub'), (second, 'second.epub'), (first, 'repeat.epub')):
-                response = await self.upload(client, raw, name)
-                self.assertEqual(200, response.status_code, response.text)
-                self.assertEqual('available', response.json()['publication_status'])
+            response = await self.upload(client, first, 'first.epub')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual('available', response.json()['publication_status'])
+            before = {p.name: p.read_bytes() for p in uploads.iterdir()}
+            refused = await self.upload(client, second, 'second.epub')
+            self.assertEqual(409, refused.status_code, refused.text)
+            self.assertIn('retained', refused.json()['detail'].lower())
+            self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})
+            response = await self.upload(client, first, 'repeat.epub')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual('available', response.json()['publication_status'])
             source = uploads / 'first.txt'
             self.assertEqual(TEXT, source.read_bytes())
             record = json.loads(Path(str(source) + '.publication.json').read_bytes())
             self.assertEqual(hashlib.sha256(TEXT).hexdigest(), record['binding']['sha256'])
-            self.assertEqual([hashlib.sha256(raw).hexdigest() for raw in (first, second)],
+            self.assertEqual([hashlib.sha256(first).hexdigest()],
                              [row['origin']['sha256'] for row in record['candidates']])
-            self.assertEqual([source, Path(str(source) + '.publication.json')], sorted(uploads.iterdir()))
+            self.assertEqual([source, Path(str(source) + '.publication.json')],
+                             [p for p in sorted(uploads.iterdir()) if not p.name.endswith('.source.epub')])
+            # Read-aloud retention (#1779): the canonical retained EPUB holds
+            # the first upload's exact bytes; the duplicate creates none.
+            retained = uploads / 'first.source.epub'
+            self.assertEqual(first, retained.read_bytes())
+            self.assertEqual(['first.source.epub'],
+                             [p.name for p in sorted(uploads.iterdir()) if p.name.endswith('.source.epub')])
             self.assertFalse((root / 'state.json').exists())
 
     async def test_origin_cap_refusal_preserves_prior_companion_and_source(self):
+        # R5: the retained original locks the edition. The second distinct
+        # origin (previously a second candidate until the four-origin cap)
+        # now refuses with 409 before any change; the four-origin cap in
+        # publication_source remains as a defence-in-depth limit.
         async with self.environment() as (_, uploads, client):
-            for index in range(4):
-                response = await self.upload(client, epub(str(index)))
-                self.assertEqual(200, response.status_code, response.text)
+            response = await self.upload(client, epub('0'))
+            self.assertEqual(200, response.status_code, response.text)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
+            response = await self.upload(client, epub('1'))
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})
             response = await self.upload(client, epub('Fifth origin'))
-            self.assertEqual(413, response.status_code, response.text)
+            self.assertEqual(409, response.status_code, response.text)
             self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})
 
     async def test_changed_capture_of_same_origin_requires_review_without_overwriting_it(self):
@@ -219,9 +243,11 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
     async def test_failure_after_publication_and_failed_selection_retain_visible_provenance(self):
         # Reimport the identical archive: ZIP timestamps otherwise change its
         # origin digest when these two requests cross a two-second boundary.
-        different_origin = epub('Different')
+        # R5: only identical bytes reach the provenance apply; a different
+        # edition refuses before apply, so this test uses the same bytes.
+        raw = epub()
         async with self.environment() as (_, uploads, client):
-            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            self.assertEqual(200, (await self.upload(client, raw, 'book.epub')).status_code)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
             visible = {}
             apply = script.apply_publication_source_update
@@ -230,11 +256,11 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                 visible.update({p.name: p.read_bytes() for p in uploads.iterdir()})
                 raise OSError('fixture after publication')
             with patch.object(script, 'apply_publication_source_update', side_effect=fail_after_replace):
-                self.assertEqual(500, (await self.upload(client, different_origin)).status_code)
+                self.assertEqual(500, (await self.upload(client, raw, 'book.epub')).status_code)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
             with patch.object(script, 'ensure_book_switch_allowed', return_value=nullcontext()), \
                  patch.object(script, 'apply_book_input_selection', side_effect=ValueError('fixture selection refusal')):
-                response = await self.upload(client, different_origin, select=True)
+                response = await self.upload(client, raw, 'book.epub', select=True)
                 self.assertEqual(409, response.status_code, response.text)
                 self.assertNotIn('fixture selection refusal', response.text)
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
@@ -242,12 +268,13 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(before['book.txt'], visible['book.txt'])
             previous = json.loads(before['book.txt.publication.json'])
             current = json.loads(visible['book.txt.publication.json'])
-            self.assertEqual(previous['candidates'], current['candidates'][:1])
-            self.assertEqual(2, len(current['candidates']))
+            self.assertEqual(previous['candidates'], current['candidates'])
+            self.assertEqual(1, len(current['candidates']))
 
     async def test_cancelled_publication_waits_then_preserves_foreign_selected_provenance(self):
         async with self.environment() as (root, uploads, client):
-            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            raw = epub()
+            self.assertEqual(200, (await self.upload(client, raw, 'book.epub')).status_code)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
             entered, release = threading.Event(), threading.Event()
             apply = script.apply_publication_source_update
@@ -255,7 +282,7 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
                 apply(update); entered.set()
                 if not release.wait(3):
                     raise TimeoutError('fixture publication worker not released')
-            upload = UploadFile(filename='cancelled.epub', file=io.BytesIO(epub('Cancelled edition')))
+            upload = UploadFile(filename='cancelled.epub', file=io.BytesIO(raw))
             with patch.object(script, 'apply_publication_source_update', side_effect=paused):
                 task = asyncio.create_task(script.upload_file(upload, select_active=False))
                 try:
@@ -272,14 +299,15 @@ class UploadPublicationSourceTests(unittest.IsolatedAsyncioTestCase):
             await upload.close()
             self.assertEqual(visible, {p.name: p.read_bytes() for p in uploads.iterdir()})
             self.assertEqual(before['book.txt'], visible['book.txt'])
-            self.assertEqual(2, len(json.loads(visible['book.txt.publication.json'])['candidates']))
+            self.assertEqual(1, len(json.loads(visible['book.txt.publication.json'])['candidates']))
             self.assertEqual(str(uploads / 'book.txt'), json.loads((root / 'state.json').read_bytes())['input_file_path'])
 
     async def test_failure_before_duplicate_provenance_write_preserves_prior_bytes(self):
         async with self.environment() as (_, uploads, client):
-            self.assertEqual(200, (await self.upload(client, epub())).status_code)
+            raw = epub()
+            self.assertEqual(200, (await self.upload(client, raw, 'book.epub')).status_code)
             before = {p.name: p.read_bytes() for p in uploads.iterdir()}
             with patch.object(script, 'apply_publication_source_update', side_effect=OSError('before write')):
-                response = await self.upload(client, epub('Different'))
+                response = await self.upload(client, raw, 'book.epub')
             self.assertEqual(500, response.status_code)
             self.assertEqual(before, {p.name: p.read_bytes() for p in uploads.iterdir()})

@@ -4,6 +4,7 @@ const WORKSPACE_TASK_TABS = {
     nicknames: 'script', cast_list: 'script', persona: 'voices', voices: 'voices',
     audio: 'audio', drift_check: 'editor', outlier_check: 'editor', word_timing: 'editor', speech_verification: 'editor', book_preflight: 'script',
     audacity_export: 'audio', m4b_export: 'audio', chapter_export: 'audio',
+    readalong_sidecar: 'audio', readaloud_epub: 'audio',
     lora_training: 'training', lora_test: 'training', voicelab: 'voicelab',
     preparer: 'preparer', batch_preparer: 'preparer', dataset_builder: 'dataset-builder',
     voice_design: 'designer', speaker_review: 'script', report_explanation: 'reports', benchmark: 'reports', llm_test: 'setup', lmstudio_optimize: 'setup'

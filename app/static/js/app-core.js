@@ -1958,6 +1958,7 @@
             window.resetExportMasteringView?.(); window.resetExportQualityView?.(); window.resetAbsPreview?.();
             window.resetEditorRepairPreview?.();
             window.resetCalibreSourceView?.();
+            window.resetReadalongViews?.();
             window.invalidateBookWorkspace?.();
             window.resetSourceScopeBook?.();
             window.resetM4bPublicationBook?.();
@@ -2412,6 +2413,7 @@
             if (!select.value) { return; }
             window.resetDocxPreview?.();
             window.resetCalibreSourceView?.();
+            window.resetReadalongViews?.();
             const filename = select.value;
             let book = currentBookFilename;
             const request = {};
@@ -2577,6 +2579,7 @@
         document.getElementById('file-upload').addEventListener('change', async () => {
             window.resetDocxPreview?.();
             window.resetCalibreSourceView?.();
+            window.resetReadalongViews?.();
             const fileInput = document.getElementById('file-upload');
             const statusEl = document.getElementById('upload-status');
             if (fileInput.files.length === 0) { return; }
@@ -7372,7 +7375,7 @@
             return `${hours} h ${minutes} m`;
         }
 
-        async function ensureMergeIntegrityApproval() {
+        async function ensureMergeIntegrityApproval(actionLabel) {
             await ensureEditorRenderSnapshot();
             const report = await API.get('/api/editor/integrity');
             if (!report || !['verified', 'differences', 'unavailable'].includes(report.status)
@@ -7382,13 +7385,17 @@
             }
             renderTextDiff(report);
             const message = report.status === 'verified'
-                ? 'Merge all valid audio chunks into final audiobook?'
+                ? (actionLabel || 'Merge all valid audio chunks into final audiobook?')
                 : report.status === 'differences'
                     ? `${report.hunks.length} word differences are shown in Text integrity. Continue with this exact text? Cancel to fix them first.`
                     : `Source comparison unavailable: ${report.reason || 'No original source is on record.'} Continue without a verified source match?`;
-            if (!await showConfirm(message, {title: 'Continue with this source text?', actionLabel: 'Continue with text', danger: false})) { return null; }
+            if (!await showConfirm(message, {title: 'Continue with this source text?', actionLabel: actionLabel ? `Continue: ${actionLabel}` : 'Continue with text', danger: false})) { return null; }
             return report.snapshot;
         }
+
+        // R2: the read-along Result tab reuses this exact integrity flow
+        // (same snapshot semantics, appropriate action wording).
+        window.ensureReadalongIntegrityApproval = (actionLabel) => ensureMergeIntegrityApproval(actionLabel);
 
         async function openTextDiff() {
             const panel = document.getElementById('text-diff-panel');
