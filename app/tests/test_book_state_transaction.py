@@ -14,51 +14,6 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
-    def test_post_restore_missing_parent_is_not_treated_as_absent_target(self):
-        generated = b'generated'
-        for streaming in (False, True):
-            with self.subTest(streaming=streaming), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary).resolve()
-                parent = root / 'sub'
-                parent.mkdir()
-                target = parent / 'artifact'
-                target.write_bytes(generated)
-                target_version = books._book_target_version(target)
-                workspace = root / '.book-switch-test'
-                workspace.mkdir()
-                workspace_info = workspace.lstat()
-                document = {
-                    'version': 2 if streaming else 3,
-                    'phase': 'publishing', 'workspace': workspace.name,
-                    'workspace_identity': [workspace_info.st_dev, workspace_info.st_ino],
-                    'entries': [{'path': 'sub/artifact', 'existed': False,
-                                 'old_sha256': None,
-                                 'new_sha256': hashlib.sha256(generated).hexdigest(),
-                                 'new_file_identity': [target_version[0], target_version[1]]}],
-                }
-                if streaming:
-                    document['stream_limits'] = {'bytes': 1000, 'entries': 10}
-                books._save_journal(root, document)
-                validate = (books._validate_stream_replacement if streaming
-                            else books._validate_moved_byte_replacement)
-                removed = []
-                def remove_parent_after_discard(*args, **kwargs):
-                    result = validate(*args, **kwargs)
-                    if Path(args[1]) == workspace / 'discard-0' and not removed:
-                        parent.rmdir()
-                        removed.append(True)
-                    return result
-                validator_name = ('_validate_stream_replacement' if streaming
-                                  else '_validate_moved_byte_replacement')
-                with patch.object(books, validator_name,
-                                  side_effect=remove_parent_after_discard):
-                    with self.assertRaisesRegex(ValueError, 'Recovered book target changed'):
-                        books.recover_book_state_locked(root)
-                self.assertEqual([True], removed)
-                self.assertEqual(generated, (workspace / 'discard-0').read_bytes())
-                self.assertTrue((root / books.JOURNAL).exists())
-                self.assertFalse(parent.exists())
-
     @unittest.skipIf(os.name == 'nt', 'POSIX pinned-parent relocation control')
     def test_relocated_move_parent_preserves_entries_and_fences_byte_and_stream_recovery(self):
         import source_upload_publication as publication

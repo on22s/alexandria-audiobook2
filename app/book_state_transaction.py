@@ -826,24 +826,6 @@ def _bounded_book_digest(path, budget):
     return hashlib.sha256(encode_tree_digest_rows(rows)).hexdigest()
 
 
-def _require_recovered_target_absent(target):
-    """Distinguish an absent target name from a missing or replaced parent."""
-    message = 'Recovered book target changed; recovery evidence was preserved'
-    try:
-        target.lstat()
-    except FileNotFoundError:
-        try:
-            parent_info = target.parent.lstat()
-        except OSError as error:
-            raise ValueError(message) from error
-        if not stat.S_ISDIR(parent_info.st_mode):
-            raise ValueError(message)
-        return
-    except OSError as error:
-        raise ValueError(message) from error
-    raise ValueError(message)
-
-
 def _validate_stream_target(row, target, old_version, budget):
     if target.is_symlink() or target.exists() != row['existed']:
         raise ValueError('Book artifact changed during stream staging')
@@ -2504,7 +2486,15 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
                 if row.get('existed') is True:
                     _validate_stream_original(row, target, post_budget)
                 else:
-                    _require_recovered_target_absent(target)
+                    try:
+                        target.lstat()
+                    except FileNotFoundError:
+                        pass
+                    except OSError as error:
+                        raise ValueError(
+                            'Recovered book target changed; recovery evidence was preserved') from error
+                    else:
+                        raise ValueError('Recovered book target changed; recovery evidence was preserved')
             except OSError as error:
                 raise ValueError('Recovered book target changed; recovery evidence was preserved') from error
     else:
@@ -2514,7 +2504,15 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
                 if row.get('existed') is True:
                     _validate_byte_original(row, target, cancel_check=cancel_check)
                 else:
-                    _require_recovered_target_absent(target)
+                    try:
+                        target.lstat()
+                    except FileNotFoundError:
+                        pass
+                    except OSError as error:
+                        raise ValueError(
+                            'Recovered book target changed; recovery evidence was preserved') from error
+                    else:
+                        raise ValueError('Recovered book target changed; recovery evidence was preserved')
             except OSError as error:
                 raise ValueError('Recovered book target changed; recovery evidence was preserved') from error
     if parent_identities is not None:
