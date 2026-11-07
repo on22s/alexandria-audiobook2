@@ -1529,8 +1529,10 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                 generation_writer.save_chunks([{'entries':[{'text':'accepted old source'}]}])
                 generation_shard=generation_writer.directory/'00000000.json'
                 chapters=root/CHAPTER_EXPORT_DIR;chapters.mkdir();(chapters/'part.mp3').write_bytes(b'chapter bytes')
+                proposals=root/'translation_proposals';proposals.mkdir()
+                proposal=proposals/('a'*32+'.json');proposal.write_bytes(b'{"kind":"translation_proposal"}')
                 checkpoint=Path(str(active)+'.review_checkpoint.json');checkpoint.write_bytes(b'{"old":true}')
-                originals={p:p.read_bytes() for p in (active,voice,state,export,chunks,chunk_journal,generation,generation_shard,chapters/'part.mp3',checkpoint)}
+                originals={p:p.read_bytes() for p in (active,voice,state,export,chunks,chunk_journal,generation,generation_shard,chapters/'part.mp3',proposal,checkpoint)}
                 app=FastAPI();app.include_router(lib.router)
                 with ExitStack() as stack:
                     for name,value in (("SCRIPT_PATH",str(active)),("VOICE_CONFIG_PATH",str(voice)),("DATA_DIR",tmp),("SCRIPTS_DIR",str(saved)),("CHUNKS_PATH",str(chunks)),("AUDIOBOOK_PATH",str(export)),("M4B_PATH",str(root/'audiobook.m4b')),("process_state",{})):
@@ -1551,7 +1553,7 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                     self.assertEqual((saved/'new.json').read_bytes(),active.read_bytes())
                     self.assertEqual((saved/'new.voice_config.json').read_bytes(),voice.read_bytes())
                     identity=json.loads(state.read_text());self.assertEqual('new-book',identity['active_book_id']);self.assertEqual(17,identity['keep']);self.assertEqual(32,len(identity['book_generation']))
-                    for path in (export,chunks,chunk_journal,generation,generation_writer.directory,chapters,checkpoint):self.assertFalse(path.exists())
+                    for path in (export,chunks,chunk_journal,generation,generation_writer.directory,chapters,proposals,checkpoint):self.assertFalse(path.exists())
                 else:
                     self.assertEqual(500 if mode=='move_failure' else 400,response.status_code,response.text)
                     for path,expected in originals.items():self.assertEqual(expected,path.read_bytes())

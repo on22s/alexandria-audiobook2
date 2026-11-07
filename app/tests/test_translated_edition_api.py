@@ -1,7 +1,9 @@
 """HTTP translation preview: pairs list, create/read proposal, stale flag."""
+import asyncio
 from contextlib import ExitStack
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -74,6 +76,65 @@ class TranslatedEditionAPITests(unittest.TestCase):
         self.assertIn("not found", missing.json()["detail"])
         malformed = self.client.get('/api/translated_edition/proposals/../../state')
         self.assertIn(malformed.status_code, (409, 404))
+
+    def test_blocking_translation_runs_off_the_event_loop_thread(self):
+        seen = {}
+
+        def translate(text):
+            seen["on_main_thread"] = threading.current_thread() is threading.main_thread()
+            return "FR: " + text
+
+        with patch.object(router_module.translated_edition, "build_argos_translator",
+                          lambda from_code, to_code: translate):
+            request = router_module.ProposalRequest(
+                source_language="en", target_language="fr")
+            proposal = asyncio.run(
+                router_module.create_translated_edition_proposal(request))
+        self.assertEqual("complete", proposal["status"])
+        self.assertEqual(False, seen["on_main_thread"])
+
+    def test_cancel_endpoint_reaches_a_running_preview(self):
+        token = "a" * 32
+        event = router_module._begin_preview(token)
+        try:
+            response = self.client.post(
+                f'/api/translated_edition/proposals/{token}/cancel')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(response.json()["cancelled"])
+            self.assertTrue(event.is_set())
+        finally:
+            router_module._end_preview(token, event)
+        self.assertIsNone(router_module._CANCEL_TOKENS.get(token))
+        gone = self.client.post(f'/api/translated_edition/proposals/{token}/cancel')
+        self.assertEqual(200, gone.status_code, gone.text)
+        self.assertFalse(gone.json()["cancelled"])
+        bad = self.client.post('/api/translated_edition/proposals/not-hex/cancel')
+        self.assertEqual(409, bad.status_code, bad.text)
+        malformed = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr",
+            "cancel_token": "not-a-token"})
+        self.assertEqual(422, malformed.status_code, malformed.text)
+
+    def test_cancel_token_stops_the_build_and_is_saved_as_cancelled(self):
+        token = "b" * 32
+
+        def translate_and_cancel(text):
+            router_module._cancel_preview(token)
+            return "FR: " + text
+
+        with patch.object(router_module.translated_edition, "build_argos_translator",
+                          lambda from_code, to_code: translate_and_cancel):
+            created = self.client.post('/api/translated_edition/proposals', json={
+                "source_language": "en", "target_language": "fr",
+                "cancel_token": token})
+        self.assertEqual(200, created.status_code, created.text)
+        proposal = created.json()
+        self.assertEqual("cancelled", proposal["status"])
+        self.assertEqual(["translated", "cancelled"],
+                         [row["status"] for row in proposal["rows"]])
+        saved = (self.root / "translation_proposals" / (proposal["proposal_id"] + ".json"))
+        self.assertEqual("cancelled", json.loads(saved.read_text())["status"])
+        self.assertIsNone(router_module._CANCEL_TOKENS.get(token))
 
 
 if __name__ == "__main__":

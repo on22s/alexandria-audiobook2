@@ -19,12 +19,17 @@ def get_book(root, rows, source_lines=None):
          "input_file_path": str(root / "source.txt")}), encoding="utf-8")
     (root / "annotated_script.json").write_text(
         json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    (root / "voice_config.json").write_text(
+        json.dumps({"ALICE": {"voice": "Aiden"}}), encoding="utf-8")
+    (root / "config.json").write_text(
+        json.dumps({"tts_language": "english"}), encoding="utf-8")
     (root / "source.txt").write_text(
         "\n".join(source_lines if source_lines is not None
                   else [row["text"] for row in rows]), encoding="utf-8")
 
 
-def get_bytes(root, names=("annotated_script.json", "source.txt", "state.json")):
+def get_bytes(root, names=("annotated_script.json", "source.txt", "state.json",
+                           "voice_config.json", "config.json")):
     return {name: (root / name).read_bytes() for name in names}
 
 
@@ -80,6 +85,15 @@ class InstalledPairsTests(unittest.TestCase):
                 translated_edition.build_argos_translator("en", "de")
         self.assertEqual([], calls)
 
+    def test_argos_translator_runtime_without_translate_is_unavailable(self):
+        fake, package, calls = get_fake_argos([FakePackage("en", "fr")])
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": None}):
+            with self.assertRaisesRegex(ValueError, "runtime is unavailable"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
+
 
 class ProposalTests(unittest.TestCase):
     def setUp(self):
@@ -100,7 +114,8 @@ class ProposalTests(unittest.TestCase):
         before = get_bytes(self.root)
         proposal = translated_edition.build_proposal(
             str(self.root), source_language="en", target_language="fr",
-            translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
+            translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR],
+            runtime_version="2.5.0")
         self.assertEqual("complete", proposal["status"])
         self.assertEqual("proposal, not approved", proposal["label"])
         self.assertEqual("en", proposal["source_language"])
@@ -110,8 +125,11 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual(["ALICE", "BOB"], [r["speaker"] for r in proposal["rows"]])
         saved = (self.root / "translation_proposals" / (proposal["proposal_id"] + ".json"))
         self.assertTrue(saved.is_file())
-        self.assertEqual(proposal["proposal_id"],
-                         json.loads(saved.read_text())["proposal_id"])
+        saved_proposal = json.loads(saved.read_text())
+        self.assertEqual(proposal["proposal_id"], saved_proposal["proposal_id"])
+        # Provenance is in the saved artifact, not only in the HTTP response.
+        self.assertEqual("1.0", saved_proposal["package_version"])
+        self.assertEqual("2.5.0", saved_proposal["runtime_version"])
         self.assertEqual(before, get_bytes(self.root))
 
     def test_unsupported_pair_refused(self):
@@ -218,6 +236,8 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual(40, proposal["excerpt"]["total_rows"])
         self.assertEqual(25, len(proposal["rows"]))
         self.assertEqual(25, proposal["row_limit"])
+        # A translated prefix of a longer Script is not a complete edition.
+        self.assertEqual("excerpt_complete", proposal["status"])
 
     def test_missing_script_fails_loud(self):
         (self.root / "state.json").write_text(json.dumps(
@@ -244,6 +264,54 @@ class ProposalTests(unittest.TestCase):
                 str(self.root), source_language="en", target_language="fr",
                 translate_fn=mutate, installed_pairs=[PAIR])
         self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_book_switch_mid_build_is_not_saved(self):
+        rows = [{"speaker": "ALICE", "text": "Synthetic line one."},
+                {"speaker": "BOB", "text": "Synthetic line two."}]
+        get_book(self.root, rows)
+
+        def switch_book(text):
+            # Same script bytes, different book identity: the SHA check alone
+            # cannot see this, the book operation token must.
+            (self.root / "state.json").write_text(json.dumps(
+                {"active_book_id": "other", "book_generation": "two",
+                 "input_file_path": str(self.root / "source.txt")}), encoding="utf-8")
+            return "FR: " + text
+
+        with self.assertRaisesRegex(ValueError, "changed"):
+            translated_edition.build_proposal(
+                str(self.root), source_language="en", target_language="fr",
+                translate_fn=switch_book, installed_pairs=[PAIR])
+        self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_non_text_row_is_refused_without_saving(self):
+        rows = [{"speaker": "ALICE", "text": "Synthetic line."},
+                {"speaker": "BOB", "text": None}]
+        get_book(self.root, rows, source_lines=["Synthetic line.", "placeholder"])
+        with self.assertRaisesRegex(ValueError, "need inspection"):
+            translated_edition.build_proposal(
+                str(self.root), source_language="en", target_language="fr",
+                translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
+        self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_get_proposal_rejects_bad_or_traversing_ids(self):
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        for bad in ("../../state", "../" + proposal["proposal_id"], "A" * 32,
+                    "g" * 32, proposal["proposal_id"][:-1], ""):
+            with self.assertRaisesRegex(ValueError, "Invalid proposal id"):
+                translated_edition.get_proposal(str(self.root), bad)
+        self.assertEqual(proposal["proposal_id"], translated_edition.get_proposal(
+            str(self.root), proposal["proposal_id"])["proposal_id"])
+
+    def test_proposal_from_another_book_is_refused(self):
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        (self.root / "state.json").write_text(json.dumps(
+            {"active_book_id": "other", "book_generation": "two",
+             "input_file_path": str(self.root / "source.txt")}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "different book"):
+            translated_edition.get_proposal(str(self.root), proposal["proposal_id"])
 
 
 if __name__ == "__main__":

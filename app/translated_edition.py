@@ -14,18 +14,27 @@ without a direct package.
 
 Excerpt bound: the first ``PROPOSAL_ROW_LIMIT`` (25) Script rows. A proposal
 is never labelled complete when any row is unsupported, failed, skipped,
-flagged for review, or cancelled.
+flagged for review, or cancelled. When every excerpt row translated but the
+Script has more rows than the excerpt covers, the status is
+``excerpt_complete`` and never ``complete``.
+
+Book binding: the Script is read and the proposal saved under the book
+operation lock (``ensure_book_state``), with the book operation token
+rechecked before publication. A proposal whose saved ``book_id`` is not the
+current book is refused on read.
 
 Everything here is a proposal until separately reviewed and admitted; nothing
 in this module approves or publishes a translation.
 """
+import importlib
 import json
 import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from book_state_transaction import get_book_snapshot
+from book_state_transaction import (ensure_book_state, get_book_operation_token,
+                                    get_book_snapshot)
 from utils import atomic_json_write
 
 PROPOSAL_ROW_LIMIT = 25
@@ -105,7 +114,12 @@ def build_argos_translator(from_code, to_code):
         raise ValueError("Translation package is unavailable")
     if not is_pair_supported(installed["pairs"], from_code, to_code):
         raise ValueError(f"Language pair is not installed: {from_code} -> {to_code}")
-    from argostranslate import translate as argos_translate
+    try:
+        argos_translate = importlib.import_module("argostranslate.translate")
+    except Exception as error:
+        # A partially installed runtime must read as unavailable, never as a
+        # server error that hides why the preview could not start.
+        raise ValueError("Translation runtime is unavailable") from error
 
     def translate(text):
         return argos_translate.translate(text, from_code, to_code)
@@ -158,14 +172,17 @@ def _check_translated_row(source_text, translated_text):
 
 
 def build_proposal(data_dir, *, source_language, target_language, translate_fn,
-                   installed_pairs, row_limit=PROPOSAL_ROW_LIMIT, cancel_check=None):
+                   installed_pairs, row_limit=PROPOSAL_ROW_LIMIT, cancel_check=None,
+                   runtime_version=None):
     """Build and atomically save a translation proposal for a bounded excerpt.
 
     The caller injects the translator. Speaker labels are carried
     untranslated; rows with control tags or markup are flagged unsupported
     and carried over unchanged; changed numbers and other known-bad outputs
     are flagged for review. ``translate_fn`` failures become per-row failures,
-    never a silent success. Returns the saved proposal dict.
+    never a silent success. The book operation lock is held for the initial
+    read and for publication, never during translation, and the book token is
+    rechecked before the proposal is saved. Returns the saved proposal dict.
     """
     validate_language_code(source_language, "source_language")
     validate_language_code(target_language, "target_language")
@@ -176,13 +193,16 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
     if is_pair_supported(installed_pairs, source_language, target_language) is False:
         raise ValueError(f"Language pair is not installed: {source_language} -> {target_language}")
     try:
-        snapshot = get_book_snapshot(data_dir)
+        with ensure_book_state(data_dir) as root:
+            snapshot = get_book_snapshot(root, include_voices=False)
+            book_token = get_book_operation_token(root)
     except FileNotFoundError as error:
         raise ValueError("Saved Script is missing") from error
     script_bytes = snapshot["script_bytes"]
     if script_bytes is None:
         raise ValueError("Saved Script is missing")
     script_sha256 = snapshot["script_sha256"]
+
     rows = _get_script_rows(script_bytes)
     excerpt = rows[:row_limit]
     proposal_rows = []
@@ -236,10 +256,14 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
             counts["flagged"] += 1
     if cancelled:
         status = "cancelled"
-    elif counts["translated"] == len(excerpt) and counts["flagged"] == 0:
+    elif counts["translated"] != len(excerpt) or counts["flagged"]:
+        status = "partial"
+    elif counts["translated"] == len(rows):
         status = "complete"
     else:
-        status = "partial"
+        # Every row in the bounded excerpt was translated, but the excerpt is
+        # a prefix: this is not a complete edition and must not say it is.
+        status = "excerpt_complete"
     proposal = {"kind": PROPOSAL_KIND, "label": PROPOSAL_LABEL,
                 "proposal_id": uuid.uuid4().hex, "status": status,
                 "source_language": source_language, "target_language": target_language,
@@ -248,34 +272,51 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
                 "excerpt": {"start": 0, "row_count": len(excerpt), "total_rows": len(rows)},
                 "package_version": get_proposal_package_version(
                     installed_pairs, source_language, target_language),
+                "runtime_version": runtime_version if isinstance(runtime_version, str) else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "counts": counts, "rows": proposal_rows}
     try:
-        current = get_book_snapshot(data_dir)
-    except (FileNotFoundError, OSError) as error:
-        raise ValueError("Script changed during preview; proposal was not saved") from error
-    if current["script_sha256"] != script_sha256:
-        raise ValueError("Script changed during preview; proposal was not saved")
-    target_dir = Path(data_dir) / PROPOSALS_DIR
-    target_dir.mkdir(parents=True, exist_ok=True)
-    atomic_json_write(proposal, str(target_dir / f"{proposal['proposal_id']}.json"),
-                      allow_nonatomic_fallback=False)
+        with ensure_book_state(data_dir) as root:
+            current = get_book_snapshot(root, include_voices=False)
+            if (get_book_operation_token(root) != book_token
+                    or current["identity"] != snapshot["identity"]
+                    or current["script_sha256"] != script_sha256):
+                raise ValueError("Book changed during preview; proposal was not saved")
+            target_dir = Path(root) / PROPOSALS_DIR
+            target_dir.mkdir(parents=True, exist_ok=True)
+            atomic_json_write(proposal, str(target_dir / f"{proposal['proposal_id']}.json"),
+                              allow_nonatomic_fallback=False)
+    except TimeoutError as error:
+        raise ValueError("Book is busy; the proposal was not saved") from error
     return proposal
 
 
 def get_proposal(data_dir, proposal_id):
-    """Read one saved proposal by id; never lists or guesses ids."""
+    """Read one saved proposal by id; never lists or guesses ids.
+
+    The read holds the book operation lock and refuses a proposal whose
+    ``book_id`` is not the current book, so a preview left in a reused
+    workspace is never shown as if it belonged to this book.
+    """
     if not isinstance(proposal_id, str) or not _PROPOSAL_ID_PATTERN.match(proposal_id):
         raise ValueError("Invalid proposal id")
-    path = Path(data_dir) / PROPOSALS_DIR / f"{proposal_id}.json"
-    if not path.is_file():
-        raise ValueError("Translation proposal not found")
     try:
-        proposal = json.loads(path.read_bytes().decode("utf-8"))
-    except (ValueError, UnicodeDecodeError) as error:
-        raise ValueError("Saved translation proposal cannot be read") from error
-    if not isinstance(proposal, dict) or proposal.get("kind") != PROPOSAL_KIND:
-        raise ValueError("Saved translation proposal needs inspection")
+        with ensure_book_state(data_dir) as root:
+            snapshot = get_book_snapshot(root, allow_missing_script=True,
+                                         include_voices=False)
+            path = Path(root) / PROPOSALS_DIR / f"{proposal_id}.json"
+            if not path.is_file():
+                raise ValueError("Translation proposal not found")
+            try:
+                proposal = json.loads(path.read_bytes().decode("utf-8"))
+            except (ValueError, UnicodeDecodeError) as error:
+                raise ValueError("Saved translation proposal cannot be read") from error
+            if not isinstance(proposal, dict) or proposal.get("kind") != PROPOSAL_KIND:
+                raise ValueError("Saved translation proposal needs inspection")
+            if proposal.get("book_id") != snapshot["book_id"]:
+                raise ValueError("Translation proposal belongs to a different book")
+    except TimeoutError as error:
+        raise ValueError("Book is busy; the proposal was not read") from error
     return proposal
 
 
@@ -295,10 +336,12 @@ def get_current_script_sha(data_dir):
     """The current saved Script SHA, or None when the Script is missing.
 
     Single dispatch for the stale check; ``is_proposal_stale`` compares
-    against this value.
+    against this value. Read under the book operation lock like every other
+    book snapshot.
     """
     try:
-        snapshot = get_book_snapshot(data_dir)
+        with ensure_book_state(data_dir) as root:
+            snapshot = get_book_snapshot(root, include_voices=False)
     except (OSError, ValueError):
         return None
     sha256 = snapshot.get("script_sha256")

@@ -13571,6 +13571,44 @@
     "tests.test_training_ui_contract.TrainingUiContractTests.test_dataset_attributes_preserve_ids_without_injected_tags_or_handlers",
     "tests.test_training_ui_contract.TrainingUiContractTests.test_test_audio_url_remains_one_src_attribute"
   ],
+  "test_translated_edition": [
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_refuses_without_download",
+    "tests.test_translated_edition.InstalledPairsTests.test_argos_translator_runtime_without_translate_is_unavailable",
+    "tests.test_translated_edition.InstalledPairsTests.test_reports_only_direct_translate_packages",
+    "tests.test_translated_edition.InstalledPairsTests.test_unavailable_without_package",
+    "tests.test_translated_edition.ProposalTests.test_argos_translator_unavailable_refused",
+    "tests.test_translated_edition.ProposalTests.test_book_switch_mid_build_is_not_saved",
+    "tests.test_translated_edition.ProposalTests.test_cancellation_marks_remaining_rows",
+    "tests.test_translated_edition.ProposalTests.test_complete_proposal_saved_and_bytes_unchanged",
+    "tests.test_translated_edition.ProposalTests.test_control_tags_and_markup_unsupported",
+    "tests.test_translated_edition.ProposalTests.test_empty_source_row_skipped",
+    "tests.test_translated_edition.ProposalTests.test_excerpt_bound",
+    "tests.test_translated_edition.ProposalTests.test_get_proposal_rejects_bad_or_traversing_ids",
+    "tests.test_translated_edition.ProposalTests.test_known_bad_translations_are_flagged",
+    "tests.test_translated_edition.ProposalTests.test_missing_script_fails_loud",
+    "tests.test_translated_edition.ProposalTests.test_non_text_row_is_refused_without_saving",
+    "tests.test_translated_edition.ProposalTests.test_partial_failure_is_never_complete",
+    "tests.test_translated_edition.ProposalTests.test_proposal_from_another_book_is_refused",
+    "tests.test_translated_edition.ProposalTests.test_script_changed_mid_build_is_not_saved",
+    "tests.test_translated_edition.ProposalTests.test_stale_source_detected",
+    "tests.test_translated_edition.ProposalTests.test_unsupported_pair_refused"
+  ],
+  "test_translated_edition_api": [
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_blocking_translation_runs_off_the_event_loop_thread",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_cancel_endpoint_reaches_a_running_preview",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_cancel_token_stops_the_build_and_is_saved_as_cancelled",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_pairs_create_and_read_round_trip",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_stale_flag_after_script_change",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_unsupported_pair_and_bad_id_are_refused"
+  ],
+  "test_translated_edition_js": [
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_book_change_reset_is_wired_in_the_core_script",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_cancel_button_requests_a_stop_for_the_running_preview",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_pairs_create_and_render_labelled_proposal_safely",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_rechecking_a_saved_proposal_surfaces_the_stale_flag",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_stale_reply_and_book_change_guard",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_unavailable_and_create_failure_stay_visible"
+  ],
   "test_trim_edge_silence": [
     "tests.test_trim_edge_silence.NullSpeakerTimelineTests.test_null_previous_speakers_preserve_export_pauses_and_timeline_positions",
     "tests.test_trim_edge_silence.TrimTests.test_a_line_with_no_dead_air_is_untouched",

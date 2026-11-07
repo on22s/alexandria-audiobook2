@@ -1962,6 +1962,7 @@
             window.resetSourceScopeBook?.();
             window.resetM4bPublicationBook?.();
             window.resetSingleVoiceBook?.();
+            window.resetTranslatedEditionBook?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();

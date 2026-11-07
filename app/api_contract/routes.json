@@ -3120,5 +3120,14 @@
     "name": "get_translated_edition_proposal",
     "path": "/api/translated_edition/proposals/{proposal_id}",
     "type": "APIRoute"
+  },
+  {
+    "index": 348,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_translated_edition_proposal",
+    "path": "/api/translated_edition/proposals/{cancel_token}/cancel",
+    "type": "APIRoute"
   }
 ]

@@ -1,5 +1,6 @@
 // Opt-in local translation preview: a reviewable proposal, never an approval.
 let translatedEditionEpoch = 0, translatedEditionBusy = false, translatedEditionProposal = null;
+let translatedEditionCancelToken = null, translatedEditionBusyId = 0;
 const translatedEditionElement = id => document.getElementById('translated-edition-' + id);
 
 function updateTranslatedEditionControls() {
@@ -7,16 +8,31 @@ function updateTranslatedEditionControls() {
     translatedEditionElement('create').disabled = translatedEditionBusy || !pairReady;
     translatedEditionElement('refresh').disabled = translatedEditionBusy;
     translatedEditionElement('pair').disabled = translatedEditionBusy;
+    translatedEditionElement('cancel').disabled = !translatedEditionBusy || !translatedEditionCancelToken;
+}
+
+function newTranslatedEditionToken() {
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(bytes);
+    } else {
+        for (let index = 0; index < bytes.length; index += 1) {
+            bytes[index] = Math.floor(Math.random() * 256);
+        }
+    }
+    return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
 }
 
 function resetTranslatedEditionBook() {
     translatedEditionEpoch += 1;
     translatedEditionProposal = null;
+    translatedEditionCancelToken = null;
+    translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
     translatedEditionElement('feedback').textContent = 'Book changed. Refresh the installed pairs and build a new preview.';
     updateTranslatedEditionControls();
-    if (translatedEditionElement('panel').open && !translatedEditionBusy) {
+    if (translatedEditionElement('panel').open) {
         refreshTranslatedEditionPairs();
     }
 }
@@ -25,6 +41,9 @@ function onTranslatedEditionPanelToggle() {
     translatedEditionEpoch += 1;
     if (translatedEditionElement('panel').open) {
         refreshTranslatedEditionPairs();
+        if (translatedEditionProposal) {
+            refreshTranslatedEditionProposal();
+        }
     }
 }
 
@@ -34,6 +53,7 @@ async function refreshTranslatedEditionPairs() {
     }
     const epoch = ++translatedEditionEpoch;
     const selection = window._existingUploadSelectionRequest;
+    const busyId = ++translatedEditionBusyId;
     translatedEditionBusy = true;
     updateTranslatedEditionControls();
     translatedEditionElement('feedback').textContent = 'Checking installed language pairs...';
@@ -71,17 +91,45 @@ async function refreshTranslatedEditionPairs() {
             translatedEditionElement('feedback').textContent = error.message;
         }
     } finally {
-        translatedEditionBusy = false;
-        updateTranslatedEditionControls();
+        if (busyId === translatedEditionBusyId) {
+            translatedEditionBusy = false;
+            updateTranslatedEditionControls();
+        }
+    }
+}
+
+async function refreshTranslatedEditionProposal() {
+    const known = translatedEditionProposal;
+    if (!known) {
+        return;
+    }
+    const epoch = translatedEditionEpoch;
+    const selection = window._existingUploadSelectionRequest;
+    try {
+        const proposal = await API.get(`/api/translated_edition/proposals/${known.proposal_id}`);
+        if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest
+            || !translatedEditionProposal || translatedEditionProposal.proposal_id !== known.proposal_id) {
+            return;
+        }
+        translatedEditionProposal = proposal;
+        renderTranslatedEditionProposal(proposal);
+        translatedEditionElement('feedback').textContent = proposal.stale
+            ? 'This preview is stale: rebuild it from the current saved Script.'
+            : 'This preview still matches the saved Script. It remains a proposal, not an approved translation.';
+    } catch (error) {
+        if (epoch === translatedEditionEpoch) {
+            translatedEditionElement('feedback').textContent = error.message;
+        }
     }
 }
 
 function renderTranslatedEditionProposal(proposal) {
     const review = translatedEditionElement('review');
     review.replaceChildren();
+    const status = String(proposal.status).replace(/_/g, ' ');
     const heading = document.createElement('p');
     heading.className = 'small';
-    heading.textContent = `Proposal, not approved. Status: ${proposal.status}. ${proposal.counts.translated} translated, ${proposal.counts.flagged} flagged, ${proposal.counts.unsupported} unsupported, ${proposal.counts.failed} failed of ${proposal.excerpt.row_count} excerpt rows (script SHA ${proposal.source_script_sha256.slice(0, 12)}...). Target ${proposal.target_language}.`;
+    heading.textContent = `Proposal, not approved. Status: ${status}. ${proposal.counts.translated} translated, ${proposal.counts.flagged} flagged, ${proposal.counts.unsupported} unsupported, ${proposal.counts.failed} failed of ${proposal.excerpt.row_count} excerpt rows (script SHA ${proposal.source_script_sha256.slice(0, 12)}...). Target ${proposal.target_language}.`;
     review.appendChild(heading);
     if (proposal.stale) {
         const stale = document.createElement('p');
@@ -104,6 +152,9 @@ function renderTranslatedEditionProposal(proposal) {
         const translated = document.createElement('p');
         translated.className = 'mb-0';
         translated.textContent = `Proposal: ${row.translated_text || '(no translation)'}`;
+        if (row.error) {
+            translated.textContent += ` (${row.error})`;
+        }
         item.appendChild(translated);
         review.appendChild(item);
     }
@@ -120,24 +171,57 @@ async function createTranslatedEditionProposal() {
     const epoch = ++translatedEditionEpoch;
     const selection = window._existingUploadSelectionRequest;
     const [sourceLanguage, targetLanguage] = selected.split('->');
+    const cancelToken = newTranslatedEditionToken();
+    const busyId = ++translatedEditionBusyId;
+    translatedEditionCancelToken = cancelToken;
     translatedEditionBusy = true;
     updateTranslatedEditionControls();
     translatedEditionElement('feedback').textContent = 'Building translation preview...';
     try {
         const proposal = await API.post('/api/translated_edition/proposals',
-            {source_language: sourceLanguage, target_language: targetLanguage});
+            {source_language: sourceLanguage, target_language: targetLanguage,
+             cancel_token: cancelToken});
         if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
             return;
         }
         translatedEditionProposal = proposal;
-        translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${proposal.status}). It is saved with the book as a proposal, not an approved translation, and changes nothing else.`;
+        translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${String(proposal.status).replace(/_/g, ' ')}). It is saved with the book as a proposal, not an approved translation, and changes nothing else.`;
         renderTranslatedEditionProposal(proposal);
     } catch (error) {
         if (epoch === translatedEditionEpoch) {
             translatedEditionElement('feedback').textContent = error.message;
         }
     } finally {
-        translatedEditionBusy = false;
+        if (busyId === translatedEditionBusyId) {
+            translatedEditionBusy = false;
+            if (translatedEditionCancelToken === cancelToken) {
+                translatedEditionCancelToken = null;
+            }
+            updateTranslatedEditionControls();
+        }
+    }
+}
+
+async function cancelTranslatedEditionProposal() {
+    const token = translatedEditionCancelToken;
+    if (!token) {
+        return;
+    }
+    const epoch = translatedEditionEpoch;
+    const selection = window._existingUploadSelectionRequest;
+    translatedEditionElement('cancel').disabled = true;
+    try {
+        const result = await API.post(`/api/translated_edition/proposals/${token}/cancel`, {});
+        if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
+            return;
+        }
+        translatedEditionElement('feedback').textContent = result.cancelled
+            ? 'Cancel requested: the preview stops after the current row and is saved as cancelled.'
+            : 'No preview was running when the cancel request arrived.';
+    } catch (error) {
+        if (epoch === translatedEditionEpoch) {
+            translatedEditionElement('feedback').textContent = error.message;
+        }
         updateTranslatedEditionControls();
     }
 }

@@ -36,6 +36,7 @@ from core import (
     process_state, is_task_running,
 )
 from project import CHAPTER_EXPORT_DIR
+from translated_edition import PROPOSALS_DIR as TRANSLATION_PROPOSALS_DIR
 from review_script import _checkpoint_path, clear_checkpoint
 from completed_review_receipt import get_review_receipt_path
 from generate_script import get_generation_checkpoint_path, get_generation_quality_path
@@ -643,6 +644,7 @@ def _load_script_sync(request: ScriptLoadRequest):
             replacements[ACTIVE_RENDITIONS] = rendition_bytes
         removals = [AUDIOBOOK_PATH, M4B_PATH, os.path.join(DATA_DIR, "audacity_export.zip"),
                     os.path.join(DATA_DIR, CHAPTER_EXPORT_DIR), CHUNKS_PATH,
+                    os.path.join(DATA_DIR, TRANSLATION_PROPOSALS_DIR),
                     get_chunk_status_journal_path(CHUNKS_PATH),
                     *get_generation_checkpoint_artifacts(_checkpoint_path(SCRIPT_PATH)),
                     *get_generation_checkpoint_artifacts(three_pass_checkpoint_path(SCRIPT_PATH)),

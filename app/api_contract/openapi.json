@@ -4337,6 +4337,20 @@
       },
       "ProposalRequest": {
         "properties": {
+          "cancel_token": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 32,
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Token"
+          },
           "source_language": {
             "maxLength": 20,
             "minLength": 1,
@@ -15870,6 +15884,44 @@
           }
         },
         "summary": "Create Translated Edition Proposal"
+      }
+    },
+    "/api/translated_edition/proposals/{cancel_token}/cancel": {
+      "post": {
+        "description": "Request a stop after the current row for one in-flight preview.\n\nCancelling never approves anything: the builder still saves the partial\nproposal with status ``cancelled``.",
+        "operationId": "cancel_translated_edition_proposal_api_translated_edition_proposals__cancel_token__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cancel_token",
+            "required": true,
+            "schema": {
+              "title": "Cancel Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Translated Edition Proposal"
       }
     },
     "/api/translated_edition/proposals/{proposal_id}": {
