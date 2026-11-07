@@ -19,6 +19,9 @@ router = APIRouter()
 _CANCEL_TOKEN_PATTERN = r"^[0-9a-f]{32}$"
 _CANCEL_TOKENS = {}
 _CANCEL_LOCK = threading.Lock()
+# One preview at a time: a second concurrent create is refused with 409
+# instead of loading a second translator (and its model) in parallel.
+_PREVIEW_LOCK = threading.Lock()
 
 
 class ProposalRequest(BaseModel):
@@ -67,33 +70,52 @@ def _cancel_preview(cancel_token):
 
 
 def _create_proposal(request):
+    if not _PREVIEW_LOCK.acquire(blocking=False):
+        raise HTTPException(status_code=409,
+                            detail="A translation preview is already running")
+    event = None
     try:
-        event = _begin_preview(request.cancel_token)
-    except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error)[:500]) from error
-    try:
-        installed = translated_edition.get_installed_pairs()
-        if not installed["available"]:
-            raise ValueError("Translation package is unavailable")
-        translate_fn = translated_edition.build_argos_translator(
-            request.source_language, request.target_language)
-        proposal = translated_edition.build_proposal(
-            DATA_DIR, source_language=request.source_language,
-            target_language=request.target_language, translate_fn=translate_fn,
-            installed_pairs=installed["pairs"],
-            cancel_check=event.is_set if event is not None else None,
-            runtime_version=installed["runtime_version"])
-        return {**proposal, "stale": False}
-    except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error)[:500]) from error
+        try:
+            event = _begin_preview(request.cancel_token)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)[:500]) from error
+        try:
+            installed = translated_edition.get_installed_pairs()
+            if not installed["available"]:
+                raise ValueError("Translation package is unavailable")
+            translate_fn = translated_edition.build_argos_translator(
+                request.source_language, request.target_language)
+            proposal = translated_edition.build_proposal(
+                DATA_DIR, source_language=request.source_language,
+                target_language=request.target_language, translate_fn=translate_fn,
+                installed_pairs=installed["pairs"],
+                cancel_check=event.is_set if event is not None else None,
+                runtime_version=installed["runtime_version"])
+            return {**proposal, "stale": False}
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)[:500]) from error
     finally:
         _end_preview(request.cancel_token, event)
+        _PREVIEW_LOCK.release()
 
 
 def _read_proposal(proposal_id):
     try:
         proposal = translated_edition.get_proposal(DATA_DIR, proposal_id)
         return {**proposal, "stale": translated_edition.is_proposal_stale(DATA_DIR, proposal)}
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)[:500]) from error
+
+
+def _read_latest_proposal():
+    try:
+        result = translated_edition.get_latest_proposal(DATA_DIR)
+        proposal = result["proposal"]
+        if proposal is not None:
+            proposal = {**proposal, "stale": translated_edition.is_proposal_stale(
+                DATA_DIR, proposal)}
+        return {"proposal": proposal,
+                "malformed_proposals": result["malformed_proposals"]}
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)[:500]) from error
 
@@ -106,6 +128,11 @@ async def get_translated_edition_pairs():
 @router.post('/api/translated_edition/proposals')
 async def create_translated_edition_proposal(request: ProposalRequest):
     return await asyncio.to_thread(_create_proposal, request)
+
+
+@router.get('/api/translated_edition/latest-proposal')
+async def get_translated_edition_latest_proposal():
+    return await asyncio.to_thread(_read_latest_proposal)
 
 
 @router.get('/api/translated_edition/proposals/{proposal_id}')

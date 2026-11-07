@@ -12,6 +12,16 @@ download) and never pivots through intermediate languages: a pair is reported
 only when its own package is installed, and the preview refuses any pair
 without a direct package.
 
+CPU only: upstream Argos reads its device from ``ARGOS_DEVICE_TYPE``
+(``argostranslate/settings.py``: ``device = get_setting("ARGOS_DEVICE_TYPE",
+"cpu")``), and ``translate.py`` passes ``settings.device`` to the
+CTranslate2 model (plus ``use_gpu=settings.device == "cuda"`` for the Stanza
+sentence splitter) — the only two GPU paths in that module. So a user setting
+``cuda`` would run inference on the GPU outside ``process_state`` and the GPU
+lock (project rule). ``build_argos_translator`` therefore refuses any
+effective device that is not ``cpu``, and the router allows only one preview
+at a time.
+
 Excerpt bound: the first ``PROPOSAL_ROW_LIMIT`` (25) Script rows. A proposal
 is never labelled complete when any row is unsupported, failed, skipped,
 flagged for review, or cancelled. When every excerpt row translated but the
@@ -43,7 +53,7 @@ PROPOSAL_KIND = "translation_proposal"
 PROPOSAL_LABEL = "proposal, not approved"
 
 _CONTROL_PATTERN = re.compile(r"\[[^\]\n]{1,64}\]|<[^>\n]{1,80}>|\{[A-Za-z_][A-Za-z0-9_]*\}|\\[a-zA-Z]+")
-_NUMBER_PATTERN = re.compile(r"\d[\d,.]*")
+_NUMBER_PATTERN = re.compile(r"\d+(?:[,.]\d+)*")
 _PROPOSAL_ID_PATTERN = re.compile(r"^[0-9a-f]{32,64}$")
 _LANGUAGE_CODE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,19}$")
 
@@ -107,7 +117,14 @@ def build_argos_translator(from_code, to_code):
 
     Pure read plus local inference on demand. Raises ValueError, without
     downloading anything, when the package is unavailable or the pair has no
-    direct package (pivoting is never used silently).
+    direct package (pivoting is never used silently). Also raises ValueError
+    unless the effective Argos device (``argostranslate.settings.device``,
+    from ``ARGOS_DEVICE_TYPE``, default ``cpu``) is ``cpu``: Argos would
+    otherwise run model inference on the GPU (``translate.py`` passes
+    ``settings.device`` to CTranslate2 and ``use_gpu`` to the sentence
+    splitter) outside ``process_state`` and the GPU lock, which this project
+    forbids unless a task registers there. Refusing here keeps the preview
+    provably CPU-only on any machine, whatever the user's Argos setting.
     """
     installed = get_installed_pairs()
     if not installed["available"]:
@@ -120,6 +137,14 @@ def build_argos_translator(from_code, to_code):
         # A partially installed runtime must read as unavailable, never as a
         # server error that hides why the preview could not start.
         raise ValueError("Translation runtime is unavailable") from error
+    try:
+        argos_settings = importlib.import_module("argostranslate.settings")
+    except Exception as error:
+        raise ValueError("Translation runtime is unavailable") from error
+    device = getattr(argos_settings, "device", None)
+    if device != "cpu":
+        raise ValueError(
+            f"Translation device is not CPU ({device!r}); GPU inference is refused")
 
     def translate(text):
         return argos_translate.translate(text, from_code, to_code)
@@ -143,6 +168,21 @@ def get_proposal_package_version(pairs, from_code, to_code):
 
 
 def _get_script_rows(script_bytes):
+    """Parse the saved Script, refusing any row without string ``text``.
+
+    The refusal covers the whole Script, not only the excerpt. Traced
+    provenance (2026-11-06): every app path that writes a saved Script makes
+    ``text`` a string — ``generate_script.py`` records are built with
+    ``text.strip()``, the manual-injection route coerces with
+    ``str(e.get("text") or "")`` and requires it non-empty, and the three-pass
+    entries take ``text`` from the deterministic source split. The Editor
+    edits ``chunks.json`` (derived), not the Script, and its ``ChunkUpdate``
+    model types ``text`` as a non-null string. ``app/project.py:386``
+    tolerating ``str(entry.get("text") or "")`` operates on those chunks, so
+    it is not evidence a saved Script can carry a non-string row. A non-string
+    row therefore means the file was hand-edited or corrupted; refusing loudly
+    (Rule 8) beats silently coerce-translating it.
+    """
     try:
         rows = json.loads(script_bytes.decode("utf-8"))
     except (ValueError, TypeError, UnicodeDecodeError) as error:
@@ -304,11 +344,12 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
 
 
 def get_proposal(data_dir, proposal_id):
-    """Read one saved proposal by id; never lists or guesses ids.
+    """Read one saved proposal by id.
 
     The read holds the book operation lock and refuses a proposal whose
     ``book_id`` is not the current book, so a preview left in a reused
-    workspace is never shown as if it belonged to this book.
+    workspace is never shown as if it belonged to this book. To re-open a
+    kept proposal without knowing its id, see ``get_latest_proposal``.
     """
     if not isinstance(proposal_id, str) or not _PROPOSAL_ID_PATTERN.match(proposal_id):
         raise ValueError("Invalid proposal id")
@@ -332,6 +373,62 @@ def get_proposal(data_dir, proposal_id):
     except TimeoutError as error:
         raise ValueError("Book is busy; the proposal was not read") from error
     return proposal
+
+
+def get_latest_proposal(data_dir):
+    """Return the active book's most recent saved proposal, or None.
+
+    One lookup for the panel's re-open path: a kept proposal (same-book
+    reload, page refresh) is otherwise unreachable because the in-memory copy
+    was cleared and ids are not listed in any UI. The read holds the book
+    operation lock. Only proposals whose ``book_id`` is the current book are
+    candidates — a proposal belonging to another book is refused exactly as
+    ``get_proposal`` refuses it (never returned, never shown as this book's).
+    "Most recent" is the greatest ``created_at`` (file mtime breaks ties).
+    Returns ``{"proposal": <dict or None>, "malformed_proposals": [...]}``;
+    a malformed proposal file (unreadable, wrong kind, id mismatch) is
+    reported by name and never crashes the lookup or hides a good one.
+    """
+    try:
+        with ensure_book_state(data_dir) as root:
+            snapshot = get_book_snapshot(root, allow_missing_script=True,
+                                         include_voices=False)
+            proposals_dir = Path(root) / PROPOSALS_DIR
+            malformed = []
+            candidates = []
+            if proposals_dir.is_dir():
+                for path in sorted(proposals_dir.iterdir()):
+                    if not path.is_file() or path.suffix != ".json":
+                        continue
+                    if not _PROPOSAL_ID_PATTERN.match(path.stem):
+                        malformed.append(path.name)
+                        continue
+                    try:
+                        proposal = json.loads(path.read_bytes().decode("utf-8"))
+                    except (ValueError, UnicodeDecodeError, OSError):
+                        malformed.append(path.name)
+                        continue
+                    if (not isinstance(proposal, dict)
+                            or proposal.get("kind") != PROPOSAL_KIND
+                            or proposal.get("proposal_id") != path.stem
+                            or not isinstance(proposal.get("rows"), list)
+                            or not isinstance(proposal.get("counts"), dict)):
+                        malformed.append(path.name)
+                        continue
+                    if proposal.get("book_id") != snapshot["book_id"]:
+                        # Another book's proposal: refused, never a candidate.
+                        continue
+                    created_at = proposal.get("created_at")
+                    candidates.append((
+                        created_at if isinstance(created_at, str) else "",
+                        path.stat().st_mtime, proposal))
+            candidates.sort(key=lambda item: (item[0], item[1]))
+            latest = candidates[-1][2] if candidates else None
+    except FileNotFoundError as error:
+        raise ValueError("Translation proposal not found") from error
+    except TimeoutError as error:
+        raise ValueError("Book is busy; the proposal was not read") from error
+    return {"proposal": latest, "malformed_proposals": malformed}
 
 
 def _valid_sha(value):

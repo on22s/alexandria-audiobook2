@@ -13,7 +13,7 @@ const text=node=>node.textContent+node.children.map(text).join('');
 for(const id of ['panel','pair','create','refresh','cancel','feedback','review']){
  body.appendChild(new Element('div',{id:'translated-edition-'+id}));}
 const el=id=>document.getElementById('translated-edition-'+id);el('panel').open=true;el('pair').value='';
-const calls=[];let unavailable=false,stale=false,failCreate=false,releaseCreate=null;
+const calls=[];let unavailable=false,stale=false,failCreate=false,releaseCreate=null,latestProposal=null;
 const proposal={proposal_id:'a'.repeat(32),label:'proposal, not approved',status:'partial',stale,
  source_script_sha256:'b'.repeat(64),target_language:'fr',
  excerpt:{row_count:2},counts:{translated:1,flagged:1,unsupported:0,failed:1},
@@ -21,13 +21,14 @@ const proposal={proposal_id:'a'.repeat(32),label:'proposal, not approved',status
  {index:1,speaker:'BOB',source_text:'Plain row.',translated_text:'',status:'failed',flags:[],error:'synthetic translator failure'}]};
 context.window=context;context._existingUploadSelectionRequest={};
 context.API={get:async path=>{calls.push(['GET',path]);
+ if(path.includes('latest-proposal')){return {proposal:latestProposal,malformed_proposals:[]};}
  if(path.includes('/proposals/')){return {...proposal,stale};}
  return unavailable?{available:false,reason:'unavailable',pairs:[]}
  :{available:true,reason:'ready',pairs:[{from_code:'en',to_code:'fr',from_name:'English',to_name:'French',package_version:'1.0'}]};},
  post:async(path,payload)=>{calls.push(['POST',path,payload]);
  if(path.includes('/cancel')){return {cancelled:true,reason:'cancel_requested'};}
- if(failCreate){throw Error('Language pair is not installed: en -> de');}
  if(releaseCreate){await releaseCreate.promise;}
+ if(failCreate){throw Error('Language pair is not installed: en -> de');}
  return proposal;}};
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
 '''
@@ -89,6 +90,54 @@ class TranslatedEditionJSTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_toggling_the_panel_during_a_build_keeps_its_result(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+ let resolveCreate;
+ releaseCreate={promise:new Promise(r=>{resolveCreate=r;})};
+ const pending=context.createTranslatedEditionProposal();
+ await new Promise(setImmediate);
+ assert(el('feedback').textContent.includes('Building translation preview'));
+ context.onTranslatedEditionPanelToggle();
+ assert(el('feedback').textContent.includes('Building translation preview'));
+ resolveCreate();await pending;
+ assert(text(el('review')).includes('Proposal, not approved'));
+ assert(!el('feedback').textContent.includes('Building translation preview'));
+ assert(el('feedback').textContent.includes('proposal, not an approved translation'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_create_failure_after_a_selection_change_stays_hidden(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+ let resolveCreate;
+ releaseCreate={promise:new Promise(r=>{resolveCreate=r;})};
+ failCreate=true;
+ const pending=context.createTranslatedEditionProposal();
+ await new Promise(setImmediate);
+ context._existingUploadSelectionRequest={};
+ resolveCreate();await pending;
+ assert(!el('feedback').textContent.includes('not installed'));
+ assert.equal(el('review').children.length,0);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_opening_the_panel_loads_the_saved_latest_proposal(self):
+        self.run_js(r'''
+(async()=>{
+ latestProposal={...proposal,stale:true};
+ el('panel').open=true;
+ context.onTranslatedEditionPanelToggle();
+ await new Promise(setImmediate);
+ const get=calls.find(c=>c[0]==='GET'&&c[1].includes('latest-proposal'));
+ assert(get,'latest proposal was not requested');
+ assert(text(el('review')).includes('Proposal, not approved'));
+ assert(text(el('review')).includes('Stale'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_rechecking_a_saved_proposal_surfaces_the_stale_flag(self):
         self.run_js(r'''
 (async()=>{
@@ -124,15 +173,15 @@ class TranslatedEditionJSTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
-    def test_book_change_says_whether_the_preview_survived(self):
+    def test_book_change_says_what_the_panel_can_show(self):
         self.run_js(r'''
 (async()=>{
  await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
  await context.createTranslatedEditionProposal();
  context.resetTranslatedEditionBook();
  assert.equal(el('review').children.length,0);
- assert(el('feedback').textContent.includes('kept only when the same book is reloaded'));
- assert(el('feedback').textContent.includes('removed'));
+ assert(el('feedback').textContent.includes('never shown for this book'));
+ assert(!el('feedback').textContent.includes('was removed'));
  assert(!el('feedback').textContent.includes('Checking installed language pairs'));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
@@ -142,8 +191,9 @@ class TranslatedEditionJSTests(unittest.TestCase):
             encoding='utf-8')
         start = html.index('id="translated-edition-panel"')
         panel = html[start:html.index('</details>', start)]
-        self.assertIn('reloading the same saved book keeps it', panel)
-        self.assertIn('loading a different book removes it', panel)
+        self.assertIn('re-opening this panel shows the most recent saved preview', panel)
+        self.assertIn('a preview from another book is never shown for this book', panel)
+        self.assertIn('selecting an uploaded source leaves old files on disk', panel)
         self.assertIn('does not copy proposals into the saved book', panel)
 
 

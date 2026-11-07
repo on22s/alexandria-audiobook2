@@ -94,6 +94,40 @@ class InstalledPairsTests(unittest.TestCase):
                 translated_edition.build_argos_translator("en", "fr")
         self.assertEqual([], calls)
 
+    def _fake_argos_with_device(self, packages, device):
+        fake, package, calls = get_fake_argos(packages)
+        translate_module = ModuleType("argostranslate.translate")
+        translate_module.translate = lambda text, from_code, to_code: "FR: " + text
+        fake.translate = translate_module
+        settings_module = ModuleType("argostranslate.settings")
+        settings_module.device = device
+        fake.settings = settings_module
+        return fake, package, translate_module, settings_module, calls
+
+    def test_argos_translator_refuses_non_cpu_device(self):
+        # Upstream settings.device defaults to "cpu" but a user can set
+        # ARGOS_DEVICE_TYPE=cuda, which would run GPU inference outside the
+        # GPU lock. The builder must refuse it before any translate call.
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cuda")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            with self.assertRaisesRegex(ValueError, "device is not CPU"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
+
+    def test_argos_translator_runs_on_cpu_device(self):
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            translate = translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual("FR: Synthetic line.", translate("Synthetic line."))
+
 
 class ProposalTests(unittest.TestCase):
     def setUp(self):
@@ -220,6 +254,26 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual(["copied_source"], proposal["rows"][2]["flags"])
         self.assertTrue(all(row["status"] == "translated" for row in proposal["rows"]))
 
+    def test_number_punctuation_is_not_a_number_change(self):
+        # "He had 5." must not flag number_changed against "Er hatte 5":
+        # the old pattern swallowed the sentence period into the number.
+        rows = [{"speaker": "ALICE", "text": "He had 5."},
+                {"speaker": "BOB", "text": "Er hatte 5"}]
+        mapping = {"He had 5.": "Er hatte 5", "Er hatte 5": "He had 5."}
+        proposal = self.build(rows, lambda text: mapping[text])
+        self.assertEqual("complete", proposal["status"])
+        self.assertEqual([], proposal["rows"][0]["flags"])
+        self.assertEqual([], proposal["rows"][1]["flags"])
+
+    def test_changed_number_still_flagged_with_punctuation(self):
+        rows = [{"speaker": "ALICE", "text": "He had 5."},
+                {"speaker": "BOB", "text": "The fare was 1,000 coins."}]
+        mapping = {"He had 5.": "Er hatte 6.", "The fare was 1,000 coins.": "Die Fahrt kostete 1,000 Muenzen."}
+        proposal = self.build(rows, lambda text: mapping[text])
+        self.assertEqual("partial", proposal["status"])
+        self.assertEqual(["number_changed"], proposal["rows"][0]["flags"])
+        self.assertEqual([], proposal["rows"][1]["flags"])
+
     def test_stale_source_detected(self):
         rows = [{"speaker": "ALICE", "text": "Synthetic line."}]
         proposal = self.build(rows, lambda text: "FR: " + text)
@@ -293,6 +347,61 @@ class ProposalTests(unittest.TestCase):
                 str(self.root), source_language="en", target_language="fr",
                 translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
         self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_non_text_row_beyond_the_excerpt_is_still_refused(self):
+        # The whole-Script refusal is deliberate (see _get_script_rows): a
+        # bad row outside the 25-row excerpt still means a corrupt Script.
+        rows = [{"speaker": "ALICE", "text": f"Synthetic line {index}."}
+                for index in range(26)]
+        rows.append({"speaker": "BOB", "text": None})
+        get_book(self.root, rows,
+                 source_lines=[row["text"] or "placeholder" for row in rows])
+        with self.assertRaisesRegex(ValueError, "need inspection"):
+            translated_edition.build_proposal(
+                str(self.root), source_language="en", target_language="fr",
+                translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
+        self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_latest_proposal_returns_most_recent_for_current_book(self):
+        first = self.build([{"speaker": "ALICE", "text": "Synthetic line one."}],
+                           lambda text: "FR: " + text)
+        second = self.build([{"speaker": "ALICE", "text": "Synthetic line two."}],
+                            lambda text: "FR: " + text)
+        result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertEqual([], result["malformed_proposals"])
+        self.assertEqual(second["proposal_id"], result["proposal"]["proposal_id"])
+        self.assertNotEqual(first["proposal_id"], result["proposal"]["proposal_id"])
+
+    def test_latest_proposal_empty_when_none_saved(self):
+        get_book(self.root, [{"speaker": "ALICE", "text": "Synthetic line."}])
+        result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertIsNone(result["proposal"])
+        self.assertEqual([], result["malformed_proposals"])
+
+    def test_latest_proposal_never_returns_another_books_proposal(self):
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        (self.root / "state.json").write_text(json.dumps(
+            {"active_book_id": "other", "book_generation": "two",
+             "input_file_path": str(self.root / "source.txt")}), encoding="utf-8")
+        result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertIsNone(result["proposal"])
+        self.assertEqual([], result["malformed_proposals"])
+        # The file is still on disk, refused like get_proposal refuses it.
+        self.assertTrue((self.root / "translation_proposals"
+                         / (proposal["proposal_id"] + ".json")).is_file())
+
+    def test_latest_proposal_reports_malformed_without_hiding_a_good_one(self):
+        good = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                          lambda text: "FR: " + text)
+        proposals_dir = self.root / "translation_proposals"
+        (proposals_dir / ("f" * 32 + ".json")).write_text("not json", encoding="utf-8")
+        (proposals_dir / ("e" * 32 + ".json")).write_text(
+            json.dumps({"kind": "something_else"}), encoding="utf-8")
+        result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertEqual(good["proposal_id"], result["proposal"]["proposal_id"])
+        self.assertEqual(sorted(["f" * 32 + ".json", "e" * 32 + ".json"]),
+                         sorted(result["malformed_proposals"]))
 
     def test_get_proposal_rejects_bad_or_traversing_ids(self):
         proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],

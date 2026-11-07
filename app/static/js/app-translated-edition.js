@@ -30,16 +30,20 @@ function resetTranslatedEditionBook() {
     translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
-    translatedEditionElement('feedback').textContent = 'Book changed or reloaded. A preview is kept only when the same book is reloaded; any other book\'s preview was removed. Refresh the installed pairs and build a new preview.';
+    translatedEditionElement('feedback').textContent = 'Book changed or reloaded. The panel is cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book. Refresh the installed pairs and build a new preview.';
     updateTranslatedEditionControls();
 }
 
 function onTranslatedEditionPanelToggle() {
-    translatedEditionEpoch += 1;
+    // Toggling never bumps the epoch: a running build must keep its result,
+    // and a build that finished while the panel was closed is rendered here.
     if (translatedEditionElement('panel').open) {
+        const building = translatedEditionBusy;
         refreshTranslatedEditionPairs();
         if (translatedEditionProposal) {
             refreshTranslatedEditionProposal();
+        } else if (!building) {
+            loadTranslatedEditionLatestProposal();
         }
     }
 }
@@ -84,13 +88,44 @@ async function refreshTranslatedEditionPairs() {
         select.value = '';
         translatedEditionElement('feedback').textContent = `${pairs.pairs.length} installed pairs listed. Choosing one does not change any language setting.`;
     } catch (error) {
-        if (epoch === translatedEditionEpoch) {
+        if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
             translatedEditionElement('feedback').textContent = error.message;
         }
     } finally {
         if (busyId === translatedEditionBusyId) {
             translatedEditionBusy = false;
             updateTranslatedEditionControls();
+        }
+    }
+}
+
+async function loadTranslatedEditionLatestProposal() {
+    // Called only when no build is running (see the panel toggle); the
+    // epoch and selection guards below discard a stale reply.
+    const epoch = translatedEditionEpoch;
+    const selection = window._existingUploadSelectionRequest;
+    try {
+        const result = await API.get('/api/translated_edition/latest-proposal');
+        if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
+            return;
+        }
+        const proposal = result.proposal;
+        const malformed = result.malformed_proposals || [];
+        if (proposal) {
+            translatedEditionProposal = proposal;
+            renderTranslatedEditionProposal(proposal);
+            translatedEditionElement('feedback').textContent = (proposal.stale
+                ? 'This preview is stale: rebuild it from the current saved Script.'
+                : 'This preview still matches the saved Script. It remains a proposal, not an approved translation.')
+                + (malformed.length ? ` ${malformed.length} saved proposal file(s) could not be read and were skipped.` : '');
+        } else if (malformed.length) {
+            translatedEditionElement('feedback').textContent = `No readable saved preview for this book. ${malformed.length} saved proposal file(s) could not be read and were skipped.`;
+        } else {
+            translatedEditionElement('feedback').textContent = 'No saved translation preview for this book yet.';
+        }
+    } catch (error) {
+        if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
+            translatedEditionElement('feedback').textContent = error.message;
         }
     }
 }
@@ -192,7 +227,7 @@ async function createTranslatedEditionProposal() {
         translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${String(proposal.status).replace(/_/g, ' ')}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.`;
         renderTranslatedEditionProposal(proposal);
     } catch (error) {
-        if (epoch === translatedEditionEpoch) {
+        if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
             translatedEditionElement('feedback').textContent = error.message;
         }
     } finally {

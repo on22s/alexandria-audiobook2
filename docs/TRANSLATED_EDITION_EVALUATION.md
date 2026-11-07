@@ -43,8 +43,16 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   has been written leaves the finished status, so the panel says "cancel
   requested", not "saved as cancelled".
   Speaker labels are carried untranslated; rows with control tags or markup
-  are flagged `unsupported` and carried unchanged; dropped/changed numbers,
-  empty output, and copied source are flagged for review. Partial or
+  are flagged `unsupported` and carried unchanged; dropped/changed numbers
+  (numbers matched as `\d+(?:[,.]\d+)*`, so sentence punctuation after a
+  number is not a change), empty output, and copied source are flagged for
+  review. Any saved-Script row without a string `text` refuses the whole
+  build: tracing `generate_script.py`, the manual-injection route and the
+  three-pass splitter shows every app path that writes a saved Script makes
+  `text` a string, the Editor edits `chunks.json` (not the Script) with a
+  non-null string-typed field, and `app/project.py:386`'s coercion operates
+  on those chunks — so a non-string row means a hand-edited or corrupt file,
+  and the build fails loud rather than coerce-translating it. Partial or
   cancelled runs are never labelled complete, and a fully translated prefix
   of a longer Script is labelled `excerpt_complete`, not `complete`. The
   proposal carries its own id, the source script SHA, both language codes,
@@ -53,26 +61,46 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   Script or source. The Script is read and the proposal published under the
   book operation lock (`ensure_book_state`), with the book operation token
   rechecked immediately before publication; a proposal whose `book_id` is
-  not the current book is refused on read. Loading a different book removes
-  that folder after the switch commits, on a best-effort basis (a failed
+  not the current book is refused on read. Loading a different saved book
+  from the library removes that folder after the switch commits (only then:
+  `scripts_library._discard_another_book_proposals` runs only when the
+  loaded book's id differs), on a best-effort basis (a failed
   removal is logged, never an error: an unreadable or stale folder cannot be
   read as the new book's because the `book_id` check refuses it); reloading
-  the same book keeps its proposals (the stale check still applies). A
+  the same saved book keeps its proposals (the stale check still applies).
+  Selecting an uploaded source does **not** remove the folder: old proposal
+  files stay on disk until the next different-book library load, and are
+  never shown for the new book because the `book_id` check refuses them. A
   corrupt or unreadable active workspace never blocks a load: the previous
   identity is treated as unknown and its proposals are discarded. Proposals
   live in the active book's folder only: saving a book to the library does
   not copy them into the saved book, so switching away and loading the saved
-  book again does not bring them back. There is no proposal list, so the
-  panel cannot re-open a kept proposal by hand; a same-book reload starts
-  with an empty panel. Stale source is detected by comparing the
+  book again does not bring them back. `GET
+  /api/translated_edition/latest-proposal` returns the active book's most
+  recent saved proposal (with its `stale` flag), or a clear `proposal:
+  null` when there is none; the panel loads it whenever it opens with no
+  in-memory proposal, so a kept proposal is reachable again after a reload.
+  Malformed proposal files are reported by name in `malformed_proposals`
+  and never hide a good one. There is still no proposal history or list UI:
+  only the most recent proposal per book is re-openable. Stale source is
+  detected by comparing the
   current script SHA; a busy book makes the re-check refuse with "book is
   busy" rather than claiming the proposal is stale.
 - `app/routers/translated_edition.py` — `GET /api/translated_edition/pairs`,
   `POST /api/translated_edition/proposals`, and
   `GET /api/translated_edition/proposals/{id}` (reads back one proposal
-  with a `stale` flag), plus
+  with a `stale` flag),
+  `GET /api/translated_edition/latest-proposal` (the most recent proposal
+  for the active book, or `proposal: null`), plus
   `POST /api/translated_edition/proposals/{cancel_token}/cancel` for a
-  running preview. Registered like the other routers in `app/app.py`;
+  running preview. Only one preview runs at a time: a second concurrent
+  create gets 409 rather than loading a second translator/model. The
+  preview is CPU-only by construction: `build_argos_translator` refuses any
+  effective Argos device other than `cpu`, because upstream
+  `argostranslate/settings.py` defaults `ARGOS_DEVICE_TYPE` to `cpu` but a
+  user setting `cuda` would otherwise run CTranslate2/Stanza GPU inference
+  (the only two GPU paths in upstream `translate.py`, both gated on
+  `settings.device`) outside `process_state` and the GPU lock. Registered like the other routers in `app/app.py`;
   `app/api_contract/{openapi,routes}.json` regenerated with
   `app/update_api_contract_snapshots.py`. The create endpoint contains no
   approve or publish action.
@@ -95,7 +123,11 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   refusal rather than stale, and book load removing a previous book's
   proposals while a same-book reload keeps them, a corrupt or malformed
   active workspace never blocking the load, and a failed proposal-folder
-  removal not failing a committed load.
+  removal not failing a committed load, a trailing-punctuation number not
+  flagging a correct translation, a non-CPU Argos device refused, a second
+  concurrent preview refused, the most-recent-proposal lookup (including
+  malformed files not hiding a good one and another book's proposal never
+  returned), and toggling the panel during a build not discarding it.
 
 ## Licensing notes
 
@@ -142,10 +174,13 @@ and `argostranslate/package.py` at
   reviewable rules, not by any semantic policy; a human still has to
   read every row.
 - Cancelling stops the preview after the current row; a row already sent
-  to the translator is not interrupted. There is no list of older
-  proposals: the panel shows the proposal it just built, and loading a
-  different book removes the previous book's proposals with its other
-  active-book artifacts.
+  to the translator is not interrupted. There is no list or history of
+  older proposals: the panel shows the proposal it just built, or the most
+  recent saved proposal for the current book when it opens. Loading a
+  different saved book from the library removes the previous book's
+  proposals with its other active-book artifacts; selecting an uploaded
+  source leaves them on disk (never shown for the new book) until that
+  different-book library load.
 
 ## Recommendation
 

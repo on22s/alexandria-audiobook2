@@ -15834,6 +15834,22 @@
         "summary": "Audition Take Snapshot"
       }
     },
+    "/api/translated_edition/latest-proposal": {
+      "get": {
+        "operationId": "get_translated_edition_latest_proposal_api_translated_edition_latest_proposal_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Translated Edition Latest Proposal"
+      }
+    },
     "/api/translated_edition/pairs": {
       "get": {
         "operationId": "get_translated_edition_pairs_api_translated_edition_pairs_get",

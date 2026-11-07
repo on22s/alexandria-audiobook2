@@ -7,7 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from routers import translated_edition as router_module
 from tests.test_translated_edition import PAIR, get_book, get_bytes
@@ -151,6 +151,76 @@ class TranslatedEditionAPITests(unittest.TestCase):
         # The same token is free again once the first preview has ended.
         retry = router_module._begin_preview(token)
         router_module._end_preview(token, retry)
+
+    def test_latest_proposal_endpoint_round_trip_and_stale(self):
+        empty = self.client.get('/api/translated_edition/latest-proposal')
+        self.assertEqual(200, empty.status_code, empty.text)
+        self.assertIsNone(empty.json()["proposal"])
+        self.assertEqual([], empty.json()["malformed_proposals"])
+        proposal = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"}).json()
+        latest = self.client.get('/api/translated_edition/latest-proposal')
+        self.assertEqual(200, latest.status_code, latest.text)
+        self.assertEqual(proposal["proposal_id"],
+                         latest.json()["proposal"]["proposal_id"])
+        self.assertFalse(latest.json()["proposal"]["stale"])
+        (self.root / "annotated_script.json").write_text(
+            json.dumps([{"speaker": "ALICE", "text": "Changed synthetic line."}]),
+            encoding="utf-8")
+        stale = self.client.get('/api/translated_edition/latest-proposal')
+        self.assertTrue(stale.json()["proposal"]["stale"])
+
+    def test_latest_proposal_endpoint_reports_malformed_files(self):
+        proposal = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"}).json()
+        proposals_dir = self.root / "translation_proposals"
+        (proposals_dir / ("d" * 32 + ".json")).write_text("not json", encoding="utf-8")
+        latest = self.client.get('/api/translated_edition/latest-proposal')
+        self.assertEqual(proposal["proposal_id"],
+                         latest.json()["proposal"]["proposal_id"])
+        self.assertEqual(["d" * 32 + ".json"], latest.json()["malformed_proposals"])
+
+    def test_second_concurrent_preview_is_refused_and_guard_released(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def blocking_translate(text):
+            entered.set()
+            release.wait(timeout=10)
+            return "FR: " + text
+
+        outcomes = {}
+
+        def run_first():
+            try:
+                outcomes["first"] = router_module._create_proposal(
+                    router_module.ProposalRequest(
+                        source_language="en", target_language="fr"))
+            except Exception as error:  # failure collected for the assertion
+                outcomes["first_error"] = error
+
+        with patch.object(router_module.translated_edition, "build_argos_translator",
+                          lambda from_code, to_code: blocking_translate):
+            thread = threading.Thread(target=run_first)
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(timeout=10))
+                with self.assertRaises(HTTPException) as ctx:
+                    router_module._create_proposal(
+                        router_module.ProposalRequest(
+                            source_language="en", target_language="fr"))
+                self.assertEqual(409, ctx.exception.status_code)
+                self.assertIn("already running", ctx.exception.detail)
+            finally:
+                release.set()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual("complete", outcomes["first"]["status"])
+        # The guard was released on the exit path: a later preview runs.
+        retry = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"})
+        self.assertEqual(200, retry.status_code, retry.text)
+        self.assertEqual("complete", retry.json()["status"])
 
     def test_busy_book_during_stale_recheck_is_a_refusal_not_a_500(self):
         proposal = self.client.post('/api/translated_edition/proposals', json={
