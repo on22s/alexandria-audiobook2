@@ -1223,8 +1223,10 @@ print(len(result['entries']))
 
     def test_adapter_bundle_digest_rejects_invalid_root_type(self):
         import adapter_publication
-        with self.assertRaisesRegex(ValueError, 'root is required'):
-            adapter_publication.get_adapter_bundle_sha256(None)
+        for root in (None, b'fixture'):
+            with self.subTest(root=root), self.assertRaisesRegex(
+                    ValueError, 'root is required'):
+                adapter_publication.get_adapter_bundle_sha256(root)
 
     @unittest.skipIf(os.name == 'nt', 'POSIX surrogate-escaped filename required')
     def test_adapter_bundle_digest_accepts_surrogate_escaped_filename(self):
@@ -1237,9 +1239,12 @@ print(len(result['entries']))
                 if error.errno != errno.EILSEQ:
                     raise
                 self.skipTest('this filesystem refuses non-UTF-8 names')
-            self.assertRegex(
-                adapter_publication.get_adapter_bundle_sha256(temporary),
-                r'^[0-9a-f]{64}$')
+            digest = adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertRegex(digest, r'^[0-9a-f]{64}$')
+            self.assertEqual(
+                books._bounded_book_digest(
+                    Path(temporary), books._BookScanBudget(1024, 8, None)),
+                digest)
 
     def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
         import adapter_publication

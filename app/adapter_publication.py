@@ -172,7 +172,7 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
             raise ValueError(f"adapter bundle directory changed: {directory}") from error
         if version(directory_after) != version(directory_before):
             raise ValueError(f"adapter bundle directory changed: {directory}")
-    encoded = json.dumps(rows, ensure_ascii=False).encode("utf-8", errors="surrogateescape")
+    encoded = json.dumps(rows, ensure_ascii=True).encode("utf-8")
     for path, expected in artifact_versions:
         check_cancellation()
         try:
