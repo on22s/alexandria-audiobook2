@@ -313,6 +313,16 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different book"):
             translated_edition.get_proposal(str(self.root), proposal["proposal_id"])
 
+    def test_busy_book_is_reported_as_a_refusal(self):
+        get_book(self.root, [{"speaker": "ALICE", "text": "Synthetic line."}])
+        with patch.object(translated_edition, "ensure_book_state",
+                          side_effect=TimeoutError("fixture lock busy")):
+            with self.assertRaisesRegex(ValueError, "busy"):
+                translated_edition.build_proposal(
+                    str(self.root), source_language="en", target_language="fr",
+                    translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
+        self.assertFalse((self.root / "translation_proposals").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

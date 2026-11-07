@@ -13578,6 +13578,7 @@
     "tests.test_translated_edition.InstalledPairsTests.test_unavailable_without_package",
     "tests.test_translated_edition.ProposalTests.test_argos_translator_unavailable_refused",
     "tests.test_translated_edition.ProposalTests.test_book_switch_mid_build_is_not_saved",
+    "tests.test_translated_edition.ProposalTests.test_busy_book_is_reported_as_a_refusal",
     "tests.test_translated_edition.ProposalTests.test_cancellation_marks_remaining_rows",
     "tests.test_translated_edition.ProposalTests.test_complete_proposal_saved_and_bytes_unchanged",
     "tests.test_translated_edition.ProposalTests.test_control_tags_and_markup_unsupported",

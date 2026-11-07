@@ -198,6 +198,8 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
             book_token = get_book_operation_token(root)
     except FileNotFoundError as error:
         raise ValueError("Saved Script is missing") from error
+    except TimeoutError as error:
+        raise ValueError("Book is busy; the preview was not started") from error
     script_bytes = snapshot["script_bytes"]
     if script_bytes is None:
         raise ValueError("Saved Script is missing")
@@ -315,6 +317,8 @@ def get_proposal(data_dir, proposal_id):
                 raise ValueError("Saved translation proposal needs inspection")
             if proposal.get("book_id") != snapshot["book_id"]:
                 raise ValueError("Translation proposal belongs to a different book")
+    except FileNotFoundError as error:
+        raise ValueError("Translation proposal not found") from error
     except TimeoutError as error:
         raise ValueError("Book is busy; the proposal was not read") from error
     return proposal
