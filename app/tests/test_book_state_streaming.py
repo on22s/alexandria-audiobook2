@@ -1224,6 +1224,28 @@ print(len(result['entries']))
             self.assertEqual(b'owned', retained.read_bytes())
             self.assertEqual(b'foreign', target.read_bytes())
 
+    def test_regular_byte_digest_normalizes_missing_entry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'missing'
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                books._get_digest(target)
+
+    def test_adapter_digest_opens_regular_files_nonblocking(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            real_open = adapter_publication.os.open
+            sentinel = 1 << 29
+            observed = []
+            def require_nonblocking(path, flags, *args, **kwargs):
+                observed.append(bool(flags & sentinel))
+                return real_open(path, flags & ~sentinel, *args, **kwargs)
+            with patch.object(adapter_publication.os, 'O_NONBLOCK', sentinel, create=True), \
+                 patch.object(adapter_publication.os, 'open', side_effect=require_nonblocking):
+                adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertEqual([True], observed)
+
     def test_adapter_digest_closes_descriptor_when_fdopen_fails(self):
         import adapter_publication
         with tempfile.TemporaryDirectory() as temporary:
@@ -1374,31 +1396,24 @@ print(len(result['entries']))
             self.assertEqual(original, (root / 'audio.wav').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 
-    def test_apply_forwards_cancellation_to_post_commit_validation_and_finish(self):
+    def test_apply_defers_cancellation_after_commit_point(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'audio.wav').write_bytes(b'old')
-            cancel = lambda: False
-            verify = books._verify_committed_stream_targets
-            finish = books._finish_transaction
-            validation_checks = []
-            finish_checks = []
-            def observe_validation(rows, targets, budget):
-                validation_checks.append(budget.cancel_check)
-                return verify(rows, targets, budget)
-            def observe_finish(*args, **kwargs):
-                finish_checks.append(kwargs.get('cancel_check'))
-                return finish(*args, **kwargs)
-            with patch.object(books, '_verify_committed_stream_targets',
-                              side_effect=observe_validation), \
-                 patch.object(books, '_finish_transaction', side_effect=observe_finish), \
+            save = books._save_journal
+            committed = []
+            def mark_commit(*args, **kwargs):
+                result = save(*args, **kwargs)
+                data = args[1]
+                if data.get('phase') == 'committed':
+                    committed.append(True)
+                return result
+            with patch.object(books, '_save_journal', side_effect=mark_commit), \
                  books.ensure_book_state(root):
                 books.apply_book_state_locked(
                     root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100,
-                    cancel_check=cancel)
-            self.assertGreaterEqual(len(validation_checks), 2)
-            self.assertTrue(all(check is cancel for check in validation_checks))
-            self.assertEqual([cancel], finish_checks)
+                    cancel_check=lambda: bool(committed))
+            self.assertEqual([True], committed)
             self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
 

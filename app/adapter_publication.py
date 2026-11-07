@@ -131,7 +131,8 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
                 rows.append((relative, "link", link))
             elif stat.S_ISREG(mode):
                 digest = hashlib.sha256()
-                flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0)
+                         | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
                 fd = os.open(path, flags)
                 try:
                     handle = os.fdopen(fd, "rb")

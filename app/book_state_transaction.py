@@ -1042,7 +1042,10 @@ def _get_path(root, relative):
 
 
 def _get_digest(path, cancel_check=None):
-    before = path.lstat()
+    try:
+        before = path.lstat()
+    except OSError as error:
+        raise ValueError('Book artifact changed during digest') from error
     if stat.S_ISLNK(before.st_mode):
         raise ValueError('Book artifact must not be a symlink')
     if stat.S_ISDIR(before.st_mode):
@@ -2894,19 +2897,19 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             root_guard.check()
         journal_version = _save_journal(root, data, expected_version=journal_version,
                                         root_fd=root_fd)
+        # Publication is durable at this point.  Finish validation and cleanup
+        # without surfacing a late cancellation for data that was committed.
         if streams:
             _verify_committed_stream_targets(rows, targets,
-                _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check))
+                _BookScanBudget(stream_byte_limit, MAX_FILES, None))
         else:
-            _validate_committed_byte_backups(
-                workspace, rows, targets, cancel_check=cancel_check)
+            _validate_committed_byte_backups(workspace, rows, targets)
         release_root_guard()
         _finish_transaction(root, workspace,
                             journal_version=journal_version,
                             stream_data=data if streams else None,
                             byte_data=data if not streams else None,
-                            targets=targets if not streams else None,
-                            cancel_check=cancel_check)
+                            targets=targets if not streams else None)
     except BaseException as original_error:
         if isinstance(original_error, BookJournalPublicationUncertain):
             raise
