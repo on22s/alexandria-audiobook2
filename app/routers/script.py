@@ -76,7 +76,9 @@ from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
-from source_upload_publication import create_source_upload_stage, publish_completed_upload
+from source_upload_publication import (create_source_upload_stage, publish_completed_upload,
+                                     publish_retained_epub_upload, get_retained_epub_name)
+
 from source_upload_stage import OwnedSourceUploadStage, get_upload_stage_accounting
 from docx_preview import extract_docx_preview, MAX_ARCHIVE as MAX_DOCX_ARCHIVE
 from docx_publication import DocxStorageLimit, publish_docx_upload
@@ -1147,6 +1149,11 @@ def get_docx_retained_uploads():
     from docx_retention import get_retained_docx_inventory
     return get_retained_docx_inventory(UPLOADS_DIR, MAX_UPLOAD_STORAGE_BYTES)
 
+@router.get("/api/uploads/epub-retained")
+def get_epub_retained_uploads():
+    from source_upload_publication import get_retained_epub_inventory
+    return get_retained_epub_inventory(UPLOADS_DIR, MAX_UPLOAD_STORAGE_BYTES)
+
 @router.post("/api/upload")
 async def upload_file(file: UploadFile = File(...), select_active: bool = True, include_extraction_report: bool = False,
                       docx_preview: bool = False, docx_confirmed: bool = False,
@@ -1184,6 +1191,11 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
         selection['publication_started'] = True
     publication = publication_update = publication_bytes = None
     extraction_report = None
+    epub_retained_bytes = None
+    retained_stage = None
+    retained_epub_path = None
+    retained_unknown_error = None
+    pending_retained_attach = False
     request_error = None
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
@@ -1273,11 +1285,15 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                 raise cancelled
             if text_bytes is None:
                 raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
-            # The captured archive bytes now own parsing/provenance input; do
-            # not reserve both its stage and the extracted text simultaneously.
+            # Archive bytes are retained for read-aloud (#1779). Windows admits
+            # one rename guard per directory, so the capture stage is closed
+            # here and a fresh retained stage is published later from memory
+            # (already bounded by the capture limit) once the TXT is new.
+            epub_retained_bytes = archive_bytes
             _, cancelled = await await_upload_operation(asyncio.to_thread(file_path.close))
             if cancelled is not None:
                 raise cancelled
+            file_path = None
             available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
             if len(text_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, available):
                 raise HTTPException(status_code=413, detail="Extracted EPUB text exceeds source upload storage limits.")
@@ -1300,33 +1316,248 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             if cancelled is not None:
                 raise cancelled
             safe_name = os.path.splitext(safe_name)[0] + '.txt'
-            txt_path, cancelled = await await_upload_operation(
-                asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR, limit=len(text_bytes)))
-            owned_stages.append(txt_path)
-            stage_cleanup.callback(txt_path.close)
+            text_sha256 = hashlib.sha256(text_bytes).hexdigest()
+            def find_duplicate_text():
+                with _upload_dedupe_lock:
+                    for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
+                        try:
+                            facts = os.lstat(entry.path)
+                            if (not entry.is_file(follow_symlinks=False)
+                                    or facts.st_nlink != 1
+                                    or os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS
+                                    or facts.st_size != len(text_bytes)):
+                                continue
+                            if _get_upload_hash(entry.path) == text_sha256:
+                                return entry.path
+                        except FileNotFoundError:
+                            continue
+                    return None
+            canonical, cancelled = await await_upload_operation(asyncio.to_thread(find_duplicate_text))
             if cancelled is not None:
                 raise cancelled
-            _, cancelled = await await_upload_operation(asyncio.to_thread(txt_path.write, text_bytes))
+            if canonical is not None:
+                file_path = canonical
+                # Original-bytes authority (R5): a canonical TXT may only be
+                # reused when an existing retained EPUB holds the identical
+                # original bytes. A present retained file that differs
+                # (different edition or tampered bytes) refuses before any
+                # companion update; an untrusted/symlink/hardlink collision
+                # also refuses without overwriting. A genuinely missing
+                # retained file is attached below after quota reservation.
+                from source_upload_publication import get_retained_epub_path
+                canonical_retained = get_retained_epub_path(canonical)
+                try:
+                    retained_facts = os.lstat(canonical_retained)
+                except FileNotFoundError:
+                    pending_retained_attach = True
+                except OSError as error:
+                    raise HTTPException(status_code=409, detail=(
+                        'Retained EPUB is unavailable; refusing to reuse the '
+                        'canonical source. Inspect uploads via '
+                        'GET /api/uploads/epub-retained before retrying.')) from error
+                else:
+                    if not stat.S_ISREG(retained_facts.st_mode) or retained_facts.st_nlink != 1:
+                        raise HTTPException(status_code=409, detail=(
+                            f"Retained EPUB '{os.path.basename(canonical_retained)}' "
+                            'is not a regular single-link file; refusing to reuse foreign '
+                            'or linked bytes. Remove the conflicting file manually via '
+                            'GET /api/uploads/epub-retained before re-uploading.'))
+                    if retained_facts.st_size > MAX_SCRIPT_UPLOAD_BYTES:
+                        raise HTTPException(status_code=409, detail=(
+                            f"Retained EPUB '{os.path.basename(canonical_retained)}' "
+                            'exceeds the retained EPUB limit; refusing to reuse it. '
+                            'Inspect uploads via GET /api/uploads/epub-retained.'))
+                    try:
+                        # Original-byte authority requires a fresh descriptor
+                        # read with before/after identity checks. The dedupe
+                        # cache's size/mtime key cannot prove retained bytes
+                        # after a timestamp-preserving restore.
+                        captured_retained, hash_cancelled = await await_upload_operation(
+                            asyncio.to_thread(capture_scope_file, UPLOADS_DIR,
+                                              os.path.basename(canonical_retained),
+                                              limit=MAX_SCRIPT_UPLOAD_BYTES))
+                        retained_identity, _raw = captured_retained
+                        if not retained_identity['exists']:
+                            raise ValueError('Retained EPUB disappeared during verification')
+                        retained_sha = retained_identity['sha256']
+                    except OSError as error:
+                        raise HTTPException(status_code=409, detail=(
+                            'Retained EPUB could not be verified; refusing to reuse '
+                            'the canonical source.')) from error
+                    except ValueError as error:
+                        raise HTTPException(status_code=409, detail=(
+                            'Retained EPUB identity changed during verification; '
+                            'refusing to reuse the canonical source.')) from error
+                    if hash_cancelled is not None:
+                        raise hash_cancelled
+                    new_sha = hashlib.sha256(epub_retained_bytes).hexdigest()
+                    if retained_sha != new_sha:
+                        raise HTTPException(status_code=409, detail=(
+                            'Uploaded EPUB original differs from the retained EPUB '
+                            'for this text; refusing to reuse the canonical source '
+                            'or overwrite its provenance. Re-upload the exact '
+                            'retained bytes, or remove the existing TXT / retained / '
+                            'companion group via GET /api/uploads/epub-retained and '
+                            'import this edition as a new book.'))
+                    retained_epub_path = canonical_retained
+            else:
+                # One Windows guard at a time: publish retention first, then TXT.
+                # Jointly select one stem for TXT + companion + retained so
+                # collision numbering can never split the group (for example
+                # retained book_2.source.epub alongside TXT book.txt).
+                base, ext = os.path.splitext(safe_name)
+                chosen_txt = chosen_retained = None
+                for number in range(1, 1002):
+                    candidate_txt = safe_name if number == 1 else f"{base}_{number}{ext}"
+                    candidate_retained = get_retained_epub_name(candidate_txt)
+                    if (os.path.lexists(os.path.join(UPLOADS_DIR, candidate_txt))
+                            or os.path.lexists(os.path.join(UPLOADS_DIR, candidate_txt + '.publication.json'))
+                            or os.path.lexists(os.path.join(UPLOADS_DIR, candidate_retained))):
+                        continue
+                    chosen_txt, chosen_retained = candidate_txt, candidate_retained
+                    break
+                if chosen_txt is None:
+                    raise HTTPException(status_code=409, detail="Too many source upload filename collisions")
+                safe_name, retained_name = chosen_txt, chosen_retained
+                remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+                if len(epub_retained_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, remaining):
+                    raise HTTPException(status_code=413, detail="Retained EPUB exceeds source upload storage limits.")
+                # Reserve retained + TXT + companion together before any
+                # publish so a companion-quota 413 leaves no orphan retained.
+                companion_room = remaining - len(epub_retained_bytes) - len(text_bytes)
+                if companion_room < 0:
+                    raise HTTPException(status_code=413, detail="Retained EPUB and extracted text exceed source upload storage limits.")
+                try:
+                    _early_companion, early_cancelled = await await_upload_operation(asyncio.to_thread(
+                        get_new_upload_publication_bytes, text_sha256, publication, companion_room))
+                except PublicationSourceLimit as error:
+                    raise HTTPException(status_code=413, detail=str(error)) from error
+                except ValueError as error:
+                    raise HTTPException(status_code=409, detail=str(error)) from error
+                if early_cancelled is not None:
+                    raise early_cancelled
+                try:
+                    retained_stage, cancelled = await await_upload_operation(asyncio.to_thread(
+                        create_source_upload_stage, UPLOADS_DIR, limit=len(epub_retained_bytes)))
+                    if cancelled is not None:
+                        raise cancelled
+                    owned_stages.append(retained_stage)
+                    stage_cleanup.callback(retained_stage.close)
+                    _, cancelled = await await_upload_operation(asyncio.to_thread(
+                        retained_stage.write, epub_retained_bytes))
+                    if cancelled is not None:
+                        raise cancelled
+                    retained_epub_path, cancelled = await await_upload_operation(asyncio.to_thread(
+                        publish_retained_epub_upload, retained_stage, retained_name,
+                        limit=MAX_SCRIPT_UPLOAD_BYTES,
+                        on_visible=retain_selected_source, exact=True))
+                except ValueError as error:
+                    raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
+                except OSError as error:
+                    # Unknown commit outcome (writer-close / rename alias
+                    # check): the retained file is already visible. Do not
+                    # discard it or abort before the TXT publish so the
+                    # source+provenance the caller must review still exists;
+                    # the stored error is re-raised after the TXT publish.
+                    stage = retained_stage
+                    published = getattr(stage, 'published_path', None) if stage is not None else None
+                    if stage is not None and getattr(stage, 'publication_started', False) and published is not None:
+                        retained_unknown_error = error
+                        retained_epub_path = published
+                        # Release the Windows rename guard so the TXT stage
+                        # can be created; the file stays published.
+                        try:
+                            stage.close()
+                        except BaseException:
+                            pass
+                    else:
+                        raise
+                if cancelled is not None:
+                    raise cancelled
+                txt_path, cancelled = await await_upload_operation(
+                    asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR, limit=len(text_bytes)))
+                owned_stages.append(txt_path)
+                stage_cleanup.callback(txt_path.close)
+                if cancelled is not None:
+                    raise cancelled
+                _, cancelled = await await_upload_operation(asyncio.to_thread(txt_path.write, text_bytes))
+                if cancelled is not None:
+                    raise cancelled
+                file_path = txt_path
+        if epub_retained_bytes is not None:
+            # EPUB dedupe already decided above; skip the generic scan.
+            reused = isinstance(file_path, str) and not hasattr(file_path, 'size')
+        else:
+            try:
+                result, cancelled = await await_upload_operation(
+                    asyncio.to_thread(_reuse_duplicate_upload, file_path))
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
+            file_path, reused = result
             if cancelled is not None:
                 raise cancelled
-            file_path = txt_path
-        try:
-            result, cancelled = await await_upload_operation(
-                asyncio.to_thread(_reuse_duplicate_upload, file_path))
-        except ValueError as error:
-            raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
-        file_path, reused = result
-        if cancelled is not None:
-            raise cancelled
         if publication is not None:
             try:
                 remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
                 if reused:
+                    # Reserve quota for the deferred retained attach so a
+                    # companion+archive 413 leaves no new retained file.
+                    _reserve = len(epub_retained_bytes) if pending_retained_attach else 0
                     publication_update, cancelled = await await_upload_operation(asyncio.to_thread(
-                        get_upload_publication_update, file_path, publication, remaining,
-                        source_limit=MAX_SCRIPT_UPLOAD_BYTES))
+                        get_upload_publication_update, file_path, publication,
+                        remaining - _reserve, source_limit=MAX_SCRIPT_UPLOAD_BYTES))
                     if cancelled is not None:
                         raise cancelled
+                    if pending_retained_attach:
+                        # A missing retained file may only be attached for an
+                        # edition already present in provenance (or when no
+                        # provenance exists yet). Attaching a different
+                        # edition while old origins have no retained bytes
+                        # would leave partial provenance, so refuse before any
+                        # retained publish.
+                        if publication_update['old_bytes'] is not None:
+                            from publication_source import get_publication_source_document
+                            try:
+                                old_doc = get_publication_source_document(publication_update['old_bytes'])
+                            except ValueError as error:
+                                raise HTTPException(status_code=409, detail=str(error)) from error
+                            old_ids = {row['id'] for row in old_doc.get('candidates', [])}
+                            if old_ids and publication['id'] not in old_ids:
+                                raise HTTPException(status_code=409, detail=(
+                                    'Retained EPUB is missing and this upload is a '
+                                    'different edition than the stored provenance; '
+                                    'refusing to attach it. Re-upload the exact '
+                                    'retained edition, or remove the existing group via '
+                                    'GET /api/uploads/epub-retained and import this edition '
+                                    'as a new book.'))
+                        # Exact retained name: a collision steps would split the
+                        # TXT/retained group, so a foreign file here refuses
+                        # instead of stepping to a numbered name.
+                        from source_upload_publication import get_retained_epub_path
+                        _att_name = os.path.basename(get_retained_epub_path(file_path))
+                        remaining2 = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+                        if len(epub_retained_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, remaining2):
+                            raise HTTPException(status_code=413, detail="Retained EPUB exceeds source upload storage limits.")
+                        try:
+                            retained_stage, cancelled = await await_upload_operation(asyncio.to_thread(
+                                create_source_upload_stage, UPLOADS_DIR, limit=len(epub_retained_bytes)))
+                            if cancelled is not None:
+                                raise cancelled
+                            owned_stages.append(retained_stage)
+                            stage_cleanup.callback(retained_stage.close)
+                            _, cancelled = await await_upload_operation(asyncio.to_thread(
+                                retained_stage.write, epub_retained_bytes))
+                            if cancelled is not None:
+                                raise cancelled
+                            retained_epub_path, cancelled = await await_upload_operation(asyncio.to_thread(
+                                publish_retained_epub_upload, retained_stage, _att_name,
+                                limit=MAX_SCRIPT_UPLOAD_BYTES,
+                                on_visible=retain_selected_source, exact=True))
+                        except ValueError as error:
+                            raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
+                        if cancelled is not None:
+                            raise cancelled
+                        pending_retained_attach = False
                     # This source is already library-owned. A reader may observe
                     # the atomic provenance update before this request returns.
                     retain_selected_source()
@@ -1343,9 +1574,51 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     if cancelled is not None:
                         raise cancelled
             except PublicationSourceLimit as error:
+                if retained_epub_path is not None:
+                    raise HTTPException(status_code=413, detail=(
+                        f"{error}; retained EPUB '{os.path.basename(retained_epub_path)}' "
+                        'remains as recovery material via GET /api/uploads/epub-retained.')) from error
                 raise HTTPException(status_code=413, detail=str(error)) from error
             except ValueError as error:
+                if retained_epub_path is not None:
+                    raise HTTPException(status_code=409, detail=(
+                        f"{error}; retained EPUB '{os.path.basename(retained_epub_path)}' "
+                        'remains as recovery material via GET /api/uploads/epub-retained.')) from error
                 raise HTTPException(status_code=409, detail=str(error)) from error
+            except OSError as error:
+                if retained_epub_path is not None:
+                    raise HTTPException(status_code=500, detail=(
+                        f"EPUB publication is temporarily unavailable; retained EPUB "
+                        f"'{os.path.basename(retained_epub_path)}' remains as recovery material.")) from error
+                raise
+        if pending_retained_attach:
+            # No companion to reserve (unreachable for EPUB uploads with
+            # publication); publish the deferred attach now.
+            from source_upload_publication import get_retained_epub_path
+            _att_name = os.path.basename(get_retained_epub_path(file_path))
+            remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
+            if len(epub_retained_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, remaining):
+                raise HTTPException(status_code=413, detail="Retained EPUB exceeds source upload storage limits.")
+            try:
+                retained_stage, cancelled = await await_upload_operation(asyncio.to_thread(
+                    create_source_upload_stage, UPLOADS_DIR, limit=len(epub_retained_bytes)))
+                if cancelled is not None:
+                    raise cancelled
+                owned_stages.append(retained_stage)
+                stage_cleanup.callback(retained_stage.close)
+                _, cancelled = await await_upload_operation(asyncio.to_thread(
+                    retained_stage.write, epub_retained_bytes))
+                if cancelled is not None:
+                    raise cancelled
+                retained_epub_path, cancelled = await await_upload_operation(asyncio.to_thread(
+                    publish_retained_epub_upload, retained_stage, _att_name,
+                    limit=MAX_SCRIPT_UPLOAD_BYTES,
+                    on_visible=retain_selected_source, exact=True))
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
+            if cancelled is not None:
+                raise cancelled
+            pending_retained_attach = False
         if not reused:
             try:
                 file_path, cancelled = await await_upload_operation(asyncio.to_thread(
@@ -1353,9 +1626,34 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     limit=MAX_SCRIPT_UPLOAD_BYTES,
                     companion_bytes=publication_bytes))
             except ValueError as error:
+                # A confirmed retained EPUB is never unlinked after it became
+                # visible (``on_visible`` fired). ``publication_started`` is
+                # intentionally unknown-protecting: a failed TXT publish
+                # cannot prove the retained file unobserved, so it stays as
+                # quota-accounted recovery, visible via the inventory.
+                if retained_epub_path is not None:
+                    name = os.path.basename(retained_epub_path)
+                    raise HTTPException(status_code=409, detail=(
+                        f"TXT publication failed ({redact_text(str(error))}); "
+                        f"retained EPUB '{name}' remains as recovery material "
+                        'and counts toward quota. Remove it manually via '
+                        'GET /api/uploads/epub-retained inventory before retrying; '
+                        'no existing group was overwritten.')) from error
                 raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
+            except OSError:
+                # Preserve the unknown-commit type: plain-TXT and EPUB
+                # writer-close failures must stay OSError for direct callers
+                # (frozen visibility contract). Files already published stay
+                # retained and quota-accounted; the HTTP 500 is the failure
+                # signal and the inventory shows the recovery group.
+                raise
             if cancelled is not None:
                 raise cancelled
+            if retained_unknown_error is not None:
+                raise retained_unknown_error
+        # Identical-bytes duplicate: the canonical retained EPUB already holds
+        # these exact original bytes (verified above); no second file is
+        # created and no duplicate quota is charged.
         selection_token = None
         if select_active:
             selection_token, cancelled = await await_upload_operation(asyncio.to_thread(
@@ -1364,6 +1662,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                 raise cancelled
         return {"filename": file.filename, "stored_filename": os.path.basename(file_path),
                 "path": file_path, "reused": reused,
+                "retained_epub": (os.path.basename(retained_epub_path)
+                                 if retained_epub_path is not None else None),
                 "book_identity_token": selection_token,
                 "publication_status": publication['metadata_status'] if publication is not None else 'not_captured',
                 "publication_warnings": publication['warnings'] if publication is not None else [],

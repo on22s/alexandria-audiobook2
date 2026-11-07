@@ -3892,6 +3892,30 @@
                                     <div id="chapter-list" class="mt-2 small"></div>
                                 </div>
                             </div>
+                            <details id="readalong-options" class="workflow-disclosure mt-3 text-start">
+                                <summary>Read-along sidecar (synchronized text)</summary>
+                                <p class="small mt-2">Builds a JSON sidecar bound to a fresh MP3 that this build makes itself from your current Editor rows and your current settings — no Merge All needed first. It uses the existing frame-exact timeline and, when available, the same word timings as the Editor; timings it cannot qualify stay marked missing or ambiguous. Ordinary MP3 exports do not include this file. You need three downloads to listen: the sidecar, the matching MP3 below, and the player.</p>
+                                <label class="form-check small"><input class="form-check-input" type="checkbox" id="readalong-include-text"><span class="form-check-label">Include book text in the sidecar (unchecked sidecars contain timings only)</span></label>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="readalong-build-btn" onclick="buildReadalongSidecar()">Build sidecar</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readalong-cancel-btn" style="display:none" onclick="cancelReadalongSidecar()">Cancel</button>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readalong/sidecar" download="readalong.sidecar.json">Download sidecar</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readalong/sidecar/audio" download="audiobook.mp3">Download MP3 (matching)</a>
+                                    <a class="btn btn-outline-secondary btn-sm" href="/api/readalong/player" download="readalong-player.html">Download player</a>
+                                </div>
+                                <p id="readalong-status" class="small mt-2" role="status" aria-live="polite">Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.</p>
+                            </details>
+                            <details id="readaloud-options" class="workflow-disclosure mt-3 text-start">
+                                <summary>EPUB 3 read-aloud (source-preserving)</summary>
+                                <p class="small mt-2">Builds an EPUB 3 whose text and cover come from the retained original EPUB upload, with SMIL timing from a fresh MP3 this build makes itself — no Merge All needed first. When the script text can no longer be mapped unambiguously to the source, the build fails with the reason instead of substituting a text-only book. The EPUB includes its audio for compatible read-aloud readers. The matching MP3 download below is optional.</p>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="readaloud-build-btn" onclick="buildReadaloudEpub()">Build EPUB</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readaloud-cancel-btn" style="display:none" onclick="cancelReadaloudEpub()">Cancel</button>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readaloud_epub" download="readaloud.epub">Download EPUB</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readaloud_epub/audio" download="audiobook.mp3">Download MP3 (matching)</a>
+                                </div>
+                                <p id="readaloud-status" class="small mt-2" role="status" aria-live="polite">Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).</p>
+                            </details>
                         </div>
                     </div>
                 </div>
@@ -4132,6 +4156,7 @@
     <script src="/static/js/app-sound-mixes.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-mastering.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-export-quality.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-readalong.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-audiobookshelf.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-calibre.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-publication.js?v=__APP_BUILD__"></script>

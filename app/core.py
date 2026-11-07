@@ -601,6 +601,8 @@ process_state = {
     "batch_script":   {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None},
     "voicelab":       {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "status": "idle", "start_time": None},
     "benchmark":      {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "status": "idle", "start_time": None},
+    "readalong_sidecar": {"running": False, "logs": [], "cancel": False, "start_time": None, "result": None, "task_claim_id": None, "readalong_generation": 0, "readalong_book_token": None, "readalong_snapshot": None},
+    "readaloud_epub": {"running": False, "logs": [], "cancel": False, "start_time": None, "result": None, "task_claim_id": None, "readalong_generation": 0, "readalong_book_token": None, "readalong_snapshot": None},
 }
 
 # Tasks that don't touch the GPU/LLM and are exempt from the global GPU lock.
@@ -608,7 +610,8 @@ process_state = {
 # inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
 # "drift_check" scores audio with ECAPA under the sibling interpreter, which
 # pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
-NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "outlier_check", "chapter_export"}
+NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "outlier_check", "chapter_export",
+                 "readalong_sidecar", "readaloud_epub"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # Tasks whose only accelerator use is the LLM endpoint. When the active LLM
 # profile is not on this machine's GPU (hosted API, a CPU-served model, a
@@ -962,10 +965,14 @@ def _run_owned_background_task(task_name, claim_id, callback, already_started=Fa
     if not _ensure_owned_task_started(task_name, claim_id, already_started):
         return
     try:
+        # R2: read-along builds publish through ExportSourceSnapshot, whose
+        # admission needs the exact-owner callback (cancel + book fencing).
+        # Without an owner those checks were no-ops for readalong tasks.
         owner = (AudioGenerationOwner(claim_id, functools.partial(_ensure_audio_task_owner,
                     claim_id,task_name=task_name))
                  if task_name in ('audio', 'speech_verification', 'm4b_export',
-                                  'chapter_export', 'audacity_export') else None)
+                                  'chapter_export', 'audacity_export',
+                                  'readalong_sidecar', 'readaloud_epub') else None)
         with ensure_audio_generation_owner(owner):
             return callback()
     finally:

@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>AA2 read-along player</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:system-ui,sans-serif;max-width:60rem;margin:1rem auto;padding:0 1rem}
+.audio-row{margin:.5rem 0}
+.entry{padding:.4rem;border-bottom:1px solid #ccc;cursor:pointer}
+.entry.active{background:#fff3cd;outline:2px solid #b58900}
+.word{border-radius:.2rem}
+.word.active{background:#ffe69c}
+.section-nav,.bookmark-nav{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+button{padding:.3rem .6rem}
+:focus{outline:3px solid #1a73e8}
+</style></head>
+<body>
+<h1>AA2 read-along player</h1>
+<p>Load the exported MP3 and its sidecar JSON. No network is used; files stay on this device.</p>
+<div class="audio-row"><label for="audio-file">Exported audio (MP3)</label>
+<input id="audio-file" type="file" accept="audio/mpeg,.mp3">
+<audio id="audio" controls></audio><span id="audio-status" role="status" aria-live="polite"></span></div>
+<div><label for="sidecar-file">Sidecar JSON</label>
+<input id="sidecar-file" type="file" accept="application/json,.json"></div>
+<div class="section-nav" aria-label="Sections"><h2>Sections</h2><div id="sections"></div></div>
+<div class="bookmark-nav" aria-label="Bookmarks"><h2>Bookmarks</h2><ul id="bookmarks"></ul>
+<button id="add-bookmark" type="button">Bookmark current time</button>
+<button id="save-bookmarks" type="button">Download bookmarks</button>
+<label for="bm-file">Import bookmarks</label><input id="bm-file" type="file" accept="application/json">
+</div>
+<div><button id="play-pause" type="button">Play / pause</button>
+<label for="seek-range">Seek</label><input id="seek-range" type="range" min="0" max="1000" value="0">
+<span id="time-label" aria-live="polite">0:00 / 0:00</span></div>
+<h2>Text</h2><div id="entries" tabindex="0" aria-label="Synchronized text"></div>
+<div id="notice" role="status" aria-live="polite"></div>
+<script>
+(function(){
+'use strict';
+var MAX_SIDECAR_BYTES=64*1024*1024;
+var MAX_AUDIO_BYTES=2*1024*1024*1024;
+var MAX_BOOKMARK_BYTES=64*1024*1024;
+var MAX_SIDECAR_BOOKMARKS=10000;
+var MAX_BOOKMARK_ID_LEN=64;
+var MAX_BOOKMARK_LABEL_LEN=500;
+var BOOKMARK_SCHEMA='aa2-readalong-bookmarks';
+var BOOKMARK_VERSION=1;
+var audio=document.getElementById('audio');
+var sidecar=null;
+var bookmarkList=[];
+var entriesEl=document.getElementById('entries');
+var noticeEl=document.getElementById('notice');
+var statusEl=document.getElementById('audio-status');
+var verified=false;
+var audioUrl=null;
+var currentAudioHash=null;
+var currentAudioSize=null;
+var audioVersion=0;
+var sidecarVersion=0;
+var audioGen=0;
+var sidecarGen=0;
+var bookmarkGen=0;
+var verifiedAudioVersion=-1;
+var verifiedSidecarVersion=-1;
+function say(msg){ noticeEl.textContent=msg; }
+function setStatus(msg){ statusEl.textContent=msg; }
+function fmt(sec){ if(!isFinite(sec)||sec<0){ return '0:00'; } var m=Math.floor(sec/60); var s=Math.floor(sec%60); return m+':'+(s<10?'0':'')+s; }
+function frameToSec(frameDoc){ if(!sidecar){ return 0; } return frameDoc/sidecar.binding.sample_rate; }
+function entryStartSec(entry){ return frameToSec(entry.start_frame); }
+function entryEndSec(entry){ return frameToSec(entry.end_frame); }
+function isVerified(){ return verified===true&&sidecar!==null; }
+function isInt(v){ return typeof v==='number'&&Number.isInteger(v); }
+function cpLen(text){ if(typeof text!=='string'){ return 0; } var n=0; var i=0; while(i<text.length){ var cp=text.codePointAt(i); if(cp===undefined){ break; } if(cp>0xFFFF){ i+=2; } else { i+=1; } n+=1; } return n; }
+function hasLoneSurrogate(text){ if(typeof text!=='string'){ return false; } var i=0; while(i<text.length){ var cp=text.codePointAt(i); if(cp===undefined){ return true; } if(cp>=0xD800&&cp<=0xDFFF){ return true; } if(cp>0xFFFF){ i+=2; } else { i+=1; } } return false; }
+function cpToUtf16Map(text){ var map=[0]; var i=0; var cp=0; while(i<text.length){ var c=text.codePointAt(i); if(c===undefined){ break; } if(c>0xFFFF){ i+=2; } else { i+=1; } cp+=1; map[cp]=i; } return map; }
+function hasForbiddenValue(value){
+ var forbidden=['audio_path','api_key','password','token','voice','voice_config','root_dir','data_dir','script_path','chunks_path','project_id'];
+ if(value&&typeof value==='object'){
+  if(Array.isArray(value)){ for(var i=0;i<value.length;i++){ if(hasForbiddenValue(value[i])){ return true; } } }
+  else{
+   for(var key in value){
+    if(Object.prototype.hasOwnProperty.call(value,key)){
+     if(forbidden.indexOf(String(key).toLowerCase())>=0){ return true; }
+     if(hasForbiddenValue(value[key])){ return true; }
+    }
+   }
+  }
+ }
+ return false;
+}
+function clearOneEntry(node){
+ if(!node){ return; }
+ if(node.classList&&typeof node.classList.toggle==='function'){ node.classList.toggle('active',false); }
+ var words=null;
+ if(typeof node.querySelectorAll==='function'){ words=node.querySelectorAll('.word'); }
+ else if(node.children){ words=node.children; }
+ if(words){
+  for(var j=0;j<words.length;j++){
+   if(words[j]&&words[j].classList&&typeof words[j].classList.toggle==='function'){
+    words[j].classList.toggle('active',false);
+   }
+  }
+ }
+}
+function clearHighlights(){
+ if(!entriesEl||!entriesEl.children){ return; }
+ var nodes=entriesEl.children;
+ for(var i=0;i<nodes.length;i++){
+  var node=nodes[i];
+  if(node&&!node.classList&&node.children){
+   for(var k=0;k<node.children.length;k++){ clearOneEntry(node.children[k]); }
+  }
+  else{
+   clearOneEntry(node);
+  }
+ }
+}
+function setChildrenDisabled(container,disabledFlag){
+ if(!container||!container.children){ return; }
+ for(var i=0;i<container.children.length;i++){
+  var child=container.children[i];
+  if(!child){ continue; }
+  if(child.tag==='button'||child.type==='button'||child.disabled!==undefined){ child.disabled=disabledFlag; }
+  if(child.children&&child.children.length){ setChildrenDisabled(child,disabledFlag); }
+ }
+}
+function updateSyncControls(){
+ var disabledFlag=!isVerified();
+ var addBtn=document.getElementById('add-bookmark');
+ if(addBtn){ addBtn.disabled=disabledFlag; }
+ var saveBtn=document.getElementById('save-bookmarks');
+ if(saveBtn){ saveBtn.disabled=disabledFlag; }
+ setChildrenDisabled(document.getElementById('sections'),disabledFlag);
+ setChildrenDisabled(document.getElementById('bookmarks'),disabledFlag);
+ if(entriesEl&&entriesEl.children){
+  for(var i=0;i<entriesEl.children.length;i++){
+   var node=entriesEl.children[i];
+   if(node&&typeof node.setAttribute==='function'){ node.setAttribute('aria-disabled',disabledFlag?'true':'false'); }
+  }
+ }
+}
+function markUnverified(){
+ verified=false;
+ verifiedAudioVersion=-1;
+ verifiedSidecarVersion=-1;
+ clearHighlights();
+ updateSyncControls();
+}
+function seekToFrame(frame,sourceDesc){
+ if(!isVerified()||!sidecar){
+  say('Load matching audio and sidecar to seek ('+sourceDesc+') before highlighting.');
+  return;
+ }
+ var sec=frameToSec(frame);
+ if(!isFinite(sec)||sec<0){ say('Invalid seek position.'); return; }
+ audio.currentTime=sec;
+ mark();
+}
+function reconcilePair(){
+ if(!sidecar){
+  verified=false;
+  clearHighlights();
+  updateSyncControls();
+  return;
+ }
+ if(!currentAudioHash){
+  verified=false;
+  clearHighlights();
+  updateSyncControls();
+  say('Sidecar loaded; load the matching MP3 to verify audio before highlighting.');
+  return;
+ }
+ var expected=sidecar.binding.audio_sha256;
+ var sizeOk=true;
+ if(currentAudioSize!==null&&typeof sidecar.binding.audio_bytes==='number'&&Number.isInteger(sidecar.binding.audio_bytes)){
+  if(sidecar.binding.audio_bytes!==currentAudioSize){ sizeOk=false; }
+ }
+ if(currentAudioHash!==expected||!sizeOk){
+  verified=false;
+  verifiedAudioVersion=-1;
+  verifiedSidecarVersion=-1;
+  clearHighlights();
+  updateSyncControls();
+  say('Wrong audio: this file does not match the sidecar binding. Playback is allowed but highlighting is not trusted.');
+  return;
+ }
+ verified=true;
+ verifiedAudioVersion=audioVersion;
+ verifiedSidecarVersion=sidecarVersion;
+ say('Audio hash matches sidecar binding.');
+ updateSyncControls();
+ mark();
+}
+function render(){
+ entriesEl.innerHTML='';
+ document.getElementById('sections').innerHTML='';
+ if(!sidecar){
+  bookmarkList=[];
+  renderBookmarks();
+  say('Sidecar not loaded. Audio can still play.');
+  updateSyncControls();
+  return;
+ }
+ var sec=document.createDocumentFragment();
+ (sidecar.sections||[]).forEach(function(s){
+  var b=document.createElement('button');
+  b.type='button';
+  b.textContent=s.title||s.id;
+  b.setAttribute('aria-label','Seek to '+(s.title||s.id));
+  b.onclick=function(){ seekToFrame(s.start_frame,'section'); };
+  sec.appendChild(b);
+ });
+ document.getElementById('sections').appendChild(sec);
+ if(Array.isArray(sidecar.bookmarks)){
+  bookmarkList=sidecar.bookmarks.slice();
+ }
+ else{
+  bookmarkList=[];
+ }
+ renderBookmarks();
+ var frag=document.createDocumentFragment();
+ (sidecar.entries||[]).forEach(function(entry,i){
+  var div=document.createElement('div');
+  div.className='entry';
+  div.tabIndex=0;
+  div.setAttribute('aria-label','Line '+(i+1)+', '+entry.status);
+  div.onclick=function(){ seekToFrame(entry.start_frame,'entry'); };
+  div.onkeydown=function(event){
+   if(!event){ return; }
+   var key=event.key;
+   if(key!=='Enter'&&key!==' '&&key!=='Spacebar'){ return; }
+   if(typeof event.preventDefault==='function'){ event.preventDefault(); }
+   seekToFrame(entry.start_frame,'entry');
+  };
+  if(sidecar.includes_text&&entry.text){
+   var text=entry.text;
+   var words=entry.words||[];
+   if(words.length){
+    var map=cpToUtf16Map(text);
+    var totalCp=map.length-1;
+    var cursorCp=0;
+    words.forEach(function(w){
+     var fromCp=w.from;
+     var toCp=w.to;
+     if(!isInt(fromCp)||!isInt(toCp)){ return; }
+     if(fromCp<cursorCp){ return; }
+     if(fromCp<0||fromCp>totalCp||toCp<fromCp||toCp>totalCp){ return; }
+     var fromUtf16=map[fromCp];
+     var toUtf16=map[toCp];
+     div.appendChild(document.createTextNode(text.slice(map[cursorCp],fromUtf16)));
+     var span=document.createElement('span');
+     span.className='word';
+     if(span.dataset){ span.dataset.start=frameToSec(w.start_frame); span.dataset.end=frameToSec(w.end_frame); }
+     span.textContent=text.slice(fromUtf16,toUtf16);
+     div.appendChild(span);
+     cursorCp=toCp;
+    });
+    var tailStart=map[cursorCp];
+    div.appendChild(document.createTextNode(text.slice(tailStart)));
+   }
+   else{
+    div.textContent=text;
+   }
+  }
+  else{
+   div.textContent='Line '+(i+1)+' ('+entry.status+')';
+  }
+  frag.appendChild(div);
+ });
+ entriesEl.appendChild(frag);
+ say('Sidecar loaded: binding '+sidecar.binding.audio_sha256.slice(0,12)+', '+sidecar.entries.length+' entries.');
+ updateSyncControls();
+}
+function renderBookmarks(){
+ var ul=document.getElementById('bookmarks');
+ ul.innerHTML='';
+ bookmarkList.forEach(function(bm,i){
+  var li=document.createElement('li');
+  var btn=document.createElement('button');
+  btn.type='button';
+  btn.textContent=bm.label||('Bookmark '+(i+1));
+  btn.setAttribute('aria-label','Seek to '+btn.textContent);
+  btn.onclick=function(){ seekToFrame(bm.start_frame,'bookmark'); };
+  li.appendChild(btn);
+  ul.appendChild(li);
+ });
+ updateSyncControls();
+}
+function mark(){
+ var t=audio.currentTime;
+ var range=document.getElementById('seek-range');
+ if(audio.duration&&range){ range.value=String(Math.round(1000*t/audio.duration)); }
+ document.getElementById('time-label').textContent=fmt(t)+' / '+fmt(audio.duration||0);
+ if(!sidecar){ clearHighlights(); return; }
+ if(!isVerified()){ clearHighlights(); return; }
+ if(!isFinite(t)||t<0){ clearHighlights(); return; }
+ var nodes=entriesEl.children;
+ for(var i=0;i<nodes.length;i++){
+  var entry=sidecar.entries[i];
+  if(!entry){ continue; }
+  var on=t>=entryStartSec(entry)&&t<entryEndSec(entry);
+  nodes[i].classList.toggle('active',on);
+  var words=null;
+  if(typeof nodes[i].querySelectorAll==='function'){ words=nodes[i].querySelectorAll('.word'); }
+  else if(nodes[i].children){ words=nodes[i].children; }
+  if(words){
+   for(var j=0;j<words.length;j++){
+    var w=words[j];
+    if(!w||!w.classList){ continue; }
+    var startSec=0;
+    var endSec=0;
+    if(w.dataset&&w.dataset.start!==undefined&&w.dataset.end!==undefined){ startSec=Number(w.dataset.start); endSec=Number(w.dataset.end); }
+    else{ continue; }
+    w.classList.toggle('active',t>=startSec&&t<endSec);
+   }
+  }
+ }
+}
+function validateBookmarkList(list,total,sectionIds){
+ if(!Array.isArray(list)||list.length>MAX_SIDECAR_BOOKMARKS){ return {ok:false,valid:[],reason:'bookmarks-count'}; }
+ var seenIds=Object.create(null);
+ var valid=[];
+ for(var i=0;i<list.length;i++){
+  var bm=list[i];
+  if(!bm||typeof bm!=='object'||Array.isArray(bm)){ return {ok:false,valid:[],reason:'bookmark'}; }
+  if(typeof bm.id!=='string'||!bm.id||cpLen(bm.id)>MAX_BOOKMARK_ID_LEN){ return {ok:false,valid:[],reason:'bookmark-id'}; }
+  if(seenIds[bm.id]){ return {ok:false,valid:[],reason:'bookmark-id-duplicate'}; }
+  seenIds[bm.id]=true;
+  if(!isInt(bm.start_frame)||!isInt(bm.end_frame)||bm.start_frame<0||bm.end_frame<bm.start_frame||bm.end_frame>total){ return {ok:false,valid:[],reason:'bookmark-frames'}; }
+  if(bm.label!==null&&bm.label!==undefined&&(typeof bm.label!=='string'||cpLen(bm.label)>MAX_BOOKMARK_LABEL_LEN)){ return {ok:false,valid:[],reason:'bookmark-label'}; }
+  var sectionRef=bm.section;
+  if(sectionRef!==null&&sectionRef!==undefined){
+   if(typeof sectionRef!=='string'||!sectionIds[sectionRef]){ return {ok:false,valid:[],reason:'bookmark-section'}; }
+  }
+  valid.push({id:bm.id,label:(bm.label===undefined?null:bm.label),start_frame:bm.start_frame,end_frame:bm.end_frame,section:(sectionRef===undefined?null:sectionRef)});
+ }
+ return {ok:true,valid:valid,reason:''};
+}
+function validateSidecar(doc){
+ if(!doc||typeof doc!=='object'||doc.schema!=='aa2-readalong-sidecar'){ return {ok:false,reason:'schema'}; }
+ if(doc.version!==1){ return {ok:false,reason:'version'}; }
+ if(hasForbiddenValue(doc)){ return {ok:false,reason:'forbidden'}; }
+ var binding=doc.binding;
+ if(!binding||typeof binding!=='object'){ return {ok:false,reason:'binding'}; }
+ if(typeof binding.audio_sha256!=='string'||!/^[0-9a-f]{64}$/.test(binding.audio_sha256)){ return {ok:false,reason:'binding'}; }
+ if(!isInt(binding.frames)||binding.frames<=0){ return {ok:false,reason:'frames'}; }
+ if(!isInt(binding.sample_rate)||binding.sample_rate<=0||!isInt(binding.channels)||binding.channels<=0||!isInt(binding.sample_width)||binding.sample_width<=0){ return {ok:false,reason:'layout'}; }
+ if(typeof doc.includes_text!=='boolean'){ return {ok:false,reason:'includes_text'}; }
+ if(!Array.isArray(doc.entries)||doc.entries.length===0||doc.entries.length>200000){ return {ok:false,reason:'entries'}; }
+ if(!Array.isArray(doc.sections)||doc.sections.length>10000){ return {ok:false,reason:'sections'}; }
+ if(!Array.isArray(doc.bookmarks)||doc.bookmarks.length>10000){ return {ok:false,reason:'bookmarks'}; }
+ var total=binding.frames;
+ var sectionIds=Object.create(null);
+ var i;
+ for(i=0;i<doc.sections.length;i++){
+  var section=doc.sections[i];
+  if(!section||typeof section!=='object'||typeof section.id!=='string'||!section.id||cpLen(section.id)>64){ return {ok:false,reason:'section'}; }
+  sectionIds[section.id]=true;
+  if(!isInt(section.start_frame)||!isInt(section.end_frame)||section.start_frame<0||section.end_frame<=section.start_frame||section.end_frame>total){ return {ok:false,reason:'section-frames'}; }
+  if(!isInt(section.entry_count)||section.entry_count<0){ return {ok:false,reason:'section-count'}; }
+  if(section.title!==null&&section.title!==undefined&&typeof section.title!=='string'){ return {ok:false,reason:'section-title'}; }
+ }
+ var bookmarkCheck=validateBookmarkList(doc.bookmarks,total,sectionIds);
+ if(!bookmarkCheck.ok){ return {ok:false,reason:bookmarkCheck.reason}; }
+ if(Object.keys(sectionIds).length===0){ return {ok:false,reason:'sections-empty'}; }
+ var statuses={ 'aligned-estimated':true,'chunk-estimated':true,'missing':true,'ambiguous':true };
+ var prevEnd=0;
+ for(i=0;i<doc.entries.length;i++){
+  var entry=doc.entries[i];
+  if(!entry||typeof entry!=='object'){ return {ok:false,reason:'entry'}; }
+  if(!isInt(entry.start_frame)||!isInt(entry.end_frame)||entry.start_frame<0||entry.end_frame<=entry.start_frame||entry.end_frame>total||entry.start_frame<prevEnd){ return {ok:false,reason:'entry-frames'}; }
+  if(!Object.prototype.hasOwnProperty.call(statuses,entry.status)){ return {ok:false,reason:'entry-status'}; }
+  if(!sectionIds[entry.section]){ return {ok:false,reason:'entry-section'}; }
+  if(!isInt(entry.pause_frames_after)||entry.pause_frames_after<0){ return {ok:false,reason:'entry-pause'}; }
+  if(entry.speaker!==null&&entry.speaker!==undefined&&(typeof entry.speaker!=='string'||cpLen(entry.speaker)>500||entry.speaker.indexOf('\u0000')>=0)){ return {ok:false,reason:'entry-speaker'}; }
+  var text=entry.text;
+  if(doc.includes_text){
+   if(typeof text!=='string'||!text||cpLen(text)>20000||text.indexOf('\u0000')>=0||hasLoneSurrogate(text)){ return {ok:false,reason:'entry-text'}; }
+  }
+  else if(text!==null&&text!==undefined){ return {ok:false,reason:'entry-text-disclosed'}; }
+  var words=entry.words;
+  if(entry.status==='aligned-estimated'){
+   if(!Array.isArray(words)||words.length===0||words.length>4096){ return {ok:false,reason:'entry-words'}; }
+   var prevWordEnd=entry.start_frame;
+   for(var w=0;w<words.length;w++){
+    var word=words[w];
+    if(!word||typeof word!=='object'){ return {ok:false,reason:'word'}; }
+    if(!isInt(word.from)||!isInt(word.to)||word.from<0||word.to<=word.from){ return {ok:false,reason:'word-offsets'}; }
+    if(typeof text==='string'&&word.to>cpLen(text)){ return {ok:false,reason:'word-text-bound'}; }
+    if(!isInt(word.start_frame)||!isInt(word.end_frame)||word.start_frame<entry.start_frame||word.end_frame>entry.end_frame||word.end_frame<=word.start_frame||word.start_frame<prevWordEnd){ return {ok:false,reason:'word-frames'}; }
+    prevWordEnd=word.end_frame;
+   }
+  }
+  else if(words!==null&&words!==undefined){ return {ok:false,reason:'entry-words-disclosed'}; }
+  prevEnd=entry.end_frame;
+ }
+ if(doc.source!==undefined&&doc.source!==null){
+  if(typeof doc.source!=='object'){ return {ok:false,reason:'source'}; }
+  var hex=/^[0-9a-f]{64}$/;
+  if(!hex.test(String(doc.source.book_token||''))||!hex.test(String(doc.source.rows_digest||''))||!hex.test(String(doc.source.source_sha256||''))){ return {ok:false,reason:'source'}; }
+ }
+ return {ok:true,reason:''};
+}
+function isValidBookmarkBinding(binding){
+ if(!binding||typeof binding!=='object'){ return false; }
+ if(typeof binding.audio_sha256!=='string'||!/^[0-9a-f]{64}$/.test(binding.audio_sha256)){ return false; }
+ if(!isInt(binding.sample_rate)||binding.sample_rate<=0){ return false; }
+ if(!isInt(binding.channels)||binding.channels<=0){ return false; }
+ if(!isInt(binding.sample_width)||binding.sample_width<=0){ return false; }
+ if(!isInt(binding.frames)||binding.frames<=0){ return false; }
+ if(binding.audio_bytes!==undefined&&binding.audio_bytes!==null&&(!isInt(binding.audio_bytes)||binding.audio_bytes<=0)){ return false; }
+ if(binding.audio_format!==undefined&&binding.audio_format!==null&&typeof binding.audio_format!=='string'){ return false; }
+ if(binding.duration_ms!==undefined&&binding.duration_ms!==null&&typeof binding.duration_ms!=='number'){ return false; }
+ return true;
+}
+function validateBookmarkDocument(doc){
+ if(!sidecar){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(!doc||typeof doc!=='object'||Array.isArray(doc)){ return {ok:false,valid:[],reason:'schema'}; }
+ if(doc.schema!==BOOKMARK_SCHEMA){ return {ok:false,valid:[],reason:'schema'}; }
+ if(doc.version!==BOOKMARK_VERSION){ return {ok:false,valid:[],reason:'version'}; }
+ if(hasForbiddenValue(doc)){ return {ok:false,valid:[],reason:'forbidden'}; }
+ if(!isValidBookmarkBinding(doc.binding)){ return {ok:false,valid:[],reason:'binding'}; }
+ var expected=sidecar.binding;
+ var supplied=doc.binding;
+ if(supplied.audio_sha256!==expected.audio_sha256){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(supplied.sample_rate!==expected.sample_rate||supplied.frames!==expected.frames||supplied.channels!==expected.channels||supplied.sample_width!==expected.sample_width){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(supplied.audio_bytes!==undefined&&supplied.audio_bytes!==null&&expected.audio_bytes!==undefined&&expected.audio_bytes!==null&&supplied.audio_bytes!==expected.audio_bytes){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(supplied.audio_format!==undefined&&supplied.audio_format!==null&&expected.audio_format!==undefined&&expected.audio_format!==null&&supplied.audio_format!==expected.audio_format){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(supplied.duration_ms!==undefined&&supplied.duration_ms!==null&&expected.duration_ms!==undefined&&expected.duration_ms!==null&&supplied.duration_ms!==expected.duration_ms){ return {ok:false,valid:[],reason:'audio-mismatch'}; }
+ if(!Array.isArray(doc.bookmarks)){ return {ok:false,valid:[],reason:'list'}; }
+ if(doc.bookmarks.length>MAX_SIDECAR_BOOKMARKS){ return {ok:false,valid:[],reason:'bookmarks-count'}; }
+ var sectionIds=Object.create(null);
+ for(var s=0;s<sidecar.sections.length;s++){ sectionIds[sidecar.sections[s].id]=true; }
+ return validateBookmarkList(doc.bookmarks,sidecar.binding.frames,sectionIds);
+}
+function importBookmarks(parsed){
+ return validateBookmarkDocument(parsed);
+}
+function checkAudioHash(hex,expected){ return hex===expected; }
+audio.addEventListener('timeupdate',mark);
+document.getElementById('play-pause').onclick=function(){ if(audio.paused){ audio.play(); } else { audio.pause(); } };
+document.getElementById('seek-range').oninput=function(event){
+ if(!event||!event.target){ return; }
+ var v=Number(event.target.value);
+ if(audio.duration&&isFinite(v)){ audio.currentTime=audio.duration*v/1000; }
+};
+document.getElementById('add-bookmark').onclick=function(){
+ if(!sidecar){ say('Load a sidecar before bookmarking.'); return; }
+ if(!isVerified()){ say('Load matching audio before bookmarking.'); return; }
+ if(bookmarkList.length>=MAX_SIDECAR_BOOKMARKS){ say('Bookmark limit reached; no bookmark was added.'); return; }
+ var frame=Math.round(audio.currentTime*sidecar.binding.sample_rate);
+ if(!isFinite(frame)){ say('Bookmark time is not available.'); return; }
+ var total=sidecar.binding.frames;
+ if(frame<0){ frame=0; }
+ if(frame>total){ frame=total; }
+ var n=bookmarkList.length;
+ var id='bm-custom-'+n;
+ var guard=0;
+ while(guard<10000){
+  var exists=false;
+  for(var k=0;k<bookmarkList.length;k++){ if(bookmarkList[k].id===id){ exists=true; break; } }
+  if(!exists){ break; }
+  n+=1;
+  id='bm-custom-'+n;
+  guard+=1;
+ }
+ bookmarkList=bookmarkList.concat([{id:id,label:'Custom '+(n+1),start_frame:frame,end_frame:frame,section:null}]);
+ renderBookmarks();
+};
+document.getElementById('save-bookmarks').onclick=function(){
+ if(!sidecar){ say('Load a sidecar before downloading bookmarks.'); return; }
+ if(!isVerified()){ say('Load matching audio before downloading bookmarks.'); return; }
+ var payload={schema:BOOKMARK_SCHEMA,version:BOOKMARK_VERSION,binding:sidecar.binding,bookmarks:bookmarkList};
+ var check=validateBookmarkDocument(payload);
+ if(!check.ok){ say('Current bookmarks are not valid and were not downloaded.'); return; }
+ var blob;
+ var a;
+ try{
+  blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='readalong-bookmarks.json';
+  a.click();
+ }catch(error){
+  say('Bookmark download could not be created.');
+  return;
+ }
+ var href=a.href;
+ setTimeout(function(){ URL.revokeObjectURL(href); },1000);
+};
+document.getElementById('bm-file').addEventListener('change',function(event){
+ var file=event&&event.target&&event.target.files?event.target.files[0]:null;
+ if(!file){ return; }
+ bookmarkGen+=1;
+ var gen=bookmarkGen;
+ var admittedSidecarVersion=sidecarVersion;
+ var admittedSidecar=sidecar;
+ if(typeof file.size==='number'&&file.size>MAX_BOOKMARK_BYTES){ say('Bookmarks file exceeds the sidecar size limit; nothing was imported.'); return; }
+ if(typeof file.text!=='function'){ say('Bookmarks file could not be read; nothing was imported.'); return; }
+ file.text().then(function(text){
+  if(gen!==bookmarkGen||admittedSidecarVersion!==sidecarVersion||admittedSidecar!==sidecar){ return; }
+  var parsed;
+  try{
+   parsed=JSON.parse(text);
+  }catch(error){
+   if(gen===bookmarkGen){ say('Bookmarks file was malformed; nothing was imported.'); }
+   return;
+  }
+  var result=importBookmarks(parsed);
+  if(!result.ok){
+   if(result.reason==='audio-mismatch'){ say('Bookmarks do not belong to this audio (audio_sha256 mismatch); nothing was imported.'); }
+   else if(result.reason==='schema'){ say('Bookmarks file has no valid bookmark schema; nothing was imported.'); }
+   else if(result.reason==='version'){ say('Bookmarks file version is not supported; nothing was imported.'); }
+   else if(result.reason==='binding'){ say('Bookmarks file binding is invalid; nothing was imported.'); }
+   else{ say('Bookmarks file is invalid ('+result.reason+'); nothing was imported.'); }
+   return;
+  }
+  bookmarkList=result.valid;
+  renderBookmarks();
+  say('Bookmarks imported: '+bookmarkList.length+' bookmarks.');
+ }).catch(function(){
+  if(gen!==bookmarkGen||admittedSidecarVersion!==sidecarVersion||admittedSidecar!==sidecar){ return; }
+  say('Bookmarks file could not be read; nothing was imported.');
+ });
+});
+document.getElementById('audio-file').addEventListener('change',function(event){
+ var file=event&&event.target&&event.target.files?event.target.files[0]:null;
+ if(!file){ return; }
+ audioGen+=1;
+ var gen=audioGen;
+ audioVersion+=1;
+ markUnverified();
+ currentAudioHash=null;
+ currentAudioSize=null;
+ if(typeof file.size==='number'&&file.size>MAX_AUDIO_BYTES){
+  setStatus('Audio exceeds the size limit and was not loaded.');
+  say('Audio exceeds the size limit; nothing was loaded. Load a file within the size limit to play.');
+  if(audioUrl){ try{ URL.revokeObjectURL(audioUrl); }catch(error){} audioUrl=null; }
+  audio.src='';
+  return;
+ }
+ if(audioUrl){ try{ URL.revokeObjectURL(audioUrl); }catch(error){} audioUrl=null; }
+ try{
+  audioUrl=URL.createObjectURL(file);
+ }catch(error){
+  audioUrl=null;
+  audio.src='';
+  setStatus('Could not load audio file.');
+  say('Could not load audio file; nothing was loaded.');
+  return;
+ }
+ audio.src=audioUrl;
+ setStatus('Audio loaded: '+(file.name||'audio'));
+ say('Audio loaded; verifying against sidecar before highlighting.');
+ var canHash=window.crypto&&crypto.subtle&&typeof crypto.subtle.digest==='function'&&typeof file.arrayBuffer==='function';
+ if(canHash){
+  file.arrayBuffer().then(function(buf){
+   if(gen!==audioGen){ return null; }
+   return crypto.subtle.digest('SHA-256',buf);
+  }).then(function(digest){
+   if(gen!==audioGen||!digest){ return; }
+   var bytes=new Uint8Array(digest);
+   var hex=Array.from(bytes).map(function(b){ return ('0'+b.toString(16)).slice(-2); }).join('');
+   currentAudioHash=hex;
+   currentAudioSize=(typeof file.size==='number'?file.size:null);
+   reconcilePair();
+  }).catch(function(){
+   if(gen!==audioGen){ return; }
+   currentAudioHash=null;
+   currentAudioSize=null;
+   markUnverified();
+   setStatus('Could not hash audio in this browser.');
+   say('Could not hash audio; playback is allowed but highlighting is not trusted.');
+  });
+ }
+ else{
+  currentAudioHash=null;
+  currentAudioSize=null;
+  markUnverified();
+  setStatus('SHA-256 verification unavailable in this browser.');
+  say('SHA-256 verification unavailable; playback is allowed but highlighting is not trusted.');
+ }
+});
+document.getElementById('sidecar-file').addEventListener('change',function(event){
+ var file=event&&event.target&&event.target.files?event.target.files[0]:null;
+ if(!file){ return; }
+ sidecarGen+=1;
+ var gen=sidecarGen;
+ sidecarVersion+=1;
+ markUnverified();
+ if(typeof file.size==='number'&&file.size>MAX_SIDECAR_BYTES){
+  say('Sidecar exceeds the size limit; nothing was imported. Only audio is available.');
+  sidecar=null;
+  render();
+  return;
+ }
+ if(typeof file.text!=='function'){
+  say('Sidecar could not be read; nothing was imported. Only audio is available.');
+  sidecar=null;
+  render();
+  return;
+ }
+ file.text().then(function(text){
+  if(gen!==sidecarGen){ return; }
+  var doc;
+  try{
+   doc=JSON.parse(text);
+  }catch(error){
+   if(gen!==sidecarGen){ return; }
+   say('Sidecar was malformed; nothing was imported. Only audio is available.');
+   sidecar=null;
+   render();
+   return;
+  }
+  var result=validateSidecar(doc);
+  if(!result.ok){
+   say('Sidecar failed validation ('+result.reason+'); only audio playback is available.');
+   sidecar=null;
+   render();
+   return;
+  }
+  sidecar=doc;
+  render();
+  reconcilePair();
+ }).catch(function(){
+  if(gen!==sidecarGen){ return; }
+  say('Sidecar could not be read; nothing was imported. Only audio is available.');
+  sidecar=null;
+  render();
+ });
+});
+window.AA2Readalong={
+ validateSidecar:validateSidecar,
+ validateBookmarkDocument:validateBookmarkDocument,
+ importBookmarks:importBookmarks,
+ checkAudioHash:checkAudioHash,
+ isVerified:isVerified
+};
+render();
+})();
+</script>
+</body></html>

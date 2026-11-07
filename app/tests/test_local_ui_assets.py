@@ -54,6 +54,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-audiobookshelf.js?v=__APP_BUILD__',
                           '/static/js/app-editor-repair.js?v=__APP_BUILD__',
                           '/static/js/app-workspace.js?v=__APP_BUILD__',
+                          '/static/js/app-readalong.js?v=__APP_BUILD__',
                           '/static/js/app-project-scope.js?v=__APP_BUILD__',
                           '/static/js/app-character-roster.js?v=__APP_BUILD__',
                           '/static/js/app-casting.js?v=__APP_BUILD__',
@@ -83,6 +84,7 @@ class LocalUiAssetTests(unittest.TestCase):
         self.assertFalse(set(urls) - base_assets - feature_assets)
         self.assertIn(('/static/js/app-speaker-review.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-help.js?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/js/app-readalong.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-settings.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-publication.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-take-history.js?v=__APP_BUILD__', None), resources)

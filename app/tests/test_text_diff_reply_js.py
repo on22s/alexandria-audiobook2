@@ -8,6 +8,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 function setup(){const panel={style:{display:'none'},innerHTML:'',textContent:''},summary={textContent:''},errors=[],reads=[];
 const context={currentBookFilename:'A',chunkEditsRevision:0,pendingChunkEdits:new Map(),failedChunkEdits:new Map(),escapeHtml:String,
 document:{getElementById:id=>id==='text-diff-panel'?panel:id==='text-diff-summary'?summary:{}},API:{get:()=>new Promise((resolve,reject)=>reads.push({resolve,reject}))},showActionError:(...args)=>errors.push(args)};
+context.window=context;
 vm.createContext(context);const start=source.indexOf('let editorIntegrityView =');vm.runInContext(source.slice(start,source.indexOf('function scrollToChunkRow(',start)),context);return{context,panel,summary,errors,reads};}
 const old={status:'verified',totals:{script_words:2,source_words:2,deleted:0,inserted:0,replaced:0},hunks:[]};
 const fresh={status:'differences',totals:{script_words:2,source_words:2,deleted:0,inserted:0,replaced:1},hunks:[{kind:'replace',chunk:0,entry_index:0,source_words:'OLD',script_words:'NEW',source_before:'',source_after:''}]};

@@ -56,6 +56,8 @@ RECOVERY = '.export-staging-recovery'
 PREFIXES = {
     'chapter': '.chapter-export-',
     'chapters': '.chapter-export-',
+    'sidecar': '.readalong-sidecar-',
+    'epub-readaloud': '.readaloud-epub-',
     'mp3': '.mp3-merge-',
     'm4b': '.m4b-',
     'progress': '.m4b-progress-',
