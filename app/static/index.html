@@ -35,6 +35,7 @@
         }
         #home-tab .text-muted { color: var(--text-primary) !important; }
         #home-tab :is(button, summary):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+        #translated-edition-panel :is(p, div) { overflow-wrap: anywhere; }
         .workspace-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
         .workspace-stage, .workspace-task { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); min-width: 0; overflow-wrap: anywhere; }
         .workspace-stage h6 { color: var(--text-heading); }
@@ -1914,6 +1915,21 @@
                     <p id="source-scope-feedback" class="small" role="status" aria-live="polite"></p>
                     <p id="source-scope-undo-status" class="small"></p>
                     <div id="source-scope-review"></div>
+                </div>
+            </details>
+            <details class="card mb-3" id="translated-edition-panel" ontoggle="onTranslatedEditionPanelToggle()">
+                <summary class="card-header">Preview a translated edition (proposal only)</summary>
+                <div class="card-body">
+                    <p class="small">Build a reviewable translation proposal for the first 25 saved Script rows in one installed language pair, for authorised source material. The result is a proposal, not an approved translation: it never replaces the Script or source, adds no audio, and changes no UI, source or TTS language. Nothing is downloaded and no text leaves this machine: only directly installed pairs are listed (listing them fetches no index or package), and a preview refuses to start rather than let Argos fetch a sentence-splitting model (when a missing model is the cause, the refusal names the file). A proposal belongs to the active book: re-opening this panel shows the most recent saved preview for the current book, if one is still on disk (rebuild if the Script changed; a preview that is still building keeps showing its own progress), and a preview from another book is never shown for this book. Loading a different saved book from the library removes the previous folder; selecting an uploaded source leaves old files on disk until a different-book library load, and those files are never shown for the new book. Saving the book to the library does not copy proposals into the saved book.</p>
+                    <label for="translated-edition-pair" class="form-label">Installed language pair</label>
+                    <select id="translated-edition-pair" class="form-select mb-2" aria-label="Installed language pair for the preview" onchange="updateTranslatedEditionControls()"><option value="">Open this panel to check installed pairs</option></select>
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                        <button class="btn btn-outline-secondary" id="translated-edition-refresh" type="button" onclick="refreshTranslatedEditionPairs()">Refresh installed pairs</button>
+                        <button class="btn btn-outline-primary" id="translated-edition-create" type="button" onclick="createTranslatedEditionProposal()" disabled>Create translation preview</button>
+                        <button class="btn btn-outline-danger" id="translated-edition-cancel" type="button" onclick="cancelTranslatedEditionProposal()" disabled>Cancel preview</button>
+                    </div>
+                    <p id="translated-edition-feedback" class="small" role="status" aria-live="polite"></p>
+                    <div id="translated-edition-review"></div>
                 </div>
             </details>
             <div class="card">
@@ -4087,6 +4103,7 @@
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-translated-edition.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-speaker-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-character-roster.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-casting-research.js?v=__APP_BUILD__"></script>

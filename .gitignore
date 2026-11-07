@@ -308,6 +308,8 @@ ab_test_runtime/pdnc_hard/
 # Pass-1 checkpoints for all 28 PDNC books, regenerated 2026-09-27 (DeepSeek, today's pass-1 code).
 ab_test_runtime/pdnc_hard28/
 
+translation_proposals/
+
 # Chunagon instructions, credentials, and private evaluation data
 chunagon.md
 chunagon.txt

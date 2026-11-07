@@ -4335,6 +4335,42 @@
         "title": "PronunciationSave",
         "type": "object"
       },
+      "ProposalRequest": {
+        "properties": {
+          "cancel_token": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 32,
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Token"
+          },
+          "source_language": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Source Language",
+            "type": "string"
+          },
+          "target_language": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Target Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_language",
+          "target_language"
+        ],
+        "title": "ProposalRequest",
+        "type": "object"
+      },
       "PublicationCoverSelection": {
         "additionalProperties": false,
         "properties": {
@@ -15796,6 +15832,149 @@
           }
         },
         "summary": "Audition Take Snapshot"
+      }
+    },
+    "/api/translated_edition/latest-proposal": {
+      "get": {
+        "operationId": "get_translated_edition_latest_proposal_api_translated_edition_latest_proposal_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Translated Edition Latest Proposal"
+      }
+    },
+    "/api/translated_edition/pairs": {
+      "get": {
+        "operationId": "get_translated_edition_pairs_api_translated_edition_pairs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Translated Edition Pairs"
+      }
+    },
+    "/api/translated_edition/proposals": {
+      "post": {
+        "operationId": "create_translated_edition_proposal_api_translated_edition_proposals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Translated Edition Proposal"
+      }
+    },
+    "/api/translated_edition/proposals/{cancel_token}/cancel": {
+      "post": {
+        "description": "Request a stop after the current row for one in-flight preview.\n\nCancelling never approves anything. A cancel that arrives before the\nproposal is written is saved with status ``cancelled``; one that arrives\nafter the write leaves the finished status, so the caller must not claim\nthe saved status will be ``cancelled``.",
+        "operationId": "cancel_translated_edition_proposal_api_translated_edition_proposals__cancel_token__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cancel_token",
+            "required": true,
+            "schema": {
+              "title": "Cancel Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Translated Edition Proposal"
+      }
+    },
+    "/api/translated_edition/proposals/{proposal_id}": {
+      "get": {
+        "operationId": "get_translated_edition_proposal_api_translated_edition_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Translated Edition Proposal"
       }
     },
     "/api/tts/diagnostics": {

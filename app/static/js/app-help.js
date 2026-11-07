@@ -16,6 +16,7 @@
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             'setup-ui-locale': {what: 'Choose English or expanded Pseudo-English for finder text/feedback, preview controls/title, default-count summary and Saved/Would save headings. Preserves counts and configuration values, book, TTS and transcription language. Pseudo-English is a layout test, not a translation.'},
+            'translated-edition-pair': {what: 'Choose one installed language pair for the translation preview. Only directly installed pairs are listed; nothing is downloaded and no language setting changes.'},
             // Setup: LLM connection
             'llm-mode': {what: 'Which LLM profile is active: Local (this machine) or Remote (a server elsewhere). Each profile keeps its own address, model and limits.'},
             'llm-url': {what: 'Address of the OpenAI-compatible server (LM Studio, llama.cpp, Ollama, a hosted API), ending in /v1.'},
@@ -593,6 +594,9 @@
         };
 
         const ITEM_HELP = {
+            'translated-edition-refresh': 'Re-check which language pairs are installed on this machine. Does not download anything.',
+            'translated-edition-create': 'Build a reviewable translation proposal for the first 25 saved Script rows. Proposal only: never changes the Script, source, or any language setting, and it refuses rather than download when Argos needs a sentence-splitter model that is not already installed. It belongs to the active book; re-opening the panel with nothing running shows the most recent saved preview for the current book, and another book\'s preview is never shown for this book.',
+            'translated-edition-cancel': 'Request a stop for a running preview after the current row. A preview that has not finished building is saved as cancelled, never complete or approved; one already finished keeps its finished status.',
             'voices-open-casting': 'Open the casting library to browse designed voices from every book and use one for a character here.',
             'casting-refresh': 'Reload the casting library from the designed voices on disk, including review marks.',
             'casting-view-cards': 'Show the matching voices as cards with their description and controls.',

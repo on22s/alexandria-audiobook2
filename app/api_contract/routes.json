@@ -3093,5 +3093,50 @@
     "name": "benchmark_status",
     "path": "/api/benchmark/status",
     "type": "APIRoute"
+  },
+  {
+    "index": 345,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_translated_edition_pairs",
+    "path": "/api/translated_edition/pairs",
+    "type": "APIRoute"
+  },
+  {
+    "index": 346,
+    "methods": [
+      "POST"
+    ],
+    "name": "create_translated_edition_proposal",
+    "path": "/api/translated_edition/proposals",
+    "type": "APIRoute"
+  },
+  {
+    "index": 347,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_translated_edition_latest_proposal",
+    "path": "/api/translated_edition/latest-proposal",
+    "type": "APIRoute"
+  },
+  {
+    "index": 348,
+    "methods": [
+      "GET"
+    ],
+    "name": "get_translated_edition_proposal",
+    "path": "/api/translated_edition/proposals/{proposal_id}",
+    "type": "APIRoute"
+  },
+  {
+    "index": 349,
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_translated_edition_proposal",
+    "path": "/api/translated_edition/proposals/{cancel_token}/cancel",
+    "type": "APIRoute"
   }
 ]

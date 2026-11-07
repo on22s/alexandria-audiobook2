@@ -1529,8 +1529,10 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                 generation_writer.save_chunks([{'entries':[{'text':'accepted old source'}]}])
                 generation_shard=generation_writer.directory/'00000000.json'
                 chapters=root/CHAPTER_EXPORT_DIR;chapters.mkdir();(chapters/'part.mp3').write_bytes(b'chapter bytes')
+                proposals=root/'translation_proposals';proposals.mkdir()
+                proposal=proposals/('a'*32+'.json');proposal.write_bytes(b'{"kind":"translation_proposal"}')
                 checkpoint=Path(str(active)+'.review_checkpoint.json');checkpoint.write_bytes(b'{"old":true}')
-                originals={p:p.read_bytes() for p in (active,voice,state,export,chunks,chunk_journal,generation,generation_shard,chapters/'part.mp3',checkpoint)}
+                originals={p:p.read_bytes() for p in (active,voice,state,export,chunks,chunk_journal,generation,generation_shard,chapters/'part.mp3',proposal,checkpoint)}
                 app=FastAPI();app.include_router(lib.router)
                 with ExitStack() as stack:
                     for name,value in (("SCRIPT_PATH",str(active)),("VOICE_CONFIG_PATH",str(voice)),("DATA_DIR",tmp),("SCRIPTS_DIR",str(saved)),("CHUNKS_PATH",str(chunks)),("AUDIOBOOK_PATH",str(export)),("M4B_PATH",str(root/'audiobook.m4b')),("process_state",{})):
@@ -1551,12 +1553,123 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                     self.assertEqual((saved/'new.json').read_bytes(),active.read_bytes())
                     self.assertEqual((saved/'new.voice_config.json').read_bytes(),voice.read_bytes())
                     identity=json.loads(state.read_text());self.assertEqual('new-book',identity['active_book_id']);self.assertEqual(17,identity['keep']);self.assertEqual(32,len(identity['book_generation']))
-                    for path in (export,chunks,chunk_journal,generation,generation_writer.directory,chapters,checkpoint):self.assertFalse(path.exists())
+                    for path in (export,chunks,chunk_journal,generation,generation_writer.directory,chapters,proposals,checkpoint):self.assertFalse(path.exists())
                 else:
                     self.assertEqual(500 if mode=='move_failure' else 400,response.status_code,response.text)
                     for path,expected in originals.items():self.assertEqual(expected,path.read_bytes())
                 self.assertFalse((root/books.JOURNAL).exists())
                 self.assertEqual([],list(root.glob('.book-switch-*')))
+
+
+class SavedBookProposalRetentionTests(unittest.TestCase):
+    def _load_fixture(self, tmp, *, state_bytes=b'{"active_book_id":"old-book"}',
+                      active_script=True, fail_removal=False):
+        from contextlib import ExitStack
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import scripts_library as lib
+        root = Path(tmp); saved = root / 'scripts'; saved.mkdir()
+        (saved / 'same.json').write_bytes(b'[{"speaker":"SAME","text":"same book"}]')
+        (saved / 'same.voice_config.json').write_bytes(b'{"SAME":{"voice":"Aiden"}}')
+        active = root / 'annotated_script.json'
+        if active_script:
+            active.write_bytes(b'[{"speaker":"OLD","text":"old book"}]')
+        voice = root / 'voice_config.json'; voice.write_bytes(b'{"OLD":{"voice":"Ryan"}}')
+        if state_bytes is not None:
+            (root / 'state.json').write_bytes(state_bytes)
+        proposals = root / 'translation_proposals'; proposals.mkdir()
+        proposal = proposals / ('a' * 32 + '.json')
+        proposal.write_bytes(b'{"kind":"translation_proposal"}')
+        app = FastAPI(); app.include_router(lib.router)
+        with ExitStack() as stack:
+            for name, value in (("SCRIPT_PATH", str(active)), ("VOICE_CONFIG_PATH", str(voice)),
+                                ("DATA_DIR", tmp), ("SCRIPTS_DIR", str(saved)),
+                                ("CHUNKS_PATH", str(root / 'chunks.json')),
+                                ("AUDIOBOOK_PATH", str(root / 'audiobook.mp3')),
+                                ("M4B_PATH", str(root / 'audiobook.m4b')), ("process_state", {})):
+                stack.enter_context(patch.object(lib, name, value))
+            stack.enter_context(patch.object(lib, '_get_saved_book_id', return_value='same-book'))
+            if fail_removal:
+                stack.enter_context(patch.object(lib.shutil, 'rmtree',
+                                                 side_effect=OSError('fixture locked folder')))
+            client = stack.enter_context(TestClient(app, raise_server_exceptions=False))
+            response = client.post('/api/scripts/load', json={'name': 'same'})
+        return response, proposal
+
+    def test_corrupt_active_state_never_blocks_the_load(self):
+        # A preview must not make the load path stricter than it was: before
+        # #1731 a corrupt state.json was replaced by the loaded book.
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=b'{not valid json')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_no_prior_book_discards_unowned_proposals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(tmp, state_bytes=None)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_malformed_active_identity_never_blocks_the_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=json.dumps({"input_file_path": 17}).encode())
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_missing_active_script_keeps_the_same_books_proposals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=json.dumps({"active_book_id": "same-book"}).encode(),
+                active_script=False)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(proposal.exists())
+
+    def test_failed_proposal_removal_does_not_fail_the_load(self):
+        # Proposals are optional review artifacts: a folder that cannot be
+        # removed is refused on read by book_id, never a load error.
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=b'{"active_book_id":"old-book"}', fail_removal=True)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(proposal.exists())
+
+    def test_reloading_same_book_keeps_proposals_different_book_removes(self):
+        from contextlib import ExitStack
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import scripts_library as lib
+        for active_book, loaded_book, kept in (
+                ("same-book", "same-book", True),
+                ("old-book", "same-book", False)):
+            with self.subTest(active_book=active_book), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); saved = root / 'scripts'; saved.mkdir()
+                (saved / 'same.json').write_bytes(b'[{"speaker":"SAME","text":"same book"}]')
+                (saved / 'same.voice_config.json').write_bytes(b'{"SAME":{"voice":"Aiden"}}')
+                active = root / 'annotated_script.json'
+                active.write_bytes(b'[{"speaker":"OLD","text":"old book"}]')
+                voice = root / 'voice_config.json'; voice.write_bytes(b'{"OLD":{"voice":"Ryan"}}')
+                state = root / 'state.json'
+                state.write_bytes(json.dumps(
+                    {"active_book_id": active_book, "keep": 17}).encode())
+                proposals = root / 'translation_proposals'; proposals.mkdir()
+                proposal = proposals / ('a' * 32 + '.json')
+                proposal.write_bytes(b'{"kind":"translation_proposal"}')
+                app = FastAPI(); app.include_router(lib.router)
+                with ExitStack() as stack:
+                    for name, value in (("SCRIPT_PATH", str(active)), ("VOICE_CONFIG_PATH", str(voice)),
+                                        ("DATA_DIR", tmp), ("SCRIPTS_DIR", str(saved)),
+                                        ("CHUNKS_PATH", str(root / 'chunks.json')),
+                                        ("AUDIOBOOK_PATH", str(root / 'audiobook.mp3')),
+                                        ("M4B_PATH", str(root / 'audiobook.m4b')), ("process_state", {})):
+                        stack.enter_context(patch.object(lib, name, value))
+                    stack.enter_context(patch.object(lib, '_get_saved_book_id', return_value=loaded_book))
+                    client = stack.enter_context(TestClient(app, raise_server_exceptions=False))
+                    response = client.post('/api/scripts/load', json={'name': 'same'})
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual(kept, proposal.exists())
+                self.assertFalse((root / books.JOURNAL).exists())
 
 
 class BookPersonaBindingTests(unittest.TestCase):
@@ -1567,6 +1680,28 @@ class BookPersonaBindingTests(unittest.TestCase):
             second = books.apply_book_input_selection(tmp, 'same.txt', 'same')
             self.assertEqual(second, books.get_book_operation_token(tmp))
             self.assertNotEqual(first, second)
+
+    def test_identity_only_snapshot_never_reads_an_unreadable_script(self):
+        # The saved-book load and the proposal reads only need the book
+        # identity. An unreadable Script must not turn a same-book load's
+        # identity into "unknown" (which used to discard its proposals),
+        # while a full snapshot still reports the I/O failure.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'state.json').write_bytes(b'{"active_book_id":"same-book"}')
+            (root / 'annotated_script.json').write_bytes(b'[]')
+            real_read_bytes = Path.read_bytes
+            def deny_script(path):
+                if path.name == 'annotated_script.json':
+                    raise PermissionError('fixture unreadable script')
+                return real_read_bytes(path)
+            with patch.object(Path, 'read_bytes', deny_script):
+                with self.assertRaises(PermissionError):
+                    books.get_book_snapshot(tmp)
+                snapshot = books.get_book_snapshot(
+                    tmp, include_voices=False, include_script=False)
+        self.assertEqual('same-book', snapshot['book_id'])
+        self.assertIsNone(snapshot['script_sha256'])
 
     def test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity(self):
         from contextlib import ExitStack

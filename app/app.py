@@ -228,6 +228,10 @@ from routers.benchmark import router as benchmark_router
 
 app.include_router(benchmark_router)
 
+from routers.translated_edition import router as translated_edition_router
+
+app.include_router(translated_edition_router)
+
 
 if __name__ == "__main__":
     import uvicorn

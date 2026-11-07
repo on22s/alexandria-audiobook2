@@ -2605,8 +2605,15 @@ def get_book_operation_token(data_dir, *, state=None):
     return get_snapshot_digest(get_book_operation_identity(data_dir, state=state))
 
 
-def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True):
-    """Read immutable persona inputs; caller holds the book-operation lock."""
+def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True, include_script=True):
+    """Read immutable persona inputs; caller holds the book-operation lock.
+
+    ``include_script=False`` is an identity-only read: the Script is never
+    opened, so ``script_bytes`` and ``script_sha256`` are ``None``. Such a
+    snapshot is for ``book_id``/``identity`` only and must not be compared
+    with a full snapshot or passed to ``get_book_snapshot_token``, where
+    ``None`` would mean a genuinely missing Script.
+    """
     root = Path(data_dir)
     state_path = root / "state.json"
     # Deep already-stored JSON must be a clear corrupt-data refusal,
@@ -2617,7 +2624,7 @@ def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True)
     except RecursionError as error:
         raise ValueError("Book state JSON is too deeply nested") from error
     script_path = root / "annotated_script.json"
-    script_bytes = script_path.read_bytes() if script_path.exists() or not allow_missing_script else None
+    script_bytes = script_path.read_bytes() if (include_script and (script_path.exists() or not allow_missing_script)) else None
     voice_path = root / "voice_config.json"
     try:
         voices = json.loads(voice_path.read_bytes()) if include_voices and voice_path.exists() else {}
