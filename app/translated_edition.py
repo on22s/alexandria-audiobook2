@@ -14,13 +14,23 @@ without a direct package.
 
 CPU only: upstream Argos reads its device from ``ARGOS_DEVICE_TYPE``
 (``argostranslate/settings.py``: ``device = get_setting("ARGOS_DEVICE_TYPE",
-"cpu")``), and ``translate.py`` passes ``settings.device`` to the
-CTranslate2 model (plus ``use_gpu=settings.device == "cuda"`` for the Stanza
-sentence splitter) — the only two GPU paths in that module. So a user setting
-``cuda`` would run inference on the GPU outside ``process_state`` and the GPU
-lock (project rule). ``build_argos_translator`` therefore refuses any
-effective device that is not ``cpu``, and the router allows only one preview
-at a time.
+"cpu")``). It reaches inference in two places, both gated on that one
+setting: ``argostranslate/translate.py`` passes ``settings.device`` to the
+CTranslate2 model, and ``argostranslate/sbd.py`` passes
+``use_gpu=(settings.device == "cuda")`` to the sentence splitters it hands
+the text to (Stanza/MiniSBD). A user setting ``cuda`` would run inference
+on the GPU outside ``process_state`` and the GPU lock (project rule);
+``build_argos_translator`` therefore refuses any effective device that is
+not ``cpu``, the local (OpenNMT) model provider, and a spaCy sentence
+splitter (whose import can download its model), and the router allows only
+one preview at a time.
+
+Downloads: the preview itself never fetches a pair, an index or a package
+(``get_installed_packages`` only reads the local install folder), but the
+upstream sentence splitters may fetch a missing splitter model on first
+use (MiniSBD downloads the language ONNX; Stanza may fetch missing
+resources). The panel copy says so rather than promising "nothing is
+downloaded".
 
 Excerpt bound: the first ``PROPOSAL_ROW_LIMIT`` (25) Script rows. A proposal
 is never labelled complete when any row is unsupported, failed, skipped,
@@ -118,13 +128,18 @@ def build_argos_translator(from_code, to_code):
     Pure read plus local inference on demand. Raises ValueError, without
     downloading anything, when the package is unavailable or the pair has no
     direct package (pivoting is never used silently). Also raises ValueError
-    unless the effective Argos device (``argostranslate.settings.device``,
-    from ``ARGOS_DEVICE_TYPE``, default ``cpu``) is ``cpu``: Argos would
-    otherwise run model inference on the GPU (``translate.py`` passes
-    ``settings.device`` to CTranslate2 and ``use_gpu`` to the sentence
-    splitter) outside ``process_state`` and the GPU lock, which this project
-    forbids unless a task registers there. Refusing here keeps the preview
-    provably CPU-only on any machine, whatever the user's Argos setting.
+    unless every effective Argos setting keeps the preview local and
+    CPU-only: the device (``argostranslate.settings.device``, from
+    ``ARGOS_DEVICE_TYPE``, default ``cpu``) must be ``cpu`` — anything else
+    would run model inference on the GPU (``translate.py`` passes
+    ``settings.device`` to CTranslate2 and ``sbd.py`` passes
+    ``use_gpu=(settings.device == "cuda")`` to the sentence splitters)
+    outside ``process_state`` and the GPU lock; the model provider
+    (``argostranslate.settings.model_provider``) must be the local OpenNMT
+    provider, never a cloud one; and the sentence splitter
+    (``argostranslate.settings.chunk_type``) must not be spaCy, whose import
+    downloads its model. Refusing here keeps the preview provably local and
+    CPU-only on any machine, whatever the user's Argos settings.
     """
     installed = get_installed_pairs()
     if not installed["available"]:
@@ -132,12 +147,9 @@ def build_argos_translator(from_code, to_code):
     if not is_pair_supported(installed["pairs"], from_code, to_code):
         raise ValueError(f"Language pair is not installed: {from_code} -> {to_code}")
     try:
-        argos_translate = importlib.import_module("argostranslate.translate")
-    except Exception as error:
-        # A partially installed runtime must read as unavailable, never as a
-        # server error that hides why the preview could not start.
-        raise ValueError("Translation runtime is unavailable") from error
-    try:
+        # Read settings before importing the translate module: importing it
+        # pulls in the sentence-splitter module, whose spaCy branch can
+        # download a model at import time, so the checks must run first.
         argos_settings = importlib.import_module("argostranslate.settings")
     except Exception as error:
         raise ValueError("Translation runtime is unavailable") from error
@@ -145,6 +157,22 @@ def build_argos_translator(from_code, to_code):
     if device != "cpu":
         raise ValueError(
             f"Translation device is not CPU ({device!r}); GPU inference is refused")
+    provider = getattr(argos_settings, "model_provider", None)
+    if getattr(provider, "name", None) != "OPENNMT":
+        raise ValueError(
+            "Translation model provider is not the local OpenNMT provider; "
+            "cloud translation is refused")
+    chunk_type = getattr(argos_settings, "chunk_type", None)
+    if getattr(chunk_type, "name", None) == "SPACY":
+        raise ValueError(
+            "Translation sentence splitter is spaCy, which downloads its "
+            "model; refused")
+    try:
+        argos_translate = importlib.import_module("argostranslate.translate")
+    except Exception as error:
+        # A partially installed runtime must read as unavailable, never as a
+        # server error that hides why the preview could not start.
+        raise ValueError("Translation runtime is unavailable") from error
 
     def translate(text):
         return argos_translate.translate(text, from_code, to_code)

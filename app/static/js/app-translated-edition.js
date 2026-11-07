@@ -1,6 +1,7 @@
 // Opt-in local translation preview: a reviewable proposal, never an approval.
 let translatedEditionEpoch = 0, translatedEditionBusy = false, translatedEditionProposal = null;
 let translatedEditionCancelToken = null, translatedEditionBusyId = 0;
+let translatedEditionPairsPromise = null;
 const translatedEditionElement = id => document.getElementById('translated-edition-' + id);
 
 function updateTranslatedEditionControls() {
@@ -40,74 +41,98 @@ async function onTranslatedEditionPanelToggle() {
     if (!translatedEditionElement('panel').open) {
         return;
     }
-    // A running build or pair refresh owns the panel: re-opening it must not
-    // re-check an older proposal over the build's own feedback.
-    if (translatedEditionBusy) {
+    // A running build owns the panel: re-opening it must not re-check an
+    // older proposal over the build's own feedback. Only the build blocks
+    // here (a cancel token is held for exactly that); a pair refresh does
+    // not, so opening the panel during one still loads the saved proposal.
+    if (translatedEditionCancelToken !== null) {
         return;
     }
-    // Read the pair list first, then the proposal: both write the feedback
-    // line, and a slow pair list answering last used to replace the saved
+    // Wait for an in-flight pair refresh instead of dropping the saved
+    // proposal (an early return while busy used to leave the panel empty
+    // until the next toggle), then read the proposal. Reading pairs first
+    // keeps a slow pair list from answering last and replacing the saved
     // preview's message (stale, or unreadable files) with a pair count.
-    await refreshTranslatedEditionPairs();
-    if (!translatedEditionElement('panel').open || translatedEditionBusy) {
+    const pairNote = await refreshTranslatedEditionPairs();
+    if (!translatedEditionElement('panel').open || translatedEditionCancelToken !== null) {
         return;
     }
+    const epoch = translatedEditionEpoch;
     if (translatedEditionProposal) {
-        refreshTranslatedEditionProposal();
+        await refreshTranslatedEditionProposal();
     } else {
-        loadTranslatedEditionLatestProposal();
+        await loadTranslatedEditionLatestProposal();
+    }
+    // A pair problem (package unavailable, nothing installed, or the check
+    // failing) is a fact the user still needs next to the saved preview's
+    // message, so it comes after the proposal load instead of being lost.
+    const feedback = translatedEditionElement('feedback').textContent;
+    if (pairNote && epoch === translatedEditionEpoch && feedback) {
+        translatedEditionElement('feedback').textContent = `${feedback} ${pairNote}`;
     }
 }
 
-async function refreshTranslatedEditionPairs() {
+function refreshTranslatedEditionPairs() {
+    // While busy the in-flight operation owns the panel; when it is a pairs
+    // refresh, callers await its shared promise so none of them silently
+    // skips the saved proposal that opens behind it.
     if (translatedEditionBusy) {
-        return;
+        return translatedEditionPairsPromise;
     }
-    const epoch = ++translatedEditionEpoch;
-    const selection = window._existingUploadSelectionRequest;
-    const busyId = ++translatedEditionBusyId;
-    translatedEditionBusy = true;
-    updateTranslatedEditionControls();
-    translatedEditionElement('feedback').textContent = 'Checking installed language pairs...';
-    try {
-        const pairs = await API.get('/api/translated_edition/pairs');
-        if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
-            return;
+    const promise = (async () => {
+        const epoch = ++translatedEditionEpoch;
+        const selection = window._existingUploadSelectionRequest;
+        const busyId = ++translatedEditionBusyId;
+        translatedEditionBusy = true;
+        updateTranslatedEditionControls();
+        translatedEditionElement('feedback').textContent = 'Checking installed language pairs...';
+        try {
+            const pairs = await API.get('/api/translated_edition/pairs');
+            if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
+                return null;
+            }
+            const select = translatedEditionElement('pair');
+            select.replaceChildren();
+            if (!pairs.available) {
+                const note = 'Translation package is unavailable on this machine. Install it separately to build a preview; nothing was downloaded.';
+                translatedEditionElement('feedback').textContent = note;
+                updateTranslatedEditionControls();
+                return note;
+            }
+            if (!pairs.pairs.length) {
+                const note = 'No language pair is installed. Install one separately; nothing was downloaded.';
+                translatedEditionElement('feedback').textContent = note;
+                updateTranslatedEditionControls();
+                return note;
+            }
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Choose one installed pair';
+            select.appendChild(placeholder);
+            for (const pair of pairs.pairs) {
+                const option = document.createElement('option');
+                option.value = `${pair.from_code}->${pair.to_code}`;
+                option.textContent = `${pair.from_name || pair.from_code} -> ${pair.to_name || pair.to_code}`;
+                select.appendChild(option);
+            }
+            select.value = '';
+            translatedEditionElement('feedback').textContent = `${pairs.pairs.length} installed pairs listed. Choosing one does not change any language setting.`;
+            return null;
+        } catch (error) {
+            if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
+                translatedEditionElement('feedback').textContent = error.message;
+                return error.message;
+            }
+            return null;
+        } finally {
+            if (busyId === translatedEditionBusyId) {
+                translatedEditionBusy = false;
+                updateTranslatedEditionControls();
+            }
         }
-        const select = translatedEditionElement('pair');
-        select.replaceChildren();
-        if (!pairs.available) {
-            translatedEditionElement('feedback').textContent = 'Translation package is unavailable on this machine. Install it separately to build a preview; nothing was downloaded.';
-            updateTranslatedEditionControls();
-            return;
-        }
-        if (!pairs.pairs.length) {
-            translatedEditionElement('feedback').textContent = 'No language pair is installed. Install one separately; nothing was downloaded.';
-            updateTranslatedEditionControls();
-            return;
-        }
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Choose one installed pair';
-        select.appendChild(placeholder);
-        for (const pair of pairs.pairs) {
-            const option = document.createElement('option');
-            option.value = `${pair.from_code}->${pair.to_code}`;
-            option.textContent = `${pair.from_name || pair.from_code} -> ${pair.to_name || pair.to_code}`;
-            select.appendChild(option);
-        }
-        select.value = '';
-        translatedEditionElement('feedback').textContent = `${pairs.pairs.length} installed pairs listed. Choosing one does not change any language setting.`;
-    } catch (error) {
-        if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
-            translatedEditionElement('feedback').textContent = error.message;
-        }
-    } finally {
-        if (busyId === translatedEditionBusyId) {
-            translatedEditionBusy = false;
-            updateTranslatedEditionControls();
-        }
-    }
+    })();
+    translatedEditionPairsPromise = promise;
+    return promise;
 }
 
 async function loadTranslatedEditionLatestProposal() {
@@ -180,6 +205,18 @@ function renderTranslatedEditionProposal(proposal) {
         excerptNote.className = 'small';
         excerptNote.textContent = `Excerpt only: the first ${proposal.excerpt.row_count} of ${proposal.excerpt.total_rows} Script rows. The rest of the book was not translated.`;
         review.appendChild(excerptNote);
+    }
+    const reasons = [];
+    if (proposal.counts.flagged) reasons.push(`${proposal.counts.flagged} flagged for review`);
+    if (proposal.counts.unsupported) reasons.push(`${proposal.counts.unsupported} unsupported`);
+    if (proposal.counts.failed) reasons.push(`${proposal.counts.failed} failed`);
+    if (proposal.counts.skipped) reasons.push(`${proposal.counts.skipped} skipped`);
+    if (proposal.counts.cancelled) reasons.push(`${proposal.counts.cancelled} cancelled`);
+    if (reasons.length) {
+        const reasonNote = document.createElement('p');
+        reasonNote.className = 'small';
+        reasonNote.textContent = `Why this is not complete: ${reasons.join(', ')}.`;
+        review.appendChild(reasonNote);
     }
     if (proposal.stale) {
         const stale = document.createElement('p');

@@ -117,9 +117,13 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   preview is CPU-only by construction: `build_argos_translator` refuses any
   effective Argos device other than `cpu`, because upstream
   `argostranslate/settings.py` defaults `ARGOS_DEVICE_TYPE` to `cpu` but a
-  user setting `cuda` would otherwise run CTranslate2/Stanza GPU inference
-  (the only two GPU paths in upstream `translate.py`, both gated on
-  `settings.device`) outside `process_state` and the GPU lock. Registered like the other routers in `app/app.py`;
+  user setting `cuda` would otherwise run GPU inference (both upstream
+  `translate.py`, which passes `settings.device` to the CTranslate2 model,
+  and `sbd.py`, which passes `use_gpu=(settings.device == "cuda")` to its
+  sentence splitters) outside `process_state` and the GPU lock. It also
+  refuses a non-OpenNMT (cloud) `model_provider` and a spaCy sentence
+  splitter (whose import can download its model); the settings reads
+  happen before the translate module is imported. Registered like the other routers in `app/app.py`;
   `app/api_contract/{openapi,routes}.json` regenerated with
   `app/update_api_contract_snapshots.py`. The create endpoint contains no
   approve or publish action.
@@ -180,7 +184,13 @@ and `argostranslate/package.py` at
   through intermediate languages when no direct package exists, and
   `get_available_packages()` **falls back to downloading the index**.
   This implementation refuses both: direct installed pairs only, and it
-  never calls an index or download function.
+  never calls an index or download function. It also refuses a non-local
+  (cloud) `model_provider`, so text can never leave the machine through
+  Argos' cloud providers. What the preview still cannot prevent is the
+  upstream sentence splitter fetching a missing splitter model on
+  first use (MiniSBD downloads its language ONNX; a spaCy splitter can
+  download at import) — the panel copy discloses that instead of
+  promising no downloads at all.
 
 ## Limits
 

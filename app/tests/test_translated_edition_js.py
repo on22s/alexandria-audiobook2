@@ -154,6 +154,75 @@ class TranslatedEditionJSTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_opening_the_panel_during_a_pairs_refresh_loads_the_saved_preview(self):
+        # A manual Refresh in flight must not make the toggle drop the
+        # saved proposal: re-opening waits for the refresh, then loads it.
+        self.run_js(r'''
+(async()=>{
+  latestProposal={...proposal,stale:false};
+  let resolvePairs;releasePairs={promise:new Promise(r=>{resolvePairs=r;})};
+  const manual=context.refreshTranslatedEditionPairs();      // user clicked Refresh
+  await new Promise(setImmediate);                           // now in flight (busy)
+  el('panel').open=true;
+  context.onTranslatedEditionPanelToggle();                  // user opens the panel
+  await new Promise(setImmediate);
+  const latestGets=()=>calls.filter(c=>c[0]==='GET'&&c[1].includes('latest-proposal')).length;
+  assert.equal(latestGets(),0,'nothing loaded while the refresh is in flight');
+  resolvePairs();  // refresh completes now
+  await manual;
+  await new Promise(setImmediate);await new Promise(setImmediate);
+  assert.equal(latestGets(),1,'saved preview was not loaded after the refresh finished');
+  assert(text(el('review')).includes('Proposal, not approved'));
+  assert(el('feedback').textContent.includes('still matches'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_unavailable_pairs_and_a_saved_preview_are_both_shown(self):
+        self.run_js(r'''
+(async()=>{
+  unavailable=true;latestProposal={...proposal,stale:true};
+  el('panel').open=true;
+  await context.onTranslatedEditionPanelToggle();
+  await new Promise(setImmediate);await new Promise(setImmediate);
+  assert(el('feedback').textContent.includes('unavailable'),
+         'pair unavailability was overwritten by the preview message');
+  assert(el('feedback').textContent.includes('stale'),
+         'the saved preview message was lost behind the pair check');
+  assert(text(el('review')).includes('Proposal, not approved'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_failed_pairs_check_and_a_saved_preview_are_both_shown(self):
+        self.run_js(r'''
+(async()=>{
+  latestProposal={...proposal,stale:false};
+  const originalGet=context.API.get;
+  context.API.get=async path=>{calls.push(['GET',path]);
+    if(path.includes('latest-proposal'))return {proposal:latestProposal,malformed_proposals:[]};
+    if(path.includes('/proposals/'))return {...proposal,stale:false};
+    throw Error('pairs endpoint down');};
+  el('panel').open=true;
+  await context.onTranslatedEditionPanelToggle();
+  await new Promise(setImmediate);await new Promise(setImmediate);
+  assert(el('feedback').textContent.includes('pairs endpoint down'),
+         'the pairs failure was overwritten by the preview message');
+  assert(el('feedback').textContent.includes('still matches'),
+         'the saved preview was not reached when pairs failed');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_a_partial_preview_says_why_it_is_not_complete(self):
+        self.run_js(r'''
+(async()=>{
+  await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+  proposal.status='partial';proposal.counts={translated:2,flagged:1,unsupported:0,failed:0,skipped:0,cancelled:0};
+  proposal.rows=[{index:0,speaker:null,source_text:'Room 3 was quiet.',translated_text:'Raum war still.',status:'translated',flags:['number_changed'],error:null},
+    {index:1,speaker:'BOB',source_text:'Plain row.',translated_text:'FR: Plain row.',status:'translated',flags:[],error:null}];
+  await context.createTranslatedEditionProposal();
+  assert(text(el('review')).includes('Why this is not complete: 1 flagged for review.'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_reopening_the_panel_during_a_rebuild_keeps_the_build_feedback(self):
         self.run_js(r'''
 (async()=>{

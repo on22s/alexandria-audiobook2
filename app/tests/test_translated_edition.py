@@ -96,12 +96,15 @@ class InstalledPairsTests(unittest.TestCase):
         self.assertEqual([], calls)
 
     def _fake_argos_with_device(self, packages, device):
+        from types import SimpleNamespace
         fake, package, calls = get_fake_argos(packages)
         translate_module = ModuleType("argostranslate.translate")
         translate_module.translate = lambda text, from_code, to_code: "FR: " + text
         fake.translate = translate_module
         settings_module = ModuleType("argostranslate.settings")
         settings_module.device = device
+        settings_module.model_provider = SimpleNamespace(name="OPENNMT")
+        settings_module.chunk_type = SimpleNamespace(name="ARGOSTRANSLATE")
         fake.settings = settings_module
         return fake, package, translate_module, settings_module, calls
 
@@ -116,6 +119,59 @@ class InstalledPairsTests(unittest.TestCase):
                                       "argostranslate.translate": translate_module,
                                       "argostranslate.settings": settings_module}):
             with self.assertRaisesRegex(ValueError, "device is not CPU"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
+
+    def test_argos_translator_refuses_a_cloud_model_provider(self):
+        # model_provider other than the local OpenNMT provider sends text to
+        # a remote API (LibreTranslate/OpenAI), which the preview must never
+        # do: refuse before the translate module is even imported.
+        for provider in ("OPENAI", "LIBRETRANSLATE"):
+            with self.subTest(provider=provider):
+                fake, package, translate_module, settings_module, calls = \
+                    self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+                from types import SimpleNamespace
+                translate_module.translate = lambda *args: calls.append("translate")
+                settings_module.model_provider = SimpleNamespace(name=provider)
+                with patch.dict(sys.modules, {"argostranslate": fake,
+                                              "argostranslate.package": package,
+                                              "argostranslate.translate": translate_module,
+                                              "argostranslate.settings": settings_module}):
+                    with self.assertRaisesRegex(ValueError, "cloud translation is refused"):
+                        translated_edition.build_argos_translator("en", "fr")
+                self.assertEqual([], calls)
+
+    def test_argos_translator_refuses_a_missing_model_provider(self):
+        # Fail closed: without a proven local OpenNMT provider the builder
+        # must not hand text to the translate module, exactly as an unknown
+        # device is refused.
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+        translate_module.translate = lambda *args: calls.append("translate")
+        del settings_module.model_provider
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            with self.assertRaisesRegex(ValueError, "cloud translation is refused"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
+
+    def test_argos_translator_refuses_a_spacy_sentence_splitter(self):
+        # Upstream sbd.py calls cache_spacy() at import time when the chunk
+        # type is SPACY, and that downloads the spaCy model. The check runs
+        # after reading settings and before the translate module (which
+        # imports sbd) is touched, so nothing is fetched to build it.
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+        from types import SimpleNamespace
+        translate_module.translate = lambda *args: calls.append("translate")
+        settings_module.chunk_type = SimpleNamespace(name="SPACY")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": settings_module}):
+            with self.assertRaisesRegex(ValueError, "sentence splitter is spaCy"):
                 translated_edition.build_argos_translator("en", "fr")
         self.assertEqual([], calls)
 
