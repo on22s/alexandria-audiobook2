@@ -595,5 +595,15 @@ class TranslatedEditionJSTests(unittest.TestCase):
         self.assertIn('window.resetTranslatedEditionBook?.();', body)
 
 
+    def test_review_pane_breaks_long_unbroken_tokens(self):
+        # Source, proposal, speaker, error and target-language text all
+        # render through textContent inside this panel: a long unbroken
+        # token (URL, hash, minified error, CJK string) must break instead
+        # of overflowing the page at phone width.
+        html = INDEX.read_text(encoding='utf-8')
+        self.assertIn('#translated-edition-panel', html)
+        self.assertRegex(html, r'#translated-edition-panel[^\n]*overflow-wrap:\s*anywhere')
+
+
 if __name__ == '__main__':
     unittest.main()

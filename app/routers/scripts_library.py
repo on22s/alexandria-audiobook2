@@ -638,7 +638,8 @@ def _load_script_sync(request: ScriptLoadRequest):
         # treated as another book's and discarded below.
         try:
             previous_book_id = get_book_snapshot(
-                DATA_DIR, allow_missing_script=True, include_voices=False)["book_id"]
+                DATA_DIR, allow_missing_script=True, include_voices=False,
+                include_script=False)["book_id"]
         except (OSError, ValueError, TypeError, RecursionError):
             previous_book_id = None
         book_id = _get_saved_book_id(safe_name)

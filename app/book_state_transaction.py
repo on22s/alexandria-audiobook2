@@ -2605,7 +2605,7 @@ def get_book_operation_token(data_dir, *, state=None):
     return get_snapshot_digest(get_book_operation_identity(data_dir, state=state))
 
 
-def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True):
+def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True, include_script=True):
     """Read immutable persona inputs; caller holds the book-operation lock."""
     root = Path(data_dir)
     state_path = root / "state.json"
@@ -2617,7 +2617,7 @@ def get_book_snapshot(data_dir, allow_missing_script=False, include_voices=True)
     except RecursionError as error:
         raise ValueError("Book state JSON is too deeply nested") from error
     script_path = root / "annotated_script.json"
-    script_bytes = script_path.read_bytes() if script_path.exists() or not allow_missing_script else None
+    script_bytes = script_path.read_bytes() if (include_script and (script_path.exists() or not allow_missing_script)) else None
     voice_path = root / "voice_config.json"
     try:
         voices = json.loads(voice_path.read_bytes()) if include_voices and voice_path.exists() else {}

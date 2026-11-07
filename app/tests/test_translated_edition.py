@@ -837,6 +837,41 @@ class ProposalTests(unittest.TestCase):
                  / (proposal["proposal_id"] + ".json"))
         self.assertEqual("cancelled", json.loads(saved.read_text())["status"])
 
+    def test_saved_proposal_with_flagged_row_status_is_refused(self):
+        # "flagged" is a count key, never a row status the builder writes:
+        # a file carrying it must be refused, not rendered as a real row.
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        saved = self.root / "translation_proposals" / (proposal["proposal_id"] + ".json")
+        payload = json.loads(saved.read_text())
+        payload["rows"][0]["status"] = "flagged"
+        saved.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "needs inspection"):
+            translated_edition.get_proposal(str(self.root), proposal["proposal_id"])
+        self.assertIsNotNone(translated_edition._saved_proposal_problem(payload))
+
+    def test_snapshot_without_script_never_reads_it(self):
+        # The saved-book load only needs the previous book_id: with no
+        # Script on disk at all, an identity-only snapshot must still
+        # answer (no read, no hash), while the full snapshot refuses.
+        from book_state_transaction import get_book_snapshot
+        get_book(self.root, [{"speaker": "ALICE", "text": "Synthetic line."}])
+        (self.root / "annotated_script.json").unlink()
+        snapshot = get_book_snapshot(str(self.root), allow_missing_script=False,
+                                     include_voices=False, include_script=False)
+        self.assertEqual("fixture", snapshot["book_id"])
+        self.assertIsNone(snapshot["script_bytes"])
+        with self.assertRaises(FileNotFoundError):
+            get_book_snapshot(str(self.root), allow_missing_script=False,
+                              include_voices=False)
+
+    def test_translation_proposals_folder_is_gitignored(self):
+        # Book text must never be committed by accident (Rule 27): the
+        # proposals folder holding saved translations has to be ignored.
+        gitignore = Path(translated_edition.__file__).resolve().parents[1] / ".gitignore"
+        lines = {line.strip() for line in gitignore.read_text(encoding="utf-8").splitlines()}
+        self.assertIn("translation_proposals/", lines)
+
 
 if __name__ == "__main__":
     unittest.main()

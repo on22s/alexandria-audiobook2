@@ -495,7 +495,11 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
 
 _COUNT_KEYS = ("translated", "unsupported", "failed", "skipped", "cancelled",
                "flagged")
-_ROW_STATUSES = frozenset(_COUNT_KEYS)
+# "flagged" is a count key, never a row status: build_proposal only writes
+# the five statuses below. Accepting "flagged" as a row status would show a
+# hand-edited file the builder could never produce.
+_ROW_STATUSES = frozenset(("translated", "unsupported", "failed", "skipped",
+                           "cancelled"))
 
 
 def _is_count(value):
@@ -572,7 +576,7 @@ def get_proposal(data_dir, proposal_id):
     try:
         with ensure_book_state(data_dir) as root:
             snapshot = get_book_snapshot(root, allow_missing_script=True,
-                                         include_voices=False)
+                                         include_voices=False, include_script=False)
             path = Path(root) / PROPOSALS_DIR / f"{proposal_id}.json"
             if not path.is_file():
                 raise ValueError("Translation proposal not found")
@@ -615,7 +619,7 @@ def get_latest_proposal(data_dir):
     try:
         with ensure_book_state(data_dir) as root:
             snapshot = get_book_snapshot(root, allow_missing_script=True,
-                                         include_voices=False)
+                                         include_voices=False, include_script=False)
             proposals_dir = Path(root) / PROPOSALS_DIR
             malformed = []
             candidates = []
