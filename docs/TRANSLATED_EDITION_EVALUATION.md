@@ -37,7 +37,9 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   never touches the remote index, a download, or a pivot through an
   intermediate language. `build_proposal()` takes an injected translator
   and translates a bounded excerpt of the first **25** Script rows, one
-  row at a time, checking a caller-supplied cancellation check between rows.
+  row at a time, checking a caller-supplied cancellation check between rows
+  (and again under the publication lock, so a late cancel is saved as
+  cancelled, never complete).
   Speaker labels are carried untranslated; rows with control tags or markup
   are flagged `unsupported` and carried unchanged; dropped/changed numbers,
   empty output, and copied source are flagged for review. Partial or
@@ -51,7 +53,11 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   rechecked immediately before publication; a proposal whose `book_id` is
   not the current book is refused on read. Loading a different book removes
   that folder with the other per-book active artifacts, the same way
-  `chunks.json` is removed. Stale source is detected by comparing the
+  `chunks.json` is removed; reloading the same book keeps its proposals
+  (the stale check still applies). Proposals live in the active book's
+  folder only: saving a book to the library does not copy them into the
+  saved book, so switching away and loading the saved book again does not
+  bring them back. Stale source is detected by comparing the
   current script SHA.
 - `app/routers/translated_edition.py` — `GET /api/translated_edition/pairs`,
   `POST /api/translated_edition/proposals`, and
@@ -73,10 +79,12 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   unavailable package, partial failure, cancellation (including from the
   HTTP route), Script/source/voices/config bytes unchanged, stale source, book
   switch during a build, known-bad translations (dropped number, empty,
-  copied source), excerpt bound and `excerpt_complete`, non-text rows refused,
+  copied source), excerpt bound and `excerpt_complete`, late cancel saved as
+  cancelled, script deleted mid-build refused, non-text rows refused,
   proposal-id traversal refused, a proposal from another book refused, the
   translator running off the event-loop thread, the panel's stale and
-  cancel paths, and book load removing a previous book's proposals.
+  cancel paths, duplicate cancel tokens refused, and book load removing a
+  previous book's proposals while a same-book reload keeps them.
 
 ## Licensing notes
 

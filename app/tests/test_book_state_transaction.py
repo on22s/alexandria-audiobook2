@@ -1561,6 +1561,44 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                 self.assertEqual([],list(root.glob('.book-switch-*')))
 
 
+class SavedBookProposalRetentionTests(unittest.TestCase):
+    def test_reloading_same_book_keeps_proposals_different_book_removes(self):
+        from contextlib import ExitStack
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import scripts_library as lib
+        for active_book, loaded_book, kept in (
+                ("same-book", "same-book", True),
+                ("old-book", "same-book", False)):
+            with self.subTest(active_book=active_book), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); saved = root / 'scripts'; saved.mkdir()
+                (saved / 'same.json').write_bytes(b'[{"speaker":"SAME","text":"same book"}]')
+                (saved / 'same.voice_config.json').write_bytes(b'{"SAME":{"voice":"Aiden"}}')
+                active = root / 'annotated_script.json'
+                active.write_bytes(b'[{"speaker":"OLD","text":"old book"}]')
+                voice = root / 'voice_config.json'; voice.write_bytes(b'{"OLD":{"voice":"Ryan"}}')
+                state = root / 'state.json'
+                state.write_bytes(json.dumps(
+                    {"active_book_id": active_book, "keep": 17}).encode())
+                proposals = root / 'translation_proposals'; proposals.mkdir()
+                proposal = proposals / ('a' * 32 + '.json')
+                proposal.write_bytes(b'{"kind":"translation_proposal"}')
+                app = FastAPI(); app.include_router(lib.router)
+                with ExitStack() as stack:
+                    for name, value in (("SCRIPT_PATH", str(active)), ("VOICE_CONFIG_PATH", str(voice)),
+                                        ("DATA_DIR", tmp), ("SCRIPTS_DIR", str(saved)),
+                                        ("CHUNKS_PATH", str(root / 'chunks.json')),
+                                        ("AUDIOBOOK_PATH", str(root / 'audiobook.mp3')),
+                                        ("M4B_PATH", str(root / 'audiobook.m4b')), ("process_state", {})):
+                        stack.enter_context(patch.object(lib, name, value))
+                    stack.enter_context(patch.object(lib, '_get_saved_book_id', return_value=loaded_book))
+                    client = stack.enter_context(TestClient(app, raise_server_exceptions=False))
+                    response = client.post('/api/scripts/load', json={'name': 'same'})
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual(kept, proposal.exists())
+                self.assertFalse((root / books.JOURNAL).exists())
+
+
 class BookPersonaBindingTests(unittest.TestCase):
     def test_reselecting_same_source_returns_distinct_committed_tokens(self):
         with tempfile.TemporaryDirectory() as tmp:

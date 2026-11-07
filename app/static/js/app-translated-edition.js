@@ -117,7 +117,8 @@ async function refreshTranslatedEditionProposal() {
             ? 'This preview is stale: rebuild it from the current saved Script.'
             : 'This preview still matches the saved Script. It remains a proposal, not an approved translation.';
     } catch (error) {
-        if (epoch === translatedEditionEpoch) {
+        if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest
+            && translatedEditionProposal && translatedEditionProposal.proposal_id === known.proposal_id) {
             translatedEditionElement('feedback').textContent = error.message;
         }
     }
@@ -131,6 +132,12 @@ function renderTranslatedEditionProposal(proposal) {
     heading.className = 'small';
     heading.textContent = `Proposal, not approved. Status: ${status}. ${proposal.counts.translated} translated, ${proposal.counts.flagged} flagged, ${proposal.counts.unsupported} unsupported, ${proposal.counts.failed} failed of ${proposal.excerpt.row_count} excerpt rows (script SHA ${proposal.source_script_sha256.slice(0, 12)}...). Target ${proposal.target_language}.`;
     review.appendChild(heading);
+    if (proposal.excerpt.total_rows > proposal.excerpt.row_count) {
+        const excerptNote = document.createElement('p');
+        excerptNote.className = 'small';
+        excerptNote.textContent = `Excerpt only: the first ${proposal.excerpt.row_count} of ${proposal.excerpt.total_rows} Script rows. The rest of the book was not translated.`;
+        review.appendChild(excerptNote);
+    }
     if (proposal.stale) {
         const stale = document.createElement('p');
         stale.id = 'translated-edition-stale';
@@ -185,7 +192,7 @@ async function createTranslatedEditionProposal() {
             return;
         }
         translatedEditionProposal = proposal;
-        translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${String(proposal.status).replace(/_/g, ' ')}). It is saved with the book as a proposal, not an approved translation, and changes nothing else.`;
+        translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${String(proposal.status).replace(/_/g, ' ')}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.`;
         renderTranslatedEditionProposal(proposal);
     } catch (error) {
         if (epoch === translatedEditionEpoch) {

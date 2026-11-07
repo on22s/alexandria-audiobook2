@@ -136,6 +136,22 @@ class TranslatedEditionAPITests(unittest.TestCase):
         self.assertEqual("cancelled", json.loads(saved.read_text())["status"])
         self.assertIsNone(router_module._CANCEL_TOKENS.get(token))
 
+    def test_duplicate_cancel_token_is_refused_while_running(self):
+        token = "c" * 32
+        event = router_module._begin_preview(token)
+        try:
+            duplicate = self.client.post('/api/translated_edition/proposals', json={
+                "source_language": "en", "target_language": "fr",
+                "cancel_token": token})
+            self.assertEqual(409, duplicate.status_code, duplicate.text)
+            self.assertIn("already running", duplicate.text)
+        finally:
+            router_module._end_preview(token, event)
+        self.assertIsNone(router_module._CANCEL_TOKENS.get(token))
+        # The same token is free again once the first preview has ended.
+        retry = router_module._begin_preview(token)
+        router_module._end_preview(token, retry)
+
 
 if __name__ == "__main__":
     unittest.main()

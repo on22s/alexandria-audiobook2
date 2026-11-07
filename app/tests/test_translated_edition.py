@@ -323,6 +323,42 @@ class ProposalTests(unittest.TestCase):
                     translate_fn=lambda text: "FR: " + text, installed_pairs=[PAIR])
         self.assertFalse((self.root / "translation_proposals").exists())
 
+    def test_script_deleted_mid_build_is_a_refusal_not_a_crash(self):
+        rows = [{"speaker": "ALICE", "text": "Synthetic line one."},
+                {"speaker": "BOB", "text": "Synthetic line two."}]
+        get_book(self.root, rows)
+
+        def delete_script(text):
+            (self.root / "annotated_script.json").unlink()
+            return "FR: " + text
+
+        with self.assertRaisesRegex(ValueError, "changed during preview"):
+            translated_edition.build_proposal(
+                str(self.root), source_language="en", target_language="fr",
+                translate_fn=delete_script, installed_pairs=[PAIR])
+        self.assertFalse((self.root / "translation_proposals").exists())
+
+    def test_late_cancel_is_saved_as_cancelled_never_complete(self):
+        cancelled = []
+
+        def translate_last_row_then_cancel(text):
+            if "two" in text:
+                cancelled.append(True)
+            return "FR: " + text
+
+        proposal = self.build(
+            [{"speaker": "ALICE", "text": "Synthetic line one."},
+             {"speaker": "BOB", "text": "Synthetic line two."}],
+            translate_last_row_then_cancel,
+            cancel_check=lambda: bool(cancelled))
+        # Every row translated, but the cancel arrived before publication:
+        # the saved status must be cancelled, not complete.
+        self.assertEqual("cancelled", proposal["status"])
+        self.assertEqual(2, proposal["counts"]["translated"])
+        saved = (self.root / "translation_proposals"
+                 / (proposal["proposal_id"] + ".json"))
+        self.assertEqual("cancelled", json.loads(saved.read_text())["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

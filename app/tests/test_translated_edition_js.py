@@ -122,6 +122,19 @@ class TranslatedEditionJSTests(unittest.TestCase):
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_excerpt_only_note_names_the_untranslated_remainder(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+ proposal.status='excerpt_complete';proposal.excerpt.total_rows=40;proposal.excerpt.row_count=25;
+ proposal.counts={translated:25,flagged:0,unsupported:0,failed:0};
+ await context.createTranslatedEditionProposal();
+ assert(text(el('review')).includes('excerpt complete'));
+ assert(text(el('review')).includes('Excerpt only: the first 25 of 40 Script rows'));
+ assert(text(el('review')).includes('rest of the book was not translated'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_book_change_reset_is_wired_in_the_core_script(self):
         core = CORE.read_text(encoding='utf-8')
         start = core.index('function applyCurrentBookFilename(')

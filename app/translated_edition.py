@@ -181,8 +181,10 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
     and carried over unchanged; changed numbers and other known-bad outputs
     are flagged for review. ``translate_fn`` failures become per-row failures,
     never a silent success. The book operation lock is held for the initial
-    read and for publication, never during translation, and the book token is
-    rechecked before the proposal is saved. Returns the saved proposal dict.
+    read and for publication, never during translation, the book token is
+    rechecked before the proposal is saved, and cancellation is rechecked
+    under that lock so a late cancel is saved as cancelled, never complete.
+    Returns the saved proposal dict.
     """
     validate_language_code(source_language, "source_language")
     validate_language_code(target_language, "target_language")
@@ -279,11 +281,18 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
                 "counts": counts, "rows": proposal_rows}
     try:
         with ensure_book_state(data_dir) as root:
-            current = get_book_snapshot(root, include_voices=False)
+            try:
+                current = get_book_snapshot(root, include_voices=False)
+            except (FileNotFoundError, OSError) as error:
+                raise ValueError("Book changed during preview; proposal was not saved") from error
             if (get_book_operation_token(root) != book_token
                     or current["identity"] != snapshot["identity"]
                     or current["script_sha256"] != script_sha256):
                 raise ValueError("Book changed during preview; proposal was not saved")
+            if cancel_check is not None and cancel_check():
+                # A cancel that arrived after the last row (including while
+                # waiting for this lock) must never be saved as complete.
+                proposal["status"] = "cancelled"
             target_dir = Path(root) / PROPOSALS_DIR
             target_dir.mkdir(parents=True, exist_ok=True)
             atomic_json_write(proposal, str(target_dir / f"{proposal['proposal_id']}.json"),

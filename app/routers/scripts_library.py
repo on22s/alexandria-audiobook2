@@ -11,7 +11,7 @@ import uuid
 import contextlib
 from pathlib import Path
 from book_state_transaction import (ensure_book_state, apply_book_state_locked,
-                                    get_book_operation_token)
+                                    get_book_operation_token, get_book_snapshot)
 from publication_source import (get_publication_source_path, get_publication_source_capture,
                                 get_saved_publication_source_bytes)
 
@@ -609,6 +609,16 @@ def _load_script_sync(request: ScriptLoadRequest):
             raise HTTPException(status_code=409, detail=f'Saved publication provenance requires review: {error}') from error
         state_path = os.path.join(DATA_DIR, "state.json")
         state = safe_load_json(state_path, default={})
+        # The previous book's identity, read through the same snapshot the
+        # translation preview uses for its book binding. Proposals are kept
+        # only when the loaded book is that same book; a different book must
+        # not inherit the previous book's reviewable proposals.
+        try:
+            previous_book_id = get_book_snapshot(
+                DATA_DIR, allow_missing_script=True, include_voices=False)["book_id"]
+        except (OSError, ValueError, TypeError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail=(
+                'Active book identity requires inspection; existing files were preserved.')) from error
         book_id = _get_saved_book_id(safe_name)
         cue_bytes, rendition_bytes = _capture_sound_companions(SCRIPTS_DIR,
             os.path.basename(get_saved_sound_design_path(src)),
@@ -644,13 +654,19 @@ def _load_script_sync(request: ScriptLoadRequest):
             replacements[ACTIVE_RENDITIONS] = rendition_bytes
         removals = [AUDIOBOOK_PATH, M4B_PATH, os.path.join(DATA_DIR, "audacity_export.zip"),
                     os.path.join(DATA_DIR, CHAPTER_EXPORT_DIR), CHUNKS_PATH,
-                    os.path.join(DATA_DIR, TRANSLATION_PROPOSALS_DIR),
                     get_chunk_status_journal_path(CHUNKS_PATH),
                     *get_generation_checkpoint_artifacts(_checkpoint_path(SCRIPT_PATH)),
                     *get_generation_checkpoint_artifacts(three_pass_checkpoint_path(SCRIPT_PATH)),
                     three_pass_manifest_path(SCRIPT_PATH),
                     *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(SCRIPT_PATH)),
                     get_generation_quality_path(SCRIPT_PATH)]
+        # Reloading the same book keeps its reviewable proposals (they stay
+        # bound to that book_id and the stale check still applies); loading a
+        # different book removes the previous book's proposals with its other
+        # per-book active artifacts, so they can never be read as the new
+        # book's.
+        if previous_book_id != book_id:
+            removals.append(os.path.join(DATA_DIR, TRANSLATION_PROPOSALS_DIR))
         if saved_binding_raw is None:
             removals.append(os.path.join(DATA_DIR, BINDING_NAME))
         if cue_bytes is None:
