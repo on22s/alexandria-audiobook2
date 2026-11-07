@@ -1,4 +1,7 @@
 """Real filesystem controls for complete-file upload publication."""
+import asyncio
+import ctypes
+from contextlib import asynccontextmanager
 import errno
 import hashlib
 import json
@@ -9,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import source_upload_publication as publication
+from source_upload_stage import UploadPublicationHeldError
 
 
 class SourceUploadPublicationTests(unittest.TestCase):
@@ -514,3 +518,237 @@ publication.publish_completed_upload(stage, 'book.txt', lambda path: None,
                 self.assertEqual('book_2.txt', Path(installed).name)
                 self.assertEqual(b'New complete retry source.', Path(installed).read_bytes())
                 self.assertEqual(retained, {name: (root / name).read_bytes() for name in retained})
+
+
+def _sharing_violation():
+    """Synthetic ERROR_SHARING_VIOLATION (32) from the _rename_windows boundary."""
+    try:
+        return ctypes.WinError(32)
+    except AttributeError:
+        error = PermissionError(errno.EACCES, 'simulated sharing violation')
+        error.winerror = 32
+        return error
+
+
+def _held_error():
+    error = UploadPublicationHeldError(errno.EACCES, 'Upload file is held by another program')
+    error.winerror = 32
+    return error
+
+
+class UploadRenameRetryTests(unittest.TestCase):
+    """Bounded sharing-violation retry (issue #1784), faked at _rename_windows."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.payload = b'Complete synthetic source.\n' * 1000
+        self.stage = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(self.stage.close)
+        self.stage.write(self.payload)
+
+    def test_sharing_violation_then_success_retries_and_stops(self):
+        calls = []
+        delays = []
+        def flaky(destination):
+            calls.append(destination)
+            if len(calls) == 1:
+                raise _sharing_violation()
+        with patch.object(self.stage, '_rename_windows', side_effect=flaky) as rename, \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            self.stage.seal()
+            self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(2, rename.call_count)
+        self.assertEqual([0.05], delays)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+
+    @unittest.skipIf(os.name != 'nt', 'Real publication needs Windows handles')
+    def test_windows_publish_retries_sharing_violation_and_publishes_once(self):
+        original = self.stage._rename_windows
+        calls = []
+        delays = []
+        def flaky(destination):
+            calls.append(destination)
+            if len(calls) == 1:
+                raise _sharing_violation()
+            return original(destination)
+        with patch.object(self.stage, '_rename_windows', side_effect=flaky), \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            observed = []
+            result = publication.publish_completed_upload(
+                self.stage, 'book.txt', observed.append, limit=len(self.payload))
+        self.assertEqual(2, len(calls))
+        self.assertEqual([0.05], delays)
+        self.assertEqual(str(self.root / 'book.txt'), result)
+        self.assertEqual([result], observed)
+        self.assertEqual(self.payload, Path(result).read_bytes())
+        self.assertEqual(1, Path(result).stat().st_nlink)
+        self.assertTrue(self.stage.publication_started)
+        self.assertEqual(result, self.stage.published_path)
+
+    def test_persistent_sharing_violation_is_bounded_and_uncommitted(self):
+        delays = []
+        with patch.object(self.stage, '_rename_windows',
+                          side_effect=_sharing_violation()) as rename, \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            self.stage.seal()
+            with self.assertRaises(UploadPublicationHeldError) as caught:
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(5, rename.call_count)
+        self.assertEqual([0.05, 0.1, 0.2, 0.4], delays)
+        self.assertIsInstance(caught.exception, (OSError, PermissionError))
+        self.assertEqual(32, caught.exception.winerror)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.stage.close()
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_stage_change_during_wait_is_refused_without_second_attempt(self):
+        def grow_then_hold(destination):
+            self.stage._stream.seek(0, os.SEEK_END)
+            self.stage._stream.write(b'x')
+            self.stage._stream.flush()
+            raise _sharing_violation()
+        with patch.object(self.stage, '_rename_windows',
+                          side_effect=grow_then_hold) as rename, \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            self.stage.seal()
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(1, rename.call_count)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+
+    def test_root_change_during_wait_is_refused_without_second_attempt(self):
+        self.stage.seal()
+        with patch.object(self.stage, '_check_root',
+                          side_effect=[None, ValueError('controlled root replacement')]), \
+                patch.object(self.stage, '_rename_windows',
+                             side_effect=_sharing_violation()) as rename, \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            with self.assertRaisesRegex(ValueError, 'root replacement'):
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(1, rename.call_count)
+
+    def test_collision_access_denied_and_other_errors_are_not_retried(self):
+        cases = (
+            ('collision', FileExistsError(80, 'Upload destination exists')),
+            ('access_denied', ctypes.WinError(5) if hasattr(ctypes, 'WinError') else None),
+            ('plain', OSError('controlled rename failure')),
+        )
+        for label, failure in cases:
+            with self.subTest(label=label):
+                if failure is None:
+                    failure = PermissionError(errno.EACCES, 'simulated access denied')
+                    failure.winerror = 5
+                delays = []
+                with patch.object(self.stage, '_rename_windows', side_effect=failure) as rename, \
+                        patch('source_upload_stage.time.sleep', side_effect=delays.append):
+                    self.stage.seal()
+                    with self.assertRaises(type(failure)):
+                        self.stage._rename_windows_with_retry(self.root / 'book.txt')
+                self.assertEqual(1, rename.call_count)
+                self.assertEqual([], delays)
+                self.assertFalse(self.stage.publication_started)
+                self.assertIsNone(self.stage.published_path)
+                self.assertFalse((self.root / 'book.txt').exists())
+
+
+class UploadHeldRouteTests(unittest.IsolatedAsyncioTestCase):
+    """Held-file route mapping (issue #1784): 503, honest wording, no traceback."""
+
+    @asynccontextmanager
+    async def environment(self):
+        import httpx
+        from fastapi import FastAPI
+        from routers import script
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            uploads = root / 'uploads'
+            uploads.mkdir()
+            app = FastAPI()
+            app.include_router(script.router)
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                    patch.object(script, 'DATA_DIR', str(root)):
+                async with httpx.AsyncClient(
+                        transport=httpx.ASGITransport(app, raise_app_exceptions=False),
+                        base_url='http://fixture') as client:
+                    yield root, uploads, client
+
+    async def _upload(self, client, name, raw):
+        return await client.post('/api/upload', params={'select_active': 'false'},
+                                 files={'file': (name, raw, 'text/plain')})
+
+    async def test_plain_upload_held_is_503_then_retry_succeeds(self):
+        from routers import script
+        payload = b'Complete synthetic source.\n' * 10
+        async with self.environment() as (root, uploads, client):
+            with patch.object(script, 'publish_completed_upload', side_effect=_held_error()):
+                response = await self._upload(client, 'book.txt', payload)
+            self.assertEqual(503, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertIn('held by another program', detail)
+            self.assertIn('nothing was published', detail)
+            self.assertIn('may be held', detail)
+            self.assertNotIn('Traceback', response.text)
+            self.assertNotIn('WinError', response.text)
+            self.assertEqual([], list(uploads.iterdir()))
+            retry = await self._upload(client, 'book.txt', payload)
+            self.assertEqual(200, retry.status_code, retry.text)
+            self.assertEqual(payload, (uploads / 'book.txt').read_bytes())
+            self.assertEqual(1, (uploads / 'book.txt').stat().st_nlink)
+
+    async def _epub_bytes(self):
+        import io
+        import zipfile
+        container = ('<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                     '<rootfile full-path="book.opf"/></container>')
+        package = ('<package xmlns="http://www.idpf.org/2007/opf" '
+                   'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                   '<metadata><dc:title>Fixture title</dc:title>'
+                   '<dc:creator>Fixture Author</dc:creator></metadata>'
+                   '<manifest><item id="body" href="body.xhtml" '
+                   'media-type="application/xhtml+xml"/></manifest>'
+                   '<spine><itemref idref="body"/></spine></package>')
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            for name, data in [('META-INF/container.xml', container), ('book.opf', package),
+                               ('body.xhtml', '<html><body><p>Synthetic text.</p></body></html>')]:
+                archive.writestr(zipfile.ZipInfo(name), data)
+        return raw.getvalue()
+
+    async def test_epub_retained_publish_held_is_503_and_publishes_nothing(self):
+        from routers import script
+        raw = await self._epub_bytes()
+        async with self.environment() as (root, uploads, client):
+            with patch.object(script, 'publish_retained_epub_upload', side_effect=_held_error()):
+                response = await client.post(
+                    '/api/upload', params={'select_active': 'false'},
+                    files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(503, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertIn('held by another program', detail)
+            self.assertIn('nothing was published', detail)
+            self.assertNotIn('Traceback', response.text)
+            self.assertEqual([], list(uploads.iterdir()))
+
+    async def test_txt_publish_held_with_retained_visible_is_503_and_keeps_retained(self):
+        from routers import script
+        raw = await self._epub_bytes()
+        async with self.environment() as (root, uploads, client):
+            with patch.object(script, 'publish_completed_upload', side_effect=_held_error()):
+                response = await client.post(
+                    '/api/upload', params={'select_active': 'false'},
+                    files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(503, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertIn('held by another program', detail)
+            self.assertIn('book.source.epub', detail)
+            self.assertIn('retained', detail)
+            self.assertNotIn('Traceback', response.text)
+            self.assertEqual(raw, (uploads / 'book.source.epub').read_bytes())
+            self.assertFalse((uploads / 'book.txt').exists())
+            self.assertFalse((uploads / 'book.txt.publication.json').exists())

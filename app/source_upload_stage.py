@@ -9,10 +9,28 @@ import stat
 import sys
 import tempfile
 import threading
+import time
 import weakref
 
 _stages = weakref.WeakSet()
 _stages_lock = threading.RLock()
+
+# Bounded native-rename retry (issue #1784): transient ERROR_SHARING_VIOLATION
+# (32) only, mirroring atomic_json_write's retry style (utils.py): 5 attempts
+# with 0.05s doubling backoff, at most 0.75s total wait.
+_WINDOWS_RENAME_ATTEMPTS = 5
+_WINDOWS_RENAME_RETRY_DELAY_SECONDS = 0.05
+
+
+class UploadPublicationHeldError(PermissionError):
+    """Publication did not commit: another program held the stage file.
+
+    Raised only after the native Windows rename exhausts its bounded
+    sharing-violation retry. ``winerror`` stays 32. An OSError subclass so
+    direct callers relying on OSError still work; callers that distinguish
+    unknown-commit outcomes keep treating this as known non-commit
+    (``publication_started`` stays False, nothing was published).
+    """
 
 
 def get_upload_stage_accounting(directory):
@@ -276,6 +294,38 @@ class OwnedSourceUploadStage:
                 raise FileExistsError(error, 'Upload destination exists')
             raise ctypes.WinError(error)
 
+    def _rename_windows_with_retry(self, destination):
+        """Rename natively, retrying only ERROR_SHARING_VIOLATION (32).
+
+        Each attempt re-runs the same safety checks publish() made
+        (root, sealed version, link count) before attempting, so a stage
+        that changed during the wait is refused rather than published.
+        Every other error — including destination-exists 80/183 — propagates
+        unchanged after a single attempt. When 32 persists through all
+        bounded attempts the rename has not committed: raise
+        UploadPublicationHeldError with ``publication_started`` untouched.
+        """
+        last_error = None
+        for attempt in range(_WINDOWS_RENAME_ATTEMPTS):
+            self._check_root()
+            info = os.fstat(self._stream.fileno())
+            if (self._version(info) != self._sealed or info.st_nlink != 1):
+                raise ValueError('Upload stage changed after validation')
+            try:
+                self._rename_windows(destination)
+                return
+            except OSError as error:
+                if getattr(error, 'winerror', None) != 32:
+                    raise
+                last_error = error
+                if attempt + 1 >= _WINDOWS_RENAME_ATTEMPTS:
+                    break
+                time.sleep(_WINDOWS_RENAME_RETRY_DELAY_SECONDS * (2 ** attempt))
+        held = UploadPublicationHeldError(
+            errno.EACCES, 'Upload file is held by another program')
+        held.winerror = 32
+        raise held from last_error
+
     def _delete_windows_link(self):
         import msvcrt
         delete = ctypes.c_ubyte(1)
@@ -289,14 +339,11 @@ class OwnedSourceUploadStage:
             self.seal()
         if self._stream is None or self._published_path is not None:
             raise ValueError('Upload stage is not available for publication')
-        self._check_root()
-        info = os.fstat(self._stream.fileno())
-        if (self._version(info) != self._sealed
-                or info.st_nlink != (1 if os.name == 'nt' else 0)):
-            raise ValueError('Upload stage changed after validation')
         destination = self.directory / name
         if os.name == 'nt':
-            self._rename_windows(destination)
+            # Windows delegates every attempt's validation to the retry
+            # helper below (same checks, repeated before each retry).
+            self._rename_windows_with_retry(destination)
             self._accounting_name = name
             self.publication_started = True
             # A native rename makes the source visible. Record that outcome
@@ -312,7 +359,14 @@ class OwnedSourceUploadStage:
                     raise ValueError(
                         'Upload stage acquired an alias during publication') from error
                 raise ValueError('Upload stage acquired an alias during publication')
-        elif sys.platform.startswith('linux'):
+            self._close_stream()
+            return self._published_path
+        self._check_root()
+        info = os.fstat(self._stream.fileno())
+        if (self._version(info) != self._sealed
+                or info.st_nlink != 0):
+            raise ValueError('Upload stage changed after validation')
+        if sys.platform.startswith('linux'):
             os.link('/proc/self/fd/' + str(self._stream.fileno()), name,
                     dst_dir_fd=self._directory_fd, follow_symlinks=True)
             self.publication_started = True
