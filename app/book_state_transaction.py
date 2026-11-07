@@ -1049,7 +1049,14 @@ def _get_digest(path, cancel_check=None):
     if stat.S_ISLNK(before.st_mode):
         raise ValueError('Book artifact must not be a symlink')
     if stat.S_ISDIR(before.st_mode):
-        return get_adapter_bundle_sha256(str(path), cancel_check=cancel_check)
+        digest = get_adapter_bundle_sha256(str(path), cancel_check=cancel_check)
+        try:
+            after = path.lstat()
+        except OSError as error:
+            raise ValueError('Book artifact changed during digest') from error
+        if _book_info_version(after) != _book_info_version(before):
+            raise ValueError('Book artifact changed during digest')
+        return digest
     if not stat.S_ISREG(before.st_mode):
         raise ValueError('Book artifact must be a regular file or directory')
     digest = hashlib.sha256()
@@ -1686,13 +1693,13 @@ def _cleanup_unpublished_stream_workspace(workspace, workspace_identity, staged_
             stack.callback(os.close, owned_parent_fd)
             try:
                 directory_fd = os.open(workspace.name, flags, dir_fd=owned_parent_fd)
-            except FileNotFoundError:
-                return
+            except FileNotFoundError as error:
+                raise ValueError('Book staging workspace changed; cleanup was refused') from error
             stack.callback(os.close, directory_fd)
             info = os.fstat(directory_fd)
         else:
             if not os.path.lexists(workspace):
-                return
+                raise ValueError('Book staging workspace changed; cleanup was refused')
             info = workspace.lstat()
         if (not stat.S_ISDIR(info.st_mode) or (info.st_dev, info.st_ino) != workspace_identity):
             raise ValueError('Book staging workspace changed; cleanup was refused')
@@ -2527,8 +2534,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
                         journal_version=journal_version,
                         stream_data=data if limits is not None else None,
                         byte_data=data if limits is None else None,
-                        targets=targets if limits is None else None,
-                        cancel_check=cancel_check)
+                        targets=targets if limits is None else None)
     return True
 
 
@@ -2934,10 +2940,10 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                             workspace, workspace_identity, staged_identities, parent_fd=root_fd,
                             staged_versions=staged_versions, require_stage_versions=streams)
                         _unlink_owned_book_journal(root, journal_version, root_fd=root_fd)
-                    except (OSError, ValueError):
-                        # Preserve evidence when staged ownership changed, but
-                        # do not replace the causal byte-publication error.
-                        pass
+                    except (OSError, ValueError) as cleanup_error:
+                        # A cleanup refusal leaves published recovery evidence
+                        # behind and must not be hidden by the triggering error.
+                        raise cleanup_error from original_error
             else:
                 release_root_guard()
                 try:

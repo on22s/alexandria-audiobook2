@@ -375,8 +375,11 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     changed.append(True)
                 return result
             with patch.object(books, '_save_journal', side_effect=replace_staged):
-                with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'replacement'):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        ValueError, 'cleanup was refused') as raised:
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('replacement', str(raised.exception.__cause__))
             self.assertEqual(b'original', target.read_bytes())
             self.assertTrue((root/books.JOURNAL).exists())
 
@@ -919,6 +922,23 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     {'new-0': (stage_stat.st_dev, stage_stat.st_ino)},
                     require_stage_versions=True)
             self.assertEqual(b'preserve', stage.read_bytes())
+
+    def test_cleanup_refuses_renamed_away_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / '.book-switch-test'
+            retained = root / 'retained-workspace'
+            workspace.mkdir()
+            stage = workspace / 'new-0'
+            stage.write_bytes(b'preserve')
+            workspace_stat = workspace.stat()
+            stage_stat = stage.stat()
+            workspace.rename(retained)
+            with self.assertRaisesRegex(ValueError, 'workspace changed'):
+                books._cleanup_unpublished_stream_workspace(
+                    workspace, (workspace_stat.st_dev, workspace_stat.st_ino),
+                    {'new-0': (stage_stat.st_dev, stage_stat.st_ino)})
+            self.assertEqual(b'preserve', (retained / 'new-0').read_bytes())
 
     def test_missing_second_stage_version_preserves_all_stages_and_targets(self):
         with tempfile.TemporaryDirectory() as tmp:

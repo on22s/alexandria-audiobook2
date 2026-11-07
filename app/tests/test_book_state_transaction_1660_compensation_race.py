@@ -978,7 +978,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             options = {'stream_byte_limit': 100} if streaming else {}
             replacements = {'artifact': value} if parent == 'destination' else {'sub/file.json': value}
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
-                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, replacements, [], **options)
             self.assertTrue(state['relocated'])
             self.assertIn(primary, calls)
@@ -1055,7 +1055,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     (retained / 'foreign-stage').rename(retained / 'old-0')
                 return real_move(source, destination, **kwargs)
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
-                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {}, ['chapters'])
             self.assertTrue(state['relocated'])
             self.assertIn(('chapters', 'old-0'), calls)
@@ -1105,7 +1105,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     (nested_workspace / 'foreign-stage').rename(nested_workspace / 'old-0')
                 return real_move(source, destination, **kwargs)
             with patch.object(publication, 'move_source_upload_exclusively', hooked):
-                with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
+                with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {}, ['sub/chapters'])
             self.assertTrue(state['relocated'])
             self.assertIn(('chapters', 'old-0'), calls)

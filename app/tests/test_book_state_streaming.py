@@ -651,8 +651,16 @@ with b.ensure_book_state(root):
                         self.fail('Cancelled recovery was admitted')
             self.assertTrue((root / books.JOURNAL).exists())
             self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
-            with books.ensure_book_state(root):
+            finish = books._finish_transaction
+            cleanup_checks = []
+            def observe_cleanup(*args, **kwargs):
+                cleanup_checks.append(kwargs.get('cancel_check'))
+                return finish(*args, **kwargs)
+            deferred_cancel = lambda: False
+            with patch.object(books, '_finish_transaction', side_effect=observe_cleanup), \
+                 books.ensure_book_state(root, cancel_check=deferred_cancel):
                 pass
+            self.assertEqual([None], cleanup_checks)
             self.assertFalse((root / books.JOURNAL).exists())
             self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
 
@@ -1204,6 +1212,24 @@ print(len(result['entries']))
                 with self.assertRaisesRegex(PermissionError, 'fixture walk refusal'):
                     adapter_publication.get_adapter_bundle_sha256(temporary)
 
+    def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            child = root / 'child'
+            child.mkdir()
+            (child / 'artifact').write_bytes(b'owned')
+            checks = []
+            def mutate_during_child_scan():
+                checks.append(True)
+                if len(checks) == 5:
+                    (root / 'late').write_bytes(b'foreign')
+                return False
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                adapter_publication.get_adapter_bundle_sha256(
+                    temporary, cancel_check=mutate_during_child_scan)
+            self.assertTrue((root / 'late').exists())
+
     def test_regular_byte_digest_refuses_entry_replaced_during_open(self):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / 'artifact'
@@ -1229,6 +1255,23 @@ print(len(result['entries']))
             target = Path(temporary) / 'missing'
             with self.assertRaisesRegex(ValueError, 'changed'):
                 books._get_digest(target)
+
+    def test_directory_digest_refuses_root_replaced_after_bundle_scan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'bundle'
+            retained = Path(temporary) / 'retained'
+            target.mkdir()
+            (target / 'artifact').write_bytes(b'owned')
+            def replace_after_scan(_path, **_kwargs):
+                target.rename(retained)
+                target.mkdir()
+                (target / 'artifact').write_bytes(b'foreign')
+                return hashlib.sha256(b'owned digest').hexdigest()
+            with patch.object(books, 'get_adapter_bundle_sha256', side_effect=replace_after_scan):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    books._get_digest(target)
+            self.assertEqual(b'owned', (retained / 'artifact').read_bytes())
+            self.assertEqual(b'foreign', (target / 'artifact').read_bytes())
 
     def test_adapter_digest_opens_regular_files_nonblocking(self):
         import adapter_publication
@@ -1416,6 +1459,31 @@ print(len(result['entries']))
             self.assertEqual([True], committed)
             self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
             self.assertFalse((root / books.JOURNAL).exists())
+
+    def test_published_byte_cleanup_failure_remains_primary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'audio.wav').write_bytes(b'old')
+            save = books._save_journal
+            published = []
+            validate = books._validate_staged_replacement
+            def mark_published(*args, **kwargs):
+                result = save(*args, **kwargs)
+                published.append(True)
+                return result
+            def fail_after_publication(*args, **kwargs):
+                if published:
+                    raise RuntimeError('fixture publication failure')
+                return validate(*args, **kwargs)
+            with patch.object(books, '_save_journal', side_effect=mark_published), \
+                 patch.object(books, '_validate_staged_replacement', side_effect=fail_after_publication), \
+                 patch.object(books, '_unlink_owned_book_journal',
+                              side_effect=ValueError('fixture cleanup failure')), \
+                 books.ensure_book_state(root), \
+                 self.assertRaisesRegex(ValueError, 'cleanup failure') as raised:
+                books.apply_book_state_locked(root, {'audio.wav': b'new'}, [])
+            self.assertIsInstance(raised.exception.__cause__, RuntimeError)
+            self.assertEqual(b'old', (root / 'audio.wav').read_bytes())
 
     def test_large_input_is_staged_in_chunks_and_committed_with_metadata(self):
         class Observed(io.BytesIO):
