@@ -200,7 +200,15 @@ def _get_numbers(text):
 
 
 def _check_translated_row(source_text, translated_text):
-    """Known-bad controls: dropped/changed numbers, empty, copied source."""
+    """Known-bad controls: dropped/changed numbers, empty, copied source.
+
+    Numbers are compared as written (``\\d+(?:[,.]\\d+)*``), deliberately with
+    no locale or numeral-system knowledge: a translated ``1,000`` written
+    ``1.000`` and an ASCII ``3`` written ``٣`` are both flagged
+    ``number_changed`` for a human to read. This is a review-only flag on a
+    proposal that is never approved automatically, so a false positive costs a
+    glance, while a silent false negative could hide a real number change.
+    """
     flags = []
     if not translated_text.strip():
         flags.append("empty_translation")
@@ -343,13 +351,79 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
     return proposal
 
 
+_COUNT_KEYS = ("translated", "unsupported", "failed", "skipped", "cancelled",
+               "flagged")
+_ROW_STATUSES = frozenset(_COUNT_KEYS)
+
+
+def _is_count(value):
+    return type(value) is int and value >= 0
+
+
+def _saved_proposal_problem(proposal, proposal_id=None):
+    """Say why a saved proposal document cannot be shown, or None if it can.
+
+    One read contract for both read paths (Rule 15). The panel dereferences
+    ``counts``, ``excerpt.row_count``/``total_rows``, the source SHA and each
+    row's ``status``/``flags``/``text`` values, so a document missing any of
+    them would raise there and leave the review pane blank. ``build_proposal``
+    always writes this shape; only a hand-edited or corrupt file is refused.
+    ``proposal_id`` (the filename stem) also has to match the document's own id.
+    """
+    if not isinstance(proposal, dict):
+        return "not an object"
+    if proposal.get("kind") != PROPOSAL_KIND:
+        return "wrong kind"
+    proposal_id_value = proposal.get("proposal_id")
+    if (not isinstance(proposal_id_value, str)
+            or not _PROPOSAL_ID_PATTERN.match(proposal_id_value)):
+        return "invalid proposal id"
+    if proposal_id is not None and proposal_id_value != proposal_id:
+        return "proposal id differs from its filename"
+    if not isinstance(proposal.get("status"), str):
+        return "missing status"
+    if not _valid_sha(proposal.get("source_script_sha256")):
+        return "missing or invalid source script SHA"
+    if not isinstance(proposal.get("target_language"), str):
+        return "missing target language"
+    excerpt = proposal.get("excerpt")
+    if (not isinstance(excerpt, dict) or not _is_count(excerpt.get("row_count"))
+            or not _is_count(excerpt.get("total_rows"))):
+        return "invalid excerpt bounds"
+    counts = proposal.get("counts")
+    if not isinstance(counts, dict) or any(
+            not _is_count(counts.get(key)) for key in _COUNT_KEYS):
+        return "invalid counts"
+    rows = proposal.get("rows")
+    if not isinstance(rows, list):
+        return "rows are not a list"
+    for row in rows:
+        if not isinstance(row, dict) or not _is_count(row.get("index")):
+            return "invalid row"
+        if row.get("status") not in _ROW_STATUSES:
+            return "invalid row status"
+        if not isinstance(row.get("source_text"), str) or not isinstance(
+                row.get("translated_text"), str):
+            return "invalid row text"
+        if not isinstance(row.get("flags"), list) or any(
+                not isinstance(flag, str) for flag in row["flags"]):
+            return "invalid row flags"
+        if row.get("speaker") is not None and not isinstance(row.get("speaker"), str):
+            return "invalid row speaker"
+        if row.get("error") is not None and not isinstance(row.get("error"), str):
+            return "invalid row error"
+    return None
+
+
 def get_proposal(data_dir, proposal_id):
     """Read one saved proposal by id.
 
     The read holds the book operation lock and refuses a proposal whose
     ``book_id`` is not the current book, so a preview left in a reused
-    workspace is never shown as if it belonged to this book. To re-open a
-    kept proposal without knowing its id, see ``get_latest_proposal``.
+    workspace is never shown as if it belonged to this book. A document
+    missing any field the panel renders is refused too
+    (``_saved_proposal_problem``), never handed on to break the panel. To
+    re-open a kept proposal without knowing its id, see ``get_latest_proposal``.
     """
     if not isinstance(proposal_id, str) or not _PROPOSAL_ID_PATTERN.match(proposal_id):
         raise ValueError("Invalid proposal id")
@@ -364,7 +438,7 @@ def get_proposal(data_dir, proposal_id):
                 proposal = json.loads(path.read_bytes().decode("utf-8"))
             except (ValueError, UnicodeDecodeError) as error:
                 raise ValueError("Saved translation proposal cannot be read") from error
-            if not isinstance(proposal, dict) or proposal.get("kind") != PROPOSAL_KIND:
+            if _saved_proposal_problem(proposal, proposal_id) is not None:
                 raise ValueError("Saved translation proposal needs inspection")
             if proposal.get("book_id") != snapshot["book_id"]:
                 raise ValueError("Translation proposal belongs to a different book")
@@ -381,13 +455,20 @@ def get_latest_proposal(data_dir):
     One lookup for the panel's re-open path: a kept proposal (same-book
     reload, page refresh) is otherwise unreachable because the in-memory copy
     was cleared and ids are not listed in any UI. The read holds the book
-    operation lock. Only proposals whose ``book_id`` is the current book are
-    candidates — a proposal belonging to another book is refused exactly as
-    ``get_proposal`` refuses it (never returned, never shown as this book's).
-    "Most recent" is the greatest ``created_at`` (file mtime breaks ties).
+    operation lock across the whole scan and reads every ``<id>.json``
+    candidate in the book's proposals folder, so its cost grows linearly with
+    the previews kept for this book (they are only removed when a different
+    saved book is loaded); the Script snapshot read by the same snapshot call
+    dominates that cost for ordinary previews. Only proposals whose
+    ``book_id`` is the current book are candidates — a proposal belonging to
+    another book is refused exactly as ``get_proposal`` refuses it (never
+    returned, never shown as this book's).
+    "Most recent" is the greatest ``created_at``; a missing or non-string
+    ``created_at`` sorts as oldest, and the file mtime breaks ties.
     Returns ``{"proposal": <dict or None>, "malformed_proposals": [...]}``;
-    a malformed proposal file (unreadable, wrong kind, id mismatch) is
-    reported by name and never crashes the lookup or hides a good one.
+    a malformed proposal file (unreadable, wrong kind, id mismatch, or missing
+    a field the panel renders) is reported by name and never crashes the
+    lookup or hides a good one.
     """
     try:
         with ensure_book_state(data_dir) as root:
@@ -404,15 +485,15 @@ def get_latest_proposal(data_dir):
                         malformed.append(path.name)
                         continue
                     try:
+                        # The version is read here too: a candidate that
+                        # disappears mid-scan must not turn the whole lookup
+                        # (and a good proposal beside it) into a 409.
+                        modified = path.stat().st_mtime
                         proposal = json.loads(path.read_bytes().decode("utf-8"))
                     except (ValueError, UnicodeDecodeError, OSError):
                         malformed.append(path.name)
                         continue
-                    if (not isinstance(proposal, dict)
-                            or proposal.get("kind") != PROPOSAL_KIND
-                            or proposal.get("proposal_id") != path.stem
-                            or not isinstance(proposal.get("rows"), list)
-                            or not isinstance(proposal.get("counts"), dict)):
+                    if _saved_proposal_problem(proposal, path.stem) is not None:
                         malformed.append(path.name)
                         continue
                     if proposal.get("book_id") != snapshot["book_id"]:
@@ -421,7 +502,7 @@ def get_latest_proposal(data_dir):
                     created_at = proposal.get("created_at")
                     candidates.append((
                         created_at if isinstance(created_at, str) else "",
-                        path.stat().st_mtime, proposal))
+                        modified, proposal))
             candidates.sort(key=lambda item: (item[0], item[1]))
             latest = candidates[-1][2] if candidates else None
     except FileNotFoundError as error:

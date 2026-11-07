@@ -13,7 +13,7 @@ const text=node=>node.textContent+node.children.map(text).join('');
 for(const id of ['panel','pair','create','refresh','cancel','feedback','review']){
  body.appendChild(new Element('div',{id:'translated-edition-'+id}));}
 const el=id=>document.getElementById('translated-edition-'+id);el('panel').open=true;el('pair').value='';
-const calls=[];let unavailable=false,stale=false,failCreate=false,releaseCreate=null,latestProposal=null;
+const calls=[];let unavailable=false,stale=false,failCreate=false,releaseCreate=null,latestProposal=null,malformedLatest=[],releasePairs=null;
 const proposal={proposal_id:'a'.repeat(32),label:'proposal, not approved',status:'partial',stale,
  source_script_sha256:'b'.repeat(64),target_language:'fr',
  excerpt:{row_count:2},counts:{translated:1,flagged:1,unsupported:0,failed:1},
@@ -21,8 +21,9 @@ const proposal={proposal_id:'a'.repeat(32),label:'proposal, not approved',status
  {index:1,speaker:'BOB',source_text:'Plain row.',translated_text:'',status:'failed',flags:[],error:'synthetic translator failure'}]};
 context.window=context;context._existingUploadSelectionRequest={};
 context.API={get:async path=>{calls.push(['GET',path]);
- if(path.includes('latest-proposal')){return {proposal:latestProposal,malformed_proposals:[]};}
+ if(path.includes('latest-proposal')){return {proposal:latestProposal,malformed_proposals:malformedLatest};}
  if(path.includes('/proposals/')){return {...proposal,stale};}
+ if(path.includes('/pairs')&&releasePairs){await releasePairs.promise;}
  return unavailable?{available:false,reason:'unavailable',pairs:[]}
  :{available:true,reason:'ready',pairs:[{from_code:'en',to_code:'fr',from_name:'English',to_name:'French',package_version:'1.0'}]};},
  post:async(path,payload)=>{calls.push(['POST',path,payload]);
@@ -71,6 +72,21 @@ class TranslatedEditionJSTests(unittest.TestCase):
  failCreate=true;await context.createTranslatedEditionProposal();
  assert(el('feedback').textContent.includes('not installed'));
  assert.equal(el('review').children.length,0);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_book_change_discards_an_in_flight_pairs_refresh(self):
+        self.run_js(r'''
+(async()=>{
+ let resolvePairs;releasePairs={promise:new Promise(r=>{resolvePairs=r;})};
+ context.onTranslatedEditionPanelToggle();   // open: pairs refresh starts
+ await new Promise(setImmediate);
+ context.resetTranslatedEditionBook();       // a book switch while it is in flight
+ resolvePairs();
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ assert.equal(el('pair').children.length,0,'old pairs painted for the new book');
+ assert(!el('feedback').textContent.includes('installed pairs listed'));
+ assert(el('feedback').textContent.includes('No saved translation preview'));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
@@ -135,6 +151,60 @@ class TranslatedEditionJSTests(unittest.TestCase):
  assert(get,'latest proposal was not requested');
  assert(text(el('review')).includes('Proposal, not approved'));
  assert(text(el('review')).includes('Stale'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_reopening_the_panel_during_a_rebuild_keeps_the_build_feedback(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+ await context.createTranslatedEditionProposal();
+ assert(text(el('review')).includes('Proposal, not approved'));
+ let resolveCreate;
+ releaseCreate={promise:new Promise(r=>{resolveCreate=r;})};
+ const pending=context.createTranslatedEditionProposal();
+ await new Promise(setImmediate);
+ const proposalGets=()=>calls.filter(c=>c[0]==='GET'&&c[1].includes('/proposals/')).length;
+ const before=proposalGets();
+ assert(el('feedback').textContent.includes('Building translation preview'));
+ el('panel').open=false;el('panel').open=true;
+ context.onTranslatedEditionPanelToggle();
+ await new Promise(setImmediate);
+ assert.equal(proposalGets(),before,'re-checked the old proposal during a build');
+ assert(el('feedback').textContent.includes('Building translation preview'));
+ assert(!el('feedback').textContent.includes('still matches'));
+ resolveCreate();await pending;
+ assert(text(el('review')).includes('Proposal, not approved'));
+ assert(el('feedback').textContent.includes('proposal, not an approved translation'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_a_slow_pair_list_does_not_overwrite_the_saved_preview_message(self):
+        self.run_js(r'''
+(async()=>{
+ latestProposal={...proposal,stale:true};malformedLatest=['c'.repeat(32)+'.json'];
+ let resolvePairs;releasePairs={promise:new Promise(r=>{resolvePairs=r;})};
+ el('panel').open=true;
+ context.onTranslatedEditionPanelToggle();
+ await new Promise(setImmediate);
+ resolvePairs();
+ await new Promise(setImmediate);await new Promise(setImmediate);
+ assert(el('feedback').textContent.includes('stale'),'pair list overwrote the preview message');
+ assert(el('feedback').textContent.includes('could not be read and were skipped'));
+ assert(!el('feedback').textContent.includes('installed pairs listed'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_panel_survives_a_book_with_no_readable_saved_preview(self):
+        self.run_js(r'''
+(async()=>{
+ latestProposal=null;malformedLatest=['c'.repeat(32)+'.json'];
+ el('panel').open=true;
+ context.onTranslatedEditionPanelToggle();
+ await new Promise(setImmediate);
+ assert.equal(el('review').children.length,0);
+ assert(el('feedback').textContent.includes('could not be read and were skipped'));
+ assert(el('feedback').textContent.includes('No readable saved preview'));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 

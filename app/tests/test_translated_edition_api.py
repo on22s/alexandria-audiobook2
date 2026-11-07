@@ -180,6 +180,26 @@ class TranslatedEditionAPITests(unittest.TestCase):
                          latest.json()["proposal"]["proposal_id"])
         self.assertEqual(["d" * 32 + ".json"], latest.json()["malformed_proposals"])
 
+    def test_damaged_saved_proposal_is_never_served_to_the_panel(self):
+        # The newest file parses and carries the right kind/id/book, but is
+        # missing what the panel renders. It must be named as unreadable and
+        # neither returned as latest nor served by the id route.
+        good = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"}).json()
+        damaged_id = "c" * 32
+        payload = {key: value for key, value in good.items() if key != "excerpt"}
+        payload.update(proposal_id=damaged_id, created_at="2099-01-01T00:00:00+00:00")
+        (self.root / "translation_proposals" / f"{damaged_id}.json").write_text(
+            json.dumps(payload), encoding="utf-8")
+        latest = self.client.get('/api/translated_edition/latest-proposal')
+        self.assertEqual(200, latest.status_code, latest.text)
+        self.assertEqual(good["proposal_id"], latest.json()["proposal"]["proposal_id"])
+        self.assertEqual([f"{damaged_id}.json"],
+                         latest.json()["malformed_proposals"])
+        read = self.client.get(f'/api/translated_edition/proposals/{damaged_id}')
+        self.assertEqual(409, read.status_code, read.text)
+        self.assertIn("needs inspection", read.json()["detail"])
+
     def test_second_concurrent_preview_is_refused_and_guard_released(self):
         entered = threading.Event()
         release = threading.Event()
@@ -221,6 +241,27 @@ class TranslatedEditionAPITests(unittest.TestCase):
             "source_language": "en", "target_language": "fr"})
         self.assertEqual(200, retry.status_code, retry.text)
         self.assertEqual("complete", retry.json()["status"])
+
+    def test_preview_guard_and_cancel_token_are_released_on_a_base_exception(self):
+        # A translator is third-party code; an unexpected BaseException must
+        # not leave the single-preview guard or the token registry held.
+        token = "a" * 32
+
+        def interrupted(from_code, to_code):
+            raise KeyboardInterrupt("synthetic translator interruption")
+
+        with patch.object(router_module.translated_edition, "build_argos_translator",
+                          interrupted):
+            with self.assertRaises(KeyboardInterrupt):
+                router_module._create_proposal(router_module.ProposalRequest(
+                    source_language="en", target_language="fr",
+                    cancel_token=token))
+        self.assertNotIn(token, router_module._CANCEL_TOKENS)
+        self.assertTrue(router_module._PREVIEW_LOCK.acquire(blocking=False))
+        router_module._PREVIEW_LOCK.release()
+        retry = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"})
+        self.assertEqual(200, retry.status_code, retry.text)
 
     def test_busy_book_during_stale_recheck_is_a_refusal_not_a_500(self):
         proposal = self.client.post('/api/translated_edition/proposals', json={

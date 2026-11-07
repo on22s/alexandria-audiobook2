@@ -1,5 +1,6 @@
 """Unit tests for the translation preview builder; synthetic text only."""
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -127,6 +128,38 @@ class InstalledPairsTests(unittest.TestCase):
                                       "argostranslate.settings": settings_module}):
             translate = translated_edition.build_argos_translator("en", "fr")
         self.assertEqual("FR: Synthetic line.", translate("Synthetic line."))
+
+    def test_argos_translator_fails_closed_when_the_device_is_ambiguous(self):
+        # Absent, differently cased, or "auto" must refuse: anything that is
+        # not exactly "cpu" could let CTranslate2 pick a GPU, and it must be
+        # refused before any translation is attempted.
+        for device in (None, "CPU", "auto", "cuda:0", 0):
+            with self.subTest(device=device):
+                fake, package, translate_module, settings_module, calls = \
+                    self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+                translate_module.translate = lambda *args: calls.append("translate")
+                if device is None:
+                    del settings_module.device
+                else:
+                    settings_module.device = device
+                with patch.dict(sys.modules, {"argostranslate": fake,
+                                              "argostranslate.package": package,
+                                              "argostranslate.translate": translate_module,
+                                              "argostranslate.settings": settings_module}):
+                    with self.assertRaisesRegex(ValueError, "device is not CPU"):
+                        translated_edition.build_argos_translator("en", "fr")
+                self.assertEqual([], calls)
+
+    def test_argos_translator_refuses_when_settings_cannot_be_imported(self):
+        fake, package, translate_module, settings_module, calls = \
+            self._fake_argos_with_device([FakePackage("en", "fr")], "cpu")
+        with patch.dict(sys.modules, {"argostranslate": fake,
+                                      "argostranslate.package": package,
+                                      "argostranslate.translate": translate_module,
+                                      "argostranslate.settings": None}):
+            with self.assertRaisesRegex(ValueError, "runtime is unavailable"):
+                translated_edition.build_argos_translator("en", "fr")
+        self.assertEqual([], calls)
 
 
 class ProposalTests(unittest.TestCase):
@@ -398,10 +431,107 @@ class ProposalTests(unittest.TestCase):
         (proposals_dir / ("f" * 32 + ".json")).write_text("not json", encoding="utf-8")
         (proposals_dir / ("e" * 32 + ".json")).write_text(
             json.dumps({"kind": "something_else"}), encoding="utf-8")
+        # A .json file whose name is not a proposal id is named; a directory
+        # that merely looks like one is not a file and is ignored.
+        (proposals_dir / "notes.json").write_text("{}", encoding="utf-8")
+        (proposals_dir / ("a" * 32 + ".json")).mkdir()
         result = translated_edition.get_latest_proposal(str(self.root))
         self.assertEqual(good["proposal_id"], result["proposal"]["proposal_id"])
-        self.assertEqual(sorted(["f" * 32 + ".json", "e" * 32 + ".json"]),
+        self.assertEqual(sorted(["f" * 32 + ".json", "e" * 32 + ".json",
+                                 "notes.json"]),
                          sorted(result["malformed_proposals"]))
+
+    def test_damaged_but_valid_json_proposal_is_reported_not_returned(self):
+        # A hand-damaged file can still parse as JSON, carry the right kind,
+        # id and book, and be the newest. Every field the panel dereferences
+        # must be checked, or the view raises while rendering and the panel
+        # goes blank (review pane empty, raw TypeError in feedback).
+        good = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                          lambda text: "FR: " + text)
+        proposals_dir = self.root / "translation_proposals"
+        damaged_id = "c" * 32
+
+        def damaged(mutate):
+            payload = dict(good, proposal_id=damaged_id,
+                           created_at="2099-01-01T00:00:00+00:00")
+            payload["rows"] = [dict(row) for row in good["rows"]]
+            mutate(payload)
+            (proposals_dir / f"{damaged_id}.json").write_text(
+                json.dumps(payload), encoding="utf-8")
+
+        cases = {
+            "missing excerpt": lambda payload: payload.pop("excerpt"),
+            "counts without values": lambda payload: payload.update(counts={}),
+            "missing sha": lambda payload: payload.pop("source_script_sha256"),
+            "row without flags": lambda payload: payload["rows"][0].pop("flags"),
+            "row with non-text source": lambda payload: payload["rows"][0].update(
+                source_text=None),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(label):
+                damaged(mutate)
+                result = translated_edition.get_latest_proposal(str(self.root))
+                self.assertEqual(good["proposal_id"], result["proposal"]["proposal_id"])
+                self.assertEqual([f"{damaged_id}.json"], result["malformed_proposals"])
+                with self.assertRaisesRegex(ValueError, "needs inspection"):
+                    translated_edition.get_proposal(str(self.root), damaged_id)
+
+    def test_latest_proposal_orders_by_created_at_then_mtime_without_crashing(self):
+        # Non-string created_at must not crash the sort; it sorts oldest.
+        good = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                          lambda text: "FR: " + text)
+        proposals_dir = self.root / "translation_proposals"
+        ids = {"first": "1" * 32, "second": "2" * 32, "undated": "3" * 32}
+        for name, proposal_id in ids.items():
+            payload = dict(good, proposal_id=proposal_id,
+                           created_at="2030-01-01T00:00:00+00:00")
+            if name == "undated":
+                payload["created_at"] = 12345
+            path = proposals_dir / f"{proposal_id}.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            # Same created_at: the later file mtime must win the tie.
+            stamp = 1_800_000_000 + (10 if name == "second" else 0)
+            os.utime(path, (stamp, stamp))
+        result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertEqual(ids["second"], result["proposal"]["proposal_id"])
+        self.assertEqual([], result["malformed_proposals"])
+
+    def test_latest_proposal_survives_a_candidate_vanishing_mid_scan(self):
+        # A file removed between listing and reading must never turn the whole
+        # lookup (with a good proposal beside it) into a refusal.
+        good = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                          lambda text: "FR: " + text)
+        proposals_dir = self.root / "translation_proposals"
+        ghost_id = "d" * 32
+        ghost = dict(good, proposal_id=ghost_id,
+                     created_at="2000-01-01T00:00:00+00:00")
+        ghost_path = proposals_dir / f"{ghost_id}.json"
+        ghost_path.write_text(json.dumps(ghost), encoding="utf-8")
+        real_loads = json.loads
+
+        def loads_that_loses_the_file(raw, *args, **kwargs):
+            value = real_loads(raw, *args, **kwargs)
+            if isinstance(value, dict) and value.get("proposal_id") == ghost_id:
+                ghost_path.unlink()
+            return value
+
+        with patch.object(translated_edition.json, "loads", loads_that_loses_the_file):
+            result = translated_edition.get_latest_proposal(str(self.root))
+        self.assertEqual(good["proposal_id"], result["proposal"]["proposal_id"])
+        self.assertEqual([], result["malformed_proposals"])
+
+    def test_number_separator_and_digit_script_change_is_flagged(self):
+        # Documented policy: numbers are compared as written, so a locale
+        # separator swap and a digit-script swap are review flags, not noise
+        # to be normalised away. Pins the decision in _check_translated_row.
+        rows = [{"speaker": "ALICE", "text": "The fare was 1,000 coins."},
+                {"speaker": "BOB", "text": "Room 3 was quiet."}]
+        mapping = {"The fare was 1,000 coins.": "Die Fahrt kostete 1.000 Muenzen.",
+                   "Room 3 was quiet.": "Raum ٣ war still."}
+        proposal = self.build(rows, lambda text: mapping[text])
+        self.assertEqual(["number_changed"], proposal["rows"][0]["flags"])
+        self.assertEqual(["number_changed"], proposal["rows"][1]["flags"])
+        self.assertEqual("partial", proposal["status"])
 
     def test_get_proposal_rejects_bad_or_traversing_ids(self):
         proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],

@@ -5,6 +5,15 @@ cancel token with the create request, and ``POST .../{token}/cancel`` sets the
 token's event, which the builder checks between rows and again before it
 writes. The token registry is in-process (this app runs one worker) and is
 cleaned up when a build finishes.
+
+One preview runs at a time (``_PREVIEW_LOCK``, non-blocking): a second create
+is refused with 409 rather than loading a second translator/model. The lock is
+released on every exit path, including the duplicate-token 409 and an
+unexpected ``BaseException``. It is a module-level lock with no watchdog, so a
+translator call that never returns holds it for the life of the process: the
+row loop only checks the cancel event between rows, so cancelling cannot
+interrupt a call already inside the translator, and every later preview gets
+409 until the app is restarted. That is a documented limit, not a silent one.
 """
 import asyncio
 import re

@@ -34,17 +34,28 @@ function resetTranslatedEditionBook() {
     updateTranslatedEditionControls();
 }
 
-function onTranslatedEditionPanelToggle() {
+async function onTranslatedEditionPanelToggle() {
     // Toggling never bumps the epoch: a running build must keep its result,
     // and a build that finished while the panel was closed is rendered here.
-    if (translatedEditionElement('panel').open) {
-        const building = translatedEditionBusy;
-        refreshTranslatedEditionPairs();
-        if (translatedEditionProposal) {
-            refreshTranslatedEditionProposal();
-        } else if (!building) {
-            loadTranslatedEditionLatestProposal();
-        }
+    if (!translatedEditionElement('panel').open) {
+        return;
+    }
+    // A running build or pair refresh owns the panel: re-opening it must not
+    // re-check an older proposal over the build's own feedback.
+    if (translatedEditionBusy) {
+        return;
+    }
+    // Read the pair list first, then the proposal: both write the feedback
+    // line, and a slow pair list answering last used to replace the saved
+    // preview's message (stale, or unreadable files) with a pair count.
+    await refreshTranslatedEditionPairs();
+    if (!translatedEditionElement('panel').open || translatedEditionBusy) {
+        return;
+    }
+    if (translatedEditionProposal) {
+        refreshTranslatedEditionProposal();
+    } else {
+        loadTranslatedEditionLatestProposal();
     }
 }
 

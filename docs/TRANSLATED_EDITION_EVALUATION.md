@@ -46,7 +46,12 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   are flagged `unsupported` and carried unchanged; dropped/changed numbers
   (numbers matched as `\d+(?:[,.]\d+)*`, so sentence punctuation after a
   number is not a change), empty output, and copied source are flagged for
-  review. Any saved-Script row without a string `text` refuses the whole
+  review. Numbers are compared **as written**, with no locale or
+  numeral-system knowledge: a translated `1,000` written `1.000` and an
+  ASCII `3` written `٣` are both flagged `number_changed`. That is
+  deliberate for a review-only flag — a false positive costs a glance,
+  while normalising would let a real number change pass unseen — and it is
+  not a locale system. Any saved-Script row without a string `text` refuses the whole
   build: tracing `generate_script.py`, the manual-injection route and the
   three-pass splitter shows every app path that writes a saved Script makes
   `text` a string, the Editor edits `chunks.json` (not the Script) with a
@@ -78,11 +83,21 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   book again does not bring them back. `GET
   /api/translated_edition/latest-proposal` returns the active book's most
   recent saved proposal (with its `stale` flag), or a clear `proposal:
-  null` when there is none; the panel loads it whenever it opens with no
-  in-memory proposal, so a kept proposal is reachable again after a reload.
-  Malformed proposal files are reported by name in `malformed_proposals`
+  null` when there is none; the panel loads it when it opens with no
+  in-memory proposal and no preview building, so a kept proposal is
+  reachable again after a reload (re-opening during a build keeps showing
+  that build).
+  A file that parses as JSON but is missing a field the panel renders
+  (`counts`, the `excerpt` bounds, the source SHA, a row's `flags`) is
+  refused as unreadable rather than handed to the panel, whose render would
+  otherwise raise and leave the review pane blank; both read paths share one
+  validator. Malformed proposal files are reported by name in
+  `malformed_proposals`
   and never hide a good one. There is still no proposal history or list UI:
-  only the most recent proposal per book is re-openable. Stale source is
+  only the most recent proposal per book is re-openable. The lookup reads
+  every candidate file under the book lock, so its cost grows with the
+  previews kept for this book (only a different-book library load removes
+  them); the Script snapshot read by the same call dominates it. Stale source is
   detected by comparing the
   current script SHA; a busy book makes the re-check refuse with "book is
   busy" rather than claiming the proposal is stale.
@@ -94,7 +109,11 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   for the active book, or `proposal: null`), plus
   `POST /api/translated_edition/proposals/{cancel_token}/cancel` for a
   running preview. Only one preview runs at a time: a second concurrent
-  create gets 409 rather than loading a second translator/model. The
+  create gets 409 rather than loading a second translator/model. That guard
+  is non-blocking and released on every exit path (including a duplicate
+  cancel token and an unexpected exception); it has no watchdog, so a
+  translator call that never returns keeps it until the app restarts (see
+  Limits). The
   preview is CPU-only by construction: `build_argos_translator` refuses any
   effective Argos device other than `cpu`, because upstream
   `argostranslate/settings.py` defaults `ARGOS_DEVICE_TYPE` to `cpu` but a
@@ -124,10 +143,14 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   proposals while a same-book reload keeps them, a corrupt or malformed
   active workspace never blocking the load, and a failed proposal-folder
   removal not failing a committed load, a trailing-punctuation number not
-  flagging a correct translation, a non-CPU Argos device refused, a second
+  flagging a correct translation, a separator/digit-script number change
+  flagged for review, a non-CPU Argos device refused, a second
   concurrent preview refused, the most-recent-proposal lookup (including
-  malformed files not hiding a good one and another book's proposal never
-  returned), and toggling the panel during a build not discarding it.
+  malformed files not hiding a good one, a damaged but valid-JSON file
+  refused instead of rendered, a candidate vanishing mid-scan, and another
+  book's proposal never
+  returned), and toggling the panel during a build not discarding it or
+  re-checking an older proposal.
 
 ## Licensing notes
 
@@ -174,13 +197,20 @@ and `argostranslate/package.py` at
   reviewable rules, not by any semantic policy; a human still has to
   read every row.
 - Cancelling stops the preview after the current row; a row already sent
-  to the translator is not interrupted. There is no list or history of
+  to the translator is not interrupted. Because the translator call itself
+  cannot be interrupted, a call that never returns holds the single-preview
+  guard for the life of the process: every later create is refused with 409
+  and the app must be restarted to preview again. There is no watchdog and
+  none is attempted here. There is no list or history of
   older proposals: the panel shows the proposal it just built, or the most
   recent saved proposal for the current book when it opens. Loading a
   different saved book from the library removes the previous book's
   proposals with its other active-book artifacts; selecting an uploaded
   source leaves them on disk (never shown for the new book) until that
   different-book library load.
+- A number that changed only its separator or digit script is still
+  flagged (see above): the flag is a review prompt, not a defect, and this
+  slice deliberately builds no locale or numeral system.
 
 ## Recommendation
 
