@@ -1261,6 +1261,10 @@ print(len(result['entries']))
                 json.dumps(rows, ensure_ascii=False).encode('utf-8')).hexdigest()
             self.assertEqual(
                 expected, adapter_publication.get_adapter_bundle_sha256(temporary))
+            self.assertEqual(
+                expected,
+                books._bounded_book_digest(
+                    root, books._BookScanBudget(1024, 8, None)))
 
     def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
         import adapter_publication
