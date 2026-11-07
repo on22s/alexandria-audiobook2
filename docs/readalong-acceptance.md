@@ -193,3 +193,24 @@ before updating the checkout; the verifier recorded unit-gate failure and
 raw exit 1, with no final test total. It is diagnostic evidence, not a clean
 local release gate; its initial run predates the navigation follow-up.
 Hosted checks remain pending and will be recorded when completed.
+
+
+## Hosted CI fixture follow-up
+
+The first hosted run at `ceb98107` failed unit shard 1 (4,120 tests run,
+two failures) and shard 3 (4,357 tests run, seven errors). The failures
+were stale integration expectations for the new task-observer notices and
+retained EPUB file. The rollback errors were fault injectors that omitted
+the descriptor-relative `os.replace` keyword arguments used by Linux staging.
+
+On unchanged source, the two integration modules reproduced 22 tests with
+two failures (RC 1). A new descriptor-forwarding regression reproduced the
+`src_dir_fd` TypeError locally (one test, one error, RC 1). After the fixture
+repairs, the task-reattachment, upload-event-loop and R4 modules ran 46 tests:
+46 passed, zero skips, zero failures/errors, RC 0. The upload test now also
+asserts exact retained archive bytes; the rollback/cancel/stale/recovery
+assertions remain intact. No production implementation changed.
+
+The descriptor-forwarding regression uses a recording OS boundary on Windows;
+actual POSIX staging qualification still requires the new hosted run. The
+earlier broad Windows readiness failure remains unresolved release evidence.

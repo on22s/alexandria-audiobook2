@@ -9533,6 +9533,7 @@
     "tests.test_readalong_r4.R4FrameTruthTests.test_non_integer_ms_lengths_exact",
     "tests.test_readalong_r4.R4PublicationTests.test_cancellation_between_publications_rolls_back",
     "tests.test_readalong_r4.R4PublicationTests.test_epub_receipt_failure_restores_all_prior_outputs",
+    "tests.test_readalong_r4.R4PublicationTests.test_fault_injector_forwards_descriptor_relative_staging_renames",
     "tests.test_readalong_r4.R4PublicationTests.test_rollback_failure_retains_recovery_files",
     "tests.test_readalong_r4.R4PublicationTests.test_second_target_failure_first_build_leaves_neither",
     "tests.test_readalong_r4.R4PublicationTests.test_second_target_failure_rolls_back_existing_pair",

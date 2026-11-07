@@ -346,13 +346,25 @@ class R4PublicationTests(unittest.TestCase):
         orig_replace = readalong_export.os.replace
         state = {"failed": False}
 
-        def flaky(src, dst):
+        def flaky(src, dst, **kwargs):
             if (not state["failed"] and str(dst).endswith(target_suffix)
                     and str(src).endswith(target_suffix)):
                 state["failed"] = True
                 raise OSError("injected target failure")
-            return orig_replace(src, dst)
+            return orig_replace(src, dst, **kwargs)
         return flaky
+
+    def test_fault_injector_forwards_descriptor_relative_staging_renames(self):
+        import readalong_export
+        with patch.object(readalong_export.os, "replace") as replace:
+            inject = self._fail_once_on_target("readalong.sidecar.json")
+            inject("receipt.pending", "allocation.json", src_dir_fd=11, dst_dir_fd=11)
+            replace.assert_called_once_with(
+                "receipt.pending", "allocation.json", src_dir_fd=11, dst_dir_fd=11)
+            with self.assertRaisesRegex(OSError, "injected target failure"):
+                inject("stage/readalong.sidecar.json", "book/readalong.sidecar.json")
+            inject("stage/readalong.sidecar.json", "book/readalong.sidecar.json")
+            self.assertEqual(2, replace.call_count)
 
     def test_second_target_failure_rolls_back_existing_pair(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -431,8 +443,8 @@ class R4PublicationTests(unittest.TestCase):
             orig_replace = readalong_export.os.replace
             published = []
 
-            def flaky_replace(src, dst):
-                result = orig_replace(src, dst)
+            def flaky_replace(src, dst, **kwargs):
+                result = orig_replace(src, dst, **kwargs)
                 if str(dst) == str(Path(tmp) / "cloned_audiobook.mp3"):
                     published.append(True)
                 return result
@@ -464,8 +476,8 @@ class R4PublicationTests(unittest.TestCase):
             orig_replace = readalong_export.os.replace
             mutated = []
 
-            def stale_after_mp3(src, dst):
-                result = orig_replace(src, dst)
+            def stale_after_mp3(src, dst, **kwargs):
+                result = orig_replace(src, dst, **kwargs)
                 if str(dst) == str(Path(tmp) / "cloned_audiobook.mp3") and not mutated:
                     mutated.append(True)
                     chunks = json.loads((Path(tmp) / "chunks.json").read_text(encoding="utf-8"))
@@ -493,14 +505,14 @@ class R4PublicationTests(unittest.TestCase):
             orig_replace = readalong_export.os.replace
             second = {"failed": False}
 
-            def flaky(src, dst):
+            def flaky(src, dst, **kwargs):
                 if (not second["failed"] and str(dst).endswith("readalong.sidecar.json")
                         and str(src).endswith("readalong.sidecar.json")):
                     second["failed"] = True
                     raise OSError("injected second-target failure")
                 if "old" in str(src) and str(dst).endswith("cloned_audiobook.mp3"):
                     raise OSError("injected rollback failure")
-                return orig_replace(src, dst)
+                return orig_replace(src, dst, **kwargs)
 
             with patch.object(readalong_export.os, "replace", side_effect=flaky):
                 ok, msg = build_sidecar_export(manager, lambda: False)

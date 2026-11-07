@@ -1050,17 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T04:37:38",
+  "written": "2026-11-07T05:11:02",
   "host": "RealMitch",
   "git": {
-   "commit": "a14ace080a41635f88d327d424e6994c2a549921",
+   "commit": "ceb981078a053bfe92cf715123492c40e390fe16",
    "branch": "feat/1720-1779-readalong",
    "dirty": true,
-   "source_state": "dirty:ca451f386a14",
+   "source_state": "dirty:2a17d435a05a",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/api_contract/openapi.json",
-    " M app/api_contract/routes.json"
+    "M  app/tests/test_readalong_r4.py",
+    "M  app/tests/test_task_reattachment.py",
+    "M  app/tests/test_upload_event_loop.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/readalong-acceptance.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
