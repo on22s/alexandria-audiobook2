@@ -837,6 +837,35 @@ class ProposalTests(unittest.TestCase):
                  / (proposal["proposal_id"] + ".json"))
         self.assertEqual("cancelled", json.loads(saved.read_text())["status"])
 
+    def test_every_row_status_the_builder_writes_is_accepted_on_read(self):
+        # _ROW_STATUSES was tightened to exactly the five statuses
+        # build_proposal writes; a real proposal using all of them must still
+        # read back (only a hand-edited "flagged" row is refused).
+        rows = [{"speaker": "ALICE", "text": "Translated row."},
+                {"speaker": "BOB", "text": "[pause] carried control row."},
+                {"speaker": "CAROL", "text": "   "},
+                {"speaker": "DAVE", "text": "Translator fails here."},
+                {"speaker": "EVE", "text": "Cancelled row."}]
+
+        def translate(text):
+            if text == "Translator fails here.":
+                raise RuntimeError("synthetic failure")
+            return "FR: " + text
+
+        checks = []
+        def cancel_before_the_last_row():
+            checks.append(True)
+            return len(checks) == 5
+
+        proposal = self.build(rows, translate,
+                              cancel_check=cancel_before_the_last_row)
+        self.assertEqual(
+            ["translated", "unsupported", "skipped", "failed", "cancelled"],
+            [row["status"] for row in proposal["rows"]])
+        read_back = translated_edition.get_proposal(
+            str(self.root), proposal["proposal_id"])
+        self.assertEqual(proposal["rows"], read_back["rows"])
+
     def test_saved_proposal_with_flagged_row_status_is_refused(self):
         # "flagged" is a count key, never a row status the builder writes:
         # a file carrying it must be refused, not rendered as a real row.

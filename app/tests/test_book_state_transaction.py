@@ -1681,6 +1681,28 @@ class BookPersonaBindingTests(unittest.TestCase):
             self.assertEqual(second, books.get_book_operation_token(tmp))
             self.assertNotEqual(first, second)
 
+    def test_identity_only_snapshot_never_reads_an_unreadable_script(self):
+        # The saved-book load and the proposal reads only need the book
+        # identity. An unreadable Script must not turn a same-book load's
+        # identity into "unknown" (which used to discard its proposals),
+        # while a full snapshot still reports the I/O failure.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'state.json').write_bytes(b'{"active_book_id":"same-book"}')
+            (root / 'annotated_script.json').write_bytes(b'[]')
+            real_read_bytes = Path.read_bytes
+            def deny_script(path):
+                if path.name == 'annotated_script.json':
+                    raise PermissionError('fixture unreadable script')
+                return real_read_bytes(path)
+            with patch.object(Path, 'read_bytes', deny_script):
+                with self.assertRaises(PermissionError):
+                    books.get_book_snapshot(tmp)
+                snapshot = books.get_book_snapshot(
+                    tmp, include_voices=False, include_script=False)
+        self.assertEqual('same-book', snapshot['book_id'])
+        self.assertIsNone(snapshot['script_sha256'])
+
     def test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity(self):
         from contextlib import ExitStack
         import array

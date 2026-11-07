@@ -604,8 +604,8 @@ def get_latest_proposal(data_dir):
     operation lock across the whole scan and reads every ``<id>.json``
     candidate in the book's proposals folder, so its cost grows linearly with
     the previews kept for this book (they are only removed when a different
-    saved book is loaded); the Script snapshot read by the same snapshot call
-    dominates that cost for ordinary previews. Only proposals whose
+    saved book is loaded). The Script itself is not read: only the book
+    identity is needed to select candidates. Only proposals whose
     ``book_id`` is the current book are candidates — a proposal belonging to
     another book is refused exactly as ``get_proposal`` refuses it (never
     returned, never shown as this book's).

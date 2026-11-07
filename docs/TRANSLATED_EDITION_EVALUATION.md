@@ -76,8 +76,10 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   Selecting an uploaded source does **not** remove the folder: old proposal
   files stay on disk until the next different-book library load, and are
   never shown for the new book because the `book_id` check refuses them. A
-  corrupt or unreadable active workspace never blocks a load: the previous
-  identity is treated as unknown and its proposals are discarded. Proposals
+  corrupt or unreadable active state never blocks a load: the previous
+  identity is treated as unknown and its proposals are discarded. (The load
+  reads only the book identity, never the Script, so an unreadable Script
+  cannot make a same-book load discard its proposals.) Proposals
   live in the active book's folder only: saving a book to the library does
   not copy them into the saved book, so switching away and loading the saved
   book again does not bring them back. `GET
@@ -97,7 +99,8 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   only the most recent proposal per book is re-openable. The lookup reads
   every candidate file under the book lock, so its cost grows with the
   previews kept for this book (only a different-book library load removes
-  them); the Script snapshot read by the same call dominates it. Stale source is
+  them); the Script itself is not read, because only the book identity is
+  needed to select candidates. Stale source is
   detected by comparing the
   current script SHA; a busy book makes the re-check refuse with "book is
   busy" rather than claiming the proposal is stale.

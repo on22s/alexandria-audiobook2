@@ -1774,6 +1774,7 @@
   "test_book_state_transaction": [
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_actual_persona_main_rejects_changed_book_and_keeps_original_artifact_identity",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_application_startup_recovers_before_chunk_reset",
+    "tests.test_book_state_transaction.BookPersonaBindingTests.test_identity_only_snapshot_never_reads_an_unreadable_script",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_reselecting_same_source_returns_distinct_committed_tokens",
     "tests.test_book_state_transaction.BookPersonaBindingTests.test_same_book_reload_nonce_rejects_and_newer_human_fields_are_preserved",
     "tests.test_book_state_transaction.BookReaderAdmissionTests.test_http_voice_snapshot_waits_for_complete_switch",
@@ -13605,6 +13606,7 @@
     "tests.test_translated_edition.ProposalTests.test_control_tags_and_markup_unsupported",
     "tests.test_translated_edition.ProposalTests.test_damaged_but_valid_json_proposal_is_reported_not_returned",
     "tests.test_translated_edition.ProposalTests.test_empty_source_row_skipped",
+    "tests.test_translated_edition.ProposalTests.test_every_row_status_the_builder_writes_is_accepted_on_read",
     "tests.test_translated_edition.ProposalTests.test_excerpt_bound",
     "tests.test_translated_edition.ProposalTests.test_get_proposal_rejects_bad_or_traversing_ids",
     "tests.test_translated_edition.ProposalTests.test_known_bad_translations_are_flagged",
