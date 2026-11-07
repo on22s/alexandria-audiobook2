@@ -74,6 +74,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-synthesis-windows.js?v=__APP_BUILD__',
                           '/static/js/app-speech-verification.js?v=__APP_BUILD__',
                           '/static/js/app-guides.js?v=__APP_BUILD__',
+                          '/static/js/app-translated-edition.js?v=__APP_BUILD__',
                           '/static/js/app-single-voice.js?v=__APP_BUILD__',
                           '/static/js/app-calibre.js?v=__APP_BUILD__'}
         urls = [url for url, _ in resources]
