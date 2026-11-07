@@ -2936,6 +2936,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         raise cleanup_error from original_error
                 else:
                     try:
+                        _require_book_journal_version(root, journal_version)
                         _cleanup_unpublished_stream_workspace(
                             workspace, workspace_identity, staged_identities, parent_fd=root_fd,
                             staged_versions=staged_versions, require_stage_versions=streams)

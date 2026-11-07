@@ -383,6 +383,38 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertEqual(b'original', target.read_bytes())
             self.assertTrue((root/books.JOURNAL).exists())
 
+    def test_byte_emergency_cleanup_preserves_workspace_if_journal_changed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'script.json'
+            target.write_bytes(b'original')
+            foreign = b'{"foreign":"journal"}'
+            changed = []
+            validate = books._validate_staged_replacement
+            checks = []
+            def replace_journal_then_refuse(*args, **kwargs):
+                checks.append(True)
+                if len(checks) == 2:
+                    journal = root / books.JOURNAL
+                    journal.unlink()
+                    journal.write_bytes(foreign)
+                    changed.append(True)
+                    raise ValueError('staged replacement changed')
+                return validate(*args, **kwargs)
+            with patch.object(books, '_validate_staged_replacement',
+                              side_effect=replace_journal_then_refuse):
+                with books.ensure_book_state(root), self.assertRaisesRegex(
+                        ValueError, 'journal changed') as raised:
+                    books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
+            self.assertTrue(changed)
+            self.assertIsInstance(raised.exception.__cause__, ValueError)
+            self.assertIn('replacement changed', str(raised.exception.__cause__))
+            self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
+            stages = list(root.glob('.book-switch-*/new-0'))
+            self.assertEqual(1, len(stages))
+            self.assertEqual(b'generated', stages[0].read_bytes())
+            self.assertEqual(b'original', target.read_bytes())
+
     @unittest.skipIf(os.name == 'nt', 'POSIX symlink fixture')
     def test_symlinked_book_ancestor_is_rejected_before_staging(self):
         with tempfile.TemporaryDirectory() as temporary:

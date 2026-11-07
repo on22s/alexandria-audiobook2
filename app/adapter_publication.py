@@ -95,6 +95,10 @@ def sync_adapter_tree(path):
 
 def get_adapter_bundle_sha256(root, cancel_check=None):
     """Identify complete original bundles, including preserved assets and links."""
+    root = os.fspath(root)
+    if not root:
+        raise ValueError("adapter bundle root is required")
+    root = os.path.abspath(root)
     rows = []
     artifact_versions = []
     def version(info):
@@ -174,6 +178,7 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
             raise ValueError(f"adapter bundle artifact changed: {path}") from error
         if version(current) != expected:
             raise ValueError(f"adapter bundle artifact changed: {path}")
+    check_cancellation()
     return hashlib.sha256(encoded).hexdigest()
 
 

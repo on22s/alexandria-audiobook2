@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import book_state_transaction as books
@@ -1212,6 +1213,13 @@ print(len(result['entries']))
                 with self.assertRaisesRegex(PermissionError, 'fixture walk refusal'):
                     adapter_publication.get_adapter_bundle_sha256(temporary)
 
+    def test_adapter_bundle_digest_rejects_empty_root(self):
+        import adapter_publication
+        with patch.object(adapter_publication.os, 'walk', return_value=()) as walk:
+            with self.assertRaisesRegex(ValueError, 'root is required'):
+                adapter_publication.get_adapter_bundle_sha256('')
+        walk.assert_not_called()
+
     def test_adapter_bundle_digest_refuses_late_ancestor_change(self):
         import adapter_publication
         with tempfile.TemporaryDirectory() as temporary:
@@ -1219,15 +1227,28 @@ print(len(result['entries']))
             child = root / 'child'
             child.mkdir()
             (child / 'artifact').write_bytes(b'owned')
+            real_lstat = adapter_publication.os.lstat
+            root_before = real_lstat(root)
             checks = []
             def mutate_during_child_scan():
                 checks.append(True)
                 if len(checks) == 5:
                     (root / 'late').write_bytes(b'foreign')
                 return False
-            with self.assertRaisesRegex(ValueError, 'changed'):
-                adapter_publication.get_adapter_bundle_sha256(
-                    temporary, cancel_check=mutate_during_child_scan)
+            def expose_late_root_version(path, *args, **kwargs):
+                info = real_lstat(path, *args, **kwargs)
+                if Path(path) == root and (root / 'late').exists():
+                    return SimpleNamespace(
+                        st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                        st_mtime_ns=root_before.st_mtime_ns + 1,
+                        st_ctime_ns=info.st_ctime_ns, st_mode=info.st_mode,
+                        st_nlink=info.st_nlink)
+                return info
+            with patch.object(adapter_publication.os, 'lstat',
+                              side_effect=expose_late_root_version):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    adapter_publication.get_adapter_bundle_sha256(
+                        temporary, cancel_check=mutate_during_child_scan)
             self.assertTrue((root / 'late').exists())
 
     def test_adapter_bundle_digest_refuses_file_changed_during_finalization(self):
@@ -1258,6 +1279,81 @@ print(len(result['entries']))
                 with self.assertRaises(AudioGenerationCancelled):
                     adapter_publication.get_adapter_bundle_sha256(
                         temporary, cancel_check=lambda: bool(finalizing))
+
+    def test_adapter_bundle_refuses_child_change_before_descending(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            child = root / 'child'
+            child.mkdir()
+            target = child / 'artifact'
+            target.write_bytes(b'owned')
+            real_lstat = adapter_publication.os.lstat
+            observed = []
+            def stabilize_child_after_parent_observation(path, *args, **kwargs):
+                info = real_lstat(path, *args, **kwargs)
+                if Path(path) != child:
+                    return info
+                if not observed:
+                    observed.append(info)
+                    (child / 'late').write_bytes(b'stable')
+                    return info
+                info = SimpleNamespace(
+                    st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                    st_mtime_ns=observed[0].st_mtime_ns + 1,
+                    st_ctime_ns=info.st_ctime_ns, st_mode=info.st_mode,
+                    st_nlink=info.st_nlink)
+                return info
+            with patch.object(adapter_publication.os, 'lstat',
+                              side_effect=stabilize_child_after_parent_observation):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertTrue(observed)
+
+    def test_adapter_bundle_anchors_relative_root_before_finalization(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary = Path(temporary)
+            root = temporary / 'bundle'
+            other = temporary / 'other'
+            root.mkdir()
+            other.mkdir()
+            (root / 'artifact').write_bytes(b'owned')
+            expected = adapter_publication.get_adapter_bundle_sha256(str(root))
+            dumps = adapter_publication.json.dumps
+            original_cwd = Path.cwd()
+            try:
+                os.chdir(temporary)
+                def change_cwd_before_recheck(*args, **kwargs):
+                    os.chdir(other)
+                    return dumps(*args, **kwargs)
+                with patch.object(adapter_publication.json, 'dumps',
+                                  side_effect=change_cwd_before_recheck):
+                    actual = adapter_publication.get_adapter_bundle_sha256('bundle')
+            finally:
+                os.chdir(original_cwd)
+            self.assertEqual(expected, actual)
+
+    def test_adapter_bundle_checks_cancellation_after_final_lstat(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            real_lstat = adapter_publication.os.lstat
+            calls = []
+            cancelled = []
+            def cancel_after_final_lstat(path, *args, **kwargs):
+                info = real_lstat(path, *args, **kwargs)
+                calls.append(Path(path))
+                if len(calls) == 5:
+                    cancelled.append(True)
+                return info
+            with patch.object(adapter_publication.os, 'lstat',
+                              side_effect=cancel_after_final_lstat):
+                with self.assertRaises(AudioGenerationCancelled):
+                    adapter_publication.get_adapter_bundle_sha256(
+                        temporary, cancel_check=lambda: bool(cancelled))
+            self.assertEqual(5, len(calls))
 
     def test_regular_byte_digest_refuses_entry_replaced_during_open(self):
         with tempfile.TemporaryDirectory() as temporary:
