@@ -214,3 +214,14 @@ assertions remain intact. No production implementation changed.
 The descriptor-forwarding regression uses a recording OS boundary on Windows;
 actual POSIX staging qualification still requires the new hosted run. The
 earlier broad Windows readiness failure remains unresolved release evidence.
+
+The remaining shard-2 result from that same old head ran 3,992 tests and
+failed three text-diff tests during fixture setup: the Node context lacked
+`window`, now used to expose the shared read-along integrity approval helper.
+The aggregate `test` job failed because its unit-shard dependencies failed;
+it reported no separate application defect. The three failures reproduced
+locally before repair (three tests, three failures, RC 1). Adding the normal
+browser-global alias to the fixture leaves every stale-reply, book/edit/close
+fence and visible-error assertion unchanged. Text-diff plus R2 then ran
+22 tests: 22 passed, zero skips/failures/errors, RC 0. This second follow-up
+also changes no production code; hosted requalification is pending.
