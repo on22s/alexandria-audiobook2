@@ -12,6 +12,7 @@ LEGACY_EXPORTS = ('cloned_audiobook.mp3', 'audiobook.m4b', 'audacity_export.zip'
 # interpretable instead of raising "needs inspection".
 EXPORTS = LEGACY_EXPORTS + ('readalong.sidecar.json', 'readaloud.epub',
                             'readaloud.receipt.json')
+MAX_SCOPE_EXPORT_ROWS = 4096
 
 
 def get_scope_export_inventory(root):
@@ -24,7 +25,7 @@ def get_scope_export_inventory(root):
             pending = [path]
             while pending:
                 item = _ensure_plain_path(pending.pop(), root); info = item.lstat()
-                if len(rows) >= 4096:
+                if len(rows) >= MAX_SCOPE_EXPORT_ROWS:
                     raise ValueError('Scope export inventory exceeds its file-count limit.')
                 if stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
                     rows[item.relative_to(root).as_posix()] = list(_version(info))
@@ -49,6 +50,8 @@ def _is_supported_scope_export_inventory(inventory):
         return False
     for rows in inventory.values():
         if not isinstance(rows, dict):
+            return False
+        if len(rows) > MAX_SCOPE_EXPORT_ROWS:
             return False
         for path, version in rows.items():
             if not isinstance(path, str):

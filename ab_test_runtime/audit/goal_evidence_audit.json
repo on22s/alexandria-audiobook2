@@ -1050,19 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T17:15:35",
+  "written": "2026-11-07T17:32:03",
   "host": "RealMitch",
   "git": {
-   "commit": "826f1e366c8c0c04ace2b1a144009ebe2bb3cfcb",
+   "commit": "ae00c7c1ace1f3f585b1f5345bc9917683d51eb8",
    "branch": "fix/1788-legacy-export-undo",
    "dirty": true,
-   "source_state": "dirty:2eb13a836913",
+   "source_state": "dirty:710ebdee1d84",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/project_scope_apply.py",
     "M  app/project_scope_exports.py",
-    "M  app/tests/test_project_scope_apply.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/test_project_scope_exports.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

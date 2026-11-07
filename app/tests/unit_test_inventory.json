@@ -9156,6 +9156,9 @@
     "tests.test_project_scope_audio.ScopeAudioTests.test_saved_publication_must_match_actual_bytes_and_remains_immutable"
   ],
   "test_project_scope_exports": [
+    "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_historical_reader",
+    "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_pure_compatibility",
+    "tests.test_project_scope_exports.ScopeExportTests.test_malformed_export_proof_refuses_historical_and_current_readers",
     "tests.test_project_scope_exports.ScopeExportTests.test_preserved_mp3_and_chapters_are_fenced_until_their_file_identity_changes"
   ],
   "test_project_scope_failures": [
