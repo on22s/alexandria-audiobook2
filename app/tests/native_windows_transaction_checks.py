@@ -4,6 +4,8 @@ Run explicitly by the windows-owner CI job; unit discovery skips this module so
 Linux shards never report these as skipped. See NATIVE_CHECKS.md.
 """
 import contextlib
+import ctypes
+import asyncio
 import hashlib
 import io
 import json
@@ -36,11 +38,16 @@ import sound_design_uploads as uploads
 from source_upload_stage import (OwnedSourceUploadStage, get_upload_stage_accounting,
                                  get_upload_stage_inventory)
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+import httpx
+from tests import test_saved_book_exports as saved_fixture
+from tests import test_source_upload_publication as upload_fixture
+import source_upload_publication as publication
+from source_upload_stage import UploadPublicationHeldError
 import book_recovery_archive as archive
 import book_state_transaction as books
 import core
-from routers import script
+from routers import script, scripts_library
 import windows_export_staging_directory as windows
 from tests.test_script_publication_cancellation import PublicationCancellationTests
 
@@ -712,9 +719,10 @@ class NativeWindowsUploadStageTests(unittest.TestCase):
             stage.write(b'preserve')
             inventory = get_upload_stage_inventory(self.staging)
             stream = io.BytesIO(self.raw)
-            with self.assertRaisesRegex(ValueError, 'active owner') as raised:
-                uploads.import_sound_asset_upload(self.root, stream)
-            self.assertEqual(32, raised.exception.__cause__.winerror)
+            with patch.object(uploads, 'OwnedSourceUploadStage',
+                              side_effect=AssertionError('A second live stage was opened')):
+                with self.assertRaisesRegex(ValueError, 'active owner'):
+                    uploads.import_sound_asset_upload(self.root, stream)
             self.assertEqual(0, stream.tell())
             self.assertEqual(b'preserve', stage.read_bytes())
             self.assertEqual(inventory, get_upload_stage_inventory(self.staging))
@@ -743,7 +751,167 @@ class NativeWindowsUploadStageTests(unittest.TestCase):
         self.assertEqual(self.raw, retained[0].read_bytes())
 
 
-NATIVE_TEST_COUNT = 28
+@contextlib.contextmanager
+def process_in_directory(root):
+    child = subprocess.Popen(
+        [sys.executable, '-B', '-c',
+         'import sys; print("ready", flush=True); sys.stdin.read()'],
+        cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True)
+    try:
+        if child.stdout.readline().strip() != 'ready':
+            raise AssertionError('Directory-holder process did not start')
+        yield
+    finally:
+        child.communicate('close', timeout=10)
+
+
+class NativeWindowsBookRootSharingTests(unittest.TestCase):
+    def test_nested_guards_allow_child_publication_and_release_independently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            root = parent / 'book'
+            root.mkdir()
+            info = root.stat()
+            with windows.WindowsBookRoot(root, (info.st_dev, info.st_ino)) as outer:
+                with windows.WindowsBookRoot(root, (info.st_dev, info.st_ino)):
+                    stage = OwnedSourceUploadStage(root, byte_limit=64)
+                    try:
+                        stage.write(b'synthetic source')
+                        stage.publish('book.txt')
+                    finally:
+                        stage.close()
+                outer.check()
+                for guarded in (root, parent):
+                    with self.subTest(guarded=guarded), self.assertRaises(PermissionError):
+                        guarded.rename(guarded.with_name(guarded.name + '-moved'))
+                (root / 'child.txt').write_bytes(b'child writes remain allowed')
+            moved = root.with_name('released')
+            root.rename(moved)
+            self.assertEqual(b'synthetic source', (moved / 'book.txt').read_bytes())
+            self.assertEqual(0, get_upload_stage_inventory(moved)['count'])
+
+    def test_upload_http_accepts_files_with_a_process_in_upload_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            uploads = root / 'uploads'
+            uploads.mkdir()
+            app = FastAPI()
+            app.include_router(script.router)
+            async def run():
+                async with httpx.AsyncClient(
+                        transport=httpx.ASGITransport(app=app),
+                        base_url='http://fixture') as client:
+                    for name, payload in [('first.txt', b'First synthetic source.'),
+                                          ('second.txt', b'Second synthetic source.')]:
+                        response = await client.post('/api/upload?select_active=false',
+                            files={'file': (name, payload)})
+                        self.assertEqual(200, response.status_code, response.text)
+                        self.assertEqual(payload, (uploads / name).read_bytes())
+            with patch.object(script, 'DATA_DIR', str(root)), \
+                    patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                    process_in_directory(uploads):
+                asyncio.run(run())
+            self.assertEqual(0, get_upload_stage_inventory(uploads)['count'])
+            self.assertFalse(any(p.name.startswith('.source-upload-') for p in uploads.iterdir()))
+
+    def test_saved_script_http_commits_with_a_process_in_data_directory(self):
+        fixture = saved_fixture.SavedBookExportTests()
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        app = FastAPI()
+        app.include_router(scripts_library.router)
+        async def run():
+            async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=app),
+                    base_url='http://fixture') as client:
+                response = await client.post('/api/scripts/load', json={'name': 'book_b'})
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual('loaded', response.json()['status'])
+        with process_in_directory(fixture.root):
+            asyncio.run(run())
+        self.assertEqual(b'[]', fixture.active.read_bytes())
+        self.assertFalse(any(path.exists() for path in fixture.exports))
+        # A second load after the held-CWD transaction proves guards were released.
+        self.assertEqual('loaded', fixture.load()['status'])
+
+
+class NativeWindowsUploadRenameRetryTests(unittest.TestCase):
+    def setUp(self):
+        upload_fixture.UploadRenameRetryTests.setUp(self)
+
+    def test_windows_publish_retries_sharing_violation_and_publishes_once(self):
+        original = self.stage._rename_windows
+        calls = []
+        delays = []
+        def flaky(destination):
+            calls.append(destination)
+            if len(calls) == 1:
+                raise upload_fixture._sharing_violation()
+            return original(destination)
+        with patch.object(self.stage, '_rename_windows', side_effect=flaky), \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            observed = []
+            result = publication.publish_completed_upload(
+                self.stage, 'book.txt', observed.append, limit=len(self.payload))
+        self.assertEqual(2, len(calls))
+        self.assertEqual([0.05], delays)
+        self.assertEqual(str(self.root / 'book.txt'), result)
+        self.assertEqual([result], observed)
+        self.assertEqual(self.payload, Path(result).read_bytes())
+        self.assertEqual(1, Path(result).stat().st_nlink)
+        self.assertTrue(self.stage.publication_started)
+        self.assertEqual(result, self.stage.published_path)
+
+    def test_windows_publish_held_cleans_companion_and_retry_keeps_name(self):
+        """32-forever through the real publish() branch, then a same-name retry.
+
+        Fakes only the native call, so the real _rename_windows conversion,
+        companion reservation/cleanup and numbered-name selection all run.
+        """
+        companion = upload_fixture._companion_bytes(self.payload)
+        rename_calls = []
+        native = self.stage._api.SetFileInformationByHandle
+
+        def held_rename(handle, information_class, buffer, length):
+            if information_class == 3:  # FileRenameInfo
+                rename_calls.append(information_class)
+                ctypes.set_last_error(32)
+                return 0
+            return native(handle, information_class, buffer, length)
+
+        with patch.object(self.stage._api, 'SetFileInformationByHandle', held_rename), \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            with self.assertRaises(UploadPublicationHeldError) as caught:
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: self.fail('no visibility callback'),
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(5, len(rename_calls))
+        self.assertEqual(32, caught.exception.winerror)
+        self.assertEqual(32, getattr(caught.exception.__cause__, 'winerror', None))
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.assertFalse((self.root / 'book.txt.publication.json').exists())
+        self.stage.close()
+        self.assertEqual([], list(self.root.iterdir()))
+
+        # A genuine retry must not step to book_2.txt: the failed attempt
+        # leaves no companion and no destination behind.
+        retry = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(retry.close)
+        retry.write(self.payload)
+        result = publication.publish_completed_upload(
+            retry, 'book.txt', lambda path: None, limit=len(self.payload),
+            companion_bytes=companion)
+        self.assertEqual(str(self.root / 'book.txt'), result)
+        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+        self.assertFalse((self.root / 'book_2.txt').exists())
+
+
+
+NATIVE_TEST_COUNT = 33
 
 
 def main():
@@ -756,7 +924,8 @@ def main():
     suite = unittest.TestSuite(
         unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
-            NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests))
+            NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests,
+            NativeWindowsBookRootSharingTests, NativeWindowsUploadRenameRetryTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1

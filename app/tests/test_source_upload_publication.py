@@ -1,14 +1,19 @@
 """Real filesystem controls for complete-file upload publication."""
+import ctypes
 import errno
 import hashlib
 import json
 import os
 from pathlib import Path
+import pickle
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 import source_upload_publication as publication
+import source_upload_stage
+from source_upload_stage import OwnedSourceUploadStage, UploadPublicationHeldError
 
 
 class SourceUploadPublicationTests(unittest.TestCase):
@@ -514,3 +519,182 @@ publication.publish_completed_upload(stage, 'book.txt', lambda path: None,
                 self.assertEqual('book_2.txt', Path(installed).name)
                 self.assertEqual(b'New complete retry source.', Path(installed).read_bytes())
                 self.assertEqual(retained, {name: (root / name).read_bytes() for name in retained})
+
+
+def _sharing_violation():
+    """Synthetic ERROR_SHARING_VIOLATION (32) from the _rename_windows boundary."""
+    try:
+        return ctypes.WinError(32)
+    except AttributeError:
+        error = PermissionError(errno.EACCES, 'simulated sharing violation')
+        error.winerror = 32
+        return error
+
+
+def _held_error():
+    error = UploadPublicationHeldError(errno.EACCES, 'Upload file is held by another program')
+    error.winerror = 32
+    return error
+
+
+def _companion_bytes(payload):
+    """Synthetic valid provenance bound to ``payload`` (same shape as the route's)."""
+    digest = hashlib.sha256(payload).hexdigest()
+    origin = hashlib.sha256(b'Synthetic archive fixture').hexdigest()
+    identity = hashlib.sha256(f'AA2_epub_publication_v1:{origin}:{digest}'.encode()).hexdigest()
+    return json.dumps({'version': 1, 'binding': {'kind': 'text', 'sha256': digest},
+        'candidates': [{'version': 1, 'id': identity,
+            'origin': {'kind': 'epub', 'filename': 'book.epub', 'sha256': origin, 'text_sha256': digest},
+            'fields': {'title': [], 'author': []}, 'other_creators': [],
+            'metadata_status': 'unavailable', 'cover': None, 'cover_status': 'not_declared',
+            'warnings': ['Synthetic provenance fixture']}]}).encode()
+
+
+class UploadRenameRetryTests(unittest.TestCase):
+    """Bounded sharing-violation retry (issue #1784), faked at _rename_windows."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.payload = b'Complete synthetic source.\n' * 1000
+        self.stage = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(self.stage.close)
+        self.stage.write(self.payload)
+
+    def test_sharing_violation_then_success_retries_and_stops(self):
+        calls = []
+        delays = []
+        def flaky(destination):
+            calls.append(destination)
+            if len(calls) == 1:
+                raise _sharing_violation()
+        with patch.object(self.stage, '_rename_windows', side_effect=flaky) as rename, \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            self.stage.seal()
+            self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(2, rename.call_count)
+        self.assertEqual([0.05], delays)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+
+
+    def test_persistent_sharing_violation_is_bounded_and_uncommitted(self):
+        delays = []
+        with patch.object(self.stage, '_rename_windows',
+                          side_effect=_sharing_violation()) as rename, \
+                patch('source_upload_stage.time.sleep', side_effect=delays.append):
+            self.stage.seal()
+            with self.assertRaises(UploadPublicationHeldError) as caught:
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(5, rename.call_count)
+        self.assertEqual([0.05, 0.1, 0.2, 0.4], delays)
+        self.assertIsInstance(caught.exception, (OSError, PermissionError))
+        self.assertEqual(32, caught.exception.winerror)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.stage.close()
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_stage_change_during_wait_is_refused_without_second_attempt(self):
+        def grow_then_hold(destination):
+            self.stage._stream.seek(0, os.SEEK_END)
+            self.stage._stream.write(b'x')
+            self.stage._stream.flush()
+            raise _sharing_violation()
+        with patch.object(self.stage, '_rename_windows',
+                          side_effect=grow_then_hold) as rename, \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            self.stage.seal()
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(1, rename.call_count)
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+
+    def test_root_change_during_wait_is_refused_without_second_attempt(self):
+        self.stage.seal()
+        with patch.object(self.stage, '_check_root',
+                          side_effect=[None, ValueError('controlled root replacement')]), \
+                patch.object(self.stage, '_rename_windows',
+                             side_effect=_sharing_violation()) as rename, \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            with self.assertRaisesRegex(ValueError, 'root replacement'):
+                self.stage._rename_windows_with_retry(self.root / 'book.txt')
+        self.assertEqual(1, rename.call_count)
+
+    def test_collision_access_denied_and_other_errors_are_not_retried(self):
+        cases = (
+            ('collision', FileExistsError(80, 'Upload destination exists')),
+            ('access_denied', ctypes.WinError(5) if hasattr(ctypes, 'WinError') else None),
+            ('plain', OSError('controlled rename failure')),
+        )
+        for label, failure in cases:
+            with self.subTest(label=label):
+                if failure is None:
+                    failure = PermissionError(errno.EACCES, 'simulated access denied')
+                    failure.winerror = 5
+                delays = []
+                with patch.object(self.stage, '_rename_windows', side_effect=failure) as rename, \
+                        patch('source_upload_stage.time.sleep', side_effect=delays.append):
+                    self.stage.seal()
+                    with self.assertRaises(type(failure)):
+                        self.stage._rename_windows_with_retry(self.root / 'book.txt')
+                self.assertEqual(1, rename.call_count)
+                self.assertEqual([], delays)
+                self.assertFalse(self.stage.publication_started)
+                self.assertIsNone(self.stage.published_path)
+                self.assertFalse((self.root / 'book.txt').exists())
+
+    def test_link_count_rule_matches_publication_platform(self):
+        """The helper applies publish()'s platform link-count rule.
+
+        Windows stages own one link; POSIX stages are unnamed descriptors
+        with zero links. A hard-coded Windows rule refused every real POSIX
+        stage before the first attempt (and failed these tests on Linux/macOS
+        CI in tests.test_source_upload_publication).
+        """
+        self.stage.seal()
+        real_fstat = os.fstat
+        stream_fd = self.stage._stream.fileno()
+        info = real_fstat(stream_fd)
+
+        def fstat_for(links):
+            def fake(descriptor):
+                if descriptor == stream_fd:
+                    return SimpleNamespace(
+                        st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                        st_mtime_ns=info.st_mtime_ns, st_nlink=links)
+                return real_fstat(descriptor)
+            return fake
+
+        for platform, expected in (('nt', 1), ('posix', 0)):
+            with self.subTest(platform=platform):
+                with patch.object(source_upload_stage.os, 'name', platform), \
+                        patch.object(source_upload_stage.os, 'fstat',
+                                     side_effect=fstat_for(expected)), \
+                        patch.object(self.stage, '_rename_windows',
+                                     side_effect=lambda destination: None):
+                    self.stage._rename_windows_with_retry(self.root / 'book.txt')
+                with patch.object(source_upload_stage.os, 'name', platform), \
+                        patch.object(source_upload_stage.os, 'fstat',
+                                     side_effect=fstat_for(expected ^ 1)), \
+                        patch.object(self.stage, '_rename_windows',
+                                     side_effect=AssertionError(
+                                         'refused stage must not rename')):
+                    with self.assertRaisesRegex(ValueError, 'changed'):
+                        self.stage._rename_windows_with_retry(self.root / 'book.txt')
+
+    def test_held_error_preserves_winerror_errno_and_str_across_pickle(self):
+        """The raised contract survives serialization.
+
+        ``winerror`` is set after construction (a native C attribute), so the
+        default OSError reduce dropped it; that makes a serialized held
+        failure look like a plain permission error.
+        """
+        restored = pickle.loads(pickle.dumps(_held_error()))
+        self.assertIsInstance(restored, UploadPublicationHeldError)
+        self.assertEqual(errno.EACCES, restored.errno)
+        self.assertEqual(32, restored.winerror)
+        self.assertIn('held by another program', str(restored))

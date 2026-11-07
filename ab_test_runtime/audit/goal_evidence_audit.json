@@ -1050,17 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T05:21:32",
+  "written": "2026-11-07T11:11:27",
   "host": "RealMitch",
   "git": {
-   "commit": "6d3218725907c7ce58e4396f330135e855f20367",
-   "branch": "feat/1720-1779-readalong",
+   "commit": "8fa8d7f44926d9d87ae15bb473b829635c447181",
+   "branch": "fix/1784-upload-rename-retry",
    "dirty": true,
-   "source_state": "dirty:0ea1200dbc0f",
+   "source_state": "dirty:98b7d6fbca1a",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_text_diff_reply_js.py",
-    "M  docs/readalong-acceptance.md"
+    "M  .github/workflows/tests.yml",
+    "A  app/tests/test_source_upload_held_routes.py",
+    "M  app/tests/test_source_upload_publication.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

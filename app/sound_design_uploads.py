@@ -14,6 +14,10 @@ STAGING_DIRECTORY = '.sound_design_uploads'
 
 
 def _open_sound_upload_stage(directory, available):
+    # The quota lease serializes this admission. Preserve Windows' single-live-
+    # owner policy explicitly; directory rename guards now permit shared reads.
+    if os.name == 'nt' and get_upload_stage_inventory(directory)['count']:
+        raise ValueError('Sound upload staging has an active owner; retry after it stops')
     try:
         return OwnedSourceUploadStage(directory, byte_limit=available)
     except OSError as error:

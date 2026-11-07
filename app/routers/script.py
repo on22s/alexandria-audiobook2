@@ -79,7 +79,7 @@ from project_scope_files import capture_scope_file
 from source_upload_publication import (create_source_upload_stage, publish_completed_upload,
                                      publish_retained_epub_upload, get_retained_epub_name)
 
-from source_upload_stage import OwnedSourceUploadStage, get_upload_stage_accounting
+from source_upload_stage import OwnedSourceUploadStage, UploadPublicationHeldError, get_upload_stage_accounting
 from docx_preview import extract_docx_preview, MAX_ARCHIVE as MAX_DOCX_ARCHIVE
 from docx_publication import DocxStorageLimit, publish_docx_upload
 from publication_source import (PublicationSourceLimit, get_upload_publication_update,
@@ -152,6 +152,15 @@ BATCH_SOURCE_EXTENSIONS = SELECTABLE_SOURCE_EXTENSIONS | {'.epub'}
 _upload_hash_cache = OrderedDict()
 _upload_hash_lock = threading.Lock()
 _upload_dedupe_lock = threading.Lock()
+
+# Held-file publication failure (issue #1784): the native rename did not commit
+# and nothing was published. Wording stays honest about the cause: the file
+# "appears" to be held and "may" be held by scanning or sync software.
+_HELD_UPLOAD_DETAIL = (
+    'The upload could not be completed because the file appears to be held by '
+    'another program; nothing was published. The file may be held by antivirus '
+    'scanning, backup or sync software. Try again shortly, and check that '
+    'software if it keeps failing.')
 
 
 class ReviewRequest(BaseModel):
@@ -1237,6 +1246,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     publish_docx_upload, file_path, preview, safe_name, remaining=remaining))
             except DocxStorageLimit as error:
                 raise HTTPException(status_code=413, detail=str(error)) from error
+            except UploadPublicationHeldError as error:
+                raise HTTPException(status_code=503, detail=(
+                    'DOCX upload could not be completed because the file appears '
+                    'to be held by another program; the file may be held by '
+                    'antivirus scanning or a sync tool. Try again shortly; any '
+                    'already published recovery material remains retained. Check '
+                    'existing uploads before retrying.')) from error
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
             except (OSError, MemoryError) as error:
@@ -1451,6 +1467,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                         publish_retained_epub_upload, retained_stage, retained_name,
                         limit=MAX_SCRIPT_UPLOAD_BYTES,
                         on_visible=retain_selected_source, exact=True))
+                except UploadPublicationHeldError as error:
+                    raise HTTPException(status_code=503, detail=_HELD_UPLOAD_DETAIL) from error
                 except ValueError as error:
                     raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
                 except OSError as error:
@@ -1553,6 +1571,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                                 publish_retained_epub_upload, retained_stage, _att_name,
                                 limit=MAX_SCRIPT_UPLOAD_BYTES,
                                 on_visible=retain_selected_source, exact=True))
+                        except UploadPublicationHeldError as error:
+                            raise HTTPException(status_code=503, detail=_HELD_UPLOAD_DETAIL) from error
                         except ValueError as error:
                             raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
                         if cancelled is not None:
@@ -1614,6 +1634,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     publish_retained_epub_upload, retained_stage, _att_name,
                     limit=MAX_SCRIPT_UPLOAD_BYTES,
                     on_visible=retain_selected_source, exact=True))
+            except UploadPublicationHeldError as error:
+                raise HTTPException(status_code=503, detail=_HELD_UPLOAD_DETAIL) from error
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=redact_text(str(error))) from error
             if cancelled is not None:
@@ -1625,6 +1647,23 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     publish_completed_upload, file_path, safe_name, retain_selected_source,
                     limit=MAX_SCRIPT_UPLOAD_BYTES,
                     companion_bytes=publication_bytes))
+            except UploadPublicationHeldError as error:
+                # Known non-commit: the native rename exhausted its bounded
+                # sharing-violation retry and did not publish. Files already
+                # published (e.g. a retained EPUB) stay as recovery material
+                # and are named in the message; nothing else was published.
+                if retained_epub_path is not None:
+                    name = os.path.basename(retained_epub_path)
+                    raise HTTPException(status_code=503, detail=(
+                        'The upload could not be completed because the file '
+                        'appears to be held by another program; retained EPUB '
+                        f"'{name}' remains as recovery material and counts "
+                        'toward quota. Inspect it with '
+                        'GET /api/uploads/epub-retained, then remove it '
+                        'manually before retrying; no existing group was '
+                        'overwritten. The file may be held by antivirus '
+                        'scanning or a sync tool.')) from error
+                raise HTTPException(status_code=503, detail=_HELD_UPLOAD_DETAIL) from error
             except ValueError as error:
                 # A confirmed retained EPUB is never unlinked after it became
                 # visible (``on_visible`` fired). ``publication_started`` is

@@ -51,11 +51,13 @@ class _Handle:
             raise ValueError('Invalid Windows handle protection mode')
         # A deletion handle permits existing readers, but denies new writers
         # and renames while the object's final version is checked and removed.
-        # A rename guard requests DELETE access but keeps read/write sharing so
-        # the guarded directory's children can still be published normally.
+        # FILE_LIST_DIRECTORY makes the guard participate in sharing checks;
+        # omitting FILE_SHARE_DELETE denies directory rename without requesting
+        # DELETE ourselves. DELETE access conflicts with working-directory and
+        # overlapping guard handles even though neither renames the directory.
         share_mode = 1 if delete else 3
-        delete_access = delete or protect_rename
-        self.handle = api.CreateFileW(str(path), 0x80 | (0x10000 if delete_access else 0),
+        access = 0x80 | (0x10000 if delete else 0) | (0x1 if protect_rename else 0)
+        self.handle = api.CreateFileW(str(path), access,
                                       share_mode, None, 1 if create else 3,
                                       0x02000000 | 0x00200000, None)
         if self.handle == ctypes.c_void_p(-1).value:
@@ -99,18 +101,17 @@ def windows_named_file_identity(path):
 
 
 def _open_rename_guard(api, directory, *, required):
-    """Request rename authority where the app controls the directory tree.
+    """Deny directory renames through sharing where the app controls the tree.
 
-    System ancestors can deny DELETE access to an ordinary user precisely
-    because that user cannot rename them.  Retain an identity handle there;
-    never weaken the guard for the admitted root or one of its descendants.
+    System ancestors can deny directory-list access to an ordinary user.
+    Retain an identity handle there; require the sharing guard for the admitted
+    root and its descendants.
     """
     try:
         return _Handle(api, directory, protect_rename=True)
     except OSError as error:
-        # Access denial means this token cannot rename the system ancestor; a
-        # sharing violation means another live handle already denies it.  Both
-        # are acceptable only outside the app-controlled root.
+        # An identity-only fallback is allowed only outside the controlled root;
+        # required directories must retain their rename-denying sharing guard.
         if required or getattr(error, 'winerror', None) not in (5, 32):
             raise
         return _Handle(api, directory)
@@ -209,7 +210,7 @@ def guard_windows_book_move_parents(root, source, destination, *, root_guard=Non
     ordered = sorted(paths.values(), key=lambda path: (len(path.parts), os.path.normcase(str(path))))
     if root_guard is not None:
         # The live root guard already pins the root and every ancestor. Opening
-        # them again with DELETE authority would conflict with that same guard.
+        # them again is unnecessary; reuse that admission and its identity checks.
         ordered = [directory for directory in ordered
                    if directory != root and directory.is_relative_to(root)]
     api = _api()
