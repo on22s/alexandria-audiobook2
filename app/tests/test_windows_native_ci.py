@@ -23,7 +23,7 @@ ALIAS_SCRIPT = ROOT / 'app/tests/native_windows_sound_temp_root_checks.py'
 SKIP_REGISTRY = ROOT / 'app/tests/windows_only_skip_baseline.txt'
 WORKFLOW = ROOT / '.github/workflows/sound-assets.yml'
 TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBookStateTests': 5,
-                       'NativeWindowsBookMoveTests': 4, 'NativeWindowsPublicationCancellationTests': 3,
+                       'NativeWindowsBookMoveTests': 5, 'NativeWindowsPublicationCancellationTests': 3,
                        'NativeWindowsPathAdmissionTests': 2, 'NativeWindowsUploadStageTests': 3,
                        'NativeWindowsBookRootSharingTests': 3, 'NativeWindowsUploadRenameRetryTests': 2}
 ALIAS_STEP = 'Verify aliased temporary roots are canonical before asset admission'
@@ -1948,9 +1948,16 @@ def _assert_transaction_contract(case):
                              and item.name.startswith('test_'))
               for node in tree.body if isinstance(node, ast.ClassDef)}
     case.assertEqual(TRANSACTION_CLASSES, counts)
+    book_move_tests = next(node for node in tree.body
+                           if isinstance(node, ast.ClassDef)
+                           and node.name == 'NativeWindowsBookMoveTests')
+    case.assertIn('test_generation_oserror_is_normalized_before_move',
+                  {node.name for node in book_move_tests.body
+                   if isinstance(node, ast.FunctionDef)})
     case.assertIn(f'NATIVE_TEST_COUNT = {sum(TRANSACTION_CLASSES.values())}', source)
     case.assertIn('result.testsRun == NATIVE_TEST_COUNT', source)
     case.assertIn('and not result.skipped', source)
+    case.assertIn('result.wasSuccessful()', source)
     case.assertNotIn('skipUnless', source)
     workflow = (ROOT / '.github/workflows/tests.yml').read_text().split('  windows-owner:', 1)[1]
     case.assertIn('run: python tests/native_windows_transaction_checks.py', workflow)

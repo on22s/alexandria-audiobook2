@@ -1256,24 +1256,6 @@ class BookStateTransaction1660MoveExpectationTests(unittest.TestCase):
             self.assertEqual(OWNED, source.read_bytes())
             self.assertFalse((root / 'old-0').exists())
 
-    @unittest.skipUnless(os.name == 'nt', 'Windows generation read normalization')
-    def test_windows_generation_oserror_is_normalized_before_move(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary).resolve()
-            source = root / 'artifact'
-            source.write_bytes(OWNED)
-            version = books._book_target_version(source)
-            identity = [version[index] for index in (0, 1, 2, 3, 5, 6)]
-            with patch.object(books, 'get_book_file_generation',
-                              side_effect=OSError('fixture generation failure')):
-                with self.assertRaises(ValueError) as raised:
-                    books._move(source, root / 'old-0', exclusive=True, anchor=root,
-                                expected_source_identity=identity,
-                                expected_source_generation=1)
-            self.assertIsInstance(raised.exception.__cause__, OSError)
-            self.assertEqual(OWNED, source.read_bytes())
-            self.assertFalse((root / 'old-0').exists())
-
     def test_ensure_recovery_is_bound_to_admitted_root(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
