@@ -135,6 +135,25 @@ def _saved_mutation_admission():
         yield
 
 
+def _discard_another_book_proposals():
+    """Remove a different book's translation proposals after a committed load.
+
+    Best effort by design: proposals are optional review artifacts, are saved
+    under the book's id, and ``translated_edition.get_proposal`` refuses one
+    whose id is not the active book. A removal failure therefore must never
+    turn an already-committed book load into an error; it is logged instead.
+    """
+    path = os.path.join(DATA_DIR, TRANSLATION_PROPOSALS_DIR)
+    try:
+        if os.path.islink(path) or os.path.isfile(path):
+            os.unlink(path)
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
+    except OSError as error:
+        logger.warning(
+            f"Could not remove another book's translation proposals: {error}")
+
+
 def _require_saved_book_idle():
     busy = [name for name in ("script", "review", "persona", "nicknames",
                              "batch_script", "batch_review")
@@ -612,13 +631,16 @@ def _load_script_sync(request: ScriptLoadRequest):
         # The previous book's identity, read through the same snapshot the
         # translation preview uses for its book binding. Proposals are kept
         # only when the loaded book is that same book; a different book must
-        # not inherit the previous book's reviewable proposals.
+        # not inherit the previous book's reviewable proposals. An unreadable
+        # active workspace is NOT a reason to refuse the load (the load path
+        # was tolerant of it before this preview existed): an unknown previous
+        # identity can never equal a saved book id, so its proposals are
+        # treated as another book's and discarded below.
         try:
             previous_book_id = get_book_snapshot(
                 DATA_DIR, allow_missing_script=True, include_voices=False)["book_id"]
-        except (OSError, ValueError, TypeError, RecursionError) as error:
-            raise HTTPException(status_code=409, detail=(
-                'Active book identity requires inspection; existing files were preserved.')) from error
+        except (OSError, ValueError, TypeError, RecursionError):
+            previous_book_id = None
         book_id = _get_saved_book_id(safe_name)
         cue_bytes, rendition_bytes = _capture_sound_companions(SCRIPTS_DIR,
             os.path.basename(get_saved_sound_design_path(src)),
@@ -661,12 +683,11 @@ def _load_script_sync(request: ScriptLoadRequest):
                     *get_generation_checkpoint_artifacts(get_generation_checkpoint_path(SCRIPT_PATH)),
                     get_generation_quality_path(SCRIPT_PATH)]
         # Reloading the same book keeps its reviewable proposals (they stay
-        # bound to that book_id and the stale check still applies); loading a
-        # different book removes the previous book's proposals with its other
-        # per-book active artifacts, so they can never be read as the new
-        # book's.
-        if previous_book_id != book_id:
-            removals.append(os.path.join(DATA_DIR, TRANSLATION_PROPOSALS_DIR))
+        # bound to that book_id and the stale check still applies). Proposals
+        # from another book are discarded after the switch commits, by the
+        # best-effort removal below: they are optional review artifacts and a
+        # failed removal must never turn a committed book load into an error.
+        discard_another_book_proposals = previous_book_id != book_id
         if saved_binding_raw is None:
             removals.append(os.path.join(DATA_DIR, BINDING_NAME))
         if cue_bytes is None:
@@ -689,6 +710,8 @@ def _load_script_sync(request: ScriptLoadRequest):
             removals.append(VOICE_CONFIG_PATH)
         apply_book_state_locked(DATA_DIR, replacements,
                                 [os.path.relpath(path, DATA_DIR) for path in removals])
+        if discard_another_book_proposals:
+            _discard_another_book_proposals()
         # Identity seam for the loading tab (DS3074): derive the response
         # token from the committed B state WHILE STILL under this load's
         # book-state lease, using the exact state record just committed.

@@ -15888,7 +15888,7 @@
     },
     "/api/translated_edition/proposals/{cancel_token}/cancel": {
       "post": {
-        "description": "Request a stop after the current row for one in-flight preview.\n\nCancelling never approves anything: the builder still saves the partial\nproposal with status ``cancelled``.",
+        "description": "Request a stop after the current row for one in-flight preview.\n\nCancelling never approves anything. A cancel that arrives before the\nproposal is written is saved with status ``cancelled``; one that arrives\nafter the write leaves the finished status, so the caller must not claim\nthe saved status will be ``cancelled``.",
         "operationId": "cancel_translated_edition_proposal_api_translated_edition_proposals__cancel_token__cancel_post",
         "parameters": [
           {

@@ -313,6 +313,25 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different book"):
             translated_edition.get_proposal(str(self.root), proposal["proposal_id"])
 
+    def test_proposal_with_no_book_id_is_never_the_current_book(self):
+        # None must never compare equal to a real book id.
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        saved = self.root / "translation_proposals" / (proposal["proposal_id"] + ".json")
+        payload = json.loads(saved.read_text())
+        payload["book_id"] = None
+        saved.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "different book"):
+            translated_edition.get_proposal(str(self.root), proposal["proposal_id"])
+
+    def test_busy_book_during_stale_recheck_is_a_refusal_not_stale(self):
+        proposal = self.build([{"speaker": "ALICE", "text": "Synthetic line."}],
+                              lambda text: "FR: " + text)
+        with patch.object(translated_edition, "ensure_book_state",
+                          side_effect=TimeoutError("fixture lock busy")):
+            with self.assertRaisesRegex(ValueError, "busy"):
+                translated_edition.is_proposal_stale(str(self.root), proposal)
+
     def test_busy_book_is_reported_as_a_refusal(self):
         get_book(self.root, [{"speaker": "ALICE", "text": "Synthetic line."}])
         with patch.object(translated_edition, "ensure_book_state",

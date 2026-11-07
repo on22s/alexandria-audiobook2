@@ -1562,6 +1562,79 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
 
 
 class SavedBookProposalRetentionTests(unittest.TestCase):
+    def _load_fixture(self, tmp, *, state_bytes=b'{"active_book_id":"old-book"}',
+                      active_script=True, fail_removal=False):
+        from contextlib import ExitStack
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import scripts_library as lib
+        root = Path(tmp); saved = root / 'scripts'; saved.mkdir()
+        (saved / 'same.json').write_bytes(b'[{"speaker":"SAME","text":"same book"}]')
+        (saved / 'same.voice_config.json').write_bytes(b'{"SAME":{"voice":"Aiden"}}')
+        active = root / 'annotated_script.json'
+        if active_script:
+            active.write_bytes(b'[{"speaker":"OLD","text":"old book"}]')
+        voice = root / 'voice_config.json'; voice.write_bytes(b'{"OLD":{"voice":"Ryan"}}')
+        if state_bytes is not None:
+            (root / 'state.json').write_bytes(state_bytes)
+        proposals = root / 'translation_proposals'; proposals.mkdir()
+        proposal = proposals / ('a' * 32 + '.json')
+        proposal.write_bytes(b'{"kind":"translation_proposal"}')
+        app = FastAPI(); app.include_router(lib.router)
+        with ExitStack() as stack:
+            for name, value in (("SCRIPT_PATH", str(active)), ("VOICE_CONFIG_PATH", str(voice)),
+                                ("DATA_DIR", tmp), ("SCRIPTS_DIR", str(saved)),
+                                ("CHUNKS_PATH", str(root / 'chunks.json')),
+                                ("AUDIOBOOK_PATH", str(root / 'audiobook.mp3')),
+                                ("M4B_PATH", str(root / 'audiobook.m4b')), ("process_state", {})):
+                stack.enter_context(patch.object(lib, name, value))
+            stack.enter_context(patch.object(lib, '_get_saved_book_id', return_value='same-book'))
+            if fail_removal:
+                stack.enter_context(patch.object(lib.shutil, 'rmtree',
+                                                 side_effect=OSError('fixture locked folder')))
+            client = stack.enter_context(TestClient(app, raise_server_exceptions=False))
+            response = client.post('/api/scripts/load', json={'name': 'same'})
+        return response, proposal
+
+    def test_corrupt_active_state_never_blocks_the_load(self):
+        # A preview must not make the load path stricter than it was: before
+        # #1731 a corrupt state.json was replaced by the loaded book.
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=b'{not valid json')
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_no_prior_book_discards_unowned_proposals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(tmp, state_bytes=None)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_malformed_active_identity_never_blocks_the_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=json.dumps({"input_file_path": 17}).encode())
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(proposal.exists())
+
+    def test_missing_active_script_keeps_the_same_books_proposals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=json.dumps({"active_book_id": "same-book"}).encode(),
+                active_script=False)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(proposal.exists())
+
+    def test_failed_proposal_removal_does_not_fail_the_load(self):
+        # Proposals are optional review artifacts: a folder that cannot be
+        # removed is refused on read by book_id, never a load error.
+        with tempfile.TemporaryDirectory() as tmp:
+            response, proposal = self._load_fixture(
+                tmp, state_bytes=b'{"active_book_id":"old-book"}', fail_removal=True)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(proposal.exists())
+
     def test_reloading_same_book_keeps_proposals_different_book_removes(self):
         from contextlib import ExitStack
         from fastapi import FastAPI

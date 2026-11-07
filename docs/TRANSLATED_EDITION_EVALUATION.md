@@ -38,8 +38,10 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   intermediate language. `build_proposal()` takes an injected translator
   and translates a bounded excerpt of the first **25** Script rows, one
   row at a time, checking a caller-supplied cancellation check between rows
-  (and again under the publication lock, so a late cancel is saved as
-  cancelled, never complete).
+  and again immediately before publication. A cancel that arrives before
+  that check is saved as `cancelled`; one that arrives after the proposal
+  has been written leaves the finished status, so the panel says "cancel
+  requested", not "saved as cancelled".
   Speaker labels are carried untranslated; rows with control tags or markup
   are flagged `unsupported` and carried unchanged; dropped/changed numbers,
   empty output, and copied source are flagged for review. Partial or
@@ -52,13 +54,19 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   book operation lock (`ensure_book_state`), with the book operation token
   rechecked immediately before publication; a proposal whose `book_id` is
   not the current book is refused on read. Loading a different book removes
-  that folder with the other per-book active artifacts, the same way
-  `chunks.json` is removed; reloading the same book keeps its proposals
-  (the stale check still applies). Proposals live in the active book's
-  folder only: saving a book to the library does not copy them into the
-  saved book, so switching away and loading the saved book again does not
-  bring them back. Stale source is detected by comparing the
-  current script SHA.
+  that folder after the switch commits, on a best-effort basis (a failed
+  removal is logged, never an error: an unreadable or stale folder cannot be
+  read as the new book's because the `book_id` check refuses it); reloading
+  the same book keeps its proposals (the stale check still applies). A
+  corrupt or unreadable active workspace never blocks a load: the previous
+  identity is treated as unknown and its proposals are discarded. Proposals
+  live in the active book's folder only: saving a book to the library does
+  not copy them into the saved book, so switching away and loading the saved
+  book again does not bring them back. There is no proposal list, so the
+  panel cannot re-open a kept proposal by hand; a same-book reload starts
+  with an empty panel. Stale source is detected by comparing the
+  current script SHA; a busy book makes the re-check refuse with "book is
+  busy" rather than claiming the proposal is stale.
 - `app/routers/translated_edition.py` — `GET /api/translated_edition/pairs`,
   `POST /api/translated_edition/proposals`, and
   `GET /api/translated_edition/proposals/{id}` (reads back one proposal
@@ -83,8 +91,11 @@ Measured on `main` at `02aadde9` (greps run 2026-11-06):
   cancelled, script deleted mid-build refused, non-text rows refused,
   proposal-id traversal refused, a proposal from another book refused, the
   translator running off the event-loop thread, the panel's stale and
-  cancel paths, duplicate cancel tokens refused, and book load removing a
-  previous book's proposals while a same-book reload keeps them.
+  cancel paths, duplicate cancel tokens refused, a busy book reported as a
+  refusal rather than stale, and book load removing a previous book's
+  proposals while a same-book reload keeps them, a corrupt or malformed
+  active workspace never blocking the load, and a failed proposal-folder
+  removal not failing a committed load.
 
 ## Licensing notes
 

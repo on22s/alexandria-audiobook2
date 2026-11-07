@@ -2,8 +2,9 @@
 
 A running preview can be cancelled from the panel: the client sends a random
 cancel token with the create request, and ``POST .../{token}/cancel`` sets the
-token's event, which the builder checks between rows. The token registry is
-in-process (this app runs one worker) and is cleaned up when a build finishes.
+token's event, which the builder checks between rows and again before it
+writes. The token registry is in-process (this app runs one worker) and is
+cleaned up when a build finishes.
 """
 import asyncio
 import re
@@ -116,8 +117,10 @@ async def get_translated_edition_proposal(proposal_id: str):
 async def cancel_translated_edition_proposal(cancel_token: str):
     """Request a stop after the current row for one in-flight preview.
 
-    Cancelling never approves anything: the builder still saves the partial
-    proposal with status ``cancelled``.
+    Cancelling never approves anything. A cancel that arrives before the
+    proposal is written is saved with status ``cancelled``; one that arrives
+    after the write leaves the finished status, so the caller must not claim
+    the saved status will be ``cancelled``.
     """
     try:
         return await asyncio.to_thread(_cancel_preview, cancel_token)

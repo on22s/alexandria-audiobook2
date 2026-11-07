@@ -152,6 +152,25 @@ class TranslatedEditionAPITests(unittest.TestCase):
         retry = router_module._begin_preview(token)
         router_module._end_preview(token, retry)
 
+    def test_busy_book_during_stale_recheck_is_a_refusal_not_a_500(self):
+        proposal = self.client.post('/api/translated_edition/proposals', json={
+            "source_language": "en", "target_language": "fr"}).json()
+        module = router_module.translated_edition
+        real_ensure = module.ensure_book_state
+        calls = []
+
+        def busy_second(data_dir, *args, **kwargs):
+            calls.append(data_dir)
+            if len(calls) == 2:
+                raise TimeoutError("fixture lock busy")
+            return real_ensure(data_dir, *args, **kwargs)
+
+        with patch.object(module, 'ensure_book_state', side_effect=busy_second):
+            read = self.client.get(
+                f"/api/translated_edition/proposals/{proposal['proposal_id']}")
+        self.assertEqual(409, read.status_code, read.text)
+        self.assertIn("busy", read.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

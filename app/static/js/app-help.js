@@ -595,8 +595,8 @@
 
         const ITEM_HELP = {
             'translated-edition-refresh': 'Re-check which language pairs are installed on this machine. Does not download anything.',
-            'translated-edition-create': 'Build a reviewable translation proposal for the first 25 saved Script rows. Proposal only: never changes the Script, source, or any language setting.',
-            'translated-edition-cancel': 'Stop a running preview after the current row. The partial result is saved as a cancelled proposal, never as complete or approved.',
+            'translated-edition-create': 'Build a reviewable translation proposal for the first 25 saved Script rows. Proposal only: never changes the Script, source, or any language setting. It belongs to the active book; loading a different book removes it.',
+            'translated-edition-cancel': 'Request a stop for a running preview after the current row. A preview that has not finished building is saved as cancelled, never complete or approved; one already finished keeps its finished status.',
             'voices-open-casting': 'Open the casting library to browse designed voices from every book and use one for a character here.',
             'casting-refresh': 'Reload the casting library from the designed voices on disk, including review marks.',
             'casting-view-cards': 'Show the matching voices as cards with their description and controls.',

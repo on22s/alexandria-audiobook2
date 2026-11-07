@@ -1843,6 +1843,11 @@
     "tests.test_book_state_transaction.BookStateTransactionTests.test_success_publishes_complete_set_and_removes_prior_sidecars",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_symlinked_book_ancestor_is_rejected_before_staging",
     "tests.test_book_state_transaction.BookStateTransactionTests.test_unchanged_partial_stream_is_cleaned_after_short_read",
+    "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_corrupt_active_state_never_blocks_the_load",
+    "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_failed_proposal_removal_does_not_fail_the_load",
+    "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_malformed_active_identity_never_blocks_the_load",
+    "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_missing_active_script_keeps_the_same_books_proposals",
+    "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_no_prior_book_discards_unowned_proposals",
     "tests.test_book_state_transaction.SavedBookProposalRetentionTests.test_reloading_same_book_keeps_proposals_different_book_removes",
     "tests.test_book_state_transaction.SavedBookTransactionHttpTests.test_http_load_failure_preserves_prior_book_and_success_publishes_all"
   ],
@@ -13579,6 +13584,7 @@
     "tests.test_translated_edition.InstalledPairsTests.test_unavailable_without_package",
     "tests.test_translated_edition.ProposalTests.test_argos_translator_unavailable_refused",
     "tests.test_translated_edition.ProposalTests.test_book_switch_mid_build_is_not_saved",
+    "tests.test_translated_edition.ProposalTests.test_busy_book_during_stale_recheck_is_a_refusal_not_stale",
     "tests.test_translated_edition.ProposalTests.test_busy_book_is_reported_as_a_refusal",
     "tests.test_translated_edition.ProposalTests.test_cancellation_marks_remaining_rows",
     "tests.test_translated_edition.ProposalTests.test_complete_proposal_saved_and_bytes_unchanged",
@@ -13592,6 +13598,7 @@
     "tests.test_translated_edition.ProposalTests.test_non_text_row_is_refused_without_saving",
     "tests.test_translated_edition.ProposalTests.test_partial_failure_is_never_complete",
     "tests.test_translated_edition.ProposalTests.test_proposal_from_another_book_is_refused",
+    "tests.test_translated_edition.ProposalTests.test_proposal_with_no_book_id_is_never_the_current_book",
     "tests.test_translated_edition.ProposalTests.test_script_changed_mid_build_is_not_saved",
     "tests.test_translated_edition.ProposalTests.test_script_deleted_mid_build_is_a_refusal_not_a_crash",
     "tests.test_translated_edition.ProposalTests.test_stale_source_detected",
@@ -13599,6 +13606,7 @@
   ],
   "test_translated_edition_api": [
     "tests.test_translated_edition_api.TranslatedEditionAPITests.test_blocking_translation_runs_off_the_event_loop_thread",
+    "tests.test_translated_edition_api.TranslatedEditionAPITests.test_busy_book_during_stale_recheck_is_a_refusal_not_a_500",
     "tests.test_translated_edition_api.TranslatedEditionAPITests.test_cancel_endpoint_reaches_a_running_preview",
     "tests.test_translated_edition_api.TranslatedEditionAPITests.test_cancel_token_stops_the_build_and_is_saved_as_cancelled",
     "tests.test_translated_edition_api.TranslatedEditionAPITests.test_duplicate_cancel_token_is_refused_while_running",
@@ -13608,9 +13616,11 @@
   ],
   "test_translated_edition_js": [
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_book_change_reset_is_wired_in_the_core_script",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_book_change_says_whether_the_preview_survived",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_cancel_button_requests_a_stop_for_the_running_preview",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_excerpt_only_note_names_the_untranslated_remainder",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_pairs_create_and_render_labelled_proposal_safely",
+    "tests.test_translated_edition_js.TranslatedEditionJSTests.test_panel_text_says_where_a_proposal_lives",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_rechecking_a_saved_proposal_surfaces_the_stale_flag",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_stale_reply_and_book_change_guard",
     "tests.test_translated_edition_js.TranslatedEditionJSTests.test_unavailable_and_create_failure_stay_visible"

@@ -182,9 +182,8 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
     are flagged for review. ``translate_fn`` failures become per-row failures,
     never a silent success. The book operation lock is held for the initial
     read and for publication, never during translation, the book token is
-    rechecked before the proposal is saved, and cancellation is rechecked
-    under that lock so a late cancel is saved as cancelled, never complete.
-    Returns the saved proposal dict.
+    rechecked before the proposal is saved, and a cancel that arrived before
+    publication is saved as cancelled. Returns the saved proposal dict.
     """
     validate_language_code(source_language, "source_language")
     validate_language_code(target_language, "target_language")
@@ -290,8 +289,10 @@ def build_proposal(data_dir, *, source_language, target_language, translate_fn,
                     or current["script_sha256"] != script_sha256):
                 raise ValueError("Book changed during preview; proposal was not saved")
             if cancel_check is not None and cancel_check():
-                # A cancel that arrived after the last row (including while
-                # waiting for this lock) must never be saved as complete.
+                # A cancel that arrived before this publication point
+                # (including while waiting for the lock) must never be saved
+                # as complete. A cancel racing the write below can only be
+                # reported honestly by the caller, not known here.
                 proposal["status"] = "cancelled"
             target_dir = Path(root) / PROPOSALS_DIR
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -339,7 +340,11 @@ def _valid_sha(value):
 
 
 def is_proposal_stale(data_dir, proposal):
-    """True when the saved Script no longer matches the proposal's source."""
+    """True when the saved Script no longer matches the proposal's source.
+
+    Raises ValueError when the book is busy, because a re-check that did not
+    run is not evidence that the proposal is stale.
+    """
     if not isinstance(proposal, dict) or not _valid_sha(proposal.get("source_script_sha256")):
         return True
     return get_current_script_sha(data_dir) != proposal["source_script_sha256"]
@@ -350,11 +355,15 @@ def get_current_script_sha(data_dir):
 
     Single dispatch for the stale check; ``is_proposal_stale`` compares
     against this value. Read under the book operation lock like every other
-    book snapshot.
+    book snapshot. A busy book is raised, never reported as a stale Script.
     """
     try:
         with ensure_book_state(data_dir) as root:
             snapshot = get_book_snapshot(root, include_voices=False)
+    except TimeoutError as error:
+        # TimeoutError is an OSError; it must be answered before the
+        # unreadable-data branch below, which would otherwise claim "stale".
+        raise ValueError("Book is busy; the proposal was not rechecked") from error
     except (OSError, ValueError):
         return None
     sha256 = snapshot.get("script_sha256")

@@ -117,10 +117,35 @@ class TranslatedEditionJSTests(unittest.TestCase):
  assert(cancel,'no cancel request was sent');
  assert(cancel[1].includes('/proposals/')&&cancel[1].endsWith('/cancel'));
  assert(el('feedback').textContent.includes('Cancel requested'));
+ assert(el('feedback').textContent.includes('already finished'));
+ assert(!el('feedback').textContent.includes('is saved as cancelled.'));
  resolveCreate();await pending;
  assert(text(el('review')).includes('partial'));
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+    def test_book_change_says_whether_the_preview_survived(self):
+        self.run_js(r'''
+(async()=>{
+ await context.refreshTranslatedEditionPairs();el('pair').value='en->fr';
+ await context.createTranslatedEditionProposal();
+ context.resetTranslatedEditionBook();
+ assert.equal(el('review').children.length,0);
+ assert(el('feedback').textContent.includes('kept only when the same book is reloaded'));
+ assert(el('feedback').textContent.includes('removed'));
+ assert(!el('feedback').textContent.includes('Checking installed language pairs'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_panel_text_says_where_a_proposal_lives(self):
+        html = (Path(__file__).resolve().parents[1] / 'static/index.html').read_text(
+            encoding='utf-8')
+        start = html.index('id="translated-edition-panel"')
+        panel = html[start:html.index('</details>', start)]
+        self.assertIn('reloading the same saved book keeps it', panel)
+        self.assertIn('loading a different book removes it', panel)
+        self.assertIn('does not copy proposals into the saved book', panel)
+
 
     def test_excerpt_only_note_names_the_untranslated_remainder(self):
         self.run_js(r'''

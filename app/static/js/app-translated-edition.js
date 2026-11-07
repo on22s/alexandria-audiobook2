@@ -30,11 +30,8 @@ function resetTranslatedEditionBook() {
     translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
-    translatedEditionElement('feedback').textContent = 'Book changed. Refresh the installed pairs and build a new preview.';
+    translatedEditionElement('feedback').textContent = 'Book changed or reloaded. A preview is kept only when the same book is reloaded; any other book\'s preview was removed. Refresh the installed pairs and build a new preview.';
     updateTranslatedEditionControls();
-    if (translatedEditionElement('panel').open) {
-        refreshTranslatedEditionPairs();
-    }
 }
 
 function onTranslatedEditionPanelToggle() {
@@ -223,7 +220,7 @@ async function cancelTranslatedEditionProposal() {
             return;
         }
         translatedEditionElement('feedback').textContent = result.cancelled
-            ? 'Cancel requested: the preview stops after the current row and is saved as cancelled.'
+            ? 'Cancel requested. If the preview was still building, it stops after the current row and is saved as cancelled; if it had already finished before the request arrived, its finished status stands.'
             : 'No preview was running when the cancel request arrived.';
     } catch (error) {
         if (epoch === translatedEditionEpoch) {
