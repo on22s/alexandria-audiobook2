@@ -12023,14 +12023,18 @@
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_windows_boundary_uses_existing_no_overwrite_rename",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_windows_post_rename_metadata_failure_preserves_source_and_companion",
     "tests.test_source_upload_publication.SourceUploadPublicationTests.test_writer_close_error_retains_unknown_publication_without_callback",
+    "tests.test_source_upload_publication.UploadHeldRouteTests.test_docx_publish_held_is_503_keeps_partial_group_and_retries",
     "tests.test_source_upload_publication.UploadHeldRouteTests.test_epub_retained_publish_held_is_503_and_publishes_nothing",
     "tests.test_source_upload_publication.UploadHeldRouteTests.test_plain_upload_held_is_503_then_retry_succeeds",
     "tests.test_source_upload_publication.UploadHeldRouteTests.test_txt_publish_held_with_retained_visible_is_503_and_keeps_retained",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_collision_access_denied_and_other_errors_are_not_retried",
+    "tests.test_source_upload_publication.UploadRenameRetryTests.test_held_error_preserves_winerror_errno_and_str_across_pickle",
+    "tests.test_source_upload_publication.UploadRenameRetryTests.test_link_count_rule_matches_publication_platform",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_persistent_sharing_violation_is_bounded_and_uncommitted",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_root_change_during_wait_is_refused_without_second_attempt",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_sharing_violation_then_success_retries_and_stops",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_stage_change_during_wait_is_refused_without_second_attempt",
+    "tests.test_source_upload_publication.UploadRenameRetryTests.test_windows_publish_held_cleans_companion_and_retry_keeps_name",
     "tests.test_source_upload_publication.UploadRenameRetryTests.test_windows_publish_retries_sharing_violation_and_publishes_once"
   ],
   "test_source_upload_stage": [

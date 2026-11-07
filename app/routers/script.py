@@ -1658,10 +1658,11 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                         'The upload could not be completed because the file '
                         'appears to be held by another program; retained EPUB '
                         f"'{name}' remains as recovery material and counts "
-                        'toward quota. Remove it manually via '
-                        'GET /api/uploads/epub-retained inventory before '
-                        'retrying; no existing group was overwritten. The file '
-                        'may be held by antivirus scanning or a sync tool.')) from error
+                        'toward quota. Inspect it with '
+                        'GET /api/uploads/epub-retained, then remove it '
+                        'manually before retrying; no existing group was '
+                        'overwritten. The file may be held by antivirus '
+                        'scanning or a sync tool.')) from error
                 raise HTTPException(status_code=503, detail=_HELD_UPLOAD_DETAIL) from error
             except ValueError as error:
                 # A confirmed retained EPUB is never unlinked after it became

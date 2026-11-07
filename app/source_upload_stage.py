@@ -30,7 +30,19 @@ class UploadPublicationHeldError(PermissionError):
     direct callers relying on OSError still work; callers that distinguish
     unknown-commit outcomes keep treating this as known non-commit
     (``publication_started`` stays False, nothing was published).
+
+    ``winerror`` is a native C-level attribute set after construction, so
+    pickle's default reduce would drop it. Preserve it explicitly: a caller
+    that serializes the failure must still see why the rename was refused.
     """
+
+    def __reduce__(self):
+        return (type(self), self.args,
+                {'winerror': getattr(self, 'winerror', None)})
+
+    def __setstate__(self, state):
+        if state.get('winerror') is not None:
+            self.winerror = state['winerror']
 
 
 def get_upload_stage_accounting(directory):
@@ -309,7 +321,12 @@ class OwnedSourceUploadStage:
         for attempt in range(_WINDOWS_RENAME_ATTEMPTS):
             self._check_root()
             info = os.fstat(self._stream.fileno())
-            if (self._version(info) != self._sealed or info.st_nlink != 1):
+            # Same platform rule as publish(): a Windows stage owns one link,
+            # a POSIX stage is an unnamed descriptor (zero links). Keeping the
+            # rule platform-aware leaves the helper testable against a real
+            # POSIX stage instead of refusing before the first attempt.
+            if (self._version(info) != self._sealed
+                    or info.st_nlink != (1 if os.name == 'nt' else 0)):
                 raise ValueError('Upload stage changed after validation')
             try:
                 self._rename_windows(destination)

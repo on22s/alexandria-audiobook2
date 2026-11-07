@@ -1,5 +1,4 @@
 """Real filesystem controls for complete-file upload publication."""
-import asyncio
 import ctypes
 from contextlib import asynccontextmanager
 import errno
@@ -7,12 +6,15 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import pickle
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 import source_upload_publication as publication
-from source_upload_stage import UploadPublicationHeldError
+import source_upload_stage
+from source_upload_stage import OwnedSourceUploadStage, UploadPublicationHeldError
 
 
 class SourceUploadPublicationTests(unittest.TestCase):
@@ -536,6 +538,19 @@ def _held_error():
     return error
 
 
+def _companion_bytes(payload):
+    """Synthetic valid provenance bound to ``payload`` (same shape as the route's)."""
+    digest = hashlib.sha256(payload).hexdigest()
+    origin = hashlib.sha256(b'Synthetic archive fixture').hexdigest()
+    identity = hashlib.sha256(f'AA2_epub_publication_v1:{origin}:{digest}'.encode()).hexdigest()
+    return json.dumps({'version': 1, 'binding': {'kind': 'text', 'sha256': digest},
+        'candidates': [{'version': 1, 'id': identity,
+            'origin': {'kind': 'epub', 'filename': 'book.epub', 'sha256': origin, 'text_sha256': digest},
+            'fields': {'title': [], 'author': []}, 'other_creators': [],
+            'metadata_status': 'unavailable', 'cover': None, 'cover_status': 'not_declared',
+            'warnings': ['Synthetic provenance fixture']}]}).encode()
+
+
 class UploadRenameRetryTests(unittest.TestCase):
     """Bounded sharing-violation retry (issue #1784), faked at _rename_windows."""
 
@@ -656,6 +671,105 @@ class UploadRenameRetryTests(unittest.TestCase):
                 self.assertIsNone(self.stage.published_path)
                 self.assertFalse((self.root / 'book.txt').exists())
 
+    def test_link_count_rule_matches_publication_platform(self):
+        """The helper applies publish()'s platform link-count rule.
+
+        Windows stages own one link; POSIX stages are unnamed descriptors
+        with zero links. A hard-coded Windows rule refused every real POSIX
+        stage before the first attempt (and failed these tests on Linux/macOS
+        CI in tests.test_source_upload_publication).
+        """
+        self.stage.seal()
+        real_fstat = os.fstat
+        stream_fd = self.stage._stream.fileno()
+        info = real_fstat(stream_fd)
+
+        def fstat_for(links):
+            def fake(descriptor):
+                if descriptor == stream_fd:
+                    return SimpleNamespace(
+                        st_dev=info.st_dev, st_ino=info.st_ino, st_size=info.st_size,
+                        st_mtime_ns=info.st_mtime_ns, st_nlink=links)
+                return real_fstat(descriptor)
+            return fake
+
+        for platform, expected in (('nt', 1), ('posix', 0)):
+            with self.subTest(platform=platform):
+                with patch.object(source_upload_stage.os, 'name', platform), \
+                        patch.object(source_upload_stage.os, 'fstat',
+                                     side_effect=fstat_for(expected)), \
+                        patch.object(self.stage, '_rename_windows',
+                                     side_effect=lambda destination: None):
+                    self.stage._rename_windows_with_retry(self.root / 'book.txt')
+                with patch.object(source_upload_stage.os, 'name', platform), \
+                        patch.object(source_upload_stage.os, 'fstat',
+                                     side_effect=fstat_for(expected ^ 1)), \
+                        patch.object(self.stage, '_rename_windows',
+                                     side_effect=AssertionError(
+                                         'refused stage must not rename')):
+                    with self.assertRaisesRegex(ValueError, 'changed'):
+                        self.stage._rename_windows_with_retry(self.root / 'book.txt')
+
+    def test_held_error_preserves_winerror_errno_and_str_across_pickle(self):
+        """The raised contract survives serialization.
+
+        ``winerror`` is set after construction (a native C attribute), so the
+        default OSError reduce dropped it; that makes a serialized held
+        failure look like a plain permission error.
+        """
+        restored = pickle.loads(pickle.dumps(_held_error()))
+        self.assertIsInstance(restored, UploadPublicationHeldError)
+        self.assertEqual(errno.EACCES, restored.errno)
+        self.assertEqual(32, restored.winerror)
+        self.assertIn('held by another program', str(restored))
+
+    @unittest.skipIf(os.name != 'nt', 'Real publication needs Windows handles')
+    def test_windows_publish_held_cleans_companion_and_retry_keeps_name(self):
+        """32-forever through the real publish() branch, then a same-name retry.
+
+        Fakes only the native call, so the real _rename_windows conversion,
+        companion reservation/cleanup and numbered-name selection all run.
+        """
+        companion = _companion_bytes(self.payload)
+        rename_calls = []
+        native = self.stage._api.SetFileInformationByHandle
+
+        def held_rename(handle, information_class, buffer, length):
+            if information_class == 3:  # FileRenameInfo
+                rename_calls.append(information_class)
+                ctypes.set_last_error(32)
+                return 0
+            return native(handle, information_class, buffer, length)
+
+        with patch.object(self.stage._api, 'SetFileInformationByHandle', held_rename), \
+                patch('source_upload_stage.time.sleep', return_value=None):
+            with self.assertRaises(UploadPublicationHeldError) as caught:
+                publication.publish_completed_upload(
+                    self.stage, 'book.txt', lambda path: self.fail('no visibility callback'),
+                    limit=len(self.payload), companion_bytes=companion)
+        self.assertEqual(5, len(rename_calls))
+        self.assertEqual(32, caught.exception.winerror)
+        self.assertEqual(32, getattr(caught.exception.__cause__, 'winerror', None))
+        self.assertFalse(self.stage.publication_started)
+        self.assertIsNone(self.stage.published_path)
+        self.assertFalse((self.root / 'book.txt').exists())
+        self.assertFalse((self.root / 'book.txt.publication.json').exists())
+        self.stage.close()
+        self.assertEqual([], list(self.root.iterdir()))
+
+        # A genuine retry must not step to book_2.txt: the failed attempt
+        # leaves no companion and no destination behind.
+        retry = publication.create_source_upload_stage(self.root, limit=len(self.payload))
+        self.addCleanup(retry.close)
+        retry.write(self.payload)
+        result = publication.publish_completed_upload(
+            retry, 'book.txt', lambda path: None, limit=len(self.payload),
+            companion_bytes=companion)
+        self.assertEqual(str(self.root / 'book.txt'), result)
+        self.assertEqual(self.payload, (self.root / 'book.txt').read_bytes())
+        self.assertEqual(companion, (self.root / 'book.txt.publication.json').read_bytes())
+        self.assertFalse((self.root / 'book_2.txt').exists())
+
 
 class UploadHeldRouteTests(unittest.IsolatedAsyncioTestCase):
     """Held-file route mapping (issue #1784): 503, honest wording, no traceback."""
@@ -696,6 +810,8 @@ class UploadHeldRouteTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('Traceback', response.text)
             self.assertNotIn('WinError', response.text)
             self.assertEqual([], list(uploads.iterdir()))
+            self.assertEqual(0, script.get_upload_storage_bytes())
+            self.assertFalse((root / 'state.json').exists())
             retry = await self._upload(client, 'book.txt', payload)
             self.assertEqual(200, retry.status_code, retry.text)
             self.assertEqual(payload, (uploads / 'book.txt').read_bytes())
@@ -748,7 +864,53 @@ class UploadHeldRouteTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('held by another program', detail)
             self.assertIn('book.source.epub', detail)
             self.assertIn('retained', detail)
+            self.assertIn('Inspect it with GET /api/uploads/epub-retained', detail)
+            self.assertIn('remove it manually before retrying', detail)
             self.assertNotIn('Traceback', response.text)
             self.assertEqual(raw, (uploads / 'book.source.epub').read_bytes())
             self.assertFalse((uploads / 'book.txt').exists())
             self.assertFalse((uploads / 'book.txt.publication.json').exists())
+            self.assertEqual(len(raw), script.get_upload_storage_bytes())
+            self.assertFalse((root / 'state.json').exists())
+
+    async def _docx_upload(self, client, raw, **options):
+        return await client.post('/api/upload', params={'select_active': 'false', **options},
+                                 files={'file': ('book.docx', raw)})
+
+    async def test_docx_publish_held_is_503_keeps_partial_group_and_retries(self):
+        from routers import script
+        from tests.test_docx_preview import archive
+        raw = archive()
+        async with self.environment() as (root, uploads, client):
+            preview = await self._docx_upload(client, raw, docx_preview='true')
+            self.assertEqual(200, preview.status_code, preview.text)
+            digest = preview.json()['preview_digest']
+            real_publish = OwnedSourceUploadStage.publish
+
+            def held_receipt(stage, name):
+                if name.endswith('.docx-receipt.json'):
+                    raise _held_error()
+                return real_publish(stage, name)
+
+            with patch.object(OwnedSourceUploadStage, 'publish', held_receipt):
+                response = await self._docx_upload(
+                    client, raw, docx_confirmed='true', docx_preview_digest=digest)
+            self.assertEqual(503, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertIn('DOCX upload could not be completed', detail)
+            self.assertIn('appears to be held', detail)
+            self.assertIn('already published recovery material remains retained', detail)
+            self.assertNotIn('Traceback', response.text)
+            originals = list(uploads.glob('*.docx'))
+            self.assertEqual(1, len(originals))
+            self.assertEqual(raw, originals[0].read_bytes())
+            self.assertFalse(list(uploads.glob('*.docx-receipt.json')))
+            self.assertFalse(list(uploads.glob('*.txt')))
+            self.assertFalse([path for path in uploads.iterdir() if path.name.startswith('.')])
+            self.assertEqual(len(raw), script.get_upload_storage_bytes())
+            self.assertFalse((root / 'state.json').exists())
+            retry = await self._docx_upload(
+                client, raw, docx_confirmed='true', docx_preview_digest=digest)
+            self.assertEqual(200, retry.status_code, retry.text)
+            for name in retry.json()['docx_source'].values():
+                self.assertTrue((uploads / name).exists(), name)
