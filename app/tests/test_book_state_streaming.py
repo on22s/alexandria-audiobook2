@@ -1230,6 +1230,35 @@ print(len(result['entries']))
                     temporary, cancel_check=mutate_during_child_scan)
             self.assertTrue((root / 'late').exists())
 
+    def test_adapter_bundle_digest_refuses_file_changed_during_finalization(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            dumps = adapter_publication.json.dumps
+            def mutate_before_return(*args, **kwargs):
+                target.write_bytes(b'foreign')
+                return dumps(*args, **kwargs)
+            with patch.object(adapter_publication.json, 'dumps', side_effect=mutate_before_return):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    adapter_publication.get_adapter_bundle_sha256(temporary)
+            self.assertEqual(b'foreign', target.read_bytes())
+
+    def test_adapter_bundle_final_recheck_honors_cancellation(self):
+        import adapter_publication
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'artifact'
+            target.write_bytes(b'owned')
+            dumps = adapter_publication.json.dumps
+            finalizing = []
+            def mark_finalizing(*args, **kwargs):
+                finalizing.append(True)
+                return dumps(*args, **kwargs)
+            with patch.object(adapter_publication.json, 'dumps', side_effect=mark_finalizing):
+                with self.assertRaises(AudioGenerationCancelled):
+                    adapter_publication.get_adapter_bundle_sha256(
+                        temporary, cancel_check=lambda: bool(finalizing))
+
     def test_regular_byte_digest_refuses_entry_replaced_during_open(self):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / 'artifact'

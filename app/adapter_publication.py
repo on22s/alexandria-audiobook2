@@ -96,7 +96,7 @@ def sync_adapter_tree(path):
 def get_adapter_bundle_sha256(root, cancel_check=None):
     """Identify complete original bundles, including preserved assets and links."""
     rows = []
-    directory_versions = []
+    artifact_versions = []
     def version(info):
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
                 info.st_ctime_ns, info.st_mode, info.st_nlink)
@@ -113,13 +113,14 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
         directory_before = os.lstat(directory)
         if not stat.S_ISDIR(directory_before.st_mode):
             raise ValueError(f"adapter bundle directory changed: {directory}")
-        directory_versions.append((directory, version(directory_before)))
+        artifact_versions.append((directory, version(directory_before)))
         rows.append((os.path.relpath(directory, root), "directory",
                      stat.S_IMODE(directory_before.st_mode)))
         for name in dirs + files:
             check_cancellation()
             path = os.path.join(directory, name)
             before = os.lstat(path)
+            artifact_versions.append((path, version(before)))
             mode = before.st_mode
             relative = os.path.relpath(path, root)
             if stat.S_ISLNK(mode):
@@ -158,16 +159,22 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
                 rows.append((relative, "file", stat.S_IMODE(opened.st_mode), digest.hexdigest()))
             elif not stat.S_ISDIR(mode):
                 raise ValueError(f"unsupported adapter bundle artifact: {path}")
-        if version(os.lstat(directory)) != version(directory_before):
-            raise ValueError(f"adapter bundle directory changed: {directory}")
-    for directory, expected in directory_versions:
         try:
-            current = os.lstat(directory)
+            directory_after = os.lstat(directory)
         except OSError as error:
             raise ValueError(f"adapter bundle directory changed: {directory}") from error
-        if version(current) != expected:
+        if version(directory_after) != version(directory_before):
             raise ValueError(f"adapter bundle directory changed: {directory}")
-    return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode("utf-8")).hexdigest()
+    encoded = json.dumps(rows, ensure_ascii=False).encode("utf-8")
+    for path, expected in artifact_versions:
+        check_cancellation()
+        try:
+            current = os.lstat(path)
+        except OSError as error:
+            raise ValueError(f"adapter bundle artifact changed: {path}") from error
+        if version(current) != expected:
+            raise ValueError(f"adapter bundle artifact changed: {path}")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def save_adapter_publication_bytes(path, data, mode=None):
