@@ -337,6 +337,7 @@ class ApiContractTests(unittest.TestCase):
             "preparer_router",
             "voicelab_router",
             "benchmark_router",
+            "translated_edition_router",
         ], registered)
 
     def test_api_routes_have_no_duplicate_method_path_pairs(self):
