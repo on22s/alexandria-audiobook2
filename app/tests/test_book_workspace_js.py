@@ -75,6 +75,7 @@ class BookWorkspaceJsTests(unittest.TestCase):
                     ';const audioCancelTab='+json.dumps(controls.cancel_tab)+r'''
 for(const name of registered){assert(tabs.includes(context.getWorkspaceTaskTab(name)),'Missing task screen for '+name);}
 assert.equal(context.getWorkspaceTaskTab('audio'),audioCancelTab);
+for(const name of ['readalong_sidecar','readaloud_epub']){assert.equal(context.getWorkspaceTaskTab(name),audioCancelTab);}
 assert.equal(context.getWorkspaceTaskTab('toString'),null);
 finished=true;
 ''')

@@ -1,4 +1,4 @@
-from audio_generation_owner import AUDIO_GENERATION_CANCELLED
+from audio_generation_owner import AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
@@ -30,6 +30,7 @@ from audio_mastering import MasteringOptions, get_audio_sha256
 from export_quality import ExportQualityOptions
 from export_quality_session import ExportQualityAttempt, get_session_evidence
 from project_scope_exports import require_scope_export_current
+from audio_stream_response import AudioStreamResponse
 
 from core import (
     AUDIOBOOK_PATH,
@@ -1639,11 +1640,21 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     process_state["m4b_export"]["result"] = None
     return {"status": "started"}
 
-def _cancel_cpu_export(task_name, missing_message):
+def _cancel_cpu_export(task_name, missing_message, *, expected_claim_id=None,
+                       expected_book_token=None):
+    """Cancel a CPU export. When an expected owner is supplied (read-along
+    start responses), the cancel only applies to that exact owner/book."""
     with _gpu_lock:
         state = process_state[task_name]
         if not state["running"]:
             raise HTTPException(status_code=400, detail=missing_message)
+        if expected_claim_id is not None or expected_book_token is not None:
+            if (expected_claim_id is None or expected_book_token is None
+                    or state.get("task_claim_id") != expected_claim_id
+                    or state.get("readalong_book_token") != expected_book_token):
+                raise HTTPException(
+                    status_code=409,
+                    detail="That build is no longer the active one; no cancel was sent.")
         state["cancel"] = True
     return {"status": "cancelling"}
 
@@ -1822,6 +1833,407 @@ def _build_chapter_zip_response(names: Optional[str] = None):
     return build_zip_download(
         members,
         "chapters.zip")
+
+
+class ReadalongSidecarRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    include_text: bool = Field(default=False, strict=True)
+    integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
+                                                  pattern="^[0-9a-f]{64}$")
+
+
+class ReadaloudEpubRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    integrity_confirmation: Optional[str] = Field(None, min_length=64, max_length=64,
+                                                  pattern="^[0-9a-f]{64}$")
+
+
+@router.post("/api/readalong/sidecar")
+async def build_readalong_sidecar_endpoint(background_tasks: BackgroundTasks,
+                                           request: Optional[ReadalongSidecarRequest] = None):
+    return await asyncio.to_thread(_start_readalong_sidecar, background_tasks, request)
+
+
+def _get_readalong_book_token():
+    """Current book-operation token; caller holds book state."""
+    return get_snapshot_digest(get_book_operation_identity(DATA_DIR))
+
+
+def _is_current_readalong_generation(task_name, generation):
+    """Refuse stale workers: only the latest start owns process_state writes."""
+    return process_state[task_name].get("readalong_generation") == generation
+
+
+def _readalong_task_error(error):
+    if isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
+        return {'status': 'cancelled', 'message': 'Export cancelled'}
+    return {'status': 'failed', 'message': str(error)}
+
+
+def _start_readalong_sidecar(background_tasks, request):
+    with ensure_book_state(DATA_DIR):
+        report, _chunks = _ensure_editor_integrity_locked()
+        confirmation = request.integrity_confirmation if request is not None else None
+        if not is_source_integrity_admitted(report, confirmation):
+            raise HTTPException(status_code=409, detail=report)
+        admitted_snapshot = report["snapshot"]
+        book_token = _get_readalong_book_token()
+        include_text = bool(request.include_text) if request is not None else False
+        # Reserve the claim first: a duplicate start is refused here without
+        # mutating the live owner's generation/result.
+        claim_id = reserve_background_task("readalong_sidecar", cpu_only=True)
+        state = process_state["readalong_sidecar"]
+        # Initialize BEFORE scheduling: an eager worker that completes
+        # during registration must never have its result erased.
+        state["result"] = None
+        state["logs"] = ["Starting read-along sidecar..."]
+        state["readalong_generation"] = int(state.get("readalong_generation") or 0) + 1
+        state["readalong_book_token"] = book_token
+        state["readalong_snapshot"] = admitted_snapshot
+        generation = state["readalong_generation"]
+
+        def task():
+            state = process_state["readalong_sidecar"]
+            if not _is_current_readalong_generation("readalong_sidecar", generation):
+                return
+            state["start_time"] = time.time()
+            state["logs"] = ["Starting read-along sidecar..."]
+            try:
+                with ensure_book_state(DATA_DIR):
+                    current, chunks = _ensure_editor_integrity_locked()
+                    if current["snapshot"] != admitted_snapshot:
+                        raise ValueError("Source or editor chunks changed after admission; review again.")
+                from readalong_export import build_sidecar_export
+                success, msg = build_sidecar_export(
+                    project_manager,
+                    lambda: state.get("cancel", False),
+                    lambda m: state["logs"].append(m) if _is_current_readalong_generation(
+                        "readalong_sidecar", generation) else None,
+                    includes_text=include_text, chunks=chunks)
+                if not _is_current_readalong_generation("readalong_sidecar", generation):
+                    return
+                state["result"] = get_export_task_result(success, msg)
+                state["logs"].append(f"Read-along sidecar complete: {msg}" if success else f"Read-along sidecar failed: {msg}")
+            except Exception as e:
+                if not _is_current_readalong_generation("readalong_sidecar", generation):
+                    return
+                state["result"] = _readalong_task_error(e)
+                state["logs"].append('Read-along sidecar cancelled' if isinstance(
+                    e, (ExportCancelled, AudioGenerationCancelled))
+                    else f"Read-along sidecar error: {e}")
+            finally:
+                if _is_current_readalong_generation("readalong_sidecar", generation):
+                    state["running"] = False
+                    state["cancel"] = False
+
+    try:
+        register_claimed_background_task(background_tasks, "readalong_sidecar", claim_id, task)
+    except BaseException:
+        release_gpu_task_claim("readalong_sidecar", claim_id, pending_only=True)
+        raise
+    process_state["readalong_sidecar"]["task_claim_id"] = claim_id
+    return {"status": "started", "task_name": "readalong_sidecar",
+            "claim_id": claim_id, "book_token": book_token,
+            "include_text": include_text}
+
+
+class ReadalongCancelRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    claim_id: Optional[str] = Field(None, pattern=r"^[0-9a-f]{32}$")
+    book_token: Optional[str] = Field(None, pattern=r"^[0-9a-f]{64}$")
+
+
+@router.post("/api/readalong/sidecar/cancel")
+async def cancel_readalong_sidecar(request: Optional[ReadalongCancelRequest] = None):
+    claim_id = request.claim_id if request is not None else None
+    book_token = request.book_token if request is not None else None
+    return await asyncio.to_thread(
+        _cancel_cpu_export, 'readalong_sidecar', 'No read-along sidecar build is running.',
+        expected_claim_id=claim_id, expected_book_token=book_token)
+
+
+def _get_current_readalong_identity():
+    """Live book/rows/source/settings identity for download currentness.
+
+    Recomputes exactly the values the builder bound into the receipt
+    (book token, saved-rows digest, source-bytes sha, settings digest).
+    Any failure to establish identity is fail-closed (409), never a guess.
+    Caller holds book state.
+    """
+    from export_publication import _get_saved_rows_digest
+    from readalong_export import get_current_settings_digest
+    book_token = _get_readalong_book_token()
+    rows_digest = _get_saved_rows_digest(project_manager)
+    if not isinstance(rows_digest, str) or len(rows_digest) != 64:
+        raise HTTPException(status_code=409, detail="Read-along receipt identity is unavailable.")
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {}) or {}
+    input_path = state.get("input_file_path")
+    if not isinstance(input_path, str) or not input_path:
+        raise HTTPException(status_code=409, detail="Read-along receipt identity is unavailable.")
+    try:
+        source_bytes = Path(input_path).read_bytes()
+    except OSError as error:
+        raise HTTPException(status_code=409, detail="Read-along source is unavailable. Rebuild the sidecar.") from error
+    try:
+        pause_defaults = project_manager._load_pause_defaults()
+        settings_digest = get_current_settings_digest(project_manager, pause_defaults)
+    except OSError as error:
+        raise HTTPException(status_code=409, detail="Read-along settings are unavailable. Restore the settings and rebuild the export.") from error
+    return {"book_token": book_token, "rows_digest": rows_digest,
+            "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "settings_digest": settings_digest}
+
+
+def _require_readalong_identity_current(receipt, label):
+    """Fail closed unless every receipt field equals the live identity."""
+    if not isinstance(receipt, dict):
+        raise HTTPException(status_code=409, detail=f"{label} has no source receipt. Rebuild it.")
+    for key in ("book_token", "rows_digest", "source_sha256", "settings_digest"):
+        value = receipt.get(key)
+        if not isinstance(value, str) or len(value) != 64:
+            raise HTTPException(status_code=409, detail=f"{label} has no current source receipt. Rebuild it.")
+    current = _get_current_readalong_identity()
+    for key in ("book_token", "rows_digest", "source_sha256", "settings_digest"):
+        if receipt[key] != current[key]:
+            raise HTTPException(status_code=409, detail=f"{label} does not match the current book or settings. Rebuild it.")
+
+
+def _serve_bound_audio(expected_sha256, filename, label):
+    """Stream the MP3 pinned by an open descriptor, verified by content.
+
+    The descriptor pins the inode, so a replacement after verification can
+    never change the bytes served; the hash is computed from the same
+    descriptor that is then rewound and streamed.
+    """
+    if not os.path.isfile(AUDIOBOOK_PATH):
+        raise HTTPException(status_code=404, detail="Read-along MP3 is unavailable. Build the sidecar first.")
+    try:
+        stream = open(AUDIOBOOK_PATH, "rb")
+    except OSError as error:
+        raise HTTPException(status_code=404, detail="Read-along MP3 is unavailable. Build the sidecar first.") from error
+    try:
+        size = os.fstat(stream.fileno()).st_size
+        digest = hashlib.sha256()
+        while True:
+            block = stream.read(1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+        if digest.hexdigest() != expected_sha256:
+            raise HTTPException(status_code=409, detail=f"{label} does not match the current exported audio. Rebuild it.")
+        stream.seek(0)
+    except HTTPException:
+        stream.close()
+        raise
+    except OSError as error:
+        stream.close()
+        raise HTTPException(status_code=409, detail=f"{label} is invalid: {error}") from error
+    return AudioStreamResponse(stream, size, ".mp3", filename=filename)
+
+
+def _validated_sidecar_doc():
+    """Read, scope-fence and receipt-check the sidecar; return (doc, raw)."""
+    from readalong_export import get_sidecar_output_path
+    from readalong_sidecar import get_validated_sidecar, get_audio_file_sha256
+    path = get_sidecar_output_path(DATA_DIR)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Read-along sidecar not found. Build it from the Result tab first.")
+    require_scope_export_current(DATA_DIR, path)
+    try:
+        raw = Path(path).read_bytes()
+        doc = get_validated_sidecar(raw)
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=f"Read-along sidecar is invalid: {error}") from error
+    if not os.path.isfile(AUDIOBOOK_PATH):
+        raise HTTPException(status_code=409, detail="Read-along sidecar needs its MP3; rebuild the sidecar.")
+    try:
+        current_sha, _size = get_audio_file_sha256(AUDIOBOOK_PATH)
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=f"Read-along sidecar is invalid: {error}") from error
+    if doc["binding"]["audio_sha256"] != current_sha:
+        raise HTTPException(status_code=409, detail="Read-along sidecar does not match the current exported audio. Rebuild the sidecar.")
+    with ensure_book_state(DATA_DIR):
+        _require_readalong_identity_current(doc.get("source"), "Read-along sidecar")
+    return doc, raw
+
+
+@router.get("/api/readalong/sidecar")
+async def download_readalong_sidecar():
+    _doc, raw = await asyncio.to_thread(_validated_sidecar_doc)
+    return Response(raw, media_type="application/json",
+                    headers={'Content-Disposition': 'attachment; filename="readalong.sidecar.json"',
+                             'Cache-Control': 'no-store'})
+
+
+@router.get("/api/readalong/sidecar/audio")
+async def download_readalong_sidecar_audio():
+    def load():
+        doc, _raw = _validated_sidecar_doc()
+        return _serve_bound_audio(doc["binding"]["audio_sha256"], "audiobook.mp3",
+                                  "Read-along sidecar")
+    return await asyncio.to_thread(load)
+
+
+@router.get("/api/readalong/player")
+async def download_readalong_player():
+    path = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "static", "readalong-player.html"))
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Read-along player is unavailable.")
+    return FileResponse(path, filename="readalong-player.html", media_type="text/html")
+
+
+@router.post("/api/readaloud_epub")
+async def build_readaloud_epub_endpoint(background_tasks: BackgroundTasks,
+                                        request: Optional[ReadaloudEpubRequest] = None):
+    return await asyncio.to_thread(_start_readaloud_epub, background_tasks, request)
+
+
+def _start_readaloud_epub(background_tasks, request):
+    with ensure_book_state(DATA_DIR):
+        report, _chunks = _ensure_editor_integrity_locked()
+        confirmation = request.integrity_confirmation if request is not None else None
+        if not is_source_integrity_admitted(report, confirmation):
+            raise HTTPException(status_code=409, detail=report)
+        admitted_snapshot = report["snapshot"]
+        book_token = _get_readalong_book_token()
+        claim_id = reserve_background_task("readaloud_epub", cpu_only=True)
+        state = process_state["readaloud_epub"]
+        # Initialize BEFORE scheduling (see _start_readalong_sidecar).
+        state["result"] = None
+        state["logs"] = ["Starting EPUB read-aloud export..."]
+        state["readalong_generation"] = int(state.get("readalong_generation") or 0) + 1
+        state["readalong_book_token"] = book_token
+        state["readalong_snapshot"] = admitted_snapshot
+        generation = state["readalong_generation"]
+
+        def task():
+            state = process_state["readaloud_epub"]
+            if not _is_current_readalong_generation("readaloud_epub", generation):
+                return
+            state["start_time"] = time.time()
+            state["logs"] = ["Starting EPUB read-aloud export..."]
+            try:
+                with ensure_book_state(DATA_DIR):
+                    current, chunks = _ensure_editor_integrity_locked()
+                    if current["snapshot"] != admitted_snapshot:
+                        raise ValueError("Source or editor chunks changed after admission; review again.")
+                from readalong_export import build_epub_export
+                success, msg = build_epub_export(
+                    project_manager,
+                    lambda: state.get("cancel", False),
+                    lambda m: state["logs"].append(m) if _is_current_readalong_generation(
+                        "readaloud_epub", generation) else None,
+                    chunks=chunks)
+                if not _is_current_readalong_generation("readaloud_epub", generation):
+                    return
+                state["result"] = get_export_task_result(success, msg)
+                state["logs"].append(f"EPUB read-aloud complete: {msg}" if success else f"EPUB read-aloud failed: {msg}")
+            except Exception as e:
+                if not _is_current_readalong_generation("readaloud_epub", generation):
+                    return
+                state["result"] = _readalong_task_error(e)
+                state["logs"].append('EPUB read-aloud cancelled' if isinstance(
+                    e, (ExportCancelled, AudioGenerationCancelled))
+                    else f"EPUB read-aloud error: {e}")
+            finally:
+                if _is_current_readalong_generation("readaloud_epub", generation):
+                    state["running"] = False
+                    state["cancel"] = False
+
+    try:
+        register_claimed_background_task(background_tasks, "readaloud_epub", claim_id, task)
+    except BaseException:
+        release_gpu_task_claim("readaloud_epub", claim_id, pending_only=True)
+        raise
+    process_state["readaloud_epub"]["task_claim_id"] = claim_id
+    return {"status": "started", "task_name": "readaloud_epub",
+            "claim_id": claim_id, "book_token": book_token}
+
+
+@router.post("/api/readaloud_epub/cancel")
+async def cancel_readaloud_epub(request: Optional[ReadalongCancelRequest] = None):
+    claim_id = request.claim_id if request is not None else None
+    book_token = request.book_token if request is not None else None
+    return await asyncio.to_thread(
+        _cancel_cpu_export, 'readaloud_epub', 'No EPUB read-aloud export is running.',
+        expected_claim_id=claim_id, expected_book_token=book_token)
+
+
+def _validated_epub_bytes():
+    """Read, scope-fence and receipt-check the EPUB; return (receipt, raw)."""
+    from readalong_export import (get_epub_output_path, get_epub_receipt_output_path,
+                                  get_validated_epub_receipt)
+    from epub_readaloud import validate_epub_readaloud
+    from readalong_sidecar import get_audio_file_sha256
+    path = get_epub_output_path(DATA_DIR)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="EPUB read-aloud not found. Build it from the Result tab first.")
+    require_scope_export_current(DATA_DIR, path)
+    receipt_path = get_epub_receipt_output_path(DATA_DIR)
+    if not os.path.exists(receipt_path):
+        raise HTTPException(status_code=409, detail="EPUB read-aloud has no receipt. Rebuild the EPUB read-aloud.")
+    require_scope_export_current(DATA_DIR, receipt_path)
+    try:
+        receipt = get_validated_epub_receipt(Path(receipt_path).read_bytes())
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=f"EPUB read-aloud receipt is invalid: {error}") from error
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as error:
+        raise HTTPException(status_code=409, detail=f"EPUB read-aloud is invalid: {error}") from error
+    if hashlib.sha256(raw).hexdigest() != receipt["epub_sha256"]:
+        raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its receipt. Rebuild the EPUB read-aloud.")
+    # Structural validation on download: rejects truncated or dangling
+    # overlays rather than serving a broken read-aloud.
+    try:
+        validate_epub_readaloud(raw)
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=f"EPUB read-aloud is invalid: {error}") from error
+    if not os.path.isfile(AUDIOBOOK_PATH):
+        raise HTTPException(status_code=409, detail="EPUB read-aloud needs its MP3; rebuild the EPUB read-aloud.")
+    try:
+        current_sha, _size = get_audio_file_sha256(AUDIOBOOK_PATH)
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=f"EPUB read-aloud is invalid: {error}") from error
+    if receipt["audio_sha256"] != current_sha:
+        raise HTTPException(status_code=409, detail="EPUB read-aloud does not match the current exported audio. Rebuild the EPUB read-aloud.")
+    with ensure_book_state(DATA_DIR):
+        _require_readalong_identity_current(receipt, "EPUB read-aloud")
+        # The retained original must still be the exact bytes the EPUB was
+        # built from; a missing or changed retained file fails closed.
+        from source_upload_publication import get_retained_epub_path
+        state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {}) or {}
+        input_path = state.get("input_file_path")
+        if not isinstance(input_path, str) or not input_path:
+            raise HTTPException(status_code=409, detail="EPUB read-aloud source is unavailable.")
+        retained_path = get_retained_epub_path(input_path)
+        if not os.path.isfile(retained_path):
+            raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is missing. Re-upload the EPUB and rebuild.")
+        try:
+            retained_sha = hashlib.sha256(Path(retained_path).read_bytes()).hexdigest()
+        except OSError as error:
+            raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable.") from error
+        if retained_sha != receipt["retained_epub_sha256"]:
+            raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its retained source. Re-upload the EPUB and rebuild.")
+    return receipt, raw
+
+
+@router.get("/api/readaloud_epub")
+async def download_readaloud_epub():
+    _receipt, raw = await asyncio.to_thread(_validated_epub_bytes)
+    return Response(raw, media_type="application/epub+zip",
+                    headers={'Content-Disposition': 'attachment; filename="readaloud.epub"',
+                             'Cache-Control': 'no-store'})
+
+
+@router.get("/api/readaloud_epub/audio")
+async def download_readaloud_epub_audio():
+    def load():
+        receipt, _raw = _validated_epub_bytes()
+        return _serve_bound_audio(receipt["audio_sha256"], "audiobook.mp3",
+                                  "EPUB read-aloud")
+    return await asyncio.to_thread(load)
 
 
 @router.get("/api/audiobook_m4b")

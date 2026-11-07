@@ -4466,6 +4466,84 @@
         "title": "PublicationSelectionRequest",
         "type": "object"
       },
+      "ReadalongCancelRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
+          "claim_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Id"
+          }
+        },
+        "title": "ReadalongCancelRequest",
+        "type": "object"
+      },
+      "ReadalongSidecarRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "include_text": {
+            "default": false,
+            "title": "Include Text",
+            "type": "boolean"
+          },
+          "integrity_confirmation": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Confirmation"
+          }
+        },
+        "title": "ReadalongSidecarRequest",
+        "type": "object"
+      },
+      "ReadaloudEpubRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "integrity_confirmation": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integrity Confirmation"
+          }
+        },
+        "title": "ReadaloudEpubRequest",
+        "type": "object"
+      },
       "ReportExplanationCancelRequest": {
         "properties": {
           "run_id": {
@@ -13409,6 +13487,254 @@
         "summary": "Save Pronunciation Endpoint"
       }
     },
+    "/api/readalong/player": {
+      "get": {
+        "operationId": "download_readalong_player_api_readalong_player_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Readalong Player"
+      }
+    },
+    "/api/readalong/sidecar": {
+      "get": {
+        "operationId": "download_readalong_sidecar_api_readalong_sidecar_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Readalong Sidecar"
+      },
+      "post": {
+        "operationId": "build_readalong_sidecar_endpoint_api_readalong_sidecar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadalongSidecarRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Readalong Sidecar Endpoint"
+      }
+    },
+    "/api/readalong/sidecar/audio": {
+      "get": {
+        "operationId": "download_readalong_sidecar_audio_api_readalong_sidecar_audio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Readalong Sidecar Audio"
+      }
+    },
+    "/api/readalong/sidecar/cancel": {
+      "post": {
+        "operationId": "cancel_readalong_sidecar_api_readalong_sidecar_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadalongCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Readalong Sidecar"
+      }
+    },
+    "/api/readaloud_epub": {
+      "get": {
+        "operationId": "download_readaloud_epub_api_readaloud_epub_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Readaloud Epub"
+      },
+      "post": {
+        "operationId": "build_readaloud_epub_endpoint_api_readaloud_epub_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadaloudEpubRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Readaloud Epub Endpoint"
+      }
+    },
+    "/api/readaloud_epub/audio": {
+      "get": {
+        "operationId": "download_readaloud_epub_audio_api_readaloud_epub_audio_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Download Readaloud Epub Audio"
+      }
+    },
+    "/api/readaloud_epub/cancel": {
+      "post": {
+        "operationId": "cancel_readaloud_epub_api_readaloud_epub_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadalongCancelRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Readaloud Epub"
+      }
+    },
     "/api/reports": {
       "get": {
         "operationId": "list_reports_api_reports_get",
@@ -16190,6 +16516,22 @@
           }
         },
         "summary": "Get Docx Retained Uploads"
+      }
+    },
+    "/api/uploads/epub-retained": {
+      "get": {
+        "operationId": "get_epub_retained_uploads_api_uploads_epub_retained_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Epub Retained Uploads"
       }
     },
     "/api/uploads/select": {

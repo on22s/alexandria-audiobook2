@@ -6,7 +6,12 @@ import stat
 from audio_take_history import _ensure_plain_path, _version
 from project_scope_files import capture_scope_file
 
-EXPORTS = ('cloned_audiobook.mp3', 'audiobook.m4b', 'audacity_export.zip', 'chapter_exports')
+LEGACY_EXPORTS = ('cloned_audiobook.mp3', 'audiobook.m4b', 'audacity_export.zip', 'chapter_exports')
+# R2: read-along artifacts join the same pre-scope fencing. The legacy set
+# stays accepted so inventories persisted before this extension remain
+# interpretable instead of raising "needs inspection".
+EXPORTS = LEGACY_EXPORTS + ('readalong.sidecar.json', 'readaloud.epub',
+                            'readaloud.receipt.json')
 
 
 def get_scope_export_inventory(root):
@@ -43,7 +48,7 @@ def is_scope_export_historical(root, path):
     inventory = state.get('_source_scope_exports')
     if inventory is None:
         return False
-    if not isinstance(inventory, dict) or set(inventory) != set(EXPORTS):
+    if not isinstance(inventory, dict) or set(inventory) not in (set(EXPORTS), set(LEGACY_EXPORTS)):
         raise ValueError('Scope export inventory needs inspection.')
     relative = path.relative_to(root).as_posix()
     for rows in inventory.values():

@@ -98,11 +98,14 @@ class UploadEventLoopTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(script,'UPLOADS_DIR',str(uploads)), \
                  patch.object(script,'DATA_DIR',str(root)), \
                  patch.object(script,'extract_epub_text',side_effect=paused_extract):
-                result = await self._upload_while_paused(script.router,'/api/upload','book.epub',epub_bytes(),attempted,release,worker_ids)
+                original = epub_bytes()
+                result = await self._upload_while_paused(script.router,'/api/upload','book.epub',original,attempted,release,worker_ids)
             self.assertEqual('book.txt',result['stored_filename'])
             path = Path(result['path'])
             self.assertEqual('First paragraph.\n\nSecond paragraph.',path.read_text())
-            self.assertEqual(['book.txt', 'book.txt.publication.json'], sorted(p.name for p in uploads.iterdir()))
+            self.assertEqual(['book.source.epub', 'book.txt', 'book.txt.publication.json'],
+                             sorted(p.name for p in uploads.iterdir()))
+            self.assertEqual(original, (uploads / 'book.source.epub').read_bytes())
             self.assertEqual('unavailable', result['publication_status'])
             self.assertEqual(str(path),json.loads((root/'state.json').read_text())['input_file_path'])
 
