@@ -415,6 +415,10 @@ class TranslatedEditionJSTests(unittest.TestCase):
         self.run_real_panel_js(r'''
 (async()=>{
  assert.equal(el('pair').children.length,1,'real placeholder option missing');
+ assert.equal(el('panel').tagName,'DETAILS',
+  'the panel must stay a details element: its toggle event opens it');
+ assert(!el('pair').disabled,
+  'the pair select must be usable before a build; a disabled select can never enable Create');
  assert(el('create').disabled);
  el('panel').open=true;
  el('panel').fire('toggle');
@@ -430,6 +434,56 @@ class TranslatedEditionJSTests(unittest.TestCase):
  assert(posted,'clicking Create did not trigger the POST');
  assert.equal(posted[2].source_language,'en');assert.equal(posted[2].target_language,'fr');
  assert(text(el('review')).includes('Proposal, not approved'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_panel_script_is_loaded_by_the_page(self):
+        # The real-markup tests run the panel script directly, so nothing
+        # else proves index.html loads it: deleting the <script> tag used to
+        # leave every test green while every inline handler on the panel was
+        # undefined in a browser. The whole panel would be dead on the page.
+        html = INDEX.read_text(encoding='utf-8')
+        tag = '/static/js/app-translated-edition.js?v=__APP_BUILD__'
+        self.assertEqual(1, html.count(tag),
+                         'index.html must load the panel script exactly once')
+
+    def test_reopening_after_a_build_relists_pairs_and_disables_create(self):
+        # Re-opening re-lists the pairs, which clears the old choice: Create
+        # must disable again and the visible placeholder must say why.
+        self.run_real_panel_js(r'''
+(async()=>{
+ el('panel').open=true;el('panel').fire('toggle');
+ for(let i=0;i<5;i++){await new Promise(setImmediate);}
+ el('pair').value='en->fr';el('pair').fire('change');
+ assert(!el('create').disabled);
+ el('create').fire('click');
+ for(let i=0;i<5;i++){await new Promise(setImmediate);}
+ assert(text(el('review')).includes('Proposal, not approved'));
+ el('panel').open=false;el('panel').fire('toggle');
+ el('panel').open=true;el('panel').fire('toggle');
+ for(let i=0;i<8;i++){await new Promise(setImmediate);}
+ assert.equal(el('pair').value,'','re-opening must re-list pairs, clearing the old choice');
+ assert.equal(el('pair').children[0].value,'','the placeholder must be the shown choice');
+ assert(el('pair').children[0].textContent.includes('Choose one installed pair'),
+  'the user must see why Create is disabled');
+ assert(el('create').disabled,'Create must not stay enabled with no pair chosen');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_an_empty_pair_list_disables_create_and_says_why(self):
+        # available but nothing installed: no option to choose, Create stays
+        # disabled, and the feedback must say why instead of a bare count.
+        self.run_real_panel_js(r'''
+(async()=>{
+ context.API.get=async path=>{calls.push(['GET',path]);
+  if(path.includes('pairs')){return {available:true,reason:'ready',pairs:[]};}
+  return {proposal:null,malformed_proposals:[]};};
+ el('panel').open=true;el('panel').fire('toggle');
+ for(let i=0;i<6;i++){await new Promise(setImmediate);}
+ assert.equal(el('pair').children.length,0,'no pair option should be offered');
+ assert(el('create').disabled,'Create must stay disabled with no pair installed');
+ assert(el('feedback').textContent.includes('No language pair is installed'),
+  'the panel must say why no pair can be chosen: '+el('feedback').textContent);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
