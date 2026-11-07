@@ -8,7 +8,8 @@ from project_scope_files import capture_scope_file, MAX_SCOPE_METADATA_BYTES
 from project_scope_plan import get_scope_preview
 from project_scope_admission import is_scope_admitted
 from project_scope_assets import get_scope_asset_snapshot
-from project_scope_exports import get_scope_export_inventory
+from project_scope_exports import (get_scope_export_inventory,
+                                   is_scope_export_inventory_compatible)
 from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
 
 UNDO = '.project_scope_undo.json'
@@ -162,7 +163,7 @@ def _get_undo(root):
         raise ValueError('Scope undo metadata exceeds its input limit.')
     _check_guards(root, undo['guards'])
     _check_assets(undo['voice_artifacts'])
-    if get_scope_export_inventory(root) != undo['exports']:
+    if not is_scope_export_inventory_compatible(undo['exports'], get_scope_export_inventory(root)):
         raise ValueError('Exports changed after scope apply; exact undo was preserved for inspection.')
     return proof, undo, before
 

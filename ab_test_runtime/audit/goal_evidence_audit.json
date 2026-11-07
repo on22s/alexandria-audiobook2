@@ -1050,21 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T15:57:38",
+  "written": "2026-11-07T17:15:35",
   "host": "RealMitch",
   "git": {
-   "commit": "00014fb451b530b2f57c3babba60dca032a6bb62",
-   "branch": "fix/1660-compensation-race",
+   "commit": "826f1e366c8c0c04ace2b1a144009ebe2bb3cfcb",
+   "branch": "fix/1788-legacy-export-undo",
    "dirty": true,
-   "source_state": "dirty:61d0b8c9f140",
+   "source_state": "dirty:2eb13a836913",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/tests/NATIVE_CHECKS.md",
-    " M app/tests/native_windows_transaction_checks.py",
-    " M app/tests/test_book_state_transaction_1660_compensation_race.py",
-    " M app/tests/test_windows_native_ci.py",
-    " M app/tests/unit_test_inventory.json",
-    " M app/tests/windows_only_skip_baseline.txt"
+    "M  app/project_scope_apply.py",
+    "M  app/project_scope_exports.py",
+    "M  app/tests/test_project_scope_apply.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

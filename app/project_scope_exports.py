@@ -37,6 +37,48 @@ def get_scope_export_inventory(root):
     return result
 
 
+def _is_supported_scope_export_inventory(inventory):
+    """Purely check the producer layouts and serialized row shape.
+
+    Supported inventories are exactly the current or legacy producer
+    key sets, with row maps whose path keys are strings and whose
+    versions are lists of exactly five strict ints, matching
+    audio_take_history._version. Bools and floats are not ints here.
+    """
+    if not isinstance(inventory, dict) or set(inventory) not in (set(EXPORTS), set(LEGACY_EXPORTS)):
+        return False
+    for rows in inventory.values():
+        if not isinstance(rows, dict):
+            return False
+        for path, version in rows.items():
+            if not isinstance(path, str):
+                return False
+            if not isinstance(version, list) or len(version) != 5 or any(type(item) is not int for item in version):
+                return False
+    return True
+
+
+def is_scope_export_inventory_compatible(recorded, current):
+    """Return whether a recorded inventory still fences current exports.
+
+    Only an exact current inventory, or an exact legacy inventory whose
+    recorded legacy rows still match and whose newer exports are empty,
+    is compatible. Any other key set is malformed for this purpose.
+    """
+    if not _is_supported_scope_export_inventory(recorded) or not _is_supported_scope_export_inventory(current):
+        return False
+    if set(current) != set(EXPORTS):
+        return False
+    keys = set(recorded)
+    if keys == set(EXPORTS):
+        return recorded == current
+    if keys != set(LEGACY_EXPORTS):
+        return False
+    if any(recorded[name] != current[name] for name in LEGACY_EXPORTS):
+        return False
+    return all(current[name] == {} for name in EXPORTS if name not in LEGACY_EXPORTS)
+
+
 def is_scope_export_historical(root, path):
     root = Path(os.path.abspath(root)); path = Path(os.path.abspath(path))
     proof, raw = capture_scope_file(root, 'state.json', include_bytes=True)
@@ -48,12 +90,10 @@ def is_scope_export_historical(root, path):
     inventory = state.get('_source_scope_exports')
     if inventory is None:
         return False
-    if not isinstance(inventory, dict) or set(inventory) not in (set(EXPORTS), set(LEGACY_EXPORTS)):
+    if not _is_supported_scope_export_inventory(inventory):
         raise ValueError('Scope export inventory needs inspection.')
     relative = path.relative_to(root).as_posix()
     for rows in inventory.values():
-        if not isinstance(rows, dict):
-            raise ValueError('Invalid scope export file inventory.')
         if relative in rows and path.is_file() and list(_version(path.stat())) == rows[relative]:
             return True
     return False
