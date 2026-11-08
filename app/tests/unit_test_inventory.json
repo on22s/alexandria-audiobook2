@@ -11853,10 +11853,10 @@
   ],
   "test_sound_design_delivery_export": [
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_approved_wav_delivers_exact_candidate_pcm",
-    "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_failed_postpublication_retirement_is_guarded_before_owner_release",
+    "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_failed_postpublication_cleanup_is_guarded_before_owner_release",
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_m4b_delivers_approved_metadata_and_rejects_changed_title",
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_postpublication_cleanup_preserves_unexpected_stage_contents",
-    "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_postpublication_nested_registry_failure_preserves_payload",
+    "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_postpublication_nested_staging_failure_preserves_payload",
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_postpublication_stat_failure_reports_published_without_stale_quality",
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_real_delivery_and_late_source_change_preserve_prior_output",
     "tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_repeated_success_does_not_exhaust_retained_stage_slots",
