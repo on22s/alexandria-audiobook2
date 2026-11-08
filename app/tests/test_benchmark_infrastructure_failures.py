@@ -509,6 +509,95 @@ class CancellationPropagationTests(unittest.TestCase):
                     runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
 
 
+class ShutdownPropagationTests(unittest.TestCase):
+    def run_through_core(self, run_name, stage, worker_name, error):
+        import core as core_module
+        from run_history import list_runs
+        key = "_test_1789_shutdown_history"
+        fixtures = [{"id": "first", "sha256": "a"}]
+        man = manifest(stage, fixtures)
+        man["settings"] = {"local_python": sys.executable}
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": "first", "status": "running"}]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                if run_name == "batch":
+                    def callback():
+                        def interrupted(_pending):
+                            raise error
+                        runner.run_benchmark_batch(man, environment(), path, state, interrupted)
+                else:
+                    def callback():
+                        with patch.object(runner, "load_app_config", return_value={}), \
+                             patch.object(runner, "_validate_preparer_fixture"), \
+                             patch.object(runner, worker_name, side_effect=error):
+                            runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                    with self.assertRaises(type(error)):
+                        core_module._run_claimed_background_task(key, callback)
+                records = list_runs(history_dir)
+                return records, state
+        finally:
+            core_module.process_state.pop(key, None)
+
+    def test_batch_system_exit_and_keyboard_interrupt_fail_state_and_history(self):
+        for error in (SystemExit("synthetic worker shutdown"), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                records, state = self.run_through_core("batch", "script_review", None, error)
+                self.assertEqual(1, len(records))
+                self.assertEqual("failed", state["status"])
+                self.assertEqual("failed", records[0]["status"])
+                self.assertEqual("failed", state["tasks"][0]["status"])
+
+    def test_repetitions_system_exit_and_keyboard_interrupt_fail_state_and_history(self):
+        for error in (SystemExit("synthetic worker shutdown"), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                records, state = self.run_through_core(
+                    "run_preparer_benchmark", "voicelab_preparer", "_run_preparer_worker", error)
+                self.assertEqual(1, len(records))
+                self.assertEqual("failed", state["status"])
+                self.assertEqual("failed", records[0]["status"])
+                self.assertEqual("failed", state["tasks"][0]["status"])
+
+    def test_generator_exit_propagates_and_fails_history(self):
+        for run_name, stage, worker_name in (
+                ("batch", "script_review", None),
+                ("run_preparer_benchmark", "voicelab_preparer", "_run_preparer_worker")):
+            with self.subTest(path=run_name):
+                records, state = self.run_through_core(
+                    run_name, stage, worker_name, GeneratorExit("synthetic generator exit"))
+                self.assertEqual(1, len(records))
+                self.assertEqual("failed", state["status"])
+                self.assertEqual("failed", records[0]["status"])
+                self.assertEqual("failed", state["tasks"][0]["status"])
+
+    def test_shutdown_under_cancel_still_propagates_and_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = [{"id": "first", "sha256": "a"}]
+            man = manifest("voicelab_preparer", fixtures)
+            path = str(Path(tmp) / "report.json")
+            state = fresh_state(fixtures)
+            state["cancel"] = True
+            # Pre-queued cancel normally returns before execute; queue it
+            # during execute instead by using a worker that sets it.
+            state["cancel"] = False
+
+            def worker(*args):
+                state["cancel"] = True
+                raise SystemExit("synthetic shutdown under cancel")
+
+            with patch.object(runner, "load_app_config", return_value={}), \
+                 patch.object(runner, "_validate_preparer_fixture"), \
+                 patch.object(runner, "_run_preparer_worker", side_effect=worker):
+                with self.assertRaises(SystemExit):
+                    runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
+            self.assertEqual("failed", state["status"])
+            self.assertEqual("failed", state["tasks"][0]["status"])
+
+
 class HistoryInfrastructureTests(unittest.TestCase):
     def run_history(self, stage, run_name, marker, payload, validate_name):
         import core as core_module

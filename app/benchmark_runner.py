@@ -491,10 +491,16 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
                 # Cancellation queued during execute (e.g. after subprocess
                 # supervision, before strict parsing raised) is authoritative:
                 # return the cancelled report instead of re-raising so core
-                # history records cancelled, not failed. SystemExit /
-                # KeyboardInterrupt are BaseExceptions and propagate untouched.
+                # history records cancelled, not failed.
                 if apply_benchmark_cancellation(state, report, manifest, report_path):
                     return report
+                apply_benchmark_failure(state, report, manifest)
+                raise
+            except BaseException:
+                # Original guard domain for non-cancellation fatalities
+                # (SystemExit, KeyboardInterrupt, GeneratorExit, ...):
+                # propagate, but leave failed state/tasks so core history
+                # (which catches only Exception) cannot record completed.
                 apply_benchmark_failure(state, report, manifest)
                 raise
             if is_benchmark_worker_infrastructure_failure(result):
@@ -545,13 +551,17 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                         if all((fixture_id, repetition) in completed
                                for repetition in range(1, manifest["repetitions"] + 1)):
                             state["tasks"][index]["status"] = "done"
+        except BenchmarkCancelled:
+            raise
         except Exception:
             # As in repetitions: a queued cancellation wins over a generic
-            # failure raised at this boundary; BaseExceptions (including
-            # BenchmarkCancelled, handled by the stage wrapper, and
-            # SystemExit/KeyboardInterrupt) propagate untouched.
+            # failure raised at this boundary.
             if apply_benchmark_cancellation(state, report, manifest, report_path):
                 return report
+            apply_benchmark_failure(state, report, manifest)
+            raise
+        except BaseException:
+            # Original guard domain (see repetitions): mark failed, propagate.
             apply_benchmark_failure(state, report, manifest)
             raise
     apply_benchmark_completion(state, report, manifest, report_path)
