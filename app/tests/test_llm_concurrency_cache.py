@@ -511,13 +511,12 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 self.assertEqual(2, third)
                 measure.assert_not_called()
 
-    def test_single_slot_with_no_matching_cache_writes_nothing(self):
+    def test_single_slot_with_no_matching_cache_only_records_ordering_revision(self):
         for profile in ({}, {"concurrency": 8, "concurrency_for": "http://other::model",
                              "concurrency_environment": {"version": 2}, "unrelated": "kept"}):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp, "config.json")
                 path.write_text(json.dumps({"llm_local": dict(profile)}))
-                before = path.read_bytes()
                 client = _BenchmarkClient(healthy=True)
                 with patch.object(llm_bench, "find_optimal_concurrency") as bench, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
@@ -529,7 +528,12 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 bench.assert_not_called()
                 self.assertEqual(0, client.create_calls)
                 gpu.assert_not_called()
-                self.assertEqual(before, path.read_bytes())
+                saved = json.loads(path.read_text())["llm_local"]
+                revision = saved.pop("concurrency_revision")
+                self.assertIsInstance(revision, str)
+                self.assertEqual(32, len(revision))
+                self.assertEqual(profile, saved,
+                                 "policy records ordering, never a measurement or unrelated retirement")
 
     def test_single_slot_invalidation_rechecks_key_under_lock(self):
         import contextlib
