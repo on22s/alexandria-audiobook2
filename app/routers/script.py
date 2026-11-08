@@ -506,6 +506,17 @@ class _HTMLTextExtractor(HTMLParser):
         return ''.join(text_parts), positions
 
 
+# Conservative hint for the XML pass below, derived from the same
+# SKIP_TAGS set: a resource with no possible '<skip-name' opening (XML
+# name boundary, case-insensitive) cannot contain a real ignored element
+# or a metadata literal that could become a phantom ignored start, so it
+# needs neither the UTF-8 copy nor the Expat pass. False positives (e.g.
+# a literal opening inside CDATA/PI/DTD text) simply take the XML path.
+_POTENTIAL_SKIP_OPEN_RE = re.compile(
+    r'<(?:' + '|'.join(sorted(_HTMLTextExtractor.SKIP_TAGS)) +
+    r')(?=[\t\n\r\f />]|$)', re.IGNORECASE | re.ASCII)
+
+
 def _omit_xml_ignored_subtrees(html_content: str) -> str:
     """Omit true XML ignored subtrees, preserving everything outside them.
 
@@ -518,6 +529,14 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     expansion) locates the real ignored elements in a UTF-8 copy of the
     already-decoded resource; the untouched outside slices - CRLF,
     whitespace, anchors and all - are fed to the HTML extractor instead.
+    Ignored means exactly the HTML extractor's exact lowercased SKIP_TAGS:
+    prefixed names such as <x:script> are ordinary elements and are never
+    omitted. Nonspoken PIs outside ignored elements are omitted likewise,
+    and a DOCTYPE whose internal subset or identifiers could carry literal
+    skip markup makes the whole nonspoken prolog be omitted at the root
+    element (its lexical start is not directly reported by Expat).
+    Resources with no possible skip opening at all skip the copy and the
+    XML pass entirely (see _POTENTIAL_SKIP_OPEN_RE).
     Outside bytes accumulate in a single bytearray candidate (bounded by
     the input size) rather than a per-element record list, and only
     cursor/depth/omission-flag state is retained. Only ignored elements
@@ -528,6 +547,8 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     rejection - applies. No partial transformed output is ever fed on
     XML failure.
     """
+    if not _POTENTIAL_SKIP_OPEN_RE.search(html_content):
+        return html_content
     try:
         data = html_content.encode('utf-8')
     except UnicodeEncodeError:
@@ -535,22 +556,16 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     skip_tags = _HTMLTextExtractor.SKIP_TAGS
 
     def is_skipped(name):
-        # Case-insensitive like the HTML extractor, which casefolds every
-        # skip name. The exact lookup and islower() fast paths avoid a
-        # per-tag allocation for ordinary (lowercase) elements.
-        if name in skip_tags:
-            return True
-        if name.islower():
-            return ':' in name and name.rsplit(':', 1)[-1] in skip_tags
-        lowered = name.lower()
-        if lowered in skip_tags:
-            return True
-        return ':' in lowered and lowered.rsplit(':', 1)[-1] in skip_tags
+        # Identical semantics to _HTMLTextExtractor.handle_starttag:
+        # exact lowercased tag names only. Prefixed names are ordinary.
+        return name.lower() in skip_tags
 
     candidate = bytearray()
     cursor = 0
     ignored_depth = 0
     omitted = False
+    seen_root = False
+    doctype_hazard = False
     parser = expat.ParserCreate(encoding='utf-8')
     # DefaultHandler (not DefaultHandlerExpand): internal entities are not
     # expanded and no external entity/DTD handler is registered, so no
@@ -558,8 +573,39 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     # left at its default.
     parser.DefaultHandler = lambda _data: None
 
+    def start_doctype(name, system_id, public_id, has_internal_subset):
+        nonlocal doctype_hazard
+        if has_internal_subset or _POTENTIAL_SKIP_OPEN_RE.search(
+                name or '') or _POTENTIAL_SKIP_OPEN_RE.search(
+                    system_id or '') or _POTENTIAL_SKIP_OPEN_RE.search(
+                        public_id or ''):
+            doctype_hazard = True
+
+    def processing_instruction(_target, _data):
+        nonlocal cursor, omitted
+        if ignored_depth:
+            return
+        start = parser.CurrentByteIndex
+        if start < 0:
+            return
+        end = data.find(b'?>', start)
+        end = end + 2 if end >= 0 else len(data)
+        candidate.extend(data[cursor:start])
+        cursor = end
+        omitted = True
+
     def start_element(name, _attrs):
-        nonlocal ignored_depth, omitted
+        nonlocal ignored_depth, omitted, seen_root, cursor
+        if not seen_root:
+            seen_root = True
+            if doctype_hazard and parser.CurrentByteIndex >= 0:
+                # Omit the whole nonspoken prolog (declaration, DOCTYPE,
+                # comments, PIs, whitespace): Expat does not report the
+                # DOCTYPE's lexical start, and any of it could carry the
+                # literal markup. Discard anything accumulated so far.
+                candidate.clear()
+                cursor = parser.CurrentByteIndex
+                omitted = True
         if is_skipped(name):
             if ignored_depth == 0:
                 candidate.extend(data[cursor:parser.CurrentByteIndex])
@@ -599,6 +645,8 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
 
     parser.StartElementHandler = start_element
     parser.EndElementHandler = end_element
+    parser.StartDoctypeDeclHandler = start_doctype
+    parser.ProcessingInstructionHandler = processing_instruction
     try:
         parser.Parse(data, True)
     except expat.ExpatError:
@@ -897,7 +945,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             try:
                 # Omit true XML ignored subtrees first; on non-XML content
                 # this returns the original unchanged (tolerant fallback).
-                extractor.feed(_omit_xml_ignored_subtrees(html_content))
+                # Rebind so the original string is released before the
+                # HTML parser accumulates its parts; html_bytes (used for
+                # report hashes) is unchanged by this.
+                html_content = _omit_xml_ignored_subtrees(html_content)
+                extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.
                 # close() is deliberately not called here: it would flush
                 # incomplete EOF markup (and decode buffered skipped

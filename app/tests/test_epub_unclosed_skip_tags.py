@@ -217,12 +217,14 @@ class UnclosedSkipTagTests(unittest.TestCase):
              '<p>Middle readable chapter.</p></body></html>',
              'First readable chapter.\n\nMiddle readable chapter.\n\n'
              'Final readable chapter.'),
-            ('prefixed',
+            # A prefixed name is NOT a skipped element under the existing
+            # exact-tag semantics, so its text is ordinary narration.
+            ('prefixed_foreign_retained',
              '<html xmlns:x="urn:x"><body>'
              '<x:script>var hidden = 1;</x:script>'
              '<p>Middle readable chapter.</p></body></html>',
-             'First readable chapter.\n\nMiddle readable chapter.\n\n'
-             'Final readable chapter.'),
+             'First readable chapter.\n\nvar hidden = 1;\n\n'
+             'Middle readable chapter.\n\nFinal readable chapter.'),
             ('nested_actual',
              '<html><body><script><style><![CDATA[</style><script>]]>'
              '</style></script><p>Middle readable chapter.</p>'
@@ -325,12 +327,101 @@ class UnclosedSkipTagTests(unittest.TestCase):
                         '<p>Middle readable chapter.</p></body></html>')
                 ET.fromstring(body.encode('utf-8'))
                 self.assertEqual(expected, extract(make_epub(body)))
-        # Mixed-case prefixed ignored element, likewise.
+        # A mixed-case *prefixed* name is still not a skipped element
+        # (exact-tag semantics), so its readable text is retained.
         body = ('<html xmlns:x="urn:x"><body><x:ScRiPt>'
-                '<![CDATA[x="</x:ScRiPt><style>";]]></x:ScRiPt>'
+                'Middle readable words</x:ScRiPt>'
                 '<p>Middle readable chapter.</p></body></html>')
         ET.fromstring(body.encode('utf-8'))
+        text = extract(make_epub(body))
+        self.assertIn('Middle readable words', text)
+        self.assertIn('Middle readable chapter.', text)
+        self.assertIn('First readable chapter.', text)
+        self.assertIn('Final readable chapter.', text)
+
+    def test_foreign_prefixed_elements_retain_readable_text(self):
+        # Prefixed names in a foreign vocabulary are ordinary elements
+        # under the existing exact-tag semantics: their readable text is
+        # narration and must be preserved, never silently omitted.
+        expected = ('First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.')
+        for tag in ('script', 'style', 'title'):
+            for uri in ('urn:readable-vocabulary', 'http://example.org/ns'):
+                with self.subTest(tag=tag, uri=uri):
+                    body = (f'<html xmlns:x="{uri}"><body>'
+                            f'<x:{tag}>Middle readable chapter.</x:{tag}>'
+                            '</body></html>')
+                    ET.fromstring(body.encode('utf-8'))
+                    self.assertEqual(expected, extract(make_epub(body)))
+        for tag in ('ScRiPt', 'sTyLe', 'TiTlE'):
+            with self.subTest(tag=tag):
+                body = ('<html xmlns:x="urn:readable-vocabulary"><body>'
+                        f'<x:{tag}>Middle readable chapter.</x:{tag}>'
+                        '</body></html>')
+                ET.fromstring(body.encode('utf-8'))
+                self.assertEqual(expected, extract(make_epub(body)))
+        # A name that merely starts with a skip name is likewise ordinary.
+        body = ('<html><body><scriptx>Middle readable chapter.</scriptx>'
+                '</body></html>')
+        ET.fromstring(body.encode('utf-8'))
         self.assertEqual(expected, extract(make_epub(body)))
+
+    def test_metadata_literals_do_not_become_phantom_skips(self):
+        # Valid XML PIs and DOCTYPE internals outside ignored elements are
+        # nonspoken metadata; their literal skip markup must not reach
+        # HTMLParser as phantom start tags. ET controls each body.
+        expected = ('First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.')
+        cases = [
+            ('pi_outside_later_style',
+             '<html><body><?note </script><style> ?>'
+             '<p>Middle readable chapter.</p><style>p{}</style>'
+             '</body></html>'),
+            ('pi_outside_later_script',
+             '<html><body><?note </script><style> ?>'
+             '<p>Middle readable chapter.</p><script>code</script>'
+             '</body></html>'),
+            ('dtd_comment',
+             '<!DOCTYPE html [<!-- </script><style> -->]>'
+             '<html><body><p>Middle readable chapter.</p>'
+             '<style>p{}</style></body></html>'),
+            ('dtd_entity',
+             '<!DOCTYPE html [<!ENTITY x "</style><style>">]>'
+             '<html><body><script>code</script>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('external_public_doctype',
+             '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0//EN" '
+             '"http://example.org/x.dtd">'
+             '<html><body><p>Middle readable chapter.</p>'
+             '<script>code</script></body></html>'),
+            ('combined_metadata',
+             '<!DOCTYPE html [<!ENTITY x "</style><style>">]>'
+             '<html><body><?note </script> ?>'
+             '<script><![CDATA[var t="</script>";]]></script>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('whitespace_opening',
+             '<html><body><script >code</script>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('newline_opening',
+             '<html><body><script\n>code</script>'
+             '<p>Middle readable chapter.</p></body></html>'),
+        ]
+        for name, body in cases:
+            with self.subTest(case=name):
+                ET.fromstring(body.encode('utf-8'))
+                self.assertEqual(expected, extract(make_epub(body)))
+        # CRLF outside the metadata is preserved (metamorphic equality).
+        crlf_base = ('<html><body>\r\n<p>Middle readable chapter.</p>'
+                     '\r\n</body></html>')
+        crlf_variant = ('<html><body>\r\n<?note </script><style> ?>\r\n'
+                        '<p>Middle readable chapter.</p>\r\n</body></html>')
+        ET.fromstring(crlf_variant.encode('utf-8'))
+        self.assertEqual(extract(make_epub(crlf_base)),
+                         extract(make_epub(crlf_variant)))
+        # An XML failure after metadata discards the candidate: the helper
+        # returns the original lexical string unchanged.
+        broken = '<?note </script><style> ?><html><body><p>Middle tolerant'
+        self.assertEqual(broken, script._omit_xml_ignored_subtrees(broken))
 
     def test_xml_entity_and_doctype_are_not_expanded_or_fetched(self):
         # Internal entities must not be expanded into narration. The
@@ -682,6 +773,41 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
                         before,
                         {item.name: item.read_bytes()
                          for item in directory.iterdir()})
+
+    async def test_foreign_prefixed_upload_persists_middle(self):
+        body = ('<html xmlns:x="urn:readable-vocabulary"><body>'
+                '<x:script>Middle readable chapter.</x:script>'
+                '</body></html>')
+        ET.fromstring(body.encode('utf-8'))  # well-formedness control
+        raw = make_epub(body)
+        async with uploads.UploadPublicationSourceTests().environment() as (
+                root, directory, client):
+            response = await client.post(
+                '/api/upload?select_active=false',
+                files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(200, response.status_code, response.text)
+            persisted = (directory / 'book.txt').read_bytes()
+            self.assertIn(b'First readable chapter.', persisted)
+            self.assertIn(b'Middle readable chapter.', persisted)
+            self.assertIn(b'Final readable chapter.', persisted)
+            self.assertEqual(raw, (directory / 'book.source.epub').read_bytes())
+            before = {item.name: item.read_bytes()
+                      for item in directory.iterdir()}
+            reported = await client.post(
+                '/api/upload?select_active=false'
+                '&include_extraction_report=true',
+                files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(200, reported.status_code, reported.text)
+            self.assertTrue(reported.json()['reused'])
+            self.assertIn('extraction_report', reported.json())
+            self.assertEqual(
+                before,
+                {item.name: item.read_bytes() for item in directory.iterdir()})
+            selected = await client.post(
+                '/api/upload?select_active=true',
+                files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(200, selected.status_code, selected.text)
+            self.assertIn(b'book.txt', (root / 'state.json').read_bytes())
 
     async def test_long_member_name_error_stays_actionable_and_safe(self):
         long_name = 'x' * 3000 + '.xhtml'
