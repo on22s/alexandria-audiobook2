@@ -27,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
 from math import ceil
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import unquote, urlsplit
@@ -425,10 +426,11 @@ class _HTMLTextExtractor(HTMLParser):
         # Skipped elements are tracked by name, not just counted, so the
         # close that ends a genuinely open skipped element must name that
         # element. A close with no skipped element open is tolerated: it
-        # cannot leave pending skipped content, and legitimate well-formed
-        # XHTML can produce one - HTMLParser scans script/style/title as
-        # raw/RCDATA text, so a literal close inside XML CDATA or a comment
-        # ends raw mode early and the real close then looks stray here.
+        # cannot leave pending skipped content. In the production path,
+        # _omit_xml_ignored_subtrees first removes the true XML ignored
+        # subtrees (see below), so a stray close here arises only on the
+        # tolerant non-XML fallback - e.g. raw HTML whose literal markup
+        # inside script/style/title is data to HTMLParser.
         # HTMLParser itself treats <script>/<style> as raw text and
         # <title> as RCDATA, so markup inside them is data, never a
         # nested start/end tag here.
@@ -502,6 +504,111 @@ class _HTMLTextExtractor(HTMLParser):
                 text_parts.append(part)
                 length += len(part)
         return ''.join(text_parts), positions
+
+
+def _omit_xml_ignored_subtrees(html_content: str) -> str:
+    """Omit true XML ignored subtrees, preserving everything outside them.
+
+    Well-formed XHTML can carry literal skipped-element markup inside CDATA
+    sections, comments and processing instructions (only the CDATA/comment
+    terminator ends those constructs). HTMLParser's raw-text scanning would
+    end the skipped element at the literal close and reinterpret a literal
+    open as a phantom element, falsely rejecting the book or silently
+    swallowing following chapters. Expat (stdlib, no fetch, no entity
+    expansion) locates the real ignored elements in a UTF-8 copy of the
+    already-decoded resource; the untouched outside slices - CRLF,
+    whitespace, anchors and all - are fed to the HTML extractor instead.
+    Only ignored elements are counted, so there is no per-tag allocation
+    for ordinary elements. If the resource is not XML well-formed (ordinary
+    tolerant HTML), the original content is returned unchanged and the
+    existing HTML path - including its unclosed-skipped-element rejection -
+    applies. No partial transformed output is ever fed on XML failure.
+    """
+    try:
+        data = html_content.encode('utf-8')
+    except UnicodeEncodeError:
+        return html_content
+    skip_tags = _HTMLTextExtractor.SKIP_TAGS
+
+    def is_skipped(name):
+        # Case-insensitive like the HTML extractor, which casefolds every
+        # skip name. The exact lookup and islower() fast paths avoid a
+        # per-tag allocation for ordinary (lowercase) elements.
+        if name in skip_tags:
+            return True
+        if name.islower():
+            return ':' in name and name.rsplit(':', 1)[-1] in skip_tags
+        lowered = name.lower()
+        if lowered in skip_tags:
+            return True
+        return ':' in lowered and lowered.rsplit(':', 1)[-1] in skip_tags
+
+    spans = []
+    ignored_depth = 0
+    ignored_start = 0
+    parser = expat.ParserCreate(encoding='utf-8')
+    # DefaultHandler (not DefaultHandlerExpand): internal entities are not
+    # expanded and no external entity/DTD handler is registered, so no
+    # external fetching occurs. Expat's own amplification protection is
+    # left at its default.
+    parser.DefaultHandler = lambda _data: None
+
+    def start_element(name, _attrs):
+        nonlocal ignored_depth, ignored_start
+        if is_skipped(name):
+            if ignored_depth == 0:
+                ignored_start = parser.CurrentByteIndex
+            ignored_depth += 1
+
+    def end_element(name):
+        nonlocal ignored_depth
+        if not is_skipped(name):
+            return
+        if ignored_depth == 0:
+            return
+        ignored_depth -= 1
+        if ignored_depth:
+            return
+        end = parser.CurrentByteIndex
+        if end < 0:
+            end = len(data)
+        else:
+            # Paired vs self-closing is decided by the end tag's exact
+            # name at this index, not by a bare '</' test: a self-closing
+            # element's index points just past '/>', which may be exactly
+            # at a following *parent* end tag (e.g. <script/></div> or
+            # </textarea>) that must be retained. A paired end names this
+            # element; a self-closing element's following end names its
+            # parent. For an outermost removed element there can be no
+            # ignored ancestor it could be confused with. The XML name
+            # boundary after the name prevents prefix collisions.
+            closing = b'</' + name.encode('utf-8')
+            if data[end:end + len(closing)] == closing:
+                boundary = data[end + len(closing):end + len(closing) + 1]
+                if boundary in (b'>', b' ', b'\t', b'\r', b'\n', b''):
+                    close_end = data.find(b'>', end)
+                    end = close_end + 1 if close_end >= 0 else len(data)
+        # Otherwise self-closing: CurrentByteIndex is already just past '/>'.
+        spans.append((ignored_start, end))
+
+    parser.StartElementHandler = start_element
+    parser.EndElementHandler = end_element
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError:
+        return html_content
+    if not spans:
+        return html_content
+    parts = []
+    position = 0
+    try:
+        for start, end in spans:
+            parts.append(data[position:start].decode('utf-8'))
+            position = end
+        parts.append(data[position:].decode('utf-8'))
+    except UnicodeDecodeError:
+        return html_content
+    return ''.join(parts)
 
 
 def _resolve_epub_href(base_path, href):
@@ -787,7 +894,9 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             extractor = _HTMLTextExtractor(anchor_ids)
             try:
-                extractor.feed(html_content)
+                # Omit true XML ignored subtrees first; on non-XML content
+                # this returns the original unchanged (tolerant fallback).
+                extractor.feed(_omit_xml_ignored_subtrees(html_content))
                 # The text accessor validates skipped-element balance.
                 # close() is deliberately not called here: it would flush
                 # incomplete EOF markup (and decode buffered skipped

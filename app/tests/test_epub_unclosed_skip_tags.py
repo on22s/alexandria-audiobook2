@@ -140,12 +140,12 @@ class UnclosedSkipTagTests(unittest.TestCase):
     def test_wellformed_cdata_and_comment_resources_are_accepted(self):
         # Each body is well-formed XML (ET control below): only ]]> ends a
         # CDATA section and only --> ends a comment, so a literal skipped-
-        # element close inside either is legal data. HTMLParser's raw-text
-        # scanning nevertheless ends the skipped element at the literal
-        # sequence; the real close is then stray and must be tolerated.
-        # The junk tail the old text semantics expose after such a literal
-        # close is deliberately not pinned - only acceptance and that the
-        # surrounding chapters survive.
+        # element close inside either is legal data. The XML-aware path
+        # omits those true ignored subtrees; HTMLParser's raw-text scanning
+        # alone would end the skipped element at the literal sequence.
+        # Only acceptance and that the surrounding chapters survive are
+        # pinned here; exact-output metamorphic coverage is in
+        # test_xml_literal_markup_in_ignored_subtrees_is_omitted_exactly.
         cases = [
             ('script_cdata',
              '<?xml version="1.0" encoding="utf-8"?>'
@@ -173,6 +173,198 @@ class UnclosedSkipTagTests(unittest.TestCase):
                 self.assertIn('Final readable chapter.', text)
                 reported, _report = extract(raw, report=True)
                 self.assertEqual(text, reported)
+
+    def test_xml_literal_markup_in_ignored_subtrees_is_omitted_exactly(self):
+        # Metamorphic: inserting a genuinely closed XML ignored subtree
+        # whose CDATA/comment/PI content contains literal skipped-element
+        # closes and opens must not change narration at all. HTMLParser's
+        # raw scanning alone both falsely rejects (a literal close+open
+        # with no later real close of the phantom) and silently drops the
+        # chapter (the phantom later closes), so exact equality is the
+        # meaningful assertion, alongside the ET well-formedness control.
+        expected = ('First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.')
+        for tag in ('script', 'style', 'title'):
+            for opened in ('script', 'style', 'title'):
+                for kind in ('cdata', 'comment', 'pi'):
+                    with self.subTest(tag=tag, opened=opened, kind=kind):
+                        literal = f'</{tag}><{opened}>'
+                        if kind == 'cdata':
+                            payload = f'<![CDATA[var t = "{literal}";]]>'
+                        elif kind == 'comment':
+                            payload = f'<!-- {literal} -->ignored words'
+                        else:
+                            payload = f'<?note {literal} ?>ignored words'
+                        body = (f'<html><body><{tag}>{payload}</{tag}>'
+                                '<p>Middle readable chapter.</p></body></html>')
+                        ET.fromstring(body.encode('utf-8'))
+                        self.assertEqual(expected, extract(make_epub(body)))
+
+    def test_xml_omission_preserves_unicode_crlf_encodings_and_namespaces(self):
+        # Outside the omitted subtree, the lexical stream is untouched:
+        # Unicode text, CRLF, namespace/prefixed elements, nested ignored
+        # elements and self-closing ignored elements all survive exactly.
+        cases = [
+            ('unicode',
+             '<html><body><script><![CDATA[caf\u00e9 </script>]]>'
+             '</script><p>Middle caf\u00e9 \u65e5\u672c\u8a9e.</p>'
+             '</body></html>',
+             'First readable chapter.\n\nMiddle caf\u00e9 \u65e5\u672c\u8a9e.\n\n'
+             'Final readable chapter.'),
+            ('default_namespace',
+             '<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+             '<script><![CDATA[var t="</script><style>";]]></script>'
+             '<p>Middle readable chapter.</p></body></html>',
+             'First readable chapter.\n\nMiddle readable chapter.\n\n'
+             'Final readable chapter.'),
+            ('prefixed',
+             '<html xmlns:x="urn:x"><body>'
+             '<x:script>var hidden = 1;</x:script>'
+             '<p>Middle readable chapter.</p></body></html>',
+             'First readable chapter.\n\nMiddle readable chapter.\n\n'
+             'Final readable chapter.'),
+            ('nested_actual',
+             '<html><body><script><style><![CDATA[</style><script>]]>'
+             '</style></script><p>Middle readable chapter.</p>'
+             '</body></html>',
+             'First readable chapter.\n\nMiddle readable chapter.\n\n'
+             'Final readable chapter.'),
+            ('selfclosing',
+             '<html><body><script/><style/><title/>'
+             '<p>Middle readable chapter.</p></body></html>',
+             'First readable chapter.\n\nMiddle readable chapter.\n\n'
+             'Final readable chapter.'),
+        ]
+        for name, body, expected in cases:
+            with self.subTest(case=name):
+                ET.fromstring(body.encode('utf-8'))
+                self.assertEqual(expected, extract(make_epub(body)))
+        # CRLF outside the subtree: insertion must not change extraction.
+        crlf_base = ('<html><body>\r\n<p>Middle readable chapter.</p>'
+                     '\r\n</body></html>')
+        crlf_variant = ('<html><body>\r\n<script><![CDATA[</script>]]>'
+                        '</script>\r\n<p>Middle readable chapter.</p>'
+                        '\r\n</body></html>')
+        ET.fromstring(crlf_variant.encode('utf-8'))
+        self.assertEqual(extract(make_epub(crlf_base)),
+                         extract(make_epub(crlf_variant)))
+        # UTF-16 and Latin-1 member bytes (BOM / encoding declaration are
+        # honoured by the existing decoder; the XML copy is re-encoded).
+        utf16 = ('<?xml version="1.0" encoding="UTF-16"?>'
+                 '<html><body><script><![CDATA[var t="</script>";]]>'
+                 '</script><p>Middle caf\u00e9 chapter.</p>'
+                 '</body></html>').encode('utf-16')
+        self.assertEqual(
+            'First readable chapter.\n\nMiddle caf\u00e9 chapter.\n\n'
+            'Final readable chapter.', extract(make_epub(utf16)))
+        latin1 = ('<?xml version="1.0" encoding="ISO-8859-1"?>'
+                  '<html><body><script><![CDATA[var t="</script>";]]>'
+                  '</script><p>Middle caf\u00e9 chapter.</p>'
+                  '</body></html>').encode('iso-8859-1')
+        self.assertEqual(
+            'First readable chapter.\n\nMiddle caf\u00e9 chapter.\n\n'
+            'Final readable chapter.', extract(make_epub(latin1)))
+
+    def test_selfclosing_ignored_span_stops_at_its_own_tag_end(self):
+        # Direct helper property: the removed span for a self-closing
+        # ignored element ends after its own '/>', never at a following
+        # parent end tag - even when that end tag is the very next markup.
+        cases = [
+            ('<html><body><div><script/></div>'
+             '<p>Middle readable chapter.</p></body></html>',
+             '<html><body><div></div>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('<html><body><div><script/> </div>'
+             '<p>Middle readable chapter.</p></body></html>',
+             '<html><body><div> </div>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('<html><body><div><script/><!-- note --></div>'
+             '<p>Middle readable chapter.</p></body></html>',
+             '<html><body><div><!-- note --></div>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            # Paired outer ignored element whose last child self-closes:
+            # the outer span is still the whole subtree, nothing more.
+            ('<html><body><script><style/></script>'
+             '<p>Middle readable chapter.</p></body></html>',
+             '<html><body><p>Middle readable chapter.</p></body></html>'),
+            ('<html><body><script/><p>Middle readable chapter.</p>'
+             '</body></html>',
+             '<html><body><p>Middle readable chapter.</p></body></html>'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                ET.fromstring(source.encode('utf-8'))
+                self.assertEqual(
+                    expected, script._omit_xml_ignored_subtrees(source))
+        # The serious form: deleting a following </textarea> would leave
+        # HTMLParser's raw mode open and swallow the whole chapter.
+        source = ('<html><body><textarea>Preface<script/></textarea>'
+                  '<p>Middle readable chapter.</p></body></html>')
+        ET.fromstring(source.encode('utf-8'))
+        self.assertEqual(
+            '<html><body><textarea>Preface</textarea>'
+            '<p>Middle readable chapter.</p></body></html>',
+            script._omit_xml_ignored_subtrees(source))
+        # <textarea> is not a skipped element, so its text is ordinary
+        # narration; the regression was losing the whole following
+        # chapter, not exposing "Preface".
+        self.assertEqual(
+            'First readable chapter.\n\nPreface\n\nMiddle readable chapter.\n\n'
+            'Final readable chapter.', extract(make_epub(source)))
+
+    def test_case_insensitive_ignored_tags_in_cdata_are_omitted_exactly(self):
+        # The HTML extractor casefolds skip names, so the XML path must
+        # too: uppercase/mixed-case ignored elements with literal closes
+        # and opens in CDATA are omitted exactly, not falsely rejected.
+        expected = ('First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.')
+        for tag in ('SCRIPT', 'STYLE', 'TITLE', 'ScRiPt', 'sTyLe'):
+            with self.subTest(tag=tag):
+                body = (f'<html><body><{tag}>'
+                        f'<![CDATA[x="</{tag}><style>";]]></{tag}>'
+                        '<p>Middle readable chapter.</p></body></html>')
+                ET.fromstring(body.encode('utf-8'))
+                self.assertEqual(expected, extract(make_epub(body)))
+        # Mixed-case prefixed ignored element, likewise.
+        body = ('<html xmlns:x="urn:x"><body><x:ScRiPt>'
+                '<![CDATA[x="</x:ScRiPt><style>";]]></x:ScRiPt>'
+                '<p>Middle readable chapter.</p></body></html>')
+        ET.fromstring(body.encode('utf-8'))
+        self.assertEqual(expected, extract(make_epub(body)))
+
+    def test_xml_entity_and_doctype_are_not_expanded_or_fetched(self):
+        # Internal entities must not be expanded into narration. The
+        # external-DTD case below proves only that such a document is not
+        # rejected and extracts normally: no fetch is possible by
+        # construction (the helper registers DefaultHandler only, with no
+        # external-entity handler), and a missing-path SYSTEM identifier
+        # alone would not prove the absence of a fetch attempt by some
+        # future loader that swallowed the error - so no stronger runtime
+        # claim is made here.
+        internal = ('<!DOCTYPE html [<!ENTITY sentinel '
+                    '"EXPANDED_SENTINEL_1795">]>'
+                    '<html><body><p>Middle &sentinel; chapter.</p>'
+                    '<script>code</script></body></html>')
+        text = extract(make_epub(internal))
+        self.assertIn('Middle', text)
+        self.assertNotIn('EXPANDED_SENTINEL_1795', text)
+        external = ('<!DOCTYPE html SYSTEM '
+                    '"file:///nonexistent-1795-missing.dtd">'
+                    '<html><body><p>Middle readable chapter.</p>'
+                    '<script>code</script></body></html>')
+        self.assertIn('Middle readable chapter.', extract(make_epub(external)))
+
+    def test_malformed_unclosed_skip_still_fail_closed(self):
+        # XML-invalid for other reasons too: the tolerant HTML fallback
+        # still rejects a genuinely unclosed skipped element (this is the
+        # original scope, not arbitrary XML strictness - an unclosed
+        # paragraph alone remains accepted elsewhere).
+        body = '<html><body><div><p>Middle words.<script>never closed'
+        with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
+            extract(make_epub(body))
+        self.assertIn('unclosed <script>', str(caught.exception))
+        with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
+            extract(make_epub(body), report=True)
 
     def test_proper_paired_case_and_selfclosing_skip_tags_accepted(self):
         body = ('<html><head><TITLE>Head words</TITLE><STYLE>p{}</STYLE>'
@@ -237,7 +429,7 @@ class UnclosedSkipTagTests(unittest.TestCase):
         # fails (simulated allocation failure), extraction must still report
         # the unclosed <title> - the payload must never reach unescape.
         # html.parser makes no unescape call for this payload during feed();
-        # the old close()-based path made exactly one, on the whole buffer.
+        # the discarded V1 close()-based attempt made exactly one, on the whole buffer.
         payload = '&amp;' * 200
         body = '<html><body><title>' + payload
         raw = make_epub(body)
@@ -419,6 +611,66 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(b'Middle readable chapter.', persisted)
             self.assertIn(b'Final readable chapter.', persisted)
             self.assertEqual(raw, (directory / 'book.source.epub').read_bytes())
+
+    async def test_root_cdata_false_rejection_and_silent_loss_upload_persist(self):
+        # The two production-verified XML cases: a literal close+open inside
+        # script CDATA must neither falsely reject (no later genuine close
+        # of the phantom) nor silently drop the middle chapter (a later
+        # genuine <style> would otherwise close the phantom).
+        cases = [
+            ('false_rejection',
+             '<html><body><script><![CDATA[var t = "</script><style>";]]>'
+             '</script><p>Middle readable chapter.</p></body></html>'),
+            ('silent_loss',
+             '<html><body><script><![CDATA[var t = "</script><style>";]]>'
+             '</script><p>Middle readable chapter.</p>'
+             '<style>p{color:red}</style></body></html>'),
+        ]
+        for name, body in cases:
+            with self.subTest(case=name):
+                ET.fromstring(body.encode('utf-8'))  # well-formedness control
+                raw = make_epub(body)
+                async with uploads.UploadPublicationSourceTests().environment() as (
+                        root, directory, client):
+                    # Default mode: persists, middle chapter present.
+                    response = await client.post(
+                        '/api/upload?select_active=false',
+                        files={'file': ('book.epub', raw,
+                                         'application/epub+zip')})
+                    self.assertEqual(200, response.status_code, response.text)
+                    persisted = (directory / 'book.txt').read_bytes()
+                    self.assertIn(b'First readable chapter.', persisted)
+                    self.assertIn(b'Middle readable chapter.', persisted)
+                    self.assertIn(b'Final readable chapter.', persisted)
+                    self.assertEqual(raw,
+                                     (directory / 'book.source.epub').read_bytes())
+                    before = {item.name: item.read_bytes()
+                              for item in directory.iterdir()}
+                    # Report mode: same persisted body/source, reused.
+                    reported = await client.post(
+                        '/api/upload?select_active=false'
+                        '&include_extraction_report=true',
+                        files={'file': ('book.epub', raw,
+                                         'application/epub+zip')})
+                    self.assertEqual(200, reported.status_code, reported.text)
+                    self.assertTrue(reported.json()['reused'])
+                    self.assertIn('extraction_report', reported.json())
+                    self.assertEqual(
+                        before,
+                        {item.name: item.read_bytes()
+                         for item in directory.iterdir()})
+                    # Healthy selection: selecting the book records it.
+                    selected = await client.post(
+                        '/api/upload?select_active=true',
+                        files={'file': ('book.epub', raw,
+                                         'application/epub+zip')})
+                    self.assertEqual(200, selected.status_code, selected.text)
+                    state = (root / 'state.json').read_bytes()
+                    self.assertIn(b'book.txt', state)
+                    self.assertEqual(
+                        before,
+                        {item.name: item.read_bytes()
+                         for item in directory.iterdir()})
 
     async def test_long_member_name_error_stays_actionable_and_safe(self):
         long_name = 'x' * 3000 + '.xhtml'
