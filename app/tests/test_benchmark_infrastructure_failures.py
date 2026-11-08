@@ -760,6 +760,65 @@ class PublicationGuardTests(unittest.TestCase):
 class CancellationReviewTests(unittest.TestCase):
     PREFIX = {"fixture_id": "done", "repetition": 1, "status": "passed", "metrics": {"elapsed_seconds": 0.1}}
 
+    def test_transient_cancellation_publication_failure_stays_failed(self):
+        import core as core_module
+        from run_history import list_runs
+        for lifecycle in ("repetitions", "batch"):
+            with self.subTest(lifecycle=lifecycle):
+                key = "_test_1789_transient_publication_history"
+                fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
+                man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
+                       "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
+                core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                                  "cancel": True,
+                                                  "tasks": [{"fixture_id": "done", "status": "done"},
+                                                            {"fixture_id": "pending", "status": "pending"}]}
+                try:
+                    with tempfile.TemporaryDirectory() as tmp:
+                        history_dir = str(Path(tmp) / "history")
+                        path = str(Path(tmp) / "report.json")
+                        state = core_module.process_state[key]
+                        env = environment()
+                        report = core.build_benchmark_report(man, env)
+                        report["cases"] = [copy.deepcopy(self.PREFIX)]
+                        Path(path).write_text(json.dumps(report))
+                        original_save = runner.save_benchmark_report
+                        attempts = []
+
+                        def transient_save(report_path, saved_report):
+                            attempts.append(saved_report)
+                            if len(attempts) == 1:
+                                raise OSError("synthetic transient publication failure")
+                            return original_save(report_path, saved_report)
+
+                        def execute_case(fixture, repetition):
+                            raise AssertionError("cancelled lifecycle must not start work")
+
+                        def execute_batch(pending):
+                            raise AssertionError("cancelled lifecycle must not start work")
+                            yield  # pragma: no cover
+
+                        def callback():
+                            if lifecycle == "batch":
+                                runner.run_benchmark_batch(man, env, path, state, execute_batch)
+                            else:
+                                runner.run_benchmark_repetitions(man, env, path, state, execute_case)
+
+                        with patch.object(core_module, "RUN_HISTORY_DIR", history_dir), \
+                             patch.object(runner, "save_benchmark_report", side_effect=transient_save):
+                            core_module._run_claimed_background_task(key, callback)
+                        records = list_runs(history_dir)
+                        self.assertEqual(1, len(attempts))
+                        self.assertEqual("failed", state["status"])
+                        self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+                        self.assertEqual(1, len(records))
+                        self.assertEqual("failed", records[0]["status"])
+                        self.assertIn("synthetic transient publication failure", records[0]["error"])
+                        saved = json.loads(Path(path).read_text())
+                        self.assertEqual([self.PREFIX], saved["cases"])
+                finally:
+                    core_module.process_state.pop(key, None)
+
     def run_direct_cancelled_through_core(self, lifecycle, cancel_flag, create_report=True):
         import core as core_module
         from run_history import list_runs

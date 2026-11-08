@@ -403,7 +403,9 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
 
 def apply_benchmark_cancellation(state, report, manifest, report_path):
     """Preserve completed cases and mark unfinished tasks when cancel is queued."""
-    if not state.get("cancel"):
+    if not state.get("cancel") or state.get("status") == "failed":
+        # Terminal failure owns the state: never re-transition to cancelled
+        # or reattempt a failed cancellation publication.
         return False
     completed = get_benchmark_completed_cases(report)
     for task, fixture in zip(state.get("tasks", []), manifest["fixtures"]):
