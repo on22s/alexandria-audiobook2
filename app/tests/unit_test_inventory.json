@@ -356,6 +356,7 @@
     "tests.test_api_cleanup.CleanupTests.test_delete_404_requires_documented_detail",
     "tests.test_api_cleanup.CleanupTests.test_delete_redirect_not_followed_and_not_cleaned",
     "tests.test_api_cleanup.CleanupTests.test_documented_detail_helper_rejects_unknown_url",
+    "tests.test_api_cleanup.CleanupTests.test_exception_diagnostics_are_ascii_escaped_with_class",
     "tests.test_api_cleanup.CleanupTests.test_main_retains_exit_one_for_failed_suite",
     "tests.test_api_cleanup.CleanupTests.test_main_retains_exit_zero_for_passed_suite",
     "tests.test_api_cleanup.CleanupTests.test_main_with_malformed_voice_rows_preserves_exit_and_report",

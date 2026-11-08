@@ -690,6 +690,60 @@ class CleanupTests(unittest.TestCase):
                     for simple_label in ("test script", "builder project", "gen project", "test dataset"):
                         self.assertNotIn(simple_label, cleaned)
 
+    def test_exception_diagnostics_are_ascii_escaped_with_class(self):
+        cases = [
+            ("delete-nonascii-newline", "delete",
+             lambda: requests.exceptions.ConnectionError("café boom\n  Cleaned: forged-by-exception"),
+             "ConnectionError", "'caf\\xe9 boom\\n  Cleaned: forged-by-exception'"),
+            ("delete-empty", "delete",
+             lambda: requests.exceptions.ConnectionError(),
+             "ConnectionError", "''"),
+            ("list-nonascii-newline", "list",
+             lambda: requests.exceptions.ConnectionError("café boom\n  Cleaned: forged-by-exception"),
+             "ConnectionError", "'caf\\xe9 boom\\n  Cleaned: forged-by-exception'"),
+            ("list-empty", "list",
+             lambda: requests.exceptions.ConnectionError(),
+             "ConnectionError", "''"),
+        ]
+        for name, where, make_exc, expected_class, expected_quoted in cases:
+            with self.subTest(case=name):
+                before_results = dict(test_api.results)
+                before_failures = list(test_api.failures)
+                before_test_results = list(test_api.test_results)
+                exc = make_exc()
+                if where == "delete":
+                    first_url = self._simple_urls()[0]
+                    def delete_side(url, _exc=exc, _first=first_url):
+                        if url == _first:
+                            return _exc
+                        return _resp(200, {})
+                    output, delete_calls, _ = self._run_cleanup_ascii(
+                        delete_side, _resp(200, []))
+                    self.assertEqual(len(delete_calls), 4)
+                    self.assertEqual(set(delete_calls), set(self._simple_urls()))
+                    expected_cleaned = "Cleaned: builder project, gen project, test dataset"
+                    self.assertIn("failed to delete test script", output)
+                else:
+                    def delete_side(url):
+                        return _resp(200, {})
+                    output, delete_calls, _ = self._run_cleanup_ascii(delete_side, exc)
+                    self.assertEqual(len(delete_calls), 4)
+                    expected_cleaned = "Cleaned: test script, builder project, gen project, test dataset"
+                    self.assertIn("failed to list voice-design entries", output)
+                output.encode("ascii")
+                self.assertIn(expected_class, output)
+                self.assertIn(expected_quoted, output)
+                if "nonascii" in name:
+                    self.assertNotIn("café", output)
+                forged = [line.strip() for line in output.splitlines() if line.strip().startswith("Cleaned:")]
+                self.assertEqual(forged, [expected_cleaned], output)
+                self.assertNotIn("\n  Cleaned: forged", output)
+                self.assertIn("Cleanup incomplete", output)
+                self.assertNotIn("Nothing to clean", output)
+                self.assertEqual(before_results, test_api.results)
+                self.assertEqual(before_failures, test_api.failures)
+                self.assertEqual(before_test_results, test_api.test_results)
+
     # -- list failures -------------------------------------------------
 
     def test_voice_list_http_failure_reported_truthfully(self):

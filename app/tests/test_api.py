@@ -2006,7 +2006,7 @@ def _cleanup_delete(url, label, expected_not_found_detail):
     try:
         resp = delete(url, allow_redirects=False)
     except Exception as e:
-        print(f"  [cleanup] failed to delete {label}: {e}")
+        print(f"  [cleanup] failed to delete {label}: {type(e).__name__}: {ascii(str(e))}")
         return False
     if resp.status_code in _CLEANUP_CONFIRMED_DELETE_STATUSES:
         return True
@@ -2057,7 +2057,7 @@ def cleanup():
             raise ValueError(f"unexpected type {type(parsed).__name__}")
         voices = parsed
     except Exception as e:
-        print(f"  [cleanup] failed to list voice-design entries: {e}")
+        print(f"  [cleanup] failed to list voice-design entries: {type(e).__name__}: {ascii(str(e))}")
         cleanup_failures += 1
 
     if voices is not None:
