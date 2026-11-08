@@ -1359,6 +1359,10 @@ def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
                 _send_signal_tree(process, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except BrokenPipeError:
+            if sys.platform == 'win32' or getattr(process, '_alexandria_control', None) is None:
+                raise
+            process.wait(timeout=CANCEL_TERMINATE_GRACE_SECONDS)
         return terminate_requested_at, True
     return terminate_requested_at, kill_sent
 

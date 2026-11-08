@@ -109,6 +109,45 @@ class GracefulRefusalTests(unittest.TestCase):
 
 
 class CancellationForceFailureTests(unittest.TestCase):
+    def test_closed_posix_force_channel_requires_confirmed_owner_exit(self):
+        for platform in ('linux', 'darwin'):
+            with self.subTest(platform=platform):
+                process = Mock()
+                process._alexandria_control = object()
+                process.wait.return_value = -9
+                with patch.object(core.sys, 'platform', platform), \
+                     patch.object(core.signal, 'SIGKILL', 9, create=True), \
+                     patch.object(core.time, 'monotonic', return_value=20), \
+                     patch.object(core, '_send_signal_tree', side_effect=BrokenPipeError('owner closed')) as force:
+                    stamp, killed = core.apply_cancel_escalation(process, 0, False)
+                    self.assertEqual((0, True), (stamp, killed))
+                    self.assertEqual((0, True), core.apply_cancel_escalation(process, stamp, killed))
+                process.wait.assert_called_once_with(timeout=core.CANCEL_TERMINATE_GRACE_SECONDS)
+                force.assert_called_once_with(process, 9)
+
+    def test_closed_force_channel_does_not_hide_live_or_unowned_targets(self):
+        for platform, owned in (('win32', True), ('linux', False), ('darwin', False),
+                                ('linux', True), ('darwin', True)):
+            with self.subTest(platform=platform, owned=owned):
+                process = Mock()
+                process._alexandria_control = object() if owned else None
+                failure = BrokenPipeError('owner closed')
+                timeout = subprocess.TimeoutExpired('owner', core.CANCEL_TERMINATE_GRACE_SECONDS)
+                process.wait.side_effect = timeout
+                dispatch = 'terminate_windows_process_tree' if platform == 'win32' else '_send_signal_tree'
+                expected = timeout if owned and platform != 'win32' else failure
+                with patch.object(core.sys, 'platform', platform), \
+                     patch.object(core.signal, 'SIGKILL', 9, create=True), \
+                     patch.object(core.time, 'monotonic', return_value=20), \
+                     patch.object(core, dispatch, side_effect=failure):
+                    with self.assertRaises(type(expected)) as raised:
+                        core.apply_cancel_escalation(process, 0, False)
+                self.assertIs(expected, raised.exception)
+                if expected is timeout:
+                    process.wait.assert_called_once_with(timeout=core.CANCEL_TERMINATE_GRACE_SECONDS)
+                else:
+                    process.wait.assert_not_called()
+
     def test_failed_force_is_not_marked_sent_and_a_later_retry_can_succeed(self):
         for platform in ('win32', 'linux', 'darwin'):
             with self.subTest(platform=platform):
