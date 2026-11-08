@@ -429,8 +429,6 @@ def apply_benchmark_cancellation(state, report, manifest, report_path):
         return False
     completed = get_benchmark_completed_cases(report)
     for task, fixture in zip(state.get("tasks", []), manifest["fixtures"]):
-        if task.get("status") == "failed":
-            continue
         task["status"] = ("done" if all((fixture["id"], repetition) in completed
                            for repetition in range(1, manifest["repetitions"] + 1))
                           else "cancelled")

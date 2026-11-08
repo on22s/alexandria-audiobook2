@@ -948,10 +948,12 @@ class FinalReviewTests(unittest.TestCase):
                 fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
                 man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
                        "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
-                # Prior failed invocation state is reused by a direct resume.
+                # Prior failed invocation state is reused by a direct resume;
+                # even the saved-success task tag is stale-failed and must be
+                # recomputed from the latest saved attempt in this invocation.
                 core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "failed",
                                                   "cancel": True,
-                                                  "tasks": [{"fixture_id": "done", "status": "done"},
+                                                  "tasks": [{"fixture_id": "done", "status": "failed"},
                                                             {"fixture_id": "pending", "status": "failed"}]}
                 try:
                     with tempfile.TemporaryDirectory() as tmp:
@@ -988,6 +990,7 @@ class FinalReviewTests(unittest.TestCase):
                         # applies at the first boundary (returns, worker never runs).
                         self.assertIsNone(propagated)
                         self.assertEqual("cancelled", state["status"])
+                        self.assertEqual(["done", "cancelled"], [t["status"] for t in state["tasks"]])
                         self.assertEqual(1, len(list_runs(history_dir)))
                         self.assertEqual("cancelled", list_runs(history_dir)[0]["status"])
                         self.assertEqual([prefix], json.loads(Path(path).read_text())["cases"])
