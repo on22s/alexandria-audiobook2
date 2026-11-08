@@ -634,6 +634,83 @@ class UnexpectedGateFailureReportTests(unittest.TestCase):
                     self.assertIn(failure_message, report['failure']['message'])
 
 
+class ApiSummaryRecordTypeTests(unittest.TestCase):
+    @staticmethod
+    def _invalid_records():
+        for name in (None, False, True, 0, 123, 1.5, '', [], ['fixture'], {}, {'fixture': 1}):
+            yield 'name', name, 'test names'
+        for status in (None, False, True, 0, 123, 1.5, '', 'unknown', [], ['passed'], {}, {'passed': 1}):
+            yield 'status', status, 'invalid test status'
+
+    def test_malformed_record_fields_raise_controlled_validation_errors(self):
+        for full in (False, True):
+            for field, value, message in self._invalid_records():
+                for valid_status in ('passed', 'failed'):
+                    with self.subTest(full=full, field=field, value=value, status=valid_status):
+                        summary = ReleaseVerifierTests._api_summary(
+                            'full' if full else 'quick', 'passed' if full else 'skipped')
+                        summary['tests'][0]['status'] = valid_status
+                        if valid_status == 'failed':
+                            summary['counts']['passed'] -= 1
+                            summary['counts']['failed'] += 1
+                        summary['tests'][0][field] = value
+                        summary = json.loads(json.dumps(summary))
+                        with self.assertRaisesRegex(ValueError, message):
+                            verify_release.validate_api_summary(summary, full)
+
+    def test_unicode_identities_preserve_skip_and_failure_reporting(self):
+        for full in (False, True):
+            with self.subTest(full=full):
+                summary = ReleaseVerifierTests._api_summary(
+                    'full' if full else 'quick', 'passed' if full else 'skipped')
+                summary['tests'][0]['name'] = 'fixture-雪'
+                summary['tests'][1]['name'] = 'fixture-Ω'
+                summary = json.loads(json.dumps(summary))
+                self.assertEqual(summary['counts'], verify_release.validate_api_summary(summary, full))
+                summary['tests'][0]['status'] = 'failed'
+                summary['counts']['passed'] -= 1
+                summary['counts']['failed'] += 1
+                with self.assertRaisesRegex(ValueError, 'API suite reported failed tests: fixture-雪'):
+                    verify_release.validate_api_summary(summary, full)
+
+    def test_actual_json_loader_reports_invalid_fields_and_valid_failures(self):
+        cases = list(self._invalid_records()) + [('status', 'failed', 'failed tests: fixture-雪')]
+        for full in (False, True):
+            for field, value, message in cases:
+                with self.subTest(full=full, field=field, value=value), tempfile.TemporaryDirectory() as tmp:
+                    summary = ReleaseVerifierTests._api_summary(
+                        'full' if full else 'quick', 'passed' if full else 'skipped')
+                    summary['tests'][0]['name'] = 'fixture-雪'
+                    summary['tests'][0][field] = value
+                    if field == 'status' and value == 'failed':
+                        summary['counts']['passed'] -= 1
+                        summary['counts']['failed'] += 1
+                    report_path = Path(tmp, 'report.json')
+
+                    def command(_label, args, cwd, **kwargs):
+                        if '--json-summary' in args:
+                            Path(args[args.index('--json-summary') + 1]).write_text(
+                                json.dumps(summary), encoding='utf-8')
+
+                    options = ['--json-report', str(report_path)] + (['--full'] if full else [])
+                    with patch.object(verify_release, 'compile_python_files', return_value=None), \
+                         patch.object(verify_release, 'run_unit_test_report', return_value={
+                             'tests_ran': 1, 'test_ids': ['fixture.unit']}), \
+                         patch.object(verify_release, 'run_command', side_effect=command), \
+                         contextlib.redirect_stdout(io.StringIO()) as stdout, \
+                         contextlib.redirect_stderr(io.StringIO()) as stderr:
+                        self.assertEqual(1, verify_release.main(options))
+                    report = json.loads(report_path.read_text(encoding='utf-8'))
+                    self.assertEqual('failed', report['status'])
+                    self.assertEqual('api_tests', report['failure']['gate'])
+                    self.assertEqual('ValueError', report['failure']['type'])
+                    self.assertIn(message, report['failure']['message'])
+                    self.assertEqual('failed', report['gates'][-1]['status'])
+                    self.assertNotIn('result', report['gates'][-1])
+                    self.assertIn('RELEASE VERIFICATION FAILED', stderr.getvalue())
+                    self.assertNotIn('RELEASE VERIFICATION PASSED', stdout.getvalue())
+
+
 class CompileArtifactIsolationTests(unittest.TestCase):
     def test_actual_bytecode_is_temporary_and_source_tree_is_unchanged(self):
         import marshal
