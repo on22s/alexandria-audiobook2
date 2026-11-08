@@ -4900,21 +4900,28 @@
     "tests.test_epub_retention_r5.R5UploadTests.test_unknown_publish_after_commit_preserves"
   ],
   "test_epub_unclosed_skip_tags": [
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_case_insensitive_ignored_tags_in_cdata_are_omitted_exactly",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_each_unclosed_skip_tag_in_middle_raises_bytes_and_path",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_error_reason_and_spine_index_precede_long_resource_name",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_healthy_text_anchor_and_title_output_preserved",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_incomplete_eof_markup_is_not_flushed_into_narration",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_legitimate_empty_and_nontext_resources_remain_accepted",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_literal_skip_markup_inside_raw_content_is_not_nesting",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_malformed_unclosed_skip_still_fail_closed",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_ordinary_tolerant_html_remains_accepted",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_proper_paired_case_and_selfclosing_skip_tags_accepted",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_rejected_title_buffer_is_not_decoded_before_rejection",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_selfclosing_ignored_span_stops_at_its_own_tag_end",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_stray_skip_close_is_tolerated_but_crossed_close_still_raises",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_text_accessors_reject_unclosed_skip_without_close",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_wellformed_cdata_and_comment_resources_are_accepted",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_xml_entity_and_doctype_are_not_expanded_or_fetched",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_xml_literal_markup_in_ignored_subtrees_is_omitted_exactly",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_xml_omission_preserves_unicode_crlf_encodings_and_namespaces",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_long_member_name_error_stays_actionable_and_safe",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_malformed_middle_is_http400_without_publication_or_selection",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_malformed_upload_without_preexisting_book_leaves_no_trace",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_root_cdata_false_rejection_and_silent_loss_upload_persist",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_wellformed_cdata_script_upload_persists"
   ],
   "test_evaluation_directory_containment": [
@@ -11935,6 +11942,7 @@
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_fences_optional_ledger_even_without_consuming_cues",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_candidate_pcm_edit_during_encoding",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_late_approval_edit_after_content_hash",
+    "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_captures_nested_sources_with_confined_portable_paths",
     "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_must_include_expected_missing_cover_source",
     "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_refuses_transient_candidate_change_before_encoding"
   ],
