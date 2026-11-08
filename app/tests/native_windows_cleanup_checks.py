@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from types import SimpleNamespace
@@ -94,6 +95,64 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                 self._close_owned(process)
                 if process.stderr is not None:
                     process.stderr.close()
+
+    def test_stream_force_failures_reach_owned_cleanup_and_preserve_error(self):
+        import core
+        from windows_subprocess_job import WindowsSubprocessJob
+        real_terminate = WindowsSubprocessJob.terminate
+        unrelated = subprocess.Popen([_base_python(), '-c', 'import time; time.sleep(30)'],
+            creationflags=subprocess.CREATE_NO_WINDOW)
+        try:
+            for failures in (1, 2, 4):
+                with self.subTest(failures=failures):
+                    processes, timers, attempts = [], [], []
+                    watchdog = threading.Event()
+                    state = dict(logs=[], cancel=True, process=None, pid=None, processes=[])
+                    def emergency_stop(job):
+                        watchdog.set()
+                        real_terminate(job)
+                    def start(*args, **kwargs):
+                        process = start_owned_subprocess(*args, **kwargs)
+                        processes.append(process)
+                        timer = threading.Timer(8, emergency_stop,
+                                                args=(process._alexandria_windows_owner.job,))
+                        timers.append(timer)
+                        timer.start()
+                        return process
+                    def terminate(job, exit_code=1):
+                        self.assertIsNotNone(job.handle)
+                        self.assertGreater(job.get_active_process_count(), 0)
+                        attempts.append(job.handle)
+                        if len(attempts) <= failures:
+                            raise OSError(f'injected force failure {len(attempts)}')
+                        return real_terminate(job, exit_code)
+                    try:
+                        with patch.object(core, 'start_owned_subprocess', side_effect=start), \
+                             patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .05), \
+                             patch.object(WindowsSubprocessJob, 'terminate', new=terminate):
+                            with self.assertRaisesRegex(OSError, 'injected force failure 1'):
+                                core._stream_subprocess_to_logs(
+                                    [_base_python(), '-c', 'import time; time.sleep(30)'], os.getcwd(), state)
+                        self.assertEqual(failures + 1, len(attempts))
+                        self.assertFalse(watchdog.is_set(), 'stream cancellation hung until watchdog')
+                        self.assertEqual(1, len(set(attempts)), 'cleanup changed owned jobs')
+                        self.assertIsNone(processes[0]._alexandria_windows_owner.job.handle)
+                        self.assertFalse(is_subprocess_tree_running(processes[0]))
+                        self.assertIsNotNone(processes[0].poll())
+                        self.assertTrue(processes[0].stdout.closed)
+                        self.assertIsNone(state['process'])
+                        self.assertIsNone(state['pid'])
+                        self.assertEqual([], state['processes'])
+                        self.assertIsNone(unrelated.poll())
+                    finally:
+                        for timer in timers:
+                            timer.cancel()
+                            timer.join(2)
+                        for process in processes:
+                            self._close_owned(process)
+        finally:
+            unrelated.terminate()
+            unrelated.wait(timeout=3)
 
     def test_verifier_stop_process_group_honors_full_grace_then_forces(
         self,
@@ -305,7 +364,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 6 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 7 and not result.skipped else 1
 
 
 if __name__ == '__main__':

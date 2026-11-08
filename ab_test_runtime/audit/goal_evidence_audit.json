@@ -1050,18 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T09:10:10",
+  "written": "2026-11-08T10:34:13",
   "host": "RealMitch",
   "git": {
-   "commit": "2f145697ff95514dd26ee9d3aae267537751db1f",
-   "branch": "fix/1796-windows-graceful-refusal",
+   "commit": "f61caa936a678ddd0b9dfaf7859897e7c9e2cefd",
+   "branch": "fix/1828-force-cancellation-failure",
    "dirty": true,
-   "source_state": "dirty:bd60f9f8516d",
+   "source_state": "dirty:9b7f355703a1",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/core.py",
-    "M  app/subprocess_ownership.py",
-    "M  app/tests/native_windows_cleanup_checks.py",
     "M  app/tests/test_windows_cleanup_escalation.py",
     "M  app/tests/unit_test_inventory.json"
    ],
