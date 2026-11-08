@@ -48,7 +48,7 @@ def capture_sound_delivery_snapshot(manager, stage_name, candidate_revision, app
         for path in sorted(paths):
             check()
             base = root if path.is_relative_to(root) else path.parent
-            facts, _ = capture_scope_file(base, str(path.relative_to(base)),
+            facts, _ = capture_scope_file(base, path.relative_to(base).as_posix(),
                 limit=MAX_TOTAL_BYTES, cancel_check=check)
             approved_sources[str(path)] = ({'version':facts['file_version'], 'sha256':facts['sha256']}
                 if facts['exists'] else None)
