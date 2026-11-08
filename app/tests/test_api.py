@@ -17,6 +17,8 @@ from pathlib import Path
 import sys
 import time
 import zipfile
+from urllib.parse import quote
+
 import requests
 
 from utils import atomic_json_write
@@ -1979,36 +1981,123 @@ def run_all_tests():
 
 # ── Cleanup ──────────────────────────────────────────────────
 
+# Only 200/204 (completed deletion) prove a fixture DELETE succeeded.
+# 202 is accepted-not-enacted (RFC 9110 sec. 9.3.5) and other 2xx/3xx
+# are unconfirmed for these endpoints, so they are failures.
+# 404 is confirmed only with the documented resource-absence detail.
+_CLEANUP_CONFIRMED_DELETE_STATUSES = {200, 204}
+
+
+def _cleanup_delete(url, label, expected_not_found_detail):
+    """Best-effort DELETE for one fixture resource.
+
+    Returns True only for a confirmed 200/204 or a 404 whose JSON dict
+    detail exactly matches the documented absence text for that known
+    target. Any other status or a generic/malformed 404 prints label +
+    HTTP status (never the body) and returns False without raising, so
+    remaining targets still run. An ordinary request exception prints
+    a label diagnostic with no HTTP status known for the transport
+    exception, and also returns False without raising.
+    BaseException (KeyboardInterrupt etc.) still propagates.
+    Redirects are disabled so a 3xx is reported unconfirmed rather
+    than silently following to a different method/target (e.g. a
+    DELETE 302 rewritten to GET /login returning 200).
+    """
+    try:
+        resp = delete(url, allow_redirects=False)
+    except Exception as e:
+        print(f"  [cleanup] failed to delete {label}: {type(e).__name__}: {ascii(str(e))}")
+        return False
+    if resp.status_code in _CLEANUP_CONFIRMED_DELETE_STATUSES:
+        return True
+    if resp.status_code == 404:
+        try:
+            body = resp.json()
+        except Exception:
+            print(f"  [cleanup] failed to delete {label}: HTTP 404")
+            return False
+        if isinstance(body, dict) and body.get("detail") == expected_not_found_detail:
+            return True
+        print(f"  [cleanup] failed to delete {label}: HTTP 404")
+        return False
+    print(f"  [cleanup] failed to delete {label}: HTTP {resp.status_code}")
+    return False
+
+
 def cleanup():
     print(f"\n--- Cleanup ---")
     items = []
+    cleanup_failures = 0
 
     simple_targets = [
-        (f"/api/scripts/{TEST_PREFIX}script", "test script"),
-        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project"),
-        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project"),
-        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset"),
+        (f"/api/scripts/{TEST_PREFIX}script", "test script",
+         f"Saved script '{TEST_PREFIX}script' not found."),
+        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project",
+         "Dataset builder project not found"),
+        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project",
+         "Dataset builder project not found"),
+        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset",
+         "Dataset not found"),
     ]
-    for url, label in simple_targets:
-        try:
-            delete(url)
+    for url, label, detail in simple_targets:
+        if _cleanup_delete(url, label, detail):
             items.append(label)
-        except Exception as e:
-            print(f"  [cleanup] failed to delete {label}: {e}")
+        else:
+            cleanup_failures += 1
 
+    voices = None
     try:
-        r = get("/api/voice_design/list")
-        if r.status_code == 200:
-            for v in r.json():
-                if v.get("id", "").startswith(TEST_PREFIX):
-                    delete(f"/api/voice_design/{v['id']}")
-                    items.append(f"voice {v['id']}")
+        # No redirect follow: an unexpected 3xx must surface as an
+        # unknown list failure, not an inferred empty-voice success.
+        r = get("/api/voice_design/list", allow_redirects=False)
+        if r.status_code != 200:
+            raise ValueError(f"HTTP {r.status_code}")
+        parsed = r.json()
+        if not isinstance(parsed, list):
+            raise ValueError(f"unexpected type {type(parsed).__name__}")
+        voices = parsed
     except Exception as e:
-        print(f"  [cleanup] failed to delete stray voice-design entries: {e}")
+        print(f"  [cleanup] failed to list voice-design entries: {type(e).__name__}: {ascii(str(e))}")
+        cleanup_failures += 1
+
+    if voices is not None:
+        for idx, v in enumerate(voices):
+            if not isinstance(v, dict):
+                print(f"  [cleanup] skipping invalid voice-design entry: index {idx} row type {type(v).__name__}")
+                cleanup_failures += 1
+                continue
+            voice_id = v.get("id")
+            if not isinstance(voice_id, str) or voice_id == "":
+                if "id" not in v:
+                    reason = "missing id"
+                elif voice_id == "":
+                    reason = "empty id"
+                else:
+                    reason = f"id type {type(voice_id).__name__}"
+                print(f"  [cleanup] skipping invalid voice-design entry: index {idx} {reason}")
+                cleanup_failures += 1
+                continue
+            if not voice_id.startswith(TEST_PREFIX):
+                continue
+            if "/" in voice_id or "\\" in voice_id or not voice_id.isprintable():
+                print(f"  [cleanup] skipping invalid voice-design entry: index {idx} unsafe id")
+                cleanup_failures += 1
+                continue
+            label = f"voice {ascii(voice_id)}"
+            if _cleanup_delete(f"/api/voice_design/{quote(voice_id, safe='')}", label,
+                               "Voice not found"):
+                items.append(label)
+            else:
+                cleanup_failures += 1
 
     if items:
         print(f"  Cleaned: {', '.join(items)}")
-    else:
+    if cleanup_failures:
+        if items:
+            print(f"  Cleanup incomplete: {cleanup_failures} cleanup failure(s) could not be confirmed cleaned")
+        else:
+            print(f"  No resources confirmed cleaned ({cleanup_failures} failure(s))")
+    elif not items:
         print(f"  Nothing to clean")
 
 
