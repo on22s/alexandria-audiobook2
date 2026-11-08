@@ -648,7 +648,10 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
                 boundary = data[end + len(closing):end + len(closing) + 1]
                 if boundary in (b'>', b' ', b'\t', b'\r', b'\n', b''):
                     close_end = data.find(b'>', end)
-                    end = close_end + 1 if close_end >= 0 else len(data)
+                    if close_end < 0:
+                        raise ValueError(
+                            'invalid XML: end tag terminator unavailable')
+                    end = close_end + 1
         # Otherwise self-closing: CurrentByteIndex is already just past '/>'.
         cursor = end
 
@@ -954,7 +957,13 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
         skipped_paths = {}
         for spine_index, item_id in enumerate(spine_ids):
             item = manifest.get(item_id)
-            if item is None or 'html' not in item['media_type']:
+            # One canonical media-type value drives both spine admission
+            # and the strict-XML dispatch below (RFC 6838 sec. 4.2: MIME
+            # type/subtype is case-insensitive). Parameters are stripped
+            # from the value, never searched for HTML classification.
+            media_type = (item['media_type'].split(';', 1)[0].strip().lower()
+                          if item is not None else '')
+            if item is None or 'html' not in media_type:
                 if item is not None:
                     skipped_paths[item['path']] = 'non_html_resource'
                 if report is not None:
@@ -982,8 +991,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 # Rebind so the original string is released before the
                 # HTML parser accumulates its parts; html_bytes (used for
                 # report hashes) is unchanged by this.
-                if (item['media_type'].split(';', 1)[0].strip().lower()
-                        == 'application/xhtml+xml'):
+                if media_type == 'application/xhtml+xml':
                     html_content = _omit_xml_ignored_subtrees(html_content)
                 extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.

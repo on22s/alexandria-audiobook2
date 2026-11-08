@@ -570,16 +570,61 @@ class UnclosedSkipTagTests(unittest.TestCase):
         self.assertIn('Middle readable chapter.', extract(make_epub(external)))
 
     def test_malformed_unclosed_skip_still_fail_closed(self):
-        # XML-invalid for other reasons too: the tolerant HTML fallback
-        # still rejects a genuinely unclosed skipped element (this is the
-        # original scope, not arbitrary XML strictness - an unclosed
-        # paragraph alone remains accepted elsewhere).
+        # XML-invalid for other reasons too (default XHTML is strict XML
+        # on the ignored-content path): a genuinely unclosed skipped
+        # element still rejects actionably. This is the original scope,
+        # not arbitrary XML strictness - an unclosed paragraph alone
+        # remains accepted elsewhere.
         body = '<html><body><div><p>Middle words.<script>never closed'
         with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
             extract(make_epub(body))
         self.assertIn('unclosed <script>', str(caught.exception))
         with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
             extract(make_epub(body), report=True)
+
+    def test_canonical_media_type_drives_admission_and_dispatch(self):
+        # MIME type/subtype is case-insensitive (RFC 6838 sec. 4.2): the
+        # same canonical value drives spine admission and the strict-XML
+        # vs legacy-HTML dispatch. Whitespace and parameters must not
+        # change the classification.
+        valid = ('<html><body><script><![CDATA[var t="</script><style>";]]>'
+                 '</script><p>Middle readable chapter.</p></body></html>')
+        invalid = ('<html><head><title>Head</head><body>'
+                   '<p>Middle readable chapter.</p></body></html></title>')
+        for media_type in ('Application/XHTML+XML',
+                           ' application/xhtml+xml ',
+                           'Application/XHTML+XML; Charset=UTF-8'):
+            with self.subTest(media_type=media_type):
+                ET.fromstring(valid.encode('utf-8'))
+                # Valid cased/whitespace/parameterized XHTML: all chapters.
+                self.assertEqual(
+                    'First readable chapter.\n\nMiddle readable chapter.\n\n'
+                    'Final readable chapter.',
+                    extract(make_epub(valid, middle_media_type=media_type)))
+                # Invalid same cases reach the XML refusal, not a
+                # silent non-HTML skip.
+                with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
+                    extract(make_epub(invalid, middle_media_type=media_type))
+        # Cased text/HTML is admitted as ordinary HTML (legacy literal
+        # semantics preserved), not skipped and not strict-XML.
+        textarea = ('<html><body><textarea>Enter <script>here</script>'
+                    '</textarea><p>Middle readable chapter.</p>'
+                    '</body></html>')
+        for media_type in ('TEXT/HTML', 'Text/Html; charset=UTF-8'):
+            with self.subTest(media_type=media_type):
+                text = extract(make_epub(textarea,
+                                         middle_media_type=media_type))
+                self.assertIn('<script>here</script>', text)
+                self.assertIn('Middle readable chapter.', text)
+                self.assertIn('First readable chapter.', text)
+                self.assertIn('Final readable chapter.', text)
+        # A non-text type whose *parameters* mention html is still
+        # non-text: classification must use the type, not parameter text.
+        text = extract(
+            make_epub('<html><body><p>Hidden words.<script>never closed',
+                      middle_media_type='image/png; label=html'))
+        self.assertEqual('First readable chapter.\n\nFinal readable chapter.',
+                         text)
 
     def test_proper_paired_case_and_selfclosing_skip_tags_accepted(self):
         body = ('<html><head><TITLE>Head words</TITLE><STYLE>p{}</STYLE>'
@@ -1050,6 +1095,55 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(
                                 state_before,
                                 (root / 'state.json').read_bytes())
+
+    async def test_mixed_case_xhtml_upload_persists_and_bad_refuses(self):
+        valid = ('<html><body><script><![CDATA[var t="</script><style>";]]>'
+                 '</script><p>Middle readable chapter.</p></body></html>')
+        ET.fromstring(valid.encode('utf-8'))  # well-formedness control
+        valid_raw = make_epub(
+            valid, middle_media_type='Application/XHTML+XML')
+        async with uploads.UploadPublicationSourceTests().environment() as (
+                root, directory, client):
+            response = await client.post(
+                '/api/upload?select_active=true',
+                files={'file': ('book.epub', valid_raw,
+                                 'application/epub+zip')})
+            self.assertEqual(200, response.status_code, response.text)
+            persisted = (directory / 'book.txt').read_bytes()
+            self.assertIn(b'Middle readable chapter.', persisted)
+            self.assertIn(b'First readable chapter.', persisted)
+            self.assertIn(b'Final readable chapter.', persisted)
+            self.assertEqual(valid_raw,
+                             (directory / 'book.source.epub').read_bytes())
+            self.assertIn(b'book.txt', (root / 'state.json').read_bytes())
+            before = {item.name: item.read_bytes()
+                      for item in directory.iterdir()}
+            state_before = (root / 'state.json').read_bytes()
+            bad = make_epub(
+                '<html><head><title>Head</head><body>'
+                '<p>Middle readable chapter.</p></body></html></title>',
+                middle_media_type='Application/XHTML+XML; Charset=UTF-8')
+            for name, params in (
+                    ('default', {}),
+                    ('report', {'include_extraction_report': 'true',
+                                'select_active': 'false'})):
+                with self.subTest(mode=name):
+                    query = '&'.join(
+                        f'{key}={value}' for key, value in params.items())
+                    url = '/api/upload' + (f'?{query}' if query else '')
+                    response = await client.post(
+                        url, files={'file': ('book.epub', bad,
+                                             'application/epub+zip')})
+                    self.assertEqual(400, response.status_code, response.text)
+                    detail = response.json()['detail']
+                    self.assertIn('middle.xhtml', detail)
+                    self.assertIn('spine index 1', detail)
+                    self.assertEqual(
+                        before,
+                        {item.name: item.read_bytes()
+                         for item in directory.iterdir()})
+                    self.assertEqual(state_before,
+                                     (root / 'state.json').read_bytes())
 
     async def test_long_member_name_error_stays_actionable_and_safe(self):
         long_name = 'x' * 3000 + '.xhtml'

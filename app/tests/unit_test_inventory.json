@@ -4900,6 +4900,7 @@
     "tests.test_epub_retention_r5.R5UploadTests.test_unknown_publish_after_commit_preserves"
   ],
   "test_epub_unclosed_skip_tags": [
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_canonical_media_type_drives_admission_and_dispatch",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_case_insensitive_ignored_tags_in_cdata_are_omitted_exactly",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_declared_codec_surrogate_fails_closed_with_actionable_error",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_each_unclosed_skip_tag_in_middle_raises_bytes_and_path",
@@ -4930,6 +4931,7 @@
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_malformed_middle_is_http400_without_publication_or_selection",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_malformed_upload_without_preexisting_book_leaves_no_trace",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_malformed_xhtml_upload_is_safe_refusal",
+    "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_mixed_case_xhtml_upload_persists_and_bad_refuses",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_root_cdata_false_rejection_and_silent_loss_upload_persist",
     "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagUploadTests.test_wellformed_cdata_script_upload_persists"
   ],

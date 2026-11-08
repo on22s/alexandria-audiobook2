@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T17:09:35",
+  "written": "2026-11-08T17:32:37",
   "host": "RealMitch",
   "git": {
-   "commit": "8d5fe45f1414a03620019125b2cd2b03d722a988",
+   "commit": "5bc1bb41c9db50fed627f5a1d96be3a9c4606500",
    "branch": "fix/1795-epub-malformed-skip",
    "dirty": true,
-   "source_state": "dirty:51de2fe01fc9",
+   "source_state": "dirty:d35e59baf7b0",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/routers/script.py",
