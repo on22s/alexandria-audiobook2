@@ -19,7 +19,8 @@ from urllib.parse import urlparse
 
 from llm_provider import make_llm_client, resolve_api_key
 
-from benchmark_worker_protocol import get_benchmark_worker_result
+from benchmark_worker_protocol import (get_benchmark_worker_result,
+                                      is_benchmark_worker_infrastructure_failure)
 from benchmark_core import (get_benchmark_llm_config, load_resumable_benchmark_report,
                             save_benchmark_report)
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
@@ -53,14 +54,15 @@ def get_benchmark_worker_command(arguments, target, ssh_alias):
 
 
 def run_benchmark_worker(command, marker, failure_message, *, timeout,
-                         error_limit=4000, raise_failed=False, input=None):
+                         error_limit=4000, raise_failed=False, raise_infrastructure=False, input=None):
     """Supervise one worker and interpret its result with the stage's policy."""
     options = {"capture_output": True, "text": True, "timeout": timeout, "check": False}
     if input is not None:
         options["input"] = input
     result = run_benchmark_subprocess(command, **options)
     return get_benchmark_worker_result(result, marker, failure_message,
-                                       error_limit=error_limit, raise_failed=raise_failed)
+                                       error_limit=error_limit, raise_failed=raise_failed,
+                                       raise_infrastructure=raise_infrastructure)
 
 
 def _validate_tts_fixture(fixture, root_dir=None):
@@ -392,7 +394,7 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
                    "train_script": train_script, "output_root": output_root}
         worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200, input=json.dumps(payload))
+        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200, raise_infrastructure=True, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "training")
@@ -415,7 +417,27 @@ def apply_benchmark_cancellation(state, report, manifest, report_path):
 
 
 def get_benchmark_completed_cases(report):
-    return {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    """Latest attempt per (fixture, repetition) decides completion.
+
+    Raw cases are never deleted: an infrastructure attempt followed by a
+    measured attempt is completed, and a measured attempt followed by a
+    later infrastructure attempt is not (its identifier alone hides nothing).
+    """
+    latest = {}
+    for case in report["cases"]:
+        latest[(case["fixture_id"], case["repetition"])] = (
+            not is_benchmark_worker_infrastructure_failure(case))
+    return {key for key, completed in latest.items() if completed}
+
+
+def apply_benchmark_failure(state, report, manifest):
+    """Mark unfinished latest attempts failed; never mark exception-only done."""
+    completed = get_benchmark_completed_cases(report)
+    for task, fixture in zip(state.get("tasks", []), manifest["fixtures"]):
+        task["status"] = ("done" if all((fixture["id"], repetition) in completed
+                                        for repetition in range(1, manifest["repetitions"] + 1))
+                          else "failed")
+    state["status"] = "failed"
 
 
 def is_benchmark_progress_stage(stage):
@@ -461,7 +483,25 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
                 continue
             if apply_benchmark_cancellation(state, report, manifest, report_path):
                 return report
-            result = execute_case(fixture, repetition)
+            try:
+                result = execute_case(fixture, repetition)
+            except BenchmarkCancelled:
+                raise
+            except Exception:
+                # Cancellation queued during execute (e.g. after subprocess
+                # supervision, before strict parsing raised) is authoritative:
+                # return the cancelled report instead of re-raising so core
+                # history records cancelled, not failed. SystemExit /
+                # KeyboardInterrupt are BaseExceptions and propagate untouched.
+                if apply_benchmark_cancellation(state, report, manifest, report_path):
+                    return report
+                apply_benchmark_failure(state, report, manifest)
+                raise
+            if is_benchmark_worker_infrastructure_failure(result):
+                if apply_benchmark_cancellation(state, report, manifest, report_path):
+                    return report
+                apply_benchmark_failure(state, report, manifest)
+                raise RuntimeError(str(result.get("error") or "benchmark worker infrastructure failed"))
             case = {"fixture_id": fixture["id"], "repetition": repetition, **result}
             report = save_benchmark_case(report_path, report, case,
                                          log_state=state if track_progress else None)
@@ -491,6 +531,11 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                 state["tasks"][index]["status"] = "running"
         try:
             for case in execute_batch(pending):
+                if is_benchmark_worker_infrastructure_failure(case):
+                    if apply_benchmark_cancellation(state, report, manifest, report_path):
+                        return report
+                    apply_benchmark_failure(state, report, manifest)
+                    raise RuntimeError(str(case.get("error") or "benchmark worker infrastructure failed"))
                 report = save_benchmark_case(report_path, report, case,
                                              log_state=state if track_progress else None)
                 if track_progress:
@@ -500,13 +545,14 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                         if all((fixture_id, repetition) in completed
                                for repetition in range(1, manifest["repetitions"] + 1)):
                             state["tasks"][index]["status"] = "done"
-        except BaseException:
-            if not apply_benchmark_cancellation(state, report, manifest, report_path):
-                if track_progress:
-                    state["status"] = "failed"
-                    for index in active_indexes:
-                        if state["tasks"][index]["status"] != "done":
-                            state["tasks"][index]["status"] = "failed"
+        except Exception:
+            # As in repetitions: a queued cancellation wins over a generic
+            # failure raised at this boundary; BaseExceptions (including
+            # BenchmarkCancelled, handled by the stage wrapper, and
+            # SystemExit/KeyboardInterrupt) propagate untouched.
+            if apply_benchmark_cancellation(state, report, manifest, report_path):
+                return report
+            apply_benchmark_failure(state, report, manifest)
             raise
     apply_benchmark_completion(state, report, manifest, report_path)
     return report
@@ -557,7 +603,7 @@ def _run_preparer_worker(fixture, target, settings, root_dir, ssh_alias):
                "preparer_script": preparer_script}
     worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -611,7 +657,7 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
                    "analysis_script": analysis_script}
         worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600, input=json.dumps(payload))
+        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "dedup")
@@ -663,7 +709,7 @@ def _run_profiling_worker(fixture, target, settings, root_dir, ssh_alias):
                "zip_path": worker_zip, "model_path": model_path}
     worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -696,7 +742,7 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
     payload = {"fixture": fixture, "python": python_executable, "script": script}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -898,7 +944,7 @@ def _run_export_worker(stage, fixture, target, settings, root_dir, ssh_alias):
     payload = {"stage": stage, "fixture": fixture, "source_root": source_root}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -930,7 +976,7 @@ def _run_dataset_builder_worker(fixture, target, settings, root_dir, ssh_alias,
     payload = {"fixture": fixture, "tts": tts_config}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation

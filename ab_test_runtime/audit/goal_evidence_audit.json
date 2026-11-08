@@ -1050,17 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T17:32:03",
+  "written": "2026-11-07T18:33:14",
   "host": "RealMitch",
   "git": {
-   "commit": "ae00c7c1ace1f3f585b1f5345bc9917683d51eb8",
-   "branch": "fix/1788-legacy-export-undo",
+   "commit": "9bcd6e7f40329f12800978495401224e864e7568",
+   "branch": "fix/1789-benchmark-infrastructure-failures",
    "dirty": true,
-   "source_state": "dirty:710ebdee1d84",
+   "source_state": "dirty:fb7bea52a0d2",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/project_scope_exports.py",
-    "M  app/tests/test_project_scope_exports.py"
+    " M GOALS.md",
+    "M  app/benchmark_runner.py",
+    "M  app/benchmark_worker_protocol.py",
+    "A  app/tests/test_benchmark_infrastructure_failures.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
