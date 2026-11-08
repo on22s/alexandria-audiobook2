@@ -1050,22 +1050,23 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T09:10:10",
+  "written": "2026-11-08T10:01:04",
   "host": "RealMitch",
   "git": {
-   "commit": "2f145697ff95514dd26ee9d3aae267537751db1f",
-   "branch": "fix/1796-windows-graceful-refusal",
+   "commit": "06f502419b683077b749cea737e523c0d9654682",
+   "branch": "fix/1828-force-cancellation-failure",
    "dirty": true,
-   "source_state": "dirty:bd60f9f8516d",
+   "source_state": "dirty:56111c645ea0",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/core.py",
-    "M  app/subprocess_ownership.py",
     "M  app/tests/native_windows_cleanup_checks.py",
     "M  app/tests/test_windows_cleanup_escalation.py",
     "M  app/tests/unit_test_inventory.json"
    ],
-   "untracked_harness_files": null,
+   "untracked_harness_files": [
+    "check_indent.py"
+   ],
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
   },

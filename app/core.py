@@ -1357,7 +1357,7 @@ def apply_cancel_escalation(process, terminate_requested_at: Optional[float],
                 terminate_windows_process_tree(process, force=True)
             else:
                 _send_signal_tree(process, signal.SIGKILL)
-        except (ProcessLookupError, OSError):
+        except ProcessLookupError:
             pass
         return terminate_requested_at, True
     return terminate_requested_at, kill_sent
@@ -1657,13 +1657,17 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                 state["process"] = None
             if state.get("pid") == process.pid:
                 state["pid"] = None
+            windows_owner = getattr(process, "_alexandria_windows_owner", None)
+            if windows_owner is not None:
+                windows_owner.close()
+                process.wait()
             if reader is not None and reader.is_alive():
                 reader.join(timeout=1)
             if process.stdout is not None and (reader is None or not reader.is_alive()):
                 process.stdout.close()
         if process is not None:
             control = getattr(process, "_alexandria_control", None)
-            if control is not None:
+            if control is not None and windows_owner is None:
                 control.close()
         if log_fh is not None:
             log_fh.close()

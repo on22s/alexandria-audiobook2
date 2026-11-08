@@ -108,6 +108,51 @@ class GracefulRefusalTests(unittest.TestCase):
         job.terminate.assert_called_once_with()
 
 
+class CancellationForceFailureTests(unittest.TestCase):
+    def test_failed_force_is_not_marked_sent_and_a_later_retry_can_succeed(self):
+        for platform in ('win32', 'linux', 'darwin'):
+            with self.subTest(platform=platform):
+                process = Mock()
+                failure = OSError('force refused')
+                dispatch = 'terminate_windows_process_tree' if platform == 'win32' else '_send_signal_tree'
+                with patch.object(core.sys, 'platform', platform), \
+                     patch.object(core.signal, 'SIGKILL', 9, create=True), \
+                     patch.object(core.time, 'monotonic', side_effect=[10, 20]), \
+                     patch.object(core, dispatch, side_effect=[failure, None]) as force:
+                    stamp, killed = 0, False
+                    with self.assertRaises(OSError) as raised:
+                        stamp, killed = core.apply_cancel_escalation(process, stamp, killed)
+                    self.assertIs(failure, raised.exception)
+                    self.assertFalse(killed)
+                    stamp, killed = core.apply_cancel_escalation(process, stamp, killed)
+                self.assertEqual((0, True), (stamp, killed))
+                self.assertEqual(2, force.call_count)
+
+    def test_repeated_force_errors_remain_visible_without_releasing_owner(self):
+        process = Mock()
+        process._alexandria_windows_owner.job.handle = 456
+        with patch.object(core.sys, 'platform', 'win32'), \
+             patch.object(core.time, 'monotonic', side_effect=[10, 20]), \
+             patch.object(core, 'terminate_windows_process_tree', side_effect=OSError('force refused')) as force:
+            stamp, killed = 0, False
+            for _ in range(2):
+                with self.assertRaisesRegex(OSError, 'force refused'):
+                    stamp, killed = core.apply_cancel_escalation(process, stamp, killed)
+                self.assertFalse(killed)
+                self.assertEqual(456, process._alexandria_windows_owner.job.handle)
+        self.assertEqual(2, force.call_count)
+        process._alexandria_windows_owner.close.assert_not_called()
+
+    def test_already_gone_force_target_does_not_retry_or_fail(self):
+        with patch.object(core.sys, 'platform', 'win32'), \
+             patch.object(core.time, 'monotonic', side_effect=[10, 20]), \
+             patch.object(core, 'terminate_windows_process_tree', side_effect=ProcessLookupError) as force:
+            stamp, killed = core.apply_cancel_escalation(Mock(), 0, False)
+            self.assertEqual((0, True), (stamp, killed))
+            self.assertEqual((stamp, killed), core.apply_cancel_escalation(Mock(), stamp, killed))
+        force.assert_called_once()
+
+
 class CleanupForceFailureTests(unittest.TestCase):
     def test_force_failure_propagates_before_wait_on_both_platforms(self):
         for platform in ('win32', 'linux'):
