@@ -813,6 +813,82 @@ def _get_upload_hash(path: str) -> str:
     return value
 
 
+def _get_fresh_upload_hash(path: str) -> str:
+    """Return a fresh bounded SHA-256 for a named upload, bypassing the cache.
+
+    Pure read via the shared scope capture (streaming, single-link and
+    descriptor/path identity checks, no whole-file buffering). The
+    size/mtime cache above is advisory only: a same-size rewrite with a
+    restored mtime keeps its cached digest, so destructive dedupe must
+    confirm the candidate's current bytes here before reusing it. Raises
+    FileNotFoundError, ValueError or OSError when the file is missing,
+    changed while reading, oversized, or otherwise unverifiable; callers
+    fail closed by skipping the candidate.
+    """
+    absolute = os.path.abspath(path)
+    proof, _raw = capture_scope_file(os.path.dirname(absolute),
+                                     os.path.basename(absolute),
+                                     limit=MAX_SCRIPT_UPLOAD_BYTES)
+    if not proof.get('exists') or proof.get('sha256') is None:
+        raise FileNotFoundError(path)
+    return proof['sha256']
+
+
+def _evict_disproven_upload_hash_hint(candidate_path: str, cached_entry) -> None:
+    """Drop a stale advisory hint disproven by a fresh read.
+
+    Cache invalidation only: the fresh authority already proved the current
+    bytes differ from the advisory digest, so the cached (size, mtime)
+    entry is stale. The entry is removed only when it is still the exact
+    immutable tuple observed after the advisory lookup, so a newer or
+    ABA replacement installed during the fresh read is never clobbered. A
+    later advisory miss rehashes the current bytes. Failed or cancelled
+    fresh reads never reach this helper.
+    """
+    if cached_entry is None:
+        return
+    with _upload_hash_lock:
+        if _upload_hash_cache.get(candidate_path) is cached_entry:
+            _upload_hash_cache.pop(candidate_path, None)
+
+
+def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
+    """Return True only when a candidate matches digest on both hashes.
+
+    Shared candidate policy for TXT/MD and EPUB dedupe (Rule 15): the
+    advisory size/mtime cache is a pre-filter only; a match also requires
+    the bounded fresh read in _get_fresh_upload_hash. When the advisory
+    digest matches but the fresh read succeeds with a different digest,
+    just that disproven cached hint is evicted so later checks do not
+    repeat the fresh scan. An unverifiable candidate (ValueError/OSError
+    from either read, including a permission/lock failure on the advisory
+    or fresh read) is always a conservative non-match without eviction,
+    so callers skip it and retain the incoming bytes. Control-flow
+    exceptions such as CancelledError (a BaseException, not
+    ValueError/OSError) always propagate exactly.
+    """
+    try:
+        if _get_upload_hash(candidate_path) != digest:
+            return False
+    except (ValueError, OSError):
+        return False
+    # Capture the exact advisory tuple that matched, then release the lock
+    # before any fresh I/O. If the hint is absent or its digest differs
+    # from the expected one, there is nothing to invalidate.
+    with _upload_hash_lock:
+        cached_entry = _upload_hash_cache.get(candidate_path)
+        if cached_entry is not None and cached_entry[1] != digest:
+            cached_entry = None
+    try:
+        fresh_digest = _get_fresh_upload_hash(candidate_path)
+    except (ValueError, OSError):
+        return False
+    if fresh_digest == digest:
+        return True
+    _evict_disproven_upload_hash_hint(candidate_path, cached_entry)
+    return False
+
+
 def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     """Remove path and return an existing identical text upload when present."""
     # Serialize the scan-and-remove decision. Without this, two identical
@@ -821,7 +897,16 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     with _upload_dedupe_lock:
         owned = isinstance(path, OwnedSourceUploadStage)
         size = path.size if owned else os.path.getsize(path)
-        digest = path.sha256() if owned else _get_upload_hash(path)
+        if owned:
+            # The sealed descriptor digest is the fresh authority.
+            digest = path.sha256()
+        else:
+            # Legacy str incoming: a cached digest could be stale after a
+            # same-size/restored-mtime rewrite, so it is never used here.
+            # The fresh digest is computed lazily below, once a distinct
+            # eligible candidate actually exists, so a unique input is not
+            # read needlessly before the scan.
+            digest = None
         for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
             try:
                 # Windows DirEntry.stat can leave st_nlink at zero. Query the
@@ -832,7 +917,24 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                         os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS or
                         facts.st_size != size):
                     continue
-                if _get_upload_hash(entry.path) == digest:
+                if not owned and os.path.samefile(entry.path, path):
+                    # The exact-string check above cannot see an equivalent
+                    # spelling of the incoming file itself (absolute "./",
+                    # relative, or Windows differing case). Exclude the
+                    # same native file so it can never select and delete
+                    # its own bytes.
+                    continue
+                if digest is None:
+                    # First eligible distinct candidate: confirm the legacy
+                    # incoming bytes freshly before any candidate is
+                    # considered. Failure retains it.
+                    try:
+                        digest = _get_fresh_upload_hash(path)
+                    except (ValueError, OSError):
+                        return path, False
+                # Advisory cache pre-filter only: confirm current bytes
+                # before the destructive removal below.
+                if _is_candidate_upload_hash_match(entry.path, digest):
                     path.close() if owned else os.remove(path)
                     return entry.path, True
             except FileNotFoundError:
@@ -1343,7 +1445,11 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                                     or os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS
                                     or facts.st_size != len(text_bytes)):
                                 continue
-                            if _get_upload_hash(entry.path) == text_sha256:
+                            # Advisory cache pre-filter only: the retained
+                            # EPUB fence checks original bytes, not this
+                            # canonical TXT, so confirm its current bytes
+                            # before selecting it.
+                            if _is_candidate_upload_hash_match(entry.path, text_sha256):
                                 return entry.path
                         except FileNotFoundError:
                             continue

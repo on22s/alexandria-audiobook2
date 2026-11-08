@@ -1050,16 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T04:47:25",
+  "written": "2026-11-08T07:54:04",
   "host": "RealMitch",
   "git": {
-   "commit": "95416b84dbf6017f4d970661182fa866ded84432",
-   "branch": "fix/1792-cleanup-http-status",
+   "commit": "5bbf62fdf74f74e431926a8caeb6076f0b938911",
+   "branch": "fix/1793-upload-dedupe-identity",
    "dirty": true,
-   "source_state": "dirty:1bd456de239b",
+   "source_state": "dirty:eb972e8544d0",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_api_cleanup.py"
+    "M  app/routers/script.py",
+    "M  app/tests/test_upload_hash_cache.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
