@@ -759,6 +759,60 @@ class UploadHandlerFreshDedupeTests(unittest.IsolatedAsyncioTestCase):
         return await client.post(
             '/api/upload', params={'select_active': 'false'},
             files={'file': (name, raw, 'text/plain')})
+
+    async def test_listing_hash_is_fresh_after_completed_timestamp_preserving_rewrite(self):
+        for rewrite in (_rewrite_inplace, _rewrite_replacement):
+            for suffix in ('.txt', '.md'):
+                with self.subTest(rewrite=rewrite.__name__, suffix=suffix):
+                    async with self.environment() as (_root, uploads, client):
+                        canonical = uploads / ('book' + suffix)
+                        canonical.write_bytes(self.ORIGINAL)
+                        before = canonical.stat()
+                        original_digest = hashlib.sha256(self.ORIGINAL).hexdigest()
+                        self.assertEqual(original_digest, script._get_upload_hash(str(canonical)))
+                        first = await client.get('/api/uploads')
+                        self.assertEqual(200, first.status_code, first.text)
+                        self.assertEqual(original_digest, first.json()[0]['sha256'])
+                        rewrite(canonical, self.CHANGED, before)
+                        second = await client.get('/api/uploads')
+                        self.assertEqual(200, second.status_code, second.text)
+                        row = second.json()[0]
+                        self.assertEqual(canonical.name, row['filename'])
+                        self.assertEqual(len(self.CHANGED), row['size'])
+                        self.assertEqual(hashlib.sha256(self.CHANGED).hexdigest(), row['sha256'])
+                        self.assertEqual(self.CHANGED, canonical.read_bytes())
+
+    async def test_listing_does_not_fabricate_identity_when_fresh_capture_is_unavailable(self):
+        for failure in (PermissionError('unreadable'), OSError('read failed'),
+                        ValueError('changed while reading'), FileNotFoundError('gone')):
+            with self.subTest(failure=type(failure).__name__):
+                async with self.environment() as (_root, uploads, client):
+                    canonical = uploads / 'book.txt'
+                    canonical.write_bytes(self.ORIGINAL)
+                    script._get_upload_hash(str(canonical))
+                    with patch.object(script, '_get_fresh_upload_hash', side_effect=failure):
+                        response = await client.get('/api/uploads')
+                    self.assertEqual(200, response.status_code, response.text)
+                    rows = response.json()
+                    if isinstance(failure, FileNotFoundError):
+                        self.assertEqual([], rows)
+                    else:
+                        self.assertEqual('book.txt', rows[0]['filename'])
+                        self.assertIsNone(rows[0]['sha256'])
+                    self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+
+    async def test_listing_keeps_unhashable_upload_visible_and_other_digests_fresh(self):
+        async with self.environment() as (_root, uploads, client):
+            (uploads / 'large.txt').write_bytes(self.ORIGINAL)
+            (uploads / 'small.md').write_bytes(b'OK')
+            with patch.object(script, 'MAX_SCRIPT_UPLOAD_BYTES', 8):
+                response = await client.get('/api/uploads')
+            self.assertEqual(200, response.status_code, response.text)
+            rows = response.json()
+            self.assertEqual(['large.txt', 'small.md'], [row['filename'] for row in rows])
+            self.assertIsNone(rows[0]['sha256'])
+            self.assertEqual(hashlib.sha256(b'OK').hexdigest(), rows[1]['sha256'])
+
     async def _upload_epub(self, client, raw, name='book.epub'):
         return await client.post(
             '/api/upload', params={'select_active': 'false'},

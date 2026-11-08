@@ -792,7 +792,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
 
 
 def _get_upload_hash(path: str) -> str:
-    """Return SHA-256 from a bounded cache of current upload versions."""
+    """Return an advisory SHA-256 hint from a bounded size/mtime cache."""
     stat = os.stat(path)
     version = (stat.st_size, stat.st_mtime_ns)
     with _upload_hash_lock:
@@ -943,6 +943,7 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
 
 
 def _get_reusable_uploads() -> List[dict]:
+    """List uploads with freshly captured SHA-256, or None when unverifiable."""
     uploads = []
     for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name.casefold()):
         try:
@@ -951,9 +952,15 @@ def _get_reusable_uploads() -> List[dict]:
                     or facts.st_nlink != 1
                     or os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS):
                 continue
+            try:
+                digest = _get_fresh_upload_hash(entry.path)
+            except FileNotFoundError:
+                continue
+            except (OSError, ValueError):
+                digest = None
             uploads.append({
                 "filename": entry.name, "size": facts.st_size, "modified": facts.st_mtime,
-                "sha256": _get_upload_hash(entry.path),
+                "sha256": digest,
             })
         except FileNotFoundError:
             continue
