@@ -578,6 +578,10 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
         apply_benchmark_completion(state, report, manifest, report_path)
         return report
     except BenchmarkCancelled:
+        # Direct shared-lifecycle callers (not only the stage wrapper)
+        # depend on cancellation bookkeeping/publication here before the
+        # original signal propagates.
+        apply_benchmark_cancellation(state, report, manifest, report_path)
         raise
     except Exception:
         # As in repetitions: a queued cancellation wins over a generic
