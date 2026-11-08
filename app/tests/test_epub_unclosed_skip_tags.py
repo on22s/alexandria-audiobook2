@@ -75,8 +75,10 @@ class UnclosedSkipTagTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
                     extract(raw)
                 message = str(caught.exception)
-                self.assertIn(tag, message)
-                self.assertIn('unclosed', message.lower())
+                self.assertIn(f'while <{tag}> element is open', message)
+                self.assertIn('invalid XML', message)
+                self.assertIn('mismatched tag', message)
+                self.assertIn('(line ', message)
                 # The error names the resource/tag without dumping user text.
                 self.assertNotIn('Missing middle chapter', message)
                 self.assertNotIn('Skipped header', message)
@@ -133,14 +135,18 @@ class UnclosedSkipTagTests(unittest.TestCase):
         # is likewise malformed XML and rejected.
         crossed_body = ('<html><body><style>code</script>'
                         '<p>Middle readable chapter.</p></body></html>')
+        crossed_expected = {
+            'text/html': 'unclosed <style>',
+            'application/xhtml+xml': 'invalid XML while <style> element is open',
+        }
         for media_type in ('text/html', 'application/xhtml+xml'):
             with self.subTest(media_type=media_type):
                 crossed = make_epub(crossed_body,
                                     middle_media_type=media_type)
                 with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
                     extract(crossed)
-                self.assertIn('style', str(caught.exception))
-                self.assertIn('unclosed', str(caught.exception))
+                self.assertIn(crossed_expected[media_type],
+                              str(caught.exception))
                 with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
                     extract(crossed, report=True)
 
@@ -547,6 +553,60 @@ class UnclosedSkipTagTests(unittest.TestCase):
                 gc.enable()
             gc.collect()
 
+    def test_closed_ignored_entity_and_ampersand_diagnosis_is_truthful(self):
+        # A closed ignored element with an entity/token error must not be
+        # misdiagnosed as a missing end tag: the message carries the real
+        # Expat reason and the pending element as context, plus location.
+        cases = [
+            ('title_entity',
+             '<html><head><title>Tom &amp; Jerry &nbsp; SECRETWORD</title>'
+             '</head><body><p>Middle readable chapter.</p></body></html>',
+             'title', 'undefined entity'),
+            ('script_ampersand',
+             '<html><head><title>T</title>'
+             '<script>if (a && b) { run(SECRETWORD); }</script></head>'
+             '<body><p>Middle readable chapter.</p></body></html>',
+             'script', 'not well-formed (invalid token)'),
+            ('genuine_unclosed',
+             '<html><head><title>Head words</head><body>'
+             '<p>Middle readable chapter.</p></body></html>',
+             'title', 'mismatched tag'),
+        ]
+        for name, body, tag, reason in cases:
+            with self.subTest(case=name):
+                for report in (False, True):
+                    with self.assertRaisesRegex(
+                            ValueError, r'spine index 1') as caught:
+                        extract(make_epub(body), report=report)
+                    message = str(caught.exception)
+                    self.assertIn(
+                        f'invalid XML while <{tag}> element is open: {reason}',
+                        message)
+                    self.assertIn('(line 1, column ', message)
+                    self.assertIn('middle.xhtml', message)
+                    self.assertNotIn('SECRETWORD', message)
+                    self.assertNotIn('Middle readable chapter', message)
+
+    def test_external_public_dtd_entities_preserve_exact_narration(self):
+        # Valid EPUB2-style resource with an external PUBLIC DTD: entity
+        # character references in narration resolve to the same text as
+        # the original extractor, in ordinary and report modes alike.
+        # (No socket/network/DTD fetching is involved; the DTD is never
+        # loaded - entity references are handled by the HTML formatter.)
+        body = ('<?xml version="1.0" encoding="utf-8"?>'
+                '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" '
+                '"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">'
+                '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+                '<title>Chapter 3</title><style>p{}</style></head><body>'
+                '<p>Middle readable chapter. a&nbsp;b &mdash; &hellip;</p>'
+                '</body></html>')
+        expected = ('First readable chapter.\n\n'
+                    'Middle readable chapter. a b \u2014 \u2026\n\n'
+                    'Final readable chapter.')
+        self.assertEqual(expected, extract(make_epub(body)))
+        reported, _report = extract(make_epub(body), report=True)
+        self.assertEqual(expected, reported)
+
     def test_xml_entity_and_doctype_are_not_expanded_or_fetched(self):
         # Internal entities must not be expanded into narration. The
         # external-DTD case below proves only that such a document is not
@@ -578,7 +638,9 @@ class UnclosedSkipTagTests(unittest.TestCase):
         body = '<html><body><div><p>Middle words.<script>never closed'
         with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
             extract(make_epub(body))
-        self.assertIn('unclosed <script>', str(caught.exception))
+        message = str(caught.exception)
+        self.assertIn('invalid XML while <script> element is open', message)
+        self.assertIn('no element found', message)
         with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
             extract(make_epub(body), report=True)
 
@@ -759,7 +821,8 @@ class UnclosedSkipTagTests(unittest.TestCase):
                 extract(raw)
             self.assertEqual(1, len(payload_calls))
         message = str(caught.exception)
-        self.assertIn('unclosed <title>', message)
+        self.assertIn('invalid XML while <title> element is open', message)
+        self.assertIn('no element found', message)
         self.assertNotIn(payload, message)
 
     def test_legitimate_empty_and_nontext_resources_remain_accepted(self):
@@ -816,11 +879,12 @@ class UnclosedSkipTagTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r'spine index 1') as caught:
             extract(raw)
         message = str(caught.exception)
-        self.assertIn('unclosed <title>', message)
+        reason = 'invalid XML while <title> element is open'
+        self.assertIn(reason, message)
         self.assertIn(long_name, message)
         self.assertLess(message.index('spine index 1'),
                         message.index(long_name))
-        self.assertLess(message.index('unclosed <title>'),
+        self.assertLess(message.index(reason),
                         message.index(long_name))
         self.assertNotIn('Missing middle chapter', message)
         with self.assertRaisesRegex(ValueError, r'spine index 1'):
@@ -1145,6 +1209,46 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(state_before,
                                      (root / 'state.json').read_bytes())
 
+    async def test_closed_script_entity_error_upload_is_safe_refusal(self):
+        bad = make_epub(
+            '<html><head><title>T</title>'
+            '<script>if (a && b) { run(SECRETWORD); }</script></head>'
+            '<body><p>Middle readable chapter.</p></body></html>')
+        good = make_epub(GOOD_MIDDLE)
+        async with uploads.UploadPublicationSourceTests().environment() as (
+                root, directory, client):
+            first = await client.post(
+                '/api/upload?select_active=true',
+                files={'file': ('book.epub', good, 'application/epub+zip')})
+            self.assertEqual(200, first.status_code, first.text)
+            before = {item.name: item.read_bytes() for item in directory.iterdir()}
+            state_before = (root / 'state.json').read_bytes()
+            for name, params in (
+                    ('default', {}),
+                    ('report', {'include_extraction_report': 'true',
+                                'select_active': 'false'})):
+                with self.subTest(mode=name):
+                    query = '&'.join(
+                        f'{key}={value}' for key, value in params.items())
+                    url = '/api/upload' + (f'?{query}' if query else '')
+                    response = await client.post(
+                        url, files={'file': ('book.epub', bad,
+                                             'application/epub+zip')})
+                    self.assertEqual(400, response.status_code, response.text)
+                    detail = response.json()['detail']
+                    self.assertIn('invalid XML while <script> element is open',
+                                  detail)
+                    self.assertIn('not well-formed (invalid token)', detail)
+                    self.assertIn('spine index 1', detail)
+                    self.assertIn('middle.xhtml', detail)
+                    self.assertNotIn('SECRETWORD', detail)
+                    self.assertEqual(
+                        before,
+                        {item.name: item.read_bytes()
+                         for item in directory.iterdir()})
+                    self.assertEqual(state_before,
+                                     (root / 'state.json').read_bytes())
+
     async def test_long_member_name_error_stays_actionable_and_safe(self):
         long_name = 'x' * 3000 + '.xhtml'
         bad = make_epub(
@@ -1174,8 +1278,9 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
                     detail = response.json()['detail']
                     # The reason survives diagnostics truncation (2000 chars)
                     # because it precedes the 3006-char resource name.
-                    self.assertIn('unclosed', detail)
-                    self.assertIn('title', detail)
+                    self.assertIn('invalid XML while <title> element is open',
+                                  detail)
+                    self.assertIn('mismatched tag', detail)
                     self.assertIn('spine index 1', detail)
                     self.assertNotIn('Missing middle chapter', detail)
                     self.assertEqual(

@@ -568,10 +568,11 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     doctype_hazard = False
     pending_ignored = None
     parser = expat.ParserCreate(encoding='utf-8')
-    # DefaultHandler (not DefaultHandlerExpand): internal entities are not
-    # expanded and no external entity/DTD handler is registered, so no
-    # external fetching occurs. Expat's own amplification protection is
-    # left at its default.
+    # DefaultHandler (not DefaultHandlerExpand) inhibits entity expansion
+    # and reporting in character content; attribute values still undergo
+    # Expat's standard entity normalization. No external entity/DTD
+    # handler is registered, so no external fetching occurs; Expat's
+    # default amplification protection is left at its default.
     parser.DefaultHandler = lambda _data: None
 
     def start_doctype(name, system_id, public_id, has_internal_subset):
@@ -666,17 +667,22 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
             # This helper is only invoked for XHTML resources (see the
             # caller): with possible ignored content present, a genuine
             # XML error must reject actionably rather than fall back to
-            # the raw-HTML path, which can silently drop chapters. The
-            # pending outer ignored name (if any) names the element.
+            # the raw-HTML path, which can silently drop chapters. One
+            # static construction: the real Expat reason
+            # (expat.ErrorString - never body/attribute snippets) with the
+            # pending ignored element as context when one is open, plus
+            # parser location. Pending state alone does not prove an end
+            # tag is missing (e.g. a closed title with an undefined
+            # entity, or a closed script with raw ampersands).
+            reason = expat.ErrorString(error.code) or 'parse error'
             location = (f'(line {parser.ErrorLineNumber}, '
                         f'column {parser.ErrorColumnNumber})')
             if pending_ignored is not None:
                 raise ValueError(
-                    f'unclosed <{pending_ignored}> element: resource is '
-                    f'not well-formed XML {location}') from error
+                    f'invalid XML while <{pending_ignored}> element is '
+                    f'open: {reason} {location}') from error
             raise ValueError(
-                f'invalid XML: resource is not well-formed XML '
-                f'{location}') from error
+                f'invalid XML: {reason} {location}') from error
     finally:
         # Break the parser->handler->closure->parser cycle so completed
         # chapter buffers release deterministically, success or failure.
