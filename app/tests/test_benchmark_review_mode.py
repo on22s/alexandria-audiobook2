@@ -174,6 +174,23 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                 self.assertIn(code, case['attempts'][0]['failure_codes'])
                 self.assertEqual([None], result['outputs'])
 
+    def test_cache_revision_does_not_change_execution_or_preflight_identity(self):
+        for target in ("local", "thunder"):
+            for stage in ("script_generation", "script_review", "persona_generation", "nickname_detection"):
+                with self.subTest(target=target, stage=stage):
+                    manifest = {"schema_version": 1, "stage": stage, "targets": [target],
+                                "fixtures": [{"id": "fixture", "sha256": "fixture"}]}
+                    base = core.build_environment_fingerprint(target, ENVIRONMENT)
+                    config = get_config(False)
+                    original = core.get_benchmark_execution_environment(manifest, base, config)
+                    profile = config["llm_remote" if target == "thunder" else "llm_local"]
+                    for revision in ("1" * 32, "2" * 32):
+                        profile["concurrency_revision"] = revision
+                        current = core.get_benchmark_execution_environment(manifest, base, config)
+                        self.assertEqual(original, current)
+                        self.assertEqual(core.get_benchmark_preflight_id(manifest, {target: original}),
+                                         core.get_benchmark_preflight_id(manifest, {target: current}))
+
     def test_mode_changes_local_and_remote_execution_and_preflight_identity(self):
         manifest = {'schema_version': 1, 'stage': 'script_review', 'targets': ['local'],
                     'fixtures': [{'id': 'fixture', 'sha256': 'fixture'}]}

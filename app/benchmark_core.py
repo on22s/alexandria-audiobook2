@@ -112,7 +112,8 @@ def get_benchmark_execution_environment(manifest, environment, config):
     if stage in {"script_generation", "script_review", "persona_generation", "nickname_detection"}:
         profile = get_benchmark_llm_config(config, target)
         identity["profile"] = {key: value for key, value in profile.items()
-                               if key not in {"concurrency", "concurrency_for", "concurrency_environment"}}
+                               if key not in {"concurrency", "concurrency_for", "concurrency_environment",
+                                              "concurrency_revision"}}
         from llm_provider import resolve_api_key
         identity["resolved_api_key"] = resolve_api_key(profile.get("api_key"))
         # These two runners consume Setup sampling and prompt settings. The

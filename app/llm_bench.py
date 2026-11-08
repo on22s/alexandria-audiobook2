@@ -12,6 +12,7 @@ Standalone use: `python llm_bench.py --model <name> [--base-url ...]`
 import argparse
 import platform
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from llm_provider import make_llm_client
@@ -187,23 +188,28 @@ def get_concurrency_environment(base_url, model_name, is_remote, ssh_alias,
     }
 
 
-def _invalidate_concurrency_cache(config_path, profile_key, cache_key):
-    """Drop only the matching bound cache qualification, best-effort.
+def _concurrency_cache_state(profile):
+    return {key: profile.get(key) for key in (
+        'concurrency', 'concurrency_for', 'concurrency_environment', 'concurrency_revision')}
 
-    A known single-slot observation must not leave a prior measurement
-    looking qualified for this endpoint/model/profile when a later status
-    omits `parallel`. This re-reads the config under `file_lock` and removes
-    `concurrency_environment` only when the freshly read profile still
-    names this exact `concurrency_for` key; the numeric value stays as
-    unqualified diagnostic data and other profiles/fields are untouched.
+
+def _invalidate_concurrency_cache(config_path, profile_key, cache_key, observed_state):
+    """Retire matching qualification only on unchanged observed authority.
+
+    A fresh revision fences older in-flight publishers even without a cached
+    measurement. Unrelated qualification and numeric diagnostic data remain
+    intact. The revision orders this profile's single cache slot under the
+    config lock, not unobserved external server changes or config rollbacks.
     """
     try:
         with file_lock(config_path):
             config = load_app_config(config_path, for_update=True)
             profile = dict(config.get(profile_key) or {})
-            if profile.get("concurrency_for") != cache_key or "concurrency_environment" not in profile:
+            if _concurrency_cache_state(profile) != observed_state:
                 return
-            profile.pop("concurrency_environment")
+            if profile.get("concurrency_for") == cache_key:
+                profile.pop("concurrency_environment", None)
+            profile["concurrency_revision"] = uuid.uuid4().hex
             config[profile_key] = profile
             atomic_json_write(config, config_path)
     except (OSError, TimeoutError, TypeError, ValueError):
@@ -235,6 +241,13 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     benchmark sweep (see find_optimal_concurrency); persists the result back
     to config.json under `file_lock`, since review_script.py/find_nicknames.py
     run as separate subprocesses that could race the main app or each other.
+    Publication and policy retirement compare the initially observed cache
+    state under that lock. Each successful write replaces a revision, so
+    delayed work cannot overwrite or retire newer locally published evidence,
+    even when the measured value/environment repeats. A superseded benchmark
+    still returns its genuine measurement for its own run, without caching it.
+    Ordering is best-effort when configuration persistence fails; no marker
+    is claimed durable after a failed write. Failed measurements write nothing.
 
     `status`: an already-fetched get_lmstudio_status/get_remote_lmstudio_status
     result, if the caller already has one (e.g. from a just-run self-heal
@@ -259,6 +272,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     if config is None:
         config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
+    observed_state = _concurrency_cache_state(profile)
     if status is None:
         status = lmstudio_settings.get_current_status(
             llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"))
@@ -277,7 +291,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
         print(f"  Server reports parallel={server_parallel} for {base_url}::{model_name} - "
               f"concurrency can't help here (this is the local VRAM-safe default "
               f"unless changed), skipping benchmark.")
-        _invalidate_concurrency_cache(config_path, profile_key, cache_key)
+        _invalidate_concurrency_cache(config_path, profile_key, cache_key, observed_state)
         return 1
 
     hostname = platform.node()
@@ -330,9 +344,12 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
         with file_lock(config_path):
             config = load_app_config(config_path, for_update=True)
             profile = dict(config.get(profile_key) or {})
+            if _concurrency_cache_state(profile) != observed_state:
+                return concurrency
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key
             profile["concurrency_environment"] = environment
+            profile["concurrency_revision"] = uuid.uuid4().hex
             config[profile_key] = profile
             atomic_json_write(config, config_path)
     except (OSError, TimeoutError, TypeError, ValueError):

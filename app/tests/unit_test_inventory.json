@@ -1516,6 +1516,7 @@
   "test_benchmark_review_mode": [
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_actual_start_route_refuses_mode_changed_since_preflight_before_claim",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_basic_benchmark_contracts_still_import_without_site_packages",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_cache_revision_does_not_change_execution_or_preflight_identity",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_classic_identity_is_stable_for_absent_false_and_nonreview_stages",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_default_and_explicit_false_still_request_classic_review",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_local_selected_mode_reaches_real_sdk_schema_and_source_binding",
@@ -6970,8 +6971,14 @@
     "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_single_slot_invalidation_error_is_best_effort",
     "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_single_slot_invalidation_rechecks_key_under_lock",
     "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_single_slot_policy_invalidates_only_matching_qualification",
-    "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_single_slot_with_no_matching_cache_writes_nothing",
+    "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_single_slot_with_no_matching_cache_only_records_ordering_revision",
     "tests.test_llm_concurrency_cache.StandaloneBenchmarkClientTests.test_cli_key_reference_reaches_real_requests_through_configured_client"
+  ],
+  "test_llm_concurrency_ordering": [
+    "tests.test_llm_concurrency_ordering.ConcurrencyCacheOrderingTests.test_delayed_policy_cannot_remove_newer_same_key_measurement_including_aba",
+    "tests.test_llm_concurrency_ordering.ConcurrencyCacheOrderingTests.test_late_positive_cannot_restore_single_slot_retired_qualification",
+    "tests.test_llm_concurrency_ordering.ConcurrencyCacheOrderingTests.test_late_positive_preserves_newer_measurement_and_unrelated_fields",
+    "tests.test_llm_concurrency_ordering.ConcurrencyCacheOrderingTests.test_repeated_single_slot_policy_replaces_one_bounded_revision"
   ],
   "test_llm_config_source": [
     "tests.test_llm_config_source.ActiveProfileTests.test_a_config_predating_the_toggle_still_resolves",
