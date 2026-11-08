@@ -1050,19 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T12:43:56",
+  "written": "2026-11-08T13:06:14",
   "host": "RealMitch",
   "git": {
-   "commit": "b0035862f8ec37c462375e48cd32e9c3960aad0b",
+   "commit": "4459f48b0392fc0ada44bb9685dce360c565bfd5",
    "branch": "fix/1822-concurrency-cache-ordering",
    "dirty": true,
-   "source_state": "dirty:a694c24fd697",
+   "source_state": "dirty:0aa89a62bee5",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/benchmark_core.py",
-    "M  app/review_script.py",
-    "M  app/tests/test_benchmark_review_mode.py",
-    "M  app/tests/test_completed_review_receipt.py",
+    "M  app/routers/script.py",
+    "A  app/tests/test_upload_storage_quota.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
