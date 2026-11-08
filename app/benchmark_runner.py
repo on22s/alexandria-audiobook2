@@ -169,13 +169,25 @@ def wrap_benchmark_cancellation(function):
     """Bind one stage's state without changing other concurrent invocations."""
     @wraps(function)
     def run(manifest, environment, report_path, state, *args, **kwargs):
+        state["status"] = "running"
         token = BENCHMARK_STATE.set(state)
         try:
-            return function(manifest, environment, report_path, state, *args, **kwargs)
+            try:
+                return function(manifest, environment, report_path, state, *args, **kwargs)
+            except BenchmarkCancelled:
+                report = load_resumable_benchmark_report(report_path, manifest, environment)
+                if state.get("status") != "cancelled":
+                    if not apply_benchmark_cancellation(state, report, manifest, report_path):
+                        apply_benchmark_failure(state, report, manifest)
+                return report
         except BenchmarkCancelled:
-            report = load_resumable_benchmark_report(report_path, manifest, environment)
-            apply_benchmark_cancellation(state, report, manifest, report_path)
-            return report
+            raise
+        except BaseException:
+            # Own the unhandled boundary (preamble or cancellation
+            # finalization): mark failed without loading a report, which
+            # may be unavailable/corrupt, then propagate unchanged.
+            state["status"] = "failed"
+            raise
         finally:
             BENCHMARK_STATE.reset(token)
     return run
@@ -482,9 +494,14 @@ def save_benchmark_case(report_path, report, case, *, log_state=None):
     updated = {**report, "cases": [*report["cases"], copy.deepcopy(case)]}
     save_benchmark_report(report_path, updated)
     if log_state is not None:
-        log_state["logs"].append(
-            f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
+        append_benchmark_progress_log(log_state, case)
     return updated
+
+
+def append_benchmark_progress_log(state, case):
+    """One shared progress-log append; lifecycle callers log after assignment."""
+    state["logs"].append(
+        f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
 
 
 def apply_benchmark_completion(state, report, manifest, report_path):
@@ -506,6 +523,7 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
     """Own resume filtering, durable case publication and stage completion."""
     report = (copy.deepcopy(report) if report is not None else
               load_resumable_benchmark_report(report_path, manifest, environment))
+    state["status"] = "running"
     try:
         completed = get_benchmark_completed_cases(report)
         track_progress = is_benchmark_progress_stage(manifest["stage"])
@@ -520,8 +538,9 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
                     return report
                 result = execute_case(fixture, repetition)
                 case = {"fixture_id": fixture["id"], "repetition": repetition, **result}
-                report = save_benchmark_case(report_path, report, case,
-                                             log_state=state if track_progress else None)
+                report = save_benchmark_case(report_path, report, case)
+                if track_progress:
+                    append_benchmark_progress_log(state, case)
                 if is_benchmark_worker_infrastructure_failure(case):
                     # Retain the raw case, then fail without starting more work;
                     # cancellation queued by execute remains authoritative.
@@ -560,6 +579,7 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
     """Preserve warm/remote batching with the same durable lifecycle as local cases."""
     report = (copy.deepcopy(report) if report is not None else
               load_resumable_benchmark_report(report_path, manifest, environment))
+    state["status"] = "running"
     try:
         pending = _pending_fixtures_with_repetitions(
             manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
@@ -579,8 +599,9 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                 # Collect/persist every already-produced case (including
                 # infrastructure attempts) before the shared final check in
                 # apply_benchmark_completion; no new producer work is started.
-                report = save_benchmark_case(report_path, report, case,
-                                             log_state=state if track_progress else None)
+                report = save_benchmark_case(report_path, report, case)
+                if track_progress:
+                    append_benchmark_progress_log(state, case)
                 if track_progress:
                     completed = get_benchmark_completed_cases(report)
                     for index in active_indexes:
