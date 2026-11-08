@@ -110,8 +110,11 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
             except ProcessLookupError:
                 pass
             except OSError:
-                if not force_after_grace:
+                if not force_after_grace and not (
+                        sys.platform == 'win32'
+                        and getattr(process, '_alexandria_windows_owner', None) is not None):
                     raise
+                logger.warning('Graceful subprocess stop failed; retaining forced cleanup', exc_info=True)
         if force_after_grace:
             deadline = time.monotonic() + timeout
         while is_subprocess_tree_running(process) and time.monotonic() < deadline:

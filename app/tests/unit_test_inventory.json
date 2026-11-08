@@ -15430,7 +15430,14 @@
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_force_failure_propagates_before_wait_on_both_platforms",
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_native_runner_is_explicitly_wired_and_refuses_other_hosts",
     "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_reaped_owner_does_not_replace_original_shutdown_error",
-    "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_verifier_retains_posix_policy_and_escalates_only_on_windows"
+    "tests.test_windows_cleanup_escalation.CleanupForceFailureTests.test_verifier_retains_posix_policy_and_escalates_only_on_windows",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_acknowledges_refusal_only_for_live_owned_job",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_does_not_hide_owned_job_query_failure",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_capture_preserves_timeout_after_refused_graceful_stop",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_owned_windows_graceful_refusal_still_forces_and_waits",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_cancel_still_arms_force_escalation",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_graceful_stop_does_not_hide_force_failure",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unowned_graceful_failure_remains_visible"
   ],
   "test_windows_export_qualification": [
     "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_junction_refusal_cannot_be_inferred_from_unrelated_failure",

@@ -1306,7 +1306,15 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
     try:
         # Signal the whole group (grandchildren too); proc when we have it, else pid.
         _send_signal_tree(proc if proc is not None else pid, signal.SIGTERM)
-    except (ProcessLookupError, OSError):
+    except ProcessLookupError:
+        raise HTTPException(status_code=400, detail=exited_msg)
+    except OSError:
+        if (sys.platform == 'win32'
+                and getattr(proc, '_alexandria_windows_owner', None) is not None):
+            from subprocess_ownership import is_subprocess_tree_running
+            if is_subprocess_tree_running(proc):
+                logger.warning('Graceful cancellation failed; cancellation remains requested', exc_info=True)
+                return {"status": "cancel requested", "pid": pid}
         raise HTTPException(status_code=400, detail=exited_msg)
     return {"status": "cancel signal sent", "pid": pid}
 
