@@ -79,8 +79,20 @@ def ensure_sound_render_quota(root, *, cancel_check=None, max_bytes=MAX_TOTAL_BY
 
 def get_sound_render_usage(directory, root, *, cancel_check=None, max_bytes=MAX_TOTAL_BYTES):
     """Charge public candidates and private export slots without reclaiming."""
+    charged, count, _ = get_sound_render_inventory(
+        directory, root, cancel_check=cancel_check, max_bytes=max_bytes)
+    return charged, count
+
+
+def get_sound_render_inventory(directory, root, *, cancel_check=None, max_bytes=MAX_TOTAL_BYTES):
+    """Validate all quota entries and return only public candidate names.
+
+    Private export slots remain charged and counted, never reclaimed or
+    presented as candidates. An empty permanent registry is infrastructure.
+    """
     from export_staging_retirement import DIRECTORY as REGISTRY, PosixRetirement
     charged = count = 0
+    names = []
     with os.scandir(directory) as children:
         for child in children:
             _check_cancelled(cancel_check)
@@ -110,10 +122,11 @@ def get_sound_render_usage(directory, root, *, cancel_check=None, max_bytes=MAX_
                 raise ValueError('Sound render stages are full; inspect retained candidates')
             if re.fullmatch(r'render-[A-Za-z0-9_-]+', child.name) is None:
                 raise ValueError('Unknown sound render entry requires inspection')
+            names.append(child.name)
             charged += get_sound_render_stage_files(child.path, root, cancel_check=cancel_check)[0]
             if charged > max_bytes:
                 raise ValueError('Sound render staging is full; inspect retained candidates')
-    return charged, count
+    return charged, count, sorted(names)
 
 
 @contextmanager

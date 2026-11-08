@@ -472,6 +472,41 @@ class SoundRenditionApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unchanged_ledger, (self.root/ACTIVE_RENDITIONS).read_bytes())
         self.assertEqual(2, len((await self.history())['records']))
 
+    async def test_real_delivery_registry_keeps_listing_and_cleanup_preview_usable(self):
+        import os
+        from export_staging_retirement import DIRECTORY as REGISTRY, LOCK
+        from sound_design_staging import ensure_sound_export_stage
+        from sound_design_renditions import ACTIVE_RENDITIONS
+        identity = await self.record(await self.record_request())
+        consumed = await self.client.post(RENDITIONS+'/consume',
+            json=await self.consume_request(identity))
+        self.assertEqual(200, consumed.status_code, consumed.text)
+        value = await self.history()
+        rendered = await self.client.post('/api/sound_design/candidates/render',
+            json={'context_revision': value['context_revision']})
+        self.assertEqual(200, rendered.status_code, rendered.text)
+        candidate = self.root/'.sound_design_renders'/rendered.json()['stage']
+        before = {path.name: path.read_bytes() for path in candidate.iterdir()}
+        ledger = (self.root/ACTIVE_RENDITIONS).read_bytes()
+        with ensure_sound_export_stage(self.root) as (stage, allowance):
+            self.assertGreater(allowance, 0)
+            (stage.path/'delivery-copy.bin').write_bytes(b'temporary delivery bytes')
+        registry = candidate.parent/REGISTRY
+        if os.name == 'nt':
+            self.assertFalse(registry.exists())
+        else:
+            self.assertTrue(registry.is_dir())
+            self.assertEqual({LOCK}, {path.name for path in registry.iterdir()})
+        listed = await self.client.get('/api/sound_design/candidates')
+        self.assertEqual(200, listed.status_code, listed.text)
+        self.assertEqual([candidate.name], [row['stage'] for row in listed.json()['candidates']])
+        preview = await self.client.post(RENDITIONS+'/cleanup_preview',
+            json=dict(**self.common(await self.history()), rendition_ids=[identity]))
+        self.assertEqual(200, preview.status_code, preview.text)
+        self.assertIn('retained_candidate', preview.json()['rows'][0]['reasons'])
+        self.assertEqual(ledger, (self.root/ACTIVE_RENDITIONS).read_bytes())
+        self.assertEqual(before, {path.name: path.read_bytes() for path in candidate.iterdir()})
+
     async def test_cleanup_protects_kept_parent_and_current_cue_and_retains_empty_ledger(self):
         from sound_design_renditions import ACTIVE_RENDITIONS, get_sound_rendition_ledger
         first_request = await self.record_request(); first = await self.record(first_request)

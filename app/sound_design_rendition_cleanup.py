@@ -12,25 +12,23 @@ from sound_design_candidates import _capture_stage
 from sound_design_context import capture_sound_design_context, require_sound_design_context_files_current
 from sound_design_renditions import (ACTIVE_RENDITIONS, get_sound_rendition_ledger_bytes,
                                       validate_sound_rendition_consumers)
-from sound_design_staging import ensure_sound_render_quota, MAX_STAGES
+from sound_design_staging import ensure_sound_render_quota, get_sound_render_inventory
 
 
-def _stage_names(directory):
-    names = []
-    for path in directory.iterdir():
-        if path.name == 'quota.lock':
-            continue
-        if len(names) >= MAX_STAGES:
-            raise ValueError('Too many retained sound candidates for cleanup')
-        validate_sound_candidate_stage(path.name)
-        names.append(path.name)
-    return sorted(names)
+def _stage_names(directory, check_active=lambda: None):
+    _, count, names = get_sound_render_inventory(
+        directory, directory.parent, cancel_check=check_active)
+    if count != len(names):
+        raise ValueError('Retained sound export work requires inspection before rendition cleanup')
+    for name in names:
+        validate_sound_candidate_stage(name)
+    return names
 
 
 def _capture_candidate_protection(root, directory, snapshot, check_active):
     """Read at most one bounded metadata document at a time; never hash PCM."""
     versions = {row['version']: row for row in snapshot['registry']['versions']}
-    names = _stage_names(directory)
+    names = _stage_names(directory, check_active)
     protections, proofs = {}, []
     for name in names:
         check_active()
@@ -81,7 +79,7 @@ def _capture_candidate_protection(root, directory, snapshot, check_active):
 
 
 def _require_candidate_proofs_current(root, directory, names, proofs, check_active):
-    if _stage_names(directory) != names:
+    if _stage_names(directory, check_active) != names:
         raise ValueError('Candidate inventory changed before rendition cleanup')
     for proof in proofs:
         check_active()
