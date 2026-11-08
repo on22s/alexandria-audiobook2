@@ -518,11 +518,15 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     expansion) locates the real ignored elements in a UTF-8 copy of the
     already-decoded resource; the untouched outside slices - CRLF,
     whitespace, anchors and all - are fed to the HTML extractor instead.
-    Only ignored elements are counted, so there is no per-tag allocation
-    for ordinary elements. If the resource is not XML well-formed (ordinary
-    tolerant HTML), the original content is returned unchanged and the
-    existing HTML path - including its unclosed-skipped-element rejection -
-    applies. No partial transformed output is ever fed on XML failure.
+    Outside bytes accumulate in a single bytearray candidate (bounded by
+    the input size) rather than a per-element record list, and only
+    cursor/depth/omission-flag state is retained. Only ignored elements
+    are counted, so there is no per-tag allocation for ordinary elements.
+    If the resource is not XML well-formed (ordinary tolerant HTML), the
+    candidate is discarded and the original content is returned unchanged;
+    the existing HTML path - including its unclosed-skipped-element
+    rejection - applies. No partial transformed output is ever fed on
+    XML failure.
     """
     try:
         data = html_content.encode('utf-8')
@@ -543,9 +547,10 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
             return True
         return ':' in lowered and lowered.rsplit(':', 1)[-1] in skip_tags
 
-    spans = []
+    candidate = bytearray()
+    cursor = 0
     ignored_depth = 0
-    ignored_start = 0
+    omitted = False
     parser = expat.ParserCreate(encoding='utf-8')
     # DefaultHandler (not DefaultHandlerExpand): internal entities are not
     # expanded and no external entity/DTD handler is registered, so no
@@ -554,14 +559,15 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     parser.DefaultHandler = lambda _data: None
 
     def start_element(name, _attrs):
-        nonlocal ignored_depth, ignored_start
+        nonlocal ignored_depth, omitted
         if is_skipped(name):
             if ignored_depth == 0:
-                ignored_start = parser.CurrentByteIndex
+                candidate.extend(data[cursor:parser.CurrentByteIndex])
+                omitted = True
             ignored_depth += 1
 
     def end_element(name):
-        nonlocal ignored_depth
+        nonlocal ignored_depth, cursor
         if not is_skipped(name):
             return
         if ignored_depth == 0:
@@ -589,7 +595,7 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
                     close_end = data.find(b'>', end)
                     end = close_end + 1 if close_end >= 0 else len(data)
         # Otherwise self-closing: CurrentByteIndex is already just past '/>'.
-        spans.append((ignored_start, end))
+        cursor = end
 
     parser.StartElementHandler = start_element
     parser.EndElementHandler = end_element
@@ -597,18 +603,13 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
         parser.Parse(data, True)
     except expat.ExpatError:
         return html_content
-    if not spans:
+    if not omitted:
         return html_content
-    parts = []
-    position = 0
+    candidate.extend(data[cursor:])
     try:
-        for start, end in spans:
-            parts.append(data[position:start].decode('utf-8'))
-            position = end
-        parts.append(data[position:].decode('utf-8'))
+        return candidate.decode('utf-8')
     except UnicodeDecodeError:
         return html_content
-    return ''.join(parts)
 
 
 def _resolve_epub_href(base_path, href):

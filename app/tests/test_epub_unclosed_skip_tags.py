@@ -398,6 +398,17 @@ class UnclosedSkipTagTests(unittest.TestCase):
         # Report mode agrees with ordinary mode on tolerant input.
         reported, _report = extract(make_epub(body), report=True)
         self.assertEqual(text, reported)
+        # An XML failure *after* a completed ignored subtree must discard
+        # the whole candidate: the helper returns the original lexical
+        # string unchanged (never a partial omission), and the production
+        # fallback still preserves the readable paragraph text.
+        broken = ('<html><body><script>ignored</script>'
+                  '<p>Middle tolerant words &amp; 10')
+        self.assertEqual(broken, script._omit_xml_ignored_subtrees(broken))
+        text = extract(make_epub(broken))
+        self.assertIn('Middle tolerant words & 10', text)
+        self.assertIn('First readable chapter.', text)
+        self.assertIn('Final readable chapter.', text)
 
     def test_text_accessors_reject_unclosed_skip_without_close(self):
         # Validation lives in the text accessors, so a caller that only
