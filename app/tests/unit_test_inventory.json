@@ -14603,6 +14603,23 @@
     "tests.test_upload_retry_js.UploadRetryJSTests.test_failed_docx_acceptance_allows_same_file_preview_again",
     "tests.test_upload_retry_js.UploadRetryJSTests.test_failed_upload_allows_same_file_retry"
   ],
+  "test_upload_storage_quota": [
+    "tests.test_upload_storage_quota.UploadStorageQuotaHandlerTests.test_over_quota_survivors_still_refuse_despite_vanished_entry",
+    "tests.test_upload_storage_quota.UploadStorageQuotaHandlerTests.test_permission_error_during_quota_remains_visible",
+    "tests.test_upload_storage_quota.UploadStorageQuotaHandlerTests.test_upload_succeeds_when_quota_entry_vanishes",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_active_name_excluded_without_touching_metadata",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_cancellation_and_keyboard_interrupt_propagate",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_directory_and_symlink_like_excluded",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_iteration_failure_propagates",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_missing_root_after_scan_open_raises_not_partial_sum",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_normal_named_files_counted",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_permission_and_other_oserror_propagate_after_partial_sums",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_real_stage_authoritative_bytes_counted_once",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_root_rescan_permission_and_non_directory_errors_propagate",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_scandir_root_failure_propagates",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_vanished_at_is_file_returns_false_and_survivors_counted",
+    "tests.test_upload_storage_quota.UploadStorageQuotaTests.test_vanished_at_stat_is_skipped_and_survivors_counted"
+  ],
   "test_ux_fixes_from_fork": [
     "tests.test_ux_fixes_from_fork.ExportProgressTests.test_loading_progress_is_none_without_callback",
     "tests.test_ux_fixes_from_fork.ExportProgressTests.test_loading_progress_reports_every_fifty_chunks",
