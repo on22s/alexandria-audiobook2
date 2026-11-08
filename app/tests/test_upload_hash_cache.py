@@ -196,6 +196,132 @@ class UploadHashDedupeFreshTests(unittest.TestCase):
             self.assertEqual(self.CHANGED, incoming.read_bytes())
             self.assertEqual(self.ORIGINAL, canonical.read_bytes())
 
+    def test_legacy_str_dot_spelling_sole_file_is_not_self_deleted(self):
+        # A literal "/./" spelling (built as a string, not via Path, which
+        # normalizes it away) names the same native file as the scanned
+        # entry. The raw entry.path == path check cannot see that, so
+        # identity must be checked on the filesystem, not the spelling.
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            dotted = os.path.join(str(uploads), '.', 'incoming.txt')
+            self.assertNotEqual(str(incoming), dotted)
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)):
+                selected, reused = script._reuse_duplicate_upload(dotted)
+            self.assertFalse(reused, 'a sole file must not be reused as itself')
+            self.assertEqual(dotted, selected)
+            self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
+                             'incoming upload must survive, not delete its own bytes')
+
+    def test_legacy_str_relative_spelling_sole_file_is_not_self_deleted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            relative = os.path.join('.', 'incoming.txt')
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(uploads)
+                with patch.object(script, 'UPLOADS_DIR', str(uploads)):
+                    selected, reused = script._reuse_duplicate_upload(relative)
+            finally:
+                os.chdir(original_cwd)
+            self.assertFalse(reused, 'a sole file must not be reused as itself')
+            self.assertEqual(relative, selected)
+            self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
+                             'incoming upload must survive, not delete its own bytes')
+
+    def test_legacy_str_native_case_spelling_preserves_input(self):
+        # Branch on the filesystem's actual case behaviour, not the OS:
+        # a case-insensitive filesystem (Windows, or a case-insensitive
+        # macOS volume) resolves the alternate spelling to the same native
+        # file, while a case-sensitive filesystem has no such file.
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            alternate = os.path.join(str(uploads), 'INCOMING.TXT')
+            self.assertNotEqual(str(incoming), alternate)
+            if os.path.exists(alternate):
+                self.assertTrue(os.path.samefile(str(incoming), alternate))
+                with patch.object(script, 'UPLOADS_DIR', str(uploads)):
+                    selected, reused = script._reuse_duplicate_upload(alternate)
+                self.assertFalse(reused, 'a sole file must not be reused as itself')
+                self.assertEqual(alternate, selected)
+            else:
+                with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                        self.assertRaises(FileNotFoundError):
+                    script._reuse_duplicate_upload(alternate)
+            self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
+                             'real input must survive, not delete its own bytes')
+
+    def test_legacy_str_dot_spelling_distinct_duplicate_still_reused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            canonical = uploads / 'a-canonical.txt'
+            canonical.write_bytes(self.ORIGINAL)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            dotted = os.path.join(str(uploads), '.', 'incoming.txt')
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)):
+                selected, reused = script._reuse_duplicate_upload(dotted)
+            self.assertTrue(reused)
+            self.assertEqual(str(canonical), selected)
+            self.assertFalse(incoming.exists())
+            self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+
+    def test_legacy_unique_input_does_not_fresh_hash(self):
+        for variant in ('sole', 'different_size'):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tmp:
+                uploads = Path(tmp)
+                incoming = uploads / 'incoming.txt'
+                incoming.write_bytes(self.ORIGINAL)
+                if variant == 'different_size':
+                    (uploads / 'other.txt').write_bytes(b'x' * (len(self.ORIGINAL) + 5))
+                real_fresh = script._get_fresh_upload_hash
+                fresh_calls = []
+
+                def recording_fresh(path):
+                    fresh_calls.append(path)
+                    return real_fresh(path)
+
+                with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                        patch.object(script, '_get_fresh_upload_hash',
+                                     side_effect=recording_fresh):
+                    selected, reused = script._reuse_duplicate_upload(str(incoming))
+                self.assertFalse(reused)
+                self.assertEqual(str(incoming), selected)
+                self.assertEqual([], fresh_calls,
+                                 'no viable same-size candidate: legacy input must not be read')
+                self.assertEqual(self.ORIGINAL, incoming.read_bytes())
+
+    def test_legacy_viable_candidate_fresh_hashes_incoming_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            canonical = uploads / 'canonical.txt'
+            canonical.write_bytes(self.ORIGINAL)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            real_fresh = script._get_fresh_upload_hash
+            fresh_calls = []
+
+            def recording_fresh(path):
+                fresh_calls.append(path)
+                return real_fresh(path)
+
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                    patch.object(script, '_get_fresh_upload_hash',
+                                 side_effect=recording_fresh):
+                selected, reused = script._reuse_duplicate_upload(str(incoming))
+            self.assertTrue(reused)
+            self.assertEqual(str(canonical), selected)
+            self.assertFalse(incoming.exists())
+            # One fresh read of the incoming bytes (lazily, before the
+            # first viable candidate) plus the candidate's own fresh
+            # confirmation inside the shared candidate policy.
+            self.assertEqual([str(incoming), str(canonical)], fresh_calls)
+
     def test_candidate_disappearing_before_fresh_verify_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads, canonical, _before = self._setup_uploads(tmp)
@@ -259,7 +385,7 @@ class UploadHashDedupeFreshTests(unittest.TestCase):
                              'an unverifiable candidate must not discard incoming')
             self.assertEqual(self.ORIGINAL, canonical.read_bytes())
 
-    def test_incoming_fresh_oserror_retains_without_scanning(self):
+    def test_incoming_fresh_oserror_retains_without_candidate_advisory_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             uploads, canonical, _before = self._setup_uploads(tmp)
             incoming = uploads / 'incoming.txt'
@@ -286,7 +412,7 @@ class UploadHashDedupeFreshTests(unittest.TestCase):
             self.assertFalse(reused)
             self.assertEqual(str(incoming), selected)
             self.assertEqual([], hash_calls,
-                             'unverifiable incoming must return before any candidate scan')
+                             'unverifiable incoming must return before any candidate advisory read')
             self.assertEqual(self.ORIGINAL, incoming.read_bytes())
             self.assertEqual(self.ORIGINAL, canonical.read_bytes())
 

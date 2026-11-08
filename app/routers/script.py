@@ -867,12 +867,11 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
             digest = path.sha256()
         else:
             # Legacy str incoming: a cached digest could be stale after a
-            # same-size/restored-mtime rewrite, so confirm it freshly
-            # before any candidate is considered. Failure retains it.
-            try:
-                digest = _get_fresh_upload_hash(path)
-            except (ValueError, OSError):
-                return path, False
+            # same-size/restored-mtime rewrite, so it is never used here.
+            # The fresh digest is computed lazily below, once a distinct
+            # eligible candidate actually exists, so a unique input is not
+            # read needlessly before the scan.
+            digest = None
         for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
             try:
                 # Windows DirEntry.stat can leave st_nlink at zero. Query the
@@ -883,6 +882,21 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                         os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS or
                         facts.st_size != size):
                     continue
+                if not owned and os.path.samefile(entry.path, path):
+                    # The exact-string check above cannot see an equivalent
+                    # spelling of the incoming file itself (absolute "./",
+                    # relative, or Windows differing case). Exclude the
+                    # same native file so it can never select and delete
+                    # its own bytes.
+                    continue
+                if digest is None:
+                    # First eligible distinct candidate: confirm the legacy
+                    # incoming bytes freshly before any candidate is
+                    # considered. Failure retains it.
+                    try:
+                        digest = _get_fresh_upload_hash(path)
+                    except (ValueError, OSError):
+                        return path, False
                 # Advisory cache pre-filter only: confirm current bytes
                 # before the destructive removal below.
                 if _is_candidate_upload_hash_match(entry.path, digest):
