@@ -2,6 +2,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 import hashlib
+import inspect
 import io
 import os
 from pathlib import Path
@@ -69,7 +70,11 @@ def _rewrite_inplace(path, data, before):
     path.write_bytes(data)
     os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
     after = path.stat()
-    assert after.st_size == before.st_size and after.st_mtime_ns == before.st_mtime_ns
+    if after.st_size != before.st_size or after.st_mtime_ns != before.st_mtime_ns:
+        raise AssertionError(
+            f'_rewrite_inplace fixture invariant violated: size expected '
+            f'{before.st_size!r}, got {after.st_size!r}; mtime_ns expected '
+            f'{before.st_mtime_ns!r}, got {after.st_mtime_ns!r}')
 
 
 def _rewrite_replacement(path, data, before):
@@ -78,7 +83,11 @@ def _rewrite_replacement(path, data, before):
     os.replace(staging, path)
     os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
     after = path.stat()
-    assert after.st_size == before.st_size and after.st_mtime_ns == before.st_mtime_ns
+    if after.st_size != before.st_size or after.st_mtime_ns != before.st_mtime_ns:
+        raise AssertionError(
+            f'_rewrite_replacement fixture invariant violated: size expected '
+            f'{before.st_size!r}, got {after.st_size!r}; mtime_ns expected '
+            f'{before.st_mtime_ns!r}, got {after.st_mtime_ns!r}')
 
 
 def _synthetic_epub(text):
@@ -521,6 +530,207 @@ class UploadHashDedupeFreshTests(unittest.TestCase):
                 self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
                                  'propagated cancellation must not discard incoming')
                 self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+
+    def test_stale_hint_mismatch_evicts_and_rewarms_without_repeated_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads, canonical, before = self._setup_uploads(tmp)
+            _rewrite_inplace(canonical, self.CHANGED, before)
+            # Advisory digest is the stale ORIGINAL hint; current bytes are
+            # CHANGED after the timestamp-preserving rewrite.
+            original_digest = hashlib.sha256(self.ORIGINAL).hexdigest()
+            changed_digest = hashlib.sha256(self.CHANGED).hexdigest()
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)):
+                selected, reused = script._reuse_duplicate_upload(str(incoming))
+            self.assertFalse(reused, 'stale canonical must not be selected')
+            self.assertEqual(str(incoming), selected)
+            self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
+                             'incoming upload must be retained, not discarded')
+            self.assertEqual(self.CHANGED, canonical.read_bytes())
+            with script._upload_hash_lock:
+                self.assertNotIn(str(canonical), script._upload_hash_cache,
+                                 'disproven stale hint must be evicted')
+            # A later advisory lookup warms current bytes without fresh I/O,
+            # and a repeat check for the old digest then short-circuits.
+            real_fresh = script._get_fresh_upload_hash
+            fresh_calls = []
+
+            def recording_fresh(path):
+                fresh_calls.append(path)
+                return real_fresh(path)
+
+            with patch.object(script, '_get_fresh_upload_hash',
+                             side_effect=recording_fresh):
+                warmed = script._get_upload_hash(str(canonical))
+                self.assertEqual(changed_digest, warmed)
+                self.assertEqual([], fresh_calls,
+                                 'advisory rewarming must not call fresh capture')
+                self.assertFalse(script._is_candidate_upload_hash_match(
+                    str(canonical), original_digest))
+                self.assertEqual([], fresh_calls,
+                                 'warmed current digest must stop repeated fresh scans')
+                self.assertTrue(script._is_candidate_upload_hash_match(
+                    str(canonical), changed_digest))
+                self.assertEqual([str(canonical)], fresh_calls,
+                                 'advisory match must still run the fresh authority')
+            with script._upload_hash_lock:
+                self.assertLessEqual(
+                    len(script._upload_hash_cache),
+                    script.MAX_UPLOAD_HASH_CACHE_ENTRIES)
+                self.assertIn(str(canonical), script._upload_hash_cache)
+            self.assertEqual(self.CHANGED, canonical.read_bytes())
+
+    def test_interleaved_new_cache_entry_preserved_on_stale_eviction(self):
+        for variant in ('same_valued_aba', 'different_value', 'absent'):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tmp:
+                with script._upload_hash_lock:
+                    script._upload_hash_cache.clear()
+                uploads, canonical, before = self._setup_uploads(tmp)
+                _rewrite_inplace(canonical, self.CHANGED, before)
+                original_digest = hashlib.sha256(self.ORIGINAL).hexdigest()
+                changed_digest = hashlib.sha256(self.CHANGED).hexdigest()
+                with script._upload_hash_lock:
+                    original_entry = script._upload_hash_cache[str(canonical)]
+                installed = []
+                real_fresh = script._get_fresh_upload_hash
+
+                def interleaving_fresh(path):
+                    if Path(path) == canonical:
+                        with script._upload_hash_lock:
+                            if variant == 'same_valued_aba':
+                                # New tuple object, equal values: ABA must
+                                # still be preserved (identity, not equality).
+                                new_entry = (original_entry[0], original_entry[1])
+                                script._upload_hash_cache[str(canonical)] = new_entry
+                                installed.append(new_entry)
+                            elif variant == 'different_value':
+                                new_entry = (original_entry[0], changed_digest)
+                                script._upload_hash_cache[str(canonical)] = new_entry
+                                installed.append(new_entry)
+                            else:
+                                script._upload_hash_cache.pop(str(canonical), None)
+                                installed.append(None)
+                        return real_fresh(path)
+                    return real_fresh(path)
+
+                with patch.object(script, '_get_fresh_upload_hash',
+                                 side_effect=interleaving_fresh):
+                    self.assertFalse(script._is_candidate_upload_hash_match(
+                        str(canonical), original_digest))
+                with script._upload_hash_lock:
+                    if variant == 'absent':
+                        self.assertNotIn(str(canonical), script._upload_hash_cache,
+                                         'absent hint must stay absent')
+                    else:
+                        self.assertIs(installed[0],
+                                      script._upload_hash_cache[str(canonical)],
+                                      'interleaved/newer entry must be preserved')
+                        self.assertIsNot(original_entry,
+                                         script._upload_hash_cache[str(canonical)])
+
+    def test_failed_or_cancelled_fresh_read_preserves_hint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads, canonical, before = self._setup_uploads(tmp)
+            _rewrite_inplace(canonical, self.CHANGED, before)
+            original_digest = hashlib.sha256(self.ORIGINAL).hexdigest()
+            with script._upload_hash_lock:
+                original_entry = script._upload_hash_cache[str(canonical)]
+            failures = [
+                OSError('simulated fresh candidate read failure'),
+                ValueError('Scope file changed while reading.'),
+            ]
+            for failure in failures:
+                with self.subTest(failure=type(failure).__name__), \
+                        patch.object(script, '_get_fresh_upload_hash',
+                                     side_effect=failure):
+                    self.assertFalse(script._is_candidate_upload_hash_match(
+                        str(canonical), original_digest),
+                        'unverifiable candidate is a conservative non-match')
+                with script._upload_hash_lock:
+                    self.assertIs(original_entry,
+                                  script._upload_hash_cache[str(canonical)],
+                                  'failed fresh read must not evict the hint')
+            sentinel = asyncio.CancelledError('fresh candidate cancelled')
+            with patch.object(script, '_get_fresh_upload_hash',
+                             side_effect=sentinel):
+                with self.assertRaises(asyncio.CancelledError) as caught:
+                    script._is_candidate_upload_hash_match(
+                        str(canonical), original_digest)
+            self.assertIs(sentinel, caught.exception)
+            with script._upload_hash_lock:
+                self.assertIs(original_entry,
+                              script._upload_hash_cache[str(canonical)],
+                              'cancelled fresh read must not evict the hint')
+
+    def test_fixture_invariant_guard_active_under_optimize(self):
+        old_sources = {
+            '_rewrite_inplace': (
+                "def _rewrite_inplace(path, data, before):\n"
+                "    path.write_bytes(data)\n"
+                "    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))\n"
+                "    after = path.stat()\n"
+                "    assert after.st_size == before.st_size and after.st_mtime_ns == before.st_mtime_ns\n"
+            ),
+            '_rewrite_replacement': (
+                "def _rewrite_replacement(path, data, before):\n"
+                "    staging = path.with_name(path.name + '.staging')\n"
+                "    staging.write_bytes(data)\n"
+                "    os.replace(staging, path)\n"
+                "    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))\n"
+                "    after = path.stat()\n"
+                "    assert after.st_size == before.st_size and after.st_mtime_ns == before.st_mtime_ns\n"
+            ),
+        }
+        old_ns = 946684800_000_000_000
+
+        def scratch(uploads):
+            path = uploads / 'scratch.txt'
+            path.write_bytes(self.ORIGINAL)
+            os.utime(path, ns=(old_ns, old_ns))
+            return path, path.stat()
+
+        def compile_helper(source, name, optimize):
+            namespace = {'os': os}
+            exec(compile(source, f'<{name}>', 'exec', optimize=optimize), namespace)
+            return namespace[name]
+
+        for name, old_source in old_sources.items():
+            fixed_source = inspect.getsource(globals()[name])
+            for optimize in (0, 1, 2):
+                with self.subTest(helper=name, optimize=optimize,
+                                  kind='fixed'):
+                    compiled = compile_helper(fixed_source, name, optimize)
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path, before = scratch(Path(tmp))
+                        with patch('os.utime', side_effect=lambda *a, **k: None):
+                            with self.assertRaises(
+                                    AssertionError,
+                                    msg='fixed fixture helper must reject a bad restore'):
+                                compiled(path, self.CHANGED, before)
+            for optimize in (1, 2):
+                with self.subTest(helper=name, optimize=optimize,
+                                  kind='old'):
+                    compiled_old = compile_helper(old_source, name, optimize)
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path, before = scratch(Path(tmp))
+                        with patch('os.utime', side_effect=lambda *a, **k: None):
+                            # Bare assert is stripped: must NOT raise,
+                            # so the old oracle cannot fail this test.
+                            compiled_old(path, self.CHANGED, before)
+                        self.assertNotEqual(
+                            before.st_mtime_ns, path.stat().st_mtime_ns,
+                            'old helper under optimize must leave a bad fixture undetected')
+            with self.subTest(helper=name, optimize=1,
+                              kind='fixed-happy'):
+                compiled = compile_helper(fixed_source, name, 1)
+                with tempfile.TemporaryDirectory() as tmp:
+                    path, before = scratch(Path(tmp))
+                    compiled(path, self.CHANGED, before)
+                    after = path.stat()
+                    self.assertEqual(before.st_size, after.st_size)
+                    self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
+                    self.assertEqual(self.CHANGED, path.read_bytes())
 
 
 class UploadHandlerFreshDedupeTests(unittest.IsolatedAsyncioTestCase):

@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T06:57:09",
+  "written": "2026-11-08T07:54:04",
   "host": "RealMitch",
   "git": {
-   "commit": "6c7e3cecf570cab16cc5196abf45c706b2cc8c4f",
+   "commit": "5bbf62fdf74f74e431926a8caeb6076f0b938911",
    "branch": "fix/1793-upload-dedupe-identity",
    "dirty": true,
-   "source_state": "dirty:ca41f31ee13f",
+   "source_state": "dirty:eb972e8544d0",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/routers/script.py",

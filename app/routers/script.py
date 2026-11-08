@@ -834,24 +834,59 @@ def _get_fresh_upload_hash(path: str) -> str:
     return proof['sha256']
 
 
+def _evict_disproven_upload_hash_hint(candidate_path: str, cached_entry) -> None:
+    """Drop a stale advisory hint disproven by a fresh read.
+
+    Cache invalidation only: the fresh authority already proved the current
+    bytes differ from the advisory digest, so the cached (size, mtime)
+    entry is stale. The entry is removed only when it is still the exact
+    immutable tuple observed after the advisory lookup, so a newer or
+    ABA replacement installed during the fresh read is never clobbered. A
+    later advisory miss rehashes the current bytes. Failed or cancelled
+    fresh reads never reach this helper.
+    """
+    if cached_entry is None:
+        return
+    with _upload_hash_lock:
+        if _upload_hash_cache.get(candidate_path) is cached_entry:
+            _upload_hash_cache.pop(candidate_path, None)
+
+
 def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
     """Return True only when a candidate matches digest on both hashes.
 
     Shared candidate policy for TXT/MD and EPUB dedupe (Rule 15): the
     advisory size/mtime cache is a pre-filter only; a match also requires
-    the bounded fresh read in _get_fresh_upload_hash. An unverifiable
-    candidate (ValueError/OSError from either read, including a
-    permission/lock failure on the advisory read) is always a
-    conservative non-match, so callers skip it and retain the incoming
-    bytes. Control-flow exceptions such as CancelledError (a
-    BaseException, not ValueError/OSError) always propagate exactly.
+    the bounded fresh read in _get_fresh_upload_hash. When the advisory
+    digest matches but the fresh read succeeds with a different digest,
+    just that disproven cached hint is evicted so later checks do not
+    repeat the fresh scan. An unverifiable candidate (ValueError/OSError
+    from either read, including a permission/lock failure on the advisory
+    or fresh read) is always a conservative non-match without eviction,
+    so callers skip it and retain the incoming bytes. Control-flow
+    exceptions such as CancelledError (a BaseException, not
+    ValueError/OSError) always propagate exactly.
     """
     try:
         if _get_upload_hash(candidate_path) != digest:
             return False
-        return _get_fresh_upload_hash(candidate_path) == digest
     except (ValueError, OSError):
         return False
+    # Capture the exact advisory tuple that matched, then release the lock
+    # before any fresh I/O. If the hint is absent or its digest differs
+    # from the expected one, there is nothing to invalidate.
+    with _upload_hash_lock:
+        cached_entry = _upload_hash_cache.get(candidate_path)
+        if cached_entry is not None and cached_entry[1] != digest:
+            cached_entry = None
+    try:
+        fresh_digest = _get_fresh_upload_hash(candidate_path)
+    except (ValueError, OSError):
+        return False
+    if fresh_digest == digest:
+        return True
+    _evict_disproven_upload_hash_hint(candidate_path, cached_entry)
+    return False
 
 
 def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
