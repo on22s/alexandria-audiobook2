@@ -813,6 +813,27 @@ def _get_upload_hash(path: str) -> str:
     return value
 
 
+def _get_fresh_upload_hash(path: str) -> str:
+    """Return a fresh bounded SHA-256 for a named upload, bypassing the cache.
+
+    Pure read via the shared scope capture (streaming, single-link and
+    descriptor/path identity checks, no whole-file buffering). The
+    size/mtime cache above is advisory only: a same-size rewrite with a
+    restored mtime keeps its cached digest, so destructive dedupe must
+    confirm the candidate's current bytes here before reusing it. Raises
+    FileNotFoundError, ValueError or OSError when the file is missing,
+    changed while reading, oversized, or otherwise unverifiable; callers
+    fail closed by skipping the candidate.
+    """
+    absolute = os.path.abspath(path)
+    proof, _raw = capture_scope_file(os.path.dirname(absolute),
+                                     os.path.basename(absolute),
+                                     limit=MAX_SCRIPT_UPLOAD_BYTES)
+    if not proof.get('exists') or proof.get('sha256') is None:
+        raise FileNotFoundError(path)
+    return proof['sha256']
+
+
 def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     """Remove path and return an existing identical text upload when present."""
     # Serialize the scan-and-remove decision. Without this, two identical
@@ -821,7 +842,17 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     with _upload_dedupe_lock:
         owned = isinstance(path, OwnedSourceUploadStage)
         size = path.size if owned else os.path.getsize(path)
-        digest = path.sha256() if owned else _get_upload_hash(path)
+        if owned:
+            # The sealed descriptor digest is the fresh authority.
+            digest = path.sha256()
+        else:
+            # Legacy str incoming: a cached digest could be stale after a
+            # same-size/restored-mtime rewrite, so confirm it freshly
+            # before any candidate is considered. Failure retains it.
+            try:
+                digest = _get_fresh_upload_hash(path)
+            except (ValueError, OSError):
+                return path, False
         for entry in sorted(os.scandir(UPLOADS_DIR), key=lambda item: item.name):
             try:
                 # Windows DirEntry.stat can leave st_nlink at zero. Query the
@@ -832,7 +863,14 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                         os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS or
                         facts.st_size != size):
                     continue
+                # Advisory cache pre-filter only: confirm current bytes
+                # before the destructive removal below.
                 if _get_upload_hash(entry.path) == digest:
+                    try:
+                        if _get_fresh_upload_hash(entry.path) != digest:
+                            continue
+                    except (ValueError, OSError):
+                        continue
                     path.close() if owned else os.remove(path)
                     return entry.path, True
             except FileNotFoundError:
@@ -1343,7 +1381,16 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                                     or os.path.splitext(entry.name)[1].lower() not in SELECTABLE_SOURCE_EXTENSIONS
                                     or facts.st_size != len(text_bytes)):
                                 continue
+                            # Advisory cache pre-filter only: the retained
+                            # EPUB fence checks original bytes, not this
+                            # canonical TXT, so confirm its current bytes
+                            # before selecting it.
                             if _get_upload_hash(entry.path) == text_sha256:
+                                try:
+                                    if _get_fresh_upload_hash(entry.path) != text_sha256:
+                                        continue
+                                except (ValueError, OSError):
+                                    continue
                                 return entry.path
                         except FileNotFoundError:
                             continue
