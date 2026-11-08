@@ -1264,6 +1264,13 @@ def get_upload_storage_bytes():
                     continue
                 named += entry.stat(follow_symlinks=False).st_size
             except FileNotFoundError:
+                # Skip only a single vanished entry.  A missing,
+                # inaccessible, or non-directory root after a successful
+                # scandir open is a root failure, not free capacity:
+                # re-open the root (O(1), failure-only) and let any
+                # error propagate; success proves the root is present.
+                with os.scandir(UPLOADS_DIR):
+                    pass
                 continue
     return named + active_bytes
 

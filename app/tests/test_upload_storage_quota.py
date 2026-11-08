@@ -63,6 +63,14 @@ class _ProxyEntry:
         return bool(self._mode == 'symlink_like') or self._real.is_symlink()
 
     def stat(self, *, follow_symlinks=True):
+        if self._mode == 'root_rename_stat':
+            # Post-open root loss: the owned scratch root is physically
+            # renamed while the controlled scan is active, then a fresh
+            # native stat reports the entry missing (avoids Windows DirEntry
+            # cached metadata).  Payload is preserved under the new name.
+            root = Path(self.path).parent
+            root.rename(root.with_name(root.name + '-moved'))
+            return os.stat(self.path, follow_symlinks=follow_symlinks)
         if self._mode == 'vanish_stat':
             # Disappearance after the is_file check: the file was confirmed
             # present, then removed (preparer publication), then a fresh
@@ -255,6 +263,49 @@ class UploadStorageQuotaTests(unittest.TestCase):
             with self.subTest(error=type(error).__name__):
                 def fake(path, _e=error):
                     raise _e
+                with patch.object(os, 'scandir', fake):
+                    with self.assertRaises(type(error)):
+                        script.get_upload_storage_bytes()
+
+    def test_missing_root_after_scan_open_raises_not_partial_sum(self):
+        before = b'before-123'
+        payload = b'owned synthetic bytes'
+        after = b'after-12345'
+        self._write('before.txt', before)
+        self._write('payload.txt', payload)
+        self._write('after.txt', after)
+        fake = _make_fake_scandir(self._real_scandir,
+                                  ['before.txt', 'payload.txt', 'after.txt'],
+                                  {'payload.txt': 'root_rename_stat'},
+                                  self.uploads)
+        with patch.object(os, 'scandir', fake):
+            with self.assertRaises(FileNotFoundError):
+                script.get_upload_storage_bytes()
+        moved = self.uploads.with_name(self.uploads.name + '-moved')
+        self.assertFalse(self.uploads.exists())
+        self.assertEqual(before, (moved / 'before.txt').read_bytes())
+        self.assertEqual(payload, (moved / 'payload.txt').read_bytes())
+        self.assertEqual(after, (moved / 'after.txt').read_bytes())
+
+    def test_root_rescan_permission_and_non_directory_errors_propagate(self):
+        for error in (PermissionError('controlled inaccessible root on rescan'),
+                      NotADirectoryError('controlled non-directory root on rescan')):
+            with self.subTest(error=type(error).__name__):
+                self._write('before.txt', b'1234')
+                self._write('vanished.txt', b'vanished payload that must be skipped')
+                base_fake = _make_fake_scandir(
+                    self._real_scandir,
+                    ['before.txt', 'vanished.txt'],
+                    {'vanished.txt': 'vanish_stat'},
+                    self.uploads)
+                calls = {'count': 0}
+
+                def fake(path, _base=base_fake, _error=error):
+                    calls['count'] += 1
+                    if calls['count'] > 1:
+                        raise _error
+                    return _base(path)
+
                 with patch.object(os, 'scandir', fake):
                     with self.assertRaises(type(error)):
                         script.get_upload_storage_bytes()
