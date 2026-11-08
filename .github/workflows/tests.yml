@@ -282,13 +282,12 @@ jobs:
         run: choco install ffmpeg --no-progress -y
       - name: Verify native Windows transaction codec executables
         run: python -c "import subprocess; subprocess.run(['ffmpeg', '-version'], check=True); subprocess.run(['ffprobe', '-version'], check=True)"
-      - name: Install pinned PyAV for native Windows sound delivery
-        run: python -m pip install 'av==17.0.0'
-      - name: Verify native Windows sound snapshot, staging, and MP3/WAV delivery
+      - name: Install pinned encoding dependencies for native Windows sound delivery
+        run: python -m pip install 'av==17.0.0' 'Pillow==12.3.0'
+      - name: Verify native Windows sound snapshot, staging, and complete delivery exports
         run: >-
           python -m unittest tests.test_sound_design_publication tests.test_sound_design_delivery
-          tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_real_delivery_and_late_source_change_preserve_prior_output
-          tests.test_sound_design_delivery_export.SoundDeliveryExportTests.test_approved_wav_delivers_exact_candidate_pcm -v
+          tests.test_sound_design_delivery_export -v
       - name: Verify native Windows transaction, archive and cancellation handles
         env:
           PYTHONPATH: .
