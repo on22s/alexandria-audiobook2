@@ -834,6 +834,26 @@ def _get_fresh_upload_hash(path: str) -> str:
     return proof['sha256']
 
 
+def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
+    """Return True only when a candidate matches digest on both hashes.
+
+    Shared candidate policy for TXT/MD and EPUB dedupe (Rule 15): the
+    advisory size/mtime cache is a pre-filter only; a match also requires
+    the bounded fresh read in _get_fresh_upload_hash. An unverifiable
+    candidate (ValueError/OSError from either read, including a
+    permission/lock failure on the advisory read) is always a
+    conservative non-match, so callers skip it and retain the incoming
+    bytes. Control-flow exceptions such as CancelledError (a
+    BaseException, not ValueError/OSError) always propagate exactly.
+    """
+    try:
+        if _get_upload_hash(candidate_path) != digest:
+            return False
+        return _get_fresh_upload_hash(candidate_path) == digest
+    except (ValueError, OSError):
+        return False
+
+
 def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
     """Remove path and return an existing identical text upload when present."""
     # Serialize the scan-and-remove decision. Without this, two identical
@@ -865,12 +885,7 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                     continue
                 # Advisory cache pre-filter only: confirm current bytes
                 # before the destructive removal below.
-                if _get_upload_hash(entry.path) == digest:
-                    try:
-                        if _get_fresh_upload_hash(entry.path) != digest:
-                            continue
-                    except (ValueError, OSError):
-                        continue
+                if _is_candidate_upload_hash_match(entry.path, digest):
                     path.close() if owned else os.remove(path)
                     return entry.path, True
             except FileNotFoundError:
@@ -1385,12 +1400,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                             # EPUB fence checks original bytes, not this
                             # canonical TXT, so confirm its current bytes
                             # before selecting it.
-                            if _get_upload_hash(entry.path) == text_sha256:
-                                try:
-                                    if _get_fresh_upload_hash(entry.path) != text_sha256:
-                                        continue
-                                except (ValueError, OSError):
-                                    continue
+                            if _is_candidate_upload_hash_match(entry.path, text_sha256):
                                 return entry.path
                         except FileNotFoundError:
                             continue

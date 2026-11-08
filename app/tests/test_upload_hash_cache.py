@@ -290,6 +290,82 @@ class UploadHashDedupeFreshTests(unittest.TestCase):
             self.assertEqual(self.ORIGINAL, incoming.read_bytes())
             self.assertEqual(self.ORIGINAL, canonical.read_bytes())
 
+    def test_candidate_hash_helper_maps_advisory_failure_to_non_match(self):
+        # Shared candidate policy (Rule 15): advisory OSError maps to
+        # non-match without invoking fresh capture; fresh OSError also
+        # maps to non-match; control-flow CancelledError propagates exact.
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads = Path(tmp)
+            candidate = uploads / 'canonical.txt'
+            candidate.write_bytes(self.ORIGINAL)
+            digest = hashlib.sha256(self.ORIGINAL).hexdigest()
+            real_fresh = script._get_fresh_upload_hash
+            fresh_calls = []
+
+            def recording_fresh(path):
+                fresh_calls.append(path)
+                return real_fresh(path)
+
+            def advisory_oserror(path):
+                raise PermissionError('simulated advisory candidate read failure')
+
+            with patch.object(script, '_get_upload_hash', side_effect=advisory_oserror), \
+                    patch.object(script, '_get_fresh_upload_hash', side_effect=recording_fresh):
+                self.assertFalse(script._is_candidate_upload_hash_match(str(candidate), digest))
+            self.assertEqual([], fresh_calls,
+                             'advisory failure must short-circuit before fresh capture')
+
+            def fresh_oserror(path):
+                raise OSError('simulated fresh candidate read failure')
+
+            with patch.object(script, '_get_fresh_upload_hash', side_effect=fresh_oserror):
+                self.assertFalse(script._is_candidate_upload_hash_match(str(candidate), digest))
+
+            sentinel = asyncio.CancelledError('advisory cancelled')
+
+            def advisory_cancelling(path):
+                raise sentinel
+
+            with patch.object(script, '_get_upload_hash', side_effect=advisory_cancelling):
+                with self.assertRaises(asyncio.CancelledError) as caught:
+                    script._is_candidate_upload_hash_match(str(candidate), digest)
+            self.assertIs(sentinel, caught.exception)
+
+            # Positive/negative controls through the real helper.
+            self.assertTrue(script._is_candidate_upload_hash_match(str(candidate), digest))
+            self.assertFalse(script._is_candidate_upload_hash_match(
+                str(candidate), hashlib.sha256(self.CHANGED).hexdigest()))
+
+    def test_candidate_advisory_permission_error_skips_candidate_and_retains_incoming(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            uploads, canonical, _before = self._setup_uploads(tmp)
+            incoming = uploads / 'incoming.txt'
+            incoming.write_bytes(self.ORIGINAL)
+            real_hash = script._get_upload_hash
+            real_capture = script.capture_scope_file
+            capture_calls = []
+
+            def advisory_permission_error(path):
+                if Path(path) == canonical:
+                    raise PermissionError('simulated advisory candidate read failure')
+                return real_hash(path)
+
+            def recording_capture(root, relative, **kwargs):
+                capture_calls.append(relative)
+                return real_capture(root, relative, **kwargs)
+
+            with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                    patch.object(script, '_get_upload_hash', side_effect=advisory_permission_error), \
+                    patch.object(script, 'capture_scope_file', side_effect=recording_capture):
+                selected, reused = script._reuse_duplicate_upload(str(incoming))
+            self.assertFalse(reused, 'unreadable candidate must be skipped, not reused')
+            self.assertEqual(str(incoming), selected)
+            self.assertEqual(self.ORIGINAL, incoming.read_bytes(),
+                             'incoming upload must be retained, not discarded')
+            self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+            self.assertNotIn(canonical.name, capture_calls,
+                             'advisory failure must skip before fresh candidate capture')
+
     def test_fresh_capture_cancelled_error_propagates_exact_instance(self):
         # CancelledError is a BaseException, not ValueError/OSError: the
         # (ValueError, OSError) fail-closed catches must not convert it
@@ -421,6 +497,77 @@ class UploadHandlerFreshDedupeTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(second.json()['reused'])
             self.assertEqual(self.ORIGINAL, Path(second.json()['path']).read_bytes())
             self.assertEqual(self.CHANGED, canonical.read_bytes())
+
+    async def test_txt_handler_advisory_permission_error_publishes_new_group(self):
+        for suffix in ('.txt', '.md'):
+            with self.subTest(suffix=suffix):
+                async with self.environment() as (_root, uploads, client):
+                    first = await self._upload_txt(client, self.ORIGINAL, f'book{suffix}')
+                    self.assertEqual(200, first.status_code, first.text)
+                    canonical = uploads / f'book{suffix}'
+                    self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+                    before = {path.name: path.read_bytes() for path in uploads.iterdir()}
+                    real_hash = script._get_upload_hash
+
+                    def advisory_permission_error(path):
+                        if Path(path) == canonical:
+                            raise PermissionError('simulated advisory candidate read failure')
+                        return real_hash(path)
+
+                    with patch.object(script, '_get_upload_hash', side_effect=advisory_permission_error):
+                        second = await self._upload_txt(client, self.ORIGINAL, f'again{suffix}')
+                    self.assertEqual(200, second.status_code, second.text)
+                    self.assertFalse(second.json()['reused'])
+                    persisted = Path(second.json()['path'])
+                    self.assertEqual(self.ORIGINAL, persisted.read_bytes(),
+                                     'persisted new file must hold incoming bytes')
+                    self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+                    after = {path.name: path.read_bytes() for path in uploads.iterdir()}
+                    for name, data in before.items():
+                        self.assertEqual(data, after[name],
+                                         f'pre-existing file {name} must be unchanged')
+                    self.assertIn(persisted.name, set(after) - set(before))
+
+    async def test_epub_handler_advisory_permission_error_publishes_new_group(self):
+        async with self.environment() as (_root, uploads, client):
+            raw = _synthetic_epub(self.ORIGINAL)
+            first = await self._upload_epub(client, raw)
+            self.assertEqual(200, first.status_code, first.text)
+            canonical = uploads / 'book.txt'
+            self.assertEqual(self.ORIGINAL, canonical.read_bytes())
+            before = {path.name: path.read_bytes() for path in uploads.iterdir()}
+            real_hash = script._get_upload_hash
+
+            def advisory_permission_error(path):
+                if Path(path) == canonical:
+                    raise PermissionError('simulated advisory candidate read failure')
+                return real_hash(path)
+
+            with patch.object(script, '_get_upload_hash', side_effect=advisory_permission_error):
+                second = await self._upload_epub(client, raw, 'again.epub')
+            self.assertEqual(200, second.status_code, second.text)
+            self.assertFalse(second.json()['reused'])
+            persisted = Path(second.json()['path'])
+            self.assertEqual(self.ORIGINAL, persisted.read_bytes(),
+                             'persisted EPUB canonical TXT must hold extracted bytes')
+            self.assertEqual(self.ORIGINAL, canonical.read_bytes(),
+                             'failed canonical must be left untouched')
+            after = {path.name: path.read_bytes() for path in uploads.iterdir()}
+            for name, data in before.items():
+                self.assertEqual(data, after[name],
+                                 f'pre-existing file {name} (canonical/provenance) must be unchanged')
+            retained = Path(second.json()['retained_epub'])
+            retained_path = retained if retained.is_absolute() else uploads / retained.name
+            self.assertEqual(raw, retained_path.read_bytes())
+            self.assertIn(persisted.name, set(after) - set(before))
+            self.assertIn(retained_path.name, set(after) - set(before))
+            # Coherent new group: companion bound to the new TXT + origin.
+            import json as _json
+            companion_name = persisted.name + '.publication.json'
+            self.assertIn(companion_name, after)
+            record = _json.loads(after[companion_name])
+            self.assertEqual(hashlib.sha256(self.ORIGINAL).hexdigest(), record['binding']['sha256'])
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), record['candidates'][0]['origin']['sha256'])
 
     async def test_upload_cancellation_waits_for_paused_fresh_canonical_read(self):
         """Cancelling a real upload while the new fresh canonical read is
