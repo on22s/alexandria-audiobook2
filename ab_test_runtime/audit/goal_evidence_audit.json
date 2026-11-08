@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T10:34:13",
+  "written": "2026-11-08T11:12:16",
   "host": "RealMitch",
   "git": {
-   "commit": "f61caa936a678ddd0b9dfaf7859897e7c9e2cefd",
-   "branch": "fix/1828-force-cancellation-failure",
+   "commit": "99b98e8084d2245571be820eb6285174031030bb",
+   "branch": "fix/1827-upload-list-identity",
    "dirty": true,
-   "source_state": "dirty:9b7f355703a1",
+   "source_state": "dirty:cd7efd615913",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/core.py",
-    "M  app/tests/test_windows_cleanup_escalation.py",
+    "M  app/routers/script.py",
+    "M  app/tests/test_upload_hash_cache.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
