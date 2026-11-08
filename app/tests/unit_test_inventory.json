@@ -10022,6 +10022,9 @@
     "tests.test_rejected_persona_aliases.RejectedPersonaAliasTests.test_actual_basic_and_advanced_main_save_previews_for_rejected_aliases"
   ],
   "test_release_verifier": [
+    "tests.test_release_verifier.ApiSummaryRecordTypeTests.test_actual_json_loader_reports_invalid_fields_and_valid_failures",
+    "tests.test_release_verifier.ApiSummaryRecordTypeTests.test_malformed_record_fields_raise_controlled_validation_errors",
+    "tests.test_release_verifier.ApiSummaryRecordTypeTests.test_unicode_identities_preserve_skip_and_failure_reporting",
     "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module",
     "tests.test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits",
     "tests.test_release_verifier.CiEnvParityTests.test_changed_file_hints_name_the_missing_generator",
