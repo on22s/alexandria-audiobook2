@@ -422,9 +422,13 @@ class _HTMLTextExtractor(HTMLParser):
         super().__init__()
         self.parts = []
         self._pending_newline = 0
-        # Skipped elements are tracked by name, not just counted: a close
-        # for the wrong skipped element, or with no skipped element open,
-        # is malformed markup that a depth count would silently absorb.
+        # Skipped elements are tracked by name, not just counted, so the
+        # close that ends a genuinely open skipped element must name that
+        # element. A close with no skipped element open is tolerated: it
+        # cannot leave pending skipped content, and legitimate well-formed
+        # XHTML can produce one - HTMLParser scans script/style/title as
+        # raw/RCDATA text, so a literal close inside XML CDATA or a comment
+        # ends raw mode early and the real close then looks stray here.
         # HTMLParser itself treats <script>/<style> as raw text and
         # <title> as RCDATA, so markup inside them is data, never a
         # nested start/end tag here.
@@ -452,8 +456,9 @@ class _HTMLTextExtractor(HTMLParser):
         if tag not in self.SKIP_TAGS:
             return
         if not self._skip_stack:
-            raise ValueError(
-                f'unmatched closing </{tag}> element for a skipped element')
+            # Stray close (see __init__): tolerated, as in the original
+            # extractor - no skipped content is pending.
+            return
         if self._skip_stack[-1] != tag:
             raise ValueError(
                 f'mismatched closing </{tag}> element; '
@@ -791,10 +796,14 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             except ValueError as error:
                 # Report and ordinary extraction share this path, so a
                 # malformed resource is an actionable error in both. The
-                # message names only the resource and the offending tag;
-                # resource text is never included.
+                # static reason and bounded spine index come before the
+                # user-controlled resource path, so diagnostics truncation
+                # (2000 chars) cannot push the reason out of the detail
+                # for a very long internal member name. Resource text is
+                # never included.
                 raise ValueError(
-                    f'Malformed EPUB resource {href!r}: {error}') from error
+                    f'Malformed EPUB resource at spine index {spine_index}: '
+                    f'{error} (resource {href!r})') from error
             body_characters = len(text.strip())
             processed_paths.add(href)
             decisions = _get_epub_toc_title_decisions(text, anchor_positions, targets) if report is not None else None

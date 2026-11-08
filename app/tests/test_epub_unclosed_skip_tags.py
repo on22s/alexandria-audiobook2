@@ -2,9 +2,10 @@
 
 Synthetic EPUB fixtures only.  The production extractor silently swallowed
 the rest of a spine resource when its <title>/<style>/<script> was never
-closed (and ignored a stray skipped-element close), so a three-chapter
-book imported as only the first and last chapters.  These tests pin the
-narrow repair: unbalanced *skipped* elements are an actionable error,
+closed (a stray skipped-element close is tolerated - see the CDATA/comment
+compatibility controls), so a three-chapter book imported as only the first
+and last chapters.  These tests pin the
+narrow repair: a genuinely unclosed skipped element is an actionable error,
 while ordinary tolerant HTML and legitimate empty/non-text resources are
 still accepted.
 """
@@ -12,6 +13,7 @@ import html.parser
 import io
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
@@ -22,12 +24,12 @@ from tests.test_epub_extraction_report import archive as report_archive
 
 
 def make_epub(middle_body, *, before_last_manifest='', before_last_spine='',
-              extra_files=None):
+              extra_files=None, middle_name='middle.xhtml'):
     """A synthetic three-spine EPUB: first / middle / last."""
     package = (
         '<package><manifest>'
         '<item id="first" href="first.xhtml" media-type="application/xhtml+xml"/>'
-        '<item id="middle" href="middle.xhtml" media-type="application/xhtml+xml"/>'
+        f'<item id="middle" href="{middle_name}" media-type="application/xhtml+xml"/>'
         + before_last_manifest
         + '<item id="last" href="last.xhtml" media-type="application/xhtml+xml"/>'
         '</manifest><spine>'
@@ -40,7 +42,7 @@ def make_epub(middle_body, *, before_last_manifest='', before_last_spine='',
          '<rootfile full-path="book.opf"/></container>'),
         ('book.opf', package),
         ('first.xhtml', '<html><body><p>First readable chapter.</p></body></html>'),
-        ('middle.xhtml', middle_body),
+        (middle_name, middle_body),
         ('last.xhtml', '<html><body><p>Final readable chapter.</p></body></html>'),
     ]
     if extra_files:
@@ -89,38 +91,88 @@ class UnclosedSkipTagTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
                         script.extract_epub_text(str(path), include_report=True)
 
-    def test_mispaired_skip_close_a_depth_count_misses_raises(self):
-        cases = [
-            # A stray skipped-element close after a properly closed one.
-            # The old depth counter ignored it (depth already zero).
+    def test_stray_skip_close_is_tolerated_but_crossed_close_still_raises(self):
+        # A skipped-element close with no skipped element open cannot leave
+        # pending skipped content, so it is tolerated (the original
+        # extractor's behaviour). This matters for legitimate well-formed
+        # XHTML: HTMLParser scans script/style/title as raw/RCDATA text, so
+        # a literal closing sequence inside XML CDATA or a comment closes
+        # its raw mode early and the real close then looks "stray" here.
+        # Rejecting it would refuse well-formed books.
+        tolerated = [
             ('stray_style',
              '<html><body><title>Head</title></style>'
-             '<p>Middle readable chapter.</p></body></html>', 'style'),
+             '<p>Middle readable chapter.</p></body></html>'),
             ('stray_title',
              '<html><body><style>p{}</style></title>'
-             '<p>Middle readable chapter.</p></body></html>', 'title'),
+             '<p>Middle readable chapter.</p></body></html>'),
             ('stray_script',
              '<html><body><script>var x=1;</script></script>'
-             '<p>Middle readable chapter.</p></body></html>', 'script'),
-            # A close for a different skipped element inside raw content is
-            # literal text, so the enclosing element is left unclosed.
-            ('crossed_close',
-             '<html><body><style>code</script>'
-             '<p>Middle readable chapter.</p></body></html>', 'style'),
+             '<p>Middle readable chapter.</p></body></html>'),
             # Markup that looks like a nested skipped element inside <title>
             # is literal; the trailing </style> is then a stray close.
             ('literal_nest_then_stray',
              '<html><body><title><style>literal</title></style>'
-             '<p>Middle readable chapter.</p></body></html>', 'style'),
+             '<p>Middle readable chapter.</p></body></html>'),
         ]
-        for name, body, tag in cases:
+        for name, body in tolerated:
             with self.subTest(case=name):
                 raw = make_epub(body)
-                with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
-                    extract(raw)
-                self.assertIn(tag, str(caught.exception))
-                with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
-                    extract(raw, report=True)
+                text = extract(raw)
+                self.assertIn('Middle readable chapter.', text)
+                self.assertIn('First readable chapter.', text)
+                self.assertIn('Final readable chapter.', text)
+                reported, _report = extract(raw, report=True)
+                self.assertEqual(text, reported)
+        # By contrast, a wrong close inside raw content is literal data, so
+        # the enclosing skipped element is genuinely still open at the end
+        # of the resource and must still error.
+        crossed = make_epub(
+            '<html><body><style>code</script>'
+            '<p>Middle readable chapter.</p></body></html>')
+        with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
+            extract(crossed)
+        self.assertIn('style', str(caught.exception))
+        self.assertIn('unclosed', str(caught.exception))
+        with self.assertRaisesRegex(ValueError, r'middle\.xhtml'):
+            extract(crossed, report=True)
+
+    def test_wellformed_cdata_and_comment_resources_are_accepted(self):
+        # Each body is well-formed XML (ET control below): only ]]> ends a
+        # CDATA section and only --> ends a comment, so a literal skipped-
+        # element close inside either is legal data. HTMLParser's raw-text
+        # scanning nevertheless ends the skipped element at the literal
+        # sequence; the real close is then stray and must be tolerated.
+        # The junk tail the old text semantics expose after such a literal
+        # close is deliberately not pinned - only acceptance and that the
+        # surrounding chapters survive.
+        cases = [
+            ('script_cdata',
+             '<?xml version="1.0" encoding="utf-8"?>'
+             '<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+             '<script><![CDATA[var end="</script>";]]></script>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('style_cdata',
+             '<?xml version="1.0" encoding="utf-8"?>'
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+             '<style><![CDATA[p { content: "</style>"; }]]></style></head><body>'
+             '<p>Middle readable chapter.</p></body></html>'),
+            ('title_comment',
+             '<?xml version="1.0" encoding="utf-8"?>'
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+             '<title><!-- </title> -->Head words</title></head><body>'
+             '<p>Middle readable chapter.</p></body></html>'),
+        ]
+        for name, body in cases:
+            with self.subTest(case=name):
+                ET.fromstring(body.encode('utf-8'))  # well-formedness control
+                raw = make_epub(body)
+                text = extract(raw)
+                self.assertIn('First readable chapter.', text)
+                self.assertIn('Middle readable chapter.', text)
+                self.assertIn('Final readable chapter.', text)
+                reported, _report = extract(raw, report=True)
+                self.assertEqual(text, reported)
 
     def test_proper_paired_case_and_selfclosing_skip_tags_accepted(self):
         body = ('<html><head><TITLE>Head words</TITLE><STYLE>p{}</STYLE>'
@@ -190,16 +242,31 @@ class UnclosedSkipTagTests(unittest.TestCase):
         body = '<html><body><title>' + payload
         raw = make_epub(body)
         original_unescape = html.parser.unescape
+        payload_calls = []
 
         def fail_only_on_skipped_payload(value):
             if value == payload:
+                payload_calls.append(value)
                 raise MemoryError(
                     'simulated allocation failure decoding skipped title payload')
             return original_unescape(value)
 
         with patch('html.parser.unescape', side_effect=fail_only_on_skipped_payload):
+            # Armed positive control: the real stdlib parser, fed the same
+            # unclosed title payload, must trip the injection on close().
+            # This proves the patch is live on this interpreter; if a future
+            # stdlib changes that assumption, this control fails loudly
+            # instead of the negative test going silently inert.
+            control = html.parser.HTMLParser()
+            control.feed('<title>' + payload)
+            with self.assertRaises(MemoryError):
+                control.close()
+            self.assertEqual(1, len(payload_calls))
+            # Production extraction of the same payload must reject without
+            # any further payload decode call.
             with self.assertRaisesRegex(ValueError, r'middle\.xhtml') as caught:
                 extract(raw)
+            self.assertEqual(1, len(payload_calls))
         message = str(caught.exception)
         self.assertIn('unclosed <title>', message)
         self.assertNotIn(payload, message)
@@ -243,6 +310,30 @@ class UnclosedSkipTagTests(unittest.TestCase):
         self.assertEqual(
             ['second.xhtml', 'body.xhtml'],
             [row['resource'] for row in report['rows'] if row['kind'] == 'spine'])
+
+    def test_error_reason_and_spine_index_precede_long_resource_name(self):
+        # A very long internal member name must not push the actionable
+        # reason out of the diagnostics-truncated (2000 char) detail: the
+        # static tag/reason and bounded spine index come before the
+        # user-controlled path in the error message.
+        long_name = 'x' * 3000 + '.xhtml'
+        self.assertEqual(3006, len(long_name))
+        raw = make_epub(
+            '<html><head><title>Skipped header</head><body>'
+            '<p>Missing middle chapter.</p></body></html>',
+            middle_name=long_name)
+        with self.assertRaisesRegex(ValueError, r'spine index 1') as caught:
+            extract(raw)
+        message = str(caught.exception)
+        self.assertIn('unclosed <title>', message)
+        self.assertIn(long_name, message)
+        self.assertLess(message.index('spine index 1'),
+                        message.index(long_name))
+        self.assertLess(message.index('unclosed <title>'),
+                        message.index(long_name))
+        self.assertNotIn('Missing middle chapter', message)
+        with self.assertRaisesRegex(ValueError, r'spine index 1'):
+            extract(raw, report=True)
 
 
 class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
@@ -306,6 +397,68 @@ class UnclosedSkipTagUploadTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('script', response.json()['detail'])
             self.assertEqual([], list(directory.iterdir()))
             self.assertFalse((root / 'state.json').exists())
+
+    async def test_wellformed_cdata_script_upload_persists(self):
+        body = ('<?xml version="1.0" encoding="utf-8"?>'
+                '<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                '<script><![CDATA[var end="</script>";]]></script>'
+                '<p>Middle readable chapter.</p></body></html>')
+        ET.fromstring(body.encode('utf-8'))  # well-formedness control
+        raw = make_epub(body)
+        async with uploads.UploadPublicationSourceTests().environment() as (
+                root, directory, client):
+            response = await client.post(
+                '/api/upload?select_active=false',
+                files={'file': ('book.epub', raw, 'application/epub+zip')})
+            self.assertEqual(200, response.status_code, response.text)
+            names = sorted(item.name for item in directory.iterdir())
+            self.assertIn('book.txt', names)
+            self.assertIn('book.source.epub', names)
+            persisted = (directory / 'book.txt').read_bytes()
+            self.assertIn(b'First readable chapter.', persisted)
+            self.assertIn(b'Middle readable chapter.', persisted)
+            self.assertIn(b'Final readable chapter.', persisted)
+            self.assertEqual(raw, (directory / 'book.source.epub').read_bytes())
+
+    async def test_long_member_name_error_stays_actionable_and_safe(self):
+        long_name = 'x' * 3000 + '.xhtml'
+        bad = make_epub(
+            '<html><head><title>Skipped header</head><body>'
+            '<p>Missing middle chapter.</p></body></html>',
+            middle_name=long_name)
+        good = make_epub(GOOD_MIDDLE)
+        async with uploads.UploadPublicationSourceTests().environment() as (
+                root, directory, client):
+            first = await client.post(
+                '/api/upload?select_active=true',
+                files={'file': ('book.epub', good, 'application/epub+zip')})
+            self.assertEqual(200, first.status_code, first.text)
+            before = {item.name: item.read_bytes() for item in directory.iterdir()}
+            state_before = (root / 'state.json').read_bytes()
+            for name, params in (
+                    ('default', {}),
+                    ('report', {'include_extraction_report': 'true',
+                                'select_active': 'false'})):
+                with self.subTest(mode=name):
+                    query = '&'.join(f'{key}={value}' for key, value in params.items())
+                    url = '/api/upload' + (f'?{query}' if query else '')
+                    response = await client.post(
+                        url, files={'file': ('book.epub', bad,
+                                             'application/epub+zip')})
+                    self.assertEqual(400, response.status_code, response.text)
+                    detail = response.json()['detail']
+                    # The reason survives diagnostics truncation (2000 chars)
+                    # because it precedes the 3006-char resource name.
+                    self.assertIn('unclosed', detail)
+                    self.assertIn('title', detail)
+                    self.assertIn('spine index 1', detail)
+                    self.assertNotIn('Missing middle chapter', detail)
+                    self.assertEqual(
+                        before,
+                        {item.name: item.read_bytes()
+                         for item in directory.iterdir()})
+                    self.assertEqual(state_before,
+                                     (root / 'state.json').read_bytes())
 
 
 if __name__ == '__main__':

@@ -1050,17 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T13:41:04",
+  "written": "2026-11-08T14:30:09",
   "host": "RealMitch",
   "git": {
-   "commit": "c28465945422458417e25ba2610621389b5fa7c2",
+   "commit": "972a84e2555c254762994d7fbbae7850ac049c6c",
    "branch": "fix/1795-epub-malformed-skip",
    "dirty": true,
-   "source_state": "dirty:482fb40649db",
+   "source_state": "dirty:ff1000b8594b",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/routers/script.py",
-    "A  app/tests/test_epub_unclosed_skip_tags.py"
+    "M  app/tests/test_epub_unclosed_skip_tags.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
