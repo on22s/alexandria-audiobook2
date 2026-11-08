@@ -1050,17 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T00:21:05",
+  "written": "2026-11-08T01:23:25",
   "host": "RealMitch",
   "git": {
-   "commit": "920a28263ba539b9155f79d7041524ca8b287081",
-   "branch": "fix/1790-unmeasured-concurrency-cache",
+   "commit": "4fcc9dd08e0e88bce9522bbb5f50b6f08a404007",
+   "branch": "fix/1791-strict-api-summary-integers",
    "dirty": true,
-   "source_state": "dirty:4d5cc529db2a",
+   "source_state": "dirty:b41353940c5a",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/llm_bench.py",
-    "M  app/tests/test_llm_concurrency_cache.py"
+    "M  app/tests/test_api_summary_guards.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  app/verify_release.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

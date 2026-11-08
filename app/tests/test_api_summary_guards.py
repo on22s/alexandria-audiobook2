@@ -10,7 +10,13 @@ Each test below drives ONE branch and asserts its specific message, so a
 future refactor that silently drops a branch fails here rather than going
 quietly green.
 """
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 import verify_release
 
@@ -96,6 +102,92 @@ class EmptyAndMalformedApiSummaryTests(unittest.TestCase):
         for summary in ([], None, 'summary', True, 7):
             with self.subTest(summary=summary), self.assertRaisesRegex(ValueError, 'object'):
                 verify_release.validate_api_summary(summary, False)
+
+
+class StrictApiSummaryTypeTests(unittest.TestCase):
+    def test_valid_quick_and_full_integer_summaries_are_accepted(self):
+        quick = _summary()
+        self.assertEqual(quick["counts"],
+                         verify_release.validate_api_summary(quick, False))
+        full = _summary(mode="full", tests=[{"name": "t1", "status": "passed",
+                                             "requires_full": True}])
+        self.assertEqual(full["counts"],
+                         verify_release.validate_api_summary(full, True))
+
+    def test_schema_version_must_be_actual_int_not_bool_or_float(self):
+        for value in (True, 1.0):
+            with self.subTest(schema_version=value):
+                with self.assertRaisesRegex(ValueError, "Invalid API summary schema or mode"):
+                    verify_release.validate_api_summary(
+                        _summary(schema_version=value), False)
+
+    def test_every_count_must_be_actual_int_not_bool_or_float(self):
+        base_counts = {"passed": 1, "failed": 0, "skipped": 0, "total": 1}
+        for key, original in base_counts.items():
+            for value in (bool(original), float(original)):
+                with self.subTest(count=key, value=value):
+                    counts = dict(base_counts)
+                    counts[key] = value
+                    with self.assertRaisesRegex(ValueError, "nonnegative integers"):
+                        verify_release.validate_api_summary(
+                            _summary(counts=counts), False)
+
+    def test_malformed_counts_are_rejected(self):
+        base_counts = {"passed": 1, "failed": 0, "skipped": 0, "total": 1}
+        cases = []
+        for key in base_counts:
+            negative = dict(base_counts)
+            negative[key] = -1
+            cases.append((f"negative {key}", negative))
+            missing = dict(base_counts)
+            del missing[key]
+            cases.append((f"missing {key}", missing))
+            non_numeric = dict(base_counts)
+            non_numeric[key] = "1"
+            cases.append((f"non-numeric {key}", non_numeric))
+        extra = dict(base_counts)
+        extra["extra"] = 0
+        cases.append(("extra key", extra))
+        for label, counts in cases:
+            with self.subTest(case=label):
+                with self.assertRaises(ValueError):
+                    verify_release.validate_api_summary(
+                        _summary(counts=counts), False)
+
+    def test_run_api_suite_loads_json_and_rejects_malformed_types(self):
+        malformed = _summary(schema_version=True)
+        def write_summary(_label, command, _cwd):
+            Path(command[command.index("--json-summary") + 1]).write_text(
+                json.dumps(malformed), encoding="utf-8")
+        with patch.object(verify_release, "run_report_command",
+                          side_effect=write_summary):
+            with self.assertRaisesRegex(ValueError, "Invalid API summary schema or mode"):
+                verify_release.run_api_suite(Path("."), False)
+
+    def test_malformed_summary_fails_main_gate_and_report(self):
+        malformed = _summary(counts={"passed": True, "failed": 0,
+                                      "skipped": 0, "total": 1})
+        def command(_label, args, _cwd, **kwargs):
+            if "--test-report" in args:
+                Path(args[args.index("--test-report") + 1]).write_text(
+                    json.dumps({"test_ids": [f"test.{i}" for i in range(600)]}))
+                return 600
+            if "--json-summary" in args:
+                Path(args[args.index("--json-summary") + 1]).write_text(
+                    json.dumps(malformed))
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = Path(tmp) / "report.json"
+            with patch.object(verify_release, "compile_python_files", return_value=None), \
+                 patch.object(verify_release, "run_command", side_effect=command), \
+                 contextlib.redirect_stdout(io.StringIO()), \
+                 contextlib.redirect_stderr(io.StringIO()) as stderr:
+                self.assertEqual(1, verify_release.main(
+                    ["--json-report", str(report_path)]))
+            self.assertIn("RELEASE VERIFICATION FAILED", stderr.getvalue())
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual("failed", report["status"])
+        self.assertEqual("api_tests", report["failure"]["gate"])
+        self.assertEqual("failed", report["gates"][-1]["status"])
 
 
 if __name__ == "__main__":
