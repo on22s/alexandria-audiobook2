@@ -51,6 +51,15 @@ _BENCH_USER_PROMPT = (
 _BENCH_MAX_TOKENS = 1600
 
 
+# Version 1 entries are ambiguous: a persisted concurrency==1 may be a genuine
+# measurement or an unmeasured fallback that pre-fix code saved as if measured.
+# Bumping the environment version invalidates every v1 entry once, so the next
+# non-single-slot run re-benchmarks under v2 instead of trusting the ambiguous
+# value forever. The cost is one re-measurement per
+# profile; genuine v1 measurements are simply re-measured, not misused.
+_CONCURRENCY_ENVIRONMENT_VERSION = 2
+
+
 def _one_call(client, model, max_tokens, timeout):
     t0 = time.time()
     resp = client.with_options(timeout=timeout).chat.completions.create(
@@ -166,7 +175,7 @@ def get_concurrency_environment(base_url, model_name, is_remote, ssh_alias,
                                 hostname, gpu_name, backend, status):
     """Return the observed environment that a concurrency measurement belongs to."""
     return {
-        "version": 1, "base_url": base_url, "model_name": model_name,
+        "version": _CONCURRENCY_ENVIRONMENT_VERSION, "base_url": base_url, "model_name": model_name,
         "remote": is_remote, "host": ssh_alias if is_remote else hostname,
         "gpu_name": gpu_name, "backend": backend,
         "runtime": status.get("runtime", "lmstudio"),
@@ -178,6 +187,29 @@ def get_concurrency_environment(base_url, model_name, is_remote, ssh_alias,
     }
 
 
+def _invalidate_concurrency_cache(config_path, profile_key, cache_key):
+    """Drop only the matching bound cache qualification, best-effort.
+
+    A known single-slot observation must not leave a prior measurement
+    looking qualified for this endpoint/model/profile when a later status
+    omits `parallel`. This re-reads the config under `file_lock` and removes
+    `concurrency_environment` only when the freshly read profile still
+    names this exact `concurrency_for` key; the numeric value stays as
+    unqualified diagnostic data and other profiles/fields are untouched.
+    """
+    try:
+        with file_lock(config_path):
+            config = load_app_config(config_path, for_update=True)
+            profile = dict(config.get(profile_key) or {})
+            if profile.get("concurrency_for") != cache_key or "concurrency_environment" not in profile:
+                return
+            profile.pop("concurrency_environment")
+            config[profile_key] = profile
+            atomic_json_write(config, config_path)
+    except (OSError, TimeoutError, TypeError, ValueError):
+        pass
+
+
 def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model_name,
                                            client, ssh_alias=None, max_concurrency=16,
                                            status=None, llm_config=None):
@@ -187,6 +219,12 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
     (whichever `llm_mode` selects) if it was measured against this exact
     observed environment, bounded by the caller's cap and current server limit.
     Cached measurements are retained when a temporary limit reduces usage.
+    Only a valid measured sweep persists a new qualified entry. A failed
+    sweep returns an unmeasured fallback 1 without writing; manual transport
+    and an unavailable server likewise return without writing; a known
+    single-slot server returns 1 without benchmarking or GPU probing and
+    performs only the targeted qualification invalidation above, never
+    saving the policy value as a measurement.
 
     On a cache miss, logs an environment fingerprint (hostname, GPU
     name/backend, LM Studio's actual loaded parallel/context) *before*
@@ -230,6 +268,17 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
         print("  Server status unknown (unreachable or no SSH alias configured) - "
               "defaulting to concurrency=1 rather than guessing at a safe limit.")
         return 1
+    if server_parallel is not None and server_parallel <= 1:
+        # Deliberate single-slot policy, not a benchmark measurement: return
+        # the safe value without probing the GPU or consulting the cache as
+        # evidence. Invalidate only this bound key's prior qualification so
+        # a later unknown-parallel status cannot reuse it as stale evidence;
+        # the policy value itself is never saved as a measurement.
+        print(f"  Server reports parallel={server_parallel} for {base_url}::{model_name} - "
+              f"concurrency can't help here (this is the local VRAM-safe default "
+              f"unless changed), skipping benchmark.")
+        _invalidate_concurrency_cache(config_path, profile_key, cache_key)
+        return 1
 
     hostname = platform.node()
     if is_remote:
@@ -253,16 +302,29 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
           f"| LM Studio: available={status.get('available')} loaded={status.get('loaded')} "
           f"parallel={status.get('parallel')} context={status.get('context_length')}")
 
-    if server_parallel is not None and server_parallel <= 1:
-        print(f"  Server reports parallel={server_parallel} - concurrency can't help here "
-              f"(this is the local VRAM-safe default unless changed), skipping benchmark.")
-        concurrency = 1
-    else:
-        print(f"  Benchmarking {model_name} at {base_url} to find optimal concurrency "
-              f"(cap={effective_max})...")
-        concurrency = find_optimal_concurrency(client, model_name, effective_max,
-                                                server_parallel_limit=server_parallel)
-        print(f"  Optimal concurrency: {concurrency}")
+    print(f"  Benchmarking {model_name} at {base_url} to find optimal concurrency "
+          f"(cap={effective_max})...")
+    level_one_throughput = []
+
+    def _record_measurement(level, throughput, _elapsed):
+        if level == 1:
+            level_one_throughput.append(throughput)
+
+    concurrency = find_optimal_concurrency(client, model_name, effective_max,
+                                            server_parallel_limit=server_parallel,
+                                            on_measurement=_record_measurement)
+    if not level_one_throughput or level_one_throughput[0] is None or level_one_throughput[0] <= 0:
+        # Success-qualified caching (cf. functools.cache): a failed
+        # initial measurement is a safe fallback for this run only, never
+        # a measured cache entry. Returning here skips the persistence
+        # block below, so the old/unrelated profile bytes are untouched
+        # and a later healthy run benchmarks again. Interruptions
+        # (KeyboardInterrupt etc.) propagate out of find_optimal_concurrency
+        # before this point and likewise never reach the write.
+        print("  Benchmark measurement failed - using unmeasured fallback "
+              "concurrency=1 for this run (not cached).")
+        return 1
+    print(f"  Optimal concurrency: {concurrency}")
 
     try:
         with file_lock(config_path):

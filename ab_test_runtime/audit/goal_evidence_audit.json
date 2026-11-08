@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T22:41:34",
+  "written": "2026-11-08T00:21:05",
   "host": "RealMitch",
   "git": {
-   "commit": "fa356e6e0fefa3be2616a354414452beabfc7f45",
-   "branch": "fix/1789-benchmark-infrastructure-failures",
+   "commit": "920a28263ba539b9155f79d7041524ca8b287081",
+   "branch": "fix/1790-unmeasured-concurrency-cache",
    "dirty": true,
-   "source_state": "dirty:a2bd860801d5",
+   "source_state": "dirty:4d5cc529db2a",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/benchmark_runner.py",
-    "M  app/tests/test_benchmark_infrastructure_failures.py"
+    "M  app/llm_bench.py",
+    "M  app/tests/test_llm_concurrency_cache.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
