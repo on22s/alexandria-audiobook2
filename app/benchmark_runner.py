@@ -19,7 +19,9 @@ from urllib.parse import urlparse
 
 from llm_provider import make_llm_client, resolve_api_key
 
-from benchmark_worker_protocol import get_benchmark_worker_result
+from benchmark_worker_protocol import (get_benchmark_worker_result,
+                                      get_benchmark_failure_message,
+                                      is_benchmark_worker_infrastructure_failure)
 from benchmark_core import (get_benchmark_llm_config, load_resumable_benchmark_report,
                             save_benchmark_report)
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
@@ -53,14 +55,15 @@ def get_benchmark_worker_command(arguments, target, ssh_alias):
 
 
 def run_benchmark_worker(command, marker, failure_message, *, timeout,
-                         error_limit=4000, raise_failed=False, input=None):
+                         error_limit=4000, raise_failed=False, raise_infrastructure=False, input=None):
     """Supervise one worker and interpret its result with the stage's policy."""
     options = {"capture_output": True, "text": True, "timeout": timeout, "check": False}
     if input is not None:
         options["input"] = input
     result = run_benchmark_subprocess(command, **options)
     return get_benchmark_worker_result(result, marker, failure_message,
-                                       error_limit=error_limit, raise_failed=raise_failed)
+                                       error_limit=error_limit, raise_failed=raise_failed,
+                                       raise_infrastructure=raise_infrastructure)
 
 
 def _validate_tts_fixture(fixture, root_dir=None):
@@ -162,17 +165,37 @@ def _validate_profiling_fixture(fixture, root_dir):
     return content
 
 
+def apply_benchmark_boundary_failure(state):
+    """Mark stage failed and every unfinished task failed, without any report/manifest."""
+    state["status"] = "failed"
+    for task in state.get("tasks", []) or []:
+        if isinstance(task, dict) and task.get("status") != "done":
+            task["status"] = "failed"
+
+
 def wrap_benchmark_cancellation(function):
     """Bind one stage's state without changing other concurrent invocations."""
     @wraps(function)
     def run(manifest, environment, report_path, state, *args, **kwargs):
+        state["status"] = "running"
         token = BENCHMARK_STATE.set(state)
         try:
-            return function(manifest, environment, report_path, state, *args, **kwargs)
-        except BenchmarkCancelled:
-            report = load_resumable_benchmark_report(report_path, manifest, environment)
-            apply_benchmark_cancellation(state, report, manifest, report_path)
-            return report
+            try:
+                return function(manifest, environment, report_path, state, *args, **kwargs)
+            except BenchmarkCancelled:
+                report = load_resumable_benchmark_report(report_path, manifest, environment)
+                if state.get("status") != "cancelled":
+                    if not apply_benchmark_cancellation(state, report, manifest, report_path):
+                        apply_benchmark_failure(state, report, manifest)
+                return report
+        except BaseException:
+            # Own the unhandled boundary (preamble or cancellation
+            # finalization): mark failed without loading a report, which
+            # may be unavailable/corrupt, then propagate unchanged. The
+            # inner handler already owns normal cancellation, so an
+            # unhandled BenchmarkCancelled here is a finalization failure.
+            apply_benchmark_boundary_failure(state)
+            raise
         finally:
             BENCHMARK_STATE.reset(token)
     return run
@@ -392,7 +415,7 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
                    "train_script": train_script, "output_root": output_root}
         worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200, input=json.dumps(payload))
+        return run_benchmark_worker(command, 'LORA_TRAINING_BENCHMARK_RESULT=', 'training worker failed', timeout=7200, raise_infrastructure=True, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "training")
@@ -400,22 +423,72 @@ def _run_lora_training_worker(fixture, target, settings, root_dir, ssh_alias):
 
 def apply_benchmark_cancellation(state, report, manifest, report_path):
     """Preserve completed cases and mark unfinished tasks when cancel is queued."""
-    if not state.get("cancel"):
+    if not state.get("cancel") or state.get("status") == "failed":
+        # Terminal failure owns the state: never re-transition to cancelled
+        # or reattempt a failed cancellation publication.
         return False
     completed = get_benchmark_completed_cases(report)
     for task, fixture in zip(state.get("tasks", []), manifest["fixtures"]):
-        if task.get("status") == "failed":
-            continue
         task["status"] = ("done" if all((fixture["id"], repetition) in completed
                            for repetition in range(1, manifest["repetitions"] + 1))
                           else "cancelled")
     state["status"] = "cancelled"
-    save_benchmark_report(report_path, report)
+    try:
+        save_benchmark_report(report_path, report)
+    except BaseException:
+        # This helper owns its publication failure: mark failed (so core
+        # history cannot record cancelled for a lost durable report), then
+        # propagate the original publication exception unchanged.
+        apply_benchmark_failure(state, report, manifest)
+        raise
     return True
 
 
+def get_benchmark_latest_cases(report):
+    latest = {}
+    for case in report["cases"]:
+        latest[(case["fixture_id"], case["repetition"])] = case
+    return latest
+
+
+def get_benchmark_infrastructure_cases(report, manifest):
+    expected = {(fixture["id"], repetition) for fixture in manifest["fixtures"]
+                for repetition in range(1, manifest["repetitions"] + 1)}
+    latest = get_benchmark_latest_cases(report)
+    return [case for key, case in latest.items()
+            if key in expected and is_benchmark_worker_infrastructure_failure(case)]
+
+
+def raise_benchmark_infrastructure_failure(state, report, manifest):
+    """Shared final failure for latest-attempt infrastructure cases."""
+    failures = get_benchmark_infrastructure_cases(report, manifest)
+    if not failures:
+        return
+    apply_benchmark_failure(state, report, manifest)
+    raise RuntimeError(get_benchmark_failure_message(
+        failures[0].get("error"), "benchmark worker infrastructure failed"))
+
+
 def get_benchmark_completed_cases(report):
-    return {(case["fixture_id"], case["repetition"]) for case in report["cases"]}
+    """Latest attempt per (fixture, repetition) decides completion.
+
+    Raw cases are never deleted: an infrastructure attempt followed by a
+    measured attempt is completed, and a measured attempt followed by a
+    later infrastructure attempt is not (its identifier alone hides nothing).
+    """
+    latest = get_benchmark_latest_cases(report)
+    return {key for key, case in latest.items()
+            if not is_benchmark_worker_infrastructure_failure(case)}
+
+
+def apply_benchmark_failure(state, report, manifest):
+    """Mark unfinished latest attempts failed; never mark exception-only done."""
+    completed = get_benchmark_completed_cases(report)
+    for task, fixture in zip(state.get("tasks", []), manifest["fixtures"]):
+        task["status"] = ("done" if all((fixture["id"], repetition) in completed
+                                        for repetition in range(1, manifest["repetitions"] + 1))
+                          else "failed")
+    state["status"] = "failed"
 
 
 def is_benchmark_progress_stage(stage):
@@ -427,15 +500,21 @@ def save_benchmark_case(report_path, report, case, *, log_state=None):
     updated = {**report, "cases": [*report["cases"], copy.deepcopy(case)]}
     save_benchmark_report(report_path, updated)
     if log_state is not None:
-        log_state["logs"].append(
-            f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
+        append_benchmark_progress_log(log_state, case)
     return updated
 
 
+def append_benchmark_progress_log(state, case):
+    """One shared progress-log append; lifecycle callers log after assignment."""
+    state["logs"].append(
+        f"{case['fixture_id']} repetition {case['repetition']}: {case['status']}")
+
+
 def apply_benchmark_completion(state, report, manifest, report_path):
-    """Keep cancellation authoritative before marking all tasks complete."""
+    """Keep cancellation authoritative, then infrastructure, then completion."""
     if apply_benchmark_cancellation(state, report, manifest, report_path):
         return
+    raise_benchmark_infrastructure_failure(state, report, manifest)
     expected = {(fixture["id"], repetition) for fixture in manifest["fixtures"]
                 for repetition in range(1, manifest["repetitions"] + 1)}
     missing = expected - get_benchmark_completed_cases(report)
@@ -448,51 +527,95 @@ def apply_benchmark_completion(state, report, manifest, report_path):
 
 def run_benchmark_repetitions(manifest, environment, report_path, state, execute_case, *, report=None):
     """Own resume filtering, durable case publication and stage completion."""
-    report = (copy.deepcopy(report) if report is not None else
-              load_resumable_benchmark_report(report_path, manifest, environment))
-    completed = get_benchmark_completed_cases(report)
-    track_progress = is_benchmark_progress_stage(manifest["stage"])
-    for fixture_index, fixture in enumerate(manifest["fixtures"]):
-        if track_progress:
-            state["current_task_idx"] = fixture_index
-            state["tasks"][fixture_index]["status"] = "running"
-        for repetition in range(1, manifest["repetitions"] + 1):
-            if (fixture["id"], repetition) in completed:
-                continue
-            if apply_benchmark_cancellation(state, report, manifest, report_path):
-                return report
-            result = execute_case(fixture, repetition)
-            case = {"fixture_id": fixture["id"], "repetition": repetition, **result}
-            report = save_benchmark_case(report_path, report, case,
-                                         log_state=state if track_progress else None)
-        if track_progress:
-            state["tasks"][fixture_index]["status"] = "done"
-    apply_benchmark_completion(state, report, manifest, report_path)
-    return report
+    state["status"] = "running"
+    try:
+        report = (copy.deepcopy(report) if report is not None else
+                  load_resumable_benchmark_report(report_path, manifest, environment))
+    except BaseException:
+        apply_benchmark_boundary_failure(state)
+        raise
+    try:
+        completed = get_benchmark_completed_cases(report)
+        track_progress = is_benchmark_progress_stage(manifest["stage"])
+        for fixture_index, fixture in enumerate(manifest["fixtures"]):
+            if track_progress:
+                state["current_task_idx"] = fixture_index
+                state["tasks"][fixture_index]["status"] = "running"
+            for repetition in range(1, manifest["repetitions"] + 1):
+                if (fixture["id"], repetition) in completed:
+                    continue
+                if apply_benchmark_cancellation(state, report, manifest, report_path):
+                    return report
+                result = execute_case(fixture, repetition)
+                case = {"fixture_id": fixture["id"], "repetition": repetition, **result}
+                report = save_benchmark_case(report_path, report, case)
+                if track_progress:
+                    append_benchmark_progress_log(state, case)
+                if is_benchmark_worker_infrastructure_failure(case):
+                    # Retain the raw case, then fail without starting more work;
+                    # cancellation queued by execute remains authoritative.
+                    if apply_benchmark_cancellation(state, report, manifest, report_path):
+                        return report
+                    raise_benchmark_infrastructure_failure(state, report, manifest)
+            if track_progress:
+                state["tasks"][fixture_index]["status"] = "done"
+        apply_benchmark_completion(state, report, manifest, report_path)
+        return report
+    except BenchmarkCancelled:
+        # Direct caller bookkeeping, like batch: cancellation if flagged,
+        # otherwise the old failure fallback rather than a running state.
+        if not apply_benchmark_cancellation(state, report, manifest, report_path):
+            apply_benchmark_failure(state, report, manifest)
+        raise
+    except Exception:
+        # Cancellation queued during execute/publication (e.g. after
+        # subprocess supervision, before strict parsing raised) is
+        # authoritative: return the cancelled report instead of re-raising
+        # so core history records cancelled, not failed.
+        if apply_benchmark_cancellation(state, report, manifest, report_path):
+            return report
+        apply_benchmark_failure(state, report, manifest)
+        raise
+    except BaseException:
+        # Original guard domain for non-cancellation fatalities
+        # (SystemExit, KeyboardInterrupt, GeneratorExit, ...): propagate,
+        # but leave failed state/tasks so core history (which catches only
+        # Exception) cannot record completed.
+        apply_benchmark_failure(state, report, manifest)
+        raise
 
 
 def run_benchmark_batch(manifest, environment, report_path, state, execute_batch, *, report=None):
     """Preserve warm/remote batching with the same durable lifecycle as local cases."""
-    report = (copy.deepcopy(report) if report is not None else
-              load_resumable_benchmark_report(report_path, manifest, environment))
-    pending = _pending_fixtures_with_repetitions(
-        manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
-    if apply_benchmark_cancellation(state, report, manifest, report_path):
-        return report
-    track_progress = is_benchmark_progress_stage(manifest["stage"])
-    if pending:
-        pending_ids = {fixture["id"] for fixture in pending}
-        active_indexes = [index for index, fixture in enumerate(manifest["fixtures"])
-                          if fixture["id"] in pending_ids]
-        if track_progress:
-            state["status"] = "running"
-            state["current_task_idx"] = active_indexes[0]
-            for index in active_indexes:
-                state["tasks"][index]["status"] = "running"
-        try:
+    state["status"] = "running"
+    try:
+        report = (copy.deepcopy(report) if report is not None else
+                  load_resumable_benchmark_report(report_path, manifest, environment))
+    except BaseException:
+        apply_benchmark_boundary_failure(state)
+        raise
+    try:
+        pending = _pending_fixtures_with_repetitions(
+            manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))
+        if apply_benchmark_cancellation(state, report, manifest, report_path):
+            return report
+        track_progress = is_benchmark_progress_stage(manifest["stage"])
+        if pending:
+            pending_ids = {fixture["id"] for fixture in pending}
+            active_indexes = [index for index, fixture in enumerate(manifest["fixtures"])
+                              if fixture["id"] in pending_ids]
+            if track_progress:
+                state["status"] = "running"
+                state["current_task_idx"] = active_indexes[0]
+                for index in active_indexes:
+                    state["tasks"][index]["status"] = "running"
             for case in execute_batch(pending):
-                report = save_benchmark_case(report_path, report, case,
-                                             log_state=state if track_progress else None)
+                # Collect/persist every already-produced case (including
+                # infrastructure attempts) before the shared final check in
+                # apply_benchmark_completion; no new producer work is started.
+                report = save_benchmark_case(report_path, report, case)
+                if track_progress:
+                    append_benchmark_progress_log(state, case)
                 if track_progress:
                     completed = get_benchmark_completed_cases(report)
                     for index in active_indexes:
@@ -500,16 +623,26 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                         if all((fixture_id, repetition) in completed
                                for repetition in range(1, manifest["repetitions"] + 1)):
                             state["tasks"][index]["status"] = "done"
-        except BaseException:
-            if not apply_benchmark_cancellation(state, report, manifest, report_path):
-                if track_progress:
-                    state["status"] = "failed"
-                    for index in active_indexes:
-                        if state["tasks"][index]["status"] != "done":
-                            state["tasks"][index]["status"] = "failed"
-            raise
-    apply_benchmark_completion(state, report, manifest, report_path)
-    return report
+        apply_benchmark_completion(state, report, manifest, report_path)
+        return report
+    except BenchmarkCancelled:
+        # Direct shared-lifecycle callers (not only the stage wrapper)
+        # depend on cancellation bookkeeping/publication here before the
+        # original signal propagates; flag-false keeps the failure fallback.
+        if not apply_benchmark_cancellation(state, report, manifest, report_path):
+            apply_benchmark_failure(state, report, manifest)
+        raise
+    except Exception:
+        # As in repetitions: a queued cancellation wins over a generic
+        # failure raised at this boundary.
+        if apply_benchmark_cancellation(state, report, manifest, report_path):
+            return report
+        apply_benchmark_failure(state, report, manifest)
+        raise
+    except BaseException:
+        # Original guard domain (see repetitions): mark failed, propagate.
+        apply_benchmark_failure(state, report, manifest)
+        raise
 
 
 @wrap_benchmark_cancellation
@@ -557,7 +690,7 @@ def _run_preparer_worker(fixture, target, settings, root_dir, ssh_alias):
                "preparer_script": preparer_script}
     worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'PREPARER_BENCHMARK_RESULT=', 'preparer worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -611,7 +744,7 @@ def _run_dedup_worker(fixture, target, settings, root_dir, ssh_alias):
                    "analysis_script": analysis_script}
         worker_command = [python_executable, worker_script, "--payload-stdin"]
         command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600, input=json.dumps(payload))
+        return run_benchmark_worker(command, 'DEDUP_BENCHMARK_RESULT=', 'dedup worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
     finally:
         if remote_source is not None:
             apply_remote_benchmark_asset_cleanup(ssh_alias, remote_source, "dedup")
@@ -663,7 +796,7 @@ def _run_profiling_worker(fixture, target, settings, root_dir, ssh_alias):
                "zip_path": worker_zip, "model_path": model_path}
     worker_command = [python_executable, worker_script, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'PROFILING_BENCHMARK_RESULT=', 'profiling worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -696,7 +829,7 @@ def _run_naming_worker(fixture, target, settings, root_dir, ssh_alias):
     payload = {"fixture": fixture, "python": python_executable, "script": script}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'NAMING_BENCHMARK_RESULT=', 'naming worker failed', timeout=120, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -898,7 +1031,7 @@ def _run_export_worker(stage, fixture, target, settings, root_dir, ssh_alias):
     payload = {"stage": stage, "fixture": fixture, "source_root": source_root}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'EXPORT_BENCHMARK_RESULT=', 'export worker failed', timeout=900, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation
@@ -930,7 +1063,7 @@ def _run_dataset_builder_worker(fixture, target, settings, root_dir, ssh_alias,
     payload = {"fixture": fixture, "tts": tts_config}
     worker_command = [python_executable, worker, "--payload-stdin"]
     command = get_benchmark_worker_command(worker_command, target, ssh_alias)
-    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600, input=json.dumps(payload))
+    return run_benchmark_worker(command, 'DATASET_BUILDER_BENCHMARK_RESULT=', 'Dataset Builder worker failed', timeout=3600, raise_infrastructure=True, input=json.dumps(payload))
 
 
 @wrap_benchmark_cancellation

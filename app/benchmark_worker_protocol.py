@@ -39,13 +39,39 @@ def emit_benchmark_worker_result(marker, execute, *, metrics_only=False):
     print(marker + encoded)
 
 
+def is_benchmark_worker_infrastructure_failure(value):
+    """One shared predicate for a worker exception with no usable measurements.
+
+    emit_benchmark_worker_result() and TTS per-case catches both produce
+    {"status":"failed","metrics":{},"error":...}. The "error" key must be
+    present and not None (empty exception text still counts); measured
+    quality negatives carry measurements/other evidence and no such payload.
+    """
+    return (isinstance(value, dict) and value.get("status") == "failed"
+            and "error" in value and value.get("error") is not None
+            and value.get("metrics") == {})
+
+
+def get_benchmark_failure_message(error, failure_message, error_limit=4000):
+    """Single bounded formatter; positive-limit behaviour matches the parser.
+
+    Full raw case errors stay in reports; only raised/history messages use this.
+    """
+    return str(error or failure_message)[-error_limit:]
+
+
 def get_benchmark_worker_result(result, marker, failure_message, *, error_limit=4000,
-                                raise_failed=False):
+                                raise_failed=False, raise_infrastructure=False):
     lines = [line for line in result.stdout.splitlines() if line.startswith(marker)]
     if result.returncode or not lines:
         detail = result.stderr.strip() or result.stdout.strip() or failure_message
-        raise RuntimeError(detail[-error_limit:])
+        raise RuntimeError(get_benchmark_failure_message(detail, failure_message, error_limit))
     value = json.loads(lines[-1][len(marker):])
-    if raise_failed and isinstance(value, dict) and value.get("status") == "failed":
-        raise RuntimeError(str(value.get("error") or failure_message)[-error_limit:])
+    # raise_failed keeps its legacy blanket meaning for envelope callers
+    # (TTS/LLM top-level dict); raise_infrastructure is the shared
+    # no-measurement classifier used by dict/metrics adapters whose
+    # measured quality negatives also carry status "failed".
+    if (raise_failed and isinstance(value, dict) and value.get("status") == "failed") or (
+            raise_infrastructure and is_benchmark_worker_infrastructure_failure(value)):
+        raise RuntimeError(get_benchmark_failure_message(value.get("error"), failure_message, error_limit))
     return value
