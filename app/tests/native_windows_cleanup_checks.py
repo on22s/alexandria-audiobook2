@@ -18,6 +18,7 @@ from unittest.mock import patch
 import verify_release as verifier
 import run_isolated_api_tests as runner
 from subprocess_ownership import is_subprocess_tree_running, start_owned_subprocess
+from subprocess_ownership import run_owned_capture
 
 
 def _base_python():
@@ -45,6 +46,54 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
         proc.wait(timeout=3)
         if proc.stdout is not None:
             proc.stdout.close()
+
+    def test_cancel_refusal_acknowledges_live_job_then_escalates(self):
+        import core
+        proc = self._start_owned_sleep()
+        state = dict(running=True, cancel=False, process=proc, pid=proc.pid)
+        try:
+            time.sleep(.3)
+            with patch.dict(core.process_state, {'_native_refusal': state}):
+                result = core._cancel_task('_native_refusal', 'idle', 'exited')
+            self.assertEqual('cancel requested', result['status'])
+            self.assertTrue(state['cancel'])
+            self.assertTrue(is_subprocess_tree_running(proc))
+            with patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .1):
+                stamp, killed = core.apply_cancel_escalation(proc, None, False)
+                self.assertFalse(killed)
+                time.sleep(.15)
+                _, killed = core.apply_cancel_escalation(proc, stamp, killed)
+            self.assertTrue(killed)
+            proc._alexandria_windows_owner.job.ensure_stopped()
+            proc.wait(timeout=3)
+            self.assertFalse(is_subprocess_tree_running(proc))
+        finally:
+            self._close_owned(proc)
+
+    def test_capture_timeout_survives_real_graceful_refusal_and_reaps_job(self):
+        import subprocess_ownership as ownership
+        processes = []
+        def start(*args, **kwargs):
+            process = start_owned_subprocess(*args, **kwargs)
+            processes.append(process)
+            return process
+        try:
+            with patch.object(ownership, 'start_owned_subprocess', side_effect=start):
+                with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                    run_owned_capture([_base_python(), '-c', 'import time; time.sleep(30)'], timeout=.3)
+            self.assertEqual(.3, raised.exception.timeout)
+            self.assertEqual(1, len(processes))
+            process = processes[0]
+            self.assertIsNotNone(process.poll())
+            self.assertIsNone(process._alexandria_windows_owner.job.handle)
+            self.assertFalse(is_subprocess_tree_running(process))
+            self.assertTrue(process.stdout.closed)
+            self.assertTrue(process.stderr.closed)
+        finally:
+            for process in processes:
+                self._close_owned(process)
+                if process.stderr is not None:
+                    process.stderr.close()
 
     def test_verifier_stop_process_group_honors_full_grace_then_forces(
         self,
@@ -256,7 +305,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 4 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 6 and not result.skipped else 1
 
 
 if __name__ == '__main__':
