@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T03:40:26",
+  "written": "2026-11-08T03:55:22",
   "host": "RealMitch",
   "git": {
-   "commit": "5be0a361378cca75a2273c8ee0b06f88e2b37560",
+   "commit": "5c5bf54743dd218415773aac66b33b24d32875b4",
    "branch": "fix/1792-cleanup-http-status",
    "dirty": true,
-   "source_state": "dirty:647d83fb4a23",
+   "source_state": "dirty:1a8846e45e9a",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/tests/test_api.py",

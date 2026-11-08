@@ -1993,9 +1993,11 @@ def _cleanup_delete(url, label, expected_not_found_detail):
 
     Returns True only for a confirmed 200/204 or a 404 whose JSON dict
     detail exactly matches the documented absence text for that known
-    target. Any other status, a generic/malformed 404, or an ordinary
-    Exception prints label + HTTP status (never the body) and returns
-    False without raising, so remaining targets still run.
+    target. Any other status or a generic/malformed 404 prints label +
+    HTTP status (never the body) and returns False without raising, so
+    remaining targets still run. An ordinary request exception prints
+    a label diagnostic with no HTTP status known for the transport
+    exception, and also returns False without raising.
     BaseException (KeyboardInterrupt etc.) still propagates.
     Redirects are disabled so a 3xx is reported unconfirmed rather
     than silently following to a different method/target (e.g. a
@@ -2081,7 +2083,7 @@ def cleanup():
                 print(f"  [cleanup] skipping invalid voice-design entry: index {idx} unsafe id")
                 cleanup_failures += 1
                 continue
-            label = f"voice {voice_id}"
+            label = f"voice {ascii(voice_id)}"
             if _cleanup_delete(f"/api/voice_design/{quote(voice_id, safe='')}", label,
                                "Voice not found"):
                 items.append(label)

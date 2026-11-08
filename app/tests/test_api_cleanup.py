@@ -77,7 +77,7 @@ class CleanupTests(unittest.TestCase):
             return "Dataset not found"
         if url.startswith("/api/voice_design/"):
             return "Voice not found"
-        return "Voice not found"
+        raise AssertionError(f"unknown cleanup url: {url!r}")
 
     def _resp_documented_404(self, url):
         return _resp(404, {"detail": self._documented_detail_for_url(url)})
@@ -277,8 +277,16 @@ class CleanupTests(unittest.TestCase):
                 self.assertEqual(split.query, "")
                 self.assertEqual(split.fragment, "")
                 self.assertEqual(unquote(segment), original)
-                self.assertIn(original, output)
-                self.assertIn(original, self._cleaned_line(output))
+                if original == unicode_id:
+                    # Display label is a quoted ASCII-escaped literal,
+                    # not the raw Unicode id; URI roundtrip above
+                    # already proved the original is preserved there.
+                    self.assertIn("'_test_unicode_\\xe9'", output)
+                    self.assertIn("'_test_unicode_\\xe9'", self._cleaned_line(output))
+                    self.assertNotIn(original, output)
+                else:
+                    self.assertIn(original, output)
+                    self.assertIn(original, self._cleaned_line(output))
         self.assertIn(healthy, self._cleaned_line(output))
         self.assertIn("invalid voice-design", output)
         self.assertIn("Cleanup incomplete", output)
@@ -330,8 +338,8 @@ class CleanupTests(unittest.TestCase):
                 if path == url:
                     return {"detail": self._documented_detail_for_url(url)}
             if path.startswith("/api/voice_design/"):
-                return {"detail": "Voice not found"}
-            return {"detail": "Voice not found"}
+                return {"detail": self._documented_detail_for_url(path)}
+            raise AssertionError(f"unknown DELETE path: {path!r}")
 
         # Documented acceptance per target.
         output, calls = self._cleanup_via_session(
@@ -347,20 +355,12 @@ class CleanupTests(unittest.TestCase):
         # Rejected variants: generic, wrong-detail, malformed.
         variants = {
             "generic": lambda _p: {"detail": "Not Found"},
-            "wrong-detail": lambda _p: {"detail": "Dataset not found"},
+            "wrong-detail": lambda _p: {"detail": "Wrong detail"},
             "malformed": lambda _p: b"<html>404</html>",
             "non-dict": lambda _p: ["not-a-dict"],
         }
         for name, body_fn in variants.items():
             with self.subTest(variant=name):
-                if name == "wrong-detail":
-                    # A detail that is documented for one target but
-                    # wrong for every simple target cannot read as
-                    # correct for any: use a uniformly wrong string
-                    # for wrong-detail here, plus per-target check
-                    # below via script-mismatch variant is covered
-                    # by the uniform string for this adapter.
-                    body_fn = lambda _p: {"detail": "Wrong detail"}
                 output, calls = self._cleanup_via_session(
                     make_adapter(lambda _p: 404, body_fn))
                 self.assertNotIn("Cleaned:", output)
@@ -370,6 +370,18 @@ class CleanupTests(unittest.TestCase):
                 self.assertNotIn("<html>404</html>", output)
                 delete_calls = [c for c in calls if c["method"] == "DELETE"]
                 self.assertEqual(len(delete_calls), 5)
+
+        # Cross-target detail control: a detail documented for one
+        # target (Dataset not found for test dataset) must confirm
+        # ONLY that target when returned for every DELETE.
+        output, calls = self._cleanup_via_session(
+            make_adapter(lambda _p: 404, lambda _p: {"detail": "Dataset not found"}))
+        cleaned = self._cleaned_line(output)
+        self.assertEqual(cleaned, "Cleaned: test dataset", output)
+        self.assertIn("Cleanup incomplete", output)
+        self.assertNotIn("Nothing to clean", output)
+        delete_calls = [c for c in calls if c["method"] == "DELETE"]
+        self.assertEqual(len(delete_calls), 5)
 
     # -- confirmed statuses (controls) -------------------------------
 
@@ -514,6 +526,169 @@ class CleanupTests(unittest.TestCase):
         cleaned = self._cleaned_line(output)
         self.assertIn(voice, cleaned)
         self.assertNotIn("Cleanup incomplete", output)
+
+    def test_documented_detail_helper_rejects_unknown_url(self):
+        with self.assertRaises(AssertionError):
+            self._documented_detail_for_url("/api/unknown-cleanup-target")
+        with self.assertRaises(AssertionError):
+            self._documented_detail_for_url("/api/voice_design_evil/x")
+
+    def _run_cleanup_ascii(self, delete_side, get_side):
+        delete_calls = []
+        get_calls = []
+        delete_kwargs = []
+        get_kwargs = []
+
+        def fake_delete(url, *args, **kwargs):
+            delete_calls.append(url)
+            delete_kwargs.append(kwargs)
+            value = delete_side(url) if callable(delete_side) else delete_side[url]
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        def fake_get(url, *args, **kwargs):
+            get_calls.append(url)
+            get_kwargs.append(kwargs)
+            value = get_side(url) if callable(get_side) else get_side
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="ascii")
+        with patch.object(test_api, "delete", side_effect=fake_delete), patch.object(
+            test_api, "get", side_effect=fake_get
+        ), contextlib.redirect_stdout(stream):
+            test_api.cleanup()
+        stream.flush()
+        output = raw.getvalue().decode("ascii")
+        self.assertTrue(delete_kwargs, "expected delete calls")
+        for kwargs in delete_kwargs:
+            self.assertEqual({"allow_redirects": False}, kwargs)
+        for kwargs in get_kwargs:
+            self.assertEqual({"allow_redirects": False}, kwargs)
+        return output, delete_calls, get_calls
+
+    def test_unicode_voice_label_ascii_stream_200_and_500(self):
+        prefix = test_api.TEST_PREFIX
+        unicode_voice = f"{prefix}caf\u00e9"
+        later = f"{prefix}later_ok"
+        voices = [{"id": unicode_voice}, {"id": later}]
+        # Expected quoted ASCII-escaped literal, written independently
+        # (not derived via ascii()).
+        escaped_unicode = "'_test_caf\\xe9'"
+        escaped_later = "'_test_later_ok'"
+        for status in (200, 500):
+            with self.subTest(status=status):
+                before_results = dict(test_api.results)
+                before_failures = list(test_api.failures)
+                before_test_results = list(test_api.test_results)
+                def delete_side(url, _status=status):
+                    if "/api/voice_design/" in url:
+                        # First voice gets status, later voice succeeds.
+                        if "%C3%A9" in url or "caf" in url:
+                            return _resp(_status, {})
+                        return _resp(200, {})
+                    return _resp(200, {})
+                output, delete_calls, get_calls = self._run_cleanup_ascii(
+                    delete_side, _resp(200, voices))
+                # Later owned voice attempted regardless of first status,
+                # and no UnicodeEncodeError escaped (test would error).
+                self.assertIn("/api/voice_design/_test_caf%C3%A9", delete_calls)
+                self.assertIn("/api/voice_design/_test_later_ok", delete_calls)
+                self.assertEqual(len(delete_calls), 6)
+                # Output is portable ASCII and carries the escaped labels.
+                output.encode("ascii")
+                self.assertIn(escaped_unicode, output)
+                self.assertIn(escaped_later, output)
+                self.assertNotIn(unicode_voice, output)
+                cleaned = self._cleaned_line(output)
+                if status == 200:
+                    self.assertIn(escaped_unicode, cleaned)
+                    self.assertIn(escaped_later, cleaned)
+                    self.assertNotIn("Cleanup incomplete", output)
+                else:
+                    self.assertNotIn(escaped_unicode, cleaned)
+                    self.assertIn(escaped_later, cleaned)
+                    self.assertIn("500", output)
+                    self.assertIn("Cleanup incomplete", output)
+                # Global suite counters unchanged by cleanup.
+                self.assertEqual(before_results, test_api.results)
+                self.assertEqual(before_failures, test_api.failures)
+                self.assertEqual(before_test_results, test_api.test_results)
+
+    def test_unicode_voice_ascii_stream_main_preserves_summary_and_exit(self):
+        prefix = test_api.TEST_PREFIX
+        unicode_voice = f"{prefix}caf\u00e9"
+        later = f"{prefix}later_ok"
+        voices = [{"id": unicode_voice}, {"id": later}]
+        with tempfile.TemporaryDirectory() as tmp:
+            summary_path = Path(tmp) / "summary.json"
+            test_api.results.update(passed=0, failed=0, skipped=0)
+            test_api.failures.clear()
+            test_api.test_results.clear()
+            def run_passing():
+                test_api.run_test("passes", lambda: None)
+            def fake_delete(url, *a, **k):
+                if "/api/voice_design/" in url:
+                    return _resp(200, {})
+                return _resp(200, {})
+            def fake_get(url, *a, **k):
+                return _resp(200, voices)
+            raw = io.BytesIO()
+            stream = io.TextIOWrapper(raw, encoding="ascii")
+            with patch.object(test_api, "run_all_tests", side_effect=run_passing), patch.object(
+                test_api, "delete", side_effect=fake_delete
+            ), patch.object(test_api, "get", side_effect=fake_get), patch(
+                "sys.argv", ["test_api.py", "--url", "http://127.0.0.1:4200", "--json-summary", str(summary_path)]
+            ), contextlib.redirect_stdout(stream):
+                try:
+                    test_api.main()
+                    code = 0
+                except SystemExit as exc:
+                    code = exc.code
+            stream.flush()
+            output = raw.getvalue().decode("ascii")
+            self.assertEqual(code, 0)
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["counts"]["passed"], 1)
+            self.assertEqual(summary["counts"]["failed"], 0)
+            self.assertEqual(summary["tests"][0]["status"], "passed")
+            self.assertIn("'_test_caf\\xe9'", output)
+            self.assertIn("RESULTS:", output)
+
+    def test_separator_and_quote_voice_labels_are_quoted_unambiguous(self):
+        prefix = test_api.TEST_PREFIX
+        cases = [
+            (f"{prefix}a, test script", "voice '_test_a, test script'",
+             "/api/voice_design/_test_a%2C%20test%20script"),
+            (f"{prefix}quote'id", 'voice "_test_quote\'id"',
+             "/api/voice_design/_test_quote%27id"),
+        ]
+        for voice_id, expected_label, expected_url in cases:
+            with self.subTest(voice_id=voice_id):
+                voices = [{"id": voice_id}]
+                def delete_side(url):
+                    if "/api/voice_design/" in url:
+                        return _resp(200, {})
+                    return _resp(500, {})
+                output, delete_calls, _ = self._run_cleanup(
+                    delete_side, _resp(200, voices))
+                self.assertIn(expected_url, delete_calls)
+                self.assertEqual(len(delete_calls), 5)
+                cleaned = self._cleaned_line(output)
+                # Exact cleaned line: only the quoted voice label; failed
+                # simple targets are not presented as cleaned.
+                self.assertEqual(cleaned, f"Cleaned: {expected_label}", output)
+                self.assertIn("Cleanup incomplete", output)
+                self.assertNotIn("Nothing to clean", output)
+                # Failed simple diagnostics still name each simple target.
+                for simple_label in ("test script", "builder project", "gen project", "test dataset"):
+                    self.assertIn(simple_label, output)
+                if voice_id.endswith("quote'id"):
+                    for simple_label in ("test script", "builder project", "gen project", "test dataset"):
+                        self.assertNotIn(simple_label, cleaned)
 
     # -- list failures -------------------------------------------------
 
