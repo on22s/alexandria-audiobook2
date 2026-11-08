@@ -1050,10 +1050,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T11:39:10",
+  "written": "2026-11-08T12:26:03",
   "host": "RealMitch",
   "git": {
-   "commit": "ce56ea16bdf04652e95522e18827d723cd703524",
+   "commit": "0f2ab9afec17d035895b0aa97a85131cce8c35b8",
    "branch": "fix/1794-upload-quota-vanish",
    "dirty": false,
    "source_state": "clean",
