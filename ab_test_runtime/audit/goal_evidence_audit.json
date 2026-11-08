@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T21:34:09",
+  "written": "2026-11-07T21:59:35",
   "host": "RealMitch",
   "git": {
-   "commit": "4f0b683d917b4f86c783fb21740de7420433c448",
+   "commit": "d74b96ccca0a0e3382f4195516c9fb2c5c5052a9",
    "branch": "fix/1789-benchmark-infrastructure-failures",
    "dirty": true,
-   "source_state": "dirty:08c10c5b896e",
+   "source_state": "dirty:927282cdf1ed",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/benchmark_runner.py",

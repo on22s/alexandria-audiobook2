@@ -165,6 +165,14 @@ def _validate_profiling_fixture(fixture, root_dir):
     return content
 
 
+def apply_benchmark_boundary_failure(state):
+    """Mark stage failed and every unfinished task failed, without any report/manifest."""
+    state["status"] = "failed"
+    for task in state.get("tasks", []) or []:
+        if isinstance(task, dict) and task.get("status") != "done":
+            task["status"] = "failed"
+
+
 def wrap_benchmark_cancellation(function):
     """Bind one stage's state without changing other concurrent invocations."""
     @wraps(function)
@@ -180,13 +188,13 @@ def wrap_benchmark_cancellation(function):
                     if not apply_benchmark_cancellation(state, report, manifest, report_path):
                         apply_benchmark_failure(state, report, manifest)
                 return report
-        except BenchmarkCancelled:
-            raise
         except BaseException:
             # Own the unhandled boundary (preamble or cancellation
             # finalization): mark failed without loading a report, which
-            # may be unavailable/corrupt, then propagate unchanged.
-            state["status"] = "failed"
+            # may be unavailable/corrupt, then propagate unchanged. The
+            # inner handler already owns normal cancellation, so an
+            # unhandled BenchmarkCancelled here is a finalization failure.
+            apply_benchmark_boundary_failure(state)
             raise
         finally:
             BENCHMARK_STATE.reset(token)
@@ -521,9 +529,13 @@ def apply_benchmark_completion(state, report, manifest, report_path):
 
 def run_benchmark_repetitions(manifest, environment, report_path, state, execute_case, *, report=None):
     """Own resume filtering, durable case publication and stage completion."""
-    report = (copy.deepcopy(report) if report is not None else
-              load_resumable_benchmark_report(report_path, manifest, environment))
     state["status"] = "running"
+    try:
+        report = (copy.deepcopy(report) if report is not None else
+                  load_resumable_benchmark_report(report_path, manifest, environment))
+    except BaseException:
+        apply_benchmark_boundary_failure(state)
+        raise
     try:
         completed = get_benchmark_completed_cases(report)
         track_progress = is_benchmark_progress_stage(manifest["stage"])
@@ -577,9 +589,13 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
 
 def run_benchmark_batch(manifest, environment, report_path, state, execute_batch, *, report=None):
     """Preserve warm/remote batching with the same durable lifecycle as local cases."""
-    report = (copy.deepcopy(report) if report is not None else
-              load_resumable_benchmark_report(report_path, manifest, environment))
     state["status"] = "running"
+    try:
+        report = (copy.deepcopy(report) if report is not None else
+                  load_resumable_benchmark_report(report_path, manifest, environment))
+    except BaseException:
+        apply_benchmark_boundary_failure(state)
+        raise
     try:
         pending = _pending_fixtures_with_repetitions(
             manifest["fixtures"], manifest["repetitions"], get_benchmark_completed_cases(report))

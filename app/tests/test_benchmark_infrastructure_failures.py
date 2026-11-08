@@ -757,12 +757,113 @@ class PublicationGuardTests(unittest.TestCase):
             core_module.process_state.pop(key, None)
 
 
+class BoundaryStatusTests(unittest.TestCase):
+    def test_direct_report_load_fatalities_fail_boundary_through_core(self):
+        import core as core_module
+        from run_history import list_runs
+        for lifecycle in ("repetitions", "batch"):
+            for fatal in (SystemExit("synthetic load shutdown"), KeyboardInterrupt(), OSError("synthetic load disk full")):
+                with self.subTest(lifecycle=lifecycle, fatal=type(fatal).__name__):
+                    key = "_test_1789_load_boundary"
+                    fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
+                    man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
+                           "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
+                    core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "complete",
+                                                      "tasks": [{"fixture_id": "done", "status": "done"},
+                                                                {"fixture_id": "pending", "status": "pending"}]}
+                    try:
+                        with tempfile.TemporaryDirectory() as tmp:
+                            history_dir = str(Path(tmp) / "history")
+                            path = str(Path(tmp) / "report.json")
+                            state = core_module.process_state[key]
+                            env = environment()
+                            report = core.build_benchmark_report(man, env)
+                            prefix = {"fixture_id": "done", "repetition": 1, "status": "passed",
+                                      "metrics": {"elapsed_seconds": 0.1}}
+                            report["cases"] = [prefix]
+                            Path(path).write_text(json.dumps(report))
+
+                            def callback():
+                                with patch.object(runner, "load_resumable_benchmark_report", side_effect=fatal):
+                                    if lifecycle == "batch":
+                                        runner.run_benchmark_batch(man, env, path, state, lambda pending: [], report=None)
+                                    else:
+                                        runner.run_benchmark_repetitions(man, env, path, state, lambda f, r: {}, report=None)
+
+                            propagated = None
+                            with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                                try:
+                                    core_module._run_claimed_background_task(key, callback)
+                                except BaseException as exc:
+                                    propagated = exc
+                            records = list_runs(history_dir)
+                            self.assertEqual("failed", state["status"])
+                            self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+                            self.assertEqual(1, len(records))
+                            self.assertEqual("failed", records[0]["status"])
+                            self.assertEqual([prefix], json.loads(Path(path).read_text())["cases"])
+                            if isinstance(fatal, OSError):
+                                self.assertIsNone(propagated)
+                                self.assertIn("synthetic load disk full", records[0]["error"])
+                            else:
+                                self.assertIs(fatal, propagated)
+                    finally:
+                        core_module.process_state.pop(key, None)
+
+    def test_direct_load_failure_with_empty_manifest_fails_all_unfinished_tasks(self):
+        import core as core_module
+        from run_history import list_runs
+        for lifecycle in ("repetitions", "batch"):
+            with self.subTest(lifecycle=lifecycle):
+                key = "_test_1789_load_boundary_empty_manifest"
+                fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
+                good_man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
+                            "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
+                core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "complete",
+                                                  "tasks": [{"fixture_id": "done", "status": "done"},
+                                                            {"fixture_id": "pending", "status": "pending"},
+                                                            {"status": "pending"}]}
+                try:
+                    with tempfile.TemporaryDirectory() as tmp:
+                        history_dir = str(Path(tmp) / "history")
+                        path = str(Path(tmp) / "report.json")
+                        state = core_module.process_state[key]
+                        env = environment()
+                        report = core.build_benchmark_report(good_man, env)
+                        prefix = {"fixture_id": "done", "repetition": 1, "status": "passed",
+                                  "metrics": {"elapsed_seconds": 0.1}}
+                        report["cases"] = [prefix]
+                        Path(path).write_text(json.dumps(report))
+                        fatal = SystemExit("synthetic empty-manifest load shutdown")
+
+                        def callback():
+                            with patch.object(runner, "load_resumable_benchmark_report", side_effect=fatal):
+                                if lifecycle == "batch":
+                                    runner.run_benchmark_batch({}, env, path, state, lambda pending: [])
+                                else:
+                                    runner.run_benchmark_repetitions({}, env, path, state, lambda f, r: {})
+
+                        propagated = None
+                        with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                            try:
+                                core_module._run_claimed_background_task(key, callback)
+                            except BaseException as exc:
+                                propagated = exc
+                        self.assertIs(fatal, propagated)
+                        self.assertEqual("failed", state["status"])
+                        self.assertEqual(["done", "failed", "failed"], [t["status"] for t in state["tasks"]])
+                        self.assertEqual("failed", list_runs(history_dir)[0]["status"])
+                        self.assertEqual([prefix], json.loads(Path(path).read_text())["cases"])
+                finally:
+                    core_module.process_state.pop(key, None)
+
+
 class WrapperBoundaryTests(unittest.TestCase):
     def test_wrapper_fatal_and_false_flag_boundaries_through_core(self):
         import core as core_module
         from run_history import list_runs
         from benchmark_execution import BenchmarkCancelled
-        for mode in ("preamble_system_exit", "load_system_exit", "false_flag_cancel"):
+        for mode in ("preamble_system_exit", "load_system_exit", "false_flag_cancel", "load_benchmark_cancelled"):
             with self.subTest(mode=mode):
                 key = "_test_1789_wrapper_boundary"
                 fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
@@ -789,13 +890,14 @@ class WrapperBoundaryTests(unittest.TestCase):
                                 with patch.object(runner, "_validate_preparer_fixture", side_effect=fatal), \
                                      patch.object(runner, "load_app_config", return_value={}):
                                     runner.run_preparer_benchmark(man, env, path, state, "unused", tmp)
-                            elif mode == "load_system_exit":
+                            elif mode in ("load_system_exit", "load_benchmark_cancelled"):
                                 loads = []
+                                load_fatal = BenchmarkCancelled("synthetic finalization cancel") if mode == "load_benchmark_cancelled" else fatal
 
                                 def flaky_load(rp, manifest_arg, env_arg):
                                     loads.append(1)
                                     if len(loads) == 2:
-                                        raise fatal
+                                        raise load_fatal
                                     return copy.deepcopy(report)
 
                                 def worker(*args):
@@ -822,9 +924,12 @@ class WrapperBoundaryTests(unittest.TestCase):
                         records = list_runs(history_dir)
                         self.assertEqual(1, len(records))
                         self.assertEqual("failed", state["status"])
+                        self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
                         self.assertEqual("failed", records[0]["status"])
                         if mode == "false_flag_cancel":
                             self.assertIsNone(propagated)
+                        elif mode == "load_benchmark_cancelled":
+                            self.assertIsInstance(propagated, BenchmarkCancelled)
                         else:
                             self.assertIs(fatal, propagated)
                         self.assertEqual([prefix], json.loads(Path(path).read_text())["cases"])
