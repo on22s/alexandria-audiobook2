@@ -1050,18 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T01:23:25",
+  "written": "2026-11-08T01:47:04",
   "host": "RealMitch",
   "git": {
-   "commit": "4fcc9dd08e0e88bce9522bbb5f50b6f08a404007",
+   "commit": "7820b0256f756baba7d918cc325543796edee176",
    "branch": "fix/1791-strict-api-summary-integers",
    "dirty": true,
-   "source_state": "dirty:b41353940c5a",
+   "source_state": "dirty:d7d0231e897e",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/tests/test_api_summary_guards.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/verify_release.py"
+    "M  app/tests/test_release_verifier.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

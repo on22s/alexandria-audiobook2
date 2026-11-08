@@ -398,8 +398,8 @@
     "tests.test_api_summary_guards.EmptyAndMalformedApiSummaryTests.test_non_object_summary_is_a_controlled_validation_error",
     "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_every_count_must_be_actual_int_not_bool_or_float",
     "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_malformed_counts_are_rejected",
-    "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_malformed_summary_fails_main_gate_and_report",
     "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_run_api_suite_loads_json_and_rejects_malformed_types",
+    "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_run_api_suite_loads_valid_json_summary_for_quick_and_full_modes",
     "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_schema_version_must_be_actual_int_not_bool_or_float",
     "tests.test_api_summary_guards.StrictApiSummaryTypeTests.test_valid_quick_and_full_integer_summaries_are_accepted"
   ],
