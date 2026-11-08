@@ -83,11 +83,13 @@ class CleanupTests(unittest.TestCase):
         return _resp(404, {"detail": self._documented_detail_for_url(url)})
 
     def _cleaned_line(self, output):
-        for line in output.splitlines():
-            s = line.strip()
-            if s.startswith("Cleaned:"):
-                return s
-        return ""
+        lines = [
+            line.strip()
+            for line in output.splitlines()
+            if line.strip().startswith("Cleaned:")
+        ]
+        self.assertLessEqual(len(lines), 1, output)
+        return lines[0] if lines else ""
 
     def _run_cleanup(self, delete_side, get_side):
         delete_calls = []
@@ -683,9 +685,14 @@ class CleanupTests(unittest.TestCase):
                 self.assertEqual(cleaned, f"Cleaned: {expected_label}", output)
                 self.assertIn("Cleanup incomplete", output)
                 self.assertNotIn("Nothing to clean", output)
-                # Failed simple diagnostics still name each simple target.
+                # Failed simple diagnostics name each simple target with
+                # the exact diagnostic line (not merely a substring that
+                # the voice label itself could satisfy).
                 for simple_label in ("test script", "builder project", "gen project", "test dataset"):
-                    self.assertIn(simple_label, output)
+                    self.assertIn(
+                        f"[cleanup] failed to delete {simple_label}: HTTP 500",
+                        output,
+                    )
                 if voice_id.endswith("quote'id"):
                     for simple_label in ("test script", "builder project", "gen project", "test dataset"):
                         self.assertNotIn(simple_label, cleaned)
@@ -827,6 +834,91 @@ class CleanupTests(unittest.TestCase):
                 test_api.cleanup()
         for _url, kwargs in seen_voice:
             self.assertEqual({"allow_redirects": False}, kwargs)
+
+        # Additional cancellation controls: KeyboardInterrupt from the
+        # voice-list GET, from the list Response.json(), and from a
+        # DELETE-404 Response.json() must all propagate as the same
+        # interrupt, with suite globals preserved. List cases observe
+        # the 4 simple DELETEs then the GET; the 404-JSON case observes
+        # only the first DELETE.
+        before_results = dict(test_api.results)
+        before_failures = list(test_api.failures)
+        before_test_results = list(test_api.test_results)
+
+        # GET list raises KeyboardInterrupt.
+        interrupt = KeyboardInterrupt("stop-get")
+        get_calls = []
+        def delete_ok(url, *a, **k):
+            get_calls.append(("DELETE", url, k))
+            return _resp(200, {})
+        def get_interrupt(url, *a, **k):
+            get_calls.append(("GET", url, k))
+            raise interrupt
+        stream = io.StringIO()
+        with patch.object(test_api, "delete", side_effect=delete_ok), patch.object(
+            test_api, "get", side_effect=get_interrupt
+        ), contextlib.redirect_stdout(stream):
+            with self.assertRaises(KeyboardInterrupt) as cm:
+                test_api.cleanup()
+        self.assertIs(cm.exception, interrupt)
+        self.assertEqual([c[0] for c in get_calls], ["DELETE"] * 4 + ["GET"])
+        self.assertEqual([c[1] for c in get_calls if c[0] == "DELETE"], urls)
+        for _method, _url, kwargs in get_calls:
+            self.assertEqual({"allow_redirects": False}, kwargs)
+        self.assertEqual(before_results, test_api.results)
+        self.assertEqual(before_failures, test_api.failures)
+        self.assertEqual(before_test_results, test_api.test_results)
+
+        # List Response.json() raises KeyboardInterrupt.
+        interrupt = KeyboardInterrupt("stop-list-json")
+        list_response = _resp(200, [])
+        json_calls = []
+        def delete_ok_json(url, *a, **k):
+            json_calls.append(("DELETE", url, k))
+            return _resp(200, {})
+        def get_list(url, *a, **k):
+            json_calls.append(("GET", url, k))
+            return list_response
+        stream = io.StringIO()
+        with patch.object(test_api, "delete", side_effect=delete_ok_json), patch.object(
+            test_api, "get", side_effect=get_list
+        ), patch.object(list_response, "json", side_effect=interrupt), contextlib.redirect_stdout(stream):
+            with self.assertRaises(KeyboardInterrupt) as cm:
+                test_api.cleanup()
+        self.assertIs(cm.exception, interrupt)
+        self.assertEqual([c[0] for c in json_calls], ["DELETE"] * 4 + ["GET"])
+        self.assertEqual([c[1] for c in json_calls if c[0] == "DELETE"], urls)
+        for _method, _url, kwargs in json_calls:
+            self.assertEqual({"allow_redirects": False}, kwargs)
+        self.assertEqual(before_results, test_api.results)
+        self.assertEqual(before_failures, test_api.failures)
+        self.assertEqual(before_test_results, test_api.test_results)
+
+        # DELETE-404 Response.json() raises KeyboardInterrupt on the
+        # first DELETE only.
+        interrupt = KeyboardInterrupt("stop-delete-404-json")
+        resp_404 = _resp(404, [])
+        delete404_calls = []
+        def delete_404(url, *a, **k):
+            delete404_calls.append(("DELETE", url, k))
+            return resp_404
+        def get_empty_404(url, *a, **k):
+            delete404_calls.append(("GET", url, k))
+            return _resp(200, [])
+        stream = io.StringIO()
+        with patch.object(test_api, "delete", side_effect=delete_404), patch.object(
+            test_api, "get", side_effect=get_empty_404
+        ), patch.object(resp_404, "json", side_effect=interrupt), contextlib.redirect_stdout(stream):
+            with self.assertRaises(KeyboardInterrupt) as cm:
+                test_api.cleanup()
+        self.assertIs(cm.exception, interrupt)
+        self.assertEqual(len(delete404_calls), 1)
+        self.assertEqual(delete404_calls[0][0], "DELETE")
+        self.assertEqual(delete404_calls[0][1], urls[0])
+        self.assertEqual({"allow_redirects": False}, delete404_calls[0][2])
+        self.assertEqual(before_results, test_api.results)
+        self.assertEqual(before_failures, test_api.failures)
+        self.assertEqual(before_test_results, test_api.test_results)
 
     def test_cleanup_does_not_change_suite_counters(self):
         test_api.results.update(passed=3, failed=1, skipped=2)
