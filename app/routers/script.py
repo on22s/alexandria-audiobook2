@@ -422,18 +422,24 @@ class _HTMLTextExtractor(HTMLParser):
         super().__init__()
         self.parts = []
         self._pending_newline = 0
-        self._skip_depth = 0
+        # Skipped elements are tracked by name, not just counted: a close
+        # for the wrong skipped element, or with no skipped element open,
+        # is malformed markup that a depth count would silently absorb.
+        # HTMLParser itself treats <script>/<style> as raw text and
+        # <title> as RCDATA, so markup inside them is data, never a
+        # nested start/end tag here.
+        self._skip_stack = []
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         if tag in self.SKIP_TAGS:
-            self._skip_depth += 1
+            self._skip_stack.append(tag)
         elif tag in self.BLOCK_TAGS:
             self._pending_newline = max(
                 self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
-        if self._skip_depth == 0 and self._anchor_ids:
+        if not self._skip_stack and self._anchor_ids:
             attributes = dict(attrs)
             anchor_id = (attributes.get('id') or attributes.get('xml:id')
                          or (attributes.get('name') if tag == 'a' else None))
@@ -442,22 +448,45 @@ class _HTMLTextExtractor(HTMLParser):
                 self.parts.append(('anchor', anchor_id))
 
     def handle_endtag(self, tag):
-        if tag.lower() in self.SKIP_TAGS and self._skip_depth > 0:
-            self._skip_depth -= 1
+        tag = tag.lower()
+        if tag not in self.SKIP_TAGS:
+            return
+        if not self._skip_stack:
+            raise ValueError(
+                f'unmatched closing </{tag}> element for a skipped element')
+        if self._skip_stack[-1] != tag:
+            raise ValueError(
+                f'mismatched closing </{tag}> element; '
+                f'expected </{self._skip_stack[-1]}> for a skipped element')
+        self._skip_stack.pop()
 
     def handle_data(self, data):
-        if self._skip_depth > 0:
+        if self._skip_stack:
             return
         if self._pending_newline and self.parts:
             self.parts.append('\n' * self._pending_newline)
         self._pending_newline = 0
         self.parts.append(data)
 
+    def _ensure_skipped_elements_closed(self):
+        # Balance is validated here, in the text accessors, rather than by
+        # flushing the parser with close(): feed() alone leaves any skipped
+        # element still open at the end of the fed document on the stack,
+        # while close() would decode/flush buffered trailing data first -
+        # including the skipped payload itself - changing extraction
+        # semantics for incomplete EOF markup unrelated to skipped elements.
+        if self._skip_stack:
+            raise ValueError(
+                f'unclosed <{self._skip_stack[-1]}> element: '
+                'skipped content would hide the rest of the resource')
+
     def get_text(self):
+        self._ensure_skipped_elements_closed()
         return ''.join(part for part in self.parts if isinstance(part, str))
 
     def get_text_with_anchor_positions(self):
         """Return extracted text and character offsets for requested anchors."""
+        self._ensure_skipped_elements_closed()
         text_parts = []
         positions = {}
         length = 0
@@ -752,8 +781,20 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
             extractor = _HTMLTextExtractor(anchor_ids)
-            extractor.feed(html_content)
-            text, anchor_positions = extractor.get_text_with_anchor_positions()
+            try:
+                extractor.feed(html_content)
+                # The text accessor validates skipped-element balance.
+                # close() is deliberately not called here: it would flush
+                # incomplete EOF markup (and decode buffered skipped
+                # content) into extraction, changing feed-only semantics.
+                text, anchor_positions = extractor.get_text_with_anchor_positions()
+            except ValueError as error:
+                # Report and ordinary extraction share this path, so a
+                # malformed resource is an actionable error in both. The
+                # message names only the resource and the offending tag;
+                # resource text is never included.
+                raise ValueError(
+                    f'Malformed EPUB resource {href!r}: {error}') from error
             body_characters = len(text.strip())
             processed_paths.add(href)
             decisions = _get_epub_toc_title_decisions(text, anchor_positions, targets) if report is not None else None
