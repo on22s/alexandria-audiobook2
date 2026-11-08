@@ -1050,17 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T03:05:58",
+  "written": "2026-11-08T03:40:26",
   "host": "RealMitch",
   "git": {
-   "commit": "61ffe56c18dd1691def03c06a72f438cb6be7a4f",
+   "commit": "5be0a361378cca75a2273c8ee0b06f88e2b37560",
    "branch": "fix/1792-cleanup-http-status",
    "dirty": true,
-   "source_state": "dirty:2743a61c3184",
+   "source_state": "dirty:647d83fb4a23",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/tests/test_api.py",
-    "A  app/tests/test_api_cleanup.py"
+    "M  app/tests/test_api_cleanup.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

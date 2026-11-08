@@ -353,6 +353,7 @@
     "tests.test_api_cleanup.CleanupTests.test_cancellation_propagates",
     "tests.test_api_cleanup.CleanupTests.test_cleanup_does_not_change_suite_counters",
     "tests.test_api_cleanup.CleanupTests.test_cleanup_does_not_log_response_bodies",
+    "tests.test_api_cleanup.CleanupTests.test_delete_404_requires_documented_detail",
     "tests.test_api_cleanup.CleanupTests.test_delete_redirect_not_followed_and_not_cleaned",
     "tests.test_api_cleanup.CleanupTests.test_main_retains_exit_one_for_failed_suite",
     "tests.test_api_cleanup.CleanupTests.test_main_retains_exit_zero_for_passed_suite",
@@ -372,7 +373,8 @@
     "tests.test_api_cleanup.CleanupTests.test_voice_list_redirect_not_followed_and_not_empty_success",
     "tests.test_api_cleanup.CleanupTests.test_voice_list_transport_exception_is_best_effort",
     "tests.test_api_cleanup.CleanupTests.test_voice_transport_exception_then_later_voice_still_attempted",
-    "tests.test_api_cleanup.CleanupTests.test_voice_unconfirmed_202_302_not_cleaned"
+    "tests.test_api_cleanup.CleanupTests.test_voice_unconfirmed_202_302_not_cleaned",
+    "tests.test_api_cleanup.CleanupTests.test_voice_uri_segment_is_single_and_roundtrips"
   ],
   "test_api_config_roundtrip_cleanup": [
     "tests.test_api_config_roundtrip_cleanup.APIConfigRoundtripCleanupTests.test_all_six_roundtrips_accept_initial_and_legacy_default_materialization",

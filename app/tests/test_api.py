@@ -17,6 +17,8 @@ from pathlib import Path
 import sys
 import time
 import zipfile
+from urllib.parse import quote
+
 import requests
 
 from utils import atomic_json_write
@@ -1979,19 +1981,21 @@ def run_all_tests():
 
 # ── Cleanup ──────────────────────────────────────────────────
 
-# Only 200/204 (completed deletion) and 404 (already absent) prove a
-# fixture DELETE succeeded. 202 is accepted-not-enacted (RFC 9110
-# sec. 9.3.5) and other 2xx/3xx are unconfirmed for these endpoints,
-# so they are failures, not Cleaned successes.
-_CLEANUP_CONFIRMED_DELETE_STATUSES = {200, 204, 404}
+# Only 200/204 (completed deletion) prove a fixture DELETE succeeded.
+# 202 is accepted-not-enacted (RFC 9110 sec. 9.3.5) and other 2xx/3xx
+# are unconfirmed for these endpoints, so they are failures.
+# 404 is confirmed only with the documented resource-absence detail.
+_CLEANUP_CONFIRMED_DELETE_STATUSES = {200, 204}
 
 
-def _cleanup_delete(url, label):
+def _cleanup_delete(url, label, expected_not_found_detail):
     """Best-effort DELETE for one fixture resource.
 
-    Returns True only for a confirmed 200/204/404. Any other status or
-    an ordinary Exception prints label + HTTP status (never the body)
-    and returns False without raising, so remaining targets still run.
+    Returns True only for a confirmed 200/204 or a 404 whose JSON dict
+    detail exactly matches the documented absence text for that known
+    target. Any other status, a generic/malformed 404, or an ordinary
+    Exception prints label + HTTP status (never the body) and returns
+    False without raising, so remaining targets still run.
     BaseException (KeyboardInterrupt etc.) still propagates.
     Redirects are disabled so a 3xx is reported unconfirmed rather
     than silently following to a different method/target (e.g. a
@@ -2004,6 +2008,16 @@ def _cleanup_delete(url, label):
         return False
     if resp.status_code in _CLEANUP_CONFIRMED_DELETE_STATUSES:
         return True
+    if resp.status_code == 404:
+        try:
+            body = resp.json()
+        except Exception:
+            print(f"  [cleanup] failed to delete {label}: HTTP 404")
+            return False
+        if isinstance(body, dict) and body.get("detail") == expected_not_found_detail:
+            return True
+        print(f"  [cleanup] failed to delete {label}: HTTP 404")
+        return False
     print(f"  [cleanup] failed to delete {label}: HTTP {resp.status_code}")
     return False
 
@@ -2014,13 +2028,17 @@ def cleanup():
     cleanup_failures = 0
 
     simple_targets = [
-        (f"/api/scripts/{TEST_PREFIX}script", "test script"),
-        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project"),
-        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project"),
-        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset"),
+        (f"/api/scripts/{TEST_PREFIX}script", "test script",
+         f"Saved script '{TEST_PREFIX}script' not found."),
+        (f"/api/dataset_builder/{TEST_PREFIX}builder_proj", "builder project",
+         "Dataset builder project not found"),
+        (f"/api/dataset_builder/{TEST_PREFIX}gen_proj", "gen project",
+         "Dataset builder project not found"),
+        (f"/api/lora/datasets/{TEST_PREFIX}dataset", "test dataset",
+         "Dataset not found"),
     ]
-    for url, label in simple_targets:
-        if _cleanup_delete(url, label):
+    for url, label, detail in simple_targets:
+        if _cleanup_delete(url, label, detail):
             items.append(label)
         else:
             cleanup_failures += 1
@@ -2059,8 +2077,13 @@ def cleanup():
                 continue
             if not voice_id.startswith(TEST_PREFIX):
                 continue
+            if "/" in voice_id or "\\" in voice_id or not voice_id.isprintable():
+                print(f"  [cleanup] skipping invalid voice-design entry: index {idx} unsafe id")
+                cleanup_failures += 1
+                continue
             label = f"voice {voice_id}"
-            if _cleanup_delete(f"/api/voice_design/{voice_id}", label):
+            if _cleanup_delete(f"/api/voice_design/{quote(voice_id, safe='')}", label,
+                               "Voice not found"):
                 items.append(label)
             else:
                 cleanup_failures += 1

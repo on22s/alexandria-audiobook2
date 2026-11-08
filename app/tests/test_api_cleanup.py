@@ -7,11 +7,11 @@ server, no real deletion.
 import contextlib
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import unquote, urlsplit
 
 import requests
 
@@ -65,6 +65,22 @@ class CleanupTests(unittest.TestCase):
             f"/api/dataset_builder/{prefix}gen_proj",
             f"/api/lora/datasets/{prefix}dataset",
         ]
+
+    def _documented_detail_for_url(self, url):
+        prefix = test_api.TEST_PREFIX
+        if url == f"/api/scripts/{prefix}script":
+            return f"Saved script '{prefix}script' not found."
+        if url in (f"/api/dataset_builder/{prefix}builder_proj",
+                   f"/api/dataset_builder/{prefix}gen_proj"):
+            return "Dataset builder project not found"
+        if url == f"/api/lora/datasets/{prefix}dataset":
+            return "Dataset not found"
+        if url.startswith("/api/voice_design/"):
+            return "Voice not found"
+        return "Voice not found"
+
+    def _resp_documented_404(self, url):
+        return _resp(404, {"detail": self._documented_detail_for_url(url)})
 
     def _cleaned_line(self, output):
         for line in output.splitlines():
@@ -196,14 +212,174 @@ class CleanupTests(unittest.TestCase):
         cleaned = self._cleaned_line(output)
         self.assertIn("test script", cleaned)
 
-    # -- confirmed statuses (controls) -------------------------------
+    def test_voice_uri_segment_is_single_and_roundtrips(self):
+        prefix = test_api.TEST_PREFIX
+        traversal = f"{prefix}x/../../lora/datasets/non_fixture_dataset"
+        controls = f"{prefix}line\n  Cleaned: forged-by-id\n"
+        query_id = f"{prefix}query?other"
+        fragment_id = f"{prefix}fragment#other"
+        percent_id = f"{prefix}percent%2F"
+        unicode_id = f"{prefix}unicode_é"
+        space_id = f"{prefix}space id"
+        healthy = f"{prefix}later_ok"
+        unowned = "real-user-voice"
+        expected_segments = {
+            query_id: f"{prefix}query%3Fother",
+            fragment_id: f"{prefix}fragment%23other",
+            percent_id: f"{prefix}percent%252F",
+            unicode_id: f"{prefix}unicode_%C3%A9",
+            space_id: f"{prefix}space%20id",
+        }
+        voices = [{"id": traversal}, {"id": controls}, {"id": query_id},
+                  {"id": fragment_id}, {"id": percent_id}, {"id": unicode_id},
+                  {"id": space_id}, {"id": healthy}, {"id": unowned}]
+
+        class Adapter(requests.adapters.BaseAdapter):
+            def __init__(self):
+                self.calls = []
+            def send(self, request, **kwargs):
+                self.calls.append({"method": request.method, "url": request.url})
+                response = requests.Response()
+                response.request = request
+                response.url = request.url
+                response._content_consumed = True
+                response.headers["Content-Type"] = "application/json"
+                if request.method == "GET":
+                    response.status_code = 200
+                    response._content = json.dumps(voices).encode("utf-8")
+                elif request.method == "DELETE":
+                    response.status_code = 200
+                    response._content = b"{}"
+                else:
+                    response.status_code = 200
+                    response._content = b"{}"
+                return response
+            def close(self):
+                pass
+
+        output, calls = self._cleanup_via_session(Adapter())
+        delete_calls = [c for c in calls if c["method"] == "DELETE"]
+        # 4 simple + 5 specials + healthy; traversal/controls never deleted.
+        self.assertEqual(len(delete_calls), 10)
+        self.assertFalse(any(urlsplit(c["url"]).path == "/api/lora/datasets/non_fixture_dataset"
+                             for c in delete_calls), delete_calls)
+        self.assertFalse(any("non_fixture_dataset" in c["url"] for c in calls), calls)
+        self.assertFalse(any("forged-by-id" in c["url"] for c in calls), calls)
+        self.assertFalse(any(c["url"].endswith("/api/voice_design/real-user-voice") for c in calls), calls)
+        # Exact one-segment roundtrip for each special via independent literals.
+        for original, segment in expected_segments.items():
+            with self.subTest(original=original, segment=segment):
+                expected_url = f"http://cleanup-fixture.invalid/api/voice_design/{segment}"
+                matching = [c["url"] for c in delete_calls if c["url"] == expected_url]
+                self.assertEqual(len(matching), 1, delete_calls)
+                split = urlsplit(expected_url)
+                self.assertEqual(split.path, f"/api/voice_design/{segment}")
+                self.assertEqual(split.query, "")
+                self.assertEqual(split.fragment, "")
+                self.assertEqual(unquote(segment), original)
+                self.assertIn(original, output)
+                self.assertIn(original, self._cleaned_line(output))
+        self.assertIn(healthy, self._cleaned_line(output))
+        self.assertIn("invalid voice-design", output)
+        self.assertIn("Cleanup incomplete", output)
+        self.assertNotIn("Nothing to clean", output)
+        # Rejected raw ids must not appear (index/type-only diagnostic) and
+        # must not forge an extra Cleaned: line.
+        self.assertNotIn(traversal, output)
+        self.assertNotIn("forged-by-id", output)
+        forged_lines = [line for line in output.splitlines() if line.strip().startswith("Cleaned:")]
+        self.assertEqual(len(forged_lines), 1, output)
+
+    def test_delete_404_requires_documented_detail(self):
+        prefix = test_api.TEST_PREFIX
+        voice = f"{prefix}voice_gone"
+        voices = [{"id": voice}]
+
+        def make_adapter(delete_status_for_path, delete_body_for_path):
+            class Adapter(requests.adapters.BaseAdapter):
+                def __init__(self):
+                    self.calls = []
+                def send(self, request, **kwargs):
+                    self.calls.append({"method": request.method, "url": request.url})
+                    response = requests.Response()
+                    response.request = request
+                    response.url = request.url
+                    response._content_consumed = True
+                    response.headers["Content-Type"] = "application/json"
+                    if request.method == "GET":
+                        response.status_code = 200
+                        response._content = json.dumps(voices).encode("utf-8")
+                    elif request.method == "DELETE":
+                        path = urlsplit(request.url).path
+                        response.status_code = delete_status_for_path(path)
+                        body = delete_body_for_path(path)
+                        if isinstance(body, bytes):
+                            response._content = body
+                        else:
+                            response._content = json.dumps(body).encode("utf-8")
+                    else:
+                        response.status_code = 200
+                        response._content = b"{}"
+                    return response
+                def close(self):
+                    pass
+            return Adapter()
+
+        def documented_body(path):
+            for url in self._simple_urls():
+                if path == url:
+                    return {"detail": self._documented_detail_for_url(url)}
+            if path.startswith("/api/voice_design/"):
+                return {"detail": "Voice not found"}
+            return {"detail": "Voice not found"}
+
+        # Documented acceptance per target.
+        output, calls = self._cleanup_via_session(
+            make_adapter(lambda _p: 404, documented_body))
+        cleaned = self._cleaned_line(output)
+        self.assertTrue(cleaned.startswith("Cleaned:"), output)
+        for label in ("test script", "builder project", "gen project", "test dataset"):
+            self.assertIn(label, cleaned)
+        self.assertIn(voice, cleaned)
+        self.assertNotIn("Cleanup incomplete", output)
+        self.assertNotIn("Nothing to clean", output)
+
+        # Rejected variants: generic, wrong-detail, malformed.
+        variants = {
+            "generic": lambda _p: {"detail": "Not Found"},
+            "wrong-detail": lambda _p: {"detail": "Dataset not found"},
+            "malformed": lambda _p: b"<html>404</html>",
+            "non-dict": lambda _p: ["not-a-dict"],
+        }
+        for name, body_fn in variants.items():
+            with self.subTest(variant=name):
+                if name == "wrong-detail":
+                    # A detail that is documented for one target but
+                    # wrong for every simple target cannot read as
+                    # correct for any: use a uniformly wrong string
+                    # for wrong-detail here, plus per-target check
+                    # below via script-mismatch variant is covered
+                    # by the uniform string for this adapter.
+                    body_fn = lambda _p: {"detail": "Wrong detail"}
+                output, calls = self._cleanup_via_session(
+                    make_adapter(lambda _p: 404, body_fn))
+                self.assertNotIn("Cleaned:", output)
+                self.assertNotIn("Nothing to clean", output)
+                self.assertIn("No resources confirmed cleaned", output)
+                self.assertIn("404", output)
+                self.assertNotIn("<html>404</html>", output)
+                delete_calls = [c for c in calls if c["method"] == "DELETE"]
+                self.assertEqual(len(delete_calls), 5)
 
     # -- confirmed statuses (controls) -------------------------------
 
     def test_simple_confirmed_statuses_are_cleaned(self):
         for status in (200, 204, 404):
             with self.subTest(status=status):
-                routes = {url: _resp(status, {}) for url in self._simple_urls()}
+                if status == 404:
+                    routes = {url: self._resp_documented_404(url) for url in self._simple_urls()}
+                else:
+                    routes = {url: _resp(status, {}) for url in self._simple_urls()}
                 output, calls, _ = self._run_cleanup(routes, _resp(200, []))
                 self.assertEqual(routes.keys(), set(calls))
                 cleaned = self._cleaned_line(output)
@@ -236,7 +412,7 @@ class CleanupTests(unittest.TestCase):
         routes = {
             urls[0]: _resp(200, {}),
             urls[1]: _resp(500, {}),
-            urls[2]: _resp(404, {}),
+            urls[2]: self._resp_documented_404(urls[2]),
             urls[3]: _resp(409, {}),
         }
         output, calls, _ = self._run_cleanup(routes, _resp(200, []))
@@ -304,7 +480,7 @@ class CleanupTests(unittest.TestCase):
         voices = [{"id": first}, {"id": second}]
         routes = {url: _resp(200, {}) for url in self._simple_urls()}
         routes[self._voice_urls(first)] = requests.exceptions.ConnectionError("boom")
-        routes[self._voice_urls(second)] = _resp(404, {})
+        routes[self._voice_urls(second)] = self._resp_documented_404(self._voice_urls(second))
         output, calls, _ = self._run_cleanup(routes, _resp(200, voices))
         self.assertIn(self._voice_urls(first), calls)
         self.assertIn(self._voice_urls(second), calls)
@@ -333,7 +509,7 @@ class CleanupTests(unittest.TestCase):
         voice = f"{prefix}voice_gone"
         voices = [{"id": voice}]
         routes = {url: _resp(200, {}) for url in self._simple_urls()}
-        routes[self._voice_urls(voice)] = _resp(404, {})
+        routes[self._voice_urls(voice)] = self._resp_documented_404(self._voice_urls(voice))
         output, calls, _ = self._run_cleanup(routes, _resp(200, voices))
         cleaned = self._cleaned_line(output)
         self.assertIn(voice, cleaned)
@@ -587,7 +763,7 @@ class CleanupTests(unittest.TestCase):
         ]
         routes = {url: _resp(200, {}) for url in self._simple_urls()}
         routes[self._voice_urls(healthy1)] = _resp(200, {})
-        routes[self._voice_urls(healthy2)] = _resp(404, {})
+        routes[self._voice_urls(healthy2)] = self._resp_documented_404(self._voice_urls(healthy2))
         output, calls, _ = self._run_cleanup(routes, _resp(200, voices))
         self.assertEqual(len(calls), 6)
         self.assertIn(self._voice_urls(healthy1), calls)
