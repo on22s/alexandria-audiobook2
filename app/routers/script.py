@@ -540,7 +540,8 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     Outside bytes accumulate in a single bytearray candidate (bounded by
     the input size) rather than a per-element record list, and only
     cursor/depth/omission-flag state is retained. Only ignored elements
-    are counted, so there is no per-tag allocation for ordinary elements.
+    are counted, so no per-tag retained records accumulate for ordinary
+    elements (transient name strings from the parser callbacks aside).
     If the resource is not XML well-formed (ordinary tolerant HTML), the
     candidate is discarded and the original content is returned unchanged;
     the existing HTML path - including its unclosed-skipped-element
@@ -551,8 +552,16 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
         return html_content
     try:
         data = html_content.encode('utf-8')
-    except UnicodeEncodeError:
-        return html_content
+    except UnicodeEncodeError as error:
+        # A declared nonstandard codec can decode to lone surrogates
+        # (e.g. unicode_escape with a literal \ud800), which cannot be
+        # represented in UTF-8 for the XML pass. Fail closed with an
+        # actionable error (the caller adds spine index/resource) instead
+        # of silently falling back to the raw-HTML path, which can drop
+        # chapters. Ordinary ExpatError tolerant fallback is unaffected.
+        raise ValueError(
+            'invalid Unicode: decoded resource cannot be encoded as UTF-8'
+        ) from error
     skip_tags = _HTMLTextExtractor.SKIP_TAGS
 
     def is_skipped(name):
