@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-07T23:48:24",
+  "written": "2026-11-08T00:21:05",
   "host": "RealMitch",
   "git": {
-   "commit": "355db872e3b8347f1135b0a3002531f6620c7d41",
+   "commit": "920a28263ba539b9155f79d7041524ca8b287081",
    "branch": "fix/1790-unmeasured-concurrency-cache",
    "dirty": true,
-   "source_state": "dirty:ca2fc8628325",
+   "source_state": "dirty:4d5cc529db2a",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/llm_bench.py",

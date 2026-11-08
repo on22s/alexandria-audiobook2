@@ -337,25 +337,30 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             measure.assert_not_called()
 
     def test_failed_higher_level_after_valid_level1_persists_measured_best(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp, "config.json")
-            path.write_text("{}")
-            with patch.object(llm_bench, "measure_throughput",
-                              side_effect=[10, 10, 10, None]) as measure, \
-                 patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
-                              return_value=("fixture", "fixture")):
-                self.assertEqual(1, llm_bench.get_cached_or_benchmarked_concurrency(
-                    str(path), "local", "http://localhost:1234/v1", "model", object(),
-                    max_concurrency=4, status=dict(_STATUS)))
-            self.assertEqual(4, measure.call_count)
-            self.assertEqual(1, json.loads(path.read_text())["llm_local"]["concurrency"])
-            with patch.object(llm_bench, "measure_throughput") as measure, \
-                 patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
-                              return_value=("fixture", "fixture")):
-                self.assertEqual(1, llm_bench.get_cached_or_benchmarked_concurrency(
-                    str(path), "local", "http://localhost:1234/v1", "model", object(),
-                    max_concurrency=4, status=dict(_STATUS)))
-            measure.assert_not_called()
+        cases = [
+            # (samples, expected best, decision sample count, max_concurrency)
+            ([10, 10, 10, None], 1, 4, 4),
+            ([10, 10, 10, 20, 20, 20, None], 2, 7, 8),
+        ]
+        for samples, expected, sample_count, cap in cases:
+            with self.subTest(expected=expected, samples=samples), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "config.json")
+                path.write_text("{}")
+                with patch.object(llm_bench, "measure_throughput", side_effect=list(samples)) as measure, \
+                     patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                                  return_value=("fixture", "fixture")):
+                    self.assertEqual(expected, llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=cap, status=dict(_STATUS)))
+                self.assertEqual(sample_count, measure.call_count)
+                self.assertEqual(expected, json.loads(path.read_text())["llm_local"]["concurrency"])
+                with patch.object(llm_bench, "measure_throughput") as measure, \
+                     patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                                  return_value=("fixture", "fixture")):
+                    self.assertEqual(expected, llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=cap, status=dict(_STATUS)))
+                measure.assert_not_called()
 
     def test_ambiguous_version1_concurrency_one_is_remeasured(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -409,16 +414,18 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             saved = json.loads(path.read_text())["llm_local"]
             self.assertEqual(4, saved["concurrency_environment"]["parallel"])
 
-    def test_single_slot_policy_returns_one_without_writing_or_poisoning_future_benchmark(self):
+    def test_single_slot_policy_invalidates_only_matching_qualification(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "config.json")
             seed_env = llm_bench.get_concurrency_environment(
                 "http://localhost:1234/v1", "model", False, None,
                 "fixture-host", "fixture-GPU", "fixture-backend", dict(_STATUS))
-            path.write_text(json.dumps({"llm_local": {
-                "concurrency": 8, "concurrency_for": "http://localhost:1234/v1::model",
-                "concurrency_environment": seed_env, "unrelated": "kept"}}))
-            before = path.read_bytes()
+            other_profile = {"concurrency": 5, "concurrency_for": "http://other::model",
+                             "concurrency_environment": {"version": 2}, "unrelated": "other-kept"}
+            path.write_text(json.dumps({
+                "llm_local": {"concurrency": 8, "concurrency_for": "http://localhost:1234/v1::model",
+                              "concurrency_environment": seed_env, "unrelated": "kept"},
+                "llm_remote": dict(other_profile), "top_level": "kept"}))
             policy_status = dict(_STATUS, parallel=1)
             client = _BenchmarkClient(healthy=True)
             with patch.object(llm_bench, "find_optimal_concurrency") as bench, \
@@ -432,9 +439,16 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             self.assertIs(type(result), int)
             bench.assert_not_called()
             self.assertEqual(0, client.create_calls)
-            self.assertEqual(before, path.read_bytes(),
-                             "policy 1 is not a measurement and must not overwrite the profile")
             gpu.assert_not_called()
+            saved_config = json.loads(path.read_text())
+            saved = saved_config["llm_local"]
+            self.assertNotIn("concurrency_environment", saved,
+                             "policy must invalidate matching qualification, not save a measurement")
+            self.assertEqual(8, saved["concurrency"],
+                             "old numeric value may remain as unqualified diagnostic data")
+            self.assertEqual("kept", saved["unrelated"])
+            self.assertEqual(other_profile, saved_config["llm_remote"])
+            self.assertEqual("kept", saved_config["top_level"])
             healthy = _BenchmarkClient(healthy=True)
             self.assertEqual(2, self._call(path, healthy, status=dict(_STATUS, parallel=4)))
             self.assertEqual(9, healthy.create_calls,
@@ -442,6 +456,129 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             saved = json.loads(path.read_text())["llm_local"]
             self.assertEqual(2, saved["concurrency"])
             self.assertEqual(4, saved["concurrency_environment"]["parallel"])
+
+    def test_known_single_slot_invalidates_unknown_parallel_stale_cache(self):
+        status = {"available": True, "loaded": True, "parallel": None,
+                  "context_length": 8192, "runtime": "lmstudio"}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            path.write_text(json.dumps({"llm_local": {"unrelated": "kept"}}))
+            with patch.object(llm_bench, "time", _ControlledClock()), \
+                 patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture-GPU", "fixture-backend")) as gpu, \
+                 patch.object(llm_bench.platform, "node", return_value="fixture-host"):
+                with patch.object(llm_bench, "measure_throughput",
+                                  side_effect=[10, 10, 10, 20, 20, 20]) as measure:
+                    measured = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=2, status=dict(status))
+                self.assertEqual(2, measured)
+                self.assertEqual(6, measure.call_count)
+                saved = json.loads(path.read_text())["llm_local"]
+                self.assertEqual(2, saved["concurrency"])
+                self.assertIsNone(saved["concurrency_environment"]["parallel"])
+                with patch.object(llm_bench, "measure_throughput",
+                                  side_effect=AssertionError("policy must not measure")) as measure:
+                    policy = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=2, status=dict(status, parallel=1))
+                self.assertEqual(1, policy)
+                self.assertEqual(0, measure.call_count)
+                saved = json.loads(path.read_text())["llm_local"]
+                self.assertEqual(2, saved["concurrency"])
+                self.assertEqual("kept", saved["unrelated"])
+                original_find = llm_bench.find_optimal_concurrency
+                with patch.object(llm_bench, "measure_throughput", return_value=None) as measure, \
+                     patch.object(llm_bench, "find_optimal_concurrency", wraps=original_find) as find:
+                    stale = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=2, status=dict(status))
+                self.assertEqual(1, stale,
+                                 "a later unknown-parallel status must not reuse stale measured 2")
+                self.assertEqual(1, find.call_count)
+                self.assertEqual(1, measure.call_count)
+                with patch.object(llm_bench, "measure_throughput",
+                                  side_effect=[10, 10, 10, 20, 20, 20]) as measure:
+                    retry = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=2, status=dict(status))
+                self.assertEqual(2, retry)
+                self.assertEqual(6, measure.call_count)
+                with patch.object(llm_bench, "measure_throughput") as measure:
+                    third = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", object(),
+                        max_concurrency=2, status=dict(status))
+                self.assertEqual(2, third)
+                measure.assert_not_called()
+
+    def test_single_slot_with_no_matching_cache_writes_nothing(self):
+        for profile in ({}, {"concurrency": 8, "concurrency_for": "http://other::model",
+                             "concurrency_environment": {"version": 2}, "unrelated": "kept"}):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, "config.json")
+                path.write_text(json.dumps({"llm_local": dict(profile)}))
+                before = path.read_bytes()
+                client = _BenchmarkClient(healthy=True)
+                with patch.object(llm_bench, "find_optimal_concurrency") as bench, \
+                     patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                                  return_value=("fixture-GPU", "fixture-backend")) as gpu:
+                    result = llm_bench.get_cached_or_benchmarked_concurrency(
+                        str(path), "local", "http://localhost:1234/v1", "model", client,
+                        max_concurrency=2, status=dict(_STATUS, parallel=1))
+                self.assertEqual(1, result)
+                bench.assert_not_called()
+                self.assertEqual(0, client.create_calls)
+                gpu.assert_not_called()
+                self.assertEqual(before, path.read_bytes())
+
+    def test_single_slot_invalidation_rechecks_key_under_lock(self):
+        import contextlib
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            seed_env = llm_bench.get_concurrency_environment(
+                "http://localhost:1234/v1", "model", False, None,
+                "fixture-host", "fixture-GPU", "fixture-backend", dict(_STATUS))
+            path.write_text(json.dumps({"llm_local": {
+                "concurrency": 8, "concurrency_for": "http://localhost:1234/v1::model",
+                "concurrency_environment": seed_env}}))
+            newer = {"llm_local": {"concurrency": 99, "concurrency_for": "http://newer::model",
+                                   "concurrency_environment": {"version": 2, "new": True},
+                                   "unrelated": "new"}}
+            @contextlib.contextmanager
+            def fake_lock(_path):
+                path.write_text(json.dumps(newer))
+                yield
+            with patch.object(llm_bench, "file_lock", side_effect=fake_lock), \
+                 patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture-GPU", "fixture-backend")) as gpu:
+                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=dict(_STATUS, parallel=1))
+            self.assertEqual(1, result)
+            gpu.assert_not_called()
+            self.assertEqual(newer, json.loads(path.read_text()),
+                             "freshly changed evidence must not be deleted on stale authority")
+
+    def test_single_slot_invalidation_error_is_best_effort(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            seed_env = llm_bench.get_concurrency_environment(
+                "http://localhost:1234/v1", "model", False, None,
+                "fixture-host", "fixture-GPU", "fixture-backend", dict(_STATUS))
+            path.write_text(json.dumps({"llm_local": {
+                "concurrency": 8, "concurrency_for": "http://localhost:1234/v1::model",
+                "concurrency_environment": seed_env}}))
+            before = path.read_bytes()
+            with patch.object(llm_bench, "atomic_json_write", side_effect=OSError("synthetic")), \
+                 patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture-GPU", "fixture-backend")) as gpu:
+                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=dict(_STATUS, parallel=1))
+            self.assertEqual(1, result)
+            gpu.assert_not_called()
+            self.assertEqual(before, path.read_bytes(),
+                             "failed invalidation must retain original bytes, not claim deletion")
 
     def test_nonpositive_initial_robust_throughput_is_unmeasured_fallback(self):
         for throughput in (0, -3.5):
