@@ -1050,18 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T12:35:19",
+  "written": "2026-11-08T12:43:56",
   "host": "RealMitch",
   "git": {
-   "commit": "7f2482d3fc5483187eabb93945e36625605ab016",
+   "commit": "b0035862f8ec37c462375e48cd32e9c3960aad0b",
    "branch": "fix/1822-concurrency-cache-ordering",
    "dirty": true,
-   "source_state": "dirty:6fe36e60cca4",
+   "source_state": "dirty:a694c24fd697",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/llm_bench.py",
-    "M  app/tests/test_llm_concurrency_cache.py",
-    "A  app/tests/test_llm_concurrency_ordering.py",
+    "M  app/benchmark_core.py",
+    "M  app/review_script.py",
+    "M  app/tests/test_benchmark_review_mode.py",
+    "M  app/tests/test_completed_review_receipt.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,

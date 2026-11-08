@@ -1516,6 +1516,7 @@
   "test_benchmark_review_mode": [
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_actual_start_route_refuses_mode_changed_since_preflight_before_claim",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_basic_benchmark_contracts_still_import_without_site_packages",
+    "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_cache_revision_does_not_change_execution_or_preflight_identity",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_classic_identity_is_stable_for_absent_false_and_nonreview_stages",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_default_and_explicit_false_still_request_classic_review",
     "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_local_selected_mode_reaches_real_sdk_schema_and_source_binding",

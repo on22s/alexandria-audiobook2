@@ -176,6 +176,13 @@ class CompletedReviewReceiptTests(unittest.TestCase):
                 self.assertNotEqual(baseline, key(model='different binding'))
                 self.assertNotEqual(baseline, key(cfg={**config,'llm_failover':True,'llm_remote':{'base_url':'http://secondary/v1','model_name':'secondary'}}))
                 self.assertEqual(baseline, key(llm={**profile,'concurrency':4,'concurrency_for':'cache','concurrency_environment':{'gpu':'cache'}}))
+                for revision in ('1' * 32, '2' * 32):
+                    self.assertEqual(baseline, key(llm={**profile, 'concurrency_revision': revision}))
+                    with patch.object(review, 'get_failover_llm_config', return_value=profile):
+                        failover_baseline = key()
+                    with patch.object(review, 'get_failover_llm_config',
+                                      return_value={**profile, 'concurrency_revision': revision}):
+                        self.assertEqual(failover_baseline, key())
                 aliases.write_text('{"ANN":"ANNE"}'); self.assertNotEqual(baseline, key()); aliases.write_text('{}')
                 voices.write_text('{"ANN":"new voice"}'); self.assertNotEqual(baseline, key()); voices.write_text('{}')
             with patch.dict('os.environ', RECEIPT_TEST_KEY='second-secret'):
