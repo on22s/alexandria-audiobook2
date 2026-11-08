@@ -1050,23 +1050,23 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T13:49:27",
+  "written": "2026-11-08T14:40:15",
   "host": "RealMitch",
   "git": {
-   "commit": "02893a870623e47e2df995d7273d32d2c4bb9b8a",
-   "branch": "fix/1818-sound-registry-inventory",
+   "commit": "445d2a04715dcd87981f96659057b37e3386e32a",
+   "branch": "fix/1835-sound-snapshot-paths",
    "dirty": true,
-   "source_state": "dirty:738ccb839ba2",
+   "source_state": "dirty:785736f50d36",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/sound_design_candidates.py",
-    "M  app/sound_design_rendition_cleanup.py",
-    "M  app/sound_design_staging.py",
-    "M  app/tests/test_sound_design_cue_api.py",
-    "A  app/tests/test_sound_inventory_registry.py",
+    "M  .github/workflows/tests.yml",
+    "M  app/sound_design_publication.py",
+    "M  app/tests/test_sound_design_publication.py",
     "M  app/tests/unit_test_inventory.json"
    ],
-   "untracked_harness_files": null,
+   "untracked_harness_files": [
+    "test_path_issue.py"
+   ],
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
   },

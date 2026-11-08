@@ -11917,6 +11917,7 @@
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_fences_optional_ledger_even_without_consuming_cues",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_candidate_pcm_edit_during_encoding",
     "tests.test_sound_design_publication.SoundPublicationTests.test_native_snapshot_refuses_late_approval_edit_after_content_hash",
+    "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_captures_nested_sources_with_confined_portable_paths",
     "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_must_include_expected_missing_cover_source",
     "tests.test_sound_design_publication.SoundPublicationTests.test_snapshot_refuses_transient_candidate_change_before_encoding"
   ],

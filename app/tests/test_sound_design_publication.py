@@ -12,6 +12,30 @@ class SoundPublicationTests(unittest.TestCase):
     run_owned = fixtures.SoundApprovalTests.run_owned
     approve = fixtures.SoundApprovalTests.approve
 
+    def test_snapshot_captures_nested_sources_with_confined_portable_paths(self):
+        import sound_design_publication
+        from pathlib import Path
+        def check(stage, revision):
+            approval = self.approve(stage, revision, full_mix_reviewed=True)
+            before = {path.name: path.read_bytes() for path in stage.iterdir()}
+            capture = sound_design_publication.capture_scope_file
+            with patch.object(sound_design_publication, 'capture_scope_file', wraps=capture) as observed:
+                snapshot = capture_sound_delivery_snapshot(ProjectManager(str(self.root)), stage.name,
+                    revision, approval['approval_revision'],
+                    {'format':'mp3','export_quality':None,'mastering':None})
+            expected = {(stage/name).relative_to(self.root).as_posix()
+                        for name in ('candidate.json', 'mixed.pcm', 'approval.json')}
+            captured = {call.args[1] for call in observed.call_args_list}
+            self.assertTrue(expected.issubset(captured), captured)
+            for call in observed.call_args_list:
+                base, relative = call.args
+                self.assertEqual(Path(relative).as_posix(), relative)
+                self.assertNotIn('\\', relative)
+                self.assertIn(str(Path(base)/relative), snapshot.identities)
+            snapshot.verify_sources()
+            self.assertEqual(before, {path.name: path.read_bytes() for path in stage.iterdir()})
+        self.run_owned(check)
+
     def test_native_snapshot_refuses_late_approval_edit_after_content_hash(self):
         def check(stage,revision):
             approval = self.approve(stage,revision,full_mix_reviewed=True)
