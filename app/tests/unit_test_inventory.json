@@ -9123,7 +9123,24 @@
     "tests.test_project_scope_apply.ScopeApplyTests.test_book_lock_alone_does_not_authorize_mutation",
     "tests.test_project_scope_apply.ScopeApplyTests.test_compound_apply_and_exact_undo_preserve_original_bytes_and_stable_uids",
     "tests.test_project_scope_apply.ScopeApplyTests.test_corrupt_saved_bytes_stale_undo_and_changed_source_are_refused",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_current_false_version_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_current_float_version_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_export_inventory_compatibility_finite_domain",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_export_inventory_compatibility_refuses_malformed_current_new_slots",
     "tests.test_project_scope_apply.ScopeApplyTests.test_exports_are_preserved_and_new_delivery_refuses_exact_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_audacity_export_change_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_audiobook_m4b_change_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_chapter_exports_change_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_cloned_audiobook_change_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_exports_unchanged_exact_undo_restores_original_bytes_v1",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_exports_unchanged_exact_undo_restores_original_bytes_v2",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_false_version_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_legacy_float_version_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_new_artifact_present_before_apply_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_new_readalong_sidecar_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_new_readaloud_epub_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_historical_new_readaloud_receipt_refuses_undo",
+    "tests.test_project_scope_apply.ScopeApplyTests.test_malformed_export_inventory_key_sets_refuse_without_changing_metadata_or_deleting_undo",
     "tests.test_project_scope_apply.ScopeApplyTests.test_removed_prefix_file_is_preserved_and_changed_bytes_refuse_exact_undo",
     "tests.test_project_scope_apply.ScopeApplyTests.test_stale_apply_and_changed_project_undo_are_refused_without_clobbering"
   ],
@@ -9139,6 +9156,9 @@
     "tests.test_project_scope_audio.ScopeAudioTests.test_saved_publication_must_match_actual_bytes_and_remains_immutable"
   ],
   "test_project_scope_exports": [
+    "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_historical_reader",
+    "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_pure_compatibility",
+    "tests.test_project_scope_exports.ScopeExportTests.test_malformed_export_proof_refuses_historical_and_current_readers",
     "tests.test_project_scope_exports.ScopeExportTests.test_preserved_mp3_and_chapters_are_fenced_until_their_file_identity_changes"
   ],
   "test_project_scope_failures": [
