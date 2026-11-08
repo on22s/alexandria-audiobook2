@@ -757,6 +757,164 @@ class PublicationGuardTests(unittest.TestCase):
             core_module.process_state.pop(key, None)
 
 
+class CancellationReviewTests(unittest.TestCase):
+    PREFIX = {"fixture_id": "done", "repetition": 1, "status": "passed", "metrics": {"elapsed_seconds": 0.1}}
+
+    def run_direct_cancelled_through_core(self, lifecycle, cancel_flag, create_report=True):
+        import core as core_module
+        from run_history import list_runs
+        from benchmark_execution import BenchmarkCancelled
+        key = "_test_1789_direct_cancel_history"
+        fixtures = [{"id": "done", "sha256": "a"}, {"id": "pending", "sha256": "b"}]
+        man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
+               "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": "done", "status": "done"},
+                                                    {"fixture_id": "pending", "status": "pending"}]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                env = environment()
+                if create_report:
+                    report = core.build_benchmark_report(man, env)
+                    report["cases"] = [copy.deepcopy(self.PREFIX)]
+                    Path(path).write_text(json.dumps(report))
+
+                def execute_case(fixture, repetition):
+                    state["cancel"] = cancel_flag
+                    raise BenchmarkCancelled("cancelled")
+
+                def execute_batch(pending):
+                    state["cancel"] = cancel_flag
+                    raise BenchmarkCancelled("cancelled")
+                    yield  # pragma: no cover
+
+                def callback():
+                    if lifecycle == "batch":
+                        runner.run_benchmark_batch(man, env, path, state, execute_batch)
+                    else:
+                        runner.run_benchmark_repetitions(man, env, path, state, execute_case)
+
+                propagated = None
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                    try:
+                        core_module._run_claimed_background_task(key, callback)
+                    except BaseException as exc:
+                        propagated = exc
+                saved = json.loads(Path(path).read_text()) if Path(path).exists() else {"cases": []}
+                return list_runs(history_dir), state, saved, propagated
+        finally:
+            core_module.process_state.pop(key, None)
+
+    def test_direct_benchmark_cancelled_flag_true_and_false_both_lifecycles(self):
+        from benchmark_execution import BenchmarkCancelled
+        for lifecycle in ("repetitions", "batch"):
+            records, state, saved, propagated = self.run_direct_cancelled_through_core(lifecycle, True)
+            with self.subTest(lifecycle=lifecycle, cancel=True):
+                self.assertIsInstance(propagated, BenchmarkCancelled)
+                self.assertEqual("cancelled", state["status"])
+                self.assertEqual(["done", "cancelled"], [t["status"] for t in state["tasks"]])
+                self.assertEqual(1, len(records))
+                self.assertEqual("cancelled", records[0]["status"])
+                self.assertEqual([self.PREFIX], saved["cases"])
+            records, state, saved, propagated = self.run_direct_cancelled_through_core(lifecycle, False)
+            with self.subTest(lifecycle=lifecycle, cancel=False):
+                self.assertIsInstance(propagated, BenchmarkCancelled)
+                self.assertEqual("failed", state["status"])
+                self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+                self.assertEqual(1, len(records))
+                self.assertEqual("failed", records[0]["status"])
+                self.assertEqual([self.PREFIX], saved["cases"])
+
+    def run_publication_failure_through_core(self, lifecycle, original_name, fatal):
+        import core as core_module
+        from run_history import list_runs
+        from benchmark_execution import BenchmarkCancelled
+        key = "_test_1789_cancel_publication_history"
+        fixtures = [{"id": "first", "sha256": "a"}, {"id": "second", "sha256": "b"}]
+        man = {"schema_version": 1, "stage": "script_generation" if lifecycle == "batch" else "voicelab_preparer",
+               "targets": ["local"], "repetitions": 1, "fixtures": fixtures}
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": f["id"], "status": "pending"} for f in fixtures]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                env = environment()
+                original_save = runner.save_benchmark_report
+                saves = []
+
+                def flaky_save(report_path, report):
+                    saves.append(report)
+                    if len(saves) >= 2:
+                        raise fatal
+                    return original_save(report_path, report)
+
+                measured = {"status": "passed", "metrics": {"elapsed_seconds": 0.1}}
+
+                def execute_case(fixture, repetition):
+                    if fixture["id"] == "first":
+                        return measured
+                    state["cancel"] = True
+                    if original_name == "BenchmarkCancelled":
+                        raise BenchmarkCancelled("cancelled")
+                    raise RuntimeError("synthetic worker failure")
+
+                def execute_batch(pending):
+                    yield {"fixture_id": "first", "repetition": 1, **measured}
+                    state["cancel"] = True
+                    if original_name == "BenchmarkCancelled":
+                        raise BenchmarkCancelled("cancelled")
+                    raise RuntimeError("synthetic worker failure")
+
+                def callback():
+                    if lifecycle == "batch":
+                        runner.run_benchmark_batch(man, env, path, state, execute_batch)
+                    else:
+                        runner.run_benchmark_repetitions(man, env, path, state, execute_case)
+
+                propagated = None
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir), \
+                     patch.object(runner, "save_benchmark_report", side_effect=flaky_save):
+                    try:
+                        core_module._run_claimed_background_task(key, callback)
+                    except BaseException as exc:
+                        propagated = exc
+                saved = json.loads(Path(path).read_text()) if Path(path).exists() else {"cases": []}
+                return list_runs(history_dir), state, saved, propagated
+        finally:
+            core_module.process_state.pop(key, None)
+
+    def test_cancellation_publication_fatal_and_oserror_across_lifecycles(self):
+        for lifecycle in ("repetitions", "batch"):
+            for original_name in ("RuntimeError", "BenchmarkCancelled"):
+                fatal = SystemExit("synthetic cancellation publication shutdown")
+                records, state, saved, propagated = self.run_publication_failure_through_core(
+                    lifecycle, original_name, fatal)
+                with self.subTest(lifecycle=lifecycle, original=original_name, fatal="SystemExit"):
+                    self.assertIsInstance(propagated, SystemExit)
+                    self.assertEqual("failed", state["status"])
+                    self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+                    self.assertEqual(1, len(records))
+                    self.assertEqual("failed", records[0]["status"])
+                    self.assertEqual([{"fixture_id": "first", "repetition": 1, "status": "passed",
+                                        "metrics": {"elapsed_seconds": 0.1}}], saved["cases"])
+                fatal = OSError("synthetic cancellation publication disk full")
+                records, state, saved, propagated = self.run_publication_failure_through_core(
+                    lifecycle, original_name, fatal)
+                with self.subTest(lifecycle=lifecycle, original=original_name, fatal="OSError"):
+                    self.assertIsNone(propagated)  # core catches Exception
+                    self.assertEqual("failed", state["status"])
+                    self.assertEqual(1, len(records))
+                    self.assertEqual("failed", records[0]["status"])
+                    self.assertIn("synthetic cancellation publication disk full", records[0]["error"])
+                    self.assertEqual([{"fixture_id": "first", "repetition": 1, "status": "passed",
+                                        "metrics": {"elapsed_seconds": 0.1}}], saved["cases"])
+
+
 class ShutdownPropagationTests(unittest.TestCase):
     def run_through_core(self, run_name, stage, worker_name, error):
         import core as core_module

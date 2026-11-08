@@ -413,7 +413,14 @@ def apply_benchmark_cancellation(state, report, manifest, report_path):
                            for repetition in range(1, manifest["repetitions"] + 1))
                           else "cancelled")
     state["status"] = "cancelled"
-    save_benchmark_report(report_path, report)
+    try:
+        save_benchmark_report(report_path, report)
+    except BaseException:
+        # This helper owns its publication failure: mark failed (so core
+        # history cannot record cancelled for a lost durable report), then
+        # propagate the original publication exception unchanged.
+        apply_benchmark_failure(state, report, manifest)
+        raise
     return True
 
 
@@ -524,6 +531,10 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
         apply_benchmark_completion(state, report, manifest, report_path)
         return report
     except BenchmarkCancelled:
+        # Direct caller bookkeeping, like batch: cancellation if flagged,
+        # otherwise the old failure fallback rather than a running state.
+        if not apply_benchmark_cancellation(state, report, manifest, report_path):
+            apply_benchmark_failure(state, report, manifest)
         raise
     except Exception:
         # Cancellation queued during execute/publication (e.g. after
@@ -580,8 +591,9 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
     except BenchmarkCancelled:
         # Direct shared-lifecycle callers (not only the stage wrapper)
         # depend on cancellation bookkeeping/publication here before the
-        # original signal propagates.
-        apply_benchmark_cancellation(state, report, manifest, report_path)
+        # original signal propagates; flag-false keeps the failure fallback.
+        if not apply_benchmark_cancellation(state, report, manifest, report_path):
+            apply_benchmark_failure(state, report, manifest)
         raise
     except Exception:
         # As in repetitions: a queued cancellation wins over a generic
