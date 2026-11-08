@@ -191,8 +191,10 @@ class TTSPerCaseInfrastructureTests(unittest.TestCase):
                  patch.object(runner, "_run_tts_worker", return_value=[case]):
                 with self.assertRaisesRegex(RuntimeError, "synthetic tts boom"):
                     runner.run_tts_generation_benchmark(man, environment(), path, state, "unused", tmp)
-            saved = json.loads(Path(path).read_text()) if Path(path).exists() else {"cases": []}
-            self.assertEqual([], saved["cases"])
+            self.assertTrue(Path(path).exists())
+            saved = json.loads(Path(path).read_text())
+            self.assertEqual([{**case, "quality": {"passed": False}}], saved["cases"])
+            self.assertEqual("synthetic tts boom", saved["cases"][0]["error"])
             self.assertEqual("failed", state["status"])
             self.assertEqual("failed", state["tasks"][0]["status"])
 
@@ -225,7 +227,8 @@ class LifecycleInfrastructureTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 getattr(runner, run_name)(man, environment(), path, state, "unused", tmp)
             saved = json.loads(Path(path).read_text())
-            self.assertEqual([{"fixture_id": "first", "repetition": 1, **first_result}], saved["cases"])
+            self.assertEqual([{"fixture_id": "first", "repetition": 1, **first_result},
+                              {"fixture_id": "second", "repetition": 1, **second_result}], saved["cases"])
             self.assertEqual("failed", state["status"])
             self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
             self.assertEqual(original, man)
@@ -236,8 +239,8 @@ class LifecycleInfrastructureTests(unittest.TestCase):
             worker.return_value = measured
             resumed = getattr(runner, run_name)(man, environment(), path, state, "unused", tmp)
             worker.assert_called_once()
-            self.assertEqual(saved["cases"], resumed["cases"][:1])
-            self.assertEqual({"fixture_id": "second", "repetition": 1, **measured}, resumed["cases"][1])
+            self.assertEqual(saved["cases"], resumed["cases"][:2])
+            self.assertEqual({"fixture_id": "second", "repetition": 1, **measured}, resumed["cases"][2])
             self.assertEqual("complete", state["status"])
             self.assertTrue(all(t["status"] == "done" for t in state["tasks"]))
 
@@ -267,7 +270,8 @@ class LifecycleInfrastructureTests(unittest.TestCase):
                         lambda pending: [first, {**INFRA, "fixture_id": "first", "repetition": 2,
                                                  "quality": {"passed": False}}])
                 saved = json.loads(Path(path).read_text())
-                self.assertEqual([first], saved["cases"])
+                self.assertEqual([first, {**INFRA, "fixture_id": "first", "repetition": 2,
+                                          "quality": {"passed": False}}], saved["cases"])
                 self.assertEqual("failed", state["status"])
                 self.assertEqual("failed", state["tasks"][0]["status"])
 
@@ -366,7 +370,7 @@ class LifecycleInfrastructureTests(unittest.TestCase):
                  patch.object(runner, "_run_preparer_worker", side_effect=worker):
                 report = runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
             self.assertEqual("cancelled", state["status"])
-            self.assertEqual([], report["cases"])
+            self.assertEqual([{"fixture_id": "first", "repetition": 1, **INFRA}], report["cases"])
             self.assertEqual("cancelled", state["tasks"][0]["status"])
 
     def test_cancellation_queued_by_batch_before_infra_yield_is_authoritative(self):
@@ -385,7 +389,8 @@ class LifecycleInfrastructureTests(unittest.TestCase):
 
             report = runner.run_benchmark_batch(man, environment(), path, state, execute)
             self.assertEqual("cancelled", state["status"])
-            self.assertEqual([first], report["cases"])
+            self.assertEqual([first, {**INFRA, "fixture_id": "first", "repetition": 2,
+                                      "quality": {"passed": False}}], report["cases"])
 
     def test_stale_manifest_and_environment_resume_refused_without_rewrite(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -507,6 +512,249 @@ class CancellationPropagationTests(unittest.TestCase):
                  patch.object(runner, "_run_preparer_worker", side_effect=SystemExit(3)):
                 with self.assertRaises(SystemExit):
                     runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
+
+
+class BatchRetentionTests(unittest.TestCase):
+    def test_tts_stage_infra_then_measured_retains_both_and_fails_history(self):
+        import core as core_module
+        from run_history import list_runs
+        key = "_test_1789_batch_retention_history"
+        fixtures = [{"id": "first", "sha256": "a"}]
+        man = manifest("tts_generation", fixtures, repetitions=2)
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": "first", "status": "pending"}]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                cases = [{"fixture_id": "first", "repetition": 1, **INFRA},
+                         {"fixture_id": "first", "repetition": 2, "status": "passed",
+                          "metrics": {"duration_seconds": 1, "silence_ratio": 0, "clipping_ratio": 0}, "error": None}]
+
+                def callback():
+                    with patch.object(runner, "load_app_config", return_value={}), \
+                         patch.object(runner, "_validate_tts_fixture"), \
+                         patch.object(runner, "_run_tts_worker", return_value=cases):
+                        runner.run_tts_generation_benchmark(man, environment(), path, state, "unused", tmp)
+
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                    core_module._run_claimed_background_task(key, callback)
+                records = list_runs(history_dir)
+                self.assertEqual("failed", state["status"])
+                self.assertEqual("failed", state["tasks"][0]["status"])
+                self.assertEqual(1, len(records))
+                self.assertEqual("failed", records[0]["status"])
+                self.assertIn("synthetic infra boom", records[0]["error"])
+                saved = json.loads(Path(path).read_text())
+                self.assertEqual(2, len(saved["cases"]))
+                self.assertEqual("synthetic infra boom", saved["cases"][0]["error"])
+                self.assertEqual("passed", saved["cases"][1]["status"])
+        finally:
+            core_module.process_state.pop(key, None)
+
+    def test_batch_resume_calls_worker_only_for_infra_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = [{"id": "first", "sha256": "a"}]
+            man = manifest("tts_generation", fixtures, repetitions=2)
+            path = str(Path(tmp) / "report.json")
+            state = fresh_state(fixtures)
+            report = core.build_benchmark_report(man, environment())
+            infra_case = {"fixture_id": "first", "repetition": 1, **INFRA, "quality": {"passed": False}}
+            measured2 = {"fixture_id": "first", "repetition": 2, "status": "passed",
+                         "metrics": {"duration_seconds": 1, "silence_ratio": 0, "clipping_ratio": 0},
+                         "error": None, "quality": {"passed": True}}
+            report["cases"] = [infra_case, measured2]
+            Path(path).write_text(json.dumps(report))
+            measured1 = {"fixture_id": "first", "repetition": 1, "status": "passed",
+                         "metrics": {"duration_seconds": 1, "silence_ratio": 0, "clipping_ratio": 0},
+                         "error": None, "quality": {"passed": True}}
+            with patch.object(runner, "load_app_config", return_value={}), \
+                 patch.object(runner, "_validate_tts_fixture"), \
+                 patch.object(runner, "_run_tts_worker", return_value=[measured1]) as worker:
+                resumed = runner.run_tts_generation_benchmark(man, environment(), path, state, "unused", tmp)
+            worker.assert_called_once()
+            payload = worker.call_args.args[0]
+            self.assertEqual([1], payload["fixtures"][0]["repetition_numbers"])
+            self.assertEqual([infra_case, measured2, measured1], resumed["cases"])
+            self.assertEqual("complete", state["status"])
+
+    def test_all_infra_batch_yields_explicit_failed_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = [{"id": "first", "sha256": "a"}]
+            man = manifest("tts_generation", fixtures, repetitions=2)
+            path = str(Path(tmp) / "report.json")
+            state = fresh_state(fixtures)
+            cases = [{"fixture_id": "first", "repetition": 1, **INFRA, "quality": {"passed": False}},
+                     {"fixture_id": "first", "repetition": 2, **INFRA, "quality": {"passed": False}}]
+            with patch.object(runner, "load_app_config", return_value={}), \
+                 patch.object(runner, "_validate_tts_fixture"), \
+                 patch.object(runner, "_run_tts_worker", return_value=cases):
+                with self.assertRaisesRegex(RuntimeError, "synthetic infra boom"):
+                    runner.run_tts_generation_benchmark(man, environment(), path, state, "unused", tmp)
+            self.assertTrue(Path(path).exists())
+            saved = json.loads(Path(path).read_text())
+            self.assertEqual(cases, saved["cases"])
+            self.assertEqual("failed", state["status"])
+            self.assertEqual("failed", state["tasks"][0]["status"])
+
+    def test_repetitions_infra_retains_case_and_starts_no_more_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = [{"id": "first", "sha256": "a"}, {"id": "second", "sha256": "b"}]
+            man = manifest("voicelab_preparer", fixtures)
+            path = str(Path(tmp) / "report.json")
+            state = fresh_state(fixtures)
+            with patch.object(runner, "load_app_config", return_value={}), \
+                 patch.object(runner, "_validate_preparer_fixture"), \
+                 patch.object(runner, "_run_preparer_worker", return_value=INFRA) as worker:
+                with self.assertRaisesRegex(RuntimeError, "synthetic infra boom"):
+                    runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
+            worker.assert_called_once()
+            saved = json.loads(Path(path).read_text())
+            self.assertEqual([{"fixture_id": "first", "repetition": 1, **INFRA}], saved["cases"])
+            self.assertEqual("failed", state["status"])
+
+    def test_bounded_history_error_with_full_raw_error_in_report(self):
+        import core as core_module
+        from run_history import list_runs
+        key = "_test_1789_bounded_history"
+        long_error = "x" * 5000 + "tail"
+        infra_long = {"status": "failed", "metrics": {}, "error": long_error}
+        fixtures = [{"id": "first", "sha256": "a"}]
+        man = manifest("tts_generation", fixtures, repetitions=1)
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": "first", "status": "pending"}]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                cases = [{"fixture_id": "first", "repetition": 1, **infra_long}]
+
+                def callback():
+                    with patch.object(runner, "load_app_config", return_value={}), \
+                         patch.object(runner, "_validate_tts_fixture"), \
+                         patch.object(runner, "_run_tts_worker", return_value=cases):
+                        runner.run_tts_generation_benchmark(man, environment(), path, state, "unused", tmp)
+
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                    core_module._run_claimed_background_task(key, callback)
+                records = list_runs(history_dir)
+                self.assertEqual("failed", records[0]["status"])
+                self.assertLessEqual(len(records[0]["error"]), 4000)
+                self.assertTrue(records[0]["error"].endswith("tail"))
+                saved = json.loads(Path(path).read_text())
+                self.assertEqual(long_error, saved["cases"][0]["error"])
+        finally:
+            core_module.process_state.pop(key, None)
+
+
+class PublicationGuardTests(unittest.TestCase):
+    def run_repetitions_through_core(self, save_error):
+        import core as core_module
+        from run_history import list_runs
+        key = "_test_1789_publication_history"
+        fixtures = [{"id": "first", "sha256": "a"}, {"id": "second", "sha256": "b"}]
+        man = manifest("voicelab_preparer", fixtures)
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": f["id"], "status": "pending"} for f in fixtures]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                measured = {"status": "passed", "metrics": {"elapsed_seconds": 0.1}}
+                original_save = runner.save_benchmark_report
+                saves = []
+
+                def flaky_save(report_path, report):
+                    saves.append(report)
+                    if len(saves) == 2:
+                        raise save_error
+                    return original_save(report_path, report)
+
+                def callback():
+                    with patch.object(runner, "load_app_config", return_value={}), \
+                         patch.object(runner, "_validate_preparer_fixture"), \
+                         patch.object(runner, "_run_preparer_worker", return_value=measured), \
+                         patch.object(runner, "save_benchmark_report", side_effect=flaky_save):
+                        runner.run_preparer_benchmark(man, environment(), path, state, "unused", tmp)
+
+                propagated = None
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir):
+                    try:
+                        core_module._run_claimed_background_task(key, callback)
+                    except BaseException as exc:  # SystemExit escapes core; OSError is caught by core
+                        propagated = exc
+                saved_cases = json.loads(Path(path).read_text())["cases"] if Path(path).exists() else []
+                return list_runs(history_dir), state, saved_cases, propagated
+        finally:
+            core_module.process_state.pop(key, None)
+
+    def test_publication_oserror_fails_state_and_history_and_keeps_prefix(self):
+        records, state, saved, propagated = self.run_repetitions_through_core(OSError("synthetic publication disk full"))
+        self.assertIsNone(propagated)  # core catches Exception, records it in history
+        self.assertEqual(1, len(records))
+        self.assertEqual("failed", state["status"])
+        self.assertEqual("failed", records[0]["status"])
+        self.assertIn("synthetic publication disk full", records[0]["error"])
+        self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+        self.assertEqual([{"fixture_id": "first", "repetition": 1, "status": "passed",
+                           "metrics": {"elapsed_seconds": 0.1}}], saved)
+
+    def test_publication_system_exit_propagates_and_fails_history_and_keeps_prefix(self):
+        records, state, saved, propagated = self.run_repetitions_through_core(SystemExit("synthetic publication shutdown"))
+        self.assertIsInstance(propagated, SystemExit)
+        self.assertEqual(1, len(records))
+        self.assertEqual("failed", state["status"])
+        self.assertEqual("failed", records[0]["status"])
+        self.assertEqual(["done", "failed"], [t["status"] for t in state["tasks"]])
+        self.assertEqual([{"fixture_id": "first", "repetition": 1, "status": "passed",
+                           "metrics": {"elapsed_seconds": 0.1}}], saved)
+
+    def test_batch_publication_system_exit_propagates_and_fails_history(self):
+        import core as core_module
+        from run_history import list_runs
+        key = "_test_1789_batch_publication_history"
+        fixtures = [{"id": "first", "sha256": "a"}]
+        man = manifest("tts_generation", fixtures, repetitions=2)
+        core_module.process_state[key] = {"running": True, "logs": [], "process": None, "status": "running",
+                                          "tasks": [{"fixture_id": "first", "status": "running"}]}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                history_dir = str(Path(tmp) / "history")
+                path = str(Path(tmp) / "report.json")
+                state = core_module.process_state[key]
+                case = {"fixture_id": "first", "repetition": 1, "status": "passed",
+                        "metrics": {"duration_seconds": 1, "silence_ratio": 0, "clipping_ratio": 0}, "error": None}
+                original_save = runner.save_benchmark_report
+                saves = []
+
+                def flaky_save(report_path, report):
+                    saves.append(report)
+                    if len(saves) == 2:
+                        raise SystemExit("synthetic batch publication shutdown")
+                    return original_save(report_path, report)
+
+                def callback():
+                    runner.run_benchmark_batch(man, environment(), path, state, lambda pending: [case, case])
+
+                propagated = None
+                with patch.object(core_module, "RUN_HISTORY_DIR", history_dir), \
+                     patch.object(runner, "save_benchmark_report", side_effect=flaky_save):
+                    try:
+                        core_module._run_claimed_background_task(key, callback)
+                    except BaseException as exc:
+                        propagated = exc
+                self.assertIsInstance(propagated, SystemExit)
+                records = list_runs(history_dir)
+                self.assertEqual("failed", state["status"])
+                self.assertEqual("failed", records[0]["status"])
+                self.assertEqual("failed", state["tasks"][0]["status"])
+                saved = json.loads(Path(path).read_text())
+                self.assertEqual([case], saved["cases"])
+        finally:
+            core_module.process_state.pop(key, None)
 
 
 class ShutdownPropagationTests(unittest.TestCase):
