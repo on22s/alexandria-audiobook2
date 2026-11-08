@@ -5,14 +5,20 @@ which renames final->backup, stage->final and removes temporaries/backups
 without holding the script upload quota lease.  A directory entry can
 therefore disappear between enumeration and the per-entry type/stat check in
 ``get_upload_storage_bytes``.  The expected behaviour is a per-entry
-``FileNotFoundError`` skip while unrelated I/O/permission errors remain
-visible -- never zero/free storage.
+``FileNotFoundError`` skip at ``stat`` and a native ``False`` skip at the
+``is_file`` type check (fresh DT_UNKNOWN/stat-fallback may return False
+with no error; Windows cached-type metadata may also return True, so no
+claim is made that every Windows vanish returns False), while unrelated
+I/O/permission errors remain visible -- never zero/free storage.
 
 Fault injection here wraps real scratch ``os.DirEntry`` objects and forces
 a fresh native ``os.stat`` after deleting the target, because Windows
 ``DirEntry`` metadata can be cached (docs.python.org/3.10/library/os:
-DirEntry.stat errors propagate; metadata may be cached).  This is
-deterministic helper fault injection, not a timed live HTTP race.
+DirEntry.stat errors propagate; metadata may be cached).  The factory below
+materialises proxies after closing its native iterator; ``_ScanContext`` is
+a controlled iterator, not a held-open native directory probe.  This is
+deterministic helper fault injection,
+not a timed live HTTP race.
 """
 import asyncio
 import os
@@ -37,14 +43,28 @@ class _ProxyEntry:
         self._mode = mode
 
     def is_file(self, *, follow_symlinks=True):
-        if self._mode == 'vanish_is_file':
-            # Disappearance before the type check: delete the target, then a
-            # fresh lstat raises FileNotFoundError naturally.
+        if self._mode == 'vanish_is_file_false':
+            # Documented native fallback: a DT_UNKNOWN/stat-fallback vanish
+            # at the type check yields False, not FileNotFoundError
+            # (docs.python.org/3.10/library/os; CPython DirEntry_test_mode
+            # catches ENOENT and returns False).  Remove the owned target
+            # then a fresh lstat maps ENOENT to False portably.
             try:
                 os.remove(self.path)
             except FileNotFoundError:
                 pass
-            return os.lstat(self.path).st_mode is not None and False
+            try:
+                facts = os.lstat(self.path)
+            except FileNotFoundError:
+                return False
+            # Path reappeared (ABA): classify its current mode honestly
+            # instead of unconditionally False.
+            if follow_symlinks and stat.S_ISLNK(facts.st_mode):
+                try:
+                    facts = os.stat(self.path)
+                except FileNotFoundError:
+                    return False
+            return stat.S_ISREG(facts.st_mode)
         if self._mode == 'permission_is_file':
             raise PermissionError('controlled inaccessible entry')
         if self._mode == 'cancel_is_file':
@@ -197,7 +217,14 @@ class UploadStorageQuotaTests(unittest.TestCase):
         self.assertTrue((self.uploads / 'after.txt').is_file())
         self.assertFalse((self.uploads / 'vanished.txt').exists())
 
-    def test_vanished_at_is_file_is_skipped_and_survivors_counted(self):
+    def test_vanished_at_is_file_returns_false_and_survivors_counted(self):
+        # Documented native fallback: a DT_UNKNOWN/stat-fallback vanish at
+        # is_file yields False (docs.python.org/3.10/library/os,
+        # CPython DirEntry_test_mode), not FileNotFoundError.  Windows
+        # cached-type metadata may also return True, so this controls only
+        # the fresh-fallback False outcome and never claims every Windows
+        # vanish returns False.  Native False must skip the entry without
+        # entering the FileNotFoundError root re-open probe.
         before = b'BEFORE!'
         after = b'after-98765'
         self._write('before.txt', before)
@@ -205,11 +232,21 @@ class UploadStorageQuotaTests(unittest.TestCase):
         self._write('after.txt', after)
         fake = _make_fake_scandir(self._real_scandir,
                                   ['before.txt', 'vanished.txt', 'after.txt'],
-                                  {'vanished.txt': 'vanish_is_file'},
+                                  {'vanished.txt': 'vanish_is_file_false'},
                                   self.uploads)
-        with patch.object(os, 'scandir', fake):
+        opens = []
+
+        def observing_scandir(path, *args, **kwargs):
+            opens.append(str(path))
+            return fake(path, *args, **kwargs)
+
+        with patch.object(os, 'scandir', observing_scandir):
             result = script.get_upload_storage_bytes()
         self.assertEqual(len(before) + len(after), result)
+        self.assertEqual(1, len(opens))
+        self.assertTrue((self.uploads / 'before.txt').is_file())
+        self.assertTrue((self.uploads / 'after.txt').is_file())
+        self.assertFalse((self.uploads / 'vanished.txt').exists())
 
     def test_active_name_excluded_without_touching_metadata(self):
         survivor = b'survivor-bytes'
