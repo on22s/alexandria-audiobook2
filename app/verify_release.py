@@ -170,12 +170,14 @@ def validate_api_summary(summary, full):
     expected_mode = "full" if full else "quick"
     if not isinstance(summary, dict):
         raise ValueError("API summary must be an object")
-    if summary.get("schema_version") != 1 or summary.get("mode") != expected_mode:
+    if type(summary.get("schema_version")) is not int or summary.get("schema_version") != 1 or summary.get("mode") != expected_mode:
         raise ValueError(f"Invalid API summary schema or mode for {expected_mode} verification")
     tests = summary.get("tests")
     counts = summary.get("counts")
     if not isinstance(tests, list) or not isinstance(counts, dict):
         raise ValueError("API summary is missing tests or counts")
+    if any(type(value) is not int or value < 0 for value in counts.values()):
+        raise ValueError("API summary counts must be nonnegative integers")
     if not tests:
         raise ValueError("API summary contains no tests")
     names = [test.get("name") for test in tests if isinstance(test, dict)]

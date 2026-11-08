@@ -603,8 +603,14 @@ class UnexpectedGateFailureReportTests(unittest.TestCase):
                 self.assertNotIn('RELEASE VERIFICATION PASSED', stdout.getvalue())
 
     def test_actual_api_json_loading_cannot_leave_failed_report_running(self):
-        for summary in ([], {'schema_version':1, 'mode':'quick', 'tests':[],
-                             'counts':{'passed':0,'failed':0,'skipped':0,'total':0}}):
+        for summary, failure_message in (
+                ([], None),
+                ({'schema_version':1, 'mode':'quick', 'tests':[],
+                  'counts':{'passed':0,'failed':0,'skipped':0,'total':0}}, None),
+                ({'schema_version':1, 'mode':'quick',
+                  'tests':[{'name':'t1', 'status':'passed', 'requires_full':False}],
+                  'counts':{'passed':True,'failed':0,'skipped':0,'total':1}},
+                 'nonnegative integers')):
             with self.subTest(summary=summary), tempfile.TemporaryDirectory() as tmp:
                 report_path = Path(tmp, 'report.json')
                 def command(_label, args, cwd, **kwargs):
@@ -623,6 +629,9 @@ class UnexpectedGateFailureReportTests(unittest.TestCase):
                 self.assertEqual('failed', report['status'])
                 self.assertEqual('api_tests', report['failure']['gate'])
                 self.assertEqual('failed', report['gates'][-1]['status'])
+                if failure_message is not None:
+                    self.assertEqual('ValueError', report['failure']['type'])
+                    self.assertIn(failure_message, report['failure']['message'])
 
 
 class CompileArtifactIsolationTests(unittest.TestCase):
