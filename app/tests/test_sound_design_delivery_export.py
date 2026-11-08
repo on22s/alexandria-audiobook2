@@ -114,8 +114,95 @@ class SoundDeliveryExportTests(unittest.TestCase):
                 self.assertEqual(2, count)
         self.run_owned(check)
 
-    def test_failed_postpublication_retirement_is_guarded_before_owner_release(self):
+    def _check_windows_cleanup_failure(self, *, nested):
+        from contextlib import ExitStack
         import os
+        import export_staging
+        from export_staging_directory import StageDirectoryChanged, stage_owner_lock
+        from windows_export_staging_directory import WindowsStageDirectory
+        create = export_staging.create_export_staging
+        cleanup = WindowsStageDirectory.remove_contents
+        replace = os.replace
+        def check(candidate, revision):
+            approval = self.approve(candidate, revision, full_mix_reviewed=True)
+            before = {path.name: path.read_bytes() for path in candidate.iterdir()}
+            stages, payloads, faults, releases = [], [], [], []
+            published = False
+            with ExitStack() as stack:
+                def record_stage(parent, kind):
+                    stage = create(parent, kind)
+                    if kind == 'sound_delivery':
+                        stages.append(stage)
+                        release = stage._lock.__exit__
+                        def record_release(*args):
+                            releases.append(((stage.path / export_staging.RECOVERY).is_file(),
+                                             stage._owner_stream.closed, payloads[0].read_bytes()))
+                            return release(*args)
+                        stack.enter_context(patch.object(stage._lock, '__exit__', side_effect=record_release))
+                    return stage
+                def record_publication(source, destination, **kwargs):
+                    nonlocal published
+                    replace(source, destination, **kwargs)
+                    if str(destination).endswith('mixed_audiobook.mp3'):
+                        published = True
+                def fail_cleanup(authority, retained_names):
+                    if published and stages and authority.path == stages[0].path:
+                        self.assertIsNone(stages[0]._registry_slot)
+                        self.assertEqual(candidate.parent, authority.path.parent)
+                        self.assertFalse(authority.has_recovery_guard())
+                        with self.assertRaises(TimeoutError):
+                            with stage_owner_lock(authority):
+                                pass
+                        parent = authority.path
+                        if nested:
+                            child = create(parent, 'encode')
+                            stack.callback(child.finish, remove=False)
+                            self.assertIsNone(child._registry_slot)
+                            self.assertEqual(parent, child.path.parent)
+                            parent = child.path
+                        payload = parent / 'retained-note'
+                        payload.write_bytes(b'keep')
+                        payloads.append(payload)
+                        if nested:
+                            try:
+                                cleanup(authority, retained_names)
+                            except StageDirectoryChanged as error:
+                                self.assertIn('Nested staging owner', str(error))
+                                faults.append(str(error))
+                                raise
+                            self.fail('Native cleanup did not refuse the independently owned nested stage')
+                        faults.append('synthetic public cleanup failure')
+                        raise PermissionError(faults[-1])
+                    return cleanup(authority, retained_names)
+                stack.enter_context(patch.object(export_staging, 'create_export_staging', side_effect=record_stage))
+                stack.enter_context(patch('sound_design_delivery.os.replace', side_effect=record_publication))
+                stack.enter_context(patch.object(WindowsStageDirectory, 'remove_contents', new=fail_cleanup))
+                result = save_sound_delivery_mp3(ProjectManager(str(self.root)), candidate.name,
+                    revision, approval['approval_revision'],
+                    {'format':'mp3', 'mastering':None, 'export_quality':None})
+            self.assertTrue(published)
+            self.assertEqual(1, len(stages))
+            self.assertEqual(1, len(faults))
+            self.assertEqual([(True, False, b'keep')], releases)
+            self.assertTrue(stages[0]._owner_stream.closed)
+            self.assertEqual('published', result['status'])
+            self.assertEqual(['Audio was published, but temporary-file cleanup could not be confirmed.'], result['warnings'])
+            output = self.root / result['file']
+            delivered = output.read_bytes()
+            self.assertTrue(delivered)
+            self.assertEqual('verified', result['quality']['status'])
+            self.assertTrue((stages[0].path / export_staging.RECOVERY).is_file())
+            export_staging.reclaim_export_staging([candidate.parent])
+            self.assertEqual(b'keep', payloads[0].read_bytes())
+            self.assertEqual(delivered, output.read_bytes())
+            self.assertEqual(before, {path.name: path.read_bytes() for path in candidate.iterdir()})
+        self.run_owned(check)
+
+    def test_failed_postpublication_cleanup_is_guarded_before_owner_release(self):
+        """Windows public cleanup or POSIX private retirement keeps its owner until guarded."""
+        import os
+        if os.name == 'nt':
+            return self._check_windows_cleanup_failure(nested=False)
         from export_staging import RECOVERY, reclaim_export_staging
         from export_staging_retirement import PosixRetirement
         cleanup = PosixRetirement.cleanup_initialized_creation
@@ -150,8 +237,11 @@ class SoundDeliveryExportTests(unittest.TestCase):
             self.assertEqual(b'keep', (retained[0] / 'retained-note').read_bytes())
         self.run_owned(check)
 
-    def test_postpublication_nested_registry_failure_preserves_payload(self):
+    def test_postpublication_nested_staging_failure_preserves_payload(self):
+        """Windows nested public owners or POSIX nested registries preserve their payload."""
         import os
+        if os.name == 'nt':
+            return self._check_windows_cleanup_failure(nested=True)
         from pathlib import Path
         from export_staging import RECOVERY, reclaim_export_staging
         from export_staging_retirement import DIRECTORY
