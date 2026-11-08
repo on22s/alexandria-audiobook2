@@ -1050,17 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T13:06:14",
+  "written": "2026-11-08T13:49:27",
   "host": "RealMitch",
   "git": {
-   "commit": "4459f48b0392fc0ada44bb9685dce360c565bfd5",
-   "branch": "fix/1822-concurrency-cache-ordering",
+   "commit": "02893a870623e47e2df995d7273d32d2c4bb9b8a",
+   "branch": "fix/1818-sound-registry-inventory",
    "dirty": true,
-   "source_state": "dirty:0aa89a62bee5",
+   "source_state": "dirty:738ccb839ba2",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/routers/script.py",
-    "A  app/tests/test_upload_storage_quota.py",
+    "M  app/sound_design_candidates.py",
+    "M  app/sound_design_rendition_cleanup.py",
+    "M  app/sound_design_staging.py",
+    "M  app/tests/test_sound_design_cue_api.py",
+    "A  app/tests/test_sound_inventory_registry.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,

@@ -11800,7 +11800,8 @@
     "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_cleanup_protects_kept_parent_and_current_cue_and_retains_empty_ledger",
     "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_disconnect_retains_audio_owner_until_real_worker_exits_without_publishing",
     "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_final_fence_and_serialization_cancellation_prevent_record_and_consume_publication",
-    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_owned_capture_consume_historical_source_and_keep_preserve_exact_provenance"
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_owned_capture_consume_historical_source_and_keep_preserve_exact_provenance",
+    "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_real_delivery_registry_keeps_listing_and_cleanup_preview_usable"
   ],
   "test_sound_design_cues": [
     "tests.test_sound_design_cues.SoundDesignCueTests.test_actual_selected_asset_conversion_matches_projected_frames_and_pcm",
@@ -12018,6 +12019,13 @@
     "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_late_publication_error_preserves_selected_source_for_recovery",
     "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_no_cue_late_atomic_state_error_preserves_selected_source",
     "tests.test_sound_design_upload_selection.SoundDesignUploadSelectionTests.test_slow_metadata_runs_off_loop_and_releases_only_local_task_mutex"
+  ],
+  "test_sound_inventory_registry": [
+    "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_cleanup_names_accept_only_validated_empty_registry",
+    "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_cleanup_refuses_retained_private_work_listing_still_charges_it",
+    "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_listing_keeps_candidates_when_empty_registry_is_admitted",
+    "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_private_slots_keep_shared_quota_and_count_limits",
+    "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_registry_refusal_and_unknown_entries_are_not_hidden"
   ],
   "test_sound_mixes_js": [
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_deliver_saved_approval_and_verified_download_are_identity_bound",

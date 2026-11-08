@@ -11,7 +11,8 @@ from sound_design_approval import get_sound_approval, get_sound_delivery_profile
 from sound_design_candidate import (get_sound_candidate_document, MAX_CANDIDATE_METADATA,
                                     validate_sound_candidate_stage)
 from sound_design_cues import _require_digest
-from sound_design_staging import ensure_sound_render_quota, get_sound_render_stage_files, MAX_TOTAL_BYTES
+from sound_design_staging import (ensure_sound_render_quota, get_sound_render_stage_files,
+                                  get_sound_render_inventory, MAX_TOTAL_BYTES)
 from tts import ensure_audio_export_active
 
 
@@ -30,8 +31,9 @@ def list_sound_candidates(root, *, cancel_check=None):
     check = lambda: ensure_audio_export_active(cancel_check)
     rows = []
     with ensure_sound_render_quota(root,cancel_check=check) as (directory,available,_):
-        for stage in sorted(directory.iterdir()):
-            if stage.name == 'quota.lock': continue
+        _, _, names = get_sound_render_inventory(directory, root, cancel_check=check)
+        for name in names:
+            stage = directory/name
             validate_sound_candidate_stage(stage.name)
             charged, revision, _, _ = _capture_stage(stage,root,check)
             row = dict(stage=stage.name,bytes=charged,recovery_revision=revision,status='incomplete',
