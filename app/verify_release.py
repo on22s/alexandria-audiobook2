@@ -181,13 +181,14 @@ def validate_api_summary(summary, full):
     if not tests:
         raise ValueError("API summary contains no tests")
     names = [test.get("name") for test in tests if isinstance(test, dict)]
-    if len(names) != len(tests) or any(not name for name in names) or len(set(names)) != len(names):
-        raise ValueError("API summary test names must be non-empty and unique")
+    if len(names) != len(tests) or any(not isinstance(name, str) or not name for name in names) or len(set(names)) != len(names):
+        raise ValueError("API summary test names must be non-empty and unique strings")
     if any(type(test.get("requires_full")) is not bool for test in tests):
         raise ValueError("API summary tests must declare requires_full")
-    statuses = Counter(test.get("status") for test in tests)
-    if set(statuses) - {"passed", "failed", "skipped"}:
+    status_values = [test.get("status") for test in tests]
+    if any(not isinstance(status, str) or status not in {"passed", "failed", "skipped"} for status in status_values):
         raise ValueError("API summary contains an invalid test status")
+    statuses = Counter(status_values)
     actual_counts = {
         "passed": statuses["passed"], "failed": statuses["failed"],
         "skipped": statuses["skipped"], "total": len(tests),
