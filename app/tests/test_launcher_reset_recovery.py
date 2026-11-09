@@ -54,7 +54,7 @@ class LauncherResetRecoveryTests(unittest.TestCase):
         (root / 'app').mkdir()
         for name in ('book_state_transaction.py', 'direct_path_admission.py', 'book_recovery_archive.py', 'project_scope_admission.py', 'source_upload_publication.py', 'source_upload_stage.py', 'windows_export_staging_directory.py', 'export_staging_directory.py', 'utils.py', 'loaded_module_code.py', 'adapter_publication.py',
                      'editor_poll_snapshot.py', 'chunk_status_journal.py', 'take_retention.py','take_publication.py',
-                     'audio_take_history.py', 'take_metadata_pool.py', 'audio_generation_owner.py', 'audio_validation.py'):
+                     'audio_take_history.py', 'take_metadata_pool.py', 'audio_generation_owner.py', 'audio_validation.py', 'export_file_io.py'):
             shutil.copyfile(ROOT / 'app' / name, root / 'app' / name)
         shutil.copyfile(ROOT / 'gpu_stats.py', root / 'gpu_stats.py')
         shutil.copyfile(ROOT / 'launcher_lifecycle.js', root / 'launcher_lifecycle.js')
