@@ -773,6 +773,38 @@ class VoicesTests(unittest.TestCase):
         for field, value in assignment_traits.items():
             self.assertEqual(config["Holo"][field], value, field)
 
+    def test_cast_apply_never_imports_source_book_approvals(self):
+        # #1802: approvals are per book. A different effective voice/persona
+        # resets them; an unchanged one keeps the TARGET's own review.
+        source = {"type": "lora", "adapter_id": "v1", "description": "warm", "ref_text": "hi",
+                  "voice_status": "approved", "persona_status": "approved"}
+        lib = {"shared": {}, "casts": {"series": {"members": {"holo": {"name": "Holo", "config": source}}}}}
+        apply = lambda current: voice_library_module._apply_cast_mapping(
+            lib, "series", {"Holo": "holo"}, {"Holo": current} if current is not None else {},
+            book_id="b2")[0]["Holo"]
+        changed = apply({"type": "lora", "adapter_id": "old", "description": "cold", "ref_text": "yo",
+                         "voice_status": "unassigned", "persona_status": "unreviewed"})
+        self.assertEqual(("unassigned", "unreviewed"), (changed["voice_status"], changed["persona_status"]))
+        self.assertEqual("v1", changed["adapter_id"])
+        # Previously approved here for a different voice: that review no longer applies.
+        replaced = apply({"type": "lora", "adapter_id": "old", "description": "cold", "ref_text": "yo",
+                          "voice_status": "approved", "persona_status": "approved"})
+        self.assertEqual(("unassigned", "unreviewed"), (replaced["voice_status"], replaced["persona_status"]))
+        fresh = apply(None)
+        self.assertEqual(("unassigned", "unreviewed"), (fresh["voice_status"], fresh["persona_status"]))
+        # Same effective voice and persona: the target's own review stands, whatever the source says.
+        same = apply({"type": "lora", "adapter_id": "v1", "description": "warm", "ref_text": "hi",
+                      "voice_status": "assigned", "persona_status": "reviewed"})
+        self.assertEqual(("assigned", "reviewed"), (same["voice_status"], same["persona_status"]))
+        # Voice unchanged, persona text changed: only the persona review resets.
+        mixed = apply({"type": "lora", "adapter_id": "v1", "description": "cold", "ref_text": "hi",
+                       "voice_status": "approved", "persona_status": "approved"})
+        self.assertEqual(("approved", "unreviewed"), (mixed["voice_status"], mixed["persona_status"]))
+        # Provenance is not a review decision: a catalog persona stays "generated".
+        source.update(persona_status="generated", voice_status="assigned")
+        provenance = apply(None)
+        self.assertEqual(("assigned", "generated"), (provenance["voice_status"], provenance["persona_status"]))
+
     def test_legacy_generic_cast_member_is_not_auto_matched(self):
         lib = {"shared": {}, "casts": {"series": {"members": {
             "man": {"name": "Man", "config": {"type": "lora", "adapter_id": "v1"}}

@@ -39,7 +39,7 @@ from core import (
 from voice_manifest import get_resolved_adapter_id_mapping
 from casting_catalog import (CastingMarksCorrupt, get_casting_marks, get_casting_marks_path,
                             get_catalog_voice, get_voice_clone_config, get_voice_lifecycle)
-from routers.voices import _apply_book_voice_update
+from routers.voices import _apply_book_voice_update, _voice_asset_summary
 from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_snapshot_token
 from utils import atomic_json_write, file_lock, is_generic_speaker, safe_load_json, secure_filename
 
@@ -261,6 +261,20 @@ def _apply_cast_mapping(lib: dict, cast_name: str, mapping: Dict[str, str],
                     if point.get("version_id") is None or point.get("version_id") in (cfg.get("versions") or {})]
             if kept:
                 cfg["version_timeline"] = kept
+        # Review decisions are per book (#1802): never import the source
+        # book's. The target keeps its own status only while what it
+        # reviewed is unchanged, judged by the same effective-voice summary
+        # the single-voice apply uses. Otherwise a source review decision
+        # resets, while provenance such as a catalog persona's "generated"
+        # passes through.
+        same_voice = _voice_asset_summary(current) == _voice_asset_summary(cfg)
+        same_persona = all(current.get(field) == cfg.get(field) for field in ("description", "ref_text"))
+        for field, unchanged, default in (("voice_status", same_voice, "unassigned"),
+                                          ("persona_status", same_persona, "unreviewed")):
+            if unchanged and field in current:
+                cfg[field] = current[field]
+            elif cfg.get(field) in ("reviewed", "approved", "rejected") or (field in current and field not in cfg):
+                cfg[field] = default
         result_config[char] = cfg
         applied.append(char)
     return result_config, applied
