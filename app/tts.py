@@ -175,6 +175,18 @@ def apply_tts_failure(error, category=None, next_action=None):
         next_action or "Check the TTS logs and voice settings before retrying."))
 
 
+def _remove_staging_audio(staging_path):
+    try:
+        os.remove(staging_path)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        diagnostic = f"Pending audio cleanup failed at {staging_path}: {error}"
+        logging.getLogger(__name__).warning(diagnostic)
+        return diagnostic
+    return None
+
+
 def ensure_local_tts_serialized(method):
     """Serialize local model loading, prompt construction and seeded inference."""
     @wraps(method)
@@ -2204,8 +2216,13 @@ class TTSEngine:
         cancelled = threading.Event()
         deadline = time.monotonic() + self._external_timeout
         retry_budget = get_speech_retry_budget()
+        # Provenance flag is sampled when the deadline is first clamped, so a
+        # later mutation of the budget cannot reclassify this timeout.
+        budget_limited = False
         if retry_budget is not None:
             retry_budget.check_active()
+            if retry_budget.deadline < deadline:
+                budget_limited = True
             deadline = min(deadline, retry_budget.deadline)
         capture_inputs = is_speech_input_capture_active()
 
@@ -2225,10 +2242,7 @@ class TTSEngine:
                 return False, time.monotonic(), None
             finally:
                 if cancelled.is_set():
-                    try:
-                        os.remove(staging_path)
-                    except FileNotFoundError:
-                        pass
+                    _remove_staging_audio(staging_path)
         future = self._submit_external(work, cancelled)
         try:
             success, finished_at, speech_input = future.result(timeout=max(0, deadline - time.monotonic()))
@@ -2237,12 +2251,17 @@ class TTSEngine:
         except FutureTimeout:
             cancelled.set()
             future.cancel()
-            try:
-                os.remove(staging_path)
-            except FileNotFoundError:
-                pass
-            print(f"External TTS timed out after {self._external_timeout}s")
-            apply_tts_failure(TimeoutError(f"External TTS timed out after {self._external_timeout}s"))
+            cleanup_error = _remove_staging_audio(staging_path)
+            if budget_limited:
+                primary = (f"External TTS timed out at speech retry deadline "
+                           f"(configured external limit {self._external_timeout}s)")
+            else:
+                primary = f"External TTS timed out after {self._external_timeout}s"
+            print(primary)
+            message = primary
+            if cleanup_error:
+                message += f"; {cleanup_error}"
+            apply_tts_failure(TimeoutError(message))
             return False
         except Exception as error:
             apply_tts_failure(error)
@@ -2250,19 +2269,13 @@ class TTSEngine:
         except BaseException:
             cancelled.set()
             future.cancel()
-            try:
-                os.remove(staging_path)
-            except FileNotFoundError:
-                pass
+            _remove_staging_audio(staging_path)
             raise
         if (success and os.path.exists(staging_path)
                 and publish_audio_output(staging_path, output_path, cancelled)):
             promote_speech_input(speech_input, output_path)
             return True
-        try:
-            os.remove(staging_path)
-        except FileNotFoundError:
-            pass
+        _remove_staging_audio(staging_path)
         return False
 
     @capture_tts_operation("generate_custom_voice")
@@ -3857,16 +3870,7 @@ class TTSEngine:
         futures = {}
         capture_inputs = is_speech_input_capture_active()
 
-        def remove_staging_audio(staging_path):
-            try:
-                os.remove(staging_path)
-            except FileNotFoundError:
-                return None
-            except OSError as error:
-                diagnostic = f"Pending audio cleanup failed at {staging_path}: {error}"
-                logging.getLogger(__name__).warning(diagnostic)
-                return diagnostic
-            return None
+        remove_staging_audio = _remove_staging_audio
 
         def render_to_staging(chunk, staging_path, endpoint, cancelled, deadline):
             try:
