@@ -408,6 +408,136 @@ class LegacyBatchCleanupTests(unittest.TestCase):
             # The TemporaryDirectory fixture retires the deferred residual
             # after the owner context has exited.
 
+    def test_engine_mutated_row_index_cannot_steer_cleanup(self):
+        # The engine receives batch_chunks by reference and can mutate a
+        # row's index before raising. Retirement must use the indexes
+        # admitted before the engine was handed the rows: owned stages are
+        # retired, the unsubmitted future slot is never deleted.
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(tmp)
+            manager = self.get_manager(root)
+            published = self.publish_prior(manager, root, (0, 1))
+            future = root / "temp_batch_2.wav"
+            future.write_bytes(b"future unsubmitted slot")
+            error = RuntimeError("synthetic engine failure")
+
+            def batch(chunks, config, output, seed):
+                for row in chunks:
+                    _write_wav(Path(output) / ("temp_batch_%d.wav" % row["index"]), row["text"])
+                chunks[0]["index"] = 2
+                raise error
+
+            manager.engine = SimpleNamespace(generate_batch=batch)
+            with self.assertRaises(RuntimeError) as ctx:
+                manager.generate_chunks_batch([0, 1], batch_size=2)
+            self.assertIs(error, ctx.exception)
+            self.assertFalse((root / "temp_batch_0.wav").exists())
+            self.assertFalse((root / "temp_batch_1.wav").exists())
+            self.assertEqual(b"future unsubmitted slot", future.read_bytes())
+            for rel, data in published.items():
+                self.assertEqual(data, (root / rel).read_bytes())
+            saved = manager.load_chunks()
+            self.assertEqual(["pending", "pending"], [saved[i]["status"] for i in (0, 1)])
+
+    def test_unprintable_secondary_repr_preserves_original_engine_error(self):
+        # A secondary exception whose __repr__ throws but whose __str__ is
+        # printable must never replace the original: the original engine error is
+        # preserved, the WARNING still carries the secondary class/message,
+        # unknown admission still authorizes no unlink/reset, other admitted
+        # paths are still retired after a helper failure, and a failed reset
+        # is diagnosed without claiming success.
+        from audio_generation_owner import AudioGenerationOwner, ensure_audio_generation_owner
+
+        class BadReprError(OSError):
+            def __str__(self):
+                return "printable secondary message"
+
+            def __repr__(self):
+                raise RuntimeError("repr boom")
+
+        for mode in ("admission", "cleanup", "reset"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manager = self.get_manager(root)
+                published = self.publish_prior(manager, root, (0, 1))
+                error = RuntimeError("synthetic engine failure")
+                secondary = BadReprError()
+                broken = []
+                calls = {"remove": [], "reset": []}
+
+                @contextlib.contextmanager
+                def admit(**kwargs):
+                    if broken:
+                        raise secondary
+                    yield
+
+                def batch(chunks, config, output, seed):
+                    for row in chunks:
+                        _write_wav(Path(output) / ("temp_batch_%d.wav" % row["index"]), row["text"])
+                    if mode == "admission":
+                        broken.append(True)
+                    raise error
+
+                manager.engine = SimpleNamespace(generate_batch=batch)
+                patches = []
+                if mode == "cleanup":
+                    original_remove = manager._remove_batch_temp_file
+
+                    def flaky_remove(idx):
+                        calls["remove"].append(idx)
+                        if idx == 0:
+                            raise secondary
+                        return original_remove(idx)
+
+                    patches.append(patch.object(manager, "_remove_batch_temp_file", side_effect=flaky_remove))
+                if mode == "reset":
+                    def failing_reset(*args, **kwargs):
+                        calls["reset"].append(args)
+                        raise secondary
+
+                    patches.append(patch.object(manager, "_reset_captured_generations", side_effect=failing_reset))
+                if mode == "admission":
+                    def denied_remove(idx):
+                        calls["remove"].append(idx)
+                        raise AssertionError("legacy remover called under unknown admission")
+
+                    def denied_reset(*args, **kwargs):
+                        calls["reset"].append(args)
+                        raise AssertionError("state reset called under unknown admission")
+
+                    patches.append(patch.object(manager, "_remove_batch_temp_file", side_effect=denied_remove))
+                    patches.append(patch.object(manager, "_reset_captured_generations", side_effect=denied_reset))
+                owner_context = contextlib.ExitStack()
+                if mode == "admission":
+                    owner_context.enter_context(ensure_audio_generation_owner(AudioGenerationOwner("a" * 32, admit)))
+                with owner_context, contextlib.ExitStack() as stack:
+                    for item in patches:
+                        stack.enter_context(item)
+                    with self.assertLogs("project", level="WARNING") as logs, \
+                            contextlib.redirect_stdout(io.StringIO()):
+                        with self.assertRaises(RuntimeError) as ctx:
+                            manager.generate_chunks_batch([0, 1], batch_size=2)
+                    self.assertIs(error, ctx.exception)
+                    warnings = [line for line in logs.output
+                                if "BadReprError" in line and "printable secondary message" in line]
+                    self.assertEqual(1, len(warnings), logs.output)
+                    for rel, data in published.items():
+                        self.assertEqual(data, (root / rel).read_bytes())
+                    if mode == "admission":
+                        self.assertEqual([], calls["remove"])
+                        self.assertEqual([], calls["reset"])
+                        self.assertTrue((root / "temp_batch_0.wav").exists())
+                        self.assertTrue((root / "temp_batch_1.wav").exists())
+                    elif mode == "cleanup":
+                        self.assertFalse((root / "temp_batch_1.wav").exists())
+                        self.assertTrue((root / "temp_batch_0.wav").exists())
+                    else:
+                        self.assertFalse((root / "temp_batch_0.wav").exists())
+                        self.assertFalse((root / "temp_batch_1.wav").exists())
+                        saved = manager.load_chunks()
+                        self.assertEqual(["generating", "generating"],
+                                         [saved[i]["status"] for i in (0, 1)])
+
     def test_registered_output_is_not_handed_to_legacy_remover(self):
         # Real synthesis_recovery_context binding/owner fixtures: while a
         # registered output is bound, _remove_batch_temp_file (the helper the

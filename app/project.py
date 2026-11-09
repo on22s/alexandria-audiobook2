@@ -4072,6 +4072,11 @@ class ProjectManager:
                         batch_chunk.update(get_narrator_generation_context(chunk))
                         batch_chunks.append(batch_chunk)
 
+                # Freeze the admitted cleanup indexes before the engine is
+                # handed the rows; the callee can mutate them before raising,
+                # so failure cleanup must use this tuple, never row state.
+                admitted_cleanup_indices = tuple(row["index"] for row in batch_chunks)
+
                 # Call batch TTS with single seed. If stale-output cleanup rejected
                 # every row, there is nothing safe to dispatch.
                 try:
@@ -4109,7 +4114,7 @@ class ProjectManager:
                         # cancellation, and never unlink or reset under failed
                         # admission. Stages stay deferred; the original error
                         # is re-raised below with a secondary warning.
-                        logger.warning(f"Warning: audio generation admission failed during failed batch cleanup; deferring legacy temp retirement and state reset: {admission_error!r}")
+                        logger.warning("Warning: audio generation admission failed during failed batch cleanup; deferring legacy temp retirement and state reset: %s: %s", type(admission_error).__name__, admission_error)
                         cancelled = None
                     if cancelled:
                         for idx in batch_indices:
@@ -4123,16 +4128,16 @@ class ProjectManager:
                         # so their temp slots are not ours to delete; registered
                         # outputs are skipped inside the helper. Cleanup is
                         # best-effort and must never mask the original exception.
-                        for row in batch_chunks:
+                        for idx in admitted_cleanup_indices:
                             try:
-                                self._remove_batch_temp_file(row["index"])
+                                self._remove_batch_temp_file(idx)
                             except Exception as cleanup_error:
-                                logger.warning(f"Warning: could not retire failed batch temp file for chunk {row['index']}: {cleanup_error!r}")
+                                logger.warning("Warning: could not retire failed batch temp file for chunk %s: %s: %s", idx, type(cleanup_error).__name__, cleanup_error)
                                 continue
                         try:
                             self._reset_captured_generations(captured, indices, set())
                         except Exception as reset_error:
-                            logger.warning(f"Warning: could not reset generating state after failed batch: {reset_error!r}")
+                            logger.warning("Warning: could not reset generating state after failed batch: %s: %s", type(reset_error).__name__, reset_error)
                     raise
                 if is_audio_generation_cancelled():
                     for idx in batch_indices:

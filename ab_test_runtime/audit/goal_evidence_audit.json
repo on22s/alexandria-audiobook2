@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T22:40:48",
+  "written": "2026-11-08T23:36:18",
   "host": "RealMitch",
   "git": {
-   "commit": "9d2e5e3caeb36a873ad96f7a1ebcd8e94434ebba",
+   "commit": "dccf97237aab6cdbea0165bbae7b1381b871eff9",
    "branch": "fix/1798-legacy-batch-staging",
    "dirty": true,
-   "source_state": "dirty:b1dcbbcad18c",
+   "source_state": "dirty:c624d0902d47",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/project.py",
