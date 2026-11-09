@@ -21,6 +21,23 @@ from subprocess_ownership import (run_owned_capture, start_owned_subprocess,
                                   stop_owned_subprocess)
 
 MODEL_NAME = "Qwen3-ForcedAligner-0.6B"
+
+_LOADER_ENV_VARS = ("PYTHONPATH", "PYTHONHOME", "LD_PRELOAD",
+                    "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
+                    "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES")
+
+
+def _isolated_worker_env(base_env=None):
+    """One sanitized environment for capability/identity/worker.
+
+    Strips loader variables so a shadow package cannot satisfy the
+    probes while the isolated worker runs different code. The
+    operator-configured interpreter/model paths and offline forcing
+    live outside the environment values themselves.
+    """
+    source = os.environ if base_env is None else base_env
+    return {key: value for key, value in source.items()
+            if key not in _LOADER_ENV_VARS}
 DEFAULT_PROBE_TIMEOUT_SECONDS = 120
 DEFAULT_RUN_TIMEOUT_SECONDS = 7200
 MAX_RESULT_BYTES = 16 * 1024 * 1024
@@ -66,6 +83,7 @@ _PROBE_SOURCE = (
     "    out['torch_version'] = None\n"
     "out['qwen_asr'] = True\n"
     "out['cpu_fallback'] = True\n"
+    "out['cuda_enumeration_failed'] = False\n"
     "try:\n"
     "    if torch.cuda.is_available():\n"
     "        for i in range(torch.cuda.device_count()):\n"
@@ -73,15 +91,19 @@ _PROBE_SOURCE = (
     "            try:\n"
     "                free, total = torch.cuda.mem_get_info(i)\n"
     "            except Exception:\n"
-    "                free, total = 0, 0\n"
+    "                continue\n"
     "            out['devices'].append({'device': 'cuda:%d' % i,\n"
     "                'name': torch.cuda.get_device_name(i),\n"
     "                'capability': [major, minor],\n"
     "                'free_bytes': int(free or 0),\n"
     "                'total_bytes': int(total or 0)})\n"
     "except Exception:\n"
-    "    pass\n"
-    "out['ready'] = True\n"
+    "    out['cuda_enumeration_failed'] = True\n"
+    "if out.get('cuda_enumeration_failed'):\n"
+    "    out['ready'] = False\n"
+    "    out['reason'] = 'CUDA device enumeration failed; GPU capability unknown'\n"
+    "else:\n"
+    "    out['ready'] = True\n"
     "print(json.dumps(out))\n"
 )
 
@@ -311,14 +333,23 @@ def get_qwen_code_digest(code_paths=None):
     return digest.hexdigest()
 
 
-def get_qwen_provider_digest(model_dir, runtime_identity=None, cancel_check=None):
+def get_qwen_provider_digest(model_dir, runtime_identity=None, cancel_check=None,
+                             _model_digest=None):
     """Bounded provider identity: model files + interpreter/runtime + code.
 
     Captured once at admission; the caller recomputes the same way to
     revalidate before the worker starts, before publication, and at
-    download time. No caching; mtime plays no role.
+    download time. No caching; mtime plays no role. ``_model_digest``
+    is a same-phase captured inner content identity (valid only for
+    the caller phase that captured it); every distinct boundary
+    captures fresh unless it reuses its own phase capture.
     """
-    inner = get_qwen_model_file_digest(model_dir, cancel_check=cancel_check)
+    if _model_digest is not None:
+        if not isinstance(_model_digest, str) or len(_model_digest) != 64:
+            raise ValueError("Captured model digest is malformed.")
+        inner = _model_digest
+    else:
+        inner = get_qwen_model_file_digest(model_dir, cancel_check=cancel_check)
     if not isinstance(runtime_identity, dict):
         raise ValueError("Runtime identity is required for the provider digest.")
     version = runtime_identity.get("qwen_asr_version")
@@ -461,7 +492,8 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
                           % "; ".join(issues[:6]), python, model_dir)
     command = probe_command if probe_command is not None else [python, "-c", _PROBE_SOURCE]
     try:
-        completed = run_owned_capture(command, timeout=timeout)
+        completed = run_owned_capture(command, timeout=timeout,
+                                      env=_isolated_worker_env())
     except subprocess.TimeoutExpired:
         return _not_ready("Qwen capability probe timed out.", python, model_dir)
     except (OSError, ValueError) as error:
@@ -530,13 +562,18 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
     try:
         identity = (runtime_identity if runtime_identity is not None
                     else get_qwen_runtime_identity(python, cancel_check=cancel_check))
+        # Same-phase captured inner content identity: hashed once in
+        # this capability phase, reused only for same-phase outer
+        # recomputation (distinct boundaries capture fresh).
+        model_digest = get_qwen_model_file_digest(
+            model_dir, cancel_check=cancel_check)
         provider = get_qwen_provider_digest(
             model_dir,
             runtime_identity={"qwen_asr_version": version,
                               "torch_version": payload.get("torch_version"),
                               "device": device_choice, "dtype": dtype,
                               "identity": identity},
-            cancel_check=cancel_check)
+            cancel_check=cancel_check, _model_digest=model_digest)
     except ValueError as error:
         return _not_ready(
             "Qwen provider identity is unavailable: %s" % error, python, model_dir)
@@ -551,6 +588,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
             "torch_version": payload.get("torch_version"),
             "cpu_fallback": bool(payload.get("cpu_fallback")),
             "provider_digest": provider, "runtime_identity": identity,
+            "model_digest": model_digest,
             "reason": None}
 
 
@@ -599,7 +637,8 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
         raise ValueError("Qwen interpreter is unavailable; refusing to identify it.")
     try:
         completed = run_owned_capture(
-            [canonical, "-c", _IDENTITY_SOURCE], timeout=timeout)
+            [canonical, "-c", _IDENTITY_SOURCE], timeout=timeout,
+            env=_isolated_worker_env())
     except (subprocess.TimeoutExpired, OSError, ValueError) as error:
         raise ValueError("Qwen runtime identity capture failed: %s" % error) from error
     if completed.returncode != 0:
@@ -804,11 +843,7 @@ def run_qwen_alignment_full(command, job_path, result_path, cancel_check,
     # variables inherited from the trusted server environment are
     # stripped too, so an operator-set PYTHONPATH/LD_PRELOAD cannot
     # hijack the isolated interpreter's imports/libraries.
-    _loader_vars = ("PYTHONPATH", "PYTHONHOME", "LD_PRELOAD",
-                    "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
-                    "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES")
-    env = {key: value for key, value in os.environ.items()
-           if key not in _loader_vars}
+    env = _isolated_worker_env()
     if worker_env:
         safe_env = {key: value for key, value in worker_env.items()
                     if key not in ("HF_HUB_OFFLINE", "HF_HUB_DISABLE_TELEMETRY",

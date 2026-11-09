@@ -185,13 +185,6 @@ def count_units(text):
     return len(_AA2_WORDS_RE.findall(folded))
 
 
-def _is_kept_char(char):
-    if char == "'":
-        return True
-    category = unicodedata.category(char)
-    return category.startswith("L") or category.startswith("N")
-
-
 def _is_hangul_l(code):
     return (0x1100 <= code <= 0x115F) or (0xA960 <= code <= 0xA97F)
 
@@ -249,19 +242,35 @@ def _normalized_clusters(text):
 
 
 def _get_normalized_stream_detailed(text):
-    """Normalized stream plus original (start, end) per normalized char."""
-    characters = []
+    """Canonical AA2 stream plus original (start, end) per char.
+
+    One canonical rule shared by stream and token key: keep the
+    full folded text (including ignored punctuation/marks) with
+    per-char original provenance, then retain exactly the spans of
+    the AA2 word regex in folded coordinates and project them back
+    to original indices. Punctuation, whitespace and combining
+    marks therefore break word adjacency in folded coordinates
+    (they are real string positions), while NFKC compositions,
+    casefold expansions, Hangul and Japanese provenance survive.
+    """
+    folded_chars = []
     starts = []
     ends = []
     for start, stop in _normalized_clusters(text or ""):
         folded = unicodedata.normalize("NFKC", text[start:stop])
         folded = folded.casefold().replace("’", "'").replace("‘", "'")
         for char in folded:
-            if _is_kept_char(char):
-                characters.append(char)
-                starts.append(start)
-                ends.append(stop)
-    return "".join(characters), starts, ends
+            folded_chars.append(char)
+            starts.append(start)
+            ends.append(stop)
+    folded = "".join(folded_chars)
+    out_chars, out_starts, out_ends = [], [], []
+    for match in _AA2_WORDS_RE.finditer(folded):
+        for pos in range(match.start(), match.end()):
+            out_chars.append(folded[pos])
+            out_starts.append(starts[pos])
+            out_ends.append(ends[pos])
+    return "".join(out_chars), out_starts, out_ends
 
 
 def get_normalized_stream(text):
@@ -283,9 +292,8 @@ def get_token_key(token_text):
     if not isinstance(token_text, str):
         return ""
     folded = unicodedata.normalize("NFKC", token_text)
-    folded = folded.replace("’", "'").replace("‘", "'")
-    folded = folded.casefold()
-    return "".join(char for char in folded if _is_kept_char(char))
+    folded = folded.casefold().replace("’", "'").replace("‘", "'")
+    return "".join(_AA2_WORDS_RE.findall(folded))
 
 
 def _map_tokens_internal(text, tokens):
@@ -551,6 +559,26 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
                 or sentence["words"] < 0):
             raise ValueError("Alignment sentence is malformed.")
 
+    # Punctuation-only sentences carry no alignable words: fold
+    # their char ranges into the adjacent spoken sentence so every
+    # character is covered exactly once without planning a
+    # zero-length window or an empty-token sentence clip. An
+    # all-punctuation row still refuses (no alignable words).
+    sentences = [dict(s) for s in sentences]
+    spoken = [i for i, s in enumerate(sentences) if s["words"] > 0]
+    if not spoken:
+        raise ValueError("Row text has no alignable words.")
+    for i, sentence in enumerate(sentences):
+        if sentence["words"] > 0:
+            continue
+        prev_idx = max((j for j in spoken if j < i), default=None)
+        next_idx = min((j for j in spoken if j > i), default=None)
+        target = prev_idx if prev_idx is not None else next_idx
+        if target < i:
+            sentences[target]["end"] = sentence["end"]
+        else:
+            sentences[target]["start"] = sentence["start"]
+    sentences = [s for s in sentences if s["words"] > 0]
     total_words = sum(s["words"] for s in sentences)
     if total_words <= 0:
         raise ValueError("Row text has no alignable words.")

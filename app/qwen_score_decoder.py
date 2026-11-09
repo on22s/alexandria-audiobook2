@@ -132,12 +132,17 @@ def decode_timestamp_bins(scores):
     for position in range(1, token_count):
         prefix_scores = np.maximum.accumulate(previous)
         # prefix_indices[b] = first argmax over j <= b of previous[j].
-        prefix_indices = np.empty(bin_count, dtype=np.int32)
-        best_index = 0
-        for b in range(bin_count):
-            if previous[b] > previous[best_index]:
-                best_index = b
-            prefix_indices[b] = best_index
+        # Vectorized first-tie form: the prefix argmax changes only
+        # at strict new maxima, so segment the bins at those indices
+        # and repeat each winning index over its segment. Ties keep
+        # the earliest index (first-argmax), identical to the
+        # `previous[b] > previous[best]` scan.
+        _cum = np.maximum.accumulate(previous)
+        _new_max = np.flatnonzero(
+            np.concatenate(([True], previous[1:] > _cum[:-1])))
+        _bounds = np.append(_new_max, bin_count)
+        prefix_indices = np.repeat(
+            _new_max.astype(np.int32), np.diff(_bounds))
         if position % 2:
             best_scores = np.concatenate(([-np.inf], prefix_scores[:-1]))
             best_indices = np.concatenate(([0], prefix_indices[:-1]))

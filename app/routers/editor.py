@@ -2000,6 +2000,10 @@ def _require_readaloud_timing_current(receipt):
                     "to validate its timing."))
             return
         try:
+            # Fresh runtime identity at this distinct download
+            # boundary, but the same-phase inner model digest is
+            # reused from the capability call above (content hashed
+            # once this phase, outer binds the receipt pin).
             fresh_runtime = get_qwen_runtime_identity(capability["python"])
             current = get_qwen_provider_digest(
                 models[0], runtime_identity={
@@ -2007,7 +2011,8 @@ def _require_readaloud_timing_current(receipt):
                     "torch_version": capability.get("torch_version"),
                     "device": receipt.get("timing_device"),
                     "dtype": receipt.get("timing_dtype"),
-                    "identity": fresh_runtime})
+                    "identity": fresh_runtime},
+                _model_digest=capability.get("model_digest"))
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         if current != receipt.get("timing_provider"):
@@ -2031,7 +2036,7 @@ async def get_readaloud_epub_capability():
             # runtime is a useful not-ready status, never a 500.
             policy = {"timing_mode": preference["timing_mode"],
                       "device": preference["timing_device"],
-                      "cpu_only": False,
+                      "cpu_only": False, "available": False,
                       "reason": "Qwen not ready: %s" % error}
         public_capability = {
             "available": capability.get("available"),
@@ -2383,11 +2388,18 @@ def _start_readaloud_epub(background_tasks, request):
     policy = {"timing_mode": "chunk", "device": "cpu", "dtype": "float32",
               "cpu_only": True, "reason": "Chunk timing selected; low-resource CPU path."}
     if merged["timing_mode"] != "chunk":
-        # Auto resolves the CPU chunk fallback BEFORE any Qwen-only
-        # language validation, so a chunk-persisted unsupported
-        # language cannot block the fallback. Explicit qwen still
-        # refuses an unsupported language below, before any
-        # preference mutation (Phase B never writes).
+        # Explicit qwen validates its purely local language string
+        # BEFORE the expensive probe/digest; auto still resolves
+        # the CPU chunk fallback BEFORE any Qwen-only language
+        # validation, so a chunk-persisted unsupported language
+        # cannot block the fallback. Either way refusal happens
+        # before any preference mutation (Phase B never writes).
+        if merged["timing_mode"] == "qwen" and isinstance(timing_language, str) and timing_language:
+            try:
+                timing_language = get_aligner_language_name(timing_language)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+            merged["timing_language"] = timing_language
         capability = get_qwen_capability(ROOT_DIR)
         try:
             policy = get_qwen_device_policy(merged["timing_mode"],
@@ -2435,7 +2447,8 @@ def _start_readaloud_epub(background_tasks, request):
                                       "torch_version": capability.get("torch_version"),
                                       "device": policy["device"],
                                       "dtype": policy.get("dtype"),
-                                      "identity": runtime})
+                                      "identity": runtime},
+                    _model_digest=capability.get("model_digest"))
             except ValueError as error:
                 raise HTTPException(status_code=400, detail=str(error)) from error
     timing = {"timing_mode": policy["timing_mode"], "device": policy["device"],
@@ -2445,6 +2458,7 @@ def _start_readaloud_epub(background_tasks, request):
               "torch_version": (capability or {}).get("torch_version"),
               "runtime": runtime,
               "capability": capability, "preference": dict(merged),
+              "_model_digest": (capability or {}).get("model_digest"),
               "reason": policy["reason"]}
     # Phase C (book lock): re-verify admission, reserve first, then persist.
     # Failed starts never write the preference; a failed persist releases
@@ -2459,8 +2473,8 @@ def _start_readaloud_epub(background_tasks, request):
                 "Timing settings changed during start; retry the build."))
         claim_id = reserve_background_task("readaloud_epub", cpu_only=policy["cpu_only"])
         _pref_path = os.path.join(DATA_DIR, "readalong_timing.json")
-        _prior_pref_bytes = _read_bounded_preference_bytes(_pref_path)
         try:
+            _prior_pref_bytes = _read_bounded_preference_bytes(_pref_path)
             _save_readaloud_timing_preference(merged)
             _merged_pref_bytes = _read_bounded_preference_bytes(_pref_path)
         except BaseException:
@@ -2532,7 +2546,12 @@ def _start_readaloud_epub(background_tasks, request):
                 if not _is_current_readalong_generation("readaloud_epub", generation):
                     return
                 state["result"] = get_export_task_result(success, msg)
-                state["logs"].append(f"EPUB read-aloud complete: {msg}" if success else f"EPUB read-aloud failed: {msg}")
+                if success:
+                    state["logs"].append(f"EPUB read-aloud complete: {msg}")
+                elif msg == "Export cancelled":
+                    state["logs"].append("EPUB read-aloud cancelled: Export cancelled")
+                else:
+                    state["logs"].append(f"EPUB read-aloud failed: {msg}")
             except Exception as e:
                 if not _is_current_readalong_generation("readaloud_epub", generation):
                     return
@@ -2558,24 +2577,25 @@ def _start_readaloud_epub(background_tasks, request):
         stale_reason = None
         try:
             with ensure_book_state(DATA_DIR):
-                if _get_readalong_book_token() != book_token:
-                    stale_reason = "the book identity changed"
-                elif process_state["readaloud_epub"].get("readalong_generation") != generation:
-                    stale_reason = "a newer start owns this book now"
-                elif _read_bounded_preference_bytes(_pref_path) != _merged_pref_bytes:
-                    stale_reason = "the timing preference changed after this start persisted it"
-        except Exception as verify_error:
-            stale_reason = "ownership could not be verified (%s)" % verify_error
-        if stale_reason is not None:
-            raise RuntimeError(
-                "Start registration failed (%s); timing-preference "
-                "rollback was skipped because %s. The successor "
-                "preference was preserved; no stale state was "
-                "restored." % (registration_error, stale_reason)) from registration_error
-        try:
-            with ensure_book_state(DATA_DIR):
+                try:
+                    if _get_readalong_book_token() != book_token:
+                        stale_reason = "the book identity changed"
+                    elif process_state["readaloud_epub"].get("readalong_generation") != generation:
+                        stale_reason = "a newer start owns this book now"
+                    elif _read_bounded_preference_bytes(_pref_path) != _merged_pref_bytes:
+                        stale_reason = "the timing preference changed after this start persisted it"
+                except Exception as verify_error:
+                    stale_reason = "ownership could not be verified (%s)" % verify_error
+                if stale_reason is not None:
+                    raise RuntimeError(
+                        "Start registration failed (%s); timing-preference "
+                        "rollback was skipped because %s. The successor "
+                        "preference was preserved; no stale state was "
+                        "restored." % (registration_error, stale_reason)) from registration_error
                 _restore_readaloud_timing_preference_bytes(
                     _pref_path, _prior_pref_bytes)
+        except RuntimeError:
+            raise
         except OSError as rollback_error:
             # Explicit, never silent: under failed I/O the merged
             # preference remains on disk and must not be promised

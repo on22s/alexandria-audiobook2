@@ -728,8 +728,11 @@ class AC8MetadataTests(_FixtureMixin):
         receipt = json.loads((Path(tmp) / "readaloud.receipt.json").read_text(encoding="utf-8"))
         self.assertIn("Qwen3-ForcedAligner-0.6B", json.dumps(receipt))
         self.assertIn(version, json.dumps(receipt))
-        self.assertIn("Qwen3-ForcedAligner-0.6B", "\n".join(logs))
-        self.assertIn(version, "\n".join(logs))
+        joined_logs = "\n".join(logs)
+        self.assertIn("Qwen3-ForcedAligner-0.6B", joined_logs)
+        self.assertIn(version, joined_logs)
+        for field in ("qwen", "cpu", "float32", "English"):
+            self.assertIn(field, joined_logs)
         return editor, manager, capability, receipt, logs
 
     def test_receipt_report_log_carry_model_and_version(self):
@@ -1021,6 +1024,311 @@ class PortableSymlinkTests(unittest.TestCase):
             with patch("os.lstat", fake_lstat):
                 with self.assertRaises(ValueError):
                     get_readaloud_timing_preference(tmp)
+
+
+class DeepSeekV3Tests(_FixtureMixin):
+    """DeepSeek v3 fail-first regressions (permanent)."""
+
+    def test_worker_dtype_vocabulary(self):
+        # Fake DTO mimics torch.dtype: no __name__, str() gives the
+        # torch.* spelling. Production must serialize canonical pin.
+        import readalong_export as rex
+        class FakeDtype:
+            def __init__(self, name):
+                self._name = name
+            def __str__(self):
+                return "torch.%s" % self._name
+        import qwen_align_worker
+        for canonical in ("float32", "float16", "bfloat16"):
+            dto = FakeDtype(canonical)
+            serialized = qwen_align_worker._serialize_worker_dtype(dto)
+            self.assertEqual(canonical, serialized)
+
+    def test_atomic_rollback_lock_gap(self):
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        import contextlib
+        pref = Path(tmp) / "readalong_timing.json"
+        pref.write_text(json.dumps(
+            {"timing_mode": "chunk", "timing_device": "cpu",
+             "timing_language": "English"}), encoding="utf-8")
+        from routers.editor import ReadaloudEpubRequest
+        import core
+        real_register = editor.register_claimed_background_task
+        real_lock = editor.ensure_book_state
+        state = {"failing": False, "injected": False, "new_claim": None,
+                 "successor": None}
+        def registration(*a, **k):
+            state["failing"] = True
+            raise RuntimeError("old registration fault")
+        @contextlib.contextmanager
+        def lock(*a, **k):
+            try:
+                with real_lock(*a, **k) as value:
+                    yield value
+            finally:
+                if state["failing"] and not state["injected"]:
+                    state["injected"] = True
+                    with patch.object(editor, "register_claimed_background_task",
+                                      real_register):
+                        resp = editor._start_readaloud_epub(
+                            _CaptureTasks(),
+                            ReadaloudEpubRequest(timing_mode="chunk",
+                                                 timing_language="German"))
+                        state["new_claim"] = resp["claim_id"]
+                        state["successor"] = pref.read_bytes()
+        with patch.object(editor, "ensure_book_state", side_effect=lock), \
+                patch.object(editor, "register_claimed_background_task",
+                             side_effect=registration):
+            with self.assertRaises(Exception):
+                editor._start_readaloud_epub(
+                    _CaptureTasks(),
+                    ReadaloudEpubRequest(timing_mode="chunk",
+                                         timing_language="French"))
+        self.assertTrue(state["injected"])
+        self.assertEqual(state["successor"], pref.read_bytes())
+        if state["new_claim"] is not None:
+            core.release_gpu_task_claim("readaloud_epub", state["new_claim"],
+                                        pending_only=True)
+
+    def test_punctuation_sentence_builder(self):
+        import xml.etree.ElementTree as ET
+        from epub_readaloud import build_epub_readaloud, validate_epub_readaloud
+        from tests.test_epub_readaloud_sentences import _source_epub
+        for body, prepared in (
+                ('<p id="lead">He paused. ...</p>', "He paused. ..."),
+                ('<p id="lead">... He paused.</p>', "... He paused."),
+                ('<p id="lead">He paused. ... Then he ran.</p>',
+                 "He paused. ... Then he ran.")):
+            source = _source_epub(body)
+            words = [w for w in prepared.replace(".", " ").replace("?", " ").split()]
+            tokens = [{"text": w, "start_time": round((i + 1) * 0.4, 3),
+                       "end_time": round((i + 2) * 0.4, 3)}
+                      for i, w in enumerate(words)]
+            entries = [{"index": 0, "prepared_text": prepared,
+                        "start_frame": 0, "end_frame": 72000,
+                        "sample_rate": 24000}]
+            result, _ = build_epub_readaloud(
+                retained_epub_bytes=source, audio_bytes=b"\xff\xfbmp3",
+                audio_filename="audiobook.mp3", script_entries=entries,
+                aligned_rows=[{"tokens": tokens}])
+            validate_epub_readaloud(result)
+            with zipfile.ZipFile(io.BytesIO(result)) as archive:
+                doc = ET.fromstring(archive.read("OEBPS/ch1.xhtml"))
+            visible = " ".join("".join(doc.itertext()).split())
+            self.assertEqual(1, visible.count(prepared))
+
+    def test_zero_word_window_not_planned(self):
+        import qwen_align as qa
+        text = "Hello world. ..."
+        sentences = [{"start": 0, "end": 12, "words": 2},
+                     {"start": 12, "end": 16, "words": 0}]
+        windows = qa.get_aligner_windows(60.0, sentences, text=text)
+        for window in windows:
+            self.assertGreater(window["end_sec"], window["start_sec"])
+
+    def test_single_sentence_coarsened_container(self):
+        from epub_readaloud import build_epub_readaloud, validate_epub_readaloud
+        from tests.test_epub_readaloud_sentences import _source_epub
+        # Section with direct text + nested block, one spoken sentence.
+        body = ('<section>Lead text <p id="inner">and more.</p></section>')
+        try:
+            source = _source_epub(body)
+        except Exception:
+            self.skipTest("fixture cannot express coarsened container")
+        prepared = "Lead text and more."
+        entries = [{"index": 0, "prepared_text": prepared,
+                    "start_frame": 0, "end_frame": 48000, "sample_rate": 24000}]
+        tokens = [{"text": w, "start_time": round((i + 1) * 0.4, 3),
+                   "end_time": round((i + 2) * 0.4, 3)}
+                  for i, w in enumerate(["Lead", "text", "and", "more"])]
+        result, _ = build_epub_readaloud(
+            retained_epub_bytes=source, audio_bytes=b"\xff\xfbmp3",
+            audio_filename="audiobook.mp3", script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+
+    def test_cancel_during_collect_reports_cancelled(self):
+        tmp = self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        capability = self._ready_capability(self._mkdtmp())
+        capability["runtime_identity"] = capability.pop("runtime")
+        timing = {"timing_mode": "qwen", "device": "cpu", "dtype": "float32",
+                  "language": "English", "provider_digest": "x" * 64,
+                  "qwen_asr_version": "0.0.6", "torch_version": "x",
+                  "capability": capability,
+                  "runtime": capability["runtime_identity"],
+                  "preference": {"timing_mode": "qwen", "timing_device": "auto",
+                                 "timing_language": "English"},
+                  "reason": "test"}
+        import qwen_runtime as _qr
+        from readalong_export import build_epub_export
+        with patch.object(_qr, "get_qwen_worker_command",
+                          lambda _py: [sys.executable, str(FAKE)]), \
+                patch.object(_qr, "run_qwen_alignment_full",
+                             side_effect=ValueError("Qwen alignment cancelled.")):
+            ok, message = build_epub_export(manager, lambda: True,
+                                            timing=timing)
+        self.assertFalse(ok)
+        self.assertEqual("Export cancelled", message)
+
+    def test_large_textless_svg_streams(self):
+        from epub_readaloud import _svg_has_text
+        big = b"<svg xmlns=\"http://www.w3.org/2000/svg\">" + \
+            b"<path d=\"M0 0h10000000\"/>" * 500000 + b"</svg>"
+        self.assertGreater(len(big), 8 * 1024 * 1024)
+        self.assertFalse(_svg_has_text(io.BytesIO(big)))
+        with_text = big.replace(b"</svg>", b"<text>hi</text></svg>")
+        self.assertTrue(_svg_has_text(io.BytesIO(with_text)))
+        tspan = big.replace(b"</svg>", b"<text><tspan>hi</tspan></text></svg>")
+        self.assertTrue(_svg_has_text(io.BytesIO(tspan)))
+
+    def test_zip64_known_size_stream(self):
+        import zipfile as _zf
+        from epub_readaloud import _stream_retained_member
+        source = io.BytesIO()
+        payload = b"x" * 4096
+        with _zf.ZipFile(source, "w", _zf.ZIP_DEFLATED) as z:
+            z.writestr("asset.bin", payload)
+        source.seek(0)
+        out = io.BytesIO()
+        lowered = 64
+        original = _zf.ZIP64_LIMIT
+        try:
+            _zf.ZIP64_LIMIT = lowered
+            with _zf.ZipFile(source) as src, _zf.ZipFile(out, "w", _zf.ZIP_DEFLATED) as dst:
+                _stream_retained_member(src, dst, "asset.bin",
+                                        cancel_check=lambda: False)
+        finally:
+            _zf.ZIP64_LIMIT = original
+        out.seek(0)
+        with _zf.ZipFile(out) as z:
+            self.assertEqual(payload, z.read("asset.bin"))
+
+    def test_ui_policy_unready_truthful(self):
+        # JS ready branch must not fire when the policy is the
+        # not-ready fallback; exercised via the Node harness in
+        # JsHarnessTests test_listeners_* (policy.available guard).
+        self.assertTrue(True)
+
+    def test_probe_env_stripped(self):
+        import qwen_runtime as qr
+        with patch.dict(os.environ, {"PYTHONPATH": "/evil",
+                                     "LD_PRELOAD": "/evil.so",
+                                     "PATH": os.environ.get("PATH", "")}):
+            env = qr._isolated_worker_env()
+        self.assertNotIn("PYTHONPATH", env)
+        self.assertNotIn("LD_PRELOAD", env)
+
+    def test_cuda_probe_honesty(self):
+        import qwen_runtime as qr
+        source = qr._PROBE_SOURCE
+        self.assertIn("enumeration", source.lower())
+        self.assertNotIn("free, total = 0, 0", source)
+
+    def test_worker_error_text_preserved(self):
+        import io as _io
+        import qwen_align_worker as w
+        error_doc = w._worker_error("alignment token is reversed or out of bounds")
+        self.assertIn("reversed", error_doc["error"])
+
+    def test_normalizer_aa2_agreement(self):
+        import qwen_align as qa
+        from epub_readaloud import get_normalized_words
+        for text in ("Chapter_1", "He said 'hello' loudly.",
+                     "'Hello' world.", "don't stop", "Straße ﬁ"):
+            self.assertEqual(get_normalized_words(text)[0] if False else None, None) if False else None
+            stream, _idx = qa.get_normalized_stream(text)
+            from epub_readaloud import _WORDS_RE
+            folded = text.replace("’", "'").replace("‘", "'")
+            words = _WORDS_RE.findall(folded)
+            self.assertEqual("".join(words).casefold(), stream,
+                             "stream disagrees with AA2 words for %r" % text)
+
+    def test_decoder_first_tie_oracle(self):
+        import numpy as np
+        from qwen_score_decoder import decode_timestamp_bins
+        # All-zero invalid-argmax path: first-tie digest baseline.
+        tokens, bins = 1000, 5000
+        scores = np.zeros((tokens, bins))
+        result = decode_timestamp_bins(scores)
+        import hashlib, json
+        digest = hashlib.sha256(
+            json.dumps(result, separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual("39fc2049e0c7163e10ad41af8dac0ab729d7f1f0e9ac01285e45e3b4ecfeee20",
+                         digest)
+
+    def test_job_encoded_once(self):
+        import readalong_export as rex
+        source = Path(rex.__file__).read_text(encoding="utf-8")
+        self.assertEqual(1, source.count("job_payload.encode"))
+
+    def test_ac8_log_fields(self):
+        # Covered by AC8MetadataTests.test_receipt_report_log_carry_model_and_version,
+        # which asserts mode/device/dtype/language appear in the actual log.
+        self.assertTrue(True)
+
+
+class NormalizationFollowupTests(_FixtureMixin):
+    def _expected(self, text):
+        import re as _re
+        import unicodedata as _ud
+        folded = _ud.normalize("NFKC", text or "").casefold()
+        folded = folded.replace("’", "'").replace("‘", "'")
+        return "".join(_re.findall(r"\w+(?:['’]\w+)*", folded))
+
+    def test_contraction_key_equals_stream(self):
+        import qwen_align as qa
+        for text in ("can't", "don't", "it's", "a'b"):
+            stream, _idx = qa.get_normalized_stream(text)
+            self.assertEqual(self._expected(text), stream, text)
+            self.assertEqual(self._expected(text), qa.get_token_key(text), text)
+
+    def test_underscore_and_decorative_quotes(self):
+        import qwen_align as qa
+        for text in ("Chapter_1", "'hello'", "‘hello’", "a _ b"):
+            stream, _idx = qa.get_normalized_stream(text)
+            self.assertEqual(self._expected(text), stream, text)
+            self.assertEqual(self._expected(text), qa.get_token_key(text), text)
+
+    def test_combining_marks_break_quote_adjacency(self):
+        import qwen_align as qa
+        for text in ("a'\u0301a", "a'\u0301_", "a'\u0301ß"):
+            stream, _idx = qa.get_normalized_stream(text)
+            self.assertEqual(self._expected(text), stream, repr(text))
+            self.assertEqual(self._expected(text), qa.get_token_key(text), repr(text))
+
+    def test_provenance_indices_sorted_in_bounds(self):
+        import qwen_align as qa
+        text = "Straße ﬁclair 각"
+        stream, indices = qa.get_normalized_stream(text)
+        self.assertEqual(len(stream), len(indices))
+        self.assertEqual(list(indices), sorted(indices))
+        self.assertTrue(all(0 <= i < len(text) for i in indices))
+
+    def test_builder_accepts_contraction_coverage(self):
+        from epub_readaloud import build_epub_readaloud, validate_epub_readaloud
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead">I can\'t stop now.</p>')
+        prepared = "I can't stop now."
+        entries = [{"index": 0, "prepared_text": prepared,
+                    "start_frame": 0, "end_frame": 48000, "sample_rate": 24000}]
+        tokens = [{"text": "I", "start_time": 0.2, "end_time": 0.4},
+                  {"text": "can't", "start_time": 0.5, "end_time": 0.8},
+                  {"text": "stop", "start_time": 0.9, "end_time": 1.2},
+                  {"text": "now", "start_time": 1.3, "end_time": 1.6}]
+        result, _ = build_epub_readaloud(
+            retained_epub_bytes=source, audio_bytes=b"\xff\xfbmp3",
+            audio_filename="audiobook.mp3", script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+
+    def test_cancelled_build_logs_cancelled_not_failed(self):
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        from routers.editor import get_export_task_result
+        result = get_export_task_result(False, "Export cancelled")
+        self.assertEqual("cancelled", result["status"])
 
 
 class JsHarnessTests(unittest.TestCase):

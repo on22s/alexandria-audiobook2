@@ -790,14 +790,18 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
 
     job_path = align_dir / "job.json"
     result_path = align_dir / "result.json"
+    slice_dir = align_dir / "slices"
+    slice_dir.mkdir(parents=True, exist_ok=True)
     job_payload = json.dumps({
         "model_dir": capability["model_dir"], "device": capability["device"],
         "dtype": capability.get("dtype"), "language": language_name,
         "qwen_asr_version": capability.get("qwen_asr_version"),
+        "slice_dir": str(slice_dir),
         "rows": jobs}, ensure_ascii=False)
-    if len(job_payload.encode("utf-8")) > MAX_JOB_BYTES:
+    job_bytes = job_payload.encode("utf-8")
+    if len(job_bytes) > MAX_JOB_BYTES:
         raise ValueError("Qwen alignment job exceeds its size limit.")
-    job_path.write_text(job_payload, encoding="utf-8")
+    job_path.write_bytes(job_bytes)
     tokens_by_id, windows_by_id, provider = run_qwen_alignment_full(
         get_qwen_worker_command(capability["python"]), job_path, result_path,
         cancel_check, task_lease_fd=task_lease_fd)
@@ -1075,10 +1079,15 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                             "Qwen alignment needs a language: the EPUB has no "
                             "dc:language. Choose one in the EPUB settings and rebuild.")
                     language = get_aligner_language_name(tag)
-                aligned_rows, alignment = collect_aligned_rows(
-                    data, language, capability, cancel_check, staging.path,
-                    task_lease_fd=timing.get("task_lease_fd"),
-                    prepared_texts=[entry["prepared_text"] for entry in script_entries])
+                try:
+                    aligned_rows, alignment = collect_aligned_rows(
+                        data, language, capability, cancel_check, staging.path,
+                        task_lease_fd=timing.get("task_lease_fd"),
+                        prepared_texts=[entry["prepared_text"] for entry in script_entries])
+                except ValueError as error:
+                    if cancel_check() and "cancelled" in str(error).lower():
+                        raise ExportCancelled("Export cancelled") from error
+                    raise
                 timing_summary = {"mode": "qwen",
                                   "device": timing.get("device"),
                                   "dtype": timing.get("dtype"),
@@ -1089,8 +1098,10 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                                   **alignment}
                 if progress_callback is not None:
                     progress_callback(
-                        "Qwen alignment verified (%s, qwen-asr %s): %d rows, %d windows."
-                        % (_QWEN_MODEL_NAME, _version,
+                        "Qwen alignment verified (mode=qwen, device=%s, dtype=%s, "
+                        "language=%s, %s, qwen-asr %s): %d rows, %d windows."
+                        % (timing.get("device"), timing.get("dtype"), language,
+                           _QWEN_MODEL_NAME, _version,
                            alignment["rows"], alignment["windows"]))
             try:
                 epub_bytes, report = build_epub_readaloud(
@@ -1116,21 +1127,24 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                 try:
                     fresh_runtime = get_qwen_runtime_identity(
                         timing["runtime"]["python"], cancel_check=cancel_check)
+                    if (get_qwen_runtime_digest(fresh_runtime)
+                            != timing["runtime"].get("runtime_digest")):
+                        raise ValueError(
+                            "Qwen runtime changed during the build (interpreter "
+                            "or package replaced); refusing to publish.")
+                    current_digest = get_qwen_provider_digest(
+                        capability["model_dir"], runtime_identity={
+                            "qwen_asr_version": timing.get("qwen_asr_version"),
+                            "torch_version": timing.get("torch_version"),
+                            "device": timing.get("device"),
+                            "dtype": timing.get("dtype"),
+                            "identity": fresh_runtime},
+                        cancel_check=cancel_check,
+                        _model_digest=timing.get("_model_digest"))
                 except ValueError as error:
+                    if cancel_check() and "cancelled" in str(error).lower():
+                        raise ExportCancelled("Export cancelled") from error
                     raise ValueError(str(error)) from error
-                if (get_qwen_runtime_digest(fresh_runtime)
-                        != timing["runtime"].get("runtime_digest")):
-                    raise ValueError(
-                        "Qwen runtime changed during the build (interpreter "
-                        "or package replaced); refusing to publish.")
-                current_digest = get_qwen_provider_digest(
-                    capability["model_dir"], runtime_identity={
-                        "qwen_asr_version": timing.get("qwen_asr_version"),
-                        "torch_version": timing.get("torch_version"),
-                        "device": timing.get("device"),
-                        "dtype": timing.get("dtype"),
-                        "identity": fresh_runtime},
-                    cancel_check=cancel_check)
                 if current_digest != timing.get("provider_digest"):
                     raise ValueError(
                         "Qwen provider changed during the build (model or "

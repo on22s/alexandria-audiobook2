@@ -657,6 +657,92 @@ def _read_archive_member_bounded(archive, name, max_bytes):
     return read_zip_member_bounded(archive, name, max_bytes)
 
 
+def _svg_has_text(stream, cancel_check=None):
+    """Streaming SVG text probe with a custom no-tree XML target.
+
+    Uses stdlib ``XMLParser`` with a lightweight target (never a
+    DOM/tree): text and tail characters are inspected as events
+    arrive, elements are not retained, and the stream is consumed
+    in 64 KiB chunks under the caller's archive-wide budget. A
+    ``<text>`` element (including nested ``tspan``/CDATA, which
+    surface as text data) with non-whitespace content returns
+    True; CDATA and entity text are delivered as data by the
+    parser. Malformed XML raises ET.ParseError to the caller.
+    Memory is bounded by parser internals for the current chunk
+    plus depth tracking, not by document size (no tree, no
+    parent references retained).
+    """
+    found = []
+    stack = []
+
+    class _Target:
+        def start(self, tag, attrs):
+            stack.append(tag.rsplit("}", 1)[-1])
+
+        def end(self, tag):
+            if stack:
+                stack.pop()
+
+        def data(self, data):
+            if data and data.strip() and "text" in stack:
+                found.append(True)
+
+        def close(self):
+            return None
+
+        def comment(self, text):
+            pass
+
+        def pi(self, target, text):
+            pass
+
+        def start_ns(self, prefix, uri):
+            pass
+
+        def end_ns(self, uri):
+            pass
+
+    parser = ET.XMLParser(target=_Target())
+    while not found:
+        if cancel_check is not None and cancel_check():
+            raise ValueError("EPUB read-aloud cancelled.")
+        chunk = stream.read(64 * 1024)
+        if not chunk:
+            break
+        parser.feed(chunk)
+    parser.close()
+    return bool(found)
+
+
+def _stream_retained_member(source_archive, out_archive, name, cancel_check=None):
+    """Stream one retained asset with a known-size ZipInfo.
+
+    Supplying the declared ``file_size`` lets zipfile choose ZIP64
+    headers correctly for large members (the supported known-size
+    API); unknown-size streaming would fail above ZIP64_LIMIT.
+    Payload is copied in 1 MiB chunks with cancellation polls —
+    never a whole-asset RAM copy.
+    """
+    info = source_archive.getinfo(name)
+    zinfo = zipfile.ZipInfo(name, date_time=info.date_time)
+    zinfo.compress_type = zipfile.ZIP_DEFLATED
+    zinfo.file_size = info.file_size
+    zinfo.compress_size = 0
+    zinfo.header_offset = 0
+    zinfo.internal_attr = info.internal_attr
+    zinfo.external_attr = info.external_attr
+    zinfo.create_system = info.create_system
+    with source_archive.open(info) as src, out_archive.open(
+            zinfo, 'w', force_zip64=info.file_size > zipfile.ZIP64_LIMIT) as dst:
+        while True:
+            if cancel_check is not None and cancel_check():
+                raise ValueError("EPUB read-aloud cancelled.")
+            block = src.read(1024 * 1024)
+            if not block:
+                break
+            dst.write(block)
+
+
 def _validate_retained_member_name(name):
     """Safe-member preflight for retained (non-XML) EPUB assets.
 
@@ -894,11 +980,48 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
                                cancel_check=None):
     """Split one segment into sentence rows using actual aligned tokens."""
     element = segment["element"]
-    events = _inline_events(element)
-    flat = "".join(value for kind, value in events if kind == "text")
+    try:
+        events = _inline_events(element)
+        flat = "".join(value for kind, value in events if kind == "text")
+    except ValueError:
+        # Coarsened container with nested blocks: only a single
+        # spoken sentence can be targeted at the existing mapped
+        # element (I3); multi-sentence redistribution stays refused.
+        events = None
+        flat = segment["text"]
     ranges = cover_ranges(flat, split_sentences(flat))
     if not ranges:
         raise ValueError("Sentence split found no sentences in a spoken segment.")
+    # Fold punctuation-only ranges (empty normalized span, no
+    # aligned tokens possible) into the adjacent spoken range so
+    # every character is preserved exactly once without inventing
+    # timestamps. An all-punctuation segment still refuses below.
+    ranges = [list(r) for r in ranges]
+    _stream_probe, _idx_probe = get_normalized_stream(flat)
+    import bisect as _bisect_probe
+    spoken_ranges = []
+    for i, (s, e) in enumerate(ranges):
+        ns = _bisect_probe.bisect_left(_idx_probe, s)
+        ne = _bisect_probe.bisect_right(_idx_probe, e - 1) if e > s else ns
+        if ne > ns:
+            spoken_ranges.append(i)
+    if not spoken_ranges:
+        raise ValueError("Segment has no alignable characters; refusing to guess timings.")
+    if events is None and len(spoken_ranges) != 1:
+        raise ValueError(
+            "Sentence spans are unsupported inside a coarsened "
+            "container with nested blocks; refusing to guess.")
+    for i, (s, e) in enumerate(ranges):
+        if i in spoken_ranges:
+            continue
+        prev_idx = max((j for j in spoken_ranges if j < i), default=None)
+        next_idx = min((j for j in spoken_ranges if j > i), default=None)
+        target = prev_idx if prev_idx is not None else next_idx
+        if target < i:
+            ranges[target][1] = e
+        else:
+            ranges[target][0] = s
+    ranges = [tuple(r) for i, r in enumerate(ranges) if i in spoken_ranges]
 
     # Merge the rows' tokens into segment-normalized token spans.
     segment_stream, flat_indices = get_normalized_stream(flat)
@@ -986,6 +1109,10 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
                  "start_frame": frame_start,
                  "end_frame": frame_end}]
 
+    if events is None:
+        raise ValueError(
+            "Sentence spans are unsupported inside a coarsened "
+            "container with nested blocks; refusing to guess.")
     indexed = _event_index(events)
     element.text = None
     for child in list(element):
@@ -1451,16 +1578,25 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         if 'nav' in (manifest_item.get("properties") or '').split():
             continue
         if mtype == 'image/svg+xml':
+            # Streaming text probe (no whole-document materialization,
+            # no tree): text-free SVGs of any size under the archive-
+            # wide declared budget are tolerated as before; any
+            # <text> content still refuses. Malformed XML keeps the
+            # original tolerant skip; missing members likewise.
             with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as _src:
                 try:
-                    _svg = ET.fromstring(_read_archive_member_bounded(
-                        _src, spine_item["path"], MAX_EPUB_READALOUD_XML_BYTES))
+                    _info = _src.getinfo(spine_item["path"])
+                except KeyError:
+                    continue
+                if _info.is_dir() or (_info.flag_bits & 0x1):
+                    continue
+                try:
+                    with _src.open(_info) as _stream:
+                        if _svg_has_text(_stream, cancel_check=cancel_check):
+                            raise ValueError(
+                                "SVG spine documents with text are unsupported; failing closed.")
                 except (KeyError, ET.ParseError):
                     continue
-            if any(_local(el.tag) == 'text' and (el.text or '').strip()
-                   for el in _svg.iter()):
-                raise ValueError(
-                    "SVG spine documents with text are unsupported; failing closed.")
             continue
         if mtype != XHTML_MEDIA_TYPE and 'html' not in mtype:
             if not mtype:
@@ -1793,13 +1929,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
                 for name in retained_stream:
                     _ensure_not_cancelled(cancel_check)
-                    with source.open(name) as src, out.open(name, 'w') as dst:
-                        while True:
-                            _ensure_not_cancelled(cancel_check)
-                            block = src.read(1024 * 1024)
-                            if not block:
-                                break
-                            dst.write(block)
+                    _stream_retained_member(
+                        source, out, name, cancel_check=cancel_check)
     epub_bytes = buffer.getvalue()
     validation = validate_epub_readaloud(epub_bytes)
     toc_entries = generated_toc_count if generated_toc_count is not None else len(meta["toc"])

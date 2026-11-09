@@ -144,7 +144,7 @@
         if (deviceEl && !timingDirty.device) { deviceEl.value = info.preference.timing_device || 'auto'; }
         if (languageEl && !timingDirty.language) { languageEl.value = info.preference.timing_language || ''; }
       }
-      if (info.capability && info.capability.available) {
+      if (info.capability && info.capability.available && info.policy.available !== false) {
         // Truthful readiness: name the effective pinned policy
         // device, not every probed device string.
         var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');

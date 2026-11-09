@@ -53,21 +53,32 @@ class IdentityCaptureTests(unittest.TestCase):
         self.assertGreater(facts["executable_bytes"], 0)
 
     def test_metadata_change_changes_identity(self):
-        site_root = Path(self.tmp) / "fake"
-        _fake_site(site_root, "0.0.1")
-        env = dict(os.environ)
-        env["PYTHONPATH"] = str(site_root / "site-packages")
-        with patch.dict(os.environ, {"PYTHONPATH": str(site_root / "site-packages")}):
-            first = qr.get_qwen_runtime_identity(THIS_PY)
+        # Fake package metadata lives in an alternate venv's own
+        # site-packages (never PYTHONPATH: the identity capture
+        # sanitizes loader vars exactly like the worker, so a
+        # PYTHONPATH shadow must not be observable).
+        alternate = self._alternate_python()
+        site_root = Path(alternate).parent.parent
+        candidates = [site_root / "Lib" / "site-packages",
+                      site_root / "lib" / "python3.10" / "site-packages",
+                      site_root / "lib64" / "python3.10" / "site-packages",
+                      site_root / "lib" / "site-packages"]
+        site = next((c for c in candidates if c.exists()), candidates[0])
+        site.mkdir(parents=True, exist_ok=True)
+        info = site / "qwen_asr-0.0.1.dist-info"
+        info.mkdir(parents=True, exist_ok=True)
+        (info / "METADATA").write_text(
+            "Metadata-Version: 1.0\nName: qwen-asr\nVersion: 0.0.1\n",
+            encoding="utf-8")
+        first = qr.get_qwen_runtime_identity(alternate)
         self.assertEqual("0.0.1", first["packages"].get("qwen-asr"))
-        _fake_site(site_root, "0.0.2")
-        # Rewrite the fake METADATA in place with the new version.
-        meta = site_root / "site-packages" / "qwen_asr-0.0.2.dist-info"
-        shutil.rmtree(site_root / "site-packages" / "qwen_asr-0.0.1.dist-info")
-        (meta / "METADATA").write_text(
+        info2 = site / "qwen_asr-0.0.2.dist-info"
+        shutil.rmtree(info)
+        info2.mkdir(parents=True, exist_ok=True)
+        (info2 / "METADATA").write_text(
             "Metadata-Version: 1.0\nName: qwen-asr\nVersion: 0.0.2\n", encoding="utf-8")
-        with patch.dict(os.environ, {"PYTHONPATH": str(site_root / "site-packages")}):
-            second = qr.get_qwen_runtime_identity(THIS_PY)
+        second = qr.get_qwen_runtime_identity(alternate)
+        self.assertEqual("0.0.2", second["packages"].get("qwen-asr"))
         self.assertNotEqual(first["packages"], second["packages"])
         self.assertNotEqual(first["runtime_digest"], second["runtime_digest"])
 

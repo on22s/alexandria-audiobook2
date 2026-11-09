@@ -202,7 +202,10 @@ def _check_predicted_scores(model, piece, language, slice_seconds, step):
     if not isinstance(word_list, (list, tuple)):
         raise ValueError("aligner processor returned a malformed word list")
     predicted_tokens = 2 * len(word_list)
-    feasible_bins = int(math.floor((slice_seconds + 0.005) / step)) + 1
+    # Harmonized to the strict real bound: a bin whose time exceeds
+    # the slice audio can never be a frame-honest token time, so the
+    # decoder search is bounded to bins inside this slice.
+    feasible_bins = int(math.floor((slice_seconds + 1e-9) / step)) + 1
     if predicted_tokens > MAX_TIMESTAMP_TOKENS \
             or predicted_tokens * max(feasible_bins, 0) > MAX_SCORE_CELLS:
         raise ValueError("predicted timestamp scores exceed decoder bounds")
@@ -257,13 +260,31 @@ def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None)
     return tokens
 
 
+def _serialize_worker_dtype(dtype):
+    """Canonical wire vocabulary derived from the actual torch.dtype.
+
+    The parent pins 'float32'/'float16'/'bfloat16'; str(torch.float32)
+    is 'torch.float32', which the strict provider check must refuse.
+    Mapping is by identity against the real torch dtype objects
+    available in this interpreter, never by echoing the request.
+    """
+    name = getattr(dtype, "__name__", None) if dtype is not None else None
+    if name in ("float32", "float16", "bfloat16"):
+        return name
+    text = str(dtype) if dtype is not None else ""
+    for canonical in ("float32", "float16", "bfloat16"):
+        if text == canonical or text == "torch." + canonical:
+            return canonical
+    raise ValueError("worker dtype is not in the pinned vocabulary")
+
+
 def _check_slice_tokens(tokens, slice_seconds):
     previous_end = 0.0
     for token in tokens:
         start, end = token["start_time"], token["end_time"]
         if not (math.isfinite(start) and math.isfinite(end)):
             raise ValueError("alignment token times are not finite")
-        if not 0.0 <= start < end <= slice_seconds + 0.005:
+        if not 0.0 <= start < end <= slice_seconds + 1e-9:
             raise ValueError("alignment token is reversed or out of bounds")
         if start < previous_end:
             raise ValueError("alignment tokens are not monotonic")
@@ -457,7 +478,16 @@ def main(argv):
 
     tokens = {}
     windows_out = {}
-    work_dir = Path(tempfile.mkdtemp(prefix="qwen-slices-"))
+    # Scratch slices live under the parent-owned export staging
+    # tree (passed in the job), so a hard-killed worker cannot
+    # orphan qwen-slices-* in OS temp: the parent's staging
+    # cleanup reclaims them even though this child died.
+    _slice_dir = job.get("slice_dir") if isinstance(job, dict) else None
+    if isinstance(_slice_dir, str) and _slice_dir:
+        work_dir = Path(_slice_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        work_dir = Path(tempfile.mkdtemp(prefix="qwen-slices-"))
     try:
         for row in rows:
             try:
@@ -465,7 +495,8 @@ def main(argv):
                     model, row, language, decode_timestamp_bins, work_dir)
             except Exception as error:
                 _write_result(result_path, _worker_error(
-                    "alignment failed on row %s (%s)." % (row["id"], type(error).__name__)))
+                    "alignment failed on row %s (%s): %s" % (
+                        row["id"], type(error).__name__, str(error)[:400])))
                 return 1
             tokens[row["id"]] = merged
             windows_out[row["id"]] = accepted
@@ -481,7 +512,7 @@ def main(argv):
     _write_result(result_path, {
         "ok": True, "tokens": tokens, "windows": windows_out,
         "provider": {"qwen_asr_version": version, "device": device,
-                     "dtype": getattr(dtype, "__name__", str(dtype)) if dtype else None,
+                     "dtype": _serialize_worker_dtype(dtype),
                      "encoder_adapter": adapter,
                      "decoder": "qwen_score_decoder_v1"}})
     return 0
