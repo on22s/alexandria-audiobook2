@@ -6333,6 +6333,11 @@
             ],
             "title": "Cast"
           },
+          "clear_overrides": {
+            "default": false,
+            "title": "Clear Overrides",
+            "type": "boolean"
+          },
           "suggestions": {
             "additionalProperties": {
               "additionalProperties": true,
@@ -6364,6 +6369,11 @@
           "character": {
             "title": "Character",
             "type": "string"
+          },
+          "clear_overrides": {
+            "default": false,
+            "title": "Clear Overrides",
+            "type": "boolean"
           },
           "suggestion": {
             "additionalProperties": true,
