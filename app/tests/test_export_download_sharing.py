@@ -105,6 +105,7 @@ class ExportDownloadSharingTests(unittest.TestCase):
                     self.assertEqual(original[2:8], body)
                     self.assertEqual(b'bytes 2-7/36', headers[b'content-range'])
                 elif status == 206:
+                    self.assertNotIn(b'\n', body.replace(b'\r\n', b''))
                     multipart = BytesParser().parsebytes(b'Content-Type: ' + headers[b'content-type'] + b'\r\n\r\n' + body)
                     self.assertEqual([original[:3], original[10:13]],
                                      [part.get_payload(decode=True) for part in multipart.get_payload()])

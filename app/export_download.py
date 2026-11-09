@@ -57,7 +57,11 @@ class ExportFileResponse(FileResponse):
 
     async def _handle_multiple_ranges(self, send, ranges, file_size, send_header_only):
         boundary = token_hex(13)
-        size, make_header = self.generate_multipart(ranges, boundary, file_size, self.headers['content-type'])
+        def make_header(start, end):
+            return (f'--{boundary}\r\nContent-Type: {self.headers["content-type"]}\r\n'
+                    f'Content-Range: bytes {start}-{end - 1}/{file_size}\r\n\r\n').encode('latin-1')
+        closing = f'--{boundary}--'.encode('latin-1')
+        size = sum(len(make_header(start, end)) + end - start + 2 for start, end in ranges) + len(closing)
         headers = MutableHeaders(raw=list(self.raw_headers))
         headers['content-type'] = f'multipart/byteranges; boundary={boundary}'
         headers['content-length'] = str(size)
@@ -69,4 +73,4 @@ class ExportFileResponse(FileResponse):
             await send({'type':'http.response.body', 'body':make_header(start, end), 'more_body':True})
             await self._send_range(send, start, end)
             await send({'type':'http.response.body', 'body':b'\r\n', 'more_body':True})
-        await send({'type':'http.response.body', 'body':f'--{boundary}--'.encode('latin-1'), 'more_body':False})
+        await send({'type':'http.response.body', 'body':closing, 'more_body':False})

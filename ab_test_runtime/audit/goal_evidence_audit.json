@@ -1050,15 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T02:54:41",
+  "written": "2026-11-09T02:58:09",
   "host": "RealMitch",
   "git": {
-   "commit": "5fb060106d0860cdc888bab7fb7e343c504a9487",
+   "commit": "41a940201946718327beb74c856f8d806a0b41ac",
    "branch": "fix/1815-streamed-export-publication",
-   "dirty": false,
-   "source_state": "clean",
+   "dirty": true,
+   "source_state": "dirty:0c4ccca537db",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/export_download.py",
+    "M  app/tests/test_export_download_sharing.py"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
