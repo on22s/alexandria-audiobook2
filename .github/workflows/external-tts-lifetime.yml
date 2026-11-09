@@ -71,8 +71,11 @@ jobs:
                   -o Dir::Cache::archives="$HOME/apt-archives" ffmpeg; then
                 break
               fi
-              echo "FFmpeg package setup attempt $attempt failed; retrying"
-              sleep "$((attempt * 10))"
+              echo "FFmpeg package setup attempt $attempt failed"
+              if [ "$attempt" -lt 3 ]; then
+                echo "Retrying FFmpeg package setup"
+                sleep "$((attempt * 10))"
+              fi
             done
             sudo chown -R "$USER" ~/apt-archives
             rm -rf ~/apt-archives/partial ~/apt-archives/lock

@@ -1050,16 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T23:36:18",
+  "written": "2026-11-09T00:57:39",
   "host": "RealMitch",
   "git": {
-   "commit": "dccf97237aab6cdbea0165bbae7b1381b871eff9",
+   "commit": "ecffc00ad77e4315e58cb8e9324d5403f5af9b50",
    "branch": "fix/1798-legacy-batch-staging",
    "dirty": true,
-   "source_state": "dirty:c624d0902d47",
+   "source_state": "dirty:9696f4a001b9",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/project.py",
+    "M  .github/workflows/external-tts-lifetime.yml",
     "M  app/tests/test_legacy_batch_cleanup.py"
    ],
    "untracked_harness_files": null,

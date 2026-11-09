@@ -538,6 +538,62 @@ class LegacyBatchCleanupTests(unittest.TestCase):
                         self.assertEqual(["generating", "generating"],
                                          [saved[i]["status"] for i in (0, 1)])
 
+    def test_healthy_owner_retires_stages_and_restores_owned_done(self):
+        # With a real healthy AudioGenerationOwner active, a partial-write
+        # engine failure must retire the owned stages and the owned reset
+        # must restore the rows' original done status (not the unowned
+        # pending reset), preserving published audio and references.
+        from audio_generation_owner import (AudioGenerationOwner,
+                                            ensure_audio_generation_owner,
+                                            get_audio_generation_owner,
+                                            is_audio_generation_cancelled)
+
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(tmp)
+            manager = self.get_manager(root)
+            published = self.publish_prior(manager, root, (0, 1))
+            before = manager.load_chunks()
+            future = root / "temp_batch_2.wav"
+            future.write_bytes(b"future unsubmitted slot")
+            error = RuntimeError("synthetic engine failure")
+            seen = []
+
+            @contextlib.contextmanager
+            def admit(**kwargs):
+                yield
+
+            owner = AudioGenerationOwner("a" * 32, admit)
+
+            def batch(chunks, config, output, seed):
+                seen.append(("indices", [c["index"] for c in chunks]))
+                seen.append(("live-owner", get_audio_generation_owner() is owner))
+                seen.append(("cancelled", is_audio_generation_cancelled()))
+                for row in chunks:
+                    _write_wav(Path(output) / ("temp_batch_%d.wav" % row["index"]), row["text"])
+                raise error
+
+            manager.engine = SimpleNamespace(generate_batch=batch)
+            with ensure_audio_generation_owner(owner):
+                with self.assertRaises(RuntimeError) as ctx:
+                    manager.generate_chunks_batch([0, 1], batch_size=2)
+            self.assertIs(error, ctx.exception)
+            self.assertIn(("indices", [0, 1]), seen)
+            self.assertIn(("live-owner", True), seen)
+            self.assertIn(("cancelled", False), seen)
+            self.assertFalse((root / "temp_batch_0.wav").exists())
+            self.assertFalse((root / "temp_batch_1.wav").exists())
+            self.assertEqual(b"future unsubmitted slot", future.read_bytes())
+            for rel, data in published.items():
+                self.assertEqual(data, (root / rel).read_bytes())
+            saved = manager.load_chunks()
+            for i in (0, 1):
+                self.assertEqual("done", saved[i]["status"])
+                self.assertNotEqual("generating", saved[i]["status"])
+                self.assertEqual(before[i]["audio_path"], saved[i]["audio_path"])
+                self.assertEqual(before[i]["uid"], saved[i]["uid"])
+                self.assertEqual(before[i]["custom"], saved[i]["custom"])
+                self.assertEqual(before[i]["pause_after"], saved[i]["pause_after"])
+
     def test_registered_output_is_not_handed_to_legacy_remover(self):
         # Real synthesis_recovery_context binding/owner fixtures: while a
         # registered output is bound, _remove_batch_temp_file (the helper the

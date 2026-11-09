@@ -6752,6 +6752,7 @@
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_admission_failure_defers_retirement_and_preserves_original",
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_engine_mutated_row_index_cannot_steer_cleanup",
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_engine_partial_write_then_raise_cleans_owned_temps",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_healthy_owner_retires_stages_and_restores_owned_done",
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_later_batch_failure_preserves_earlier_publication_and_future_temp",
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_partial_write_with_absent_stage_stays_quiet",
     "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_permanent_deletion_denial_retains_original_and_attempts_other_paths",
