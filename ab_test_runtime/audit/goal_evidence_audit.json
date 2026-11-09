@@ -1050,18 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T03:22:43",
+  "written": "2026-11-09T03:55:55",
   "host": "RealMitch",
   "git": {
-   "commit": "17b063bb9cfec9bf406851ae7f411b568bcece72",
-   "branch": "fix/1798-legacy-batch-staging",
+   "commit": "7846200cd073d816d1c9afa32745ebeee494aa1f",
+   "branch": "fix/1815-streamed-export-publication",
    "dirty": true,
-   "source_state": "dirty:1686a70739be",
+   "source_state": "dirty:d3a9643b0a86",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M GOALS.md",
-    "M  app/epub_readaloud.py",
-    "M  app/tests/test_epub_readaloud.py",
+    "M  .github/workflows/external-tts-lifetime.yml",
+    "M  app/project.py",
+    "A  app/tests/test_legacy_batch_cleanup.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,

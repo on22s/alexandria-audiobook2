@@ -17,7 +17,7 @@ COMPLETION_DEPENDENCY_MODULES = (
     'audio_take_history.py', 'audio_source_io.py',
     'direct_path_admission.py', 'utils.py',
     'gpu_stats.py', 'loaded_module_code.py', 'audio_generation_owner.py',
-    'audio_validation.py', 'take_metadata_pool.py')
+    'audio_validation.py', 'export_file_io.py', 'take_metadata_pool.py')
 
 
 def copy_completion_dependencies(app_dir, repo_root):
