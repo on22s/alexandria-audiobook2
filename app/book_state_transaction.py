@@ -2173,12 +2173,13 @@ def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=No
     else:
         try:
             _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
-        except ValueError:
-            # Another writer changed an original; nothing of ours moved.  A
+        except (ValueError, OSError):
+            # A target no longer matches the journal (changed, missing,
+            # created, or unreadable mid-check); nothing of ours moved.  A
             # byte cleanup has always retired its journal here and let that
-            # edit stand, so keep doing exactly that rather than leave a
+            # change stand, so keep doing exactly that rather than leave a
             # publishing journal recovery would refuse.  Only this rare
-            # concurrent-edit case keeps the old crash window.
+            # concurrent-change case keeps the old crash window.
             _require_book_journal_version(root, journal_version)
             return journal_version
     data['phase'] = 'recovered'

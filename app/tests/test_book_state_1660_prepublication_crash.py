@@ -91,6 +91,13 @@ class PrepublicationCrashTests(unittest.TestCase):
                 self.assertEqual(1, len(list(root.glob('.book-switch-*'))))
                 self.recover(root, target, b'old audio')
 
+    def record_saved_phases(self):
+        save, phases = books._save_journal, []
+        def recording(directory, document, **kwargs):
+            phases.append(document['phase'])
+            return save(directory, document, **kwargs)
+        return patch.object(books, '_save_journal', side_effect=recording), phases
+
     def test_changed_original_is_never_marked_recovered(self):
         # "Recovered" must never be claimed over an original another writer
         # changed. Each kind keeps its previous outcome for that case.
@@ -99,11 +106,18 @@ class PrepublicationCrashTests(unittest.TestCase):
                 root = Path(tmp)
                 target = root / 'audio.wav'
                 target.write_bytes(b'old audio')
-                trigger, run = self.fail_before_first_move(
-                    root, kind, tamper=lambda: target.write_bytes(b'concurrent edit'))
-                with trigger, self.assertRaisesRegex(ValueError, 'changed'):
-                    with books.ensure_book_state(root):
-                        run()
+                seen = []
+                def tamper():
+                    seen.append(self.phase(root))   # the journal is published when this fires
+                    target.write_bytes(b'concurrent edit')
+                recorder, phases = self.record_saved_phases()
+                with recorder:
+                    trigger, run = self.fail_before_first_move(root, kind, tamper=tamper)
+                    with trigger, self.assertRaisesRegex(ValueError, 'changed'):
+                        with books.ensure_book_state(root):
+                            run()
+                self.assertEqual(['publishing'], seen)
+                self.assertNotIn('recovered', phases)
                 if kind == 'stream':
                     # Unchanged: the publishing journal stays as evidence.
                     self.assertEqual('publishing', self.phase(root))
@@ -112,6 +126,26 @@ class PrepublicationCrashTests(unittest.TestCase):
                     self.assertFalse((root / books.JOURNAL).exists())
                     self.assertEqual([], list(root.glob('.book-switch-*')))
                 self.assertEqual(b'concurrent edit', target.read_bytes())
+
+    def test_unreadable_byte_original_keeps_previous_cleanup(self):
+        # An I/O failure while checking an original (deleted or locked
+        # mid-check) must not leave a publishing journal recovery refuses.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'audio.wav'
+            target.write_bytes(b'old audio')
+            recorder, phases = self.record_saved_phases()
+            trigger, run = self.fail_before_first_move(root, 'byte')
+            with recorder, trigger, patch.object(books, '_validate_byte_original',
+                                                 side_effect=FileNotFoundError('gone mid-check')),                     self.assertRaisesRegex(ValueError, 'staged replacement changed'):
+                with books.ensure_book_state(root):
+                    run()
+            self.assertNotIn('recovered', phases)
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertEqual([], list(root.glob('.book-switch-*')))
+            with books.ensure_book_state(root):   # nothing left to block admission
+                pass
+            self.assertEqual(b'old audio', target.read_bytes())
 
 
 if __name__ == '__main__':
