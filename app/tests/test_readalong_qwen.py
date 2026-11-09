@@ -375,10 +375,13 @@ class QwenRouteTests(_FixtureMixin):
         editor, _manager = self._fixture(tmp)
         import qwen_runtime
         ready = self._ready_capability(tmp)
-        with patch.object(qwen_runtime, "get_qwen_capability", lambda _root: ready):
+        with patch.object(qwen_runtime, "get_qwen_capability", lambda _root, **kw: ready):
             payload = asyncio.run(editor.get_readaloud_epub_capability())
         self.assertTrue(payload["capability"]["available"])
         self.assertIn("timing_mode", payload["policy"])
+        self.assertNotIn("python", payload["capability"])
+        self.assertNotIn("model_dir", payload["capability"])
+        self.assertNotIn("provider_digest", payload["capability"])
 
     def _ready_capability(self, tmp):
         model = Path(tmp) / "model"

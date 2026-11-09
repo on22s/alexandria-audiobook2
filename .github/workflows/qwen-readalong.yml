@@ -92,11 +92,14 @@ jobs:
           PYTHONIOENCODING: 'utf-8'
           PYTHONOPTIMIZE: '0'
         run: >
-          python -m unittest tests.test_qwen_align tests.test_qwen_runtime
+          python -c "import sys, unittest; suite = unittest.defaultTestLoader.loadTestsFromNames(sys.argv[1:]); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(0 if result.testsRun > 0 and result.wasSuccessful() and not result.skipped else 1)"
+          tests.test_qwen_align tests.test_qwen_runtime
           tests.test_qwen_worker tests.test_epub_readaloud_sentences
           tests.test_readalong_qwen tests.test_qwen_scenarios
           tests.test_qwen_repairs tests.test_qwen_route_repairs
           tests.test_inline_ids tests.test_qwen_runtime_identity
+          tests.test_qwen_review_repairs tests.test_qwen_score_decoder
+          tests.test_qwen_timing_repair
           tests.test_epub_readaloud tests.test_epub_readaloud_conformance
           tests.test_readalong_r2 tests.test_readalong_r4
-          tests.test_book_workspace_js tests.test_local_ui_assets -v
+          tests.test_book_workspace_js tests.test_local_ui_assets

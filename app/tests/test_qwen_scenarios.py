@@ -286,8 +286,13 @@ class LongRowTests(_FixtureMixin):
         with patch.object(qwen_runtime, "get_qwen_worker_command",
                           lambda _py: [sys.executable, str(bad_worker)]):
             ok, message = build_epub_export(manager, lambda: False, timing=timing)
+        # The legacy-shaped stub (merged tokens only, no sequential
+        # windows) is refused by the parent's row-key/window validation
+        # before coverage is even checked; either way the build fails
+        # closed and publishes nothing.
         self.assertFalse(ok)
-        self.assertIn("cover", message.lower())
+        self.assertIn("alignment", message.lower())
+        self.assertFalse((Path(tmp) / "readaloud.epub").exists())
 
 
 def _capability_for(tmp):

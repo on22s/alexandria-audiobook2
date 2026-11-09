@@ -43,7 +43,7 @@ class CapabilityTests(unittest.TestCase):
                          "capability": [8, 6], "free_bytes": 6 * 1024**3,
                          "total_bytes": 8 * 1024**3}],
             "cpu_fallback": True})
-        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model)}):
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model), "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(
                 str(self.root), probe_command=probe)
         self.assertTrue(capability["available"])
@@ -59,7 +59,7 @@ class CapabilityTests(unittest.TestCase):
         probe = _write_probe(self.root / "probe.py", {
             "ready": True, "torch": True, "qwen_asr": True,
             "qwen_asr_version": "0.0.6", "devices": [], "cpu_fallback": True})
-        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model)}):
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model), "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(str(self.root), probe_command=probe)
         self.assertTrue(capability["available"])
         self.assertEqual([], capability["devices"])
@@ -70,7 +70,7 @@ class CapabilityTests(unittest.TestCase):
             "ready": False, "torch": False, "qwen_asr": False,
             "qwen_asr_version": None, "devices": [], "cpu_fallback": False,
             "reason": "missing module: torch"})
-        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model)}):
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model), "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(str(self.root), probe_command=probe)
         self.assertFalse(capability["available"])
         self.assertIn("torch", capability["reason"])
@@ -79,7 +79,7 @@ class CapabilityTests(unittest.TestCase):
         probe = _write_probe(self.root / "probe.py", {
             "ready": True, "torch": True, "qwen_asr": True,
             "qwen_asr_version": "0.0.6", "devices": [], "cpu_fallback": True})
-        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(self.root / "nope")}):
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(self.root / "nope"), "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(str(self.root), probe_command=probe)
         self.assertFalse(capability["available"])
         self.assertIn("model", capability["reason"].lower())
@@ -98,7 +98,7 @@ class CapabilityTests(unittest.TestCase):
         from tests.test_qwen_repairs import _complete_model
         model = _complete_model(self.root)
         slow = [sys.executable, "-c", "import time; time.sleep(60)"]
-        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model)}):
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model), "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(str(self.root), probe_command=slow,
                                                 timeout=1)
         self.assertFalse(capability["available"])

@@ -312,13 +312,63 @@ fake, or word-count timing exists in the production path.
   bounds only). Qwen clips are labelled as Qwen timing and never claim
   measured accuracy or frame certification; token times are model
   estimates and MP3 priming stays unclaimed.
-- **180s cap.** The upstream forced-aligner cap is 180s per call
-  (`MAX_FORCE_ALIGN_INPUT_SECONDS`). Alignment windows (≤180s audio)
-  are scheduled from the row's measured speech rate and its sentence
-  boundaries; window guesses only schedule inference. Every window's
-  tokens are verified against its text slice and the whole row, then
-  clips are derived from actual tokens. Long books work across many
-  short rows; an over-long single sentence is refused explicitly.
+- **180s per-call bound (AA2's, not upstream's).** The standalone
+  upstream `align()` itself enforces no input-length limit:
+  `MAX_FORCE_ALIGN_INPUT_SECONDS = 180` lives in the SDK's
+  `inference/utils.py` and is used by the ASR *transcribe* wrapper
+  (`qwen3_asr.py`), not by the forced aligner. AA2 nevertheless caps
+  every real inference slice at 180s as a conservative bound. A whole
+  editor row may exceed 180s: it is aligned as bounded sequential
+  slices (below) and validated as a row, never as one inference call.
+- **Sequential measured-cursor scheduling.** Rows are scheduled from
+  the row's estimated speech rate with a 20s text target, a 3s audio
+  tail, and 3s incremental growth. The worker (model loaded once)
+  slices each row sequentially: every slice starts at the measured
+  previous token end (rounded up to the next actual PCM frame, so a
+  slice never starts before the preceding word's end), grows by 3s
+  steps up to the 180s per-call cap while speech reaches the slice
+  end, and advances only by actual frames — including a final
+  sub-500ms remainder, which grows if at least one frame advances.
+  Word-rate estimates only schedule inference; clips come from actual
+  model tokens. A single sentence up to the 180s cap gets its own
+  window (no 20s refusal); a sentence needing more is partitioned at
+  word boundaries, with final sentence envelopes derived from actual
+  tokens. Parent validation of worker-reported windows is structural
+  consistency (frame bounds, text scopes, call bound, cursor
+  continuity) plus preserved provenance — it does not prove acoustic
+  correspondence, and no all-language or device accuracy is claimed.
+- **Encoder attention adapter.** The bundled non-FA2 audio encoder
+  computes `cu_seqlens` but omits its block-diagonal attention mask
+  (upstream QwenLM/Qwen3-ASR issue 213 / PR 103). The worker wraps
+  each encoder layer on its private model instance so a missing mask
+  is filled via the tower's own `_prepare_attention_mask`; Flash
+  Attention 2 keeps its native semantics. Unexpected backends or a
+  repeated install fail closed; site-packages is never patched.
+- **Bounded maximum-score decoder.** Official token texts are kept,
+  but times come from `app/qwen_score_decoder.py` (worker-only): a
+  bounded maximum-score monotonic path with strictly positive word
+  bins computed from real model timestamp scores (borrowed invariant
+  from hangry-labs/Qwen3-ASR-STT @97ad227, Apache-2.0; see
+  `THIRD_PARTY_NOTICES.md`). An already-valid argmax path is kept
+  verbatim; otherwise the score search runs. NaN/Inf, odd counts,
+  oversize or impossible paths fail closed. Predicted score size is
+  checked before inference via the SDK's own
+  `aligner_processor.encode_timestamp`, and actual tensor shape is
+  checked before any conversion. This decoder deliberately differs
+  from the donor's LIS fast path, and the parent diagnostics that
+  used the donor's exact function are not proof of this code.
+- **Provider-code identity.** The provider digest also hashes the
+  actual bytes of `qwen_align_worker.py` and `qwen_score_decoder.py`,
+  so changing the encoder adapter or decoder changes identity and a
+  stale artifact cannot download as fresh.
+- **Staging PCM formats.** Row staging supports the core PCM contract
+  widths 1/2/4 (see `get_pcm_source_shape`); the official Qwen decode
+  path (soundfile/librosa into mono float32) has no 16-bit
+  requirement. Signed 16/32-bit little-endian PCM is written
+  byte-exact; signed 8-bit internal PCM is biased to unsigned 8-bit
+  WAV bytes (bias 128, the same rule as the existing audio export
+  paths). Rate, channels, exact frame range and waveform are
+  preserved; staging is a copy and never modifies source PCM/MP3.
 - **Fail closed.** Non-finite, reversed, overlapping, saturating
   (identical endpoints), out-of-bounds, text-mismatched, partial or
   empty results refuse the whole build before publication. No

@@ -49,13 +49,23 @@
       taskName: 'readaloud_epub', statusId: 'readaloud-status',
       cancelId: 'readaloud-cancel-btn', buildBtnId: 'readaloud-build-btn',
       startUrl: '/api/readaloud_epub', startBody: function () {
+        // Only user-touched controls are sent: an untouched select must
+        // never overwrite the persisted preference with HTML defaults.
+        // An explicit EPUB-language choice (empty value) sends "" to
+        // clear a previously persisted language.
         var body = {};
-        var mode = document.getElementById('readaloud-timing-mode')?.value;
-        var device = document.getElementById('readaloud-timing-device')?.value;
-        var language = document.getElementById('readaloud-timing-language')?.value;
-        if (mode) { body.timing_mode = mode; }
-        if (device) { body.timing_device = device; }
-        if (language) { body.timing_language = language; }
+        if (timingDirty.mode) {
+          var mode = document.getElementById('readaloud-timing-mode')?.value;
+          if (mode) { body.timing_mode = mode; }
+        }
+        if (timingDirty.device) {
+          var device = document.getElementById('readaloud-timing-device')?.value;
+          if (device) { body.timing_device = device; }
+        }
+        if (timingDirty.language) {
+          var language = document.getElementById('readaloud-timing-language')?.value;
+          body.timing_language = (language === undefined || language === null) ? '' : language;
+        }
         return body;
       },
       cancelUrl: '/api/readaloud_epub/cancel',
@@ -63,6 +73,13 @@
       doneMessage: 'EPUB read-aloud is ready. Download it below.',
     }),
   };
+
+  var timingDirty = { mode: false, device: false, language: false };
+
+  function deviceName(device) {
+    if (device && typeof device === 'object' && typeof device.device === 'string') { return device.device; }
+    return String(device);
+  }
 
   function refreshTimingStatus() {
     var el = document.getElementById('readaloud-timing-status');
@@ -82,23 +99,27 @@
         if (languageEl) { languageEl.value = info.preference.timing_language || ''; }
       }
       var devices = (info.capability && info.capability.devices) || [];
+      var deviceNames = devices.map(deviceName);
       if (deviceEl) {
         // Keep the user's selection; only add real devices we do not list.
-        devices.forEach(function (device) {
+        deviceEl.addEventListener('change', function () { timingDirty.device = true; });
+        deviceNames.forEach(function (name) {
           var present = false;
           for (var i = 0; i < deviceEl.options.length; i++) {
-            if (deviceEl.options[i].value === device) { present = true; }
+            if (deviceEl.options[i].value === name) { present = true; }
           }
           if (!present) {
             var option = document.createElement('option');
-            option.value = device;
-            option.textContent = device;
+            option.value = name;
+            option.textContent = name;
             deviceEl.appendChild(option);
           }
         });
       }
+      if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode = true; }); }
+      if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language = true; }); }
       if (info.capability && info.capability.available) {
-        el.textContent = 'Timing: Qwen3 ready (' + (devices.length ? devices.join(', ') : 'CPU') + '). ' + info.policy.reason;
+        el.textContent = 'Timing: Qwen3 ready (' + (deviceNames.length ? deviceNames.join(', ') : 'CPU') + '). ' + info.policy.reason;
       } else {
         el.textContent = 'Timing: Qwen3 not ready (' + (info.capability && info.capability.reason ? info.capability.reason : 'unknown') + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
       }

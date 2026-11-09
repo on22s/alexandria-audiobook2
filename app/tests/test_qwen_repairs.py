@@ -57,7 +57,8 @@ def _ready_probe(tmp, payload, model_dir):
     probe = Path(tmp) / "probe_stub.py"
     probe.write_text("import json\nprint(json.dumps(%r))\n" % (payload,),
                      encoding="utf-8")
-    with patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model_dir)}):
+    with patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model_dir),
+                                "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
         return qr.get_qwen_capability(str(tmp), probe_command=[sys.executable, str(probe)])
 
 
@@ -113,7 +114,8 @@ class CompletenessTests(unittest.TestCase):
         model = _complete_model(self.tmp.name)
         probe = {"ready": True, "torch": True, "qwen_asr": True,
                  "qwen_asr_version": "0.0.6", "devices": [], "cpu_fallback": True}
-        with patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model)}):
+        with patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model),
+                                    "ALEXANDRIA_QWEN_PYTHON": sys.executable}):
             capability = qr.get_qwen_capability(self.tmp.name, probe_command=[
                 sys.executable, "-c", "import json; print(json.dumps(%r))" % (probe,)])
         self.assertTrue(capability["available"])

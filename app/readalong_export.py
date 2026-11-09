@@ -58,27 +58,57 @@ _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MP3_BITRATE = "128k"
 
 
-def get_readaloud_timing_preference(data_dir):
-    """Persisted per-build timing preference; strict shape, defaults on doubt.
+_PREFERENCE_DEVICE_RE = re.compile(r"^(auto|cpu|cuda:[0-9]+)$")
+_PREFERENCE_LANGUAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
-    Stored in the same data directory as the receipts. The UI/route
-    write it; builds and downloads only read it for staleness checks.
+
+def get_readaloud_timing_preference(data_dir):
+    """Persisted per-build timing preference; missing file defaults.
+
+    A present but unreadable or out-of-shape preference is corrupt:
+    it raises ValueError so callers can refuse with actionable
+    guidance instead of silently running a different mode. A missing
+    first-install file remains the valid auto default. In chunk mode
+    the language scalar is intentionally not gated (it is irrelevant
+    there), but its charset is still bounded so persisted state is
+    always a safe token.
     """
-    from utils import safe_load_json
-    raw = safe_load_json(os.path.join(data_dir, "readalong_timing.json"), {}) or {}
-    if not isinstance(raw, dict):
+    import json as _json
+    path = os.path.join(data_dir, "readalong_timing.json")
+    if not os.path.exists(path):
         return {"timing_mode": "auto", "timing_device": "auto",
                 "timing_language": None}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = _json.load(handle)
+    except (OSError, ValueError) as error:
+        raise ValueError(
+            "Persisted timing preference is corrupt (unreadable JSON); "
+            "restore a valid preference and rebuild.") from error
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "Persisted timing preference is corrupt (not an object); "
+            "restore a valid preference and rebuild.")
+    if set(raw) - {"timing_mode", "timing_device", "timing_language"}:
+        raise ValueError(
+            "Persisted timing preference is corrupt (unknown fields); "
+            "restore a valid preference and rebuild.")
     mode = raw.get("timing_mode")
     device = raw.get("timing_device")
     language = raw.get("timing_language")
     if mode not in ("auto", "qwen", "chunk"):
-        mode = "auto"
-    if not isinstance(device, str) or not device or not all(
-            c.isalnum() or c in "-_:" for c in device):
-        device = "auto"
-    if language is not None and not isinstance(language, str):
-        language = None
+        raise ValueError(
+            "Persisted timing preference is corrupt (invalid mode); "
+            "restore a valid preference and rebuild.")
+    if not isinstance(device, str) or not _PREFERENCE_DEVICE_RE.match(device):
+        raise ValueError(
+            "Persisted timing preference is corrupt (invalid device); "
+            "restore a valid preference and rebuild.")
+    if language is not None and (not isinstance(language, str)
+                                 or (language and not _PREFERENCE_LANGUAGE_RE.match(language))):
+        raise ValueError(
+            "Persisted timing preference is corrupt (invalid language); "
+            "restore a valid preference and rebuild.")
     return {"timing_mode": mode, "timing_device": device,
             "timing_language": language}
 
@@ -513,51 +543,78 @@ def _source_receipt(manager, source_snapshot):
     return _require_app_source_receipt(source_snapshot)
 
 
-def _write_row_slice_wav(pcm_stream, path, layout, start_frame, end_frame):
-    """Write one row's PCM slice as a 16-bit mono WAV for the worker."""
+# Signed-8 internal PCM -> unsigned-8 WAV bytes (bias 128), the same
+# rule as audio_streaming/audio_export (audioop.bias(data, 1, 128)).
+# A 256-byte table keeps the conversion bounded and streaming.
+_SIGNED8_TO_UNSIGNED8 = bytes((value + 128) % 256 for value in range(256))
+
+
+def _write_row_slice_wav(pcm_stream, path, layout, start_frame, end_frame,
+                         cancel_check=None):
+    """Write one row's PCM slice as a WAV for the Qwen worker.
+
+    Supports the core PCM contract widths (1, 2, 4) — the pinned
+    official Qwen decode path (soundfile/librosa into mono float32)
+    imposes no 16-bit requirement. Widths 2/4 (signed little-endian)
+    are written byte-exact; width 1 is internal SIGNED PCM biased to
+    UNSIGNED WAV bytes (bias 128) once per streamed block. Rate,
+    channels, exact frame range and waveform are preserved; source
+    PCM/MP3 data is never modified (staging copy only). Streams in
+    1 MiB blocks so an up-to-180 s slice is never held twice in
+    memory, and polls cancellation during the copy.
+    """
     channels, rate, width = layout
-    if width != 2:
+    if type(width) is not int or width not in (1, 2, 4):
         raise ValueError(
-            "Qwen alignment needs 16-bit PCM slices; this export uses "
-            "%d-byte samples." % width)
+            "Qwen alignment staging needs standard PCM samples of "
+            "width 1, 2 or 4; this export uses %r-byte samples." % (width,))
     frame_bytes = channels * width
     n_frames = int(end_frame) - int(start_frame)
     if n_frames <= 0:
         raise ValueError("Alignment slice has no frames.")
     pcm_stream.seek(int(start_frame) * frame_bytes)
     remaining = n_frames * frame_bytes
-    chunks = []
-    while remaining > 0:
-        block = pcm_stream.read(min(1024**2, remaining))
-        if not block:
-            raise ValueError("Assembled PCM is shorter than the frame plan.")
-        chunks.append(block)
-        remaining -= len(block)
     import wave as _wave
     with _wave.open(str(path), "wb") as stream:
         stream.setnchannels(channels)
         stream.setsampwidth(width)
         stream.setframerate(rate)
-        stream.writeframes(b"".join(chunks))
+        while remaining > 0:
+            if cancel_check is not None and cancel_check():
+                raise ExportCancelled("Export cancelled")
+            block = pcm_stream.read(min(1024**2, remaining))
+            if not block:
+                raise ValueError("Assembled PCM is shorter than the frame plan.")
+            if width == 1:
+                block = block.translate(_SIGNED8_TO_UNSIGNED8)
+            stream.writeframes(block)
+            remaining -= len(block)
     return n_frames / float(rate)
 
 
 def collect_aligned_rows(data, language_name, capability, cancel_check, staging_path,
-                         task_lease_fd=None):
+                         task_lease_fd=None, prepared_texts=None):
     """Run real Qwen alignment against the captured assembled PCM.
 
-    Audio slices come from ``data["pcm_path"]`` at the exact promoted
-    ``source_frame_ranges`` — never from rounded timeline anchors. Rows
-    longer than the 180-second aligner cap are windowed by qwen_align's
-    planner; window guesses only schedule inference and each window's
-    coverage is verified against its text slice. Returns (aligned_rows,
-    report) where aligned_rows fits build_epub_readaloud's aligned_rows
-    shape and tokens carry row-relative seconds.
+    Audio comes from ``data["pcm_path"]`` at the exact promoted
+    ``source_frame_ranges`` — never from rounded timeline anchors. One
+    streamed row WAV is written per row (never the whole book, never
+    one WAV per window); the single loaded-model worker then performs
+    bounded sequential slices per row: measured previous-end cursor,
+    20-second estimated text target, 3-second tail and 3-second
+    growth, every real call within the 180-second cap. Window guesses
+    only schedule inference: the parent independently validates the
+    worker's actual windows (frame offsets, text scopes, call bound)
+    and re-runs the strict token + exact-coverage guards per window
+    and on the merged row. Returns (aligned_rows, report) where
+    aligned_rows fits build_epub_readaloud's aligned_rows shape and
+    tokens carry row-relative seconds.
     """
-    from qwen_align import (count_units, cover_ranges, get_aligner_windows,
-                            get_validated_aligner_tokens, require_exact_coverage,
-                            split_sentences)
-    from qwen_runtime import get_qwen_worker_command, run_qwen_alignment
+    from qwen_align import (MAX_TEXT_CHARS, count_units, cover_ranges,
+                            get_aligner_windows, split_sentences,
+                            validate_sequential_windows)
+    from qwen_runtime import (MAX_JOB_BYTES, get_qwen_worker_command,
+                              run_qwen_alignment_full)
 
     layout = data["layout"]
     bounds = data["bounds"]
@@ -566,80 +623,102 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
     align_dir = Path(staging_path) / "qwen"
     align_dir.mkdir(parents=True, exist_ok=True)
 
+    if len(timeline) > 10000 or len(bounds) > 10000:
+        raise ValueError("Qwen alignment refused: too many rows for one build.")
+    # Planning pass: bounds are enforced before any WAV is written and
+    # before inference, so an oversized book fails without disk churn.
     rows = []
+    total_windows = 0
+    total_chars = 0
+    estimated_job_bytes = 0
+    for position, ((chunk, _segment, _start_ms), (start_frame, end_frame)) in enumerate(zip(timeline, bounds)):
+        ensure_audio_export_active(cancel_check)
+        if prepared_texts is not None:
+            if position >= len(prepared_texts) or not isinstance(prepared_texts[position], str):
+                raise ValueError("Qwen alignment refused: missing prepared text for row %d." % position)
+            prepared = prepared_texts[position]
+        else:
+            prepared = get_speech_preparation(chunk.get("text", ""), chunk.get("instruct"))["text"]
+        if len(prepared) > MAX_TEXT_CHARS:
+            raise ValueError("Qwen alignment refused: row %d exceeds its size limit." % position)
+        sentences = cover_ranges(prepared, split_sentences(prepared))
+        if not sentences:
+            raise ValueError("Qwen alignment refused: row %d has no sentences." % position)
+        total_frames = int(end_frame) - int(start_frame)
+        row_duration = total_frames / float(layout[1])
+        units = [{"start": s, "end": e, "words": count_units(prepared[s:e])}
+                 for s, e in sentences]
+        windows = get_aligner_windows(row_duration, units, text=prepared)
+        total_windows += len(windows)
+        total_chars += len(prepared)
+        estimated_job_bytes += len(prepared.encode("utf-8")) + 512 * len(windows)
+        for window in windows:
+            piece = prepared[window["char_start"]:window["char_end"]]
+            if not piece.strip():
+                raise ValueError("Qwen alignment window has no text.")
+            estimated_job_bytes += len(piece.encode("utf-8"))
+        if total_windows > 10000 or total_chars > 10 * 1024 * 1024 \
+                or estimated_job_bytes > MAX_JOB_BYTES:
+            raise ValueError("Qwen alignment refused: book exceeds its size limit.")
+        rows.append({"position": position, "text": prepared,
+                     "start_frame": int(start_frame), "end_frame": int(end_frame),
+                     "duration": row_duration, "windows": windows,
+                     "total_frames": total_frames})
+
     jobs = []
     with open(pcm_path, "rb") as pcm_stream:
-        for position, ((chunk, _segment, _start_ms), (start_frame, end_frame)) in enumerate(zip(timeline, bounds)):
+        for row in rows:
+            position = row["position"]
+            start_frame, end_frame = row["start_frame"], row["end_frame"]
             ensure_audio_export_active(cancel_check)
-            prepared = get_speech_preparation(chunk.get("text", ""), chunk.get("instruct"))["text"]
-            sentences = cover_ranges(prepared, split_sentences(prepared))
-            if not sentences:
-                raise ValueError("Qwen alignment refused: row %d has no sentences." % position)
-            total_frames = int(end_frame) - int(start_frame)
-            row_duration = total_frames / float(layout[1])
-            units = [{"start": s, "end": e, "words": count_units(prepared[s:e])}
-                     for s, e in sentences]
-            windows = get_aligner_windows(row_duration, units)
-            rows.append({"position": position, "text": prepared,
-                         "start_frame": int(start_frame), "end_frame": int(end_frame),
-                         "duration": row_duration, "windows": windows})
-            window_specs = []
-            for window in windows:
-                wav_path = align_dir / ("row-%d-w%d.wav" % (position, window["first_sentence"]))
-                first = int(round(window["start_sec"] * layout[1]))
-                last = int(round(window["end_sec"] * layout[1]))
-                slice_frames = _write_row_slice_wav(
-                    pcm_stream, wav_path, layout,
-                    int(start_frame) + first, int(start_frame) + last)
-                piece = prepared[window["char_start"]:window["char_end"]]
-                if not piece.strip():
-                    raise ValueError("Qwen alignment window has no text.")
-                jobs.append({
-                    "id": "r%d-w%d" % (position, window["first_sentence"]),
-                    "wav_path": str(wav_path), "text": piece,
-                    "duration_sec": slice_frames,
-                })
-                window_specs.append({
-                    "id": "r%d-w%d" % (position, window["first_sentence"]),
-                    "start_sec": window["start_sec"],
+            wav_path = align_dir / ("row-%d.wav" % position)
+            _write_row_slice_wav(
+                pcm_stream, wav_path, layout,
+                int(start_frame), int(end_frame),
+                cancel_check=cancel_check)
+            jobs.append({
+                "id": "r%d" % position,
+                "wav_path": str(wav_path), "text": row["text"],
+                "duration_sec": row["duration"],
+                "windows": [{
                     "char_start": window["char_start"],
                     "char_end": window["char_end"],
-                    "slice_frames": slice_frames,
-                })
-            rows[-1]["window_specs"] = window_specs
+                    "est_start_sec": window["start_sec"],
+                    "est_end_sec": window["end_sec"],
+                } for window in row["windows"]],
+            })
 
     job_path = align_dir / "job.json"
     result_path = align_dir / "result.json"
-    job_path.write_text(json.dumps({
+    job_payload = json.dumps({
         "model_dir": capability["model_dir"], "device": capability["device"],
         "dtype": capability.get("dtype"), "language": language_name,
-        "rows": jobs}, ensure_ascii=False), encoding="utf-8")
-    tokens_by_id = run_qwen_alignment(
+        "rows": jobs}, ensure_ascii=False)
+    if len(job_payload.encode("utf-8")) > MAX_JOB_BYTES:
+        raise ValueError("Qwen alignment job exceeds its size limit.")
+    job_path.write_text(job_payload, encoding="utf-8")
+    tokens_by_id, windows_by_id, _provider = run_qwen_alignment_full(
         get_qwen_worker_command(capability["python"]), job_path, result_path,
         cancel_check, task_lease_fd=task_lease_fd)
+
+    expected_ids = {"r%d" % row["position"] for row in rows}
+    if set(tokens_by_id) != expected_ids or set(windows_by_id) != expected_ids:
+        raise ValueError(
+            "Qwen alignment worker returned wrong row keys; refusing to publish.")
 
     aligned_rows = []
     window_total = 0
     for row in rows:
-        merged = []
-        for spec in row["window_specs"]:
-            raw_tokens = tokens_by_id.get(spec["id"])
-            slice_duration = spec["slice_frames"]
-            validated = get_validated_aligner_tokens(raw_tokens, slice_duration)
-            piece = row["text"][spec["char_start"]:spec["char_end"]]
-            require_exact_coverage(piece, validated)
-            for token in validated:
-                merged.append({
-                    "text": token["text"],
-                    "start_time": spec["start_sec"] + token["start_time"],
-                    "end_time": spec["start_sec"] + token["end_time"],
-                })
-            window_total += 1
-        row_tokens = get_validated_aligner_tokens(merged, row["duration"])
-        require_exact_coverage(row["text"], row_tokens)
+        row_id = "r%d" % row["position"]
+        row_tokens = validate_sequential_windows(
+            row["text"], row["windows"], windows_by_id.get(row_id),
+            tokens_by_id.get(row_id),
+            sample_rate=int(layout[1]), total_frames=int(row["total_frames"]),
+            row_duration_sec=row["duration"])
         aligned_rows.append({"tokens": row_tokens})
+        window_total += len(row["windows"])
     report = {"rows": len(aligned_rows), "windows": window_total,
-              "slices": len(jobs)}
+              "slices": window_total}
     return aligned_rows, report
 
 
@@ -874,6 +953,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
             if timing is not None and timing.get("timing_mode") == "qwen":
                 capability = dict(timing.get("capability") or {})
                 capability["device"] = timing.get("device") or "cpu"
+                capability["dtype"] = timing.get("dtype") or capability.get("dtype")
                 language = timing.get("language")
                 if not language:
                     _opf_path, _package, _ns, _manifest, _spine, meta = get_spine_documents(retained_bytes)
@@ -885,7 +965,8 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                     language = get_aligner_language_name(tag)
                 aligned_rows, alignment = collect_aligned_rows(
                     data, language, capability, cancel_check, staging.path,
-                    task_lease_fd=timing.get("task_lease_fd"))
+                    task_lease_fd=timing.get("task_lease_fd"),
+                    prepared_texts=[entry["prepared_text"] for entry in script_entries])
                 timing_summary = {"mode": "qwen",
                                   "device": timing.get("device"),
                                   "dtype": timing.get("dtype"),
@@ -896,10 +977,15 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                     progress_callback(
                         "Qwen alignment verified: %d rows, %d windows."
                         % (alignment["rows"], alignment["windows"]))
-            epub_bytes, report = build_epub_readaloud(
-                retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
-                audio_filename="audiobook.mp3", script_entries=script_entries,
-                cancel_check=cancel_check, aligned_rows=aligned_rows)
+            try:
+                epub_bytes, report = build_epub_readaloud(
+                    retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
+                    audio_filename="audiobook.mp3", script_entries=script_entries,
+                    cancel_check=cancel_check, aligned_rows=aligned_rows)
+            except ValueError as error:
+                if cancel_check() and "cancelled" in str(error).lower():
+                    raise ExportCancelled("Export cancelled") from error
+                raise
             Path(pending).write_bytes(epub_bytes)
             publish_report = get_export_report_for_staged(pending, {"epub_bytes": len(epub_bytes)})
             publish_report["epub"] = report

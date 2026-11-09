@@ -4543,7 +4543,7 @@
           "timing_device": {
             "anyOf": [
               {
-                "maxLength": 64,
+                "pattern": "^(auto|cpu|cuda:[0-9]+)$",
                 "type": "string"
               },
               {
@@ -4556,6 +4556,7 @@
             "anyOf": [
               {
                 "maxLength": 32,
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]*$|^$",
                 "type": "string"
               },
               {

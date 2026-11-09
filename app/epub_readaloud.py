@@ -600,12 +600,35 @@ def build_smil_document(mapping, audio_filename, sample_rate, *, existing_ids,
 _INLINE_SKIP = {"script", "style"}
 
 
+def _is_textless_element(node):
+    if node.text:
+        return False
+    return all(_is_textless_element(child) for child in node)
+
+
+def _clone_atom(source, emitted_ids):
+    clone = copy.deepcopy(source)
+    clone.tail = None
+    xml_id = "{http://www.w3.org/XML/1998/namespace}id"
+    for element in clone.iter():
+        for key in list(element.attrib.keys()):
+            if key == "id" or key == xml_id:
+                value = element.attrib[key]
+                if value in emitted_ids:
+                    del element.attrib[key]
+                else:
+                    emitted_ids.add(value)
+    return clone
+
+
 def _inline_events(element):
     """Flatten one segment element into text/open/close/atom events.
 
     Block or container descendants make the structure ambiguous for
     sentence spans; those refuse explicitly instead of risking a
-    malformed book.
+    malformed book. Textless inline elements (img/br, empty <em>, and
+    script/style) surface as atoms so they survive redistribution
+    exactly once; their tails remain separate text events.
     """
     events = []
 
@@ -614,15 +637,12 @@ def _inline_events(element):
             events.append(("text", node.text))
         for child in node:
             tag = _local(child.tag)
-            if tag in _INLINE_SKIP:
-                if child.tail:
-                    events.append(("text", child.tail))
-                continue
             if tag in _BLOCK or tag in _CONTAINER:
                 raise ValueError(
                     "Sentence spans are unsupported inside a coarsened "
                     "container with nested blocks; refusing to guess.")
-            if not isinstance(child.tag, str):
+            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
+                    or _is_textless_element(child):
                 events.append(("atom", child))
             else:
                 events.append(("open", child))
@@ -655,14 +675,75 @@ def _inline_copy_attributes(source, destination, emitted_ids):
     emitted_ids.update(clone_ids)
 
 
-def _emit_sentence_span(element, events, start, end, span_id, emitted_ids):
+def _event_index(events):
+    """Index events by text cursor with inline-stack snapshots (bisect)."""
+    infos = []
+    cursor = 0
+    stack = []
+    positions = []
+    for kind, value in events:
+        if kind == "text":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor + len(value), "stack": tuple(stack)})
+            positions.append(cursor)
+            cursor += len(value)
+        elif kind == "open":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+            stack.append(value)
+        elif kind == "close":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+            if stack and stack[-1] is value:
+                stack.pop()
+        else:
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+    return infos, cursor, positions
+
+
+def _emit_sentence_span(element, events, start, end, span_id, emitted_ids,
+                        indexed=None):
     span = ET.Element(f"{{{XHTML_NS}}}span")
     span.set("id", span_id)
     emitted_ids.add(span_id)
 
-    source_stack = []
+    if indexed is None:
+        indexed = _event_index(events)
+    infos, flat_len, positions = indexed
+
+    import bisect as _bisect
+    first = _bisect.bisect_left(positions, start)
+    if first > 0:
+        prev = infos[first - 1]
+        if prev["kind"] == "text" and prev["end"] > start and prev["pos"] < end:
+            first -= 1
+    last = None
+    probe = first
+    while probe < len(infos):
+        info = infos[probe]
+        if info["kind"] == "text":
+            if info["end"] > start and info["pos"] < end:
+                last = probe
+            elif info["pos"] >= end:
+                break
+        else:
+            if start <= info["pos"] < end:
+                last = probe
+            elif info["pos"] == flat_len and end == flat_len and start <= info["pos"]:
+                last = probe
+            elif info["pos"] >= end:
+                break
+        probe += 1
+    if last is None:
+        return None
+
+    source_stack = list(infos[first]["stack"])
     output_stack = []
-    cursor = 0
+    cursor = infos[first]["pos"]
     emitted = False
 
     def container():
@@ -686,15 +767,20 @@ def _emit_sentence_span(element, events, start, end, span_id, emitted_ids):
             _inline_copy_attributes(source, created, emitted_ids)
             output_stack.append((source, created))
 
-    for kind, value in events:
+    for probe in range(first, last + 1):
+        info = infos[probe]
+        kind, value = info["kind"], info["value"]
         if kind == "text":
             seg_start = cursor
             seg_end = cursor + len(value)
+            # A straddling text event may start before `first`'s pos only
+            # when first was backed up; cursor therefore tracks original
+            # positions, not slice-relative ones.
             if seg_end > start and seg_start < end:
                 sync()
-                first = max(start, seg_start) - seg_start
-                last = min(end, seg_end) - seg_start
-                append_text(value[first:last])
+                first_off = max(start, seg_start) - seg_start
+                last_off = min(end, seg_end) - seg_start
+                append_text(value[first_off:last_off])
                 emitted = True
             cursor = seg_end
         elif kind == "open":
@@ -705,11 +791,12 @@ def _emit_sentence_span(element, events, start, end, span_id, emitted_ids):
             if source_stack and source_stack[-1] is value:
                 source_stack.pop()
         elif kind == "atom":
-            if start <= cursor < end:
-                sync()
-                clone = ET.SubElement(container(), value.tag)
-                _inline_copy_attributes(value, clone, emitted_ids)
-                emitted = True
+            sync()
+            clone = _clone_atom(value, emitted_ids)
+            container().append(clone)
+            output_stack.append((value, clone))
+            output_stack.pop()
+            emitted = True
 
     return span if emitted else None
 
@@ -742,20 +829,18 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         tokens = _validated_aligned_row(aligned_rows, chunk_index)
         row_text = entry["prepared_text"]
         row_duration = (entry["end_frame"] - entry["start_frame"]) / float(sample_rate)
-        validated = get_validated_aligner_tokens(tokens, row_duration)
+        validated = get_validated_aligner_tokens(
+            tokens, row_duration, enforce_slice_limit=False)
         row_spans = require_exact_coverage(row_text, validated)
         row_stream, row_indices = get_normalized_stream(row_text)
         if len(row_stream) == 0:
             raise ValueError("Spoken row has no alignable characters.")
-        first_norm_pos = {}
-        for norm_pos, orig_pos in enumerate(row_indices):
-            first_norm_pos.setdefault(orig_pos, norm_pos)
+        import bisect as _bisect
         for token, char_start, char_end in row_spans:
-            norm_start = first_norm_pos.get(char_start)
-            norm_end = first_norm_pos.get(char_end - 1, None)
-            if norm_start is None or norm_end is None:
+            norm_start = _bisect.bisect_left(row_indices, char_start)
+            norm_end = _bisect.bisect_right(row_indices, char_end - 1)
+            if norm_start >= norm_end or norm_start >= len(row_indices):
                 raise ValueError("Aligned token cannot be located in the spoken text.")
-            norm_end += 1
             frame_start = entry["start_frame"] + int(round(token["start_time"] * sample_rate))
             frame_end = entry["start_frame"] + int(round(token["end_time"] * sample_rate))
             if frame_end > entry["end_frame"] or frame_start < entry["start_frame"]:
@@ -772,7 +857,8 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
             "source and spoken streams disagree.")
 
     # Map sentence char ranges (original flat coords) to stream coords,
-    # then reuse the shared fragment-time derivation without clamping.
+    # then derive frame bounds in one linear walk so single- and
+    # multi-sentence clips both come from actual token frames.
     import bisect
     fragments = []
     for start, end in ranges:
@@ -781,28 +867,43 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         norm_start = bisect.bisect_left(flat_indices, start)
         norm_end = bisect.bisect_right(flat_indices, end - 1)
         fragments.append((norm_start, norm_end))
-    timed = derive_fragment_times(
-        fragments, [(t, s, e) for t, s, e, _fs, _fe in stream_spans])
-
-    if len(ranges) == 1:
-        return [{"fragment": None, "text": segment["text"],
-                 "segment_index": row["segment_index"],
-                 "chunk_indexes": list(row["chunk_indexes"]),
-                 "start_frame": row["start_frame"],
-                 "end_frame": row["end_frame"]}]
 
     spans_out = []
+    span_index = 0
+    span_count = len(stream_spans)
+    previous_frame_end = None
     for (start, end), (span_start, span_end) in zip(ranges, fragments):
-        inside = [(t, s, e, fs, fe) for t, s, e, fs, fe in stream_spans
-                  if e > span_start and s < span_end]
-        if not inside:
+        while span_index < span_count and stream_spans[span_index][2] <= span_start:
+            span_index += 1
+        frame_start = None
+        frame_end = None
+        probe = span_index
+        while probe < span_count and stream_spans[probe][1] < span_end:
+            _t, _s, _e, fs, fe = stream_spans[probe]
+            if _e > span_start:
+                frame_start = fs if frame_start is None else min(frame_start, fs)
+                frame_end = fe if frame_end is None else max(frame_end, fe)
+            probe += 1
+        if frame_start is None:
             raise ValueError("Sentence has no aligned tokens.")
-        frame_start = min(fs for _t, _s, _e, fs, _fe in inside)
-        frame_end = max(fe for _t, _s, _e, _fs, fe in inside)
+        if frame_end <= frame_start:
+            raise ValueError("Aligned sentence has no positive duration.")
+        if previous_frame_end is not None and frame_start < previous_frame_end:
+            raise ValueError("Aligned sentence times go backwards; refusing to repair them.")
         if frame_start < row["start_frame"] or frame_end > row["end_frame"]:
             raise ValueError("Sentence clip escapes the segment frame bounds.")
         spans_out.append((start, end, frame_start, frame_end))
+        previous_frame_end = frame_end
 
+    if len(ranges) == 1:
+        _start, _end, frame_start, frame_end = spans_out[0]
+        return [{"fragment": None, "text": segment["text"],
+                 "segment_index": row["segment_index"],
+                 "chunk_indexes": list(row["chunk_indexes"]),
+                 "start_frame": frame_start,
+                 "end_frame": frame_end}]
+
+    indexed = _event_index(events)
     element.text = None
     for child in list(element):
         element.remove(child)
@@ -810,7 +911,8 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
     for start, end, frame_start, frame_end in spans_out:
         span_id = next_id()
         emitted_ids.add(span_id)
-        span = _emit_sentence_span(element, events, start, end, span_id, emitted_ids)
+        span = _emit_sentence_span(element, events, start, end, span_id, emitted_ids,
+                                   indexed=indexed)
         if span is None:
             raise ValueError("Sentence span could not be emitted; refusing to guess.")
         element.append(span)
@@ -1206,6 +1308,11 @@ def _nav_links_href(full, fragment, nav_dir):
     return f"{encoded}#{_encode_uri_fragment(fragment)}" if fragment else encoded
 
 
+def _ensure_not_cancelled(cancel_check):
+    if cancel_check is not None and cancel_check():
+        raise ValueError("EPUB read-aloud cancelled.")
+
+
 def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, script_entries,
                          cancel_check=None, aligned_rows=None):
     """Build a source-preserving EPUB 3 read-aloud archive.
@@ -1222,6 +1329,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     """
     if not script_entries:
         raise ValueError("There are no script entries with audio to synchronize.")
+    _ensure_not_cancelled(cancel_check)
     for entry in script_entries:
         if not isinstance(entry.get("prepared_text"), str) or not entry["prepared_text"].strip():
             raise ValueError(f"Script entry {entry.get('index')} has no spoken text to synchronize.")
@@ -1249,6 +1357,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', XHTML_NS)
     ET.register_namespace('epub', OPS_NS)
     for spine_item in spine:
+        _ensure_not_cancelled(cancel_check)
         if spine_item.get("linear") is False:
             continue
         mtype = spine_item["media_type"] or ''
@@ -1277,9 +1386,13 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             # required and no chunks consumed; real visible text still maps.
             continue
         mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor)
-        existing_ids = {el.get('id') for el in root.iter() if el.get('id')}
         xml_local = '{http://www.w3.org/XML/1998/namespace}id'
-        existing_ids |= {el.get(xml_local) for el in root.iter() if el.get(xml_local)}
+        existing_ids = set()
+        for el in root.iter():
+            if el.get('id'):
+                existing_ids.add(el.get('id'))
+            if el.get(xml_local):
+                existing_ids.add(el.get(xml_local))
         assigned = set(existing_ids)
         if aligned_rows is not None:
             if len(aligned_rows) != len(script_entries):
@@ -1302,6 +1415,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             emitted_ids = set()
             expanded = []
             for index, row in enumerate(mapping):
+                _ensure_not_cancelled(cancel_check)
                 segment = segments[row["segment_index"]]
                 expanded.extend(_sentence_rows_for_segment(
                     segment, row, script_entries, aligned_rows, sample_rate,
@@ -1373,6 +1487,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', SMIL_NS)
     ET.register_namespace('epub', OPS_NS)
     for record in smil_records:
+        _ensure_not_cancelled(cancel_check)
         smil_dir = str(PurePosixPath(record["smil_path"]).parent)
         audio_src = (posixpath.relpath(audio_path_in_epub, smil_dir)
                      if smil_dir != "." else audio_path_in_epub)
