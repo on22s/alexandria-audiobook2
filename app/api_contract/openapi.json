@@ -10704,7 +10704,7 @@
     },
     "/api/generate_batch_fast": {
       "post": {
-        "description": "Generate multiple chunks using batch TTS API with single seed. Faster but less flexible.\nRequires custom Qwen3-TTS with /generate_batch endpoint.",
+        "description": "Render chunks in batches using saved voice seeds unless a batch seed overrides them.",
         "operationId": "generate_batch_fast_endpoint_api_generate_batch_fast_post",
         "requestBody": {
           "content": {

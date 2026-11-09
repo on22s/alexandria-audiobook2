@@ -2352,8 +2352,7 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
 
 @router.post("/api/generate_batch_fast")
 async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background_tasks: BackgroundTasks):
-    """Generate multiple chunks using batch TTS API with single seed. Faster but less flexible.
-    Requires custom Qwen3-TTS with /generate_batch endpoint."""
+    """Render chunks in batches using saved voice seeds unless a batch seed overrides them."""
     check_global_gpu_lock("audio")
     with ensure_audio_generation_claim() as claim_id:
 

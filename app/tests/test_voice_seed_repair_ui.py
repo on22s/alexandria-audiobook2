@@ -133,6 +133,7 @@ assert(markup.includes('&lt;ALICE&gt;&amp;'));assert(!markup.includes('<ALICE>')
 for(const change of native.seed_changes){assert(markup.includes(change.seed));}
 assert(markup.includes('original-file backup'));assert(markup.includes('Existing rendered audio is kept'));
 assert(markup.includes('fast-batch'));assert(markup.includes('onclick="applyStableVoiceSeeds()"'));
+assert(markup.includes('use saved character seeds'));assert(markup.includes('nonnegative batch seed overrides them'));
 assert.strictEqual(ctx.getVoiceSeedRepairMarkup({...native,seed_changes:[]}), '');
 let finished=false;process.on('beforeExit',()=>assert(finished,'All seed UI assertions must finish'));
 (async()=>{

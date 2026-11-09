@@ -220,8 +220,8 @@ def apply_unseeded_voice_seeds(raw):
 def seed_characters(args):
     """Offer stable character seeds without changing defaults or existing audio.
 
-    Individual generation honors character seeds; fast-batch generation uses
-    a separate batch seed. Applying this opt-in repair can change regenerated
+    Individual and fast-batch generation honor character seeds unless a
+    nonnegative batch seed overrides them. This repair can change regenerated
     audio and does not establish audible identity across a whole book.
     """
     with open(args.config, encoding="utf-8") as source:
@@ -241,7 +241,7 @@ def seed_characters(args):
         print(f"  {name[:34]:36} {was:>6} -> {now}")
     if len(changes) > 40:
         print(f"  ... and {len(changes) - 40} more")
-    print("\n  Individual rendering uses character seeds. Fast batches use a separate batch seed.")
+    print("\n  Individual and fast-batch rendering use character seeds unless a nonnegative batch seed overrides them.")
     print("  Existing rendered audio is kept; regenerated audio may sound different.")
 
     if not args.apply:
@@ -271,8 +271,8 @@ def main():
     ap.add_argument("--seed-characters", action="store_true",
                     dest="seed_characters",
                     help="offer stable per-name seeds for unseeded character settings. "
-                         "Individual rendering uses these; fast batches use a separate "
-                         "batch seed. Reports by default; needs --apply to write.")
+                         "Individual and fast-batch rendering use these unless a nonnegative "
+                         "batch seed overrides them. Reports by default; needs --apply to write.")
     args = ap.parse_args()
 
     if args.seed_characters:

@@ -5108,7 +5108,7 @@
             const rows = changes.map(change => `<li>${escapeHtml(change.name)}: proposed seed ${escapeHtml(change.seed)}</li>`).join('');
             return `<div class="alert alert-warning"><strong>${changes.length} unseeded voice settings</strong>
                 <ul>${rows}</ul><p>An original-file backup will be saved. Existing rendered audio is kept. Regenerated audio may sound different.
-                Individual rendering uses character seeds; fast-batch rendering uses its separate batch seed.</p>
+                Individual and fast-batch rendering use saved character seeds; a nonnegative batch seed overrides them.</p>
                 <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyStableVoiceSeeds()" ${_voiceSeedRepairPending ? 'disabled' : ''}>Apply stable seeds to unseeded entries only</button></div>`;
         }
 

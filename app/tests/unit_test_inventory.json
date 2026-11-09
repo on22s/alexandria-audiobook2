@@ -8156,6 +8156,16 @@
     "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_copied_requests_keep_authored_speaker_uid_index_and_existing_source_identity",
     "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_external_alias_dispatch_keeps_once_prepared_custom_and_clone_requests"
   ],
+  "test_native_batch_saved_seeds": [
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_disabled_ratio_splitting_still_honors_manual_item_cap",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_explicit_batch_override_preserves_original_sub_batches",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_homogeneous_saved_seeds_keep_native_sub_batching",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_malformed_saved_seed_retains_unseeded_fallback_without_aborting_other_rows",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_random_versions_are_not_forced_to_a_pinned_neighbour_seed",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_real_length_partitions_are_only_refined_at_seed_changes",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_seed_specific_failure_preserves_prior_output_and_other_results",
+    "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_version_selected_seeds_partition_sorted_original_chunks"
+  ],
   "test_native_windows_sound_temp_root_runner": [
     "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_cleanup_failure_aborts_without_receipt",
     "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_hostile_alias_removal_failure_still_attempts_base_cleanup",
