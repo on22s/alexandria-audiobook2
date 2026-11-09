@@ -29,6 +29,7 @@ function resetPronunciationBook() {
     resetPronunciationAudio();
     document.getElementById('pronunciation-status').textContent = 'Book changed. Shared drafts are retained; preview counts and voices again.';
     resetOccurrencePronunciation();
+    resetDateOrderBook();
 }
 
 function onPronunciationEdit() {
@@ -445,6 +446,18 @@ window.addEventListener('pagehide', resetPronunciationAudio);
    date like 1/2/1900 that reads differently in US and UK order, or a saved choice. */
 let dateOrderBook = null;
 let dateOrderBusy = false;
+let dateOrderEpoch = 0;
+
+// A book switch retires any pending date-order load/save (#1805): its reply
+// belongs to the old book and must neither paint nor supply the save token.
+function resetDateOrderBook() {
+    dateOrderEpoch++;
+    dateOrderBusy = false;
+    dateOrderBook = null;
+    document.getElementById('date-order-choice').disabled = true;
+    document.getElementById('date-order-status').textContent = 'Book changed. Reading the date order for this book...';
+    if (document.getElementById('pronunciation-panel')?.open) { loadDateOrder(); }
+}
 
 function renderDateOrder(result) {
     const row = document.getElementById('date-order-row');
@@ -470,8 +483,14 @@ function renderDateOrder(result) {
 async function loadDateOrder() {
     if (dateOrderBusy) { return; }
     dateOrderBusy = true;
-    try { renderDateOrder(await API.get('/api/pronunciation/date_order')); }
+    const epoch = ++dateOrderEpoch;
+    try {
+        const result = await API.get('/api/pronunciation/date_order');
+        if (epoch !== dateOrderEpoch) { return; }
+        renderDateOrder(result);
+    }
     catch (error) {
+        if (epoch !== dateOrderEpoch) { return; }
         // The row is hidden until a load succeeds, so show it for the message and
         // keep the choice unusable: there is no current book token to save against.
         dateOrderBook = null;
@@ -480,19 +499,25 @@ async function loadDateOrder() {
         const detail = error && error.message ? ` ${error.message}` : '';
         document.getElementById('date-order-status').textContent = `Could not read the date order for this book.${detail}`;
     }
-    finally { dateOrderBusy = false; }
+    finally { if (epoch === dateOrderEpoch) { dateOrderBusy = false; } }
 }
 
 async function saveDateOrder() {
     if (dateOrderBusy || !dateOrderBook) { return; }
     dateOrderBusy = true;
+    const epoch = dateOrderEpoch;
     const choice = document.getElementById('date-order-choice').value;
     let failed = false;
-    try { renderDateOrder(await API.post('/api/pronunciation/date_order', {choice, expected_book_token: dateOrderBook})); }
+    try {
+        const result = await API.post('/api/pronunciation/date_order', {choice, expected_book_token: dateOrderBook});
+        if (epoch !== dateOrderEpoch) { return; }
+        renderDateOrder(result);
+    }
     catch (error) {
+        if (epoch !== dateOrderEpoch) { return; }
         failed = true;
         showActionError('Could not save the date order', error, 'Reload the book or wait for audio generation to finish, then try again.', 'error');
     }
-    finally { dateOrderBusy = false; }
+    finally { if (epoch === dateOrderEpoch) { dateOrderBusy = false; } }
     if (failed) { await loadDateOrder(); }
 }
