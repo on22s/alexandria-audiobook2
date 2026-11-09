@@ -44,67 +44,109 @@ MAX_RESULT_BYTES = 16 * 1024 * 1024
 MAX_JOB_BYTES = 64 * 1024 * 1024
 
 _PROBE_SOURCE = (
-    "import json, sys\n"
-    "out = {'ready': False, 'torch': False, 'qwen_asr': False, "
-    "'qwen_asr_version': None, 'torch_version': None, 'devices': [], "
-    "'cpu_fallback': False, 'reason': None}\n"
-    "# qwen_asr presence first: importlib.util.find_spec never imports torch.\n"
-    "import importlib.util\n"
+    'import json, sys, os\n'
+    "os.environ['PYTORCH_NVML_BASED_CUDA_CHECK'] = '1'\n"
+    "out = {'ready': False, 'torch': False, 'qwen_asr': False, 'qwen_asr_version': None, 'torch_version': None, 'devices': [], 'cpu_fallback': False, 'reason': None}\n"
+    '# qwen_asr presence first: importlib.util.find_spec never imports torch.\n'
+    'import importlib.util\n'
     "if not importlib.util.find_spec('qwen_asr'):\n"
     "    out['reason'] = 'missing module: qwen_asr (install it in the qwen-env interpreter)'\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
-    "try:\n"
-    "    from importlib import metadata as _metadata\n"
-    "except Exception:\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
+    'try:\n'
+    '    from importlib import metadata as _metadata\n'
+    'except Exception:\n'
     "    out['reason'] = 'unknown Python package metadata support'\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
-    "try:\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
+    'try:\n'
     "    out['qwen_asr_version'] = _metadata.version('qwen-asr')\n"
-    "except Exception:\n"
+    'except Exception:\n'
     "    out['reason'] = 'unknown qwen-asr package metadata; refusing to identify it'\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
     "if not out['qwen_asr_version'] or out['qwen_asr_version'] == 'unknown':\n"
     "    out['reason'] = 'unknown qwen-asr package metadata; refusing to identify it'\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
-    "try:\n"
-    "    from qwen_asr import Qwen3ForcedAligner as _Qwen3ForcedAligner\n"
-    "except Exception as exc:\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
+    'try:\n'
+    '    from qwen_asr import Qwen3ForcedAligner as _Qwen3ForcedAligner\n'
+    'except Exception as exc:\n'
     "    out['reason'] = 'missing module: %s' % getattr(exc, 'name', exc)\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
-    "try:\n"
-    "    import torch\n"
-    "except Exception as exc:\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
+    'try:\n'
+    '    import torch\n'
+    'except Exception as exc:\n'
     "    out['reason'] = 'missing module: %s' % getattr(exc, 'name', exc)\n"
-    "    print(json.dumps(out)); sys.exit(0)\n"
+    '    print(json.dumps(out)); sys.exit(0)\n'
     "out['torch'] = True\n"
-    "try:\n"
+    'try:\n'
     "    out['torch_version'] = _metadata.version('torch')\n"
-    "except Exception:\n"
+    'except Exception:\n'
     "    out['torch_version'] = None\n"
     "out['qwen_asr'] = True\n"
     "out['cpu_fallback'] = True\n"
-    "out['cuda_enumeration_failed'] = False\n"
-    "try:\n"
-    "    if torch.cuda.is_available():\n"
-    "        for i in range(torch.cuda.device_count()):\n"
-    "            major, minor = torch.cuda.get_device_capability(i)\n"
-    "            try:\n"
-    "                free, total = torch.cuda.mem_get_info(i)\n"
-    "            except Exception:\n"
-    "                continue\n"
-    "            out['devices'].append({'device': 'cuda:%d' % i,\n"
-    "                'name': torch.cuda.get_device_name(i),\n"
-    "                'capability': [major, minor],\n"
-    "                'free_bytes': int(free or 0),\n"
-    "                'total_bytes': int(total or 0)})\n"
-    "except Exception:\n"
-    "    out['cuda_enumeration_failed'] = True\n"
-    "if out.get('cuda_enumeration_failed'):\n"
-    "    out['ready'] = False\n"
-    "    out['reason'] = 'CUDA device enumeration failed; GPU capability unknown'\n"
-    "else:\n"
-    "    out['ready'] = True\n"
-    "print(json.dumps(out))\n"
+    '# Driver device queries create no CUDA context. Let the CUDA driver\n'
+    '# resolve visibility/order; match its UUIDs to NVML, never physical indices.\n'
+    "if not getattr(getattr(torch, 'version', None), 'cuda', None):\n"
+    "    out['reason'] = 'Selected Torch has no CUDA support; CPU remains available.'\n"
+    'else:\n'
+    '    _nvml_started = False\n'
+    '    try:\n'
+    '        import uuid as _uuid\n'
+    '        from cuda.bindings import driver as _driver\n'
+    '        def _driver_value(result):\n'
+    '            if result[0] != _driver.CUresult.CUDA_SUCCESS:\n'
+    "                raise RuntimeError('CUDA metadata query failed: %s' % result[0])\n"
+    '            return result[1] if len(result) > 1 else None\n'
+    '        _driver_value(_driver.cuInit(0))\n'
+    '        _count = _driver_value(_driver.cuDeviceGetCount())\n'
+    '        if _count < 0 or _count > 1024:\n'
+    "            raise ValueError('CUDA metadata device count is invalid')\n"
+    '        if _count:\n'
+    '            import pynvml as _nvml\n'
+    '            _nvml.nvmlInit()\n'
+    '            _nvml_started = True\n'
+    '            for _index in range(_count):\n'
+    '                try:\n'
+    '                    _device = _driver_value(_driver.cuDeviceGet(_index))\n'
+    '                    _uuid_value = _driver_value(_driver.cuDeviceGetUuid(_device))\n'
+    '                    _uuid_text = str(_uuid.UUID(bytes=bytes(_uuid_value.bytes)))\n'
+    '                    # Current drivers use GPU-UUID or MIG-UUID NVML handles.\n'
+    '                    # If neither resolves, refuse this device rather than guess.\n'
+    '                    _handle = None\n'
+    "                    for _prefix in ('GPU-', 'MIG-'):\n"
+    '                        try:\n'
+    '                            _handle = _nvml.nvmlDeviceGetHandleByUUID(_prefix + _uuid_text)\n'
+    '                            break\n'
+    '                        except Exception:\n'
+    '                            continue\n'
+    '                    if _handle is None:\n'
+    "                        raise ValueError('CUDA device UUID is unavailable through NVML')\n"
+    '                    _major, _minor = _nvml.nvmlDeviceGetCudaComputeCapability(_handle)\n'
+    '                    if type(_major) is not int or type(_minor) is not int or _major <= 0 or _minor < 0:\n'
+    "                        raise ValueError('CUDA compute capability is unknown')\n"
+    '                    _mem = _nvml.nvmlDeviceGetMemoryInfo(_handle)\n'
+    '                    _free, _total = _mem.free, _mem.total\n'
+    '                    if type(_free) is not int or type(_total) is not int or not 0 <= _free <= _total or _total <= 0:\n'
+    "                        raise ValueError('CUDA memory capacity is unknown')\n"
+    '                    _name = _nvml.nvmlDeviceGetName(_handle)\n'
+    '                    if isinstance(_name, bytes):\n'
+    "                        _name = _name.decode('utf-8', 'replace')\n"
+    "                    out['devices'].append({'device': 'cuda:%d' % _index,\n"
+    "                        'name': _name, 'capability': [_major, _minor],\n"
+    "                        'free_bytes': _free, 'total_bytes': _total})\n"
+    '                except Exception as _error:\n'
+    "                    out['reason'] = 'Some CUDA metadata is unavailable (%s); CPU remains available.' % type(_error).__name__\n"
+    '        else:\n'
+    "            out['reason'] = 'No visible CUDA devices; CPU remains available.'\n"
+    '    except Exception as _error:\n'
+    "        out['devices'] = []\n"
+    "        out['reason'] = ('CUDA metadata unavailable (%s); install the isolated Qwen requirements. CPU remains available.' % type(_error).__name__)\n"
+    '    finally:\n'
+    '        if _nvml_started:\n'
+    '            try:\n'
+    '                _nvml.nvmlShutdown()\n'
+    '            except Exception:\n'
+    '                pass\n'
+    "out['ready'] = True\n"
+    'print(json.dumps(out))\n'
 )
 
 # A complete local install. Everything the worker's from_pretrained +
@@ -280,6 +322,8 @@ def get_qwen_model_file_digest(model_dir, cancel_check=None):
                     raise ValueError("Qwen model file %s shrank during identity capture." % rel)
                 digest.update(block)
                 remaining -= len(block)
+            if stream.read(1):
+                raise ValueError("Qwen model file %s grew during identity capture." % rel)
         finally:
             stream.close()
     return digest.hexdigest()
@@ -327,6 +371,8 @@ def get_qwen_code_digest(code_paths=None):
                     raise ValueError("Qwen worker code shrank during identity capture.")
                 digest.update(block)
                 remaining -= len(block)
+            if stream.read(1):
+                raise ValueError("Qwen worker code grew during identity capture.")
         finally:
             stream.close()
         digest.update(b"\x00")
@@ -547,6 +593,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
         device_choice, dtype = get_qwen_device_selection(normalized)
     except ValueError as error:
         return _not_ready(str(error), python, model_dir)
+    probe_reason = payload.get("reason") if isinstance(payload.get("reason"), str) else None
     if status_only:
         supported = set(languages) if isinstance(languages, list) else set()
         from qwen_align import SUPPORTED_ALIGNER_LANGUAGES
@@ -558,7 +605,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
                 "languages": ordered, "qwen_asr_version": version,
                 "torch_version": payload.get("torch_version"),
                 "cpu_fallback": bool(payload.get("cpu_fallback")),
-                "provider_digest": None, "runtime_identity": None, "reason": None}
+                "provider_digest": None, "runtime_identity": None, "reason": probe_reason}
     try:
         identity = (runtime_identity if runtime_identity is not None
                     else get_qwen_runtime_identity(python, cancel_check=cancel_check))
@@ -574,7 +621,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
                               "device": device_choice, "dtype": dtype,
                               "identity": identity},
             cancel_check=cancel_check, _model_digest=model_digest)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         return _not_ready(
             "Qwen provider identity is unavailable: %s" % error, python, model_dir)
     supported = set(languages) if isinstance(languages, list) else set()
@@ -589,7 +636,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
             "cpu_fallback": bool(payload.get("cpu_fallback")),
             "provider_digest": provider, "runtime_identity": identity,
             "model_digest": model_digest,
-            "reason": None}
+            "reason": probe_reason}
 
 
 def _not_ready(reason, python, model_dir):
@@ -601,16 +648,16 @@ def _not_ready(reason, python, model_dir):
 
 MIN_FREE_VRAM_BYTES = int(2.5 * 1024**3)
 
-_RUNTIME_PACKAGES = ("qwen-asr", "torch", "transformers")
+_RUNTIME_PACKAGES = ("qwen-asr", "torch", "transformers", "nvidia-ml-py", "cuda-bindings")
 
 _IDENTITY_SOURCE = (
     "import json, sys\n"
-    "out = {'python_version': sys.version.split()[0], 'packages': {}}\n"
+    "out = {'python_version': sys.version.split()[0], 'packages': {}, 'prefix': sys.prefix}\n"
     "try:\n"
     "    from importlib import metadata as _metadata\n"
     "except Exception:\n"
     "    print(json.dumps(out)); sys.exit(0)\n"
-    "for name in ('qwen-asr', 'torch', 'transformers'):\n"
+    f"for name in {_RUNTIME_PACKAGES!r}:\n"
     "    try:\n"
     "        out['packages'][name] = _metadata.version(name)\n"
     "    except Exception:\n"
@@ -631,13 +678,18 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
         raise ValueError("Qwen runtime identity capture cancelled.")
     if not isinstance(python_path, str) or not python_path or not os.path.isfile(python_path):
         raise ValueError("Qwen interpreter is unavailable; refusing to identify it.")
-    canonical = str(Path(python_path).resolve())
+    # Execute the SELECTED entry (a POSIX venv's bin/python symlink
+    # binds its pyvenv.cfg/site-packages); hash the canonical actual
+    # executable it points to. User symlinks to a real interpreter
+    # remain supported — only the resolved target is hashed.
+    selected = os.path.abspath(python_path)
+    canonical = str(Path(selected).resolve())
     exe = Path(canonical)
     if not exe.is_file():
         raise ValueError("Qwen interpreter is unavailable; refusing to identify it.")
     try:
         completed = run_owned_capture(
-            [canonical, "-c", _IDENTITY_SOURCE], timeout=timeout,
+            [selected, "-c", _IDENTITY_SOURCE], timeout=timeout,
             env=_isolated_worker_env())
     except (subprocess.TimeoutExpired, OSError, ValueError) as error:
         raise ValueError("Qwen runtime identity capture failed: %s" % error) from error
@@ -657,18 +709,29 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
                   for key, value in packages.items()}
     exe_sha256 = hashlib.sha256()
     total = 0
-    with exe.open("rb") as stream:
-        while True:
+    # Hash the canonical executable through the shared no-follow
+    # regular-file reader (bounded only by actual interpreter size;
+    # no arbitrary cap is invented here).
+    stream, _size = _open_regular_file(exe, what="interpreter executable")
+    try:
+        remaining = _size
+        while remaining:
             if cancel_check is not None and cancel_check():
                 raise ValueError("Qwen runtime identity capture cancelled.")
-            block = stream.read(1024**2)
+            block = stream.read(min(1024**2, remaining))
             if not block:
-                break
+                raise ValueError("Qwen interpreter shrank during identity capture.")
             exe_sha256.update(block)
             total += len(block)
+            remaining -= len(block)
+        if stream.read(1):
+            raise ValueError("Qwen interpreter grew during identity capture.")
+    finally:
+        stream.close()
     if total <= 0:
         raise ValueError("Qwen interpreter is empty; refusing to identify it.")
-    identity = {"python": canonical, "python_prefix": os.path.dirname(canonical),
+    identity = {"python": selected,
+                "python_prefix": payload.get("prefix") or os.path.dirname(canonical),
                 "python_version": payload["python_version"],
                 "executable_sha256": exe_sha256.hexdigest(),
                 "executable_bytes": int(total),
@@ -687,6 +750,7 @@ def get_qwen_runtime_digest(identity):
         raise ValueError("Qwen runtime identity is unavailable.")
     body = {
         "python": identity.get("python"),
+        "python_prefix": identity.get("python_prefix"),
         "python_version": identity.get("python_version"),
         "executable_sha256": identity.get("executable_sha256"),
         "executable_bytes": identity.get("executable_bytes"),
@@ -791,8 +855,9 @@ def get_qwen_device_policy(mode, device, capability):
         return {"timing_mode": "qwen", "device": device, "dtype": dtype,
                 "cpu_only": False, "reason": "Qwen GPU selected."}
     raise ValueError(
-        "Device %r is unavailable here; real devices: %s"
-        % (device, ", ".join(d for d in device_names if d) or "none (CPU only)"))
+        "Device %r is unavailable here; real devices: %s%s"
+        % (device, ", ".join(d for d in device_names if d) or "none (CPU only)",
+           ". " + capability["reason"] if isinstance(capability.get("reason"), str) else ""))
 
 
 def get_qwen_worker_command(python):

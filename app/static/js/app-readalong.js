@@ -150,7 +150,7 @@
         var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');
         el.textContent = 'Timing: Qwen3 ready (' + pinned + '). ' + info.policy.reason;
       } else {
-        el.textContent = 'Timing: Qwen3 not ready (' + (info.capability && info.capability.reason ? info.capability.reason : 'unknown') + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
+        el.textContent = 'Timing: Qwen3 not ready (' + (info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : 'unknown')) + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
       }
     }).catch(function () {
       if (generation !== timingGeneration) { return; }
@@ -318,6 +318,7 @@
   // keep the persisted preference; no probing happens here.
   function resetReadalongViews() {
     timingGeneration += 1;
+    refreshTimingStatus();
     Object.values(channels).forEach(function (channel) {
       channel.taskId += 1;
       stopTimer(channel);

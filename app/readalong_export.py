@@ -148,7 +148,8 @@ def get_readaloud_timing_preference(data_dir):
 def save_readaloud_timing_preference(preference, data_dir):
     """Persist the user's timing choice; caller holds book state."""
     from utils import atomic_json_write
-    atomic_json_write(preference, os.path.join(data_dir, "readalong_timing.json"))
+    return atomic_json_write(preference, os.path.join(data_dir, "readalong_timing.json"),
+                             return_written_bytes=True)
 
 
 def require_timing_preference_unchanged(expected, root_dir):
@@ -764,7 +765,6 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
                      "start_frame": int(start_frame), "end_frame": int(end_frame),
                      "duration": row_duration, "windows": windows,
                      "total_frames": total_frames})
-
     jobs = []
     with open(pcm_path, "rb") as pcm_stream:
         for row in rows:
@@ -948,38 +948,28 @@ def build_sidecar_export(manager, cancel_check, progress_callback=None, *,
             pass
 
 
-def _locate_retained_epub(manager, cancel_check, source_txt=None):
-    """Return (retained_bytes, source_txt_path) verifying provenance hashes.
+def get_current_retained_epub_path(source_txt, cancel_check=None, *, origin_hashes=None):
+    """Resolve renamed retained sources by current provenance, streaming hashes.
 
-    ``source_txt`` may be the snapshot-captured original for the build;
-    otherwise it is read from state.json. Either way the retained bytes
-    are hash-verified against the publication capture (origin sha) and
-    the build uses those in-memory bytes — the retained file is never
-    re-read after this point. That is the immutable-provenance guard:
-    later mutation of the retained file cannot change the built EPUB,
-    and the snapshot separately guards the original TXT identity.
+    A builder may provide its already captured origin hashes; downloads
+    observe the current publication capture. Ambiguous fallbacks refuse.
     """
     from publication_source import get_publication_source_capture
     from source_upload_publication import get_retained_epub_path
-    if source_txt is None:
-        from utils import safe_load_json
-        state = safe_load_json(os.path.join(manager.root_dir, "state.json"), {})
-        source_txt = state.get("input_file_path")
-    if not isinstance(source_txt, str) or not source_txt:
-        raise ValueError("No source book is selected. Select a book that came from an EPUB upload.")
-    captured = get_publication_source_capture(source_txt)
-    if captured is None or captured.get("binding_status") != "current":
-        raise ValueError("Source provenance is stale; re-upload the source book before EPUB read-aloud export.")
-    origins = captured["document"].get("candidates", [])
-    if not origins:
-        raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")
+    if origin_hashes is None:
+        captured = get_publication_source_capture(source_txt)
+        if captured is None or captured.get("binding_status") != "current":
+            raise ValueError("Source provenance is stale; re-upload the source book.")
+        origin_hashes = {row["origin"]["sha256"] for row in captured["document"].get("candidates", [])}
+    wants = frozenset(origin_hashes)
+    if not wants:
+        raise ValueError("This book has no retained EPUB provenance.")
     retained_path = get_retained_epub_path(source_txt)
     if not os.path.isfile(retained_path):
         # Fallback scan by exact origin hash (renamed books). Deterministic:
         # sorted names; more than one distinct retained file with the same
         # origin hash is ambiguity and must surface, never pick a first.
         uploads_dir = os.path.dirname(retained_path)
-        wants = {row["origin"]["sha256"] for row in origins}
         matches = []
         for name in sorted(os.listdir(uploads_dir)):
             if not name.endswith(".source.epub"):
@@ -996,6 +986,42 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
             raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
         else:
             raise ValueError("Retained EPUB bytes are missing for this book; re-upload the EPUB to enable read-aloud export.")
+    if cancel_check is not None:
+        ensure_audio_export_active(cancel_check)
+    if get_audio_file_sha256(retained_path)[0] not in wants:
+        raise ValueError("Retained EPUB bytes do not match the source provenance.")
+    if cancel_check is not None:
+        ensure_audio_export_active(cancel_check)
+    return retained_path
+
+
+def _locate_retained_epub(manager, cancel_check, source_txt=None):
+    """Return (retained_bytes, source_txt_path) verifying provenance hashes.
+
+    ``source_txt`` may be the snapshot-captured original for the build;
+    otherwise it is read from state.json. Either way the retained bytes
+    are hash-verified against the publication capture (origin sha) and
+    the build uses those in-memory bytes — the retained file is never
+    re-read after this point. That is the immutable-provenance guard:
+    later mutation of the retained file cannot change the built EPUB,
+    and the snapshot separately guards the original TXT identity.
+    """
+    from publication_source import get_publication_source_capture
+    if source_txt is None:
+        from utils import safe_load_json
+        state = safe_load_json(os.path.join(manager.root_dir, "state.json"), {})
+        source_txt = state.get("input_file_path")
+    if not isinstance(source_txt, str) or not source_txt:
+        raise ValueError("No source book is selected. Select a book that came from an EPUB upload.")
+    captured = get_publication_source_capture(source_txt)
+    if captured is None or captured.get("binding_status") != "current":
+        raise ValueError("Source provenance is stale; re-upload the source book before EPUB read-aloud export.")
+    origins = captured["document"].get("candidates", [])
+    if not origins:
+        raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")
+    retained_path = get_current_retained_epub_path(
+        source_txt, cancel_check,
+        origin_hashes={row["origin"]["sha256"] for row in origins})
     retained_bytes = Path(retained_path).read_bytes()
     if hashlib.sha256(retained_bytes).hexdigest() not in {row["origin"]["sha256"] for row in origins}:
         raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
@@ -1055,7 +1081,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
             from qwen_align import get_aligner_language_name
             fresh_bytes = Path(fresh["path"]).read_bytes()
             aligned_rows = None
-            timing_summary = {"mode": "chunk"}
+            timing_summary = {"mode": "chunk", "label": "chunk-estimated"}
             if timing is not None and timing.get("timing_mode") == "qwen":
                 # AC8: the validated qwen-asr version (pinned runtime
                 # contract, re-checked against the worker report in
@@ -1103,6 +1129,8 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                         % (timing.get("device"), timing.get("dtype"), language,
                            _QWEN_MODEL_NAME, _version,
                            alignment["rows"], alignment["windows"]))
+            if timing_summary.get("mode") == "chunk" and progress_callback is not None:
+                progress_callback("Chunk timing selected (chunk-estimated, CPU).")
             try:
                 epub_bytes, report = build_epub_readaloud(
                     retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
@@ -1139,8 +1167,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                             "device": timing.get("device"),
                             "dtype": timing.get("dtype"),
                             "identity": fresh_runtime},
-                        cancel_check=cancel_check,
-                        _model_digest=timing.get("_model_digest"))
+                        cancel_check=cancel_check)
                 except ValueError as error:
                     if cancel_check() and "cancelled" in str(error).lower():
                         raise ExportCancelled("Export cancelled") from error

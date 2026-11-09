@@ -408,6 +408,20 @@ fake, or word-count timing exists in the production path.
   `ALEXANDRIA_QWEN_PYTHON` to an explicit interpreter). Capability comes
   from `GET /api/readaloud_epub/capability` (import/device presence
   only, no inference); unknown is never shown as ready.
+- **GPU metadata without an inference context.** The isolated requirements
+  include NVIDIA's `cuda-bindings` (except on macOS) and `nvidia-ml-py`.
+  CUDA driver metadata supplies logical ordinals and UUIDs, respecting its
+  visibility/order settings; NVML supplies the matching device's compute
+  capability and current memory. The probe creates no CUDA context. Missing
+  or unknown GPU metadata excludes that device; a working CPU runtime can
+  still be offered, and an explicitly unavailable GPU choice refuses.
+  A CPU-only Torch installation does not advertise a physical CUDA GPU.
+- **Bounded output.** The worker checks actual encoded result bytes as rows
+  finish and stops before aligning further rows if the existing 16 MiB
+  result limit is exceeded. The independent 64 MiB job limit also remains.
+  These are resource limits, not a promise that every book fits. An oversized
+  job or result refuses publication and leaves the prior export intact;
+  chunk timing remains the alternative. No timestamps are guessed to fit.
 - **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
   not dependencies of this app; no parallel packager exists. The
   sentence idea and parts of the tokenizer/window logic adapt

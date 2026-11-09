@@ -18,3 +18,9 @@
 # A build never downloads: the parent enforces HF_HUB_OFFLINE=1 and the
 # worker loads with local_files_only=True.
 qwen-asr==0.0.6
+# Official NVIDIA NVML Python bindings: context-free CUDA device
+# enumeration (name/capability/free memory) for the capability
+# probe, so status/admission never initializes a CUDA context.
+nvidia-ml-py==13.615.71
+# Driver UUID queries honor CUDA visibility/order without creating a context.
+cuda-bindings==13.4.4; platform_system != "Darwin"

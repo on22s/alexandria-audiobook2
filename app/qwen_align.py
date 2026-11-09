@@ -535,7 +535,8 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
     20-second target: up to the 180-second cap it gets its own window.
     A sentence needing more than the cap is partitioned at word
     boundaries when ``text`` is supplied (final sentence envelopes are
-    still derived from actual model tokens by derive_fragment_times);
+    derived by the exporter from validated tokens and PCM frames;
+    derive_fragment_times is the seconds-domain reference helper);
     without text the old explicit refusal is kept.
 
     ``first_sentence``/``last_sentence`` index the *expanded* sentence
@@ -575,9 +576,9 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
         next_idx = min((j for j in spoken if j > i), default=None)
         target = prev_idx if prev_idx is not None else next_idx
         if target < i:
-            sentences[target]["end"] = sentence["end"]
+            sentences[target]["end"] = max(sentences[target]["end"], sentence["end"])
         else:
-            sentences[target]["start"] = sentence["start"]
+            sentences[target]["start"] = min(sentences[target]["start"], sentence["start"])
     sentences = [s for s in sentences if s["words"] > 0]
     total_words = sum(s["words"] for s in sentences)
     if total_words <= 0:
@@ -630,7 +631,12 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
                 "%d-second aligner limit; split the editor row first."
                 % (est_end - est_start, MAX_ALIGN_SECONDS))
         window_end = min(float(row_duration_sec), est_end + WINDOW_TAIL_SECONDS)
+        # Round an estimated endpoint inward if floating addition
+        # makes its duration exceed the strict per-call cap.
+        # Actual PCM slices and model timestamps remain unchanged.
         window_end = min(window_end, start + MAX_ALIGN_SECONDS)
+        if window_end - start > MAX_ALIGN_SECONDS:
+            window_end = math.nextafter(window_end, start)
         windows.append({
             "start_sec": start,
             "end_sec": window_end,

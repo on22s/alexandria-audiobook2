@@ -36,6 +36,32 @@ def _model(tmp):
 
 
 class NativeSymlinkTests(unittest.TestCase):
+    def test_venv_symlink_entry_survives_identity_revalidation_native(self):
+        import subprocess
+        import qwen_runtime as qr
+        if os.name == "nt":
+            self.skipTest("POSIX venv symlink qualification; run the separate Linux/macOS step")
+        with tempfile.TemporaryDirectory() as tmp:
+            env = Path(tmp) / "qwen-env"
+            subprocess.run([sys.executable, "-m", "venv", "--without-pip", "--symlinks", str(env)],
+                           check=True, timeout=60, capture_output=True)
+            entry = env / "bin" / "python"
+            self.assertTrue(entry.is_symlink(), "POSIX qualification must exercise a real venv symlink")
+            site = subprocess.check_output(
+                [str(entry), "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+                text=True, timeout=30).strip()
+            metadata = Path(site) / "qwen_asr-0.0.6.dist-info" / "METADATA"
+            metadata.parent.mkdir(parents=True)
+            metadata.write_text("Metadata-Version: 2.1\nName: qwen-asr\nVersion: 0.0.6\n", encoding="utf-8")
+            first = qr.get_qwen_runtime_identity(str(entry))
+            second = qr.get_qwen_runtime_identity(first["python"])
+            self.assertEqual(str(entry), first["python"])
+            self.assertEqual("0.0.6", first["packages"]["qwen-asr"])
+            self.assertEqual(first["runtime_digest"], second["runtime_digest"])
+            metadata.write_text("Metadata-Version: 2.1\nName: qwen-asr\nVersion: 0.0.7\n", encoding="utf-8")
+            changed = qr.get_qwen_runtime_identity(first["python"])
+            self.assertNotEqual(first["runtime_digest"], changed["runtime_digest"])
+
     def test_symlinked_required_file_not_ready_native(self):
         import qwen_runtime as qr
         with tempfile.TemporaryDirectory() as tmp:

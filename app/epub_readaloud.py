@@ -657,6 +657,26 @@ def _read_archive_member_bounded(archive, name, max_bytes):
     return read_zip_member_bounded(archive, name, max_bytes)
 
 
+def get_epub_language_from_path(retained_path):
+    """Read dc:language from a retained EPUB path, bounded.
+
+    Streams container.xml and the OPF through the same bounded
+    member reader used for spine documents; the whole archive is
+    never materialized. Returns the language tag or ''.
+    """
+    import zipfile as _zf
+    with _zf.ZipFile(retained_path) as archive:
+        opf_path, package = get_epub_package(
+            archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
+    namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
+    metadata = package.find(namespace + 'metadata')
+    if metadata is None:
+        return ""
+    DC = '{http://purl.org/dc/elements/1.1/}'
+    langs = metadata.findall(DC + 'language')
+    return "".join(langs[0].itertext()).strip() if langs else ""
+
+
 def _svg_has_text(stream, cancel_check=None):
     """Streaming SVG text probe with a custom no-tree XML target.
 
@@ -668,24 +688,26 @@ def _svg_has_text(stream, cancel_check=None):
     surface as text data) with non-whitespace content returns
     True; CDATA and entity text are delivered as data by the
     parser. Malformed XML raises ET.ParseError to the caller.
-    Memory is bounded by parser internals for the current chunk
-    plus depth tracking, not by document size (no tree, no
-    parent references retained).
+    The target retains no tree or text. Expat may still buffer a
+    single large XML token; chunked input is not a constant-memory
+    guarantee for arbitrary attributes or markup.
     """
-    found = []
-    stack = []
-
     class _Target:
+        def __init__(self):
+            self.found = False
+            self.text_depth = 0
+
         def start(self, tag, attrs):
-            stack.append(tag.rsplit("}", 1)[-1])
+            if tag.rsplit("}", 1)[-1] == "text":
+                self.text_depth += 1
 
         def end(self, tag):
-            if stack:
-                stack.pop()
+            if tag.rsplit("}", 1)[-1] == "text":
+                self.text_depth -= 1
 
         def data(self, data):
-            if data and data.strip() and "text" in stack:
-                found.append(True)
+            if self.text_depth and data and data.strip():
+                self.found = True
 
         def close(self):
             return None
@@ -702,8 +724,12 @@ def _svg_has_text(stream, cancel_check=None):
         def end_ns(self, uri):
             pass
 
-    parser = ET.XMLParser(target=_Target())
-    while not found:
+    target = _Target()
+    parser = ET.XMLParser(target=target)
+    # Feed the FULL document before close: an early-found text
+    # element must not turn close() into an incomplete-document
+    # ParseError (which callers treat as malformed/tolerated).
+    while True:
         if cancel_check is not None and cancel_check():
             raise ValueError("EPUB read-aloud cancelled.")
         chunk = stream.read(64 * 1024)
@@ -711,7 +737,7 @@ def _svg_has_text(stream, cancel_check=None):
             break
         parser.feed(chunk)
     parser.close()
-    return bool(found)
+    return target.found
 
 
 def _stream_retained_member(source_archive, out_archive, name, cancel_check=None):
@@ -1018,9 +1044,9 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         next_idx = min((j for j in spoken_ranges if j > i), default=None)
         target = prev_idx if prev_idx is not None else next_idx
         if target < i:
-            ranges[target][1] = e
+            ranges[target][1] = max(ranges[target][1], e)
         else:
-            ranges[target][0] = s
+            ranges[target][0] = min(ranges[target][0], s)
     ranges = [tuple(r) for i, r in enumerate(ranges) if i in spoken_ranges]
 
     # Merge the rows' tokens into segment-normalized token spans.
@@ -1557,6 +1583,11 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         rate = entry.get("sample_rate")
         if rate is not None and rate != sample_rate:
             raise ValueError("Script entries must share one PCM sample rate.")
+    # Archive-wide preflight BEFORE any spine decompression/probe:
+    # count/byte/name/duplicate/encrypted/symlink bounds refuse
+    # here, so an oversized/unsafe archive is never scanned first.
+    with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as _pre:
+        _preflight_retained_members(_pre.infolist())
     (opf_path, package, namespace, manifest, spine, meta) = get_spine_documents(retained_epub_bytes)
     if not spine:
         raise ValueError("Retained EPUB has no spine documents.")

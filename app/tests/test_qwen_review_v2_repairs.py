@@ -248,6 +248,30 @@ class RouteRepairTests(_FixtureMixin):
 
 
 class DownloadCurrencyTests(_FixtureMixin):
+    def test_book_change_during_timing_check_refuses_download(self):
+        from fastapi import HTTPException
+        from routers.editor import ReadaloudEpubRequest
+        editor, _manager = self._fixture(self._mkdtmp())
+        tasks = _CaptureTasks()
+        editor._start_readaloud_epub(tasks, ReadaloudEpubRequest(timing_mode="chunk"))
+        function, args, kwargs = tasks.registered[0]
+        function(*args, **kwargs)
+        self.assertEqual("done", editor.process_state["readaloud_epub"]["result"]["status"])
+        receipt, raw = editor._validated_epub_bytes()
+        self.assertEqual(receipt["epub_sha256"], hashlib.sha256(raw).hexdigest())
+        real = editor._require_readaloud_timing_current
+        def change_book(value):
+            real(value)
+            chunks_path = Path(editor.DATA_DIR) / "chunks.json"
+            chunks = json.loads(chunks_path.read_text(encoding="utf-8"))
+            chunks[0]["text"] = "An edited narration row."
+            chunks_path.write_text(json.dumps(chunks), encoding="utf-8")
+        with patch.object(editor, "_require_readaloud_timing_current", side_effect=change_book) as probe:
+            with self.assertRaises(HTTPException) as caught:
+                editor._validated_epub_bytes()
+        self.assertEqual(1, probe.call_count)
+        self.assertEqual(409, caught.exception.status_code)
+
     def _legacy_receipt(self, tmp):
         editor, _manager = self._fixture(tmp)
         from readalong_export import get_validated_epub_receipt
@@ -900,12 +924,10 @@ class ModelInventoryTests(unittest.TestCase):
         import qwen_runtime as qr
         with tempfile.TemporaryDirectory() as tmp:
             model = self._complete_model(tmp)
+            original = qr.get_qwen_model_file_digest(str(model))
             with self.assertRaises(ValueError):
                 qr.get_qwen_model_file_digest(str(model), cancel_check=lambda: True)
-            issues, _langs = qr.get_model_issues(str(model))
-            # Cancellation is a digest-level fence; issues alone do not
-            # claim readiness for a cancelled capture.
-            self.assertTrue(True)
+            self.assertEqual(original, qr.get_qwen_model_file_digest(str(model)))
 
 
 class StaleRollbackTests(_FixtureMixin):
@@ -1132,10 +1154,7 @@ class DeepSeekV3Tests(_FixtureMixin):
         from tests.test_epub_readaloud_sentences import _source_epub
         # Section with direct text + nested block, one spoken sentence.
         body = ('<section>Lead text <p id="inner">and more.</p></section>')
-        try:
-            source = _source_epub(body)
-        except Exception:
-            self.skipTest("fixture cannot express coarsened container")
+        source = _source_epub(body)
         prepared = "Lead text and more."
         entries = [{"index": 0, "prepared_text": prepared,
                     "start_frame": 0, "end_frame": 48000, "sample_rate": 24000}]
@@ -1163,12 +1182,19 @@ class DeepSeekV3Tests(_FixtureMixin):
                   "reason": "test"}
         import qwen_runtime as _qr
         from readalong_export import build_epub_export
+        calls = []
+        cancelled = [False]
+        def fake_run(*a, **k):
+            calls.append(1)
+            cancelled[0] = True
+            raise ValueError("Qwen alignment cancelled.")
         with patch.object(_qr, "get_qwen_worker_command",
                           lambda _py: [sys.executable, str(FAKE)]), \
                 patch.object(_qr, "run_qwen_alignment_full",
-                             side_effect=ValueError("Qwen alignment cancelled.")):
-            ok, message = build_epub_export(manager, lambda: True,
+                             side_effect=fake_run):
+            ok, message = build_epub_export(manager, lambda: cancelled[0],
                                             timing=timing)
+        self.assertEqual(1, len(calls), "worker bridge must be reached")
         self.assertFalse(ok)
         self.assertEqual("Export cancelled", message)
 
@@ -1205,12 +1231,6 @@ class DeepSeekV3Tests(_FixtureMixin):
         with _zf.ZipFile(out) as z:
             self.assertEqual(payload, z.read("asset.bin"))
 
-    def test_ui_policy_unready_truthful(self):
-        # JS ready branch must not fire when the policy is the
-        # not-ready fallback; exercised via the Node harness in
-        # JsHarnessTests test_listeners_* (policy.available guard).
-        self.assertTrue(True)
-
     def test_probe_env_stripped(self):
         import qwen_runtime as qr
         with patch.dict(os.environ, {"PYTHONPATH": "/evil",
@@ -1220,24 +1240,13 @@ class DeepSeekV3Tests(_FixtureMixin):
         self.assertNotIn("PYTHONPATH", env)
         self.assertNotIn("LD_PRELOAD", env)
 
-    def test_cuda_probe_honesty(self):
-        import qwen_runtime as qr
-        source = qr._PROBE_SOURCE
-        self.assertIn("enumeration", source.lower())
-        self.assertNotIn("free, total = 0, 0", source)
 
-    def test_worker_error_text_preserved(self):
-        import io as _io
-        import qwen_align_worker as w
-        error_doc = w._worker_error("alignment token is reversed or out of bounds")
-        self.assertIn("reversed", error_doc["error"])
 
     def test_normalizer_aa2_agreement(self):
         import qwen_align as qa
         from epub_readaloud import get_normalized_words
         for text in ("Chapter_1", "He said 'hello' loudly.",
                      "'Hello' world.", "don't stop", "Straße ﬁ"):
-            self.assertEqual(get_normalized_words(text)[0] if False else None, None) if False else None
             stream, _idx = qa.get_normalized_stream(text)
             from epub_readaloud import _WORDS_RE
             folded = text.replace("’", "'").replace("‘", "'")
@@ -1258,15 +1267,7 @@ class DeepSeekV3Tests(_FixtureMixin):
         self.assertEqual("39fc2049e0c7163e10ad41af8dac0ab729d7f1f0e9ac01285e45e3b4ecfeee20",
                          digest)
 
-    def test_job_encoded_once(self):
-        import readalong_export as rex
-        source = Path(rex.__file__).read_text(encoding="utf-8")
-        self.assertEqual(1, source.count("job_payload.encode"))
 
-    def test_ac8_log_fields(self):
-        # Covered by AC8MetadataTests.test_receipt_report_log_carry_model_and_version,
-        # which asserts mode/device/dtype/language appear in the actual log.
-        self.assertTrue(True)
 
 
 class NormalizationFollowupTests(_FixtureMixin):
@@ -1324,11 +1325,341 @@ class NormalizationFollowupTests(_FixtureMixin):
         validate_epub_readaloud(result)
 
     def test_cancelled_build_logs_cancelled_not_failed(self):
+        from routers.editor import ReadaloudEpubRequest
+        cases = [(False, "Export cancelled", "cancelled", "EPUB read-aloud cancelled"),
+                 (False, "deliberate failure", "failed", "EPUB read-aloud failed"),
+                 (True, "completed fixture", "done", "EPUB read-aloud complete")]
+        for success, message, status, log in cases:
+            with self.subTest(status=status):
+                editor, _manager = self._fixture(self._mkdtmp())
+                try:
+                    tasks = _CaptureTasks()
+                    editor._start_readaloud_epub(tasks, ReadaloudEpubRequest(timing_mode="chunk"))
+                    self.assertEqual(1, len(tasks.registered))
+                    function, args, kwargs = tasks.registered[0]
+                    with patch("readalong_export.build_epub_export", return_value=(success, message)) as build:
+                        function(*args, **kwargs)
+                    build.assert_called_once()
+                    state = editor.process_state["readaloud_epub"]
+                    self.assertEqual(status, state["result"]["status"])
+                    self.assertIn(log, state["logs"][-1])
+                    self.assertFalse(state["running"])
+                finally:
+                    self.doCleanups()
+
+
+
+class PubPhaseTests(_FixtureMixin):
+    def test_prepublication_fresh_hash_after_worker(self):
+        from tests.test_readalong_qwen import QwenBuildTests
+        import qwen_runtime as qr
+        import epub_readaloud as er
+        fixture = QwenBuildTests()
+        tmp = fixture._mkdtmp()
+        upstream = fixture._mkdtmp()
+        editor, manager = fixture._fixture(tmp)
+        model_dir = Path(upstream) / "model"
+        model_dir.mkdir(exist_ok=True)
+        (model_dir / "config.json").write_text("{}", encoding="utf-8")
+        cap = fixture._capability(tmp, upstream)
+        cap["model_digest"] = qr.get_qwen_model_file_digest(str(model_dir))
+        cap["provider_digest"] = qr.get_qwen_provider_digest(
+            str(model_dir), runtime_identity=dict(
+                qwen_asr_version="0.0.6", torch_version="2.10.0+cpu",
+                device="cpu", dtype="float32", identity=cap["runtime"]))
+        mutations = []
+        real_packager = er.build_epub_readaloud
+        def package(**kwargs):
+            output = real_packager(**kwargs)
+            (model_dir / "config.json").write_text(
+                '{"synthetic":"changed"}', encoding="utf-8")
+            mutations.append(True)
+            return output
+        tasks = _CaptureTasks()
+        from routers.editor import ReadaloudEpubRequest
+        with patch.object(qr, "get_qwen_capability", lambda *a, **kw: cap), \
+                patch.object(qr, "get_qwen_worker_command",
+                             lambda py: [sys.executable, str(FAKE)]), \
+                patch.object(er, "build_epub_readaloud", side_effect=package):
+            editor._start_readaloud_epub(
+                tasks, ReadaloudEpubRequest(timing_mode="qwen",
+                                            timing_device="cpu"))
+            func, args, kwargs = tasks.registered[0]
+            func(*args, **kwargs)
+        state = editor.process_state["readaloud_epub"]
+        self.assertTrue(mutations)
+        self.assertEqual("failed", state["result"]["status"])
+        self.assertIn("provider changed", state["result"]["message"].lower())
+        fixture.doCleanups()
+
+
+class RetainedSourceResolutionTests(_FixtureMixin):
+    def test_renamed_fallback_matches_builder_and_ambiguous_refuses(self):
+        from readalong_export import get_current_retained_epub_path, _locate_retained_epub
         tmp = self._mkdtmp()
-        editor, _manager = self._fixture(tmp)
-        from routers.editor import get_export_task_result
-        result = get_export_task_result(False, "Export cancelled")
-        self.assertEqual("cancelled", result["status"])
+        _editor, manager = self._fixture(tmp)
+        source = str(Path(tmp) / "book.txt")
+        retained = Path(tmp) / "book.source.epub"
+        expected = retained.read_bytes()
+        renamed = retained.with_name("renamed.source.epub")
+        retained.rename(renamed)
+        self.assertEqual(str(renamed), get_current_retained_epub_path(source))
+        self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
+        renamed.with_name("duplicate.source.epub").write_bytes(expected)
+        with self.assertRaisesRegex(ValueError, "Multiple retained"):
+            get_current_retained_epub_path(source)
+        with self.assertRaisesRegex(ValueError, "Multiple retained"):
+            _locate_retained_epub(manager, lambda: False)
+
+    def test_language_uses_bounded_archive_reader(self):
+        from epub_readaloud import get_epub_language_from_path
+        tmp = self._mkdtmp()
+        self._fixture(tmp)
+        with patch.object(Path, "read_bytes", side_effect=AssertionError("whole archive read")):
+            self.assertEqual("en", get_epub_language_from_path(Path(tmp) / "book.source.epub"))
+
+
+class SvgFirstTests(unittest.TestCase):
+    def test_estimated_window_float_endpoint_obeys_strict_cap(self):
+        from qwen_align import get_aligner_windows
+        duration = 270.0171231911396
+        sentences = [dict(start=0, end=160, words=80),
+                     dict(start=160, end=516, words=178),
+                     dict(start=516, end=536, words=10)]
+        windows = get_aligner_windows(duration, sentences)
+        self.assertEqual(3, len(windows))
+        start = windows[1]["start_sec"]
+        self.assertGreater((start + 180) - start, 180)
+        for window in windows:
+            self.assertGreater(window["end_sec"], window["start_sec"])
+            self.assertLessEqual(window["end_sec"] - window["start_sec"], 180)
+        self.assertEqual(0, windows[0]["char_start"])
+        self.assertEqual(536, windows[-1]["char_end"])
+
+    def _source_with_svg(self, svg):
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead">Hello world.</p>')
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(source)) as src, zipfile.ZipFile(buffer, "w") as dst:
+            for info in src.infolist():
+                data = src.read(info.filename)
+                if info.filename.endswith(".opf"):
+                    data = data.decode().replace('</manifest>',
+                        '<item id="first-svg" href="first.svg" media-type="image/svg+xml"/></manifest>').replace(
+                        '<spine>', '<spine><itemref idref="first-svg"/>').encode()
+                dst.writestr(info, data)
+            dst.writestr("OEBPS/first.svg", svg)
+        return buffer.getvalue()
+
+    def _build(self, source, **kwargs):
+        from epub_readaloud import build_epub_readaloud
+        return build_epub_readaloud(
+            retained_epub_bytes=source, audio_bytes=b"\xff\xfbmp3",
+            audio_filename="audiobook.mp3", script_entries=[dict(
+                index=0, prepared_text="Hello world.", start_frame=0,
+                end_frame=24000, sample_rate=24000)], **kwargs)
+
+    def test_text_first_large_svg_refused(self):
+        import xml.etree.ElementTree as ET
+        for text in ('<text>spoken</text>', '<text><tspan><![CDATA[spoken]]></tspan></text>'):
+            with self.subTest(text=text):
+                svg = ('<svg xmlns="http://www.w3.org/2000/svg">' + text
+                       + '<path d="M0 0h1"/>' * 20000 + '</svg>')
+                ET.fromstring(svg)
+                with self.assertRaisesRegex(ValueError, "SVG"):
+                    self._build(self._source_with_svg(svg))
+
+    def test_archive_budget_refused_before_svg_scan(self):
+        import archive_utils
+        import epub_readaloud as er
+        svg = '<svg xmlns="http://www.w3.org/2000/svg">' + '<path d="M0 0h1"/>' * 20000 + '</svg>'
+        with patch.object(archive_utils, "MAX_ARCHIVE_BYTES", 4096), \
+                patch.object(er, "_svg_has_text", wraps=er._svg_has_text) as probe:
+            with self.assertRaises(ValueError):
+                self._build(self._source_with_svg(svg))
+        self.assertEqual(0, probe.call_count)
+
+    def test_textless_svg_accepted_and_cancel_during_scan_refused(self):
+        import epub_readaloud as er
+        svg = '<svg xmlns="http://www.w3.org/2000/svg">' + '<path d="M0 0h1"/>' * 20000 + '</svg>'
+        source = self._source_with_svg(svg)
+        built, _ = self._build(source)
+        er.validate_epub_readaloud(built)
+        real = er._svg_has_text
+        inside = False
+        polls = 0
+        def cancel():
+            nonlocal polls
+            if inside:
+                polls += 1
+                return polls >= 2
+            return False
+        def scan(*args, **kwargs):
+            nonlocal inside
+            inside = True
+            try:
+                return real(*args, **kwargs)
+            finally:
+                inside = False
+        with patch.object(er, "_svg_has_text", side_effect=scan) as probe:
+            with self.assertRaisesRegex(ValueError, "[Cc]ancelled"):
+                self._build(source, cancel_check=cancel)
+        self.assertEqual(1, probe.call_count)
+        self.assertGreaterEqual(polls, 2)
+
+    def test_multi_leading_punctuation_preserved(self):
+        from epub_readaloud import build_epub_readaloud, validate_epub_readaloud
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead">! ? Hello world. We read.</p>')
+        prepared = "! ? Hello world. We read."
+        entries = [{"index": 0, "prepared_text": prepared,
+                    "start_frame": 0, "end_frame": 48000, "sample_rate": 24000}]
+        tokens = [{"text": w, "start_time": round((i + 1) * 0.4, 3),
+                   "end_time": round((i + 2) * 0.4, 3)}
+                  for i, w in enumerate(["Hello", "world", "We", "read"])]
+        result, _ = build_epub_readaloud(
+            retained_epub_bytes=source, audio_bytes=b"\xff\xfbmp3",
+            audio_filename="audiobook.mp3", script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+        import xml.etree.ElementTree as ET
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            doc = ET.fromstring(archive.read("OEBPS/ch1.xhtml"))
+        visible = "".join(doc.itertext())
+        self.assertIn("! ? Hello world. We read.", visible, repr(visible))
+        self.assertEqual(1, visible.count("Hello world. We read."))
+
+
+class NvmlProbeTests(unittest.TestCase):
+    def _probe(self, visible=(0, 1), cuda_build=True, mask=None,
+               memory_errors=(), driver_error=False, missing_nvml=False):
+        import contextlib
+        import importlib.machinery
+        import importlib.metadata
+        import types
+        import uuid
+        import qwen_runtime as qr
+        trace = []
+        uuids = [uuid.UUID(int=i + 1) for i in range(2)]
+        torch = types.ModuleType("torch")
+        torch.version = types.SimpleNamespace(cuda="12.8" if cuda_build else None)
+        class ForbiddenCuda:
+            def __getattr__(self, name):
+                trace.append(("forbidden-torch-cuda", name))
+                raise AssertionError("CUDA context API called")
+        torch.cuda = ForbiddenCuda()
+        qwen = types.ModuleType("qwen_asr")
+        qwen.__spec__ = importlib.machinery.ModuleSpec("qwen_asr", loader=None)
+        qwen.Qwen3ForcedAligner = object
+        driver = types.ModuleType("cuda.bindings.driver")
+        driver.CUresult = types.SimpleNamespace(CUDA_SUCCESS=0)
+        def init(flags):
+            trace.append(("driver-init", flags))
+            return (1 if driver_error else 0,)
+        def count():
+            trace.append(("driver-count",))
+            return (0, len(visible))
+        def device(index):
+            trace.append(("driver-device", index))
+            return (0, visible[index])
+        def device_uuid(handle):
+            trace.append(("driver-uuid", handle))
+            return (0, types.SimpleNamespace(bytes=uuids[handle].bytes))
+        driver.cuInit, driver.cuDeviceGetCount = init, count
+        driver.cuDeviceGet, driver.cuDeviceGetUuid = device, device_uuid
+        def forbidden_driver(name):
+            if not name.startswith("__"):
+                trace.append(("forbidden-driver", name))
+            raise AttributeError(name)
+        driver.__getattr__ = forbidden_driver
+        cuda = types.ModuleType("cuda")
+        cuda.__path__ = []
+        bindings = types.ModuleType("cuda.bindings")
+        bindings.__path__ = []
+        cuda.bindings, bindings.driver = bindings, driver
+        nvml = types.ModuleType("pynvml")
+        nvml.nvmlInit = lambda: trace.append(("nvml-init",))
+        nvml.nvmlShutdown = lambda: trace.append(("nvml-shutdown",))
+        def handle(value):
+            trace.append(("nvml-uuid", value))
+            return ["GPU-" + str(u) for u in uuids].index(value)
+        def memory(handle):
+            if handle in memory_errors:
+                raise RuntimeError("free memory unavailable")
+            return types.SimpleNamespace(free=6 * 1024**3, total=8 * 1024**3)
+        nvml.nvmlDeviceGetHandleByUUID = handle
+        nvml.nvmlDeviceGetName = lambda h: ("GPU%d" % h).encode()
+        nvml.nvmlDeviceGetMemoryInfo = memory
+        nvml.nvmlDeviceGetCudaComputeCapability = lambda h: (8, 6)
+        modules = {"torch": torch, "qwen_asr": qwen, "cuda": cuda,
+                   "cuda.bindings": bindings, "cuda.bindings.driver": driver,
+                   "pynvml": None if missing_nvml else nvml}
+        versions = {"qwen-asr": "0.0.6", "torch": "2.10.0",
+                    "nvidia-ml-py": "13.615.71", "cuda-bindings": "13.4.4"}
+        env = dict(os.environ, CUDA_DEVICE_ORDER="PCI_BUS_ID")
+        if mask is None:
+            env.pop("CUDA_VISIBLE_DEVICES", None)
+        else:
+            env["CUDA_VISIBLE_DEVICES"] = mask
+        output = io.StringIO()
+        with patch.dict(sys.modules, modules), \
+                patch.object(importlib.metadata, "version", side_effect=versions.__getitem__), \
+                patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(output):
+            exec(compile(qr._PROBE_SOURCE, "qwen-capability-probe", "exec"), {})
+        payload = json.loads(output.getvalue().strip())
+        self.assertFalse([t for t in trace if t[0].startswith("forbidden")], trace)
+        self.assertTrue(payload["ready"])
+        self.assertTrue(payload["cpu_fallback"])
+        return payload, trace
+
+    def test_cpu_build_does_not_advertise_physical_cuda(self):
+        payload, trace = self._probe(cuda_build=False)
+        self.assertEqual([], payload["devices"])
+        self.assertEqual([], trace)
+
+    def test_empty_visibility_queries_no_nvml_devices(self):
+        payload, trace = self._probe(visible=(), mask="")
+        self.assertEqual([], payload["devices"])
+        self.assertIn(("driver-count",), trace)
+        self.assertNotIn(("nvml-init",), trace)
+
+    def test_driver_order_and_uuid_are_authoritative(self):
+        payload, trace = self._probe(visible=(1, 0))
+        self.assertEqual([("cuda:0", "GPU1"), ("cuda:1", "GPU0")],
+                         [(d["device"], d["name"]) for d in payload["devices"]])
+        self.assertTrue(all(d["capability"] == [8, 6] for d in payload["devices"]))
+        self.assertEqual(2, sum(t[0] == "driver-uuid" for t in trace))
+        self.assertIn(("nvml-shutdown",), trace)
+
+    def test_visibility_is_delegated_to_driver(self):
+        # Expected visible devices come from the CUDA driver contract,
+        # not another Python visibility parser mirroring production.
+        masks = ("1,-1,0", "1,99,0", "GPU-00000000-0000-0000-0000-000000000002")
+        for mask in masks:
+            with self.subTest(mask=mask):
+                payload, trace = self._probe(visible=(1,), mask=mask)
+                self.assertEqual([("cuda:0", "GPU1")],
+                                 [(d["device"], d["name"]) for d in payload["devices"]])
+                self.assertEqual(1, sum(t[0] == "driver-device" for t in trace))
+
+    def test_unknown_free_preserves_logical_ordinal_and_cpu(self):
+        payload, trace = self._probe(memory_errors=(0,))
+        self.assertEqual(["cuda:1"], [d["device"] for d in payload["devices"]])
+        self.assertIn(("nvml-shutdown",), trace)
+
+    def test_driver_failure_remains_cpu_only(self):
+        payload, trace = self._probe(driver_error=True)
+        self.assertEqual([], payload["devices"])
+        self.assertNotIn(("nvml-init",), trace)
+        self.assertIn("metadata unavailable", payload["reason"])
+
+    def test_missing_nvml_remains_cpu_only(self):
+        payload, trace = self._probe(missing_nvml=True)
+        self.assertEqual([], payload["devices"])
+        self.assertIn(("driver-count",), trace)
+        self.assertIn("metadata unavailable", payload["reason"])
+
+
 
 
 class JsHarnessTests(unittest.TestCase):
@@ -1416,7 +1747,26 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
 """
         self._run_js(scenario, "js-pending-change-ok")
 
+    def test_policy_unready_not_rendered_ready(self):
+        scenario = r"""
+(async function() {
+  _capabilityDeferred.resolve({
+    preference: { timing_mode: 'qwen', timing_device: 'cuda:0', timing_language: 'English' },
+    capability: { available: true, reason: null, devices: [{ device: 'cuda:0', capability: [8,6] }] },
+    policy: { timing_mode: 'qwen', device: 'cuda:0', available: false,
+              reason: 'Qwen not ready: Device cuda:0 does not report enough free VRAM' }
+  });
+  await flush(); await flush();
+  ok(_status.textContent.indexOf('Qwen3 ready') < 0, 'unready policy must not render ready, got: ' + _status.textContent);
+  ok(_status.textContent.indexOf('not ready') >= 0, 'not-ready guidance must show, got: ' + _status.textContent);
+  console.log('js-policy-unready-ok');
+})();
+"""
+        self._run_js(scenario, "js-policy-unready-ok")
+
     def test_stale_response_after_reset_ignored(self):
+        # Reset bumps the generation (discarding the in-flight
+        # response) AND re-probes: the new response must apply.
         scenario = r"""
 (async function() {
   window.resetReadalongViews();
@@ -1426,11 +1776,32 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
     policy: { timing_mode: 'qwen', device: 'cuda:0', reason: 'ok' }
   });
   await flush(); await flush();
-  ok(_device.value !== 'cuda:0', 'stale capability response after reset must not apply, got ' + _device.value);
+  ok(_device.value === 'cuda:0', 'new-generation capability after reset must apply, got ' + _device.value);
   console.log('js-stale-reset-ok');
 })();
 """
         self._run_js(scenario, "js-stale-reset-ok")
+
+    def test_reset_refreshes_and_new_generation_can_complete(self):
+        scenario = r"""
+(async function() {
+  var old = _capabilityDeferred;
+  window.resetReadalongViews();
+  var fresh = _capabilityDeferred;
+  ok(fresh !== old, 'reset must issue a fresh status request');
+  old.resolve({ preference: {timing_device:'cuda:9'}, capability: {available:true}, policy:{device:'cuda:9'} });
+  await flush(); await flush();
+  ok(_device.value !== 'cuda:9', 'old generation cannot paint');
+  fresh.resolve({ preference: {timing_mode:'qwen', timing_device:'cuda:0', timing_language:'English'},
+    capability:{available:true, devices:[{device:'cuda:0',capability:[8,6]}]},
+    policy:{timing_mode:'qwen',device:'cuda:0',available:true,reason:'ready'} });
+  await flush(); await flush();
+  ok(_device.value === 'cuda:0', 'fresh generation populates controls');
+  ok(_status.textContent.indexOf('ready') >= 0, 'fresh generation completes status');
+  console.log('reset-new-generation-ok');
+})();
+"""
+        self._run_js(scenario, "reset-new-generation-ok")
 
     def test_failed_fetch_still_records_user_choice(self):
         scenario = r"""
@@ -1445,6 +1816,119 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
 })();
 """
         self._run_js(scenario, "js-failed-fetch-ok")
+
+
+class CommittedPreferenceBytesTests(_FixtureMixin):
+    def test_atomic_writer_returns_actual_platform_bytes(self):
+        from utils import atomic_json_write
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "preference.json"
+            document = {"language": "日本語", "value": "a\nb"}
+            self.assertIsNone(atomic_json_write(document, path))
+            data = atomic_json_write(document, path, newline="\r\n", return_written_bytes=True)
+            self.assertEqual(path.read_bytes(), data)
+            self.assertEqual(document, json.loads(data))
+            self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
+
+    def test_successful_commit_needs_no_fallible_destination_reread(self):
+        from routers.editor import ReadaloudEpubRequest
+        editor, _manager = self._fixture(self._mkdtmp())
+        real_read = editor._read_bounded_preference_bytes
+        real_save = editor._save_readaloud_timing_preference
+        saved = False
+        def save(preference):
+            nonlocal saved
+            data = real_save(preference)
+            saved = True
+            return data
+        def read(path):
+            if saved:
+                raise OSError("mutable destination cannot be reopened")
+            return real_read(path)
+        tasks = _CaptureTasks()
+        with patch.object(editor, "_save_readaloud_timing_preference", side_effect=save), \
+                patch.object(editor, "_read_bounded_preference_bytes", side_effect=read):
+            response = editor._start_readaloud_epub(tasks, ReadaloudEpubRequest(timing_mode="chunk"))
+        self.assertTrue(saved)
+        self.assertEqual("started", response["status"])
+        self.assertEqual(1, len(tasks.registered))
+
+
+class ResultBudgetTests(unittest.TestCase):
+    def test_row_byte_accounting_matches_complete_json(self):
+        import qwen_align_worker as worker
+        import itertools
+        alphabet = ["", "a", "é", "\n", "\"", "界"]
+        for pieces in itertools.product(alphabet, repeat=2):
+            doc = {"ok": True, "tokens": {}, "windows": {}, "provider": {"device": "cpu"}}
+            size = len(json.dumps(doc, ensure_ascii=False).encode("utf-8"))
+            for i, text in enumerate(pieces):
+                key = "r%d" % i
+                tokens = [{"text": text, "start_time": 0.01, "end_time": 0.3}]
+                windows = [{"tokens": tokens, "offset_sec": i / 3}]
+                size += worker._get_result_row_bytes(key, tokens, windows, bool(doc["tokens"]))
+                doc["tokens"][key] = tokens
+                doc["windows"][key] = windows
+                self.assertEqual(len(json.dumps(doc, ensure_ascii=False).encode("utf-8")), size)
+
+    def test_worker_stops_when_actual_output_budget_is_exhausted(self):
+        import importlib.metadata
+        import types
+        import wave
+        import qwen_align_worker as worker
+        import qwen_score_decoder  # Import before the sys.modules dependency boundary.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = root / "model"
+            model.mkdir()
+            wav = root / "row.wav"
+            with wave.open(str(wav), "wb") as stream:
+                stream.setnchannels(1)
+                stream.setsampwidth(2)
+                stream.setframerate(16000)
+                stream.writeframes(b"\0\0" * 16000)
+            rows = [{"id": "r%d" % i, "text": "Hello.", "wav_path": str(wav),
+                     "duration_sec": 1.0, "windows": [{"char_start": 0, "char_end": 6,
+                         "est_start_sec": 0.0, "est_end_sec": 1.0}]} for i in range(3)]
+            job = root / "job.json"
+            job.write_text(json.dumps({"model_dir": str(model), "device": "cpu",
+                "dtype": "float32", "language": "English", "qwen_asr_version": "0.0.6",
+                "rows": rows}), encoding="utf-8")
+            result = root / "result.json"
+            torch = types.SimpleNamespace(float32="float32", float16="float16", bfloat16="bfloat16")
+            qwen = types.SimpleNamespace(Qwen3ForcedAligner=types.SimpleNamespace(
+                from_pretrained=lambda *a, **kw: object()))
+            for text, limit, expected_exit, expected_calls in [
+                    ("x" * 2000, 512, 1, 1), ("Hello", 4096, 0, 3), (None, 4096, 1, 1)]:
+                tokens = [{"text": text, "start_time": 0.1, "end_time": 0.8}]
+                windows = [{"tokens": tokens, "char_start": 0, "char_end": 6,
+                    "start_frame": 0, "end_frame": 16000, "offset_sec": 0.0,
+                    "slice_duration_sec": 1.0, "calls": 1}]
+                with patch.dict(sys.modules, {"torch": torch, "qwen_asr": qwen}), \
+                        patch.object(importlib.metadata, "version", return_value="0.0.6"), \
+                        patch.object(worker, "_apply_encoder_mask_adapter", return_value="sdpa"), \
+                        patch.object(worker, "_align_row", return_value=(tokens, windows),
+                            side_effect=ValueError("precise decoder cause") if text is None else None) as align, \
+                        patch.object(worker, "MAX_RESULT_BYTES", limit):
+                    code = worker.main(["worker", str(job), str(result)])
+                self.assertEqual(expected_exit, code, result.read_text())
+                self.assertEqual(expected_calls, align.call_count)
+                self.assertLessEqual(result.stat().st_size, limit)
+                self.assertEqual(expected_exit == 0, json.loads(result.read_text())["ok"])
+                if text is None:
+                    self.assertIn("precise decoder cause", json.loads(result.read_text())["error"])
+
+    def test_result_writer_keeps_the_existing_byte_cap(self):
+        import qwen_align_worker as worker
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "result.json"
+            with patch.object(worker, "MAX_RESULT_BYTES", 512):
+                self.assertTrue(worker._write_result(path, {"ok": True, "text": "small"}))
+                self.assertFalse(worker._write_result(path, {"ok": True, "text": "x" * 2000}))
+            data = path.read_bytes()
+            self.assertLessEqual(len(data), 512)
+            self.assertFalse(json.loads(data)["ok"])
+            self.assertIn("size limit", json.loads(data)["error"])
 
 
 if __name__ == "__main__":

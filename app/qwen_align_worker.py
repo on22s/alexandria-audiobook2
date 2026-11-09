@@ -51,7 +51,9 @@ import shutil
 import sys
 import tempfile
 import wave
+from functools import lru_cache
 from pathlib import Path
+from qwen_runtime import MAX_RESULT_BYTES
 
 MAX_JOB_BYTES = 64 * 1024 * 1024
 MAX_TEXT_CHARS = 20000
@@ -68,8 +70,24 @@ SUPPORTED_ALIGNER_LANGUAGES = (
 
 
 def _write_result(path, doc):
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(doc, handle, ensure_ascii=False)
+    payload = json.dumps(doc, ensure_ascii=False).encode("utf-8")
+    fits = len(payload) <= MAX_RESULT_BYTES
+    if not fits:
+        payload = json.dumps(_worker_error(
+            "alignment result exceeds its size limit; choose chunk timing."),
+            ensure_ascii=False).encode("utf-8")
+        if len(payload) > MAX_RESULT_BYTES:
+            raise ValueError("Result budget cannot hold an error response.")
+    Path(path).write_bytes(payload)
+    return fits
+
+
+def _get_result_row_bytes(row_id, tokens, windows, has_previous_rows):
+    """Exact extra bytes for a row in both JSON result dictionaries."""
+    key = json.dumps(row_id, ensure_ascii=False).encode("utf-8")
+    values = (tokens, windows)
+    return sum(len(key) + 2 + len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+               + (2 if has_previous_rows else 0) for value in values)
 
 
 def _worker_error(message):
@@ -181,18 +199,7 @@ def _check_slice_geometry(slice_path, expected_frames, expected_seconds,
         raise ValueError("alignment slice WAV duration is inconsistent")
 
 
-def _check_predicted_scores(model, piece, language, slice_seconds, step):
-    """Bound predicted timestamp scores BEFORE encoder inference.
-
-    Uses the SDK's own ``aligner_processor.encode_timestamp`` — the
-    exact word list ``align()`` will decode — so the predicted
-    timestamp-token count is exact, not estimated. Feasible bins are
-    those whose time can fall inside this slice (plus the parent's
-    5 ms tolerance); bins beyond the slice could only produce
-    out-of-bounds times, so the decoder search is bounded to feasible
-    columns. Returns the feasible bin count.
-    """
-    from qwen_score_decoder import MAX_SCORE_CELLS, MAX_TIMESTAMP_TOKENS
+def _get_predicted_token_count(model, piece, language):
     processor = getattr(model, "aligner_processor", None)
     encode = getattr(processor, "encode_timestamp", None)
     if not callable(encode):
@@ -201,7 +208,24 @@ def _check_predicted_scores(model, piece, language, slice_seconds, step):
     word_list = encoded[0] if isinstance(encoded, tuple) else encoded
     if not isinstance(word_list, (list, tuple)):
         raise ValueError("aligner processor returned a malformed word list")
-    predicted_tokens = 2 * len(word_list)
+    return 2 * len(word_list)
+
+
+def _check_predicted_scores(model, piece, language, slice_seconds, step, predicted_tokens=None):
+    """Bound predicted timestamp scores BEFORE encoder inference.
+
+    Uses the SDK's own ``aligner_processor.encode_timestamp`` — the
+    exact word list ``align()`` will decode — so the predicted
+    timestamp-token count is exact, not estimated. Feasible bins are
+    those whose time can fall inside this slice (stricly, so selected
+    bins are frame-honest); bins beyond the slice could only produce
+    out-of-bounds times, so the decoder search is bounded to feasible
+    columns. A caller may supply the exact token count captured for
+    this unchanged piece, avoiding repeated tokenization on growth.
+    """
+    from qwen_score_decoder import MAX_SCORE_CELLS, MAX_TIMESTAMP_TOKENS
+    if predicted_tokens is None:
+        predicted_tokens = _get_predicted_token_count(model, piece, language)
     # Harmonized to the strict real bound: a bin whose time exceeds
     # the slice audio can never be a frame-honest token time, so the
     # decoder search is bounded to bins inside this slice.
@@ -212,7 +236,8 @@ def _check_predicted_scores(model, piece, language, slice_seconds, step):
     return feasible_bins
 
 
-def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None):
+def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None,
+                 get_predicted_tokens=None):
     """One real aligner call; times from the score decoder, never official."""
     if slice_seconds is None:
         with wave.open(str(slice_path), "rb") as stream:
@@ -223,7 +248,8 @@ def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None)
         raise ValueError("timestamp segment time is unavailable")
     step = float(segment) / 1000.0
     feasible_bins = _check_predicted_scores(
-        model, piece, language, slice_seconds, step)
+        model, piece, language, slice_seconds, step,
+        predicted_tokens=get_predicted_tokens() if get_predicted_tokens is not None else None)
     captured = {}
 
     def hook(_module, _args, kwargs, output):
@@ -318,6 +344,9 @@ def _align_row(model, row, language, decode, work_dir):
         calls = 0
         tokens = None
         slice_path = work_dir / ("slice-%d.wav" % index)
+        @lru_cache(maxsize=1)
+        def get_window_token_count():
+            return _get_predicted_token_count(model, piece, language)
         while True:
             if calls >= MAX_CALLS_PER_WINDOW:
                 raise ValueError("sequential call bound exhausted")
@@ -332,7 +361,7 @@ def _align_row(model, row, language, decode, work_dir):
                 slice_path, end_frame - cursor_frame, slice_seconds,
                 rate, channels, width)
             tokens = _align_slice(model, slice_path, piece, language, decode,
-                                  slice_seconds)
+                                  slice_seconds, get_window_token_count)
             last_end = _check_slice_tokens(tokens, slice_seconds)
             if end_frame >= total_frames \
                     or last_end <= slice_seconds - WINDOW_TAIL_SECONDS + 1e-9:
@@ -476,8 +505,20 @@ def main(argv):
             "encoder mask adapter refused: %s" % error))
         return 1
 
+    version = "unknown"
+    try:
+        from importlib import metadata as _metadata
+        version = _metadata.version("qwen-asr")
+    except Exception:
+        pass
+    provider = {"qwen_asr_version": version, "device": device,
+                "dtype": _serialize_worker_dtype(dtype),
+                "encoder_adapter": adapter, "decoder": "qwen_score_decoder_v1"}
     tokens = {}
     windows_out = {}
+    result_bytes = len(json.dumps(
+        {"ok": True, "tokens": {}, "windows": {}, "provider": provider},
+        ensure_ascii=False).encode("utf-8"))
     # Scratch slices live under the parent-owned export staging
     # tree (passed in the job), so a hard-killed worker cannot
     # orphan qwen-slices-* in OS temp: the parent's staging
@@ -498,24 +539,21 @@ def main(argv):
                     "alignment failed on row %s (%s): %s" % (
                         row["id"], type(error).__name__, str(error)[:400])))
                 return 1
+            result_bytes += _get_result_row_bytes(
+                row["id"], merged, accepted, bool(tokens))
+            if result_bytes > MAX_RESULT_BYTES:
+                _write_result(result_path, _worker_error(
+                    "alignment result exceeds its size limit; choose chunk timing."))
+                return 1
             tokens[row["id"]] = merged
             windows_out[row["id"]] = accepted
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
 
-    version = "unknown"
-    try:
-        from importlib import metadata as _metadata
-        version = _metadata.version("qwen-asr")
-    except Exception:
-        pass
-    _write_result(result_path, {
+    fits = _write_result(result_path, {
         "ok": True, "tokens": tokens, "windows": windows_out,
-        "provider": {"qwen_asr_version": version, "device": device,
-                     "dtype": _serialize_worker_dtype(dtype),
-                     "encoder_adapter": adapter,
-                     "decoder": "qwen_score_decoder_v1"}})
-    return 0
+        "provider": provider})
+    return 0 if fits else 1
 
 
 if __name__ == "__main__":
