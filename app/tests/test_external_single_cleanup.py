@@ -8,6 +8,7 @@ providers and the real owned ``ExternalTTSExecutor``; no network, live
 Gradio server, GPU, or model work runs here.
 """
 import io
+import logging
 import os
 import sys
 import tempfile
@@ -64,31 +65,44 @@ def _valid_wav_bytes() -> bytes:
 
 
 def _settle_engine(engine, events=()):
-    """Best-effort fixture teardown: release blocked providers, close the
-    engine, and boundedly retire/join its owned executor threads.
+    """Release blocked providers, close engine, retire owned executor.
 
-    Never raises so it cannot mask the original test failure.
+    Cleanup ``Exception`` failures are collected. If no primary exception
+    is unwinding (``sys.exc_info()[0] is None``) the first is raised so a
+    passing test cannot hide a live worker or cleanup failure. If a primary
+    failure is already unwinding, each cleanup failure is logged at ERROR
+    and the primary is preserved (secondary reported, not hidden). Only
+    ``Exception`` is caught; ``BaseException`` (KeyboardInterrupt/SystemExit)
+    is never swallowed. Authoritative bounded retirement is
+    ``executor.shutdown(wait=True, timeout=3)``; no per-thread joins.
     """
+    failures = []
     for event in events:
         try:
             event.set()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            failures.append(exc)
     try:
         engine.close_external()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        failures.append(exc)
     executor = getattr(engine, "_external_executor", None)
     if executor is not None:
         try:
             executor.shutdown(wait=True, timeout=3)
-        except Exception:  # noqa: BLE001
-            pass
-        for thread in list(getattr(executor, "_threads", [])):
-            try:
-                thread.join(timeout=2)
-            except Exception:  # noqa: BLE001
-                pass
+        except Exception as exc:  # noqa: BLE001
+            failures.append(exc)
+    if not failures:
+        return
+    if sys.exc_info()[0] is not None:
+        for exc in failures:
+            logging.getLogger(__name__).error(
+                "_settle_engine cleanup failure (primary unwinding): %r", exc)
+    else:
+        for exc in failures[1:]:
+            logging.getLogger(__name__).error(
+                "_settle_engine additional cleanup failure: %r", exc)
+        raise failures[0]
 
 
 def _deny_pending(path, real_remove):
@@ -149,52 +163,49 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                     provider_done.set()
 
             try:
-                try:
-                    if os.name == "nt":
-                        with self.assertLogs("tts", level="WARNING") as logs:
-                            result, failures, exc = _run_single(engine, provider, output)
-                            self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
-                            self.assertFalse(result)
-                            self.assertTrue(entered.is_set())
-                            self.assertFalse(provider_done.is_set())
-                            self.assertFalse(staging_holder["handle"].closed)
-                            self.assertEqual(1, len(failures))
-                            self.assertEqual("timeout", failures[0].category)
-                            self.assertIn("timed out", failures[0].detail)
-                            self.assertIn("Pending audio cleanup failed",
-                                          "\n".join(logs.output))
-                            self.assertEqual(b"prior bytes", output.read_bytes())
-                            self.assertTrue(
-                                Path(staging_holder["path"]).exists(),
-                                "Windows: failed unlink must leave staging until worker retires it")
-                    else:
-                        with self.assertNoLogs("tts", level="WARNING"):
-                            result, failures, exc = _run_single(engine, provider, output)
-                            self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
-                            self.assertFalse(result)
-                            self.assertTrue(entered.is_set())
-                            self.assertFalse(provider_done.is_set())
-                            self.assertFalse(staging_holder["handle"].closed)
-                            self.assertEqual(1, len(failures))
-                            self.assertEqual("timeout", failures[0].category)
-                            self.assertIn("timed out", failures[0].detail)
-                            self.assertEqual(b"prior bytes", output.read_bytes())
-                            # POSIX: unlink succeeds while handle is open.
-                            self.assertFalse(
-                                Path(staging_holder["path"]).exists(),
-                                "POSIX: unlink of open staging must succeed quietly")
-                finally:
-                    _settle_engine(engine, (release,))
-                self.assertTrue(provider_done.wait(2))
-                self.assertEqual([], provider_error)
-                staging = Path(staging_holder["path"])
-                deadline = time.monotonic() + 3
-                while staging.exists() and time.monotonic() < deadline:
-                    time.sleep(0.01)
-                self.assertFalse(staging.exists())
-                self.assertEqual(b"prior bytes", output.read_bytes())
+                if os.name == "nt":
+                    with self.assertLogs("tts", level="WARNING") as logs:
+                        result, failures, exc = _run_single(engine, provider, output)
+                        self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
+                        self.assertFalse(result)
+                        self.assertTrue(entered.is_set())
+                        self.assertFalse(provider_done.is_set())
+                        self.assertFalse(staging_holder["handle"].closed)
+                        self.assertEqual(1, len(failures))
+                        self.assertEqual("timeout", failures[0].category)
+                        self.assertIn("timed out", failures[0].detail)
+                        self.assertIn("Pending audio cleanup failed",
+                                      "\n".join(logs.output))
+                        self.assertEqual(b"prior bytes", output.read_bytes())
+                        self.assertTrue(
+                            Path(staging_holder["path"]).exists(),
+                            "Windows: failed unlink must leave staging until worker retires it")
+                else:
+                    with self.assertNoLogs("tts", level="WARNING"):
+                        result, failures, exc = _run_single(engine, provider, output)
+                        self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
+                        self.assertFalse(result)
+                        self.assertTrue(entered.is_set())
+                        self.assertFalse(provider_done.is_set())
+                        self.assertFalse(staging_holder["handle"].closed)
+                        self.assertEqual(1, len(failures))
+                        self.assertEqual("timeout", failures[0].category)
+                        self.assertIn("timed out", failures[0].detail)
+                        self.assertEqual(b"prior bytes", output.read_bytes())
+                        # POSIX: unlink succeeds while handle is open.
+                        self.assertFalse(
+                            Path(staging_holder["path"]).exists(),
+                            "POSIX: unlink of open staging must succeed quietly")
             finally:
                 _settle_engine(engine, (release,))
+            self.assertTrue(provider_done.wait(2))
+            self.assertEqual([], provider_error)
+            staging = Path(staging_holder["path"])
+            deadline = time.monotonic() + 3
+            while staging.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertFalse(staging.exists())
+            self.assertEqual(b"prior bytes", output.read_bytes())
 
     def test_simulated_cleanup_oserror_keeps_timeout_primary(self):
         """Cross-platform policy: injected OSError cannot mask the timeout.
@@ -210,8 +221,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             output = root / "audio.wav"
             output.write_bytes(b"prior bytes")
             release = threading.Event()
+            staging_holder = {}
 
             def provider(staging_path, cancelled):
+                staging_holder["path"] = staging_path
                 _write_wav(staging_path)
                 release.wait(3)
                 return True
@@ -230,8 +243,12 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                         self.assertIn("simulated pending deletion denied",
                                       "\n".join(logs.output))
                         self.assertEqual(b"prior bytes", output.read_bytes())
+                # Patch exited; blocked worker has not yet run its finally.
+                self.assertTrue(Path(staging_holder["path"]).exists())
             finally:
                 _settle_engine(engine, (release,))
+            self.assertFalse(Path(staging_holder["path"]).exists())
+            self.assertEqual([], list(root.glob("*.pending.*")))
 
     def test_base_exception_sentinel_survives_cleanup_oserror(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,6 +261,8 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             holder = {}
 
             def provider(staging_path, cancelled):
+                holder["staging"] = staging_path
+                _write_wav(staging_path)
                 raise sentinel
 
             orig_submit = engine._submit_external
@@ -263,10 +282,20 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                         with self.assertLogs("tts", level="WARNING") as logs:
                             _, _, exc = _run_single(engine, provider, output)
                             self.assertIs(exc, sentinel)
+                            self.assertTrue(holder["future"].done())
+                            self.assertIs(holder["future"].exception(), sentinel)
                             self.assertTrue(holder["cancelled"].is_set())
                             self.assertIn("simulated pending deletion denied",
                                           "\n".join(logs.output))
                             self.assertEqual(b"prior bytes", output.read_bytes())
+                # Worker already exited before caller denial; fixture-owned
+                # residual remains by design (best-effort, no universal claim).
+                residual = Path(holder["staging"])
+                self.assertTrue(residual.exists())
+                audio, rate = sf.read(str(residual))
+                self.assertEqual((240, 24000), (len(audio), rate))
+                os.remove(residual)
+                self.assertFalse(residual.exists())
             finally:
                 _settle_engine(engine, ())
 
@@ -303,22 +332,26 @@ class ExternalSingleCleanupTests(unittest.TestCase):
     def test_absent_staging_cleanup_stays_quiet(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            engine = _make_engine(root)
-            engine._external_timeout = 3
-            output = root / "audio.wav"
-            output.write_bytes(b"prior bytes")
+            for case, ret in (("false", False), ("true", True)):
+                with self.subTest(case=case):
+                    engine = _make_engine(root)
+                    engine._external_timeout = 3
+                    output = root / f"audio_{case}.wav"
+                    output.write_bytes(b"prior bytes")
 
-            def provider(staging_path, cancelled):
-                return False
+                    def provider(staging_path, cancelled, _ret=ret):
+                        return _ret
 
-            try:
-                with self.assertNoLogs("tts", level="WARNING"):
-                    result, failures, exc = _run_single(engine, provider, output)
-                    self.assertIsNone(exc)
-                    self.assertFalse(result)
-                    self.assertEqual(b"prior bytes", output.read_bytes())
-            finally:
-                _settle_engine(engine, ())
+                    try:
+                        with patch.object(tts, "publish_audio_output") as pub:
+                            with self.assertNoLogs("tts", level="WARNING"):
+                                result, failures, exc = _run_single(engine, provider, output)
+                                self.assertIsNone(exc)
+                                self.assertFalse(result)
+                                self.assertEqual(b"prior bytes", output.read_bytes())
+                            pub.assert_not_called()
+                    finally:
+                        _settle_engine(engine, ())
 
     def test_healthy_single_publishes_valid_wav(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -348,42 +381,63 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             root = Path(tmp)
             engine = tts.TTSEngine({"tts": {"mode": "external", "url": "http://fixture",
                                             "parallel_workers": 1,
-                                            "external_timeout_seconds": 0.15}})
+                                            "external_timeout_seconds": 1}})
+            engine._external_timeout = 0.15
             release = threading.Event()
+            entered = threading.Event()
             old = root / "temp_batch_0.wav"
             old.write_bytes(b"prior output")
 
             def render(text, instruct, speaker, config, path, **kwargs):
                 _write_wav(path)
+                entered.set()
                 if text == "0":
                     release.wait(3)
                 return True
-
-            real_remove = os.remove
 
             def deny(path):
                 if "temp_batch_0.wav.pending." in str(path):
                     raise PermissionError("synthetic pending deletion denied")
                 return real_remove(path)
 
-            try:
+            real_remove = os.remove
+            holder = {}
+            errors = []
+
+            def run_batch():
                 try:
                     with patch.object(engine, "_external_generate_custom",
                                       side_effect=render):
                         with patch.object(tts.os, "remove", side_effect=deny):
-                            result = engine._external_batch(
+                            holder["result"] = engine._external_batch(
                                 [{"index": 0, "speaker": "A", "text": "0"}],
                                 {"A": {"voice": "Ryan"}}, str(root), "custom")
-                    self.assertEqual([], result["completed"])
-                    self.assertEqual([0], [i for i, _ in result["failed"]])
-                    self.assertIn("timed out", result["failed"][0][1])
-                    self.assertIn("synthetic pending deletion denied",
-                                  result["failed"][0][1])
-                    self.assertEqual(b"prior output", old.read_bytes())
-                finally:
-                    _settle_engine(engine, (release,))
+                except BaseException as exc:  # noqa: BLE001
+                    errors.append(exc)
+
+            try:
+                cancelled = threading.Event()
+                warm = engine._submit_external(lambda: "warm", cancelled)
+                self.assertEqual("warm", warm.result(2))
+                worker = threading.Thread(target=run_batch)
+                worker.start()
+                self.assertTrue(entered.wait(2),
+                                "batch provider did not enter before the batch timeout")
+                worker.join(5)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual([], errors)
+                result = holder["result"]
+                self.assertEqual([], result["completed"])
+                self.assertEqual([0], [i for i, _ in result["failed"]])
+                self.assertIn("timed out", result["failed"][0][1])
+                self.assertIn("synthetic pending deletion denied",
+                              result["failed"][0][1])
+                self.assertEqual(b"prior output", old.read_bytes())
+                # Blocked worker has not retired its pending stage yet.
+                self.assertNotEqual([], list(root.glob("*.pending.*")))
             finally:
                 _settle_engine(engine, (release,))
+            self.assertEqual([], list(root.glob("*.pending.*")))
 
     def test_retry_budget_constrains_single_timeout(self):
         from speech_retry import SpeechRetryBudget, ensure_speech_retry_budget
@@ -396,8 +450,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             budget = SpeechRetryBudget()
             budget.deadline = time.monotonic() + 1
             release = threading.Event()
+            staging_holder = {}
 
             def provider(staging_path, cancelled):
+                staging_holder["path"] = staging_path
                 _write_wav(staging_path)
                 release.wait(3)
                 return True
@@ -408,15 +464,21 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 with ensure_speech_retry_budget(budget):
                     with patch.object(tts.os, "remove",
                                       side_effect=lambda p: _deny_pending(p, real_remove)):
-                        result, failures, exc = _run_single(engine, provider, output)
-                        self.assertIsNone(exc)
-                        self.assertFalse(result)
-                        self.assertEqual(1, len(failures))
-                        self.assertEqual("timeout", failures[0].category)
-                        self.assertEqual(b"prior bytes", output.read_bytes())
-                        self.assertLess(time.monotonic() - started, 4)
+                        with self.assertLogs("tts", level="WARNING") as logs:
+                            result, failures, exc = _run_single(engine, provider, output)
+                            self.assertIsNone(exc)
+                            self.assertFalse(result)
+                            self.assertEqual(1, len(failures))
+                            self.assertEqual("timeout", failures[0].category)
+                            self.assertIn("simulated pending deletion denied",
+                                          "\n".join(logs.output))
+                            self.assertEqual(b"prior bytes", output.read_bytes())
+                            self.assertLess(time.monotonic() - started, 4)
+                self.assertTrue(Path(staging_holder["path"]).exists())
             finally:
                 _settle_engine(engine, (release,))
+            self.assertFalse(Path(staging_holder["path"]).exists())
+            self.assertEqual([], list(root.glob("*.pending.*")))
 
 
 if __name__ == "__main__":
