@@ -1877,9 +1877,20 @@ def _require_readaloud_timing_current(receipt):
     device. Legacy (7-key) receipts keep existing download semantics.
     """
     from readalong_export import get_epub_receipt_timing_mode
-    if get_epub_receipt_timing_mode(receipt) == "chunk" and "timing_mode" not in receipt:
-        return
     preference = _get_readaloud_timing_preference()
+    receipt_mode = get_epub_receipt_timing_mode(receipt)
+    # Legacy (7-key) receipts resolve to chunk semantics. An
+    # explicit chunk preference with a chunk artifact is
+    # dependency-free: no Qwen probe or heavy import runs. Any
+    # other combination still gets mode-currency checking below —
+    # a switch to qwen, or an auto preference that now resolves to
+    # qwen, invalidates the chunk artifact; auto that still falls
+    # back to chunk remains honest and downloadable.
+    if receipt_mode == "chunk" and preference["timing_mode"] == "chunk":
+        return
+    if receipt_mode == "chunk" and preference["timing_mode"] == "qwen":
+        raise HTTPException(status_code=409, detail=(
+            "EPUB read-aloud timing mode is no longer the current choice. Rebuild it."))
     from qwen_runtime import (get_qwen_capability, get_qwen_device_policy,
                               get_qwen_model_candidates)
     capability = get_qwen_capability(ROOT_DIR)
@@ -1890,9 +1901,15 @@ def _require_readaloud_timing_current(receipt):
         raise HTTPException(status_code=409, detail=(
             "EPUB read-aloud timing runtime is unavailable: %s Rebuild it "
             "with current timing settings." % error)) from error
-    if receipt.get("timing_mode") != policy["timing_mode"]:
+    if receipt_mode != policy["timing_mode"]:
         raise HTTPException(status_code=409, detail=(
             "EPUB read-aloud timing mode is no longer the current choice. Rebuild it."))
+    if receipt_mode == "chunk":
+        # Chunk artifact whose current policy is still chunk (explicit
+        # chunk handled above, or auto falling back to chunk): no
+        # provider/language currency applies, so it stays downloadable
+        # without probing the provider digest.
+        return
     requested_device = preference.get("timing_device")
     if requested_device not in (None, "", "auto"):
         if receipt.get("timing_device") != policy["device"]:
@@ -1948,6 +1965,17 @@ def _require_readaloud_timing_current(receipt):
         if receipt.get("timing_language") != want_language:
             raise HTTPException(status_code=409, detail=(
                 "EPUB read-aloud timing language is no longer current. Rebuild it."))
+        # AC8 v3 receipts carry human-readable model/version; drift
+        # in either invalidates. v2 receipts bind the version only
+        # via the provider digest below.
+        if "timing_model" in receipt or "timing_qwen_asr_version" in receipt:
+            from qwen_runtime import MODEL_NAME as _QWEN_MODEL_NAME
+            if receipt.get("timing_model") != _QWEN_MODEL_NAME:
+                raise HTTPException(status_code=409, detail=(
+                    "EPUB read-aloud timing model is no longer current. Rebuild it."))
+            if receipt.get("timing_qwen_asr_version") != capability.get("qwen_asr_version"):
+                raise HTTPException(status_code=409, detail=(
+                    "EPUB read-aloud qwen-asr version is no longer current. Rebuild it."))
     if receipt.get("timing_mode") == "qwen":
         models = get_qwen_model_candidates(ROOT_DIR)
         if not models:
@@ -1956,6 +1984,21 @@ def _require_readaloud_timing_current(receipt):
         from qwen_runtime import (get_qwen_provider_digest,
                                   get_qwen_runtime_digest,
                                   get_qwen_runtime_identity)
+        # Same-phase reuse (raw79/80): the capability call just
+        # captured a fresh runtime identity and streamed exactly one
+        # selected-policy provider digest in this same download
+        # phase. Reuse it only when it binds the receipt's pinned
+        # device/dtype; otherwise capture a fresh one. Distinct
+        # phases (admission/prelaunch/prepublish) still re-capture.
+        if (receipt.get("timing_device") == capability.get("device")
+                and receipt.get("timing_dtype") == capability.get("dtype")
+                and isinstance(capability.get("provider_digest"), str)):
+            current = capability["provider_digest"]
+            if current != receipt.get("timing_provider"):
+                raise HTTPException(status_code=409, detail=(
+                    "Qwen provider changed since the build; rebuild the EPUB "
+                    "to validate its timing."))
+            return
         try:
             fresh_runtime = get_qwen_runtime_identity(capability["python"])
             current = get_qwen_provider_digest(
@@ -1980,8 +2023,16 @@ async def get_readaloud_epub_capability():
         from qwen_runtime import get_qwen_capability, get_qwen_device_policy
         preference = _get_readaloud_timing_preference()
         capability = get_qwen_capability(ROOT_DIR, status_only=True)
-        policy = get_qwen_device_policy(preference["timing_mode"],
-                                        preference["timing_device"], capability)
+        try:
+            policy = get_qwen_device_policy(preference["timing_mode"],
+                                            preference["timing_device"], capability)
+        except ValueError as error:
+            # A saved explicit qwen preference with a now-broken
+            # runtime is a useful not-ready status, never a 500.
+            policy = {"timing_mode": preference["timing_mode"],
+                      "device": preference["timing_device"],
+                      "cpu_only": False,
+                      "reason": "Qwen not ready: %s" % error}
         public_capability = {
             "available": capability.get("available"),
             "devices": capability.get("devices") or [],
@@ -2238,6 +2289,67 @@ async def build_readaloud_epub_endpoint(background_tasks: BackgroundTasks,
     return await asyncio.to_thread(_start_readaloud_epub, background_tasks, request)
 
 
+def _read_bounded_preference_bytes(path):
+    """Read preference bytes under the bounded/no-follow contract.
+
+    Returns None for a missing file; raises ValueError for a
+    present file that is not a bounded regular file.
+    """
+    import stat as _stat
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
+            or info.st_size > 16384:
+        raise ValueError("Timing preference is not a bounded regular file.")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
+        | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not _stat.S_ISREG(opened.st_mode) or opened.st_size != info.st_size:
+            raise ValueError("Timing preference changed during read.")
+        chunks = []
+        total = 0
+        while True:
+            block = os.read(descriptor, 8192)
+            if not block:
+                break
+            total += len(block)
+            if total > 16384:
+                raise ValueError("Timing preference exceeds its bound.")
+            chunks.append(block)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _restore_readaloud_timing_preference_bytes(path, prior_bytes):
+    """Restore prior preference bytes atomically under the book lock.
+
+    Caller holds book state. A missing prior file removes the newly
+    persisted one; otherwise prior bytes are staged beside the
+    target and atomically replaced into place.
+    """
+    if prior_bytes is None:
+        if os.path.isfile(path):
+            os.unlink(path)
+        return
+    directory = os.path.dirname(path) or "."
+    staging = os.path.join(directory, ".readalong_timing.restore.tmp")
+    try:
+        with open(staging, "wb") as handle:
+            handle.write(prior_bytes)
+        os.replace(staging, path)
+    finally:
+        try:
+            if os.path.exists(staging):
+                os.unlink(staging)
+        except OSError:
+            pass
+
+
 def _start_readaloud_epub(background_tasks, request):
     # Phase A: admit (under book state).
     with ensure_book_state(DATA_DIR):
@@ -2271,17 +2383,27 @@ def _start_readaloud_epub(background_tasks, request):
     policy = {"timing_mode": "chunk", "device": "cpu", "dtype": "float32",
               "cpu_only": True, "reason": "Chunk timing selected; low-resource CPU path."}
     if merged["timing_mode"] != "chunk":
-        if isinstance(timing_language, str) and timing_language:
-            try:
-                timing_language = get_aligner_language_name(timing_language)
-            except ValueError as error:
-                raise HTTPException(status_code=400, detail=str(error)) from error
+        # Auto resolves the CPU chunk fallback BEFORE any Qwen-only
+        # language validation, so a chunk-persisted unsupported
+        # language cannot block the fallback. Explicit qwen still
+        # refuses an unsupported language below, before any
+        # preference mutation (Phase B never writes).
         capability = get_qwen_capability(ROOT_DIR)
         try:
             policy = get_qwen_device_policy(merged["timing_mode"],
                                             merged["timing_device"], capability)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        if policy["timing_mode"] == "qwen":
+            if isinstance(timing_language, str) and timing_language:
+                try:
+                    timing_language = get_aligner_language_name(timing_language)
+                except ValueError as error:
+                    raise HTTPException(status_code=400, detail=str(error)) from error
+                # Canonicalize the persisted representation (en ->
+                # English) so the UI select, receipts and the file
+                # all agree. An explicit "" clear stays None.
+                merged["timing_language"] = timing_language
     provider_digest = None
     runtime = None
     if policy["timing_mode"] == "qwen":
@@ -2295,16 +2417,27 @@ def _start_readaloud_epub(background_tasks, request):
                 runtime = get_qwen_runtime_identity(capability["python"])
             except ValueError as error:
                 raise HTTPException(status_code=400, detail=str(error)) from error
-        try:
-            provider_digest = get_qwen_provider_digest(
-                capability["model_dir"],
-                runtime_identity={"qwen_asr_version": capability["qwen_asr_version"],
-                                  "torch_version": capability.get("torch_version"),
-                                  "device": policy["device"],
-                                  "dtype": policy.get("dtype"),
-                                  "identity": runtime})
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
+        # Same-phase reuse (raw79): when the policy-pinned
+        # device/dtype match the capability-phase selection, the
+        # digest just streamed by get_qwen_capability in this same
+        # phase is the selected-policy identity — reuse it instead
+        # of streaming the model a second time. An explicit
+        # cpu/cuda policy that differs still computes its own.
+        if (policy["device"] == capability.get("device")
+                and policy.get("dtype") == capability.get("dtype")
+                and isinstance(capability.get("provider_digest"), str)):
+            provider_digest = capability["provider_digest"]
+        else:
+            try:
+                provider_digest = get_qwen_provider_digest(
+                    capability["model_dir"],
+                    runtime_identity={"qwen_asr_version": capability["qwen_asr_version"],
+                                      "torch_version": capability.get("torch_version"),
+                                      "device": policy["device"],
+                                      "dtype": policy.get("dtype"),
+                                      "identity": runtime})
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
     timing = {"timing_mode": policy["timing_mode"], "device": policy["device"],
               "dtype": policy.get("dtype"), "language": timing_language,
               "provider_digest": provider_digest,
@@ -2326,9 +2459,10 @@ def _start_readaloud_epub(background_tasks, request):
                 "Timing settings changed during start; retry the build."))
         claim_id = reserve_background_task("readaloud_epub", cpu_only=policy["cpu_only"])
         _pref_path = os.path.join(DATA_DIR, "readalong_timing.json")
-        _prior_pref_bytes = Path(_pref_path).read_bytes() if os.path.isfile(_pref_path) else None
+        _prior_pref_bytes = _read_bounded_preference_bytes(_pref_path)
         try:
             _save_readaloud_timing_preference(merged)
+            _merged_pref_bytes = _read_bounded_preference_bytes(_pref_path)
         except BaseException:
             release_gpu_task_claim("readaloud_epub", claim_id, pending_only=True)
             raise HTTPException(status_code=409, detail=(
@@ -2413,18 +2547,45 @@ def _start_readaloud_epub(background_tasks, request):
 
     try:
         register_claimed_background_task(background_tasks, "readaloud_epub", claim_id, task)
-    except BaseException:
+    except BaseException as registration_error:
         release_gpu_task_claim("readaloud_epub", claim_id, pending_only=True)
+        # Stale-owner fence: rollback is bound to the original book
+        # token, captured generation, and still-owned merged
+        # preference bytes, under the same book-state lock. If any
+        # of them changed (a successor start or an external write),
+        # restoring would clobber the successor — preserve it and
+        # surface the original error with an honest explanation.
+        stale_reason = None
         try:
             with ensure_book_state(DATA_DIR):
-                _pref_path = os.path.join(DATA_DIR, "readalong_timing.json")
-                if _prior_pref_bytes is None:
-                    if os.path.isfile(_pref_path):
-                        os.unlink(_pref_path)
-                else:
-                    Path(_pref_path).write_bytes(_prior_pref_bytes)
-        except OSError:
-            pass
+                if _get_readalong_book_token() != book_token:
+                    stale_reason = "the book identity changed"
+                elif process_state["readaloud_epub"].get("readalong_generation") != generation:
+                    stale_reason = "a newer start owns this book now"
+                elif _read_bounded_preference_bytes(_pref_path) != _merged_pref_bytes:
+                    stale_reason = "the timing preference changed after this start persisted it"
+        except Exception as verify_error:
+            stale_reason = "ownership could not be verified (%s)" % verify_error
+        if stale_reason is not None:
+            raise RuntimeError(
+                "Start registration failed (%s); timing-preference "
+                "rollback was skipped because %s. The successor "
+                "preference was preserved; no stale state was "
+                "restored." % (registration_error, stale_reason)) from registration_error
+        try:
+            with ensure_book_state(DATA_DIR):
+                _restore_readaloud_timing_preference_bytes(
+                    _pref_path, _prior_pref_bytes)
+        except OSError as rollback_error:
+            # Explicit, never silent: under failed I/O the merged
+            # preference remains on disk and must not be promised
+            # restored. The original registration failure stays in
+            # the exception chain.
+            raise RuntimeError(
+                "Start registration failed and timing-preference "
+                "rollback also failed (%s); the unstarted merged "
+                "timing preference remains on disk. Restore it "
+                "manually and retry the build." % rollback_error) from rollback_error
         raise
     process_state["readaloud_epub"]["task_claim_id"] = claim_id
     return {"status": "started", "task_name": "readaloud_epub",
@@ -2504,7 +2665,14 @@ def _validated_epub_bytes():
         if not os.path.isfile(retained_path):
             raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is missing. Re-upload the EPUB and rebuild.")
         try:
-            retained_sha = hashlib.sha256(Path(retained_path).read_bytes()).hexdigest()
+            retained_digest = hashlib.sha256()
+            with open(retained_path, "rb") as retained_handle:
+                while True:
+                    block = retained_handle.read(1024 * 1024)
+                    if not block:
+                        break
+                    retained_digest.update(block)
+            retained_sha = retained_digest.hexdigest()
         except OSError as error:
             raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable.") from error
         if retained_sha != receipt["retained_epub_sha256"]:

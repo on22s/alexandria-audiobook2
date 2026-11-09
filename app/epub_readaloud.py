@@ -50,9 +50,9 @@ import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from epub_package import get_epub_package
-from qwen_align import (count_units, derive_fragment_times, get_normalized_stream,
+from qwen_align import (get_normalized_stream,
                         get_token_key, get_validated_aligner_tokens,
-                        map_tokens_to_text, require_exact_coverage, split_sentences,
+                        require_exact_coverage, split_sentences,
                         cover_ranges)
 
 MAX_PUBLICATION_XML_BYTES = 2 * 1024**2
@@ -237,7 +237,8 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
         for item in manifest.values():
             if 'nav' in item['properties'].split():
                 try:
-                    root = ET.fromstring(archive.read(item['path']))
+                    root = ET.fromstring(_read_archive_member_bounded(
+                        archive, item['path'], max_xml_bytes))
                 except (KeyError, ET.ParseError):
                     continue
                 for nav in root.iter():
@@ -331,11 +332,9 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raise ValueError("Spine path escapes the archive.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         try:
-            raw = archive.read(path)
+            raw = _read_archive_member_bounded(archive, path, max_xml_bytes)
         except KeyError as error:
             raise ValueError(f"Spine document is missing: {path}") from error
-    if len(raw) > max_xml_bytes:
-        raise ValueError("Spine document exceeds the read-aloud limit.")
     try:
         root = ET.fromstring(raw)
     except ET.ParseError as error:
@@ -603,22 +602,102 @@ _INLINE_SKIP = {"script", "style"}
 def _is_textless_element(node):
     if node.text:
         return False
-    return all(_is_textless_element(child) for child in node)
+    for child in node:
+        if child.tail:
+            return False
+        if not _is_textless_element(child):
+            return False
+    return True
 
 
 def _clone_atom(source, emitted_ids):
     clone = copy.deepcopy(source)
     clone.tail = None
     xml_id = "{http://www.w3.org/XML/1998/namespace}id"
+    # Clone-local semantics (mirrors _inline_copy_attributes): id and
+    # xml:id with the same value on one element are both kept; the
+    # clone's ids are merged into emitted_ids only after the element.
     for element in clone.iter():
+        clone_ids = set()
         for key in list(element.attrib.keys()):
             if key == "id" or key == xml_id:
                 value = element.attrib[key]
                 if value in emitted_ids:
                     del element.attrib[key]
                 else:
-                    emitted_ids.add(value)
+                    clone_ids.add(value)
+        emitted_ids.update(clone_ids)
     return clone
+
+
+def _read_archive_member_bounded(archive, name, max_bytes):
+    """Read one archive member bounded BEFORE materialization.
+
+    Strict EPub name/unique/encrypted checks wrap the shared
+    ``archive_utils.read_zip_member_bounded`` loop so XML and
+    retained-asset reads cannot drift apart. Oversize members are
+    refused without ever holding more than ``max_bytes + 1``
+    decompressed bytes.
+    """
+    from pathlib import PureWindowsPath
+    from archive_utils import read_zip_member_bounded
+    if not isinstance(name, str) or not name:
+        raise ValueError("Invalid EPUB archive member.")
+    infos = [info for info in archive.infolist() if info.filename == name]
+    if len(infos) != 1:
+        raise ValueError("EPUB archive member is missing or ambiguous: %s" % name)
+    info = infos[0]
+    path = PurePosixPath(name)
+    if ("\\" in name or "\0" in name or path.is_absolute()
+            or PureWindowsPath(name).drive or ".." in path.parts
+            or name != path.as_posix()):
+        raise ValueError("Unsafe EPUB archive member: %s" % name)
+    if info.is_dir() or (info.flag_bits & 0x1):
+        raise ValueError("EPUB archive member is unsafe or encrypted: %s" % name)
+    return read_zip_member_bounded(archive, name, max_bytes)
+
+
+def _validate_retained_member_name(name):
+    """Safe-member preflight for retained (non-XML) EPUB assets.
+
+    Preserves legitimate nested and URI-encoded (percent-encoded)
+    member names byte-identically; refuses only traversal, absolute,
+    drive/backslash, duplicate, encrypted or symlink members.
+    """
+    from pathlib import PureWindowsPath
+    if not isinstance(name, str) or not name:
+        raise ValueError("Invalid EPUB archive member.")
+    path = PurePosixPath(name)
+    if ("\\" in name or "\0" in name or path.is_absolute()
+            or PureWindowsPath(name).drive or ".." in path.parts):
+        raise ValueError("Unsafe EPUB archive member: %s" % name)
+
+
+def _preflight_retained_members(infos):
+    """Validate every retained member before any decompression/copy.
+
+    Archive-wide declared budgets reuse the established
+    ``archive_utils`` limits (member count and total declared
+    bytes) BEFORE processing; no new per-asset cap is invented.
+    """
+    from archive_utils import MAX_ARCHIVE_BYTES, MAX_ARCHIVE_MEMBERS
+    if len(infos) > MAX_ARCHIVE_MEMBERS:
+        raise ValueError("Retained EPUB has too many members.")
+    if sum(info.file_size for info in infos) > MAX_ARCHIVE_BYTES:
+        raise ValueError("Retained EPUB expands beyond the archive limit.")
+    seen = set()
+    for info in infos:
+        if info.filename in seen:
+            raise ValueError("Retained EPUB has duplicate members.")
+        seen.add(info.filename)
+        if info.is_dir():
+            continue
+        _validate_retained_member_name(info.filename)
+        if info.flag_bits & 0x1:
+            raise ValueError("Retained EPUB member is encrypted.")
+        unix_mode = (info.external_attr >> 16) & 0o170000
+        if unix_mode == 0o120000:
+            raise ValueError("Retained EPUB member is a symlink.")
 
 
 def _inline_events(element):
@@ -811,7 +890,8 @@ def _validated_aligned_row(aligned_rows, index):
 
 
 def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
-                               sample_rate, next_id, emitted_ids):
+                               sample_rate, next_id, emitted_ids,
+                               cancel_check=None):
     """Split one segment into sentence rows using actual aligned tokens."""
     element = segment["element"]
     events = _inline_events(element)
@@ -825,6 +905,7 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
     stream_spans = []  # (token, norm_start, norm_end, frame_start, frame_end)
     stream_offset = 0
     for chunk_index in row["chunk_indexes"]:
+        _ensure_not_cancelled(cancel_check)
         entry = script_entries[chunk_index]
         tokens = _validated_aligned_row(aligned_rows, chunk_index)
         row_text = entry["prepared_text"]
@@ -837,6 +918,7 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
             raise ValueError("Spoken row has no alignable characters.")
         import bisect as _bisect
         for token, char_start, char_end in row_spans:
+            _ensure_not_cancelled(cancel_check)
             norm_start = _bisect.bisect_left(row_indices, char_start)
             norm_end = _bisect.bisect_right(row_indices, char_end - 1)
             if norm_start >= norm_end or norm_start >= len(row_indices):
@@ -873,6 +955,7 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
     span_count = len(stream_spans)
     previous_frame_end = None
     for (start, end), (span_start, span_end) in zip(ranges, fragments):
+        _ensure_not_cancelled(cancel_check)
         while span_index < span_count and stream_spans[span_index][2] <= span_start:
             span_index += 1
         frame_start = None
@@ -1016,7 +1099,8 @@ def validate_epub_readaloud(archive_bytes):
         xhtml_roots = {}
         for path, media, _props, _o, _h in manifest.values():
             if media == XHTML_MEDIA_TYPE and path:
-                raw = archive.read(path)
+                raw = _read_archive_member_bounded(
+                    archive, path, MAX_EPUB_READALOUD_XML_BYTES)
                 try:
                     root = ET.fromstring(raw)
                 except ET.ParseError as error:
@@ -1089,7 +1173,8 @@ def validate_epub_readaloud(archive_bytes):
         per_smil_ms = {}
         for smil_id, xhtml_path in smil_id_to_path.items():
             smil_path = manifest[smil_id][0]
-            raw = archive.read(smil_path)
+            raw = _read_archive_member_bounded(
+                archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES)
             try:
                 smil_root = ET.fromstring(raw)
             except ET.ParseError as error:
@@ -1247,7 +1332,8 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
         return []
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         try:
-            raw = archive.read(ncx_path)
+            raw = _read_archive_member_bounded(
+                archive, ncx_path, MAX_PUBLICATION_XML_BYTES)
         except KeyError:
             return []
     try:
@@ -1367,7 +1453,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         if mtype == 'image/svg+xml':
             with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as _src:
                 try:
-                    _svg = ET.fromstring(_src.read(spine_item["path"]))
+                    _svg = ET.fromstring(_read_archive_member_bounded(
+                        _src, spine_item["path"], MAX_EPUB_READALOUD_XML_BYTES))
                 except (KeyError, ET.ParseError):
                     continue
             if any(_local(el.tag) == 'text' and (el.text or '').strip()
@@ -1419,7 +1506,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                 segment = segments[row["segment_index"]]
                 expanded.extend(_sentence_rows_for_segment(
                     segment, row, script_entries, aligned_rows, sample_rate,
-                    next_id, emitted_ids))
+                    next_id, emitted_ids, cancel_check=cancel_check))
             mapping = expanded
             for row in mapping:
                 if row["fragment"] is None:
@@ -1642,8 +1729,9 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     # Container: ensure the EPUB 3 rootfile media type.
     with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
         try:
-            container_raw = source.read('META-INF/container.xml')
-        except KeyError as error:
+            container_raw = _read_archive_member_bounded(
+                source, 'META-INF/container.xml', MAX_PUBLICATION_XML_BYTES)
+        except ValueError as error:
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
         container = ET.fromstring(container_raw)
@@ -1657,15 +1745,32 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', CONTAINER_NS)
     output_members['META-INF/container.xml'] = ET.tostring(
         container, encoding="utf-8", xml_declaration=True)
+    # Retained-member preflight BEFORE any decompression: unsafe,
+    # duplicate, encrypted or symlink members refuse the whole build.
+    retained_stream = []
     with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
-        for info in source.infolist():
-            if info.filename in output_members or info.filename == opf_path:
+        infos = source.infolist()
+        _preflight_retained_members(infos)
+        xhtml_paths = {item["path"] for item in manifest.values()
+                       if item.get('media_type') == XHTML_MEDIA_TYPE}
+        for info in infos:
+            if info.filename == "mimetype" or info.filename in output_members \
+                    or info.filename == opf_path:
                 continue
             if info.filename in old_smil_paths:
                 continue
             if info.is_dir():
                 continue
-            output_members[info.filename] = source.read(info.filename)
+            if info.filename in xhtml_paths:
+                # XML retained members keep the existing numerical bound
+                # and are needed in memory for the doctype step below.
+                output_members[info.filename] = _read_archive_member_bounded(
+                    source, info.filename, MAX_EPUB_READALOUD_XML_BYTES)
+            else:
+                # Non-XML assets are streamed at write time below, so a
+                # large member is never materialized in memory. No new
+                # asset-size cap is invented; bytes are preserved.
+                retained_stream.append(info.filename)
     for item in manifest.values():
         if item.get('media_type') == XHTML_MEDIA_TYPE \
                 and item["path"] in output_members \
@@ -1678,6 +1783,23 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             if name == 'mimetype':
                 continue
             out.writestr(name, data)
+        if retained_stream:
+            # Streamed copy with cancellation polls: a cancelled
+            # build aborts here and the in-memory buffer is discarded
+            # before any publication. No force_zip64: small entries
+            # keep ordinary local headers (payload parity is the
+            # guarantee; ZIP container metadata may differ from a
+            # buffered writestr in data-descriptor framing only).
+            with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
+                for name in retained_stream:
+                    _ensure_not_cancelled(cancel_check)
+                    with source.open(name) as src, out.open(name, 'w') as dst:
+                        while True:
+                            _ensure_not_cancelled(cancel_check)
+                            block = src.read(1024 * 1024)
+                            if not block:
+                                break
+                            dst.write(block)
     epub_bytes = buffer.getvalue()
     validation = validate_epub_readaloud(epub_bytes)
     toc_entries = generated_toc_count if generated_toc_count is not None else len(meta["toc"])

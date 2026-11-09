@@ -77,15 +77,37 @@
   var timingDirty = { mode: false, device: false, language: false };
 
   function deviceName(device) {
+    // Only dict probe entries carry eligibility metadata; legacy
+    // string entries are unknown data and must never be advertised
+    // as ready devices (the policy selector drops them).
     if (device && typeof device === 'object' && typeof device.device === 'string') { return device.device; }
-    return String(device);
+    return null;
+  }
+
+  var timingGeneration = 0;
+  var timingListenersBound = false;
+
+  function bindTimingListeners() {
+    // Bound exactly once, independently of any capability fetch, so
+    // a failed or pending fetch can never silently ignore choices.
+    if (timingListenersBound) { return; }
+    timingListenersBound = true;
+    var modeEl = document.getElementById('readaloud-timing-mode');
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    var languageEl = document.getElementById('readaloud-timing-language');
+    if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode = true; }); }
+    if (deviceEl) { deviceEl.addEventListener('change', function () { timingDirty.device = true; }); }
+    if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language = true; }); }
   }
 
   function refreshTimingStatus() {
+    bindTimingListeners();
     var el = document.getElementById('readaloud-timing-status');
     if (!el) { return; }
+    var generation = ++timingGeneration;
     el.textContent = 'Timing: checking what this machine can run…';
     API.get('/api/readaloud_epub/capability').then(function (info) {
+      if (generation !== timingGeneration) { return; }
       if (!info || !info.policy) {
         el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
         return;
@@ -93,16 +115,15 @@
       var modeEl = document.getElementById('readaloud-timing-mode');
       var deviceEl = document.getElementById('readaloud-timing-device');
       var languageEl = document.getElementById('readaloud-timing-language');
-      if (info.preference) {
-        if (modeEl) { modeEl.value = info.preference.timing_mode || 'auto'; }
-        if (deviceEl) { deviceEl.value = info.preference.timing_device || 'auto'; }
-        if (languageEl) { languageEl.value = info.preference.timing_language || ''; }
-      }
       var devices = (info.capability && info.capability.devices) || [];
-      var deviceNames = devices.map(deviceName);
+      var deviceNames = [];
+      devices.forEach(function (device) {
+        var name = deviceName(device);
+        if (name) { deviceNames.push(name); }
+      });
       if (deviceEl) {
-        // Keep the user's selection; only add real devices we do not list.
-        deviceEl.addEventListener('change', function () { timingDirty.device = true; });
+        // Add real eligible options BEFORE applying the persisted
+        // value, so a persisted cuda:N can actually be selected.
         deviceNames.forEach(function (name) {
           var present = false;
           for (var i = 0; i < deviceEl.options.length; i++) {
@@ -116,14 +137,23 @@
           }
         });
       }
-      if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode = true; }); }
-      if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language = true; }); }
+      // Never overwrite a choice the user already made while the
+      // fetch was pending; untouched controls follow the preference.
+      if (info.preference) {
+        if (modeEl && !timingDirty.mode) { modeEl.value = info.preference.timing_mode || 'auto'; }
+        if (deviceEl && !timingDirty.device) { deviceEl.value = info.preference.timing_device || 'auto'; }
+        if (languageEl && !timingDirty.language) { languageEl.value = info.preference.timing_language || ''; }
+      }
       if (info.capability && info.capability.available) {
-        el.textContent = 'Timing: Qwen3 ready (' + (deviceNames.length ? deviceNames.join(', ') : 'CPU') + '). ' + info.policy.reason;
+        // Truthful readiness: name the effective pinned policy
+        // device, not every probed device string.
+        var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');
+        el.textContent = 'Timing: Qwen3 ready (' + pinned + '). ' + info.policy.reason;
       } else {
         el.textContent = 'Timing: Qwen3 not ready (' + (info.capability && info.capability.reason ? info.capability.reason : 'unknown') + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
       }
     }).catch(function () {
+      if (generation !== timingGeneration) { return; }
       el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
     });
   }
@@ -287,6 +317,7 @@
   // book then no-op instead of touching the new view. Timing selects
   // keep the persisted preference; no probing happens here.
   function resetReadalongViews() {
+    timingGeneration += 1;
     Object.values(channels).forEach(function (channel) {
       channel.taskId += 1;
       stopTimer(channel);

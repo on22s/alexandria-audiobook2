@@ -74,13 +74,44 @@ def get_readaloud_timing_preference(data_dir):
     always a safe token.
     """
     import json as _json
+    import stat as _stat
     path = os.path.join(data_dir, "readalong_timing.json")
-    if not os.path.exists(path):
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
         return {"timing_mode": "auto", "timing_device": "auto",
                 "timing_language": None}
+    except OSError as error:
+        raise ValueError(
+            "Persisted timing preference is corrupt (unreadable JSON); "
+            "restore a valid preference and rebuild.") from error
+    # Bounded regular-file read: three small scalars only, so a
+    # present file that is a symlink/FIFO/oversized is corrupt state
+    # and is refused explicitly rather than silently defaulted.
+    if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
+            or info.st_size > 16384:
+        raise ValueError(
+            "Persisted timing preference is corrupt (not a bounded "
+            "regular file); restore a valid preference and rebuild.")
     try:
-        with open(path, "r", encoding="utf-8") as handle:
-            raw = _json.load(handle)
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
+            | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        descriptor = os.open(path, flags)
+        try:
+            opened = os.fstat(descriptor)
+            if not _stat.S_ISREG(opened.st_mode) or opened.st_size != info.st_size:
+                raise ValueError("changed during read")
+            data = b""
+            while True:
+                block = os.read(descriptor, 8192)
+                if not block:
+                    break
+                data += block
+                if len(data) > 16384:
+                    raise ValueError("oversized")
+        finally:
+            os.close(descriptor)
+        raw = _json.loads(data.decode("utf-8"))
     except (OSError, ValueError) as error:
         raise ValueError(
             "Persisted timing preference is corrupt (unreadable JSON); "
@@ -105,6 +136,7 @@ def get_readaloud_timing_preference(data_dir):
             "Persisted timing preference is corrupt (invalid device); "
             "restore a valid preference and rebuild.")
     if language is not None and (not isinstance(language, str)
+                                 or len(language) > 32
                                  or (language and not _PREFERENCE_LANGUAGE_RE.match(language))):
         raise ValueError(
             "Persisted timing preference is corrupt (invalid language); "
@@ -120,7 +152,14 @@ def save_readaloud_timing_preference(preference, data_dir):
 
 
 def require_timing_preference_unchanged(expected, root_dir):
-    """Mid-build fence: the persisted preference must still match admission."""
+    """Mid-build fence: the persisted preference must still match admission.
+
+    Internal-builder contract (#1844 raw12/40, adjudicated): the
+    strict application route always passes the admission preference
+    dict, so a non-dict expectation only occurs for direct internal
+    builder invocations (unit builds) and disables the fence there.
+    No public/app path can reach publication without the dict.
+    """
     if not isinstance(expected, dict):
         return
     current = get_readaloud_timing_preference(root_dir)
@@ -167,10 +206,12 @@ def get_validated_epub_receipt(raw):
     retained_epub_sha256, audio_sha256, epub_sha256} — all 64-hex.
     No paths are disclosed. Legacy 6-key receipts fail closed as unbound.
 
-    #1844 v2 shape adds {timing_mode, timing_device, timing_language,
-    timing_provider} recording the Qwen/chunk choice and provider
-    identity of the artifact. A legacy 7-key receipt still validates
-    and resolves to chunk semantics at download comparison.
+    #1844 v2 shape adds {timing_mode, timing_device, timing_dtype,
+    timing_language, timing_provider} recording the Qwen/chunk
+    choice and provider identity of the artifact. #1844 v3 (new Qwen
+    builds) adds human-readable {timing_model, timing_qwen_asr_version}
+    (AC8); v2 and legacy receipts still validate and resolve as
+    before. Arbitrary extra keys are rejected in every shape.
     """
     if not isinstance(raw, bytes) or not raw or len(raw) > 1024 * 16:
         raise ValueError("EPUB read-aloud receipt is empty or oversized.")
@@ -184,9 +225,10 @@ def get_validated_epub_receipt(raw):
               "retained_epub_sha256", "audio_sha256", "epub_sha256"}
     timing = {"timing_mode", "timing_device", "timing_dtype", "timing_language",
               "timing_provider"}
+    timing_v3 = timing | {"timing_model", "timing_qwen_asr_version"}
     if set(doc) == legacy:
         timing_resolved = "chunk"
-    elif set(doc) == legacy | timing:
+    elif set(doc) in (legacy | timing, legacy | timing_v3):
         if doc.get("timing_mode") not in ("qwen", "chunk"):
             raise ValueError("EPUB read-aloud receipt timing mode is invalid.")
         for key in ("timing_device", "timing_dtype", "timing_language"):
@@ -196,11 +238,19 @@ def get_validated_epub_receipt(raw):
         if (not isinstance(doc.get("timing_provider"), str)
                 or _HEX64_RE.fullmatch(doc["timing_provider"]) is None):
             raise ValueError("EPUB read-aloud receipt provider identity is invalid.")
+        if set(doc) == legacy | timing_v3:
+            model = doc.get("timing_model")
+            version = doc.get("timing_qwen_asr_version")
+            if not isinstance(model, str) or not model or len(model) > 128:
+                raise ValueError("EPUB read-aloud receipt timing model is invalid.")
+            if (not isinstance(version, str) or not version
+                    or len(version) > 64 or version == "unknown"):
+                raise ValueError("EPUB read-aloud receipt qwen-asr version is invalid.")
         timing_resolved = doc["timing_mode"]
     else:
         raise ValueError("EPUB read-aloud receipt is malformed.")
     for key in doc:
-        if key in timing:
+        if key in timing_v3:
             continue
         if not isinstance(doc[key], str) or _HEX64_RE.fullmatch(doc[key]) is None:
             raise ValueError("EPUB read-aloud receipt identity is invalid.")
@@ -592,6 +642,54 @@ def _write_row_slice_wav(pcm_stream, path, layout, start_frame, end_frame,
     return n_frames / float(rate)
 
 
+def _validate_worker_provider(provider, capability):
+    """Strict production check of the worker's provider report.
+
+    Text/time structural validation cannot prove which model
+    executed, so the report returned by the worker is compared
+    against the pinned job/runtime contract (device, dtype,
+    qwen-asr version, decoder/adapter report) before any token is
+    published. A missing or mismatched report refuses the build.
+    This is the strict production entry; legacy component fixtures
+    must supply a matching report rather than bypass this check.
+    """
+    if not isinstance(provider, dict) or not provider:
+        raise ValueError(
+            "Qwen alignment worker returned no provider report; "
+            "refusing to publish unverified timings.")
+    device = provider.get("device")
+    if not isinstance(device, str) or not device:
+        raise ValueError("Qwen alignment worker provider device is missing.")
+    pinned_device = capability.get("device") if isinstance(capability, dict) else None
+    if pinned_device and device != pinned_device:
+        raise ValueError(
+            "Qwen alignment worker ran on device %r, not the pinned "
+            "%r; refusing to publish." % (device, pinned_device))
+    dtype = provider.get("dtype")
+    if not isinstance(dtype, str) or not dtype:
+        raise ValueError("Qwen alignment worker provider dtype is missing.")
+    pinned_dtype = capability.get("dtype") if isinstance(capability, dict) else None
+    if pinned_dtype and dtype != pinned_dtype:
+        raise ValueError(
+            "Qwen alignment worker ran with dtype %r, not the pinned "
+            "%r; refusing to publish." % (dtype, pinned_dtype))
+    version = provider.get("qwen_asr_version")
+    if not isinstance(version, str) or version in ("", "unknown"):
+        raise ValueError(
+            "Qwen alignment worker qwen-asr version is unverified; "
+            "refusing to publish.")
+    pinned_version = capability.get("qwen_asr_version") if isinstance(capability, dict) else None
+    if pinned_version and version != pinned_version:
+        raise ValueError(
+            "Qwen alignment worker reported qwen-asr %r, not the pinned "
+            "%r; refusing to publish." % (version, pinned_version))
+    for key in ("decoder", "encoder_adapter"):
+        value = provider.get(key)
+        if not isinstance(value, str) or not value:
+            raise ValueError(
+                "Qwen alignment worker provider %s report is missing." % key)
+
+
 def collect_aligned_rows(data, language_name, capability, cancel_check, staging_path,
                          task_lease_fd=None, prepared_texts=None):
     """Run real Qwen alignment against the captured assembled PCM.
@@ -651,12 +749,14 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
         windows = get_aligner_windows(row_duration, units, text=prepared)
         total_windows += len(windows)
         total_chars += len(prepared)
+        # The actual job payload carries each row's text once plus
+        # per-window metadata (char offsets/estimates, no piece text),
+        # so the estimate counts prepared once, not twice via pieces.
         estimated_job_bytes += len(prepared.encode("utf-8")) + 512 * len(windows)
         for window in windows:
             piece = prepared[window["char_start"]:window["char_end"]]
             if not piece.strip():
                 raise ValueError("Qwen alignment window has no text.")
-            estimated_job_bytes += len(piece.encode("utf-8"))
         if total_windows > 10000 or total_chars > 10 * 1024 * 1024 \
                 or estimated_job_bytes > MAX_JOB_BYTES:
             raise ValueError("Qwen alignment refused: book exceeds its size limit.")
@@ -693,13 +793,15 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
     job_payload = json.dumps({
         "model_dir": capability["model_dir"], "device": capability["device"],
         "dtype": capability.get("dtype"), "language": language_name,
+        "qwen_asr_version": capability.get("qwen_asr_version"),
         "rows": jobs}, ensure_ascii=False)
     if len(job_payload.encode("utf-8")) > MAX_JOB_BYTES:
         raise ValueError("Qwen alignment job exceeds its size limit.")
     job_path.write_text(job_payload, encoding="utf-8")
-    tokens_by_id, windows_by_id, _provider = run_qwen_alignment_full(
+    tokens_by_id, windows_by_id, provider = run_qwen_alignment_full(
         get_qwen_worker_command(capability["python"]), job_path, result_path,
         cancel_check, task_lease_fd=task_lease_fd)
+    _validate_worker_provider(provider, capability)
 
     expected_ids = {"r%d" % row["position"] for row in rows}
     if set(tokens_by_id) != expected_ids or set(windows_by_id) != expected_ids:
@@ -951,6 +1053,16 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
             aligned_rows = None
             timing_summary = {"mode": "chunk"}
             if timing is not None and timing.get("timing_mode") == "qwen":
+                # AC8: the validated qwen-asr version (pinned runtime
+                # contract, re-checked against the worker report in
+                # collect_aligned_rows) must be human-readable in the
+                # report/log/receipt — a digest alone is not enough.
+                # Unknown/missing versions refuse before alignment.
+                _version = timing.get("qwen_asr_version")
+                if not isinstance(_version, str) or not _version or _version == "unknown":
+                    raise ValueError(
+                        "Qwen alignment version is unverified; refusing to publish.")
+                from qwen_runtime import MODEL_NAME as _QWEN_MODEL_NAME
                 capability = dict(timing.get("capability") or {})
                 capability["device"] = timing.get("device") or "cpu"
                 capability["dtype"] = timing.get("dtype") or capability.get("dtype")
@@ -971,12 +1083,15 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                                   "device": timing.get("device"),
                                   "dtype": timing.get("dtype"),
                                   "language": language,
+                                  "model": _QWEN_MODEL_NAME,
+                                  "qwen_asr_version": _version,
                                   "provider_digest": timing.get("provider_digest"),
                                   **alignment}
                 if progress_callback is not None:
                     progress_callback(
-                        "Qwen alignment verified: %d rows, %d windows."
-                        % (alignment["rows"], alignment["windows"]))
+                        "Qwen alignment verified (%s, qwen-asr %s): %d rows, %d windows."
+                        % (_QWEN_MODEL_NAME, _version,
+                           alignment["rows"], alignment["windows"]))
             try:
                 epub_bytes, report = build_epub_readaloud(
                     retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
@@ -1032,6 +1147,8 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                     "timing_device": str(timing_summary.get("device") or ""),
                     "timing_dtype": str(timing_summary.get("dtype") or ""),
                     "timing_language": str(timing_summary.get("language") or ""),
+                    "timing_model": str(timing_summary.get("model") or ""),
+                    "timing_qwen_asr_version": str(timing_summary.get("qwen_asr_version") or ""),
                     "timing_provider": timing_summary.get("provider_digest")})
             receipt_bytes = json.dumps(
                 receipt_doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")

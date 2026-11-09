@@ -383,13 +383,20 @@ fake, or word-count timing exists in the production path.
   exactly once and original ids stay. Coarsened containers with nested
   blocks, and any structure the span wrapper cannot redistribute
   faithfully, refuse explicitly as unsupported.
-- **Receipt v2.** Qwen artifacts carry `{timing_mode, timing_device,
-  timing_language, timing_provider}` (on-disk model/interpreter digest)
-  alongside the 7-key identity; pre-publication revalidation compares
-  the live digest. Download recomputes timing identity from the
-  persisted preference (`readalong_timing.json`) plus the model
-  digest: a provider replacement or a timing-choice change since the
-  build returns 409. Legacy 7-key receipts keep existing semantics.
+- **Receipt v2/v3.** Qwen artifacts carry `{timing_mode, timing_device,
+  timing_dtype, timing_language, timing_provider}` (on-disk model/interpreter digest)
+  alongside the 7-key identity; new Qwen builds (v3) additionally carry
+  human-readable `{timing_model, timing_qwen_asr_version}` (AC8: the
+  supported `Qwen3-ForcedAligner-0.6B` engine identifier plus the
+  validated qwen-asr version — provenance labels, never a measured
+  acoustic-accuracy claim or proof of an owner-provided weights'
+  origin; the provider digest remains the actual identity).
+  Pre-publication revalidation compares the live digest. Download
+  recomputes timing identity from the persisted preference
+  (`readalong_timing.json`) plus the model digest: a provider
+  replacement or a timing-choice change since the build returns 409.
+  Legacy 7-key and v2 receipts keep existing semantics; arbitrary
+  extra receipt keys are rejected.
 - **Install (isolated, explicit).** The main app keeps its pins
   (transformers 4.57.3); nothing downloads during a build. To enable
   Qwen: create a Python 3.12 venv (`qwen-env/`), install per-platform

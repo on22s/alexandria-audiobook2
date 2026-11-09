@@ -17,6 +17,7 @@ is what the parent validates.
 """
 import json
 import math
+import re
 import sys
 import unicodedata
 import wave
@@ -40,7 +41,11 @@ def _clean(word):
 
 
 def _units(text):
-    words = [_clean(w) for w in (text or "").split()]
+    # AA2 word vocabulary (mirrors qwen_align.count_units): word
+    # tokens by regex rather than whitespace, so punctuation and
+    # underscores are segmented like production. Token text keeps
+    # its original case (production comparison casefolds).
+    words = [_clean(w) for w in re.findall(r"\w+(?:['’]\w+)*", text or "")]
     words = [w for w in words if w]
     if words:
         return words
@@ -143,8 +148,9 @@ def main(argv):
         windows[row["id"]] = accepted
     with open(argv[2], "w", encoding="utf-8") as handle:
         json.dump({"ok": True, "tokens": tokens, "windows": windows,
-                   "provider": {"qwen_asr_version": "test-fixture",
+                   "provider": {"qwen_asr_version": job.get("qwen_asr_version") or "test-fixture",
                                 "device": job.get("device"),
+                                "dtype": job.get("dtype") or "float32",
                                 "encoder_adapter": "test-fixture",
                                 "decoder": "test-fixture"}},
                   handle, ensure_ascii=False)
