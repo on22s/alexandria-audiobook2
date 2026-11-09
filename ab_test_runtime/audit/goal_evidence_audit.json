@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T10:15:27",
+  "written": "2026-11-09T10:51:15",
   "host": "RealMitch",
   "git": {
-   "commit": "78e5ab5998101fa9406413b88b1530d288c04e53",
-   "branch": "fix/1811-abs-server-dedup",
+   "commit": "81a82ac050b9ba86fa1d23f82e331813c65a32db",
+   "branch": "fix/1810-readalong-metadata-duration",
    "dirty": true,
-   "source_state": "dirty:f3c7ce44181b",
+   "source_state": "dirty:a9e872ec154d",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/audiobookshelf_delivery.py",
-    "M  app/tests/test_audiobookshelf_delivery.py",
+    "M  app/static/readalong-player.html",
+    "M  app/tests/test_readalong_player_js.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
