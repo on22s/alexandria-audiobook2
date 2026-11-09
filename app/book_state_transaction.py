@@ -2152,18 +2152,35 @@ def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=No
     recovered, before its workspace is removed (#1660 d).
 
     "Recovered" asserts every original is in place.  No target moved, but
-    another writer may still have changed one, so that is checked first; on
-    a change this raises and the "publishing" journal stays as evidence.
+    another writer may still have changed one, so that is checked first.  On
+    a change a stream journal raises and stays "publishing" as evidence; a
+    byte journal keeps its previous cleanup (below).
     Otherwise a crash after the workspace is gone but before the journal is
     unlinked leaves a recovered journal, which recovery retires after
     rechecking the targets.  A "publishing" journal with a persisted
     workspace identity and no workspace is (correctly) refused forever,
     because it cannot prove no target moved.  -> the new journal version.
+
+    Only a "publishing" journal is rewritten.  A byte transaction that only
+    removes absent paths moves nothing yet can already be "committed"; that
+    journal keeps its phase and the previous version check, as before.
     """
+    if data['phase'] != 'publishing':
+        _require_book_journal_version(root, journal_version)
+        return journal_version
     if data.get('stream_limits') is not None:
         _verify_stream_cleanup_targets(root, data)   # phase is still "publishing"
     else:
-        _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
+        try:
+            _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
+        except ValueError:
+            # Another writer changed an original; nothing of ours moved.  A
+            # byte cleanup has always retired its journal here and let that
+            # edit stand, so keep doing exactly that rather than leave a
+            # publishing journal recovery would refuse.  Only this rare
+            # concurrent-edit case keeps the old crash window.
+            _require_book_journal_version(root, journal_version)
+            return journal_version
     data['phase'] = 'recovered'
     return _save_journal(root, data, expected_version=journal_version, root_fd=root_fd)
 
