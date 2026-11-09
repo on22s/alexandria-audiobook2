@@ -681,6 +681,26 @@ finally: os.close(fd)
                                                 quota_bytes=100000,cancel_check=cancel_while_walking)
             self.assertEqual(3,checks)
 
+    def test_verification_honors_cancel_while_reading_receipt_marker_and_manifest(self):
+        # #1660: the receipt, marker and manifest reads (manifest up to
+        # MAX_MANIFEST_BYTES) honor cancellation like the payload reads do.
+        import project_scope_files
+        from audio_generation_owner import AudioGenerationCancelled
+        with self.fixture() as (root,token):
+            receipt=archive.create_recovery_archive(root,['state.json'],book_token=token,quota_bytes=100000)
+            capture=project_scope_files.capture_scope_file
+            completed,cancelled=[],[False]
+            def reading(directory,relative_path,**kwargs):
+                result=capture(directory,relative_path,**kwargs)
+                completed.append(relative_path)
+                cancelled[0]=True   # cancel as soon as the first read finishes
+                return result
+            with patch.object(project_scope_files,'capture_scope_file',side_effect=reading), \
+                    self.assertRaises(AudioGenerationCancelled):
+                archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
+                                                quota_bytes=100000,cancel_check=lambda:cancelled[0])
+            self.assertEqual(['prepared-'+receipt['id']],completed)
+
     def test_substituted_stage_is_never_deleted_on_failure(self):
         with self.fixture() as (root,token):
             def substitute(_root,_name,destination,*_args,**_kwargs):
