@@ -3910,6 +3910,7 @@
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_cast_pending_failure_retry",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_confirmed_delete_refresh_error",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_empty_ensemble_and_missing_prefill",
+    "tests.test_deepseek_voice_ui.VoiceUiTests.test_override_refusal_asks_then_retries_clearing_only_on_confirm",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_panel_shared_ownership",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_pending_single_ack_after_dismissal",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_sample_ownership_then_edit_after_ack"
@@ -13054,11 +13055,13 @@
   "test_suggestion_audio_invalidation": [
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_damaged_cast_library_refuses_suggestions_before_any_audio_invalidation",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_failed_cast_publication_restores_both_files_and_keeps_old_audio_fenced",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_ignored_whitespace_alias_is_not_an_override",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_suggestion",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_invalid_second_suggestion_cannot_partially_publish_or_invalidate",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_library_only_priority_nan_and_deep_refuse_before_invalidation",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_manual_persona_recovery_invalidates_changed_style_and_alias_audio",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_reapplying_identical_effective_voice_preserves_audio",
+    "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_retained_overrides_are_refused_then_cleared_on_confirmation",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_single_and_bulk_with_or_without_cast_invalidate_alias_audio_only",
     "tests.test_suggestion_audio_invalidation.SuggestionAudioInvalidationTests.test_valid_finite_priority_commits_both_with_invalidation"
   ],

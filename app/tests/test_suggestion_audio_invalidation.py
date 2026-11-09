@@ -64,6 +64,51 @@ class SuggestionAudioInvalidationTests(unittest.TestCase):
                     else:
                         self.assertEqual(library_before, (root / 'library.json').read_bytes())
 
+    def test_retained_overrides_are_refused_then_cleared_on_confirmation(self):
+        # #1800: an alias or version timeline would keep another voice effective.
+        import tts
+        overrides = {
+            'alias': ({'alias_of': 'Other'}, {'alias_of': 'Other', 'version_timeline': False}),
+            'legacy alias': ({'alias': 'Other'}, {'alias_of': 'Other', 'version_timeline': False}),
+            'timeline': ({'versions': {'old': {'type': 'lora', 'adapter_id': 'old'}},
+                          'version_timeline': [{'from_index': 0, 'version_id': 'old'}]},
+                         {'alias_of': None, 'version_timeline': True}),
+        }
+        for label, (extra, disclosed) in overrides.items():
+            for bulk in (False, True):
+                with self.subTest(override=label, bulk=bulk), self.fixture() as (root, client, manager):
+                    config = json.loads((root / 'voices.json').read_text())
+                    config['Hero'].update(extra)
+                    (root / 'voices.json').write_text(json.dumps(config))
+                    paths = [root / 'voices.json', root / 'library.json', root / 'chunks.json']
+                    before = {path: path.read_bytes() for path in paths}
+                    refused = self.apply(root, client, bulk=bulk)
+                    self.assertEqual(409, refused.status_code, refused.text)
+                    detail = refused.json()['detail']
+                    self.assertEqual('voice_overrides', detail['code'])
+                    self.assertEqual([{'character': 'Hero', **disclosed}], detail['overrides'])
+                    self.assertEqual(before, {path: path.read_bytes() for path in paths})
+                    body = ({'suggestions': {'Hero': {'adapter_id': 'new', 'book_id': 'active-book'}}} if bulk
+                            else {'character': 'Hero', 'suggestion': {'adapter_id': 'new', 'book_id': 'active-book'}})
+                    applied = client.post('/api/suggest_voices/apply_bulk' if bulk else '/api/suggest_voices/apply',
+                                          json={**body, 'clear_overrides': True})
+                    self.assertEqual(200, applied.status_code, applied.text)
+                    hero = json.loads((root / 'voices.json').read_text())['Hero']
+                    for key in ('alias_of', 'alias', 'version_timeline'):
+                        self.assertNotIn(key, hero)
+                    self.assertEqual(extra.get('versions'), hero.get('versions'))   # history kept
+                    saved = json.loads((root / 'voices.json').read_text())
+                    self.assertEqual('Hero', tts.get_resolved_speaker('Hero', saved))
+                    self.assertEqual('new', tts.voice_config_for_chunk(saved, 'Hero', 0)['Hero']['adapter_id'])
+
+    def test_ignored_whitespace_alias_is_not_an_override(self):
+        with self.fixture() as (root, client, _manager):
+            config = json.loads((root / 'voices.json').read_text())
+            config['Hero']['alias_of'] = '   '
+            (root / 'voices.json').write_text(json.dumps(config))
+            response = self.apply(root, client)
+            self.assertEqual(200, response.status_code, response.text)
+
     def test_inflight_old_voice_cannot_publish_after_suggestion(self):
         # Reuse the native PCM/held-render scenario with this fixture and route.
         cast_fixtures.CastAudioInvalidationTests.test_inflight_old_voice_cannot_publish_after_cast_application(self)

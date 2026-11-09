@@ -35,6 +35,23 @@ for(const change of ['suggestion','edit','book','unchanged']){c.currentBookFilen
 assert(toasts.some(t=>t[0].includes('newer edits')));
 ''')
 
+    def test_override_refusal_asks_then_retries_clearing_only_on_confirm(self):
+        # #1800: a voice_overrides 409 is disclosed; cancel keeps everything, confirm retries with the flag.
+        self.run_js(r'''
+run(core.slice(core.indexOf('function applySuggestionToCard('),core.indexOf('function updateSuggestionToolbar(')));c.updateSuggestionToolbar=()=>{};c._voiceSuggestionContext={isCurrent:()=>true};c.loadCastLibrary=async()=>{};c.loadVoices=async()=>{};
+const refusal=()=>Object.assign(Error('overrides'),{status:409,detail:{code:'voice_overrides',overrides:[{character:'A',alias_of:'B',version_timeline:false}]}});
+for(const [apply,confirm] of [['single',false],['single',true],['bulk',false],['bulk',true]]){
+c._voiceSuggestions={A:{type:'lora',adapter_id:'submitted'}};const posts=[];let asked='';
+c.API.post=async(url,data)=>{posts.push(JSON.parse(JSON.stringify(data)));if(!data.clear_overrides){throw refusal();}return {applied:['A']};};
+c.showConfirm=async(message)=>{asked=message;return confirm;};
+await (apply==='single'?c.applyVoiceSuggestion('A'):c.applyAllVoiceSuggestions());
+assert(asked.includes('A speaks as B (alias)'),asked);
+assert.equal(posts.length,confirm?2:1,apply);assert.equal(posts[0].clear_overrides,undefined);
+if(confirm){assert.equal(posts[1].clear_overrides,true);assert(!c._voiceSuggestions.A,'confirmed apply not reconciled');}
+else{assert.equal(c._voiceSuggestions.A.adapter_id,'submitted','cancel dropped the suggestion');}
+}
+''')
+
     def test_bulk_cast_pending_failure_retry(self):
         self.run_js(r'''
 run(core.slice(core.indexOf('let castApplyBulkPending ='),core.indexOf('// Identity anchors that take over')));c._collectCastApplyMapping=()=>({A:'role'});c.setCastStatus=()=>{};c.getActionErrorMessage=(title,e)=>title+e.message;c.getCastApplyWarningsHtml=()=>'';c._selectedCast='cast';let count=0,gate=deferred();c.API.post=()=>{count++;return gate.promise;};const first=c.submitCastApplyBulk(['book']);await c.submitCastApplyBulk(['book']);assert.equal(count,1);assert(el('btn-cast-apply-bulk-submit').disabled);gate.reject(Error('offline'));await first;assert(!el('btn-cast-apply-bulk-submit').disabled);gate=deferred();const retry=c.submitCastApplyBulk(['book']);assert.equal(count,2);gate.resolve({results:[{name:'book',count:1}]});await retry;assert(el('cast-panel').innerHTML.includes('Applied to 1 book'));assert(!el('btn-cast-apply-bulk-submit').disabled);
