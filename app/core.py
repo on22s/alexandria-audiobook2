@@ -27,6 +27,7 @@ import aiofiles
 from fastapi import HTTPException, UploadFile
 
 from character_evidence import aliases_for
+from speaker_identity import is_speaker_merge_allowed
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled, AudioGenerationOwner,
                                     ensure_audio_generation_owner)
 from project import ProjectManager
@@ -236,13 +237,16 @@ def add_known_label(known_as, name: str) -> list:
 def get_member_labels(entry: dict, aliases: Optional[dict] = None) -> list:
     """Every speaker label a library member answers to: its display name, the
     labels it was saved from or applied to (`known_as`), and any registered
-    alias of those. The one place that decides what a member is "known as"."""
+    alias of those. The one place that decides what a member is "known as".
+    A registered alias that is a protected narrator/group merge is never a
+    label (#1801), so it can never become an exact library match."""
     labels = add_known_label(entry.get("known_as"), entry.get("name", ""))
     out = list(labels)
     if aliases:
         for label in labels:
             for alias in sorted(aliases_for(label, aliases)):
-                out = add_known_label(out, alias)
+                if is_speaker_merge_allowed(alias, label):
+                    out = add_known_label(out, alias)
     return out
 
 

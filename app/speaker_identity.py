@@ -298,13 +298,36 @@ def get_validated_alias_graph(value):
 
 
 def get_resolved_speaker_merge_map(mapping):
-    """Flatten alias chains; omit cycles and every alias leading into one."""
+    """Flatten alias chains; omit cycles and every alias leading into one.
+
+    Every edge is checked with is_speaker_merge_allowed, not only the two
+    endpoints (#1801): resolution stops before a protected narrator/group
+    edge, so flattening cannot launder one. An unprotected prefix survives.
+    """
     mapping = get_validated_alias_map(mapping)
-    roots, cyclic = _get_alias_roots(mapping)
+    _, cyclic = _get_alias_roots(mapping)
     for variant in sorted(cyclic):
         print(f"  [skip] alias cycle reached from '{variant}'")
-    return {variant: canonical for variant, canonical in roots.items()
-            if variant != canonical and is_speaker_merge_allowed(variant, canonical)}
+    index = {}
+    for variant in sorted(mapping):
+        index.setdefault(_identity_key(variant), variant)
+    resolved = {}
+    for variant in mapping:
+        if variant in cyclic:
+            continue
+        current = target = variant
+        while True:   # terminates: variants outside `cyclic` reach a root
+            canonical = mapping[current]
+            if not is_speaker_merge_allowed(current, canonical):
+                break
+            target = canonical
+            following = index.get(_identity_key(canonical))
+            if following is None or following == current:
+                break
+            current = following
+        if target != variant and is_speaker_merge_allowed(variant, target):
+            resolved[variant] = target
+    return resolved
 
 
 def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatten=True):

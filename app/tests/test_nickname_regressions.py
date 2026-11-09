@@ -416,6 +416,35 @@ class ReservedNarratorAliasTests(unittest.TestCase):
 
 
 class NicknameAliasGraphSafetyTests(unittest.TestCase):
+    def test_protected_intermediate_cannot_be_flattened_away(self):
+        # #1801 A: every edge of a chain is checked, not just its endpoints.
+        from speaker_identity import get_resolved_speaker_merge_map
+        for protected in ("NARRATOR", "RAM AND REM"):
+            with self.subTest(protected=protected):
+                self.assertEqual({}, get_resolved_speaker_merge_map({"A": protected, protected: "ALICE"}))
+                # A legitimate prefix survives; resolution stops before the protected edge.
+                self.assertEqual({"B": "A"}, get_resolved_speaker_merge_map(
+                    {"B": "A", "A": protected, protected: "ALICE"}))
+        # Unprotected chains still flatten, cycles are still omitted.
+        self.assertEqual({"A": "C", "B": "C"}, get_resolved_speaker_merge_map({"A": "B", "B": "C"}))
+        self.assertEqual({}, get_resolved_speaker_merge_map({"A": "B", "B": "A"}))
+
+    def test_protected_alias_is_not_a_library_member_label_or_exact_match(self):
+        # #1801 B: a protected narrator/group alias never becomes a member label.
+        import core
+        from routers import voice_library
+        aliases = {"NARRATOR": "ALICE", "RAM AND REM": "ALICE", "ALLY": "ALICE"}
+        labels = core.get_member_labels({"name": "ALICE"}, aliases)
+        self.assertEqual(["ALICE", "ALLY"], labels)
+        pool = {"alice": {"key": "alice", "name": "ALICE", "source": "cast", "type": "lora",
+                          "labels": labels, "known_as": []}}
+        proposals = {p["character"]: p["match"] for p in voice_library._build_match_proposals(
+            {"NARRATOR": 9, "RAM AND REM": 5, "ALLY": 3}, pool)}
+        for protected in ("NARRATOR", "RAM AND REM"):
+            match = proposals[protected]
+            self.assertFalse(match and match["exact"], f"{protected} was an exact match: {match}")
+        self.assertEqual((True, "alias"), (proposals["ALLY"]["exact"], proposals["ALLY"]["via"]))
+
     def test_locked_publication_preserves_human_terminal_identity(self):
         from speaker_identity import get_resolved_speaker_merge_map
         human = {'HUMAN ALIAS': 'APPROVED ROOT'}
