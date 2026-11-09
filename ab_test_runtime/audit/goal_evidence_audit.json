@@ -1050,17 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T21:19:16",
+  "written": "2026-11-09T01:55:00",
   "host": "RealMitch",
   "git": {
-   "commit": "1a00e2dce54254a5e1780c95358bc04ee86e4eb7",
-   "branch": "fix/1797-external-timeout-cleanup",
+   "commit": "a2ad214136fb08d18be630e39c803e26d8730633",
+   "branch": "fix/1817-epub-segment-targets",
    "dirty": true,
-   "source_state": "dirty:3528c7444fa5",
+   "source_state": "dirty:91244c51d058",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_external_single_cleanup.py",
-    "M  app/tts.py"
+    "M  app/epub_readaloud.py",
+    "M  app/tests/test_epub_readaloud.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

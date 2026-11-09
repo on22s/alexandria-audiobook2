@@ -418,7 +418,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     explicitly with a spanning error — inventing sub-paragraph timing
     would fabricate positions.
 
-    Returns (mapping, end_cursor).
+    Returns (mapping, end_cursor), retaining each row's original segment_index.
     """
     if not spine_segments:
         raise ValueError("Spine document has no readable segments.")
@@ -429,7 +429,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     script_words = [get_normalized_words(entry["prepared_text"]) for entry in script_entries]
     mapping = []
     cursor = start
-    for segment in spine_segments:
+    for segment_index, segment in enumerate(spine_segments):
         source_words = get_normalized_words(segment["text"])
         if not source_words:
             continue
@@ -463,6 +463,7 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
                 f"(no exact contiguous normalized coverage; partial hint {hint:.2f})")
         chunk_indexes = list(range(cursor, end_candidate))
         mapping.append({"fragment": segment["fragment"], "text": segment["text"],
+                        "segment_index": segment_index,
                         "chunk_indexes": chunk_indexes,
                         "start_frame": script_entries[cursor]["start_frame"],
                         "end_frame": script_entries[end_candidate - 1]["end_frame"]})
@@ -1038,7 +1039,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor)
         existing_ids = {el.get('id') for el in root.iter() if el.get('id')}
         assigned = set(existing_ids)
-        for position, (row, segment) in enumerate(zip(mapping, segments), 1):
+        for position, row in enumerate(mapping, 1):
+            segment = segments[row["segment_index"]]
             frag = segment["fragment"]
             if frag is None:
                 n = position

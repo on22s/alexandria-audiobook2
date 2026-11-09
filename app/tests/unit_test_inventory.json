@@ -4837,8 +4837,10 @@
     "tests.test_epub_readaloud.EpubReadaloudTests.test_ambiguous_mapping_fails_closed",
     "tests.test_epub_readaloud.EpubReadaloudTests.test_dangling_smil_reference_fails_validation",
     "tests.test_epub_readaloud.EpubReadaloudTests.test_edited_script_fails_closed",
+    "tests.test_epub_readaloud.EpubReadaloudTests.test_mapping_retains_original_segment_indexes_after_wordless_segments",
     "tests.test_epub_readaloud.EpubReadaloudTests.test_missing_audio_frames_fail_closed",
-    "tests.test_epub_readaloud.EpubReadaloudTests.test_roundtrip_preserves_spine_metadata_and_validates"
+    "tests.test_epub_readaloud.EpubReadaloudTests.test_roundtrip_preserves_spine_metadata_and_validates",
+    "tests.test_epub_readaloud.EpubReadaloudTests.test_wordless_separators_preserve_spoken_element_targets"
   ],
   "test_epub_readaloud_conformance": [
     "tests.test_epub_readaloud_conformance.R1ManifestAndDurationTests.test_dcterms_modified_exactly_one_and_epub2_gets_one",
