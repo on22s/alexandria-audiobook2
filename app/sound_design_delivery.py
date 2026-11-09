@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from book_state_transaction import ensure_book_state
+from export_file_io import replace_export_output
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from sound_design_approval import (ensure_approved_sound_candidate, get_sound_delivery_options,
                                    get_sound_delivery_encoding)
@@ -229,7 +230,7 @@ def save_sound_delivery(manager, stage_name, candidate_revision, approval_revisi
             candidate_revision=candidate_revision, approval_revision=approval_revision,
             quality=None, mastering=mastering, encoding=encoding, warnings=[])
         with snapshot.ensure_publication(str(output), report):
-            os.replace(output, destination)
+            replace_export_output(output, destination)
             try:
                 version = get_export_file_version(destination)
                 if version[:4] != report['file_version'][:4]:

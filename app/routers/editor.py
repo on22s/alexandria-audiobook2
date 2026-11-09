@@ -31,6 +31,7 @@ from export_quality import ExportQualityOptions
 from export_quality_session import ExportQualityAttempt, get_session_evidence
 from project_scope_exports import require_scope_export_current
 from audio_stream_response import AudioStreamResponse
+from export_download import ExportFileResponse, open_export_reader
 
 from core import (
     AUDIOBOOK_PATH,
@@ -432,7 +433,7 @@ async def get_audiobook():
     if not os.path.exists(AUDIOBOOK_PATH):
         raise HTTPException(status_code=404, detail="Audiobook not found")
     require_scope_export_current(DATA_DIR, AUDIOBOOK_PATH)
-    return FileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
+    return ExportFileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
 
 # --- Chunk Management Endpoints ---
 
@@ -1801,7 +1802,7 @@ def _exported_chapter_path(name):
 async def download_chapter(name: str):
     path, safe = await asyncio.to_thread(_get_listed_chapter_path, name)
     media = "audio/mpeg" if safe.lower().endswith(".mp3") else "audio/wav"
-    return FileResponse(path, filename=safe, media_type=media)
+    return ExportFileResponse(path, filename=safe, media_type=media)
 
 
 def _get_listed_chapter_path(name):
@@ -2008,7 +2009,7 @@ def _serve_bound_audio(expected_sha256, filename, label):
     if not os.path.isfile(AUDIOBOOK_PATH):
         raise HTTPException(status_code=404, detail="Read-along MP3 is unavailable. Build the sidecar first.")
     try:
-        stream = open(AUDIOBOOK_PATH, "rb")
+        stream = open_export_reader(AUDIOBOOK_PATH)
     except OSError as error:
         raise HTTPException(status_code=404, detail="Read-along MP3 is unavailable. Build the sidecar first.") from error
     try:
@@ -2241,7 +2242,7 @@ async def get_audiobook_m4b():
     if not os.path.exists(M4B_PATH):
         raise HTTPException(status_code=404, detail="M4B audiobook not found. Export it first.")
     require_scope_export_current(DATA_DIR, M4B_PATH)
-    return FileResponse(M4B_PATH, filename="audiobook.m4b", media_type="audio/mp4")
+    return ExportFileResponse(M4B_PATH, filename="audiobook.m4b", media_type="audio/mp4")
 
 def _apply_m4b_cover(cover_tmp, cover_path):
     """Validate uploaded image data before publishing an MP4-compatible cover."""

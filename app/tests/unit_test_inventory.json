@@ -5210,6 +5210,16 @@
     "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_changed_or_unverified_selected_audio_refuses_before_export",
     "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_verified_copy_remains_valid_when_original_changes_after_copy"
   ],
+  "test_export_download_sharing": [
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_cancelled_open_closes_the_late_native_result",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_disconnect_and_cancellation_close_the_native_descriptor",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_failed_descriptor_wrapping_closes_its_owned_descriptor",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_head_ranges_if_range_and_pathsend_keep_the_pinned_generation",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_multiple_readers_keep_old_identity_while_new_output_keeps_source_identity",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_readers_keep_original_bytes_during_replace_and_backup_publication",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_refused_alias_or_hardlink_never_enters_native_replacement",
+    "tests.test_export_download_sharing.ExportDownloadSharingTests.test_refused_publication_preserves_old_and_pending_bytes"
+  ],
   "test_export_frame_timeline": [
     "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_mixed_rate_timeline_preserves_incremental_resampling",
     "tests.test_export_frame_timeline.ExportFrameTimelineTests.test_pause_rounding_and_layout_promotion_follow_actual_pcm",

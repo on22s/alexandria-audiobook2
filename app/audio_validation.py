@@ -7,6 +7,7 @@ from pathlib import Path
 import struct
 import unicodedata
 from utils import file_lock
+from export_file_io import replace_export_output
 
 
 class GeneratedAudioError(RuntimeError):
@@ -112,7 +113,7 @@ def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_ch
             os.replace(staging_path, name, src_dir_fd=source_dir_fd, dst_dir_fd=destination_dir_fd)
             _RAW_ENCODING_CHECKS[1](name, source_fd, source_version, destination_dir_fd)
         else:
-            os.replace(staging_path, output_path)
+            replace_export_output(staging_path, output_path)
         return True
 
 

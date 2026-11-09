@@ -6,6 +6,7 @@ from audio_take_history import _open_regular, _version
 from pcm_worker_contract import MAX_PCM_BYTES
 from project_scope_files import capture_scope_file
 from sound_design_cues import _require_digest, _require_choice
+from export_file_io import open_export_reader
 
 
 class SoundDeliveryStream:
@@ -46,7 +47,7 @@ def open_sound_delivery(root, format_name, sha256):
     facts, _ = capture_scope_file(root,filename,limit=MAX_PCM_BYTES)
     if not facts['exists'] or facts['sha256'] != sha256:
         raise ValueError('Sound delivery is missing or changed; export again')
-    stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES)
+    stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES,opener=open_export_reader)
     try:
         if list(_version(before)) != facts['file_version']:
             raise ValueError('Sound delivery changed before opening')

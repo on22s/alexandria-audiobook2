@@ -32,6 +32,7 @@ from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_in
 from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_path,
                                   get_chunk_audio_key)
 from adapter_publication import sync_adapter_directory
+from export_file_io import replace_export_output
 from config_settings import load_app_config
 from export_limits import ensure_legacy_pcm_allowed
 from lora_evidence import get_tts_model_settings
@@ -2534,7 +2535,7 @@ class ProjectManager:
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
-                os.replace(pending_output, output_path)
+                replace_export_output(pending_output, output_path)
             quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, output_filename, quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
@@ -2859,7 +2860,7 @@ class ProjectManager:
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
-                os.replace(pending_output, output_path)
+                replace_export_output(pending_output, output_path)
             quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, 'audiobook.m4b', quality_report, export_quality_callback)
             if mastering_report and mastering_callback:

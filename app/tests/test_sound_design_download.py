@@ -1,5 +1,6 @@
 """Digest-bound, descriptor-pinned download and mutation refusal."""
 import hashlib
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -35,12 +36,16 @@ class SoundDeliveryDownloadTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);raw=b'approved bytes';path=root/'mixed_audiobook.m4b';path.write_bytes(raw)
             stream,_,_=open_sound_delivery(root,'m4b',hashlib.sha256(raw).hexdigest())
-            replacement=root/'replacement';replacement.write_bytes(b'different bytes');replacement.replace(path)
+            replacement=root/'replacement';replacement.write_bytes(b'different bytes')
             try:
+                from audio_validation import publish_audio_output
+                self.assertTrue(publish_audio_output(replacement,path))
                 # Hosts may update the unlinked inode's change time. Either
                 # refuse that mutation or finish the already pinned old bytes.
                 try:self.assertEqual(raw,stream.read(65536))
-                except ValueError:pass
+                except ValueError:
+                    if os.name == 'nt':
+                        raise
             finally:stream.close()
             self.assertEqual(b'different bytes',path.read_bytes())
 
