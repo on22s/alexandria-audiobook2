@@ -2,6 +2,7 @@
 import io
 import zipfile
 import unittest
+import xml.etree.ElementTree as ET
 
 from epub_readaloud import (build_epub_readaloud, map_spine_to_chunks,
                             validate_epub_readaloud, get_xhtml_segments)
@@ -69,6 +70,75 @@ def _script_entries():
 
 
 class EpubReadaloudTests(unittest.TestCase):
+    def test_mapping_retains_original_segment_indexes_after_wordless_segments(self):
+        segments = [{"fragment": None, "text": text}
+                    for text in ("—", "Same words", "***", "Same words", "…")]
+        entries = [{"index": position, "prepared_text": "Same words",
+                    "start_frame": position * 24000, "end_frame": (position + 1) * 24000,
+                    "sample_rate": 24000} for position in range(2)]
+        mapping, cursor = map_spine_to_chunks(segments, entries, require_full_coverage=True)
+        self.assertEqual([1, 3], [row["segment_index"] for row in mapping])
+        self.assertEqual([[0], [1]], [row["chunk_indexes"] for row in mapping])
+        self.assertEqual(2, cursor)
+
+    def test_wordless_separators_preserve_spoken_element_targets(self):
+        xhtml_namespace = '{http://www.w3.org/1999/xhtml}'
+        smil_namespace = '{http://www.w3.org/ns/SMIL}'
+        for existing_ids in (False, True):
+            for texts in (("Hello world", "Goodbye now"), ("Same words", "Same words")):
+                for placement in ('leading', 'between', 'both'):
+                    with self.subTest(existing_ids=existing_ids, texts=texts, placement=placement):
+                        paragraphs = [(texts[0], 0), (texts[1], 1)]
+                        if placement in ('between', 'both'):
+                            paragraphs.insert(1, ('***', None))
+                        if placement in ('leading', 'both'):
+                            paragraphs.insert(0, ('—', None))
+                        if placement == 'both':
+                            paragraphs.append(('…', None))
+                        body = '<span id="aa2-p-0001"></span>'
+                        for position, (text, spoken) in enumerate(paragraphs):
+                            attributes = f' id="source-{position}"' if existing_ids else ''
+                            if spoken is not None:
+                                attributes += f' data-spoken="{spoken}"'
+                            body += f'<p{attributes}>{text}</p>'
+                        chapter = ('<html xmlns="http://www.w3.org/1999/xhtml">'
+                                   '<head><title>Synthetic</title></head><body>' + body + '</body></html>')
+                        source_buffer = io.BytesIO()
+                        with zipfile.ZipFile(io.BytesIO(_make_source_epub())) as source, \
+                                zipfile.ZipFile(source_buffer, 'w') as retained:
+                            for member in source.infolist():
+                                raw = chapter.encode('utf-8') if member.filename == 'OEBPS/ch1.xhtml' else source.read(member)
+                                retained.writestr(member, raw)
+                        spoken_texts = [*texts, 'Chapter Two', 'Final synthetic paragraph.']
+                        entries = [{"index": position, "prepared_text": text,
+                                    "start_frame": position * 24000, "end_frame": (position + 1) * 24000,
+                                    "sample_rate": 24000} for position, text in enumerate(spoken_texts)]
+                        result, _ = build_epub_readaloud(retained_epub_bytes=source_buffer.getvalue(),
+                            audio_bytes=b'synthetic-audio-not-decoded', audio_filename='audiobook.mp3',
+                            script_entries=entries)
+                        self.assertEqual(2, validate_epub_readaloud(result)['smil_files'])
+                        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+                            document = ET.fromstring(archive.read('OEBPS/ch1.xhtml'))
+                            smil = ET.fromstring(archive.read('OEBPS/ch1.smil'))
+                        elements = document.findall('.//' + xhtml_namespace + 'p')
+                        by_id = {element.get('id'): element for element in document.iter() if element.get('id')}
+                        pairs = smil.findall('.//' + smil_namespace + 'par')
+                        self.assertEqual(2, len(pairs))
+                        expected_elements = [element for element in elements if element.get('data-spoken') is not None]
+                        for position, pair in enumerate(pairs):
+                            path, fragment = pair.find(smil_namespace + 'text').get('src').split('#')
+                            self.assertEqual('ch1.xhtml', path)
+                            self.assertIs(expected_elements[position], by_id[fragment])
+                            self.assertEqual(texts[position], ''.join(by_id[fragment].itertext()))
+                            audio = pair.find(smil_namespace + 'audio')
+                            self.assertEqual(f'00:00:0{position}.000', audio.get('clipBegin'))
+                            self.assertEqual(f'00:00:0{position + 1}.000', audio.get('clipEnd'))
+                        for position, element in enumerate(elements):
+                            if existing_ids:
+                                self.assertEqual(f'source-{position}', element.get('id'))
+                            elif element.get('data-spoken') is None:
+                                self.assertIsNone(element.get('id'))
+
     def test_roundtrip_preserves_spine_metadata_and_validates(self):
         source = _make_source_epub()
         audio = b"\xff\xfbFAKE-MP3-BYTES"
