@@ -59,6 +59,25 @@ const dateRow=document.getElementById('date-order-row');dateRow.hidden=true;cont
 const datePosts=posts.length;await context.saveDateOrder();assert.equal(posts.length,datePosts);
 ''')
 
+    def test_late_date_order_reply_cannot_paint_or_save_after_book_switch(self):
+        # #1805: Book A's pending date-order load resolves after the switch to B.
+        self.run_js(r'''
+const reply=(token,choice)=>({book_token:token,choice,order:null,evidence:{source:'book_dates',detail:{ambiguous_dates:1}}});
+const A='a'.repeat(64),B='b'.repeat(64);let release;context.API.get=()=>new Promise(resolve=>release=resolve);
+const late=context.loadDateOrder();await tick();
+context.currentBookFilename='B';context.resetPronunciationBook();
+const status=document.getElementById('date-order-status').textContent;
+release(reply(A,'dmy'));await late;
+assert.equal(run('dateOrderBook'),null,'late A reply set the save token');
+assert.equal(document.getElementById('date-order-status').textContent,status,'late A reply repainted the status');
+const datePosts=posts.length;await context.saveDateOrder();assert.equal(posts.length,datePosts,'saved with no current token');
+context.API.get=async()=>reply(B,'mdy');await context.loadDateOrder();
+assert.equal(run('dateOrderBook'),B,'B load was blocked after the switch');assert.equal(document.getElementById('date-order-choice').value,'mdy');
+context.API.post=(url,data)=>{posts.push({url,data});return new Promise(resolve=>release=resolve);};
+const save=context.saveDateOrder();await tick();assert.equal(posts.at(-1).data.expected_book_token,B);
+context.resetPronunciationBook();release(reply(B,'dmy'));await save;assert.equal(run('dateOrderBook'),null,'late save reply repainted after a switch');
+''')
+
     def test_multiline_native_value_normalization_preserves_unedited_raw_rules(self):
         self.run_js(r'''
 context.API.get=async()=>({names:{'A\r\nB':'Ay\r\nBee'},revision:'a'.repeat(64)});
