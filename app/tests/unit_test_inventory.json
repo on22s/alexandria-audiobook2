@@ -6748,6 +6748,16 @@
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_sha256_repository_link_uses_its_own_oid_width",
     "tests.test_legacy_attribution_audit.LegacyAttributionAuditTests.test_target_that_is_a_link_on_disk_but_regular_in_git_is_refused"
   ],
+  "test_legacy_batch_cleanup": [
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_engine_partial_write_then_raise_cleans_owned_temps",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_later_batch_failure_preserves_earlier_publication_and_future_temp",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_partial_write_with_absent_stage_stays_quiet",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_permanent_deletion_denial_retains_original_and_attempts_other_paths",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_refused_row_temp_is_not_deleted_by_failure_cleanup",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_registered_output_is_not_handed_to_legacy_remover",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_secondary_cleanup_exception_warns_and_preserves_original",
+    "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_stale_insert_edit_during_failing_batch_preserves_live_rows"
+  ],
   "test_legacy_voice_save_identity": [
     "tests.test_legacy_voice_save_identity.LegacyVoiceSaveIdentityTests.test_rejected_saves_preserve_config_and_audio",
     "tests.test_legacy_voice_save_identity.LegacyVoiceSaveIdentityTests.test_script_api_bound_save_through_http"

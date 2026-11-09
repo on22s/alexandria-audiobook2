@@ -4106,6 +4106,17 @@ class ProjectManager:
                         for idx in batch_indices:
                             self._remove_batch_temp_file(idx)
                         break
+                    # Retire only this batch's admitted legacy stages. Rows
+                    # refused during preparation never reached batch_chunks,
+                    # so their temp slots are not ours to delete; registered
+                    # outputs are skipped inside the helper. Cleanup is
+                    # best-effort and must never mask the original exception.
+                    for row in batch_chunks:
+                        try:
+                            self._remove_batch_temp_file(row["index"])
+                        except Exception as cleanup_error:
+                            logger.warning(f"Warning: could not retire failed batch temp file for chunk {row['index']}: {cleanup_error!r}")
+                            continue
                     self._reset_captured_generations(captured, indices, set())
                     raise
                 if is_audio_generation_cancelled():
