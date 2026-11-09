@@ -228,10 +228,9 @@
           el.textContent = 'Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).';
         }
       }
-      var buildBtn = channel.buildBtnId ? document.getElementById(channel.buildBtnId) : null;
-      if (buildBtn) { buildBtn.disabled = false; }
-      var cancelBtn = channel.cancelId ? document.getElementById(channel.cancelId) : null;
-      if (cancelBtn) { cancelBtn.style.display = 'none'; }
+      // Clears channel.busy too: the fenced old callbacks can no longer
+      // run their own setBusy(false), so admission would stay stuck (#1808).
+      setBusy(channel, false);
     });
   }
 
