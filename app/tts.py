@@ -3857,7 +3857,7 @@ class TTSEngine:
         from concurrent.futures import TimeoutError as FutureTimeout
         import time
         results = {"completed": [], "failed": []}
-        if not chunks:
+        if not chunks or is_audio_generation_cancelled():
             return results
         generate = {
             "custom": lambda c, out, ep, cancelled: self._external_generate_custom(
@@ -3871,6 +3871,13 @@ class TTSEngine:
         capture_inputs = is_speech_input_capture_active()
 
         remove_staging_audio = _remove_staging_audio
+
+        def cancel_pending():
+            for pending in futures.values():
+                pending[1].set()
+            for pending in futures.values():
+                pending[0].cancel()
+                remove_staging_audio(pending[2])
 
         def render_to_staging(chunk, staging_path, endpoint, cancelled, deadline):
             try:
@@ -3887,6 +3894,9 @@ class TTSEngine:
 
         try:
             for chunk in chunks:
+                if is_audio_generation_cancelled():
+                    cancel_pending()
+                    return results
                 idx = chunk["index"]
                 output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
                 staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
@@ -3897,7 +3907,24 @@ class TTSEngine:
                 futures[idx] = (future, cancelled, staging_path, output_path, deadline)
             for idx, (future, cancelled, staging_path, output_path, deadline) in futures.items():
                 try:
-                    success, finished_at, speech_input = future.result(timeout=max(0, deadline - time.monotonic()))
+                    while True:
+                        if is_audio_generation_cancelled():
+                            cancel_pending()
+                            return results
+                        try:
+                            success, finished_at, speech_input = future.result(
+                                timeout=min(.1, max(0, deadline - time.monotonic())))
+                            break
+                        except FutureTimeout:
+                            if future.done():
+                                error = future.exception()
+                                if error is not None:
+                                    raise error
+                            if time.monotonic() >= deadline:
+                                raise
+                    if is_audio_generation_cancelled():
+                        cancel_pending()
+                        return results
                     if finished_at > deadline:
                         raise FutureTimeout()
                 except FutureTimeout:
@@ -3934,10 +3961,7 @@ class TTSEngine:
                         message += f"; {cleanup_error}"
                     results["failed"].append((idx, message))
         except BaseException:
-            for future, cancelled, staging_path, _, _ in futures.values():
-                cancelled.set()
-                future.cancel()
-                remove_staging_audio(staging_path)
+            cancel_pending()
             raise
         return results
 

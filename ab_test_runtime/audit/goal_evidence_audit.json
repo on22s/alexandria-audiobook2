@@ -1050,18 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T05:19:20",
+  "written": "2026-11-09T06:13:15",
   "host": "RealMitch",
   "git": {
-   "commit": "dbc656da38e63997c20229b0013e9bcf49fa118b",
-   "branch": "fix/1814-sound-cue-authoring-clock",
+   "commit": "df3724cb94c4267909100359c62fdef8188166d7",
+   "branch": "fix/1813-external-batch-cancellation",
    "dirty": true,
-   "source_state": "dirty:fb80f5126955",
+   "source_state": "dirty:e19feda2607f",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/static/js/app-sound-cues.js",
-    "M  app/tests/test_sound_design_cue_api.py",
-    "M  docs/sound-design.md"
+    "A  app/tests/test_external_batch_cancellation.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  app/tts.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

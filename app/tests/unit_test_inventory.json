@@ -5430,6 +5430,14 @@
     "tests.test_export_task_results.ExportTaskResultTests.test_native_http_success_failure_exception_and_cancellation_have_results",
     "tests.test_export_task_results.ExportTaskResultTests.test_real_audacity_archive_and_chapter_pcm_match_native_success_results"
   ],
+  "test_external_batch_cancellation": [
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_already_cancelled_owner_submits_no_provider_work",
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_cancelled_collection_preserves_already_published_partial_results",
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_cancelled_collection_signals_running_and_cancels_queued_custom_and_clone_work",
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_provider_timeout_is_not_retried_as_a_wait_slice_timeout",
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_slice_timeout_does_not_discard_a_concurrently_completed_result",
+    "tests.test_external_batch_cancellation.ExternalBatchCancellationTests.test_slice_timeout_preserves_a_concurrent_provider_failure_message"
+  ],
   "test_external_batch_deadlines": [
     "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_actual_partial_copy_failure_cleans_all_private_files_and_preserves_published_audio",
     "tests.test_external_batch_deadlines.ExternalBatchDeadlineTests.test_completed_in_time_later_request_survives_an_earlier_timeout",
