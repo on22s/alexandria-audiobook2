@@ -152,11 +152,17 @@ class VoiceConfigItem(BaseModel):
     @field_validator("adapter_generation_sha256")
     @classmethod
     def validate_adapter_generation(cls, value):
-        if value is None:
-            return value
-        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
-            raise ValueError("adapter_generation_sha256 must be 64 lowercase hex characters or null")
+        return get_validated_adapter_generation(value)
+
+
+def get_validated_adapter_generation(value):
+    """-> the adapter generation pin, or ValueError. The one pin rule for a
+    top-level entry and for a version overlaid on it (#1804)."""
+    if value is None:
         return value
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise ValueError("adapter_generation_sha256 must be 64 lowercase hex characters or null")
+    return value
 
 BOOK_TOKEN_PATTERN = r"^[0-9a-f]{64}$"
 
@@ -526,6 +532,17 @@ def _validate_consumed_description(speaker, entry):
                 "restore the saved voice configuration before continuing.")
 
 
+def _validate_version_overlay(speaker, overlaid):
+    """Refuse a version whose fields, overlaid on the entry, carry a consumed
+    value the top-level save refuses (#1804): a malformed custom/design
+    description or adapter generation pin. -> HTTP 422."""
+    try:
+        _validate_consumed_description(speaker, overlaid)
+        get_validated_adapter_generation(overlaid.get("adapter_generation_sha256"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Voice version for '{speaker}' is invalid: {exc}") from exc
+
+
 def get_voice_rows(script_data, voice_config):
     """Build one backend eligibility/roster view for legacy and guarded reads."""
     # Most-spoken characters first (owner, 2026-10-09): the same order casting
@@ -718,6 +735,7 @@ async def save_voice_version(speaker: str, request: VoiceVersionRequest):
         age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
         updated = {**current, "versions": {**_versions,
                     request.version_id: {**config, "age_group": age}}}
+        _validate_version_overlay(speaker, {**current, **get_version_fields(updated, request.version_id)})
         get_validated_voice_changes(speaker, current, updated)
         current["versions"] = updated["versions"]
     entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save_version, request.book_token)
@@ -762,6 +780,7 @@ async def select_voice_version(speaker: str, version_id: str, request: VoiceBook
                     entry.get("type") or "custom", entry.get("adapter_id"),
                     after.get("type") or "custom", after.get("adapter_id")):
                 after["adapter_generation_sha256"] = None
+        _validate_version_overlay(speaker, after)
         get_validated_voice_changes(speaker, entry, after)
         entry.clear()
         entry.update(after)
