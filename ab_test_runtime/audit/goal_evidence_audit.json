@@ -1050,26 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T09:07:58",
+  "written": "2026-11-09T09:30:44",
   "host": "RealMitch",
   "git": {
-   "commit": "546653ad7b22277e4c04d9d772d6e48c82dde8a7",
+   "commit": "68c592e7ea9f7db5dd2b953d56933db658c34d76",
    "branch": "fix/1812-native-batch-voice-seeds",
    "dirty": true,
-   "source_state": "dirty:9cddc67cf043",
+   "source_state": "dirty:ba4e12b3f71b",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/api_contract/openapi.json",
-    "M  app/project.py",
-    "M  app/repair_voice_config.py",
-    "M  app/routers/editor.py",
-    "M  app/static/index.html",
-    "M  app/static/js/app-core.js",
-    "A  app/tests/test_native_batch_saved_seeds.py",
-    "M  app/tests/test_voice_seed_repair_ui.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/tts.py",
-    "M  docs/wiki/Batch-Generation.md"
+    "M  app/tests/test_pronunciation_dispatch.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

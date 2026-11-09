@@ -32,6 +32,10 @@ class PronunciationDispatchTests(unittest.TestCase):
                     seen = []
                     previous_torch = sys.modules.get('torch')
                     torch = get_torch()
+                    def assert_saved_seed():
+                        if kind != 'ensemble':
+                            torch.manual_seed.assert_called_once_with(0)
+                        torch.manual_seed.reset_mock()
                     lazy_provider = ModuleType(lazy_name)
                     def synth(**kwargs):
                         # A real lazy dependency can initialize during synthesis.
@@ -72,6 +76,7 @@ class PronunciationDispatchTests(unittest.TestCase):
                         stack.enter_context(patch.object(tts, '_resolve_asset_path', side_effect=lambda p: str(root / p)))
                         self.assertEqual(expected, tts.get_speech_preparation(source)['text'])
                         self.assertTrue(engine.generate_voice(source, 'Calm.', 'A', config, str(root / 'single.wav')))
+                        assert_saved_seed()
                         if kind == 'custom':
                             success = engine.generate_custom_voice(source, 'Calm.', 'A', config, str(root / 'direct.wav'))
                         elif kind == 'clone':
@@ -81,15 +86,14 @@ class PronunciationDispatchTests(unittest.TestCase):
                         else:
                             success = getattr(engine, f'generate_{kind}_voice')(source, 'Calm.', config['A'], str(root / 'direct.wav'))
                         self.assertTrue(success)
+                        assert_saved_seed()
                         result = engine.generate_batch(chunks, config, tmp)
+                        assert_saved_seed()
                     self.assertIs(sys.modules.get(lazy_name), lazy_provider)
                     self.assertIs(sys.modules.get('torch'), previous_torch)
                     self.assertEqual([0], result['completed'])
                     self.assertEqual([], result['failed'])
                     self.assertEqual([expected] * 3, seen)
-                    if kind != 'ensemble':
-                        seeded_calls = 3 if kind == 'design' else 2
-                        self.assertEqual([((0,), {})] * seeded_calls, torch.manual_seed.call_args_list)
                     self.assertEqual(before, (config, chunks))
                     for name in ('single.wav', 'direct.wav', 'temp_batch_0.wav'):
                         self.assertGreater(sf.info(root / name).frames, 0)
