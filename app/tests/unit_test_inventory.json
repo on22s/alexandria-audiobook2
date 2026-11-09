@@ -5439,6 +5439,16 @@
     "tests.test_external_finite_audio.ExternalFiniteSampleTests.test_finite_float_response_is_published_without_reencoding",
     "tests.test_external_finite_audio.ExternalFiniteSampleTests.test_nonfinite_samples_in_later_block_preserve_prior_take_and_clean_staging"
   ],
+  "test_external_single_cleanup": [
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_absent_staging_cleanup_stays_quiet",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_base_exception_sentinel_survives_cleanup_oserror",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_batch_cleanup_diagnostic_shape_retained",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_healthy_single_publishes_valid_wav",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_native_timeout_keeps_timeout_and_retires_staging",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_provider_failure_not_masked_by_cleanup_oserror",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_retry_budget_constrains_single_timeout",
+    "tests.test_external_single_cleanup.ExternalSingleCleanupTests.test_simulated_cleanup_oserror_keeps_timeout_primary"
+  ],
   "test_external_tts_capabilities": [
     "tests.test_external_tts_capabilities.CapabilityReportTests.test_alias_endpoints_and_parameter_aliases_are_supported",
     "tests.test_external_tts_capabilities.CapabilityReportTests.test_bad_operation_does_not_poison_valid_sibling_and_optional_unknown_defaults_are_omitted",
