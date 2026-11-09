@@ -8,7 +8,6 @@ queued slots are preserved. Registered workspace outputs are never handed to
 the legacy remover (their retirement is identity-based and separate).
 """
 import contextlib
-import hashlib
 import io
 import os
 from pathlib import Path
@@ -308,6 +307,106 @@ class LegacyBatchCleanupTests(unittest.TestCase):
             self.assertTrue((root / "temp_batch_0.wav").exists())
             saved = manager.load_chunks()
             self.assertEqual(["pending", "pending"], [saved[i]["status"] for i in (0, 1)])
+
+    def test_reset_failure_does_not_mask_original_engine_error(self):
+        # A secondary failure in the post-failure state reset must warn and
+        # preserve the original engine exception (identity + traceback).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = self.get_manager(root)
+            published = self.publish_prior(manager, root, (0, 1))
+            error = RuntimeError("synthetic engine failure")
+            secondary = OSError("synthetic reset failure")
+
+            def batch(chunks, config, output, seed):
+                for row in chunks:
+                    _write_wav(Path(output) / ("temp_batch_%d.wav" % row["index"]), row["text"])
+                raise error
+
+            manager.engine = SimpleNamespace(generate_batch=batch)
+            with patch.object(manager, "_reset_captured_generations", side_effect=secondary), \
+                    self.assertLogs("project", level="WARNING") as logs, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(RuntimeError) as ctx:
+                    manager.generate_chunks_batch([0, 1], batch_size=2)
+            self.assertIs(error, ctx.exception)
+            warnings = [line for line in logs.output if "reset" in line]
+            self.assertEqual(1, len(warnings), logs.output)
+            self.assertIn("OSError", warnings[0])
+            # Owned temps retired before the reset seam failed; published
+            # audio bytes and references intact.
+            self.assertFalse((root / "temp_batch_0.wav").exists())
+            self.assertFalse((root / "temp_batch_1.wav").exists())
+            for rel, data in published.items():
+                self.assertEqual(data, (root / rel).read_bytes())
+            # The reset never completed, so no reset success is claimed:
+            # rows remain in their pre-reset generating state.
+            saved = manager.load_chunks()
+            self.assertEqual(["generating", "generating"], [saved[i]["status"] for i in (0, 1)])
+
+    def test_admission_failure_defers_retirement_and_preserves_original(self):
+        # Under failed admission the cancellation predicate's authority is
+        # UNKNOWN: retirement and reset must be deferred (fail closed), the
+        # secondary admission error warned about, and the original engine
+        # exception preserved. The live predicate is unpatched; a real typed
+        # owner admit callback breaks only after the engine has written.
+        from audio_generation_owner import AudioGenerationOwner, ensure_audio_generation_owner
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager = self.get_manager(root)
+            published = self.publish_prior(manager, root, (0, 1))
+            error = RuntimeError("synthetic engine failure")
+            secondary = OSError("synthetic admission failure")
+            broken = []
+            calls = {"remove": [], "reset": []}
+
+            @contextlib.contextmanager
+            def admit(**kwargs):
+                if broken:
+                    raise secondary
+                yield
+
+            def batch(chunks, config, output, seed):
+                for row in chunks:
+                    _write_wav(Path(output) / ("temp_batch_%d.wav" % row["index"]), row["text"])
+                broken.append(True)
+                raise error
+
+            manager.engine = SimpleNamespace(generate_batch=batch)
+
+            def recording_remove(idx):
+                calls["remove"].append(idx)
+                raise AssertionError("legacy remover called under unknown admission")
+
+            def recording_reset(*args, **kwargs):
+                calls["reset"].append(args)
+                raise AssertionError("state reset called under unknown admission")
+
+            with ensure_audio_generation_owner(AudioGenerationOwner("a" * 32, admit)), \
+                    patch.object(manager, "_remove_batch_temp_file", side_effect=recording_remove), \
+                    patch.object(manager, "_reset_captured_generations", side_effect=recording_reset), \
+                    self.assertLogs("project", level="WARNING") as logs, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(RuntimeError) as ctx:
+                    manager.generate_chunks_batch([0, 1], batch_size=2)
+                self.assertIs(error, ctx.exception)
+                warnings = [line for line in logs.output if "admission" in line]
+                self.assertEqual(1, len(warnings), logs.output)
+                self.assertIn("OSError", warnings[0])
+                # Fail closed: no unlink, no reset under unknown authority.
+                self.assertEqual([], calls["remove"])
+                self.assertEqual([], calls["reset"])
+                # Owned stages remain explicitly deferred for a later safe
+                # attempt; published audio intact.
+                self.assertTrue((root / "temp_batch_0.wav").exists())
+                self.assertTrue((root / "temp_batch_1.wav").exists())
+                for rel, data in published.items():
+                    self.assertEqual(data, (root / rel).read_bytes())
+                saved = manager.load_chunks()
+                self.assertEqual(set(published), {saved[i]["audio_path"] for i in (0, 1)})
+            # The TemporaryDirectory fixture retires the deferred residual
+            # after the owner context has exited.
 
     def test_registered_output_is_not_handed_to_legacy_remover(self):
         # Real synthesis_recovery_context binding/owner fixtures: while a

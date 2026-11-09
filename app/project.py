@@ -4102,22 +4102,37 @@ class ProjectManager:
                             **({'capture_input':True} if publication_admissions else {}))
                             if batch_chunks and not is_audio_generation_cancelled() else {"completed": [], "failed": []})
                 except Exception:
-                    if is_audio_generation_cancelled():
+                    try:
+                        cancelled = is_audio_generation_cancelled()
+                    except Exception as admission_error:
+                        # Unknown admission authority: never infer success or
+                        # cancellation, and never unlink or reset under failed
+                        # admission. Stages stay deferred; the original error
+                        # is re-raised below with a secondary warning.
+                        logger.warning(f"Warning: audio generation admission failed during failed batch cleanup; deferring legacy temp retirement and state reset: {admission_error!r}")
+                        cancelled = None
+                    if cancelled:
                         for idx in batch_indices:
                             self._remove_batch_temp_file(idx)
                         break
-                    # Retire only this batch's admitted legacy stages. Rows
-                    # refused during preparation never reached batch_chunks,
-                    # so their temp slots are not ours to delete; registered
-                    # outputs are skipped inside the helper. Cleanup is
-                    # best-effort and must never mask the original exception.
-                    for row in batch_chunks:
+                    if cancelled is None:
+                        pass
+                    else:
+                        # Retire only this batch's admitted legacy stages. Rows
+                        # refused during preparation never reached batch_chunks,
+                        # so their temp slots are not ours to delete; registered
+                        # outputs are skipped inside the helper. Cleanup is
+                        # best-effort and must never mask the original exception.
+                        for row in batch_chunks:
+                            try:
+                                self._remove_batch_temp_file(row["index"])
+                            except Exception as cleanup_error:
+                                logger.warning(f"Warning: could not retire failed batch temp file for chunk {row['index']}: {cleanup_error!r}")
+                                continue
                         try:
-                            self._remove_batch_temp_file(row["index"])
-                        except Exception as cleanup_error:
-                            logger.warning(f"Warning: could not retire failed batch temp file for chunk {row['index']}: {cleanup_error!r}")
-                            continue
-                    self._reset_captured_generations(captured, indices, set())
+                            self._reset_captured_generations(captured, indices, set())
+                        except Exception as reset_error:
+                            logger.warning(f"Warning: could not reset generating state after failed batch: {reset_error!r}")
                     raise
                 if is_audio_generation_cancelled():
                     for idx in batch_indices:
