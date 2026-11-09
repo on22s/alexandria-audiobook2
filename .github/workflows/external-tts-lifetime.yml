@@ -5,6 +5,11 @@ on:
       - 'app/external_tts_*.py'
       - 'app/tts.py'
       - 'app/project.py'
+      - 'app/audio_generation_owner.py'
+      - 'app/synthesis_recovery_context.py'
+      - 'app/synthesis_workspace.py'
+      - 'app/chunk_status_journal.py'
+      - 'app/gpu_stats.py'
       - 'app/subprocess_ownership.py'
       - 'app/tests/test_external_tts_*.py'
       - 'app/tests/test_external_single_cleanup.py'
@@ -12,6 +17,7 @@ on:
       - 'app/dataset_metadata.py'
       - 'app/tests/test_external_finite_audio.py'
       - 'app/tests/test_legacy_batch_cleanup.py'
+      - 'app/tests/test_chunk_generation_identity.py'
       - '.github/workflows/external-tts-lifetime.yml'
 permissions:
   contents: read
@@ -33,19 +39,56 @@ jobs:
           python-version: '3.10'
       - name: Install CPU transport and audio dependencies
         run: python -m pip install 'numpy==2.2.6' 'soundfile==0.14.0' 'pydub==0.25.1' 'gradio_client==2.0.3' 'pydantic==2.12.5'
-      - name: Install FFmpeg on Linux
+      - name: Detect Linux decoder dependencies
+        id: codec-deps
         if: runner.os == 'Linux'
         run: |
-          if ! command -v ffmpeg || ! command -v ffprobe; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends ffmpeg
+          set -euo pipefail
+          . /etc/os-release
+          printf 'image=%s-%s\n' "$ID" "$VERSION_ID" >> "$GITHUB_OUTPUT"
+          if command -v ffmpeg && command -v ffprobe; then
+            printf 'needed=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'needed=true\n' >> "$GITHUB_OUTPUT"
           fi
+      - name: Cache FFmpeg packages on Linux
+        if: runner.os == 'Linux' && steps.codec-deps.outputs.needed == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/apt-archives
+          key: apt-ffmpeg-${{ steps.codec-deps.outputs.image }}-v1
+      - name: Install FFmpeg on Linux
+        if: runner.os == 'Linux' && steps.codec-deps.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          # Reuse the package cache and retry policy from tests.yml.
+          mkdir -p ~/apt-archives/partial
+          if ls ~/apt-archives/*.deb >/dev/null 2>&1; then
+            sudo dpkg -i ~/apt-archives/*.deb || sudo apt-get install -f -y
+          else
+            for attempt in 1 2 3; do
+              if sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+                  -o Dir::Cache::archives="$HOME/apt-archives" ffmpeg; then
+                break
+              fi
+              echo "FFmpeg package setup attempt $attempt failed; retrying"
+              sleep "$((attempt * 10))"
+            done
+            sudo chown -R "$USER" ~/apt-archives
+            rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          fi
+          command -v ffmpeg
+          command -v ffprobe
       - name: Install FFmpeg on macOS
         if: runner.os == 'macOS'
         run: command -v ffmpeg && command -v ffprobe || brew install ffmpeg
       - name: Install FFmpeg on Windows
         if: runner.os == 'Windows'
-        run: choco install ffmpeg --no-progress -y
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or
+              -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --no-progress -y
+          }
       - name: Verify audio decoder executables
         run: python -c "import shutil, subprocess; paths = [shutil.which(name) for name in ('ffmpeg', 'ffprobe')]; assert all(paths), paths; [subprocess.run([path, '-version'], check=True) for path in paths]"
       - name: Verify native owned SDK and engine lifetime
