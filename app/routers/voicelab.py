@@ -214,6 +214,23 @@ def get_voicelab_zip_files(folder: str) -> list[str]:
             if name.lower().endswith(".zip") and os.path.isfile(os.path.join(folder, name))]
 
 
+def get_voicelab_file_identity(path: str):
+    """-> [size, sha256] of a reviewed input file, or None if it cannot be read.
+
+    Content identity for the preflight token (#1803). Size and mtime are not
+    enough: robocopy, cp -p, rsync -a and unzip preserve the old timestamp, so
+    a same-size replacement could pass. The cost is one full read of every
+    reviewed ZIP and the profiler model per preflight (and again at START)."""
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return [os.path.getsize(path), digest.hexdigest()]
+    except OSError:
+        return None
+
+
 def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     """Build the canonical read-only start decision and sanitized UI report."""
     stages = get_voicelab_stages(request.stages)
@@ -235,16 +252,22 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
         elif not os.path.isdir(zips_dir):
             finding(blockers, "zips_missing", "The input dataset folder does not exist.")
     narrator_count = zip_count = deduped_count = 0
+    zip_identities = []
+    def note_zips(folder, label):
+        names = get_voicelab_zip_files(folder)
+        zip_identities.extend([label, name, get_voicelab_file_identity(os.path.join(folder, name))]
+                              for name in names)
+        return len(names)
     if os.path.isdir(zips_dir):
         for name in os.listdir(zips_dir):
             folder = os.path.join(zips_dir, name)
             if name.startswith("_") or not os.path.isdir(folder):
                 continue
             narrator_count += 1
-            zip_count += len(get_voicelab_zip_files(folder))
+            zip_count += note_zips(folder, name)
         deduped = os.path.join(zips_dir, "_deduped")
         if os.path.isdir(deduped):
-            deduped_count = len(get_voicelab_zip_files(deduped))
+            deduped_count = note_zips(deduped, "_deduped")
         if "train" in stages and "dedup" not in stages and not deduped_count:
             finding(blockers, "dedup_missing", "Training requires deduplicated ZIP files or the dedup stage.")
 
@@ -315,6 +338,9 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     stable = {"stages": stages, "zips_dir": zips_dir, "narrators": narrator_count,
               "rocm_python": rocm if needs_rocm else None,
               "zips": zip_count, "deduped": deduped_count, "interpreter_ok": interpreter_ok,
+              "zip_identities": sorted(zip_identities),
+              "profiler_model_identity": (get_voicelab_file_identity(profiler_model)
+                                          if "profile" in stages and profiler_model else None),
               "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
               "cuda_available": cuda_available, "mps_available": mps_available,
               "missing_deps": missing_deps, "blockers": [item["code"] for item in blockers],

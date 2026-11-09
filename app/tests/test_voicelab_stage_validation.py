@@ -66,6 +66,49 @@ class VoiceLabStageValidationTests(unittest.TestCase):
             self.assertEqual('Review the Voice Lab preflight before starting.', response.json()['detail'])
             claim.assert_not_called()
 
+    def test_same_path_input_replacement_invalidates_the_reviewed_preflight(self):
+        # #1803: same path, same counts, different bytes must change the token,
+        # and START must refuse the old review. An untouched rebuild keeps it.
+        import os
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp, patch.object(v, 'DATA_DIR', tmp):
+            root = Path(tmp)
+            (root / 'Narrator').mkdir(); (root / '_deduped').mkdir()
+            model = root / 'model.gguf'
+            files = {'narrator zip': root / 'Narrator' / 'a.zip', 'deduped zip': root / '_deduped' / 'a.zip',
+                     'profiler model': model}
+            for path in files.values():
+                path.write_bytes(b'original')
+                os.utime(path, ns=(1_000_000_000, 1_000_000_000))
+            cfg = {'zips_dir': tmp, 'rocm_python': sys.executable, 'profiler_model': str(model), 'epub_dirs': []}
+            runtime = {'deps': {'librosa': True, 'peft': True, 'llama_cpp': True},
+                       'gpu': 'fixture', 'vram': [32*1024**3, 1024**3]}
+            def build():
+                request = v.VoiceLabRequest(stages=['quality', 'profile'], zips_dir=tmp, device='cpu')
+                report = v._build_voicelab_preflight(request, cfg)
+                self.assertTrue(report['ready'], report)
+                return report['preflight_id']
+            with patch.object(v, '_probe_voicelab_interpreter', return_value=runtime), \
+                 patch.object(v, '_run_profiler_preflight', return_value=None):
+                reviewed = build()
+                self.assertEqual(reviewed, build(), 'an untouched rebuild must keep the token')
+                for label, path in files.items():
+                    with self.subTest(replaced=label):
+                        before = build()
+                        # Same path, size and counts, and the old timestamp restored,
+                        # as robocopy / cp -p / rsync -a / unzip leave it.
+                        path.write_bytes(b'replaced')
+                        os.utime(path, ns=(1_000_000_000, 1_000_000_000))
+                        self.assertNotEqual(before, build(), f'{label} replacement kept the token')
+                stale = v.VoiceLabRequest(stages=['quality', 'profile'], zips_dir=tmp, device='cpu',
+                                          preflight_id=reviewed)
+                with patch.object(v, '_load_voicelab_config', return_value=cfg), \
+                     patch.object(core, 'claim_gpu_task', side_effect=AssertionError('stale review admitted')):
+                    with self.assertRaises(v.HTTPException) as caught:
+                        asyncio.run(v.voicelab_start(stale, BackgroundTasks()))
+                self.assertEqual(409, caught.exception.status_code)
+                self.assertIn('inputs changed', caught.exception.detail)
+
     def test_canonical_copy_reaches_commands_and_queued_worker_without_input_mutation(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(v, 'DATA_DIR', tmp):
             cfg = {'zips_dir': tmp, 'rocm_python': sys.executable}

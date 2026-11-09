@@ -15427,6 +15427,7 @@
   ],
   "test_voicelab_stage_validation": [
     "tests.test_voicelab_stage_validation.VoiceLabStageValidationTests.test_canonical_copy_reaches_commands_and_queued_worker_without_input_mutation",
+    "tests.test_voicelab_stage_validation.VoiceLabStageValidationTests.test_same_path_input_replacement_invalidates_the_reviewed_preflight",
     "tests.test_voicelab_stage_validation.VoiceLabStageValidationTests.test_unknown_and_empty_stages_fail_before_preflight_or_gpu_work",
     "tests.test_voicelab_stage_validation.VoiceLabStageValidationTests.test_valid_preflight_keeps_existing_token_gate_and_request_unchanged"
   ],
