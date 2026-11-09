@@ -1050,19 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T03:55:55",
+  "written": "2026-11-09T05:19:20",
   "host": "RealMitch",
   "git": {
-   "commit": "7846200cd073d816d1c9afa32745ebeee494aa1f",
-   "branch": "fix/1815-streamed-export-publication",
+   "commit": "dbc656da38e63997c20229b0013e9bcf49fa118b",
+   "branch": "fix/1814-sound-cue-authoring-clock",
    "dirty": true,
-   "source_state": "dirty:d3a9643b0a86",
+   "source_state": "dirty:fb80f5126955",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  .github/workflows/external-tts-lifetime.yml",
-    "M  app/project.py",
-    "A  app/tests/test_legacy_batch_cleanup.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/static/js/app-sound-cues.js",
+    "M  app/tests/test_sound_design_cue_api.py",
+    "M  docs/sound-design.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

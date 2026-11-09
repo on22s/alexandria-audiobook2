@@ -162,7 +162,7 @@ const SoundCues = (() => {
     function edit(parent, rendition = null) {
         if (busy || !view) { return; }
         const form = el('sound-cues-form'); form.replaceChildren();
-        const fields = {}, r = parent?.recipe, rate = r?.frame_rate || 48000;
+        const fields = {}, r = parent?.recipe, displayRate = r?.frame_rate || 1;
         form.append(make('h5', rendition ? `Use recorded master for ${parent.cue_id}` : parent ? `Revise ${parent.cue_id}` : 'New cue'));
         form.append(make('p', 'Saving selects a new revision tied to the chosen current take. Review the dialogue and sound first.'));
         function field(key, label, value, choices = null) {
@@ -187,14 +187,17 @@ const SoundCues = (() => {
         }
         field('kind', 'Sound type', r?.kind || 'effect', [['effect', 'Effect'], ['ambience', 'Ambience']]);
         field('boundary', 'Place at dialogue', r?.boundary || 'start', [['start', 'Start'], ['end', 'End']]);
-        field('offset', 'Offset in seconds (negative means before)', (r?.offset_frames || 0) / rate);
+        const clock = field('rate', 'Cue frame clock in Hz (match the dry dialogue mix)', r?.frame_rate ?? '');
+        clock.min = '1'; clock.max = '192000'; clock.step = '1'; clock.required = true;
+        form.append(make('p', 'Enter the dry dialogue mix sample rate, not the imported sound rate. For multiple dialogue sources, use the highest selected-take rate or 11025 Hz, whichever is higher. If the mix clock changes, explicitly revise this field and save a new revision; saved history is never rescaled.'));
+        field('offset', 'Offset in seconds (negative means before)', (r?.offset_frames || 0) / displayRate);
         field('duration', 'Duration', r?.duration.mode || 'native', [['native', 'Original sound length'], ['fixed', 'Explicit length']]);
-        field('length', 'Explicit length in seconds', (r?.duration.frames || rate) / rate);
-        field('loop', 'Loop crossfade in seconds (0 disables looping; ambience only)', (r?.duration.loop_crossfade_frames || 0) / rate);
+        field('length', 'Explicit length in seconds', (r?.duration.frames || displayRate) / displayRate);
+        field('loop', 'Loop crossfade in seconds (0 disables looping; ambience only)', (r?.duration.loop_crossfade_frames || 0) / displayRate);
         field('gain', 'Sound level in dB (−96 to +24)', r?.mix.gain_db ?? 0);
         field('duck', 'Dialogue reduction in dB (−60 to 0)', r?.mix.duck_db ?? 0);
-        field('fadein', 'Fade in seconds', (r?.mix.fade_in_frames || 0) / rate);
-        field('fadeout', 'Fade out seconds', (r?.mix.fade_out_frames || 0) / rate);
+        field('fadein', 'Fade in seconds', (r?.mix.fade_in_frames || 0) / displayRate);
+        field('fadeout', 'Fade out seconds', (r?.mix.fade_out_frames || 0) / displayRate);
         form.append(button('Review chosen dialogue', () => action(async captured => {
             await anchor(captured, fields.dialogue.value); message('Current dialogue take verified. Saving will bind to this chosen take; audition the mix before delivery.');
         }), 'Verify the chosen dialogue still has a completed selected take.'));
@@ -204,6 +207,8 @@ const SoundCues = (() => {
                 name = fields.name.value; if (!text(name, 128) || !name.trim() || parent && name !== parent.cue_id) { throw new Error('Keep the existing cue name when revising, or create a new cue.'); }
                 selected = assets.find(row => row.asset_id === fields.asset.value); if (!selected) { throw new Error('Choose an imported sound asset.'); }
                 const n = key => { const raw = fields[key].value; if (!raw.trim() || !Number.isFinite(Number(raw))) { throw new Error('Enter valid numbers for cue timing and levels.'); } return Number(raw); };
+                const rate = Number(fields.rate.value);
+                if (!Number.isSafeInteger(rate) || rate < 1 || rate > 192000) { throw new Error('Enter an explicit cue clock from 1 to 192000 Hz matching the dry dialogue mix.'); }
                 const frames = key => Math.round(n(key) * rate), native = fields.duration.value === 'native';
                 if (n('fadein') < 0 || n('fadeout') < 0 || !native && (n('length') <= 0 || n('loop') < 0)) { throw new Error('Duration must be positive; fades and loop crossfade cannot be negative.'); }
                 if (n('loop') !== 0 && (native || fields.kind.value !== 'ambience')) { throw new Error('Looping requires ambience with an explicit length. Set crossfade to 0 to disable it.'); }

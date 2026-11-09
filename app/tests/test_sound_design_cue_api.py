@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import threading
 import unittest
+import wave
 from unittest.mock import patch
 
 import httpx
@@ -58,6 +59,73 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
     def selection(self,metadata,version):
         return dict(context_revision=metadata['context_revision'],registry_revision=metadata['registry_revision'],
                     cue_id='cue',version=version)
+
+    async def ui_clock_request(self, rate, *, revise=False):
+        from tests.test_sound_cues_js import SoundCuesJsTests
+        metadata = await self.metadata()
+        anchor = await self.client.get(BASE+'/anchor', params={
+            'context_revision': metadata['context_revision'], 'chunk_uid': self.row['uid']})
+        self.assertEqual(200, anchor.status_code, anchor.text)
+        assets = await self.client.get('/api/sound_design/assets')
+        self.assertEqual(200, assets.status_code, assets.text)
+        body = f"await ready({json.dumps(metadata)}, {json.dumps(assets.json()['assets'])});"
+        body += "click('Revise');assert.equal(field('rate').value,'48000');" if revise else "click('New cue');field('name').value='cue';"
+        body += f"field('rate').value='{rate}';field('offset').value='0.29';"
+        body += "const pending=click('Save and select revision');"
+        body += f"requests[2].resolve({json.dumps(anchor.json())});await tick();"
+        body += "console.log(requests[3].options.body);requests[3].reject(new Error('fixture stop'));await pending;"
+        return json.loads(SoundCuesJsTests.run_js(self, body))
+
+    async def test_real_ui_explicit_24khz_cue_reaches_candidate_render(self):
+        with wave.open(str(self.audio), 'wb') as stream:
+            stream.setparams((1, 2, 24000, 24000, 'NONE', 'not compressed'))
+            stream.writeframes(b'\x01\x00'*24000)
+        before = {name: (self.root/name).read_bytes() for name in
+                  ('source.txt', 'audio.wav', 'chunks.json', 'annotated_script.json')}
+        payload = await self.ui_clock_request(24000)
+        self.assertEqual(24000, payload['parameters']['frame_rate'])
+        self.assertEqual(6960, payload['parameters']['offset_frames'])
+        saved = await self.client.post(BASE+'/revise', json=payload)
+        self.assertEqual(200, saved.status_code, saved.text)
+        metadata = await self.metadata()
+        rendered = await self.client.post('/api/sound_design/candidates/render',
+            json={'context_revision': metadata['context_revision']})
+        self.assertEqual(200, rendered.status_code, rendered.text)
+        self.assertEqual(24000, rendered.json()['mix']['frame_rate'])
+        candidate = json.loads((self.root/'.sound_design_renders'/rendered.json()['stage']/'candidate.json').read_bytes())
+        self.assertEqual([saved.json()['version']], candidate['binding']['cue_versions'])
+        self.assertEqual(24000, candidate['binding']['pcm_plan']['frame_rate'])
+        for name, raw in before.items():
+            self.assertEqual(raw, (self.root/name).read_bytes())
+
+    async def test_real_ui_can_explicitly_correct_a_stale_clock_without_rewriting_history(self):
+        with wave.open(str(self.audio), 'wb') as stream:
+            stream.setparams((1, 2, 24000, 24000, 'NONE', 'not compressed'))
+            stream.writeframes(b'\x01\x00'*24000)
+        payload = await self.request()
+        payload['parameters'].update(frame_rate=48000, offset_frames=13920)
+        saved = await self.client.post(BASE+'/revise', json=payload)
+        self.assertEqual(200, saved.status_code, saved.text)
+        historical = copy.deepcopy(get_sound_design_registry((self.root/ACTIVE_CUES).read_bytes())['versions'][0])
+        metadata = await self.metadata()
+        refused = await self.client.post('/api/sound_design/candidates/render',
+            json={'context_revision': metadata['context_revision']})
+        self.assertEqual(409, refused.status_code, refused.text)
+        corrected = await self.ui_clock_request(24000, revise=True)
+        self.assertEqual(historical['version'], corrected['parent_version'])
+        self.assertEqual(6960, corrected['parameters']['offset_frames'])
+        saved = await self.client.post(BASE+'/revise', json=corrected)
+        self.assertEqual(200, saved.status_code, saved.text)
+        registry = get_sound_design_registry((self.root/ACTIVE_CUES).read_bytes())
+        self.assertEqual(2, len(registry['versions']))
+        self.assertEqual(historical, registry['versions'][0])
+        self.assertEqual(48000, historical['recipe']['frame_rate'])
+        self.assertEqual(24000, registry['versions'][1]['recipe']['frame_rate'])
+        metadata = await self.metadata()
+        rendered = await self.client.post('/api/sound_design/candidates/render',
+            json={'context_revision': metadata['context_revision']})
+        self.assertEqual(200, rendered.status_code, rendered.text)
+        self.assertEqual(24000, rendered.json()['mix']['frame_rate'])
 
     async def test_actual_create_revise_select_deselect_preserves_originals_and_history(self):
         original={name:(self.root/name).read_bytes() for name in ('source.txt','audio.wav','chunks.json','annotated_script.json')}

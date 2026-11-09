@@ -293,10 +293,18 @@ captured PCM projection before any audition or approval.
 The Editor's **Sound cues** panel pages through dialogue marked complete, creates
 new cue revisions, reviews selected-take bindings, selects historical revisions
 and excludes cues without deleting history. Timing is entered in seconds and
-rounded to the revision's sample clock; levels use decibels. New cues currently
-use a 48 kHz metadata clock; revisions retain their original clock. Mix integration
-must compare this with the captured dialogue PCM clock and require an explicit
-revision when they differ. Native length,
+rounded to the explicitly entered **Cue frame clock in Hz**; levels use decibels.
+New cues require a clock rather than guessing 48 kHz. Enter the dry dialogue mix
+sample rate, not the imported sound's rate. For multiple dialogue sources, use
+the highest selected-take rate or 11,025 Hz, whichever is higher: the assembly's
+silence layout can promote lower-rate takes even with a zero-length gap.
+Existing revisions initially show their original clock. To
+correct a clock mismatch, choose **Revise**, enter the current dry mix rate, and
+save a new revision. The displayed seconds are converted to that clock only when
+you explicitly save; historical frame counts and clocks are never rewritten.
+Mix integration still checks agreement with the captured dialogue PCM clock and
+refuses stale cues. Cue metadata does not scan/decode dialogue audio or claim a
+verified dry-plan rate. Native length,
 explicit duration, ambience loop crossfade and fades remain explicit choices.
 An old source is visibly flagged, and **Review dialogue binding** checks current
 encoded take bytes. A mismatch requires an explicit revision; the UI never
