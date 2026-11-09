@@ -156,6 +156,12 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     env.calls.length = 0;
     env.w.CastingLibrary.onReviewKey({key: 's', target: {tagName: 'TEXTAREA'}}); await settle();
     eq(env.calls, []);
+    // #1806: Space on a focused control keeps its native activation; it neither plays nor is prevented.
+    for (const tagName of ['BUTTON', 'A', 'SELECT', 'INPUT']) {
+        let prevented = false; const played = env.w.played.length;
+        env.w.CastingLibrary.onReviewKey({key: ' ', target: {tagName}, preventDefault() { prevented = true; }}); await settle();
+        ok(!prevented && env.w.played.length === played, `Space on a focused ${tagName} was intercepted`);
+    }
     env.get('review-modal').dispatchEvent({type: 'keydown', key: 'ArrowLeft', preventDefault() {}}); await settle();
     eq(env.w.CastingLibrary.state().review.index, 0);
     env.get('review-modal').dispatchEvent({type: 'keydown', key: ' ', preventDefault() {}}); await settle();
