@@ -9814,6 +9814,7 @@
     "tests.test_readalong_r2.ReadalongR2DownloadTests.test_sidecar_download_serves_admitted_bytes_and_rejects_tampering",
     "tests.test_readalong_r2.ReadalongR2DownloadTests.test_unreadable_download_settings_return_rebuild_response",
     "tests.test_readalong_r2.ReadalongR2JsTests.test_app_html_wiring_and_reset_hooks",
+    "tests.test_readalong_r2.ReadalongR2JsTests.test_build_is_admitted_again_after_reset",
     "tests.test_readalong_r2.ReadalongR2JsTests.test_cancel_sends_exact_owner",
     "tests.test_readalong_r2.ReadalongR2JsTests.test_duplicate_start_and_reset_fencing",
     "tests.test_readalong_r2.ReadalongR2JsTests.test_late_done_is_handled_and_downloads",

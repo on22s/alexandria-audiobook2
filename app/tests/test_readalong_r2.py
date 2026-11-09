@@ -635,6 +635,52 @@ class ReadalongR2JsTests(unittest.TestCase):
             console.log('r2-js-reset-ok');
         """)
 
+    def test_build_is_admitted_again_after_reset(self):
+        # #1808: reset must restore full idle admission, not just paint it.
+        # Covers both channels, reset during pending approval and during
+        # polling, while the old (fenced) promises still cannot post.
+        for channel, build, start_url, btn in (
+                ("sidecar", "buildReadalongSidecar", "/api/readalong/sidecar",
+                 "readalong-build-btn"),
+                ("epub", "buildReadaloudEpub", "/api/readaloud_epub",
+                 "readaloud-build-btn")):
+            for phase in ("approval", "polling"):
+                with self.subTest(channel=channel, phase=phase):
+                    self._run_node(r"""
+                        var starts = 0;
+                        API.post = function (url) {
+                          if (url === '%(start_url)s') { starts++; }
+                          return Promise.resolve({ status: 'started',
+                            claim_id: 'b'.repeat(32), book_token: 'c'.repeat(64) });
+                        };
+                        API.get = function () { return Promise.resolve({ running: true, logs: ['Working'] }); };
+                        var phase = '%(phase)s';
+                        window.ensureReadalongIntegrityApproval = function () {
+                          if (phase === 'approval') {
+                            return new Promise(function (res) { _approvals.push(res); });
+                          }
+                          return Promise.resolve('a'.repeat(64));
+                        };
+                        window.%(build)s();
+                        await _waitMicro(); await _waitMicro();
+                        ok(starts === (phase === 'polling' ? 1 : 0), 'unexpected first-start count ' + starts);
+                        window.resetReadalongViews();
+                        _pendingTimers.splice(0);
+                        // The book switch may be aborted later; either way a new build must start.
+                        _approvals.splice(0).forEach(function (res) { res('a'.repeat(64)); });
+                        await _waitMicro(); await _waitMicro();
+                        var before = starts;
+                        ok(before === (phase === 'polling' ? 1 : 0), 'fenced old approval posted a start after reset');
+                        ok(document.getElementById('%(btn)s').disabled === false, 'build control not re-enabled by reset');
+                        window.ensureReadalongIntegrityApproval = function () { return Promise.resolve('a'.repeat(64)); };
+                        window.%(build)s();
+                        await _waitMicro(); await _waitMicro();
+                        ok(starts === before + 1, 'Build after reset issued no start request');
+                        ok(document.getElementById('%(btn)s').disabled === true, 'new build not marked busy');
+                        console.log('r2-js-post-reset-build-ok');
+                    """ % {"start_url": start_url, "build": build, "btn": btn,
+                           "phase": phase})
+
     def test_cancel_sends_exact_owner(self):
         self._run_node(r"""
             var cancelBody = null;
