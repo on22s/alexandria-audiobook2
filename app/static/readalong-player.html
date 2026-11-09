@@ -436,6 +436,7 @@ function importBookmarks(parsed){
 }
 function checkAudioHash(hex,expected){ return hex===expected; }
 audio.addEventListener('timeupdate',mark);
+audio.addEventListener('loadedmetadata',mark);
 document.getElementById('play-pause').onclick=function(){ if(audio.paused){ audio.play(); } else { audio.pause(); } };
 document.getElementById('seek-range').oninput=function(event){
  if(!event||!event.target){ return; }

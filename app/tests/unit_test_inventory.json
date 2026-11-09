@@ -9776,6 +9776,7 @@
   "test_readalong_player_js": [
     "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_add_bookmark_clamps_and_export_roundtrip",
     "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_audio_first_then_sidecar_verifies",
+    "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_audio_only_metadata_refreshes_duration_before_playback_or_hash_completion",
     "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_bookmark_document_schema_binding_and_atomic",
     "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_bookmark_import_preserves_verified_and_invalid_preserves_previous",
     "tests.test_readalong_player_js.ReadalongPlayerJsTests.test_entry_section_bookmark_keyboard_and_click_gating",

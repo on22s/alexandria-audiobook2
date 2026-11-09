@@ -5,7 +5,7 @@ Every behavioral test extracts the shipped inline <script> from
 classList / children / textContent / listeners / querySelectorAll,
 DocumentFragment flattening, blob-URL registry, cancellable
 setTimeout), then invokes the ACTUAL registered change / click /
-keydown / input / timeupdate handlers with realistic File-like
+keydown / input / loadedmetadata / timeupdate handlers with realistic File-like
 objects (real sizes, real bytes, real Node crypto digest for
 fixtures, deferred arrayBuffer/text promises for async interleavings).
 
@@ -39,7 +39,7 @@ Measured behavior (what a GREEN run proves):
 
 Limits: Node DOM is a hand-rolled stub (it does not parse the HTML
 or implement a layout / media pipeline). Timing is therefore
-simulated by invoking timeupdate directly; no browser, reader,
+simulated by dispatching metadata and timeupdate events; no browser, reader,
 listening or full-suite claim is made here.
 """
 import hashlib
@@ -143,6 +143,11 @@ function _makeElement(tag, id) {
     return results;
   };
   el.addEventListener = function(name, fn) { el._listeners[String(name)] = fn; };
+  el.dispatchEvent = function(event) {
+    var handler = el._listeners[event.type];
+    if (handler) { handler(event); }
+    return true;
+  };
   el.removeEventListener = function(name, fn) { if (el._listeners[String(name)] === fn) { delete el._listeners[String(name)]; } };
   el.click = function() { if (typeof el.onclick === 'function') { el.onclick({ target: el }); } };
   el.play = function() { el.paused = false; el._playCount++; return Promise.resolve(); };
@@ -429,6 +434,33 @@ main().catch(function(e) { console.error(e && e.stack || e); process.exit(1); })
         self._check(scenario, "validators-real-ok")
 
     # ---- pair verification in both orders ----
+    def test_audio_only_metadata_refreshes_duration_before_playback_or_hash_completion(self):
+        scenario = r"""
+async function main() {
+  var audioBytes = 'metadata-only-audio';
+  var audioFile = makeFile('audio.mp3', audioBytes, { type: 'audio/mpeg', deferredBuf: true });
+  var audioElement = document.getElementById('audio');
+  var timeLabel = document.getElementById('time-label');
+  timeLabel.textContent = '0:00 / 0:00';
+  fireChange(document.getElementById('audio-file'), audioFile);
+  ok(audioElement.src.length > 0, 'selected audio must be loaded');
+  audioElement.duration = 125.4;
+  audioElement.dispatchEvent({ type: 'loadedmetadata', target: audioElement });
+  ok(timeLabel.textContent === '0:00 / 2:05', 'metadata must paint duration before playback, got: ' + timeLabel.textContent);
+  ok(audioElement.paused && audioElement._playCount === 0, 'metadata must not start playback');
+  ok(!window.AA2Readalong.isVerified(), 'metadata alone must not verify audio');
+  ok(countActive() === 0, 'audio-only metadata must not highlight text');
+  ok(document.getElementById('add-bookmark').disabled, 'metadata must not enable synchronized bookmarks');
+  audioFile._deferBuf.resolve(audioBytesBuffer(audioBytes));
+  await flush();
+  ok(timeLabel.textContent === '0:00 / 2:05', 'audio-only hash completion must retain duration');
+  ok(!window.AA2Readalong.isVerified(), 'audio hash without a sidecar must stay unverified');
+  console.log('audio-only-metadata-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+"""
+        self._check(scenario, 'audio-only-metadata-ok')
+
     def test_audio_first_then_sidecar_verifies(self):
         scenario = r"""
 async function main() {
@@ -546,6 +578,10 @@ async function main() {
   fireChange(document.getElementById('audio-file'), deferred);
   ok(window.AA2Readalong.isVerified() === false, 'replacement must unverified immediately');
   ok(countActive() === 0, 'replacement must clear .active synchronously before async hash');
+  a.duration = 125.4;
+  a.dispatchEvent({ type: 'loadedmetadata', target: a });
+  ok(document.getElementById('time-label').textContent === '0:00 / 2:05', 'replacement metadata must refresh duration');
+  ok(!window.AA2Readalong.isVerified() && countActive() === 0, 'replacement metadata must not re-enable unverified highlights');
   // Resolve the stale file: it is a wrong file bound to no sidecar, so
   // it must land as wrong-audio unverified, never re-verifying.
   deferred._deferBuf.resolve(audioBytesBuffer('stale-bytes-xyz'));
