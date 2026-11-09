@@ -6129,6 +6129,24 @@
             }};
         }
 
+        // An alias or voice timeline would keep another voice in effect (#1800):
+        // the server refuses with the overrides; ask, then retry clearing them.
+        // -> the response, or null when the user keeps the overrides.
+        async function postVoiceSuggestionApply(url, body) {
+            try {
+                return await API.post(url, body);
+            } catch (e) {
+                if (e.status !== 409 || !e.detail || e.detail.code !== 'voice_overrides') { throw e; }
+                const found = (e.detail.overrides || []).map(o => (o.alias_of
+                    ? `${o.character} speaks as ${o.alias_of} (alias)`
+                    : `${o.character} follows a voice timeline`));
+                const ok = await showConfirm(`${found.join('; ')}. Clear these so the suggested voice is used? Saved voice versions are kept.`,
+                    {title: 'Clear voice overrides?', actionLabel: 'Clear and apply'});
+                if (!ok) { return null; }
+                return await API.post(url, {...body, clear_overrides: true});
+            }
+        }
+
         async function applyVoiceSuggestion(name) {
             if (window._voiceSuggestionContext && !window._voiceSuggestionContext.isCurrent()) {
                 showToast('The cast or book changed. Request current voice suggestions before applying.', 'warning');
@@ -6138,9 +6156,10 @@
             if (!sugg) { return; }
             const snapshot = getSuggestionApplySnapshot(name, sugg);
             try {
-                await API.post('/api/suggest_voices/apply', {
+                const result = await postVoiceSuggestionApply('/api/suggest_voices/apply', {
                     character: name, cast: window._selectedCast || null, suggestion: snapshot.submitted,
                 });
+                if (!result) { return; }
                 snapshot.reconcile();
                 await loadCastLibrary();
                 await loadVoices();
@@ -6159,9 +6178,10 @@
             const pending = Object.fromEntries(Object.entries(snapshots).map(([name, snapshot]) => [name, snapshot.submitted]));
             if (!Object.keys(pending).length) { return; }
             try {
-                await API.post('/api/suggest_voices/apply_bulk', {
+                const result = await postVoiceSuggestionApply('/api/suggest_voices/apply_bulk', {
                     cast: window._selectedCast || null, suggestions: pending,
                 });
+                if (!result) { return; }
                 Object.values(snapshots).forEach(snapshot => snapshot.reconcile());
                 await loadCastLibrary();
                 await loadVoices();

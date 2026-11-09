@@ -184,10 +184,14 @@ class VoiceSuggestionApplyRequest(BaseModel):
     character: str
     cast: Optional[str] = None
     suggestion: Dict
+    # Confirmed after a 409 "voice_overrides": clear the alias and version
+    # timeline that would keep another voice effective (#1800).
+    clear_overrides: bool = False
 
 class VoiceSuggestionApplyBulkRequest(BaseModel):
     cast: Optional[str] = None
     suggestions: Dict[str, Dict]
+    clear_overrides: bool = False
 
 
 class VoiceTargetScope(BaseModel):
@@ -2643,7 +2647,20 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
 
 
 
-def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[str]) -> dict:
+def get_suggestion_overrides(character, entry):
+    """-> the override on `entry` that would keep a voice other than its base
+    effective (#1800), or None. Uses the same effective-alias and timeline
+    reading as the single-voice apply (_voice_asset_summary), so an alias the
+    runtime ignores (blank/non-string) is not an override."""
+    summary = _voice_asset_summary(entry)
+    timeline = bool(summary["version_timeline"])
+    if not summary["alias_of"] and not timeline:
+        return None
+    return {"character": character, "alias_of": summary["alias_of"], "version_timeline": timeline}
+
+
+def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[str],
+                             clear_overrides: bool = False) -> dict:
     if any(value.get("state_version") for value in suggestions.values()):
         raise HTTPException(status_code=409, detail="State suggestions must be saved and selected on their state card")
     catalog = _build_lora_candidates()
@@ -2664,6 +2681,7 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
             if cast_name and cast_name not in lib["casts"]:
                 raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
             applied = []
+            blocked = []
             def update(current_config):
                 voice_config = copy.deepcopy(current_config)
                 usage = get_cast_adapter_usage(lib, cast_name, identities)
@@ -2684,6 +2702,16 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                         raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
                     style = (suggestion.get("character_style") or "").strip()[:500]
                     cfg = dict(voice_config.get(character) or {})
+                    override = get_suggestion_overrides(character, cfg)
+                    if override:
+                        if not clear_overrides:
+                            blocked.append(override)
+                            continue
+                        # Confirmed: make the suggestion effective. Saved
+                        # versions stay as history; only what selects
+                        # another voice is cleared.
+                        for key in ("alias_of", "alias", "version_timeline"):
+                            cfg.pop(key, None)
                     cfg.pop("active_candidate", None)
                     cfg.pop("active_version", None)
                     # DS3010: a genuine adapter replacement clears the
@@ -2734,6 +2762,14 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 # cannot see library-only fields, so a nonfinite/deep
                 # priority must refuse here as a clear 400 with every
                 # file byte-identical.
+                if blocked:
+                    # Refuse before anything is written: the client confirms
+                    # and retries with clear_overrides (#1800).
+                    names = ", ".join(item["character"] for item in blocked)
+                    raise HTTPException(status_code=409, detail={
+                        "code": "voice_overrides", "overrides": blocked,
+                        "message": (f"An alias or voice timeline keeps another voice in effect for {names}. "
+                                    "Confirm to clear it so the suggested voice is used.")})
                 if cast_name:
                     try:
                         ensure_voice_config_storable(lib)
@@ -2753,10 +2789,10 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
 async def apply_voice_suggestion(request: VoiceSuggestionApplyRequest):
     return await asyncio.to_thread(
         _apply_voice_suggestions, {request.character: request.suggestion},
-        (request.cast or "").strip() or None)
+        (request.cast or "").strip() or None, request.clear_overrides)
 
 @router.post("/api/suggest_voices/apply_bulk")
 async def apply_voice_suggestions_bulk(request: VoiceSuggestionApplyBulkRequest):
     return await asyncio.to_thread(
         _apply_voice_suggestions, request.suggestions,
-        (request.cast or "").strip() or None)
+        (request.cast or "").strip() or None, request.clear_overrides)
