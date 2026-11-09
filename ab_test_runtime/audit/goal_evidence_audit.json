@@ -1050,18 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T20:12:56",
+  "written": "2026-11-08T20:34:09",
   "host": "RealMitch",
   "git": {
-   "commit": "2e929518894d44d2d34bc03b99e3a382d5668e03",
+   "commit": "ad46cfb610a6d51a0eccc93b04b09bab1378fe96",
    "branch": "fix/1797-external-timeout-cleanup",
    "dirty": true,
-   "source_state": "dirty:c3f494d5003e",
+   "source_state": "dirty:3b5187ef0ebf",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  .github/workflows/external-tts-lifetime.yml",
-    "M  app/tests/test_external_single_cleanup.py",
-    "M  app/tts.py"
+    "M  app/tests/test_external_single_cleanup.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

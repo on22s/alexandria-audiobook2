@@ -120,7 +120,7 @@ def _settle_engine(engine, events=()):
 def _deny_pending(path, real_remove, owned_prefix):
     # Scope the injected denial to this fixture's own output; every unrelated
     # pending path (another thread/engine) delegates to the real remove.
-    if str(path).startswith(owned_prefix):
+    if str(path).startswith(owned_prefix + ".pending."):
         raise PermissionError("simulated pending deletion denied")
     return real_remove(path)
 
@@ -145,7 +145,6 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             release = threading.Event()
             provider_done = threading.Event()
             staging_holder = {}
-            provider_error = []
             valid_bytes = _valid_wav_bytes()
             # Positive control: identical valid bytes publish fine with a
             # noncancelled event, so no-late-publication cannot pass merely
@@ -218,7 +217,11 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             finally:
                 _settle_engine(engine, (release,))
             self.assertTrue(provider_done.wait(2))
-            self.assertEqual([], provider_error)
+            # The captured list is shared with the worker via ContextVar, so a
+            # late provider error would have appended a second entry by now.
+            self.assertEqual(1, len(failures))
+            self.assertEqual("timeout", failures[0].category)
+            self.assertIn("timed out", failures[0].detail)
             staging = Path(staging_holder["path"])
             deadline = time.monotonic() + 3
             while staging.exists() and time.monotonic() < deadline:
@@ -420,7 +423,7 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             real_remove = os.remove
 
             def deny(path):
-                if str(path).startswith(str(old)):
+                if str(path).startswith(str(old) + ".pending."):
                     raise PermissionError("synthetic pending deletion denied")
                 return real_remove(path)
 
@@ -551,8 +554,7 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                                           "\n".join(logs.output))
                             self.assertEqual(1, len(failures))
                             self.assertEqual(b"prior bytes", output.read_bytes())
-                self.assertFalse((root / "audio.wav").exists()
-                                 and (root / "audio.wav").read_bytes() != b"prior bytes")
+                self.assertEqual(b"prior bytes", output.read_bytes())
                 # Permanent denial may leave the stage; remove fixture-owned
                 # residual now that the patch has ended.
                 residual = Path(holder["staging"])
