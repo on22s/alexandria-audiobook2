@@ -15473,6 +15473,7 @@
     "tests.test_voices_regressions.VoicesTests.test_applying_a_cast_remembers_the_new_label",
     "tests.test_voices_regressions.VoicesTests.test_authoritative_gender_prefers_exact_then_unknown_then_opposite",
     "tests.test_voices_regressions.VoicesTests.test_bulk_generic_mapping_resolves_per_book_member",
+    "tests.test_voices_regressions.VoicesTests.test_cast_apply_never_imports_source_book_approvals",
     "tests.test_voices_regressions.VoicesTests.test_cast_apply_uses_book_specific_style",
     "tests.test_voices_regressions.VoicesTests.test_cast_member_matches_by_remembered_label_and_alias",
     "tests.test_voices_regressions.VoicesTests.test_cast_usage_counts_distinct_members_not_books",
