@@ -215,16 +215,20 @@ def get_voicelab_zip_files(folder: str) -> list[str]:
 
 
 def get_voicelab_file_identity(path: str):
-    """-> [size, mtime_ns] of a reviewed input file, or None if it is absent.
+    """-> [size, sha256] of a reviewed input file, or None if it cannot be read.
 
-    Bounded identity for the preflight token (#1803): any ordinary same-path
-    replacement changes it, without hashing multi-GB ZIPs or models on every
-    review. It is metadata, not a cryptographic content identity."""
+    Content identity for the preflight token (#1803). Size and mtime are not
+    enough: robocopy, cp -p, rsync -a and unzip preserve the old timestamp, so
+    a same-size replacement could pass. The cost is one full read of every
+    reviewed ZIP and the profiler model per preflight (and again at START)."""
+    digest = hashlib.sha256()
     try:
-        info = os.stat(path)
+        with open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return [os.path.getsize(path), digest.hexdigest()]
     except OSError:
         return None
-    return [info.st_size, info.st_mtime_ns]
 
 
 def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:

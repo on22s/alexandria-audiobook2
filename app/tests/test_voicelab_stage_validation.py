@@ -95,8 +95,10 @@ class VoiceLabStageValidationTests(unittest.TestCase):
                 for label, path in files.items():
                     with self.subTest(replaced=label):
                         before = build()
-                        path.write_bytes(b'replaced')              # same size, same path, same counts
-                        os.utime(path, ns=(2_000_000_000, 2_000_000_000))
+                        # Same path, size and counts, and the old timestamp restored,
+                        # as robocopy / cp -p / rsync -a / unzip leave it.
+                        path.write_bytes(b'replaced')
+                        os.utime(path, ns=(1_000_000_000, 1_000_000_000))
                         self.assertNotEqual(before, build(), f'{label} replacement kept the token')
                 stale = v.VoiceLabRequest(stages=['quality', 'profile'], zips_dir=tmp, device='cpu',
                                           preflight_id=reviewed)
