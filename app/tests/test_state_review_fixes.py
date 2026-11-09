@@ -125,6 +125,50 @@ class T2SelectStateVersionTests(StateApiFixture):
             self.assertEqual([{"candidate_id": "c-base"}], saved["candidates"])   # the version's pool does not replace the base's
 
 
+class VersionConsumedFieldTests(StateApiFixture):
+    """#1804: a version is refused on save/select when, overlaid on its
+    entry, it carries a consumed field the top-level save would refuse."""
+    MALFORMED = ({"type": "design", "description": 123},
+                 {"type": "lora", "adapter_id": "kid", "adapter_generation_sha256": "MALFORMED"})
+
+    def test_malformed_version_is_refused_on_save_and_valid_history_still_saves(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            client, path, _targets = self.fixture(directory, stack)
+            token = client.get("/api/voice_config/snapshot").json()["book_token"]
+            for config in self.MALFORMED:
+                with self.subTest(config=config):
+                    before = path.read_bytes()
+                    refused = client.post("/api/voices/ARTHUR/versions",
+                                          json={"book_token": token, "version_id": "bad", "config": config})
+                    self.assertEqual(422, refused.status_code, refused.text)
+                    self.assertEqual(before, path.read_bytes())
+            pin = "a" * 64
+            for version_id, config in (("warm", {"type": "design", "description": "warm"}),
+                                       ("kid", {"type": "lora", "adapter_id": "kid",
+                                                "adapter_generation_sha256": pin})):
+                saved = client.post("/api/voices/ARTHUR/versions",
+                                    json={"book_token": token, "version_id": version_id, "config": config})
+                self.assertEqual(200, saved.status_code, saved.text)
+            selected = client.post("/api/voices/ARTHUR/versions/kid/select", json={"book_token": token})
+            self.assertEqual(200, selected.status_code, selected.text)
+            self.assertEqual(pin, json.loads(path.read_text())["ARTHUR"]["adapter_generation_sha256"])
+
+    def test_malformed_stored_version_is_refused_on_select(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            client, path, _targets = self.fixture(directory, stack)
+            config = json.loads(path.read_text())
+            config["ARTHUR"]["versions"].update({f"bad{i}": {**c, "age_group": "adult"}
+                                                 for i, c in enumerate(self.MALFORMED)})
+            path.write_text(json.dumps(config))
+            token = client.get("/api/voice_config/snapshot").json()["book_token"]
+            for i in range(len(self.MALFORMED)):
+                with self.subTest(version=f"bad{i}"):
+                    before = path.read_bytes()
+                    refused = client.post(f"/api/voices/ARTHUR/versions/bad{i}/select", json={"book_token": token})
+                    self.assertEqual(422, refused.status_code, refused.text)
+                    self.assertEqual(before, path.read_bytes())
+
+
 class T3OverlayBookkeepingTests(unittest.TestCase):
     def test_state_bookkeeping_never_reaches_a_chunk_render_config(self):
         entry = {"type": "custom", "voice": "Ryan", "persona_status": "approved",
