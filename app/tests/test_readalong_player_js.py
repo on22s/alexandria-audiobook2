@@ -5,7 +5,7 @@ Every behavioral test extracts the shipped inline <script> from
 classList / children / textContent / listeners / querySelectorAll,
 DocumentFragment flattening, blob-URL registry, cancellable
 setTimeout), then invokes the ACTUAL registered change / click /
-keydown / input / loadedmetadata / timeupdate handlers with realistic File-like
+keydown / input / loadedmetadata / timeupdate / error handlers with realistic File-like
 objects (real sizes, real bytes, real Node crypto digest for
 fixtures, deferred arrayBuffer/text promises for async interleavings).
 
@@ -27,6 +27,8 @@ Measured behavior (what a GREEN run proves):
   while hash/read failures keep generic audio playback unverified
   without unhandled rejections,
 - half-open entry/word spans, pause/end/unverified clearing,
+- source-fenced media error and custom Play failure feedback, consumed
+  rejected promises, and hash completion preserving media failure notices,
 - Enter/Space activation for focusable entries, buttons as standard
   <button> click activation, textContent-only rendering,
 - Python-codepoint word offsets rendered correctly for astral /
@@ -39,7 +41,7 @@ Measured behavior (what a GREEN run proves):
 
 Limits: Node DOM is a hand-rolled stub (it does not parse the HTML
 or implement a layout / media pipeline). Timing is therefore
-simulated by dispatching metadata and timeupdate events; no browser, reader,
+simulated by dispatching media events and stubbing play promises; no browser, reader,
 listening or full-suite claim is made here.
 """
 import hashlib
@@ -460,6 +462,169 @@ async function main() {
 main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
 """
         self._check(scenario, 'audio-only-metadata-ok')
+
+    def test_media_error_reports_both_channels_without_changing_byte_verification(self):
+        scenario = r"""
+async function main() {
+  var audioBytes = 'corrupt-but-byte-matching-audio';
+  var doc = makeSidecar(audioBytes, {});
+  fireChange(document.getElementById('sidecar-file'), makeFile('sidecar.json', JSON.stringify(doc)));
+  await flush();
+  var audioFile = makeFile('corrupt.mp3', audioBytes, { deferredBuf: true });
+  fireChange(document.getElementById('audio-file'), audioFile);
+  var audioElement = document.getElementById('audio');
+  audioElement.currentSrc = audioElement.src;
+  audioElement.error = { code: 3 };
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  var status = document.getElementById('audio-status').textContent;
+  var notice = document.getElementById('notice').textContent;
+  ok(/audio.*(failed|could not)|could not.*audio/i.test(status), 'media error must replace loaded status: ' + status);
+  ok(/audio.*(failed|could not)|could not.*audio/i.test(notice), 'media error must reach live notice: ' + notice);
+  ok(!window.AA2Readalong.isVerified(), 'media error cannot establish byte verification');
+  audioFile._deferBuf.resolve(audioBytesBuffer(audioBytes));
+  await flush();
+  ok(window.AA2Readalong.isVerified(), 'matching bytes must retain the existing identity contract, not claim decodability');
+  ok(document.getElementById('audio-status').textContent === status, 'hash completion must not erase media status');
+  ok(document.getElementById('notice').textContent === notice, 'hash match must not hide media failure');
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  ok(window.AA2Readalong.isVerified(), 'media failure must not revoke byte identity');
+  console.log('media-error-feedback-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+"""
+        self._check(scenario, 'media-error-feedback-ok')
+
+    def test_media_error_survives_other_hash_outcomes(self):
+        for outcome in ('mismatch', 'read-failure', 'unavailable'):
+            with self.subTest(outcome=outcome):
+                scenario = r"""
+async function main() {
+  var outcome = __OUTCOME__;
+  var doc = makeSidecar('different-audio', {});
+  fireChange(document.getElementById('sidecar-file'), makeFile('sidecar.json', JSON.stringify(doc)));
+  await flush();
+  if (outcome === 'unavailable') { window.crypto = null; }
+  var audioFile = makeFile('broken.mp3', 'broken-bytes', { deferredBuf: true });
+  fireChange(document.getElementById('audio-file'), audioFile);
+  var audioElement = document.getElementById('audio');
+  audioElement.currentSrc = audioElement.src;
+  audioElement.error = { code: 4 };
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  var status = document.getElementById('audio-status').textContent;
+  var notice = document.getElementById('notice').textContent;
+  ok(/(failed|could not)/i.test(status) && /(failed|could not)/i.test(notice), 'media failure must reach both channels');
+  if (outcome === 'read-failure') { audioFile._deferBuf.reject(new Error('cannot read')); }
+  else { audioFile._deferBuf.resolve(audioBytesBuffer('broken-bytes')); }
+  await flush();
+  ok(!window.AA2Readalong.isVerified(), 'nonmatching/unavailable bytes must remain unverified');
+  ok(document.getElementById('audio-status').textContent === status, 'hash outcome must retain media status');
+  ok(document.getElementById('notice').textContent === notice, 'hash outcome must retain media notice');
+  console.log('media-error-hash-outcome-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+""".replace('__OUTCOME__', json.dumps(outcome))
+                self._check(scenario, 'media-error-hash-outcome-ok')
+
+    def test_custom_play_failures_are_consumed_reported_and_recoverable(self):
+        for failure in ('rejected', 'thrown'):
+            with self.subTest(failure=failure):
+                scenario = r"""
+async function main() {
+  var unhandled = [];
+  process.on('unhandledRejection', function(error) { unhandled.push(error); });
+  var audioBytes = 'playback-test-bytes';
+  await loadPair(audioBytes, makeSidecar(audioBytes, {}), 'audio-first');
+  var audioElement = document.getElementById('audio');
+  var originalPlay = audioElement.play;
+  audioElement.play = function() {
+    if (__FAILURE__ === 'thrown') { throw new Error('synthetic media failure'); }
+    return Promise.reject(new Error('synthetic playback denial'));
+  };
+  document.getElementById('play-pause').onclick();
+  await flush();
+  ok(unhandled.length === 0, 'custom Play rejection must be consumed');
+  ok(/(failed|could not)/i.test(document.getElementById('audio-status').textContent), 'custom Play must report status');
+  ok(/(failed|could not)/i.test(document.getElementById('notice').textContent), 'custom Play must report live notice');
+  ok(window.AA2Readalong.isVerified(), 'play failure must not revoke byte identity');
+  audioElement.play = originalPlay;
+  document.getElementById('play-pause').onclick();
+  await flush();
+  ok(!audioElement.paused, 'retry must retain generic playback');
+  ok(!/(failed|could not)/i.test(document.getElementById('audio-status').textContent), 'successful retry must clear obsolete playback failure');
+  ok(!/(failed|could not)/i.test(document.getElementById('notice').textContent), 'successful retry must clear obsolete failure notice');
+  document.getElementById('play-pause').onclick();
+  ok(audioElement.paused, 'pause path must be retained');
+  console.log('custom-play-failure-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+""".replace('__FAILURE__', json.dumps(failure))
+                self._check(scenario, 'custom-play-failure-ok')
+
+    def test_stale_play_rejection_cannot_replace_new_source_feedback(self):
+        scenario = r"""
+async function main() {
+  var unhandled = [];
+  process.on('unhandledRejection', function(error) { unhandled.push(error); });
+  var audioElement = document.getElementById('audio');
+  fireChange(document.getElementById('audio-file'), makeFile('old.mp3', 'old'));
+  await flush();
+  var playback = makeDeferred();
+  audioElement.play = function() { return playback.promise; };
+  document.getElementById('play-pause').onclick();
+  fireChange(document.getElementById('audio-file'), makeFile('new.mp3', 'new'));
+  await flush();
+  var status = document.getElementById('audio-status').textContent;
+  var notice = document.getElementById('notice').textContent;
+  playback.reject(new Error('old source failed late'));
+  await flush();
+  ok(unhandled.length === 0, 'stale Play rejection must still be consumed');
+  ok(document.getElementById('audio-status').textContent === status, 'stale rejection must not replace current status');
+  ok(document.getElementById('notice').textContent === notice, 'stale rejection must not replace current notice');
+  console.log('stale-play-failure-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+"""
+        self._check(scenario, 'stale-play-failure-ok')
+
+    def test_stale_media_error_is_fenced_and_current_error_still_reports(self):
+        scenario = r"""
+async function main() {
+  var audioElement = document.getElementById('audio');
+  fireChange(document.getElementById('audio-file'), makeFile('old.mp3', 'old'));
+  await flush();
+  var oldSource = audioElement.src;
+  var oldHandler = audioElement._listeners['error'];
+  ok(typeof oldHandler === 'function', 'selected audio must register a media error handler');
+  fireChange(document.getElementById('audio-file'), makeFile('new.mp3', 'new'));
+  await flush();
+  var status = document.getElementById('audio-status').textContent;
+  var notice = document.getElementById('notice').textContent;
+  audioElement.currentSrc = oldSource;
+  audioElement.error = { code: 3 };
+  oldHandler({ type: 'error', target: audioElement });
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  ok(document.getElementById('audio-status').textContent === status, 'old resource errors must not replace current status');
+  ok(document.getElementById('notice').textContent === notice, 'old resource errors must not replace current notice');
+  audioElement.currentSrc = audioElement.src;
+  audioElement.error = null;
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  ok(document.getElementById('audio-status').textContent === status, 'queued event without current MediaError must be ignored');
+  audioElement.error = { code: 4 };
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  ok(/(failed|could not)/i.test(document.getElementById('audio-status').textContent), 'current source error must still report');
+  fireChange(document.getElementById('audio-file'), makeFile('oversize.mp3', '', { size: 3 * 1024 * 1024 * 1024 }));
+  var rejectedStatus = document.getElementById('audio-status').textContent;
+  var rejectedNotice = document.getElementById('notice').textContent;
+  ok(/exceeds/i.test(rejectedStatus), 'fixture must take the oversize rejection path');
+  audioElement.dispatchEvent({ type: 'error', target: audioElement });
+  oldHandler({ type: 'error', target: audioElement });
+  ok(document.getElementById('audio-status').textContent === rejectedStatus, 'rejected selection must retire previous error handlers');
+  ok(document.getElementById('notice').textContent === rejectedNotice, 'rejected selection notice must remain current');
+  console.log('stale-media-error-ok');
+}
+main().catch(function(error) { console.error(error && error.stack || error); process.exit(1); });
+"""
+        self._check(scenario, 'stale-media-error-ok')
 
     def test_audio_first_then_sidecar_verifies(self):
         scenario = r"""

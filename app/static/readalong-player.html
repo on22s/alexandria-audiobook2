@@ -56,12 +56,20 @@ var currentAudioSize=null;
 var audioVersion=0;
 var sidecarVersion=0;
 var audioGen=0;
+var audioFailure='';
+var mediaErrorHandler=null;
 var sidecarGen=0;
 var bookmarkGen=0;
 var verifiedAudioVersion=-1;
 var verifiedSidecarVersion=-1;
 function say(msg){ noticeEl.textContent=msg; }
 function setStatus(msg){ statusEl.textContent=msg; }
+function reportAudioFailure(gen,source,msg){
+ if(gen!==audioGen||audio.src!==source){ return; }
+ audioFailure=msg;
+ setStatus(msg);
+ say(msg);
+}
 function fmt(sec){ if(!isFinite(sec)||sec<0){ return '0:00'; } var m=Math.floor(sec/60); var s=Math.floor(sec%60); return m+':'+(s<10?'0':'')+s; }
 function frameToSec(frameDoc){ if(!sidecar){ return 0; } return frameDoc/sidecar.binding.sample_rate; }
 function entryStartSec(entry){ return frameToSec(entry.start_frame); }
@@ -165,7 +173,7 @@ function reconcilePair(){
   verified=false;
   clearHighlights();
   updateSyncControls();
-  say('Sidecar loaded; load the matching MP3 to verify audio before highlighting.');
+  say(audioFailure||'Sidecar loaded; load the matching MP3 to verify audio before highlighting.');
   return;
  }
  var expected=sidecar.binding.audio_sha256;
@@ -179,13 +187,13 @@ function reconcilePair(){
   verifiedSidecarVersion=-1;
   clearHighlights();
   updateSyncControls();
-  say('Wrong audio: this file does not match the sidecar binding. Playback is allowed but highlighting is not trusted.');
+  say(audioFailure||'Wrong audio: this file does not match the sidecar binding. Playback is allowed but highlighting is not trusted.');
   return;
  }
  verified=true;
  verifiedAudioVersion=audioVersion;
  verifiedSidecarVersion=sidecarVersion;
- say('Audio hash matches sidecar binding.');
+ say(audioFailure||'Audio hash matches sidecar binding.');
  updateSyncControls();
  mark();
 }
@@ -437,7 +445,23 @@ function importBookmarks(parsed){
 function checkAudioHash(hex,expected){ return hex===expected; }
 audio.addEventListener('timeupdate',mark);
 audio.addEventListener('loadedmetadata',mark);
-document.getElementById('play-pause').onclick=function(){ if(audio.paused){ audio.play(); } else { audio.pause(); } };
+document.getElementById('play-pause').onclick=function(){
+ if(!audio.paused){ audio.pause(); return; }
+ var gen=audioGen;
+ var source=audio.src;
+ function reportPlaybackFailure(){ reportAudioFailure(gen,source,'Could not start audio playback. Try Play again or choose a supported audio file.'); }
+ try{
+  var playback=audio.play();
+  if(playback&&typeof playback.then==='function'){
+   playback.then(function(){
+    if(gen!==audioGen||audio.src!==source||!audioFailure||audio.error){ return; }
+    audioFailure='';
+    setStatus('Audio playback started.');
+    say('Audio playback started.');
+   },reportPlaybackFailure);
+  }
+ }catch(error){ reportPlaybackFailure(); }
+};
 document.getElementById('seek-range').oninput=function(event){
  if(!event||!event.target){ return; }
  var v=Number(event.target.value);
@@ -527,6 +551,8 @@ document.getElementById('audio-file').addEventListener('change',function(event){
  if(!file){ return; }
  audioGen+=1;
  var gen=audioGen;
+ audioFailure='';
+ if(mediaErrorHandler){ audio.removeEventListener('error',mediaErrorHandler); mediaErrorHandler=null; }
  audioVersion+=1;
  markUnverified();
  currentAudioHash=null;
@@ -548,7 +574,13 @@ document.getElementById('audio-file').addEventListener('change',function(event){
   say('Could not load audio file; nothing was loaded.');
   return;
  }
- audio.src=audioUrl;
+ var source=audioUrl;
+ mediaErrorHandler=function(){
+  if(!audio.error||(audio.currentSrc&&audio.currentSrc!==source)){ return; }
+  reportAudioFailure(gen,source,'Audio playback failed. Choose a supported, undamaged audio file.');
+ };
+ audio.addEventListener('error',mediaErrorHandler);
+ audio.src=source;
  setStatus('Audio loaded: '+(file.name||'audio'));
  say('Audio loaded; verifying against sidecar before highlighting.');
  var canHash=window.crypto&&crypto.subtle&&typeof crypto.subtle.digest==='function'&&typeof file.arrayBuffer==='function';
@@ -568,8 +600,8 @@ document.getElementById('audio-file').addEventListener('change',function(event){
    currentAudioHash=null;
    currentAudioSize=null;
    markUnverified();
-   setStatus('Could not hash audio in this browser.');
-   say('Could not hash audio; playback is allowed but highlighting is not trusted.');
+   setStatus(audioFailure||'Could not hash audio in this browser.');
+   say(audioFailure||'Could not hash audio; playback is allowed but highlighting is not trusted.');
   });
  }
  else{

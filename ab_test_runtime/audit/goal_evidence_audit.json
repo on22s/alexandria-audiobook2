@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T10:51:15",
+  "written": "2026-11-09T11:31:03",
   "host": "RealMitch",
   "git": {
-   "commit": "81a82ac050b9ba86fa1d23f82e331813c65a32db",
-   "branch": "fix/1810-readalong-metadata-duration",
+   "commit": "f9fa62f5cb0d672bacddd92beb00ff8aca536aeb",
+   "branch": "fix/1809-readalong-media-errors",
    "dirty": true,
-   "source_state": "dirty:a9e872ec154d",
+   "source_state": "dirty:9270f041a298",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/static/readalong-player.html",
