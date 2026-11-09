@@ -49,8 +49,14 @@
         async function loadCheckpoints() {
             const listEl = document.getElementById('checkpoints-list');
             if (!listEl) { return; }
+            // Only the latest Refresh may paint (#1807), as in loadReports.
+            const request = {};
+            listEl._listRequest = request;
+            const isCurrent = () => listEl._listRequest === request
+                && document.getElementById('checkpoints-list') === listEl;
             try {
                 const data = await API.get('/api/review/checkpoints');
+                if (!isCurrent()) { return; }
                 const cps = data.checkpoints || [];
                 let html = '';
                 if (data.live) {
@@ -83,6 +89,7 @@
                 }
                 listEl.innerHTML = html;
             } catch (e) {
+                if (!isCurrent()) { return; }
                 listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load checkpoints", e, "Reopen Reports to refresh checkpoint status. Do not treat an unavailable checkpoint list as an empty one."))}</div>`;
             }
         }
@@ -190,8 +197,14 @@
         async function loadRunHistory() {
             const listEl = document.getElementById('runs-list');
             if (!listEl) { return; }
+            // Only the latest Refresh may paint (#1807), as in loadReports.
+            const request = {};
+            listEl._listRequest = request;
+            const isCurrent = () => listEl._listRequest === request
+                && document.getElementById('runs-list') === listEl;
             try {
                 const data = await API.get('/api/runs?limit=50');
+                if (!isCurrent()) { return; }
                 const runs = data.runs || [];
                 if (!runs.length) {
                     listEl.innerHTML = '<div class="list-group-item text-muted small">No runs recorded yet. Every long task (script, review, personas, audio, training…) leaves a record here.</div>';
@@ -210,6 +223,7 @@
                     </div>`;
                 }).join('');
             } catch (e) {
+                if (!isCurrent()) { return; }
                 listEl.innerHTML = `<div class="list-group-item text-danger small">${escapeHtml(getActionErrorMessage("Failed to load runs", e, "Reopen Reports to refresh the run list after checking the app connection."))}</div>`;
             }
         }

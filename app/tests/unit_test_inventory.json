@@ -10350,6 +10350,7 @@
   ],
   "test_report_explanation_js": [
     "tests.test_report_explanation_js.ReportExplanationJsTests.test_action_only_dispatches_after_explicit_choice_and_binds_cancel_and_poll",
+    "tests.test_report_explanation_js.ReportExplanationJsTests.test_checkpoint_and_run_lists_reject_stale_results_and_errors",
     "tests.test_report_explanation_js.ReportExplanationJsTests.test_confirmation_switch_and_malformed_start_do_not_start_unbound_poll",
     "tests.test_report_explanation_js.ReportExplanationJsTests.test_other_report_or_run_never_receives_false_success_or_stale_content",
     "tests.test_report_explanation_js.ReportExplanationJsTests.test_report_list_rejects_stale_results_and_errors_and_updates_eligibility"
