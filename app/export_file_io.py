@@ -19,7 +19,7 @@ def _windows_api():
 
 def open_export_reader(path):
     if os.name != 'nt':
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0))
     else:
         import ctypes
         import msvcrt

@@ -47,7 +47,8 @@ def open_sound_delivery(root, format_name, sha256):
     facts, _ = capture_scope_file(root,filename,limit=MAX_PCM_BYTES)
     if not facts['exists'] or facts['sha256'] != sha256:
         raise ValueError('Sound delivery is missing or changed; export again')
-    stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES,opener=open_export_reader)
+    stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES,
+                                 opener=open_export_reader if os.name == 'nt' else None)
     try:
         if list(_version(before)) != facts['file_version']:
             raise ValueError('Sound delivery changed before opening')
