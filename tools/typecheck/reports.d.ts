@@ -1,6 +1,6 @@
 // External contracts audited against static/index.html, app-core.js and Python routers.
 // Required IDs are present in the ordered classic-script page; dynamic IDs stay nullable.
-interface HTMLElement { _reportListRequest?: object }
+interface HTMLElement { _reportListRequest?: object; _listRequest?: object }
 interface Document {
  getElementById(id: 'btn-report-explain' | 'btn-report-explanation-cancel' | 'btn-benchmark-start' | 'btn-benchmark-cancel'): HTMLButtonElement;
  getElementById(id: 'benchmark-manifest'): HTMLTextAreaElement;

@@ -24,6 +24,24 @@ const stale=ctx.loadReports(),current=ctx.loadReports();pending[3].resolve([]);a
 const failed=ctx.loadReports();pending[4].reject(Error('current failure'));await failed;assert(el('reports-list').innerHTML.includes('current failure'));
 ''')
 
+    def test_checkpoint_and_run_lists_reject_stale_results_and_errors(self):
+        # #1807: the newer Refresh resolves first; the older success or
+        # failure must not repaint over it, and a current failure still shows.
+        self.run_js(r'''
+// loadRunHistory lives past SETUP's slice; load just its declarations.
+vm.runInContext(source.slice(source.indexOf('// ── Build badge, run history'),source.indexOf('let _benchmarkPreflightId')),ctx);
+const cases=[['loadCheckpoints','checkpoints-list',n=>({checkpoints:[{book:n,total_batches:2,completed_batches:1,entries_done:3,resume_from_batch:1}]})],
+             ['loadRunHistory','runs-list',n=>({runs:[{task:n,status:'completed'}]})]];
+for(const [fn,id,payload] of cases){
+const pending=[];ctx.API.get=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));
+const older=ctx[fn](),newer=ctx[fn]();pending[1].resolve(payload('NEWER'));await newer;const shown=el(id).innerHTML;assert(shown.includes('NEWER'),fn);
+pending[0].resolve(payload('OLDER'));await older;assert.strictEqual(el(id).innerHTML,shown,fn+' older success overwrote newer');
+const stale=ctx[fn](),current=ctx[fn]();pending[3].resolve(payload('CURRENT'));await current;const now=el(id).innerHTML;
+pending[2].reject(Error('stale failure'));await stale;assert.strictEqual(el(id).innerHTML,now,fn+' older failure overwrote newer');
+const failed=ctx[fn]();pending[4].reject(Error('current failure'));await failed;assert(el(id).innerHTML.includes('current failure'),fn+' current failure not shown');
+}
+''')
+
     def run_js(self,code):
         result=subprocess.run(['node','-e',SETUP+'\n(async()=>{'+code+'\n})().catch(e=>{console.error(e);process.exitCode=1;});',str(SOURCE)],capture_output=True,text=True,timeout=10)
         self.assertEqual(0,result.returncode,result.stderr)
