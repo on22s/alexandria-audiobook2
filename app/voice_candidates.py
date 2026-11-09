@@ -18,6 +18,13 @@ CANDIDATE_EXCLUDED = {"versions", "candidates", "active_version", "active_candid
                       "style_timeline", "narrator_strategy", "alias_of", "ready",
                       "persona_status", "voice_status", "age_group", "persona_state",
                       "version_timeline"}
+# Character control fields that would redirect or restructure the active
+# voice if a candidate carried them (#1799): an add is refused and "Use"
+# never copies them. Unlike CANDIDATE_EXCLUDED this does not cover plain
+# character metadata (age_group, gender) that auto-suggest saves on purpose,
+# and it adds the legacy "alias" redirect the runtime still honors.
+CANDIDATE_CONTROL = {"alias_of", "alias", "versions", "active_version", "version_timeline",
+                     "style_timeline", "narrator_strategy", "candidates", "active_candidate"}
 # Bookkeeping that belongs to the saved candidate, never to the voice: "Use"
 # does not copy it onto the card, and it is not part of a voice's identity.
 CANDIDATE_METADATA = {"candidate_id", "saved_at", "favorite", "rank"}
@@ -94,7 +101,10 @@ def get_entry_using_candidate(entry, candidate, kept=()):
     updated = {key: copy.deepcopy(value) for key, value in entry.items()
                if key in kept or key in KEPT_WHEN_ABSENT or key not in get_voice_fields(entry)
                or key in candidate}
+    # A candidate carries a voice only: character control fields a stored
+    # candidate may still hold (#1799) never reach the card.
     updated.update({key: copy.deepcopy(value) for key, value in candidate.items()
-                    if key not in CANDIDATE_METADATA and key not in kept})
+                    if key not in CANDIDATE_METADATA and key not in CANDIDATE_CONTROL
+                    and key not in kept})
     updated["active_candidate"] = candidate["candidate_id"]
     return updated
