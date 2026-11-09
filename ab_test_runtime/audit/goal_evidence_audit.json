@@ -1050,18 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T03:35:27",
+  "written": "2026-11-09T03:55:55",
   "host": "RealMitch",
   "git": {
-   "commit": "eed4f529c44b5050577220cdb6aa9b58e34dcf42",
+   "commit": "7846200cd073d816d1c9afa32745ebeee494aa1f",
    "branch": "fix/1815-streamed-export-publication",
    "dirty": true,
-   "source_state": "dirty:83d31f9b65e1",
+   "source_state": "dirty:d3a9643b0a86",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_launcher_lifecycle.py",
-    "M  app/tests/test_launcher_reset_recovery.py",
-    "M  app/tests/unseen_fixture_support.py"
+    "M  .github/workflows/external-tts-lifetime.yml",
+    "M  app/project.py",
+    "A  app/tests/test_legacy_batch_cleanup.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
