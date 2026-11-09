@@ -24,7 +24,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));load();
 const api=vm.runInContext('SoundCues',context),box=document.getElementById('sound-cues-content'),message=document.getElementById('sound-cues-status');
 const click=label=>{const node=box.querySelectorAll('button').find(n=>n.textContent===label);assert(node,'missing '+label);return node.onclick();};
 const field=name=>box.querySelectorAll('[data-cue-field]').find(n=>n.getAttribute('data-cue-field')===name);
-async function ready(value=data()){const n=requests.length,p=api.refresh();requests[n].resolve(value);requests[n+1].resolve({assets:[sample()]});await p;}
+async function ready(value=data(),sounds=[sample()]){const n=requests.length,p=api.refresh();requests[n].resolve(value);requests[n+1].resolve({assets:sounds});await p;}
 '''
 
 
@@ -33,6 +33,31 @@ class SoundCuesJsTests(unittest.TestCase):
         script = DOM_FIXTURE + SETUP + '\nlet done=false;process.on("beforeExit",()=>assert(done));(async()=>{' + body + '\ndone=true;})().catch(e=>{console.error(e);process.exitCode=1;});'
         result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout
+
+    def test_new_cue_requires_an_explicit_valid_clock_before_network(self):
+        self.run_js(r'''
+await ready();click('New cue');field('name').value='rain';
+assert.equal(field('rate').value,'');
+for(const rate of ['', '0', '-1', '24000.5', '192001', 'Infinity', 'NaN']){
+field('rate').value=rate;click('Save and select revision');
+assert.equal(requests.length,2);assert(message.textContent.includes('clock'));
+}
+''')
+
+    def test_new_cue_converts_all_timing_using_the_explicit_clock(self):
+        self.run_js(r'''
+for(const rate of [8000,11025,16000,22050,24000,44100,48000,96000]){
+const base=requests.length;await ready();click('New cue');field('name').value='rain';field('rate').value=String(rate);
+field('offset').value='0.29';field('duration').value='fixed';field('length').value='0.5';field('fadein').value='0.01';field('fadeout').value='0.02';
+const pending=click('Save and select revision');requests[base+2].resolve(anchor());await tick();
+const parameters=JSON.parse(requests[base+3].options.body).parameters;
+assert.equal(parameters.frame_rate,rate);assert.equal(parameters.offset_frames,Math.round(0.29*rate));
+assert.equal(parameters.duration.frames,Math.round(0.5*rate));
+assert.equal(parameters.mix.fade_in_frames,Math.round(0.01*rate));assert.equal(parameters.mix.fade_out_frames,Math.round(0.02*rate));
+requests[base+3].reject(new Error('fixture stop'));await pending;
+}
+''')
 
     def test_latest_refresh_wins_and_untrusted_labels_remain_literal(self):
         self.run_js(r'''
@@ -45,7 +70,7 @@ assert.equal(box.querySelectorAll('img').length,0);
 
     def test_save_uses_server_anchor_and_frozen_context_and_suppresses_duplicate_click(self):
         self.run_js(r'''
-await ready();click('New cue');field('name').value='Rain';field('offset').value='0.29';field('duck').value='-6';
+await ready();click('New cue');field('name').value='Rain';field('rate').value='48000';field('offset').value='0.29';field('duck').value='-6';
 const pending=click('Save and select revision');click('Save and select revision');assert.equal(requests.length,3);
 assert(requests[2].url.includes('chunk_uid=line-1'));assert(field('name').disabled);
 requests[2].resolve(anchor());await tick();assert.equal(requests.length,4);
@@ -81,7 +106,7 @@ assert.equal(box.children.length,0);assert(message.textContent.includes('Refresh
 
     def test_invalid_values_are_refused_before_network_and_failed_anchor_cannot_publish(self):
         self.run_js(r'''
-await ready();click('New cue');field('name').value='rain';field('gain').value='Infinity';click('Save and select revision');assert.equal(requests.length,2);
+await ready();click('New cue');field('name').value='rain';field('rate').value='48000';field('gain').value='Infinity';click('Save and select revision');assert.equal(requests.length,2);
 field('gain').value='0';field('duration').value='fixed';field('loop').value='0.1';click('Save and select revision');assert.equal(requests.length,2);
 field('loop').value='0';const pending=click('Save and select revision');requests[2].resolve({...anchor(),context_revision:'8'.repeat(64)});await pending;
 assert.equal(requests.length,3);assert.equal(box.children.length,0);
@@ -110,7 +135,7 @@ assert.equal(requests.length,3);
 
     def test_loop_and_fade_geometry_is_checked_against_converted_asset_length(self):
         self.run_js(r'''
-await ready();click('New cue');field('name').value='loop';field('kind').value='ambience';field('duration').value='fixed';
+await ready();click('New cue');field('name').value='loop';field('rate').value='48000';field('kind').value='ambience';field('duration').value='fixed';
 for(const [length,loop,fadein,fadeout] of [['1','0.1','0','0'],['3','2','0','0'],['3','0','0','0'],['1','0','0.6','0.6']]){
 field('length').value=length;field('loop').value=loop;field('fadein').value=fadein;field('fadeout').value=fadeout;
 click('Save and select revision');assert.equal(requests.length,2);
