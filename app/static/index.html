@@ -3908,6 +3908,35 @@
                             <details id="readaloud-options" class="workflow-disclosure mt-3 text-start">
                                 <summary>EPUB 3 read-aloud (source-preserving)</summary>
                                 <p class="small mt-2">Builds an EPUB 3 whose text and cover come from the retained original EPUB upload, with SMIL timing from a fresh MP3 this build makes itself — no Merge All needed first. When the script text can no longer be mapped unambiguously to the source, the build fails with the reason instead of substituting a text-only book. The EPUB includes its audio for compatible read-aloud readers. The matching MP3 download below is optional.</p>
+                                <p class="small mt-2" id="readaloud-timing-status" role="status" aria-live="polite">Timing: checking what this machine can run…</p>
+                                <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                                    <label class="form-label small mb-0" for="readaloud-timing-mode">Alignment</label>
+                                    <select class="form-select form-select-sm w-auto" id="readaloud-timing-mode">
+                                        <option value="auto">Auto (Qwen when ready)</option>
+                                        <option value="qwen">Qwen3 forced aligner</option>
+                                        <option value="chunk">Chunk timing (CPU)</option>
+                                    </select>
+                                    <label class="form-label small mb-0" for="readaloud-timing-device">Device</label>
+                                    <select class="form-select form-select-sm w-auto" id="readaloud-timing-device">
+                                        <option value="auto">Auto</option>
+                                        <option value="cpu">CPU</option>
+                                    </select>
+                                    <label class="form-label small mb-0" for="readaloud-timing-language">Language</label>
+                                    <select class="form-select form-select-sm w-auto" id="readaloud-timing-language">
+                                        <option value="">EPUB language</option>
+                                        <option value="English">English</option>
+                                        <option value="Chinese">Chinese</option>
+                                        <option value="Cantonese">Cantonese</option>
+                                        <option value="French">French</option>
+                                        <option value="German">German</option>
+                                        <option value="Italian">Italian</option>
+                                        <option value="Japanese">Japanese</option>
+                                        <option value="Korean">Korean</option>
+                                        <option value="Portuguese">Portuguese</option>
+                                        <option value="Russian">Russian</option>
+                                        <option value="Spanish">Spanish</option>
+                                    </select>
+                                </div>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     <button type="button" class="btn btn-outline-success btn-sm" id="readaloud-build-btn" onclick="buildReadaloudEpub()">Build EPUB</button>
                                     <button type="button" class="btn btn-outline-danger btn-sm" id="readaloud-cancel-btn" style="display:none" onclick="cancelReadaloudEpub()">Cancel</button>

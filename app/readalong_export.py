@@ -58,6 +58,50 @@ _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MP3_BITRATE = "128k"
 
 
+def get_readaloud_timing_preference(data_dir):
+    """Persisted per-build timing preference; strict shape, defaults on doubt.
+
+    Stored in the same data directory as the receipts. The UI/route
+    write it; builds and downloads only read it for staleness checks.
+    """
+    from utils import safe_load_json
+    raw = safe_load_json(os.path.join(data_dir, "readalong_timing.json"), {}) or {}
+    if not isinstance(raw, dict):
+        return {"timing_mode": "auto", "timing_device": "auto",
+                "timing_language": None}
+    mode = raw.get("timing_mode")
+    device = raw.get("timing_device")
+    language = raw.get("timing_language")
+    if mode not in ("auto", "qwen", "chunk"):
+        mode = "auto"
+    if not isinstance(device, str) or not device or not all(
+            c.isalnum() or c in "-_:" for c in device):
+        device = "auto"
+    if language is not None and not isinstance(language, str):
+        language = None
+    return {"timing_mode": mode, "timing_device": device,
+            "timing_language": language}
+
+
+def save_readaloud_timing_preference(preference, data_dir):
+    """Persist the user's timing choice; caller holds book state."""
+    from utils import atomic_json_write
+    atomic_json_write(preference, os.path.join(data_dir, "readalong_timing.json"))
+
+
+def require_timing_preference_unchanged(expected, root_dir):
+    """Mid-build fence: the persisted preference must still match admission."""
+    if not isinstance(expected, dict):
+        return
+    current = get_readaloud_timing_preference(root_dir)
+    if (current.get("timing_mode") != expected.get("timing_mode")
+            or current.get("timing_device") != expected.get("timing_device")
+            or current.get("timing_language") != expected.get("timing_language")):
+        raise ValueError(
+            "Timing settings changed during the build; refusing to publish. "
+            "Rebuild with the current settings.")
+
+
 def get_sidecar_output_path(data_dir):
     return os.path.join(data_dir, "readalong.sidecar.json")
 
@@ -92,6 +136,11 @@ def get_validated_epub_receipt(raw):
     Shape: {book_token, rows_digest, source_sha256, settings_digest,
     retained_epub_sha256, audio_sha256, epub_sha256} — all 64-hex.
     No paths are disclosed. Legacy 6-key receipts fail closed as unbound.
+
+    #1844 v2 shape adds {timing_mode, timing_device, timing_language,
+    timing_provider} recording the Qwen/chunk choice and provider
+    identity of the artifact. A legacy 7-key receipt still validates
+    and resolves to chunk semantics at download comparison.
     """
     if not isinstance(raw, bytes) or not raw or len(raw) > 1024 * 16:
         raise ValueError("EPUB read-aloud receipt is empty or oversized.")
@@ -99,14 +148,40 @@ def get_validated_epub_receipt(raw):
         doc = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("EPUB read-aloud receipt is malformed.") from error
-    if not isinstance(doc, dict) or set(doc) != {
-            "book_token", "rows_digest", "source_sha256", "settings_digest",
-            "retained_epub_sha256", "audio_sha256", "epub_sha256"}:
+    if not isinstance(doc, dict):
         raise ValueError("EPUB read-aloud receipt is malformed.")
-    for key, value in doc.items():
-        if not isinstance(value, str) or _HEX64_RE.fullmatch(value) is None:
+    legacy = {"book_token", "rows_digest", "source_sha256", "settings_digest",
+              "retained_epub_sha256", "audio_sha256", "epub_sha256"}
+    timing = {"timing_mode", "timing_device", "timing_dtype", "timing_language",
+              "timing_provider"}
+    if set(doc) == legacy:
+        timing_resolved = "chunk"
+    elif set(doc) == legacy | timing:
+        if doc.get("timing_mode") not in ("qwen", "chunk"):
+            raise ValueError("EPUB read-aloud receipt timing mode is invalid.")
+        for key in ("timing_device", "timing_dtype", "timing_language"):
+            value = doc.get(key)
+            if not isinstance(value, str) or not value or len(value) > 128:
+                raise ValueError("EPUB read-aloud receipt timing field is invalid.")
+        if (not isinstance(doc.get("timing_provider"), str)
+                or _HEX64_RE.fullmatch(doc["timing_provider"]) is None):
+            raise ValueError("EPUB read-aloud receipt provider identity is invalid.")
+        timing_resolved = doc["timing_mode"]
+    else:
+        raise ValueError("EPUB read-aloud receipt is malformed.")
+    for key in doc:
+        if key in timing:
+            continue
+        if not isinstance(doc[key], str) or _HEX64_RE.fullmatch(doc[key]) is None:
             raise ValueError("EPUB read-aloud receipt identity is invalid.")
     return doc
+
+
+def get_epub_receipt_timing_mode(receipt):
+    """Legacy (7-key) receipts resolve to chunk semantics."""
+    if isinstance(receipt, dict) and "timing_mode" in receipt:
+        return receipt["timing_mode"]
+    return "chunk"
 
 
 def get_export_report_for_staged(path, extra=None):
@@ -366,7 +441,8 @@ def _assemble_with_store(manager, source_snapshot, cancel_check, staging_path, s
     timeline_data = {"timeline": timeline, "orig_tokens": orig_tokens, "bounds": bounds,
                      "layout": layout, "total_frames": int(total_frames),
                      "pause_ms": pause_ms, "same_speaker_pause_ms": same_speaker_pause_ms,
-                     "skipped": skipped, "live_map": _live_index_map(manager)}
+                     "skipped": skipped, "live_map": _live_index_map(manager),
+                     "pcm_path": raw}
     fresh = {"path": fresh_mp3, "sha256": fresh_sha256, "bytes": fresh_bytes,
              "quality_report": quality_report}
     return timeline_data, fresh
@@ -435,6 +511,136 @@ def _require_app_source_receipt(source_snapshot, exclude=()):
 def _source_receipt(manager, source_snapshot):
     """Backwards-compatible thin wrapper (now fail-closed)."""
     return _require_app_source_receipt(source_snapshot)
+
+
+def _write_row_slice_wav(pcm_stream, path, layout, start_frame, end_frame):
+    """Write one row's PCM slice as a 16-bit mono WAV for the worker."""
+    channels, rate, width = layout
+    if width != 2:
+        raise ValueError(
+            "Qwen alignment needs 16-bit PCM slices; this export uses "
+            "%d-byte samples." % width)
+    frame_bytes = channels * width
+    n_frames = int(end_frame) - int(start_frame)
+    if n_frames <= 0:
+        raise ValueError("Alignment slice has no frames.")
+    pcm_stream.seek(int(start_frame) * frame_bytes)
+    remaining = n_frames * frame_bytes
+    chunks = []
+    while remaining > 0:
+        block = pcm_stream.read(min(1024**2, remaining))
+        if not block:
+            raise ValueError("Assembled PCM is shorter than the frame plan.")
+        chunks.append(block)
+        remaining -= len(block)
+    import wave as _wave
+    with _wave.open(str(path), "wb") as stream:
+        stream.setnchannels(channels)
+        stream.setsampwidth(width)
+        stream.setframerate(rate)
+        stream.writeframes(b"".join(chunks))
+    return n_frames / float(rate)
+
+
+def collect_aligned_rows(data, language_name, capability, cancel_check, staging_path,
+                         task_lease_fd=None):
+    """Run real Qwen alignment against the captured assembled PCM.
+
+    Audio slices come from ``data["pcm_path"]`` at the exact promoted
+    ``source_frame_ranges`` — never from rounded timeline anchors. Rows
+    longer than the 180-second aligner cap are windowed by qwen_align's
+    planner; window guesses only schedule inference and each window's
+    coverage is verified against its text slice. Returns (aligned_rows,
+    report) where aligned_rows fits build_epub_readaloud's aligned_rows
+    shape and tokens carry row-relative seconds.
+    """
+    from qwen_align import (count_units, cover_ranges, get_aligner_windows,
+                            get_validated_aligner_tokens, require_exact_coverage,
+                            split_sentences)
+    from qwen_runtime import get_qwen_worker_command, run_qwen_alignment
+
+    layout = data["layout"]
+    bounds = data["bounds"]
+    timeline = data["timeline"]
+    pcm_path = data["pcm_path"]
+    align_dir = Path(staging_path) / "qwen"
+    align_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = []
+    jobs = []
+    with open(pcm_path, "rb") as pcm_stream:
+        for position, ((chunk, _segment, _start_ms), (start_frame, end_frame)) in enumerate(zip(timeline, bounds)):
+            ensure_audio_export_active(cancel_check)
+            prepared = get_speech_preparation(chunk.get("text", ""), chunk.get("instruct"))["text"]
+            sentences = cover_ranges(prepared, split_sentences(prepared))
+            if not sentences:
+                raise ValueError("Qwen alignment refused: row %d has no sentences." % position)
+            total_frames = int(end_frame) - int(start_frame)
+            row_duration = total_frames / float(layout[1])
+            units = [{"start": s, "end": e, "words": count_units(prepared[s:e])}
+                     for s, e in sentences]
+            windows = get_aligner_windows(row_duration, units)
+            rows.append({"position": position, "text": prepared,
+                         "start_frame": int(start_frame), "end_frame": int(end_frame),
+                         "duration": row_duration, "windows": windows})
+            window_specs = []
+            for window in windows:
+                wav_path = align_dir / ("row-%d-w%d.wav" % (position, window["first_sentence"]))
+                first = int(round(window["start_sec"] * layout[1]))
+                last = int(round(window["end_sec"] * layout[1]))
+                slice_frames = _write_row_slice_wav(
+                    pcm_stream, wav_path, layout,
+                    int(start_frame) + first, int(start_frame) + last)
+                piece = prepared[window["char_start"]:window["char_end"]]
+                if not piece.strip():
+                    raise ValueError("Qwen alignment window has no text.")
+                jobs.append({
+                    "id": "r%d-w%d" % (position, window["first_sentence"]),
+                    "wav_path": str(wav_path), "text": piece,
+                    "duration_sec": slice_frames,
+                })
+                window_specs.append({
+                    "id": "r%d-w%d" % (position, window["first_sentence"]),
+                    "start_sec": window["start_sec"],
+                    "char_start": window["char_start"],
+                    "char_end": window["char_end"],
+                    "slice_frames": slice_frames,
+                })
+            rows[-1]["window_specs"] = window_specs
+
+    job_path = align_dir / "job.json"
+    result_path = align_dir / "result.json"
+    job_path.write_text(json.dumps({
+        "model_dir": capability["model_dir"], "device": capability["device"],
+        "dtype": capability.get("dtype"), "language": language_name,
+        "rows": jobs}, ensure_ascii=False), encoding="utf-8")
+    tokens_by_id = run_qwen_alignment(
+        get_qwen_worker_command(capability["python"]), job_path, result_path,
+        cancel_check, task_lease_fd=task_lease_fd)
+
+    aligned_rows = []
+    window_total = 0
+    for row in rows:
+        merged = []
+        for spec in row["window_specs"]:
+            raw_tokens = tokens_by_id.get(spec["id"])
+            slice_duration = spec["slice_frames"]
+            validated = get_validated_aligner_tokens(raw_tokens, slice_duration)
+            piece = row["text"][spec["char_start"]:spec["char_end"]]
+            require_exact_coverage(piece, validated)
+            for token in validated:
+                merged.append({
+                    "text": token["text"],
+                    "start_time": spec["start_sec"] + token["start_time"],
+                    "end_time": spec["start_sec"] + token["end_time"],
+                })
+            window_total += 1
+        row_tokens = get_validated_aligner_tokens(merged, row["duration"])
+        require_exact_coverage(row["text"], row_tokens)
+        aligned_rows.append({"tokens": row_tokens})
+    report = {"rows": len(aligned_rows), "windows": window_total,
+              "slices": len(jobs)}
+    return aligned_rows, report
 
 
 def build_sidecar_export(manager, cancel_check, progress_callback=None, *,
@@ -617,8 +823,16 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
 
 
 def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=None,
-                      audio_path=None):
-    """Build the source-preserving EPUB 3 read-aloud. Returns (ok, msg)."""
+                      audio_path=None, timing=None):
+    """Build the source-preserving EPUB 3 read-aloud. Returns (ok, msg).
+
+    ``timing`` (optional, #1844) pins the admission-time decision:
+    {"timing_mode": "qwen"|"chunk", "device", "language" (aligner name
+    or None to derive from the EPUB), "provider_digest",
+    "capability": full capability dict for qwen mode}. A qwen build
+    aligns the assembled PCM through the owned worker before packaging;
+    any alignment failure fails the whole build without publication.
+    """
     from export_staging import create_export_staging
     from project import _loading_progress
     audio_path = audio_path or os.path.join(manager.root_dir, "cloned_audiobook.mp3")
@@ -652,23 +866,87 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                 script_entries.append({"index": position, "prepared_text": prepared,
                                        "start_frame": start_frame, "end_frame": end_frame,
                                        "sample_rate": int(layout[1])})
-            from epub_readaloud import build_epub_readaloud
+            from epub_readaloud import build_epub_readaloud, get_spine_documents
+            from qwen_align import get_aligner_language_name
             fresh_bytes = Path(fresh["path"]).read_bytes()
+            aligned_rows = None
+            timing_summary = {"mode": "chunk"}
+            if timing is not None and timing.get("timing_mode") == "qwen":
+                capability = dict(timing.get("capability") or {})
+                capability["device"] = timing.get("device") or "cpu"
+                language = timing.get("language")
+                if not language:
+                    _opf_path, _package, _ns, _manifest, _spine, meta = get_spine_documents(retained_bytes)
+                    tag = meta.get("language") or ""
+                    if tag in ("", "und"):
+                        raise ValueError(
+                            "Qwen alignment needs a language: the EPUB has no "
+                            "dc:language. Choose one in the EPUB settings and rebuild.")
+                    language = get_aligner_language_name(tag)
+                aligned_rows, alignment = collect_aligned_rows(
+                    data, language, capability, cancel_check, staging.path,
+                    task_lease_fd=timing.get("task_lease_fd"))
+                timing_summary = {"mode": "qwen",
+                                  "device": timing.get("device"),
+                                  "dtype": timing.get("dtype"),
+                                  "language": language,
+                                  "provider_digest": timing.get("provider_digest"),
+                                  **alignment}
+                if progress_callback is not None:
+                    progress_callback(
+                        "Qwen alignment verified: %d rows, %d windows."
+                        % (alignment["rows"], alignment["windows"]))
             epub_bytes, report = build_epub_readaloud(
                 retained_epub_bytes=retained_bytes, audio_bytes=fresh_bytes,
                 audio_filename="audiobook.mp3", script_entries=script_entries,
-                cancel_check=cancel_check)
+                cancel_check=cancel_check, aligned_rows=aligned_rows)
             Path(pending).write_bytes(epub_bytes)
             publish_report = get_export_report_for_staged(pending, {"epub_bytes": len(epub_bytes)})
             publish_report["epub"] = report
+            publish_report["timing"] = timing_summary
             # Minimal receipt for R2: binds book/rows/source/retained/audio/epub.
             epub_sha256 = hashlib.sha256(epub_bytes).hexdigest()
             if fresh["sha256"] != hashlib.sha256(fresh_bytes).hexdigest():
                 raise ValueError("Fresh MP3 changed during EPUB build; refusing to publish.")
+            if timing_summary.get("mode") == "qwen":
+                from qwen_runtime import (get_qwen_provider_digest,
+                                          get_qwen_runtime_digest,
+                                          get_qwen_runtime_identity)
+                try:
+                    fresh_runtime = get_qwen_runtime_identity(
+                        timing["runtime"]["python"], cancel_check=cancel_check)
+                except ValueError as error:
+                    raise ValueError(str(error)) from error
+                if (get_qwen_runtime_digest(fresh_runtime)
+                        != timing["runtime"].get("runtime_digest")):
+                    raise ValueError(
+                        "Qwen runtime changed during the build (interpreter "
+                        "or package replaced); refusing to publish.")
+                current_digest = get_qwen_provider_digest(
+                    capability["model_dir"], runtime_identity={
+                        "qwen_asr_version": timing.get("qwen_asr_version"),
+                        "torch_version": timing.get("torch_version"),
+                        "device": timing.get("device"),
+                        "dtype": timing.get("dtype"),
+                        "identity": fresh_runtime},
+                    cancel_check=cancel_check)
+                if current_digest != timing.get("provider_digest"):
+                    raise ValueError(
+                        "Qwen provider changed during the build (model or "
+                        "interpreter replaced); refusing to publish.")
+                require_timing_preference_unchanged(
+                    timing.get("preference"), manager.root_dir)
             receipt_doc = {**app_receipt,
                            "retained_epub_sha256": retained_sha256,
                            "audio_sha256": fresh["sha256"],
                            "epub_sha256": epub_sha256}
+            if timing_summary.get("mode") == "qwen":
+                receipt_doc.update({
+                    "timing_mode": "qwen",
+                    "timing_device": str(timing_summary.get("device") or ""),
+                    "timing_dtype": str(timing_summary.get("dtype") or ""),
+                    "timing_language": str(timing_summary.get("language") or ""),
+                    "timing_provider": timing_summary.get("provider_digest")})
             receipt_bytes = json.dumps(
                 receipt_doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             get_validated_epub_receipt(receipt_bytes)

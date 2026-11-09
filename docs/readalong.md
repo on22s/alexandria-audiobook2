@@ -280,3 +280,80 @@ renames still needs a rebuild).
 
 See `docs/readalong-acceptance.md` (filled after freeze with measured
 counts, size/timing costs, SHA256 manifest).
+
+## Qwen3 sentence timing (#1844)
+
+Qwen3-ForcedAligner-0.6B refines segment timing to sentence granularity.
+AA2's content policy is unchanged: the build still runs `iter_timeline`
+frame truth first, still fails closed when mapping is inexact, and the
+Qwen result never approves content that mapping refused. Alignment is
+real model inference behind this build's admission — no proportional,
+fake, or word-count timing exists in the production path.
+
+- **Placement.** Inference never runs in the export task's thread. The
+  export exact-PCMs (`combined.pcm` at the promoted bounds) are sliced
+  per editor row and aligned in an owned subprocess worker
+  (`app/qwen_align_worker.py`) in the isolated `qwen-env` interpreter,
+  with the same owned-process cancel/timeout/reap behaviour as
+  `word_timing.run_timing_command`. The parent enforces `HF_HUB_OFFLINE=1`
+  and `local_files_only=True`; the worker loads a provisioned local
+  model directory through the official
+  `Qwen3ForcedAligner.from_pretrained(..., dtype, device_map,
+  local_files_only=True)` + `align(audio=path, text, language)` API
+  (QwenLM/Qwen3-ASR commit 7c6daf77a2421100f5fb066495372c00129d39ff;
+  HF model `Qwen/Qwen3-ForcedAligner-0.6B`, pin c7cbfc2048c462b0d63a45797104fc9db3ad62b7).
+- **Admission.** `readaloud_epub` was promoted out of `NON_GPU_TASKS`:
+  chunk timing claims `cpu_only=True` (unchanged behaviour), Qwen on a
+  GPU claims through the shared GPU lock. The effective device is
+  resolved exactly once, before `reserve_background_task`, and pinned
+  for the worker; a worker cannot auto-upgrade after admission. Cancel,
+  book switching and owner fencing are the existing mechanisms.
+- **Chunk vs Qwen labels.** Chunk timing is `chunk-estimated` (chunk
+  bounds only). Qwen clips are labelled as Qwen timing and never claim
+  measured accuracy or frame certification; token times are model
+  estimates and MP3 priming stays unclaimed.
+- **180s cap.** The upstream forced-aligner cap is 180s per call
+  (`MAX_FORCE_ALIGN_INPUT_SECONDS`). Alignment windows (≤180s audio)
+  are scheduled from the row's measured speech rate and its sentence
+  boundaries; window guesses only schedule inference. Every window's
+  tokens are verified against its text slice and the whole row, then
+  clips are derived from actual tokens. Long books work across many
+  short rows; an over-long single sentence is refused explicitly.
+- **Fail closed.** Non-finite, reversed, overlapping, saturating
+  (identical endpoints), out-of-bounds, text-mismatched, partial or
+  empty results refuse the whole build before publication. No
+  monotonic repair, no linear stretch, no proportional timings.
+  (Note: upstream `Qwen3ForceAlignProcessor.fix_timestamp` already
+  repairs out-of-order timestamp sequences internally; timings here
+  are AA2-validated *model* times, never claimed as raw unrepaired
+  model output or as ground truth. All AA2-side clamp/stretch is
+  absent by design.)
+- **Structure.** Sentence spans wrap sentence ranges inside mapped
+  block elements; inline markup/tails and every character are kept
+  exactly once and original ids stay. Coarsened containers with nested
+  blocks, and any structure the span wrapper cannot redistribute
+  faithfully, refuse explicitly as unsupported.
+- **Receipt v2.** Qwen artifacts carry `{timing_mode, timing_device,
+  timing_language, timing_provider}` (on-disk model/interpreter digest)
+  alongside the 7-key identity; pre-publication revalidation compares
+  the live digest. Download recomputes timing identity from the
+  persisted preference (`readalong_timing.json`) plus the model
+  digest: a provider replacement or a timing-choice change since the
+  build returns 409. Legacy 7-key receipts keep existing semantics.
+- **Install (isolated, explicit).** The main app keeps its pins
+  (transformers 4.57.3); nothing downloads during a build. To enable
+  Qwen: create a Python 3.12 venv (`qwen-env/`), install per-platform
+  torch, then `pip install -r app/requirements-qwen.txt`, then
+  download the model ONCE with the hf CLI:
+  `pip install -U "huggingface_hub[cli]"` +
+  `hf download Qwen/Qwen3-ForcedAligner-0.6B --local-dir models/Qwen3-ForcedAligner-0.6B`,
+  or set `ALEXANDRIA_QWEN_MODEL` to a local directory (and
+  `ALEXANDRIA_QWEN_PYTHON` to an explicit interpreter). Capability comes
+  from `GET /api/readaloud_epub/capability` (import/device presence
+  only, no inference); unknown is never shown as ready.
+- **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
+  not dependencies of this app; no parallel packager exists. The
+  sentence idea and parts of the tokenizer/window logic adapt
+  ReadAloudMaker (MIT, pinned above) under attribution in
+  `THIRD_PARTY_NOTICES.md`; its standalone server, build, and
+  packager/validator choices are not transplanted.

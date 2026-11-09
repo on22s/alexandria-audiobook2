@@ -49,13 +49,63 @@
       taskName: 'readaloud_epub', statusId: 'readaloud-status',
       cancelId: 'readaloud-cancel-btn', buildBtnId: 'readaloud-build-btn',
       startUrl: '/api/readaloud_epub', startBody: function () {
-        return {};
+        var body = {};
+        var mode = document.getElementById('readaloud-timing-mode')?.value;
+        var device = document.getElementById('readaloud-timing-device')?.value;
+        var language = document.getElementById('readaloud-timing-language')?.value;
+        if (mode) { body.timing_mode = mode; }
+        if (device) { body.timing_device = device; }
+        if (language) { body.timing_language = language; }
+        return body;
       },
       cancelUrl: '/api/readaloud_epub/cancel',
       downloadUrl: '/api/readaloud_epub', downloadName: 'readaloud.epub',
       doneMessage: 'EPUB read-aloud is ready. Download it below.',
     }),
   };
+
+  function refreshTimingStatus() {
+    var el = document.getElementById('readaloud-timing-status');
+    if (!el) { return; }
+    el.textContent = 'Timing: checking what this machine can run…';
+    API.get('/api/readaloud_epub/capability').then(function (info) {
+      if (!info || !info.policy) {
+        el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
+        return;
+      }
+      var modeEl = document.getElementById('readaloud-timing-mode');
+      var deviceEl = document.getElementById('readaloud-timing-device');
+      var languageEl = document.getElementById('readaloud-timing-language');
+      if (info.preference) {
+        if (modeEl) { modeEl.value = info.preference.timing_mode || 'auto'; }
+        if (deviceEl) { deviceEl.value = info.preference.timing_device || 'auto'; }
+        if (languageEl) { languageEl.value = info.preference.timing_language || ''; }
+      }
+      var devices = (info.capability && info.capability.devices) || [];
+      if (deviceEl) {
+        // Keep the user's selection; only add real devices we do not list.
+        devices.forEach(function (device) {
+          var present = false;
+          for (var i = 0; i < deviceEl.options.length; i++) {
+            if (deviceEl.options[i].value === device) { present = true; }
+          }
+          if (!present) {
+            var option = document.createElement('option');
+            option.value = device;
+            option.textContent = device;
+            deviceEl.appendChild(option);
+          }
+        });
+      }
+      if (info.capability && info.capability.available) {
+        el.textContent = 'Timing: Qwen3 ready (' + (devices.length ? devices.join(', ') : 'CPU') + '). ' + info.policy.reason;
+      } else {
+        el.textContent = 'Timing: Qwen3 not ready (' + (info.capability && info.capability.reason ? info.capability.reason : 'unknown') + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
+      }
+    }).catch(function () {
+      el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
+    });
+  }
 
   function statusEl(channel) {
     return document.getElementById(channel.statusId);
@@ -213,7 +263,8 @@
 
   // Book/reset invalidation: bump every taskId, stop timers, and
   // restore the idle view. Late start/poll/cancel promises from the old
-  // book then no-op instead of touching the new view.
+  // book then no-op instead of touching the new view. Timing selects
+  // keep the persisted preference; no probing happens here.
   function resetReadalongViews() {
     Object.values(channels).forEach(function (channel) {
       channel.taskId += 1;
@@ -233,6 +284,8 @@
       setBusy(channel, false);
     });
   }
+
+  refreshTimingStatus();
 
   window.buildReadalongSidecar = function () { startBuild(channels.sidecar, 'Build read-along sidecar'); };
   window.cancelReadalongSidecar = function () { cancelBuild(channels.sidecar); };

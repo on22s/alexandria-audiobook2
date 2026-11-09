@@ -50,6 +50,10 @@ import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from epub_package import get_epub_package
+from qwen_align import (count_units, derive_fragment_times, get_normalized_stream,
+                        get_token_key, get_validated_aligner_tokens,
+                        map_tokens_to_text, require_exact_coverage, split_sentences,
+                        cover_ranges)
 
 MAX_PUBLICATION_XML_BYTES = 2 * 1024**2
 
@@ -586,6 +590,237 @@ def build_smil_document(mapping, audio_filename, sample_rate, *, existing_ids,
     return ET.tostring(root, encoding="unicode")
 
 
+# --- Sentence-level fragments (#1844) ------------------------------------
+# When aligned_rows is supplied, each mapped segment's source text is
+# split into sentences and each sentence gets its own fragment id inside
+# the mapped element. Element ids, inline markup and tails are
+# preserved; every source character appears exactly once. The sentence
+# splitter and span redistribution adapt ReadAloudMaker (MIT), with AA2
+# remaining the authority for segment mapping and clip validation.
+_INLINE_SKIP = {"script", "style"}
+
+
+def _inline_events(element):
+    """Flatten one segment element into text/open/close/atom events.
+
+    Block or container descendants make the structure ambiguous for
+    sentence spans; those refuse explicitly instead of risking a
+    malformed book.
+    """
+    events = []
+
+    def walk(node):
+        if node.text:
+            events.append(("text", node.text))
+        for child in node:
+            tag = _local(child.tag)
+            if tag in _INLINE_SKIP:
+                if child.tail:
+                    events.append(("text", child.tail))
+                continue
+            if tag in _BLOCK or tag in _CONTAINER:
+                raise ValueError(
+                    "Sentence spans are unsupported inside a coarsened "
+                    "container with nested blocks; refusing to guess.")
+            if not isinstance(child.tag, str):
+                events.append(("atom", child))
+            else:
+                events.append(("open", child))
+                walk(child)
+                events.append(("close", child))
+            if child.tail:
+                events.append(("text", child.tail))
+
+    walk(element)
+    return events
+
+
+def _inline_copy_attributes(source, destination, emitted_ids):
+    """Copy element attributes into a clone.
+
+    First clone wins per id value so redistribution never duplicates
+    an id. Within one clone, id+lines with the same value (id="x"
+    and xml:id="x" on one element) are both kept, so `emitted_ids`
+    records clone-local values and merges them afterwards.
+    """
+    clone_ids = set()
+    for key, value in source.attrib.items():
+        id_like = (key == "id"
+                   or key == "{http://www.w3.org/XML/1998/namespace}id")
+        if id_like and value in emitted_ids:
+            continue
+        if id_like:
+            clone_ids.add(value)
+        destination.set(key, value)
+    emitted_ids.update(clone_ids)
+
+
+def _emit_sentence_span(element, events, start, end, span_id, emitted_ids):
+    span = ET.Element(f"{{{XHTML_NS}}}span")
+    span.set("id", span_id)
+    emitted_ids.add(span_id)
+
+    source_stack = []
+    output_stack = []
+    cursor = 0
+    emitted = False
+
+    def container():
+        return output_stack[-1][1] if output_stack else span
+
+    def append_text(value):
+        node = container()
+        if len(node):
+            node[-1].tail = (node[-1].tail or "") + value
+        else:
+            node.text = (node.text or "") + value
+
+    def sync():
+        common = 0
+        while (common < len(output_stack) and common < len(source_stack)
+               and output_stack[common][0] is source_stack[common]):
+            common += 1
+        del output_stack[common:]
+        for source in source_stack[common:]:
+            created = ET.SubElement(container(), source.tag)
+            _inline_copy_attributes(source, created, emitted_ids)
+            output_stack.append((source, created))
+
+    for kind, value in events:
+        if kind == "text":
+            seg_start = cursor
+            seg_end = cursor + len(value)
+            if seg_end > start and seg_start < end:
+                sync()
+                first = max(start, seg_start) - seg_start
+                last = min(end, seg_end) - seg_start
+                append_text(value[first:last])
+                emitted = True
+            cursor = seg_end
+        elif kind == "open":
+            source_stack.append(value)
+        elif kind == "close":
+            if output_stack and output_stack[-1][0] is value:
+                output_stack.pop()
+            if source_stack and source_stack[-1] is value:
+                source_stack.pop()
+        elif kind == "atom":
+            if start <= cursor < end:
+                sync()
+                clone = ET.SubElement(container(), value.tag)
+                _inline_copy_attributes(value, clone, emitted_ids)
+                emitted = True
+
+    return span if emitted else None
+
+
+def _validated_aligned_row(aligned_rows, index):
+    if aligned_rows is None or index >= len(aligned_rows):
+        raise ValueError("Qwen alignment is incomplete; refusing to mix timings.")
+    aligned = aligned_rows[index]
+    if not isinstance(aligned, dict) or not isinstance(aligned.get("tokens"), list):
+        raise ValueError("Qwen alignment is incomplete; refusing to mix timings.")
+    return aligned["tokens"]
+
+
+def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
+                               sample_rate, next_id, emitted_ids):
+    """Split one segment into sentence rows using actual aligned tokens."""
+    element = segment["element"]
+    events = _inline_events(element)
+    flat = "".join(value for kind, value in events if kind == "text")
+    ranges = cover_ranges(flat, split_sentences(flat))
+    if not ranges:
+        raise ValueError("Sentence split found no sentences in a spoken segment.")
+
+    # Merge the rows' tokens into segment-normalized token spans.
+    segment_stream, flat_indices = get_normalized_stream(flat)
+    stream_spans = []  # (token, norm_start, norm_end, frame_start, frame_end)
+    stream_offset = 0
+    for chunk_index in row["chunk_indexes"]:
+        entry = script_entries[chunk_index]
+        tokens = _validated_aligned_row(aligned_rows, chunk_index)
+        row_text = entry["prepared_text"]
+        row_duration = (entry["end_frame"] - entry["start_frame"]) / float(sample_rate)
+        validated = get_validated_aligner_tokens(tokens, row_duration)
+        row_spans = require_exact_coverage(row_text, validated)
+        row_stream, row_indices = get_normalized_stream(row_text)
+        if len(row_stream) == 0:
+            raise ValueError("Spoken row has no alignable characters.")
+        first_norm_pos = {}
+        for norm_pos, orig_pos in enumerate(row_indices):
+            first_norm_pos.setdefault(orig_pos, norm_pos)
+        for token, char_start, char_end in row_spans:
+            norm_start = first_norm_pos.get(char_start)
+            norm_end = first_norm_pos.get(char_end - 1, None)
+            if norm_start is None or norm_end is None:
+                raise ValueError("Aligned token cannot be located in the spoken text.")
+            norm_end += 1
+            frame_start = entry["start_frame"] + int(round(token["start_time"] * sample_rate))
+            frame_end = entry["start_frame"] + int(round(token["end_time"] * sample_rate))
+            if frame_end > entry["end_frame"] or frame_start < entry["start_frame"]:
+                raise ValueError("Aligned token escapes its spoken row's frame bounds.")
+            stream_spans.append((token, stream_offset + norm_start,
+                                 stream_offset + norm_end, frame_start, frame_end))
+        stream_offset += len(row_stream)
+
+    # The segment's source stream must equal the spoken stream exactly.
+    spoken = "".join(get_token_key(t.get("text")) for t, _, _, _, _ in stream_spans)
+    if spoken != segment_stream:
+        raise ValueError(
+            "Aligned tokens do not correspond to the segment text; the "
+            "source and spoken streams disagree.")
+
+    # Map sentence char ranges (original flat coords) to stream coords,
+    # then reuse the shared fragment-time derivation without clamping.
+    import bisect
+    fragments = []
+    for start, end in ranges:
+        if start >= len(flat) or end - 1 >= len(flat):
+            raise ValueError("Sentence range escapes the segment text.")
+        norm_start = bisect.bisect_left(flat_indices, start)
+        norm_end = bisect.bisect_right(flat_indices, end - 1)
+        fragments.append((norm_start, norm_end))
+    timed = derive_fragment_times(
+        fragments, [(t, s, e) for t, s, e, _fs, _fe in stream_spans])
+
+    if len(ranges) == 1:
+        return [{"fragment": None, "text": segment["text"],
+                 "segment_index": row["segment_index"],
+                 "chunk_indexes": list(row["chunk_indexes"]),
+                 "start_frame": row["start_frame"],
+                 "end_frame": row["end_frame"]}]
+
+    spans_out = []
+    for (start, end), (span_start, span_end) in zip(ranges, fragments):
+        inside = [(t, s, e, fs, fe) for t, s, e, fs, fe in stream_spans
+                  if e > span_start and s < span_end]
+        if not inside:
+            raise ValueError("Sentence has no aligned tokens.")
+        frame_start = min(fs for _t, _s, _e, fs, _fe in inside)
+        frame_end = max(fe for _t, _s, _e, _fs, fe in inside)
+        if frame_start < row["start_frame"] or frame_end > row["end_frame"]:
+            raise ValueError("Sentence clip escapes the segment frame bounds.")
+        spans_out.append((start, end, frame_start, frame_end))
+
+    element.text = None
+    for child in list(element):
+        element.remove(child)
+    rows = []
+    for start, end, frame_start, frame_end in spans_out:
+        span_id = next_id()
+        emitted_ids.add(span_id)
+        span = _emit_sentence_span(element, events, start, end, span_id, emitted_ids)
+        if span is None:
+            raise ValueError("Sentence span could not be emitted; refusing to guess.")
+        element.append(span)
+        rows.append({"fragment": span_id, "text": segment["text"],
+                     "segment_index": row["segment_index"],
+                     "chunk_indexes": list(row["chunk_indexes"]),
+                     "start_frame": frame_start, "end_frame": frame_end})
+    return rows
+
+
 def validate_epub_readaloud(archive_bytes):
     """Re-parse a built EPUB and validate SMIL/manifest/XHTML bindings.
 
@@ -972,12 +1207,17 @@ def _nav_links_href(full, fragment, nav_dir):
 
 
 def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, script_entries,
-                         cancel_check=None):
+                         cancel_check=None, aligned_rows=None):
     """Build a source-preserving EPUB 3 read-aloud archive.
 
     retained_epub_bytes: exact bytes from the upload retention.
     audio_bytes: exported MP3 bytes bound to the sidecar timeline.
     script_entries: [{index, prepared_text, start_frame, end_frame}]
+    aligned_rows: optional (Qwen mode) list parallel to script_entries;
+        each entry is {"tokens": [{text, start_time, end_time}]} with
+        row-relative seconds. When given, every row must carry tokens
+        and sentence-level fragments are built from them; None keeps the
+        chunk-bound behavior unchanged.
     Returns (epub_bytes, report).
     """
     if not script_entries:
@@ -1038,21 +1278,66 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             continue
         mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor)
         existing_ids = {el.get('id') for el in root.iter() if el.get('id')}
+        xml_local = '{http://www.w3.org/XML/1998/namespace}id'
+        existing_ids |= {el.get(xml_local) for el in root.iter() if el.get(xml_local)}
         assigned = set(existing_ids)
-        for position, row in enumerate(mapping, 1):
-            segment = segments[row["segment_index"]]
-            frag = segment["fragment"]
-            if frag is None:
-                n = position
+        if aligned_rows is not None:
+            if len(aligned_rows) != len(script_entries):
+                raise ValueError("Qwen alignment does not cover every script entry.")
+            counter = [0]
+
+            def next_id():
+                counter[0] += 1
                 while True:
-                    cand = f"aa2-p-{n:04d}"
+                    cand = f"aa2-p-{counter[0]:04d}"
                     if cand not in assigned:
-                        frag = cand
-                        break
-                    n += 1
-                segment["element"].set('id', frag)
-            assigned.add(frag)
-            row["fragment"] = frag
+                        assigned.add(cand)
+                        return cand
+                    counter[0] += 1
+
+            # `assigned` is reserved for collision avoidance only; original
+            # ids are NOT considered emitted, so inline clones preserve
+            # them exactly once (#1844 P7). Emitted ids track what the
+            # reconstruction actually wrote.
+            emitted_ids = set()
+            expanded = []
+            for index, row in enumerate(mapping):
+                segment = segments[row["segment_index"]]
+                expanded.extend(_sentence_rows_for_segment(
+                    segment, row, script_entries, aligned_rows, sample_rate,
+                    next_id, emitted_ids))
+            mapping = expanded
+            for row in mapping:
+                if row["fragment"] is None:
+                    segment = segments[row["segment_index"]]
+                    existing_frag = segment["fragment"]
+                    if existing_frag is not None:
+                        row["fragment"] = existing_frag
+                        continue
+                    n = 1
+                    while True:
+                        cand = f"aa2-p-{n:04d}"
+                        if cand not in assigned:
+                            break
+                        n += 1
+                    segment["element"].set('id', cand)
+                    assigned.add(cand)
+                    row["fragment"] = cand
+        else:
+            for position, row in enumerate(mapping, 1):
+                segment = segments[row["segment_index"]]
+                frag = segment["fragment"]
+                if frag is None:
+                    n = position
+                    while True:
+                        cand = f"aa2-p-{n:04d}"
+                        if cand not in assigned:
+                            frag = cand
+                            break
+                        n += 1
+                    segment["element"].set('id', frag)
+                assigned.add(frag)
+                row["fragment"] = frag
         xml_body = ET.tostring(root, encoding="unicode")
         xhtml_bytes = ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n' + xml_body).encode("utf-8")
         modified_xhtml[spine_item["path"]] = xhtml_bytes

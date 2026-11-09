@@ -411,6 +411,52 @@ by the scripts named, none is redistributed.
 | [Muse-Glimmer-30B](https://huggingface.co/meta-models/Muse-Glimmer-30B), Qwen3 / Qwen3.6 / Qwen3.8 | Apache-2.0 | attribution bases; adapters for the Qwen models are published, trained as recorded in RECIPES |
 | DeepSeek v4-pro (API) | vendor terms | the cloud ceiling in RECIPES; nothing trained on its outputs except the distillation rows RECIPES names, none of which is in a public adapter |
 
+## Qwen3 read-aloud timing (#1844)
+
+| Source | Licence | Used in |
+| --- | --- | --- |
+| [ReadAloudMaker](https://github.com/REFLEXGAMING007/ReadAloudMaker) commit 8ba70a83383e8a5bddd8b859016ffbbcefccba18, Copyright (c) 2026 ReadAloudMaker contributors | MIT | Sentence boundary splitting, sentence-span redistribution over inline markup, punctuation-free token mapping and alignment-window scheduling, re-derived over AA2's own normalization. Its standalone server/UI, standalone packager/validator and growth/clamp/stretch choices are not used. |
+| [QwenLM/Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) commit 7c6daf77a2421100f5fb066495372c00129d39ff (qwen_asr==0.0.6) | Apache-2.0 | `Qwen3ForcedAligner` backend used at runtime in `app/qwen_align_worker.py`; not bundled, imported only in the isolated qwen-env interpreter. |
+| `Qwen/Qwen3-ForcedAligner-0.6B` (Hugging Face, pin c7cbfc2048c462b0d63a45797104fc9db3ad62b7) | Apache-2.0 | Model weights loaded locally at runtime in the qwen-env interpreter via `local_files_only=True`; never downloaded by a build, never shipped. |
+
+### MIT License (ReadAloudMaker, complete terms for the adapted code)
+
+Adapted substantial code (the sentence boundary algorithm, sentence-span
+redistribution, punctuation-free token mapping and alignment-window
+scheduling re-derived in `app/qwen_align.py` and `app/epub_readaloud.py`)
+obeys the donor's license, reproduced verbatim below per its own
+conditions:
+
+```text
+MIT License
+
+Copyright (c) 2026 ReadAloudMaker contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+The Qwen3-ASR package and weights are Apache-2.0 **dependencies** used at
+runtime in the isolated `qwen-env` interpreter; no Apache-licensed source
+code is copied into this repository. The sentence-level idea originated
+with ReadAloudMaker; the full build, EPUB source preservation, receipts,
+and process ownership are this project's own design.
+
 ## Research consulted since 2026-08-05
 
 - Michel, Epure, Cerisara — the Michel et al. prompt formulation and LibriQuote (above).
