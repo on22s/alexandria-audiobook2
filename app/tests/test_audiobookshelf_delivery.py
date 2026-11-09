@@ -1317,6 +1317,160 @@ class ReconcileVerifyTests(unittest.TestCase):
         detail.update(overrides)
         return detail
 
+    def _server_scoped_receipt(self, status):
+        entry = self._seed_unknown() if status == 'unknown' else self._seed_accepted()
+        if status == 'sent':
+            self._listing_candidate()
+            self.server.item_details = {'li_1': self._item_detail()}
+            self.server.file_blobs = {('li_1', 'ino_1'): self.payload}
+            entry = delivery.reconcile_delivery(self.data_dir, entry['id'], self.base, 'fake-token')
+            self.assertEqual('sent', entry['status'])
+            self.assertEqual(self.sha256, entry['reconciled_sha256'])
+            self.assertEqual(len(self.payload), entry['reconciled_bytes'])
+        return entry
+
+    def _exercise_server_switch(self, status, *, base_url_only=False):
+        original_base = self.base
+        before_export = Path(self.export_path).read_bytes()
+        entry = self._server_scoped_receipt(status)
+        if base_url_only:
+            entry.pop('server')
+            delivery.update_ledger_entry(self.data_dir, entry)
+        stale_preview = self._preview()
+        second = RawAbsServer().start()
+        self.addCleanup(second.stop)
+        self.base = f'http://127.0.0.1:{second.port}'
+        preview = self._preview()
+        self.assertIsNone(delivery.get_preview(stale_preview['preview_id']))
+        self.assertEqual([], second.received_uploads)
+        second_entry = delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                             preview['preview_id'], self._confirm())
+        self.assertEqual('unknown', second_entry['status'])
+        self.assertTrue(second_entry['verification_pending'])
+        self.assertEqual(self.base, second_entry['server'])
+        self.assertNotEqual(entry['id'], second_entry['id'])
+        self.assertEqual(1, len(second.parsed_uploads))
+        self.assertEqual(self.payload, second.parsed_uploads[0]['file'])
+        self.assertEqual(self.sha256, second.parsed_uploads[0]['file_sha256'])
+        self.assertEqual([entry, second_entry], delivery.get_ledger(self.data_dir))
+        for base in (self.base, original_base):
+            self.base = base
+            duplicate = self._preview()
+            before_ledger = Path(delivery._ledger_path(self.data_dir)).read_bytes()
+            with self.assertRaises(delivery.DeliveryError) as caught:
+                delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                      duplicate['preview_id'], self._confirm(), acknowledge_unknown=True)
+            self.assertEqual(409, caught.exception.status)
+            self.assertEqual(before_ledger, Path(delivery._ledger_path(self.data_dir)).read_bytes())
+            self.assertIsNotNone(delivery.get_preview(duplicate['preview_id']))
+        self.assertEqual(1, len(second.parsed_uploads))
+        self.assertEqual(1, len(self.server.parsed_uploads))
+        self.assertEqual(before_export, Path(self.export_path).read_bytes())
+
+    def test_verified_receipt_does_not_block_independent_server_with_matching_destination_ids(self):
+        self._exercise_server_switch('sent')
+
+    def test_unknown_receipt_does_not_block_independent_server_with_matching_destination_ids(self):
+        self._exercise_server_switch('unknown')
+
+    def test_accepted_receipt_does_not_block_independent_server_with_matching_destination_ids(self):
+        self._exercise_server_switch('accepted')
+
+    def test_base_url_only_receipt_remains_server_scoped(self):
+        self._exercise_server_switch('sent', base_url_only=True)
+
+    def test_failed_receipt_on_one_server_is_not_hidden_by_unknown_receipt_on_another(self):
+        original_base = self.base
+        self.server.mode = 'auth-fail'
+        preview = self._preview()
+        failed = delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                       preview['preview_id'], self._confirm())
+        self.assertEqual('failed', failed['status'])
+        self.server.mode = 'ok'
+        second = RawAbsServer().start()
+        self.addCleanup(second.stop)
+        self.base = f'http://127.0.0.1:{second.port}'
+        preview = self._preview()
+        other = delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                      preview['preview_id'], self._confirm())
+        self.assertEqual('unknown', other['status'])
+        self.base = original_base
+        preview = self._preview()
+        retried = delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                        preview['preview_id'], self._confirm())
+        self.assertEqual('unknown', retried['status'])
+        self.assertEqual([failed, other, retried], delivery.get_ledger(self.data_dir))
+        self.assertEqual(1, len(self.server.parsed_uploads))
+        self.assertEqual(1, len(second.parsed_uploads))
+        self.assertEqual(self.payload, self.server.parsed_uploads[0]['file'])
+        self.assertEqual(self.payload, second.parsed_uploads[0]['file'])
+
+    def test_server_url_identity_normalizes_authority_without_merging_different_destinations(self):
+        for recorded, current, matches in (
+                ('HTTPS://AUDIO.EXAMPLE:443/books///', 'https://audio.example/books', True),
+                ('http://localhost:80/', 'http://localhost', True),
+                ('http://[0:0:0:0:0:0:0:1]:80/', 'http://[::1]', True),
+                ('https://audio.example/books/.', 'https://audio.example/books', True),
+                ('https://audio.example/books/part/..', 'https://audio.example/books', True),
+                ('https://audio.example/%62ooks', 'https://audio.example/books', True),
+                ('https://audio.example//books', 'https://audio.example/books', False),
+                ('http://localhost:13378', 'http://127.0.0.1:13378', False),
+                ('https://audio.example.', 'https://audio.example', False),
+                ('https://audio.example:444/books', 'https://audio.example/books', False),
+                ('https://audio.example/Books', 'https://audio.example/books', False),
+                ('https://first.example', 'https://second.example', False),
+                ('https://audio.example', 'http://localhost', False)):
+            with self.subTest(recorded=recorded, current=current):
+                self.assertIs(matches, delivery._may_match_delivery_server({'server': recorded}, current))
+
+    def test_unusable_legacy_server_identity_blocks_without_upload_or_ledger_change(self):
+        original_base = self.base
+        entry = self._server_scoped_receipt('sent')
+        second = RawAbsServer().start()
+        self.addCleanup(second.stop)
+        self.base = f'http://127.0.0.1:{second.port}'
+        for status in ('sent', 'unknown', 'in_flight'):
+            for fields in ({}, {'server': None}, {'server': 'not a URL'},
+                           {'base_url': 'https://[broken'}, {'server': 12},
+                           {'server': 'https://example.test:invalid'},
+                           {'server': original_base, 'base_url': self.base}):
+                with self.subTest(status=status, fields=fields):
+                    legacy = {key: value for key, value in entry.items()
+                              if key not in ('server', 'base_url')}
+                    legacy.update(status=status, **fields)
+                    delivery.save_ledger(self.data_dir, [legacy])
+                    preview = self._preview()
+                    before = Path(delivery._ledger_path(self.data_dir)).read_bytes()
+                    with self.assertRaises(delivery.DeliveryError) as caught:
+                        delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                              preview['preview_id'], self._confirm(), acknowledge_unknown=True)
+                    self.assertEqual(409, caught.exception.status)
+                    self.assertEqual(before, Path(delivery._ledger_path(self.data_dir)).read_bytes())
+                    self.assertEqual([], second.received_uploads)
+                    self.assertEqual(self.payload, Path(self.export_path).read_bytes())
+
+    def test_same_server_url_spelling_does_not_bypass_duplicate_protection(self):
+        entry = self._server_scoped_receipt('sent')
+        for fields in ({'server': self.base.upper()+'///'},
+                       {'base_url': ' '+self.base+'/ '},
+                       {'server': self.base+'/.'},
+                       {'base_url': self.base+'/part/..'},
+                       {'server': self.base+'/.', 'base_url': self.base+'/part/..'},
+                       {'server': self.base, 'base_url': self.base.upper()+'/'}):
+            with self.subTest(fields=fields):
+                receipt = {key: value for key, value in entry.items()
+                           if key not in ('server', 'base_url')}
+                receipt.update(fields)
+                delivery.save_ledger(self.data_dir, [receipt])
+                preview = self._preview()
+                before = Path(delivery._ledger_path(self.data_dir)).read_bytes()
+                with self.assertRaises(delivery.DeliveryError) as caught:
+                    delivery.send_preview(self.data_dir, self.states, self.base, 'fake-token',
+                                          preview['preview_id'], self._confirm())
+                self.assertEqual(409, caught.exception.status)
+                self.assertEqual(before, Path(delivery._ledger_path(self.data_dir)).read_bytes())
+                self.assertEqual(1, len(self.server.parsed_uploads))
+
     def test_exact_bytes_promote_to_sent_with_proof(self):
         entry = self._seed_unknown()
         self._listing_candidate()

@@ -20,7 +20,10 @@ replacement during the transfer can never cause unconfirmed bytes to leave.
 Delivery status lives in a small durable ledger (``audiobookshelf_ledger.json``)
 persisted *before* the network call, separate from synthesis/export status.
 Ambiguous outcomes (timeout, dropped connection, 5xx, cancel) stay
-``unknown`` and block re-send until the user reconciles. So does HTTP 200
+``unknown`` and block re-send until the user reconciles. Duplicate protection
+is scoped to a known server URL identity as well as book/export/destination;
+missing, unusable or conflicting legacy server bindings remain fail-closed.
+So does HTTP 200
 from ``POST /api/upload``: the pinned server's ``MiscController.handleUpload``
 awaits ``file.mv(path)`` but ignores a failed move and still replies 200, so
 a 200 only means the upload was *accepted*, never that the file bytes were
@@ -411,6 +414,34 @@ def get_latest_delivery(data_dir, book_token, sha256, library_id, folder_id):
                and entry.get('library_id') == library_id
                and entry.get('folder_id') == folder_id]
     return matches[-1] if matches else None
+
+
+def _get_delivery_server_identity(value):
+    """Normalize a usable URL binding without resolving or contacting its host."""
+    from requests import PreparedRequest, RequestException
+    try:
+        request = PreparedRequest()
+        request.prepare_url(f'{_validate_base_url(value)}/api/upload', None)
+        parsed = urlparse(request.url)
+        hostname = parsed.hostname
+        try:
+            hostname = ipaddress.ip_address(hostname).compressed
+        except ValueError:
+            pass
+        port = parsed.port
+        if port is None:
+            port = 443 if parsed.scheme == 'https' else 80
+        return parsed.scheme, hostname, port, parsed.path
+    except (DeliveryError, RequestException, ValueError):
+        return None
+
+
+def _may_match_delivery_server(entry, base_url):
+    """Keep missing, unusable or conflicting historical bindings fail-closed."""
+    current = _get_delivery_server_identity(base_url)
+    recorded = {_get_delivery_server_identity(entry[key])
+                for key in ('server', 'base_url') if entry.get(key) not in (None, '')}
+    return current is None or len(recorded) != 1 or None in recorded or current in recorded
 
 
 def save_ledger_entry(data_dir, entry):
@@ -1248,7 +1279,8 @@ def send_preview(data_dir, states, base_url, token, preview_id, confirm, *,
                        if item.get('book_token') == confirm['book_token']
                        and item.get('sha256') == stored['sha256']
                        and item.get('library_id') == stored['library_id']
-                       and item.get('folder_id') == stored['folder_id']]
+                       and item.get('folder_id') == stored['folder_id']
+                       and _may_match_delivery_server(item, validated_base)]
             prior = matches[-1] if matches else None
             if prior is not None and prior.get('status') == 'sent':
                 raise DeliveryError(
