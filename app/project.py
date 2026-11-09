@@ -3901,7 +3901,7 @@ class ProjectManager:
 
         Args:
             indices: List of chunk indices to generate
-            batch_seed: Single seed for all generations (-1 for random)
+            batch_seed: Nonnegative override for all generations; -1 keeps saved voice seeds
             batch_size: Number of chunks per batch request
             progress_callback: Optional callback(completed, failed, total) for progress updates
             batch_group_by_type: Group indices by voice type before batching for

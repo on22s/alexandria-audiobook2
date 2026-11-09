@@ -1134,6 +1134,30 @@ class TTSEngine:
         sub_batches.append((batch_start, len(texts)))
         return sub_batches
 
+    def _build_seeded_sub_batches(self, texts, chunks, voice_config, batch_seed, max_items):
+        """Refine length/cap partitions without mixing effective voice seeds."""
+        partitions = self._build_sub_batches(texts, max_items=max_items)
+        if batch_seed >= 0:
+            return [(start, end, batch_seed) for start, end in partitions]
+        seeds = []
+        for chunk in chunks:
+            speaker = chunk.get("speaker", "")
+            resolved = get_batch_voice_config(voice_config, speaker, chunk["index"], batch_seed)
+            try:
+                seed = int(resolved.get(speaker, {}).get("seed", -1))
+            except (TypeError, ValueError, OverflowError):
+                seed = -1
+            seeds.append(seed if seed >= 0 else -1)
+        sub_batches = []
+        for start, end in partitions:
+            batch_start = start
+            for position in range(start + 1, end):
+                if seeds[position] != seeds[batch_start]:
+                    sub_batches.append((batch_start, position, seeds[batch_start]))
+                    batch_start = position
+            sub_batches.append((batch_start, end, seeds[batch_start]))
+        return sub_batches
+
     # ── Lazy initialization ──────────────────────────────────────
 
     @ensure_local_tts_serialized
@@ -2843,7 +2867,7 @@ class TTSEngine:
             chunks: List of dicts with 'text', 'instruct', 'speaker', 'index' keys
             voice_config: Voice configuration dict
             output_dir: Directory to save output files
-            batch_seed: Single seed for all generations (-1 for random)
+            batch_seed: Nonnegative override for all generations; -1 keeps saved voice seeds
 
         Returns:
             dict with 'completed' (list of indices) and 'failed' (list of (index, error) tuples)
@@ -3233,8 +3257,8 @@ class TTSEngine:
         Autoregressive batch generation runs for as long as the longest sequence.
         Shorter sequences waste compute on padding. To minimize this, chunks are
         sorted by text length and split into sub-batches when the length ratio
-        exceeds the configured threshold. Sub-batching can be disabled entirely
-        via config, in which case everything runs as one batch.
+        exceeds the configured threshold. Disabling length-ratio splitting
+        still preserves item caps and effective seed boundaries.
         """
         import torch
         import time
@@ -3273,6 +3297,7 @@ class TTSEngine:
         speakers = [speakers[i] for i in sort_order]
         instructs = [instructs[i] for i in sort_order]
         indices = [indices[i] for i in sort_order]
+        sorted_chunks = [chunks[i] for i in sort_order]
 
         model = self._init_local_custom()
         measure_gpu_peak = torch.cuda.is_available() and self.get_memory_device(model) is not None
@@ -3288,7 +3313,8 @@ class TTSEngine:
         max_items = self._estimate_max_batch_size(
             model, max_text_chars=len(texts[-1]),
         )
-        sub_batches = self._build_sub_batches(texts, max_items=max_items)
+        sub_batches = self._build_seeded_sub_batches(
+            texts, sorted_chunks, voice_config, batch_seed, max_items)
 
         print(f"Batch [local]: generating {len(texts)} chunks ({total_text_chars} chars) "
               f"in {len(sub_batches)} sub-batch(es)...")
@@ -3296,7 +3322,7 @@ class TTSEngine:
         t_total_start = time.time()
         total_audio_duration = 0.0
 
-        for sb_idx, (start, end) in enumerate(sub_batches):
+        for sb_idx, (start, end, seed) in enumerate(sub_batches):
             sb_texts = texts[start:end]
             sb_speakers = speakers[start:end]
             sb_instructs = instructs[start:end]
@@ -3307,8 +3333,8 @@ class TTSEngine:
                   f"({sb_chars} chars, {len(sb_texts[0])}-{len(sb_texts[-1])} chars/chunk)")
 
             try:
-                if batch_seed >= 0:
-                    torch.manual_seed(batch_seed)
+                if seed >= 0:
+                    torch.manual_seed(seed)
 
                 if measure_gpu_peak:
                     torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
@@ -3411,6 +3437,7 @@ class TTSEngine:
             sort_order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
             texts = [texts[i] for i in sort_order]
             indices = [indices[i] for i in sort_order]
+            sorted_chunks = [group[i] for i in sort_order]
 
             # Estimate max batch size from VRAM + clone prompt overhead
             clone_tokens = prompt[0].ref_code.shape[0] if prompt[0].ref_code is not None else 0
@@ -3418,12 +3445,13 @@ class TTSEngine:
             max_items = self._estimate_max_batch_size(
                 model, clone_tokens, ref_text_chars, len(texts[-1]),
             )
-            sub_batches = self._build_sub_batches(texts, max_items=max_items)
+            sub_batches = self._build_seeded_sub_batches(
+                texts, sorted_chunks, voice_config, batch_seed, max_items)
 
             print(f"Batch [clone] speaker='{speaker}': {len(texts)} chunks "
                   f"in {len(sub_batches)} sub-batch(es)")
 
-            for sb_idx, (start, end) in enumerate(sub_batches):
+            for sb_idx, (start, end, seed) in enumerate(sub_batches):
                 sb_texts = texts[start:end]
                 sb_indices = indices[start:end]
 
@@ -3431,10 +3459,8 @@ class TTSEngine:
                       f"({len(sb_texts[0])}-{len(sb_texts[-1])} chars/chunk)")
 
                 try:
-                    # Seed for reproducible batch output when batch_seed is set
-                    # (matches _local_batch_custom); otherwise random each run.
-                    if batch_seed >= 0:
-                        torch.manual_seed(batch_seed)
+                    if seed >= 0:
+                        torch.manual_seed(seed)
                     if measure_gpu_peak:
                         torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                     t_start = time.time()
@@ -3571,6 +3597,7 @@ class TTSEngine:
             instructs_raw = [instructs_raw[i] for i in sort_order]
             character_styles = [character_styles[i] for i in sort_order]
             indices = [indices[i] for i in sort_order]
+            sorted_chunks = [group[i] for i in sort_order]
 
             # Estimate max batch size from VRAM + clone prompt overhead
             clone_tokens = prompt[0].ref_code.shape[0] if prompt[0].ref_code is not None else 0
@@ -3578,12 +3605,13 @@ class TTSEngine:
             max_items = self._estimate_max_batch_size(
                 model, clone_tokens, ref_text_chars, len(texts[-1]),
             )
-            sub_batches = self._build_sub_batches(texts, max_items=max_items)
+            sub_batches = self._build_seeded_sub_batches(
+                texts, sorted_chunks, voice_config, batch_seed, max_items)
 
             print(f"Batch [lora] adapter='{os.path.basename(adapter_path)}': {len(texts)} chunks "
                   f"in {len(sub_batches)} sub-batch(es)")
 
-            for sb_idx, (start, end) in enumerate(sub_batches):
+            for sb_idx, (start, end, seed) in enumerate(sub_batches):
                 sb_texts = texts[start:end]
                 sb_instructs = instructs_raw[start:end]
                 sb_character_styles = character_styles[start:end]
@@ -3593,10 +3621,8 @@ class TTSEngine:
                       f"({len(sb_texts[0])}-{len(sb_texts[-1])} chars/chunk)")
 
                 try:
-                    # Seed for reproducible batch output when batch_seed is set
-                    # (matches _local_batch_custom); otherwise random each run.
-                    if batch_seed >= 0:
-                        torch.manual_seed(batch_seed)
+                    if seed >= 0:
+                        torch.manual_seed(seed)
                     # Build instruct_ids list for this sub-batch
                     instruct_ids = []
                     for inst, character_style in zip(sb_instructs, sb_character_styles):

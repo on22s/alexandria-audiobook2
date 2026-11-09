@@ -10,8 +10,19 @@ How the app renders many lines at once, and how to tune it.
 | `external` (a Gradio server or server pool) | one call per line, sent in parallel |
 
 Batched rendering is the fast path: about 3–6× real time on a mid-range card. It uses one
-batch seed (set in Setup, or empty for random). The per-line path uses per-speaker seeds and
-works with every voice type, but is slower.
+seed per native model call. With **Batch Seed** blank or `-1`, each call honors the effective
+saved/version-selected voice seed; a negative voice seed leaves that call unseeded. A
+nonnegative **Batch Seed** overrides all saved voice seeds and reseeds each existing
+sub-batch, as before. The per-line path also uses saved voice seeds and works with every
+voice type, but is slower.
+
+Native custom/clone/LoRA calls cannot take a separate seed for each row. After sorting by
+length and applying item/memory caps, batches split further whenever effective seeds
+change. Homogeneous seeds keep native batching; interleaved different seeds can require
+one call per line, reducing throughput. This is deliberate rather than silently ignoring
+saved seeds. A shared nonnegative batch override keeps the original batch partitions but
+changes which seed is used. Seeding a multi-row call does not promise the same waveform
+as rendering each line individually, or audible voice identity across a book.
 
 ## The order voice types are rendered
 
@@ -24,7 +35,7 @@ The types with the most lines usually go first, so most of the book finishes ear
 
 ## How each type is batched
 
-- **Custom** — all Custom lines are collected, grouped by speaker, sorted by length, and split
+- **Custom** — all Custom lines are collected, sorted by length, and split
   into sub-batches. Each sub-batch is one call with a list of texts.
 - **Clone** — lines are grouped by **speaker**, since each speaker has its own reference audio.
   The voice prompt is built once per speaker and cached.
@@ -44,12 +55,14 @@ How it works:
 2. Walk through them, collecting a group.
 3. Start a new group when the longest text is more than *ratio* × the shortest **and** the
    group already has at least *min size* lines.
-4. Each group becomes its own call.
+4. Refine each group at effective seed changes; each resulting group becomes its own call.
+
+Disabling length-ratio splitting still honors memory/manual item caps and seed boundaries.
 
 | setting (Setup) | default | meaning |
 |---|---|---|
 | Sub-batching | on | split batches by length |
-| Min Sub-batch Size | 4 | never split a group smaller than this |
+| Min Sub-batch Size | 4 | minimum before a length-ratio split; caps and seeds can split smaller groups |
 | Length Ratio | 5 | the largest allowed longest-to-shortest ratio |
 
 **Example:** with ratio 5, texts of 10, 15, 20, 50, 55 and 200 characters split into [10, 15,
