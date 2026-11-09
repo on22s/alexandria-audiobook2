@@ -162,6 +162,61 @@ class UseKeepsTheReplacedVoiceTests(unittest.TestCase):
                          sorted([old["candidate_id"], "warm_tenor"]))
 
 
+class CandidateBoundaryTests(unittest.TestCase):
+    """#1799: candidates carry a voice, never character control fields, and
+    their consumed values are validated like any other voice save."""
+    setUp = UseKeepsTheReplacedVoiceTests.setUp
+    use = UseKeepsTheReplacedVoiceTests.use
+    LORA = {"type": "lora", "adapter_id": "warm", "adapter_path": "lora_models/warm"}
+    CONTROL = {"alias_of": "BOB", "alias": "BOB", "versions": {"v": {"type": "lora", "adapter_id": "evil"}},
+               "active_version": "v", "version_timeline": [{"from_index": 0, "version_id": "v"}]}
+    MALFORMED = {"seed": True, "adapter_generation_sha256": "MALFORMED"}
+
+    def add(self, config, candidate_id="c1"):
+        return self.client.post("/api/voices/ALICE/candidates",
+                                json={"candidate_id": candidate_id, "config": config})
+
+    def test_add_refuses_control_fields_and_malformed_values(self):
+        self.config.write_text(json.dumps({"ALICE": {**OLD}}))
+        before = self.config.read_bytes()
+        cases = {f"control {key}": {**self.LORA, key: value} for key, value in self.CONTROL.items()}
+        cases.update({f"malformed {key}": {**self.LORA, key: value} for key, value in self.MALFORMED.items()})
+        cases["malformed description"] = {"type": "design", "description": 123}
+        for label, config in cases.items():
+            with self.subTest(label):
+                response = self.add(config)
+                self.assertEqual(422, response.status_code, response.text)
+                self.assertEqual(before, self.config.read_bytes())
+        clean = self.add({**self.LORA, "seed": 5, "rank": 2, "favorite": True})
+        self.assertEqual(200, clean.status_code, clean.text)
+        [saved] = json.loads(self.config.read_text())["ALICE"]["candidates"]
+        self.assertEqual((2, True), (saved["rank"], saved["favorite"]))
+        on_clean = self.use("c1")
+        self.assertEqual(("warm", "5"), (on_clean["adapter_id"], str(on_clean["seed"])))
+
+    def test_select_never_installs_stored_control_fields(self):
+        import tts
+        legacy = {**self.LORA, **self.CONTROL, "candidate_id": "legacy"}
+        self.config.write_text(json.dumps({"ALICE": {**OLD, "candidates": [legacy]}}))
+        card = self.use("legacy")
+        for key in self.CONTROL:
+            self.assertNotIn(key, card, key)
+        saved = json.loads(self.config.read_text())
+        self.assertEqual("ALICE", tts.get_resolved_speaker("ALICE", saved))
+        self.assertEqual("warm", tts.voice_config_for_chunk(saved, "ALICE", 0)["ALICE"]["adapter_id"])
+
+    def test_select_refuses_a_stored_malformed_value(self):
+        for key, value in {**self.MALFORMED, "description": 123}.items():
+            with self.subTest(key):
+                stored = ({"type": "design", "description": 123} if key == "description"
+                          else {**self.LORA, key: value})
+                self.config.write_text(json.dumps({"ALICE": {**OLD, "candidates": [{**stored, "candidate_id": "bad"}]}}))
+                before = self.config.read_bytes()
+                response = self.client.post("/api/voices/ALICE/candidates/bad/select")
+                self.assertEqual(422, response.status_code, response.text)
+                self.assertEqual(before, self.config.read_bytes())
+
+
 class GeneratedVoicesAreSavedTests(unittest.TestCase):
     def test_a_generated_persona_voice_is_a_saved_active_candidate(self):
         with tempfile.TemporaryDirectory() as tmp:

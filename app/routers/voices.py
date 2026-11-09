@@ -68,7 +68,7 @@ from utils import (
 )
 from persona_validation import DESIGN_COUNT_MAX, get_design_text_range, get_selectable_design_texts, validate_persona_payload
 from repair_voice_config import get_unseeded_voice_seed_changes, apply_unseeded_voice_seeds
-from voice_candidates import get_entry_using_candidate, get_entry_with_current_candidate
+from voice_candidates import CANDIDATE_CONTROL, get_entry_using_candidate, get_entry_with_current_candidate
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -536,15 +536,15 @@ def _validate_consumed_description(speaker, entry):
                 "restore the saved voice configuration before continuing.")
 
 
-def _validate_version_overlay(speaker, overlaid):
-    """Refuse a version whose fields, overlaid on the entry, carry a consumed
-    value the top-level save refuses (#1804): a malformed custom/design
-    description or adapter generation pin. -> HTTP 422."""
+def _validate_consumed_overlay(speaker, overlaid):
+    """Refuse a card as a version or candidate would leave it when it carries
+    a consumed value the top-level save refuses (#1804, #1799): a malformed
+    custom/design description or adapter generation pin. -> HTTP 422."""
     try:
         _validate_consumed_description(speaker, overlaid)
         get_validated_adapter_generation(overlaid.get("adapter_generation_sha256"))
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"Voice version for '{speaker}' is invalid: {exc}") from exc
+        raise HTTPException(status_code=422, detail=f"Voice configuration for '{speaker}' is invalid: {exc}") from exc
 
 
 def get_voice_rows(script_data, voice_config):
@@ -739,7 +739,7 @@ async def save_voice_version(speaker: str, request: VoiceVersionRequest):
         age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
         updated = {**current, "versions": {**_versions,
                     request.version_id: {**config, "age_group": age}}}
-        _validate_version_overlay(speaker, {**current, **get_version_fields(updated, request.version_id)})
+        _validate_consumed_overlay(speaker, {**current, **get_version_fields(updated, request.version_id)})
         get_validated_voice_changes(speaker, current, updated)
         current["versions"] = updated["versions"]
     entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save_version, request.book_token)
@@ -784,7 +784,7 @@ async def select_voice_version(speaker: str, version_id: str, request: VoiceBook
                     entry.get("type") or "custom", entry.get("adapter_id"),
                     after.get("type") or "custom", after.get("adapter_id")):
                 after["adapter_generation_sha256"] = None
-        _validate_version_overlay(speaker, after)
+        _validate_consumed_overlay(speaker, after)
         get_validated_voice_changes(speaker, entry, after)
         entry.clear()
         entry.update(after)
@@ -793,13 +793,34 @@ async def select_voice_version(speaker: str, version_id: str, request: VoiceBook
             "config": entry, "revision": revision}
 
 
+def _get_candidate_kept_fields(version_id):
+    """Fields a candidate never replaces: a state version keeps its own identity."""
+    return ({"persona_state", "description", "age_group", "gender", "versions", "version_timeline"}
+            if version_id else set())
+
+
+def _validate_candidate_use(speaker, entry, selected):
+    """Refuse a card that using a candidate would leave with a malformed
+    consumed value (#1799): the same seed, description and pin rules as any
+    other voice save."""
+    get_validated_voice_changes(speaker, entry, selected)
+    _validate_consumed_overlay(speaker, selected)
+
+
 @router.post("/api/voices/{speaker}/candidates")
 async def add_voice_candidate(speaker: str, request: VoiceCandidateRequest):
     await asyncio.to_thread(_require_script_speaker, speaker)
+    control = sorted(CANDIDATE_CONTROL.intersection(request.config))
+    if control:
+        raise HTTPException(status_code=422, detail=(
+            "A voice candidate holds a voice only; remove the character fields: " + ", ".join(control)))
     def add(entry):
+        candidate = {**request.config, "candidate_id": request.candidate_id}
+        _validate_candidate_use(speaker, entry, get_entry_using_candidate(
+            entry, candidate, _get_candidate_kept_fields(request.version_id)))
         candidates = [c for c in entry.get("candidates", [])
                       if isinstance(c, dict) and c.get("candidate_id") != request.candidate_id]
-        candidates.append({**request.config, "candidate_id": request.candidate_id})
+        candidates.append(candidate)
         entry["candidates"] = candidates
     entry = await asyncio.to_thread(_mutate_voice_target, speaker, add, request.version_id, request.book_token)
     return {"status": "saved", "speaker": speaker, "candidates": entry.get("candidates", [])}
@@ -819,9 +840,8 @@ async def select_voice_candidate(speaker: str, candidate_id: str, request: Voice
             "candidates", entry.get("candidates", []))
         # The card takes exactly the candidate's voice (no fields left over from
         # the previous one); a state version keeps its own identity fields.
-        kept = ({"persona_state", "description", "age_group", "gender", "versions", "version_timeline"}
-                if request.version_id else set())
-        selected = get_entry_using_candidate(entry, candidate, kept)
+        selected = get_entry_using_candidate(entry, candidate, _get_candidate_kept_fields(request.version_id))
+        _validate_candidate_use(speaker, entry, selected)
         entry.clear()
         entry.update(selected)
         entry["voice_status"] = "assigned"
