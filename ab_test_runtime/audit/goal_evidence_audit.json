@@ -1050,15 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T01:55:00",
+  "written": "2026-11-09T03:22:43",
   "host": "RealMitch",
   "git": {
-   "commit": "a2ad214136fb08d18be630e39c803e26d8730633",
-   "branch": "fix/1817-epub-segment-targets",
+   "commit": "17b063bb9cfec9bf406851ae7f411b568bcece72",
+   "branch": "fix/1798-legacy-batch-staging",
    "dirty": true,
-   "source_state": "dirty:91244c51d058",
+   "source_state": "dirty:1686a70739be",
    "source_state_detail": null,
    "modified_tracked_files": [
+    " M GOALS.md",
     "M  app/epub_readaloud.py",
     "M  app/tests/test_epub_readaloud.py",
     "M  app/tests/unit_test_inventory.json"
