@@ -1790,6 +1790,10 @@
     "tests.test_book_scope_reuse.BookScopeReuseTests.test_long_work_releases_owner_mutex_and_brief_publication_reacquires_it",
     "tests.test_book_scope_reuse.BookScopeReuseTests.test_only_explicit_reuse_is_reentrant_and_nested_roots_remain_admitted"
   ],
+  "test_book_state_1660_prepublication_crash": [
+    "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_byte_failure_before_first_move_survives_crash_before_journal_unlink",
+    "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_stream_failure_before_first_move_survives_crash_before_journal_unlink"
+  ],
   "test_book_state_streaming": [
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_anchors_relative_root_before_finalization",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_checks_cancellation_after_final_lstat",

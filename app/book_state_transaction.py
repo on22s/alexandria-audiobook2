@@ -2147,6 +2147,27 @@ def _unlink_owned_book_journal(root, expected, *, root_fd=None):
         sync_adapter_directory(str(root))
 
 
+def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=None):
+    """Durably mark a journal whose publication never moved a target as
+    recovered, before its workspace is removed (#1660 d).
+
+    "Recovered" asserts every original is in place.  No target moved, but
+    another writer may still have changed one, so that is checked first; on
+    a change this raises and the "publishing" journal stays as evidence.
+    Otherwise a crash after the workspace is gone but before the journal is
+    unlinked leaves a recovered journal, which recovery retires after
+    rechecking the targets.  A "publishing" journal with a persisted
+    workspace identity and no workspace is (correctly) refused forever,
+    because it cannot prove no target moved.  -> the new journal version.
+    """
+    if data.get('stream_limits') is not None:
+        _verify_stream_cleanup_targets(root, data)   # phase is still "publishing"
+    else:
+        _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
+    data['phase'] = 'recovered'
+    return _save_journal(root, data, expected_version=journal_version, root_fd=root_fd)
+
+
 def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
                         byte_data=None, targets=None, cancel_check=None):
     _require_book_journal_version(root, journal_version)
@@ -2927,6 +2948,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     # the published journal even when the triggering cancellation
                     # is sticky; aborting this cleanup leaves stale recovery state.
                     try:
+                        journal_version = _retire_unpublished_journal(
+                            root, data, journal_version, root_fd)
                         _finish_transaction(root, workspace, journal_version=journal_version,
                                             stream_data=data)
                     except (OSError, ValueError) as cleanup_error:
@@ -2936,7 +2959,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         raise cleanup_error from original_error
                 else:
                     try:
-                        _require_book_journal_version(root, journal_version)
+                        journal_version = _retire_unpublished_journal(
+                            root, data, journal_version, root_fd, targets)
                         _cleanup_unpublished_stream_workspace(
                             workspace, workspace_identity, staged_identities, parent_fd=root_fd,
                             staged_versions=staged_versions, require_stage_versions=streams)
