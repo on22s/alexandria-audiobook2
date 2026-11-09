@@ -1050,16 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-08T20:34:09",
+  "written": "2026-11-08T21:19:16",
   "host": "RealMitch",
   "git": {
-   "commit": "ad46cfb610a6d51a0eccc93b04b09bab1378fe96",
+   "commit": "1a00e2dce54254a5e1780c95358bc04ee86e4eb7",
    "branch": "fix/1797-external-timeout-cleanup",
    "dirty": true,
-   "source_state": "dirty:3b5187ef0ebf",
+   "source_state": "dirty:3528c7444fa5",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_external_single_cleanup.py"
+    "M  app/tests/test_external_single_cleanup.py",
+    "M  app/tts.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

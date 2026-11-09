@@ -7,6 +7,7 @@ open) replace the operation's own failure.  These tests use synthetic
 providers and the real owned ``ExternalTTSExecutor``; no network, live
 Gradio server, GPU, or model work runs here.
 """
+import contextlib
 import io
 import logging
 import os
@@ -125,6 +126,13 @@ def _deny_pending(path, real_remove, owned_prefix):
     return real_remove(path)
 
 
+def _assert_stdout_primary(test, stdout, primary, output):
+    test.assertIn(primary, stdout)
+    test.assertNotIn("Pending audio cleanup failed", stdout)
+    test.assertNotIn(str(output), stdout)
+    test.assertNotIn("simulated pending deletion denied", stdout)
+
+
 class ExternalSingleCleanupTests(unittest.TestCase):
     def test_native_timeout_keeps_timeout_and_retires_staging(self):
         """Real owned executor + real open staging handle.
@@ -178,7 +186,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 _warm_engine(engine)
                 if os.name == "nt":
                     with self.assertLogs("tts", level="WARNING") as logs:
-                        result, failures, exc = _run_single(engine, provider, output)
+                        buf = io.StringIO()
+                        with contextlib.redirect_stdout(buf):
+                            result, failures, exc = _run_single(engine, provider, output)
+                        stdout = buf.getvalue()
                         self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
                         self.assertFalse(result)
                         self.assertTrue(entered.is_set())
@@ -192,13 +203,18 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                                       failures[0].detail)
                         self.assertIn("Pending audio cleanup failed",
                                       "\n".join(logs.output))
+                        _assert_stdout_primary(self, stdout,
+                                               "External TTS timed out after 1s", output)
                         self.assertEqual(b"prior bytes", output.read_bytes())
                         self.assertTrue(
                             Path(staging_holder["path"]).exists(),
                             "Windows: failed unlink must leave staging until worker retires it")
                 else:
                     with self.assertNoLogs("tts", level="WARNING"):
-                        result, failures, exc = _run_single(engine, provider, output)
+                        buf = io.StringIO()
+                        with contextlib.redirect_stdout(buf):
+                            result, failures, exc = _run_single(engine, provider, output)
+                        stdout = buf.getvalue()
                         self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
                         self.assertFalse(result)
                         self.assertTrue(entered.is_set())
@@ -209,6 +225,8 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                         self.assertIn("timed out after 1s", failures[0].detail)
                         self.assertNotIn("Pending audio cleanup failed",
                                          failures[0].detail)
+                        _assert_stdout_primary(self, stdout,
+                                               "External TTS timed out after 1s", output)
                         self.assertEqual(b"prior bytes", output.read_bytes())
                         # POSIX: unlink succeeds while handle is open.
                         self.assertFalse(
@@ -257,7 +275,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 with patch.object(tts.os, "remove",
                                   side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                     with self.assertLogs("tts", level="WARNING") as logs:
-                        result, failures, exc = _run_single(engine, provider, output)
+                        buf = io.StringIO()
+                        with contextlib.redirect_stdout(buf):
+                            result, failures, exc = _run_single(engine, provider, output)
+                        stdout = buf.getvalue()
                         self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
                         self.assertFalse(result)
                         self.assertEqual(1, len(failures))
@@ -268,6 +289,8 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                                       failures[0].detail)
                         self.assertIn("simulated pending deletion denied",
                                       "\n".join(logs.output))
+                        _assert_stdout_primary(self, stdout,
+                                               "External TTS timed out after 1s", output)
                         self.assertEqual(b"prior bytes", output.read_bytes())
                 # Patch exited; blocked worker has not yet run its finally.
                 self.assertTrue(Path(staging_holder["path"]).exists())
@@ -454,48 +477,140 @@ class ExternalSingleCleanupTests(unittest.TestCase):
         from speech_retry import SpeechRetryBudget, ensure_speech_retry_budget
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            engine = _make_engine(root)
-            engine._external_timeout = 300
-            output = root / "audio.wav"
-            output.write_bytes(b"prior bytes")
-            release = threading.Event()
-            staging_holder = {}
+            cases = [
+                ("budget_limit", 300, 1, None, "budget"),
+                ("external_limit", 1, 300, None, "external"),
+                ("budget_extended_after_submit", 300, 1, "extend", "budget"),
+                ("budget_shortened_after_submit", 1, 300, "shorten", "external"),
+            ]
+            for name, ext_timeout, budget_seconds, mutation, expected in cases:
+                with self.subTest(case=name):
+                    case_root = root / name
+                    case_root.mkdir()
+                    engine = _make_engine(case_root)
+                    engine._external_timeout = ext_timeout
+                    output = case_root / "audio.wav"
+                    output.write_bytes(b"prior bytes")
+                    release = threading.Event()
+                    entered = threading.Event()
+                    staging_holder = {}
+                    budget_holder = {}
+                    mutation_holder = {}
 
-            def provider(staging_path, cancelled):
-                staging_holder["path"] = staging_path
-                _write_wav(staging_path)
-                release.wait()
-                return True
+                    def provider(staging_path, cancelled):
+                        staging_holder["path"] = staging_path
+                        _write_wav(staging_path)
+                        if mutation == "extend":
+                            budget_holder["budget"].deadline = time.monotonic() + 300
+                            mutation_holder["ts"] = time.monotonic()
+                            entered.set()
+                        elif mutation == "shorten":
+                            budget_holder["budget"].deadline = time.monotonic() - 1
+                            mutation_holder["ts"] = time.monotonic()
+                            entered.set()
+                        else:
+                            entered.set()
+                        release.wait()
+                        return True
 
-            real_remove = os.remove
-            try:
-                _warm_engine(engine)
-                budget = SpeechRetryBudget()
-                budget.deadline = time.monotonic() + 1
-                started = time.monotonic()
-                with ensure_speech_retry_budget(budget):
-                    with patch.object(tts.os, "remove",
-                                      side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
-                        with self.assertLogs("tts", level="WARNING") as logs:
-                            result, failures, exc = _run_single(engine, provider, output)
-                            self.assertIsNone(exc)
-                            self.assertFalse(result)
-                            self.assertEqual(1, len(failures))
-                            self.assertEqual("timeout", failures[0].category)
-                            self.assertIn("speech retry deadline", failures[0].detail)
-                            self.assertIn("configured external limit", failures[0].detail)
-                            self.assertNotIn("timed out after 300s", failures[0].detail)
-                            self.assertIn("simulated pending deletion denied",
-                                          failures[0].detail)
-                            self.assertIn("simulated pending deletion denied",
-                                          "\n".join(logs.output))
-                            self.assertEqual(b"prior bytes", output.read_bytes())
-                            self.assertLess(time.monotonic() - started, 4)
-                self.assertTrue(Path(staging_holder["path"]).exists())
-            finally:
-                _settle_engine(engine, (release,))
-            self.assertFalse(Path(staging_holder["path"]).exists())
-            self.assertEqual([], list(root.glob("*.pending.*")))
+                    real_remove = os.remove
+                    try:
+                        _warm_engine(engine)
+                        budget = SpeechRetryBudget()
+                        budget.deadline = time.monotonic() + budget_seconds
+                        original_deadline = budget.deadline
+                        budget_holder["budget"] = budget
+                        started = time.monotonic()
+                        if name == "external_limit":
+                            # Public API: patch only the provider surface and
+                            # guard real SDK/network dispatch off.
+                            def custom_adapter(text, instruct, speaker, voice_config,
+                                             output_path, endpoint=None, cancelled=None):
+                                staging_holder["path"] = output_path
+                                _write_wav(output_path)
+                                entered.set()
+                                release.wait()
+                                return True
+
+                            with ensure_speech_retry_budget(budget):
+                                with patch.object(engine, "_external_generate_custom",
+                                                  side_effect=custom_adapter), \
+                                     patch.object(engine, "_external_endpoint",
+                                                  side_effect=AssertionError("Unexpected SDK/network dispatch")), \
+                                     patch.object(tts, "apply_tts_failure",
+                                                  wraps=tts.apply_tts_failure) as spy, \
+                                     patch.object(tts.os, "remove",
+                                                  side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
+                                    with self.assertLogs("tts", level="WARNING") as logs:
+                                        buf = io.StringIO()
+                                        with contextlib.redirect_stdout(buf):
+                                            result = engine.generate_voice_result(
+                                                "Synthetic greeting.", "", "A",
+                                                {"A": {"voice": "Ryan"}}, str(output))
+                                        stdout = buf.getvalue()
+                                        self.assertFalse(result.success)
+                                        self.assertIsNotNone(result.failure)
+                                        self.assertEqual("timeout", result.failure.category)
+                                        self.assertIn("timed out after 1s", result.failure.detail)
+                                        self.assertNotIn("speech retry deadline", result.failure.detail)
+                                        self.assertIn("simulated pending deletion denied",
+                                                      result.failure.detail)
+                                        self.assertIn("simulated pending deletion denied",
+                                                      "\n".join(logs.output))
+                                        self.assertEqual(1, spy.call_count)
+                                        spy_error = spy.call_args.args[0]
+                                        self.assertIsInstance(spy_error, TimeoutError)
+                                        self.assertIn("timed out after 1s", str(spy_error))
+                                        self.assertIn("simulated pending deletion denied",
+                                                      str(spy_error))
+                                        _assert_stdout_primary(self, stdout,
+                                                               "External TTS timed out after 1s", output)
+                                        self.assertEqual(b"prior bytes", output.read_bytes())
+                                        self.assertLess(time.monotonic() - started, 4)
+                            self.assertTrue(entered.is_set())
+                            self.assertTrue(Path(staging_holder["path"]).exists())
+                        else:
+                            with ensure_speech_retry_budget(budget):
+                                with patch.object(tts.os, "remove",
+                                                  side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
+                                    with self.assertLogs("tts", level="WARNING") as logs:
+                                        buf = io.StringIO()
+                                        with contextlib.redirect_stdout(buf):
+                                            result, failures, exc = _run_single(engine, provider, output)
+                                        stdout = buf.getvalue()
+                                        self.assertIsNone(exc)
+                                        self.assertFalse(result)
+                                        self.assertEqual(1, len(failures))
+                                        self.assertEqual("timeout", failures[0].category)
+                                        if expected == "budget":
+                                            primary = "speech retry deadline"
+                                            self.assertIn(primary, failures[0].detail)
+                                            self.assertIn("configured external limit", failures[0].detail)
+                                            self.assertNotIn("timed out after 300s", failures[0].detail)
+                                            _assert_stdout_primary(self, stdout,
+                                                                   "speech retry deadline", output)
+                                            self.assertIn("configured external limit", stdout)
+                                        else:
+                                            self.assertIn("timed out after 1s", failures[0].detail)
+                                            self.assertNotIn("speech retry deadline", failures[0].detail)
+                                            _assert_stdout_primary(self, stdout,
+                                                                   "External TTS timed out after 1s", output)
+                                        self.assertIn("simulated pending deletion denied",
+                                                      failures[0].detail)
+                                        self.assertIn("simulated pending deletion denied",
+                                                      "\n".join(logs.output))
+                                        self.assertEqual(b"prior bytes", output.read_bytes())
+                                        self.assertLess(time.monotonic() - started, 4)
+                                        if mutation is not None:
+                                            self.assertIn("ts", mutation_holder)
+                                            earliest = min(original_deadline, started + ext_timeout)
+                                            self.assertLess(mutation_holder["ts"], earliest)
+                            self.assertTrue(entered.is_set())
+                            self.assertTrue(Path(staging_holder["path"]).exists())
+                    finally:
+                        _settle_engine(engine, (release,))
+                    self.assertFalse(Path(staging_holder["path"]).exists())
+                    self.assertEqual([], list(case_root.glob("*.pending.*")))
 
     def test_worker_finally_cleanup_denial_keeps_future_result_and_timeout(self):
         """Worker-finally denial after caller timeout (simulated policy).
@@ -537,7 +652,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                     with patch.object(tts.os, "remove",
                                       side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                         with self.assertLogs("tts", level="WARNING") as logs:
-                            result, failures, exc = _run_single(engine, provider, output)
+                            buf = io.StringIO()
+                            with contextlib.redirect_stdout(buf):
+                                result, failures, exc = _run_single(engine, provider, output)
+                            stdout = buf.getvalue()
                             self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
                             self.assertFalse(result)
                             self.assertEqual(1, len(failures))
@@ -545,6 +663,8 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                             self.assertIn("timed out after 1s", failures[0].detail)
                             self.assertIn("simulated pending deletion denied",
                                           failures[0].detail)
+                            _assert_stdout_primary(self, stdout,
+                                                   "External TTS timed out after 1s", output)
                             # Release while denial is STILL ACTIVE so the
                             # worker-finally site itself is denied.
                             release.set()

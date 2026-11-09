@@ -2253,13 +2253,14 @@ class TTSEngine:
             future.cancel()
             cleanup_error = _remove_staging_audio(staging_path)
             if budget_limited:
-                message = (f"External TTS timed out at speech retry deadline "
+                primary = (f"External TTS timed out at speech retry deadline "
                            f"(configured external limit {self._external_timeout}s)")
             else:
-                message = f"External TTS timed out after {self._external_timeout}s"
+                primary = f"External TTS timed out after {self._external_timeout}s"
+            print(primary)
+            message = primary
             if cleanup_error:
                 message += f"; {cleanup_error}"
-            print(message)
             apply_tts_failure(TimeoutError(message))
             return False
         except Exception as error:
