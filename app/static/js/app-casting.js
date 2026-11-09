@@ -779,6 +779,9 @@
     function onReviewKey(event) {
         if (!s.review || event.target?.tagName?.toLowerCase() === 'textarea') { return; }
         const key = String(event.key || '').toLowerCase();
+        // Space activates a focused control natively; only play when focus is elsewhere (#1806).
+        const tag = event.target?.tagName?.toLowerCase();
+        if (key === ' ' && ['button', 'a', 'input', 'select', 'summary'].includes(tag)) { return; }
         const actions = {s: () => reviewStatus('shortlist'), c: () => reviewStatus('callback'), r: () => reviewStatus('reject'),
                          arrowright: () => moveReview(1), arrowleft: () => moveReview(-1),
                          ' ': () => togglePlay(s.review.list[s.review.index], null)};
