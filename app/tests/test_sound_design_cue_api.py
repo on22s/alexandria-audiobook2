@@ -92,6 +92,9 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
             json={'context_revision': metadata['context_revision']})
         self.assertEqual(200, rendered.status_code, rendered.text)
         self.assertEqual(24000, rendered.json()['mix']['frame_rate'])
+        candidate = json.loads((self.root/'.sound_design_renders'/rendered.json()['stage']/'candidate.json').read_bytes())
+        self.assertEqual([saved.json()['version']], candidate['binding']['cue_versions'])
+        self.assertEqual(24000, candidate['binding']['pcm_plan']['frame_rate'])
         for name, raw in before.items():
             self.assertEqual(raw, (self.root/name).read_bytes())
 

@@ -1050,19 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T04:53:37",
+  "written": "2026-11-09T05:19:20",
   "host": "RealMitch",
   "git": {
-   "commit": "96823972e862a62bfd7bb6cd7ad98a18f0ea9064",
+   "commit": "dbc656da38e63997c20229b0013e9bcf49fa118b",
    "branch": "fix/1814-sound-cue-authoring-clock",
    "dirty": true,
-   "source_state": "dirty:d99975567e49",
+   "source_state": "dirty:fb80f5126955",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/static/js/app-sound-cues.js",
-    "M  app/tests/test_sound_cues_js.py",
     "M  app/tests/test_sound_design_cue_api.py",
-    "M  app/tests/unit_test_inventory.json",
     "M  docs/sound-design.md"
    ],
    "untracked_harness_files": null,

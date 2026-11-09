@@ -189,7 +189,7 @@ const SoundCues = (() => {
         field('boundary', 'Place at dialogue', r?.boundary || 'start', [['start', 'Start'], ['end', 'End']]);
         const clock = field('rate', 'Cue frame clock in Hz (match the dry dialogue mix)', r?.frame_rate ?? '');
         clock.min = '1'; clock.max = '192000'; clock.step = '1'; clock.required = true;
-        form.append(make('p', 'Enter the dry dialogue mix sample rate, not the imported sound rate. For mixed-rate dialogue, use the highest selected-take rate. If the mix clock changes, explicitly revise this field and save a new revision; saved history is never rescaled.'));
+        form.append(make('p', 'Enter the dry dialogue mix sample rate, not the imported sound rate. For multiple dialogue sources, use the highest selected-take rate or 11025 Hz, whichever is higher. If the mix clock changes, explicitly revise this field and save a new revision; saved history is never rescaled.'));
         field('offset', 'Offset in seconds (negative means before)', (r?.offset_frames || 0) / displayRate);
         field('duration', 'Duration', r?.duration.mode || 'native', [['native', 'Original sound length'], ['fixed', 'Explicit length']]);
         field('length', 'Explicit length in seconds', (r?.duration.frames || displayRate) / displayRate);
