@@ -37,6 +37,18 @@ def _make_engine(root: Path):
     return engine
 
 
+def _warm_engine(engine):
+    """Boundedly start the real owned executor threads before the timed call.
+
+    No mocked clock/deadline; the provider-entry deadline is still the real
+    1s (or budget 1s) clock.
+    """
+    cancelled = threading.Event()
+    future = engine._submit_external(lambda: "warm", cancelled)
+    if future.result(2) != "warm":
+        raise AssertionError("executor warm-up failed")
+
+
 def _capture_failures():
     failures = []
     token = tts._TTS_FAILURES.set(failures)
@@ -67,14 +79,14 @@ def _valid_wav_bytes() -> bytes:
 def _settle_engine(engine, events=()):
     """Release blocked providers, close engine, retire owned executor.
 
-    Cleanup ``Exception`` failures are collected. If no primary exception
-    is unwinding (``sys.exc_info()[0] is None``) the first is raised so a
-    passing test cannot hide a live worker or cleanup failure. If a primary
-    failure is already unwinding, each cleanup failure is logged at ERROR
-    and the primary is preserved (secondary reported, not hidden). Only
-    ``Exception`` is caught; ``BaseException`` (KeyboardInterrupt/SystemExit)
-    is never swallowed. Authoritative bounded retirement is
-    ``executor.shutdown(wait=True, timeout=3)``; no per-thread joins.
+    Production close already enforces a 2s bound; the 3s
+    ``executor.shutdown(wait=True, timeout=3)`` below is only a
+    best-effort fallback after a failed close, never a waiver of that
+    failure. Every cleanup ``Exception`` is collected: if no primary is
+    unwinding (``sys.exc_info()[0] is None``) the first is raised so a
+    passing test cannot hide a live worker; if a primary is unwinding each
+    is logged at ERROR and the primary is preserved. Only ``Exception`` is
+    caught; ``BaseException`` is never swallowed. No per-thread joins.
     """
     failures = []
     for event in events:
@@ -82,16 +94,16 @@ def _settle_engine(engine, events=()):
             event.set()
         except Exception as exc:  # noqa: BLE001
             failures.append(exc)
+    executor = getattr(engine, "_external_executor", None)
     try:
         engine.close_external()
     except Exception as exc:  # noqa: BLE001
         failures.append(exc)
-    executor = getattr(engine, "_external_executor", None)
-    if executor is not None:
-        try:
-            executor.shutdown(wait=True, timeout=3)
-        except Exception as exc:  # noqa: BLE001
-            failures.append(exc)
+        if executor is not None:
+            try:
+                executor.shutdown(wait=True, timeout=3)
+            except Exception as exc:  # noqa: BLE001
+                failures.append(exc)
     if not failures:
         return
     if sys.exc_info()[0] is not None:
@@ -105,8 +117,10 @@ def _settle_engine(engine, events=()):
         raise failures[0]
 
 
-def _deny_pending(path, real_remove):
-    if ".pending." in str(path):
+def _deny_pending(path, real_remove, owned_prefix):
+    # Scope the injected denial to this fixture's own output; every unrelated
+    # pending path (another thread/engine) delegates to the real remove.
+    if str(path).startswith(owned_prefix):
         raise PermissionError("simulated pending deletion denied")
     return real_remove(path)
 
@@ -116,10 +130,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
         """Real owned executor + real open staging handle.
 
         On Windows the provider's open handle makes the caller's timeout
-        ``os.remove`` fail with WinError 32; the timeout must still be
-        recorded and ``False`` returned.  On POSIX unlink of an open file
-        succeeds, so the timeout assertions hold with quiet successful
-        unlink and no warning.
+        ``os.remove`` fail with WinError 32; the timeout plus its cleanup
+        diagnostic must still be the sole recorded failure with ``False``
+        returned.  On POSIX unlink of an open file succeeds, so the timeout
+        assertions hold with quiet successful unlink and no diagnostic.
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -155,14 +169,14 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                     handle.flush()
                     # Signal only after open/write/flush: proves ownership.
                     entered.set()
-                    if not release.wait(5):
-                        provider_error.append(RuntimeError("release timeout"))
+                    release.wait()
                     return True
                 finally:
                     handle.close()
                     provider_done.set()
 
             try:
+                _warm_engine(engine)
                 if os.name == "nt":
                     with self.assertLogs("tts", level="WARNING") as logs:
                         result, failures, exc = _run_single(engine, provider, output)
@@ -173,7 +187,10 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                         self.assertFalse(staging_holder["handle"].closed)
                         self.assertEqual(1, len(failures))
                         self.assertEqual("timeout", failures[0].category)
-                        self.assertIn("timed out", failures[0].detail)
+                        self.assertIn("timed out after 1s", failures[0].detail)
+                        self.assertNotIn("speech retry deadline", failures[0].detail)
+                        self.assertIn("Pending audio cleanup failed",
+                                      failures[0].detail)
                         self.assertIn("Pending audio cleanup failed",
                                       "\n".join(logs.output))
                         self.assertEqual(b"prior bytes", output.read_bytes())
@@ -190,7 +207,9 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                         self.assertFalse(staging_holder["handle"].closed)
                         self.assertEqual(1, len(failures))
                         self.assertEqual("timeout", failures[0].category)
-                        self.assertIn("timed out", failures[0].detail)
+                        self.assertIn("timed out after 1s", failures[0].detail)
+                        self.assertNotIn("Pending audio cleanup failed",
+                                         failures[0].detail)
                         self.assertEqual(b"prior bytes", output.read_bytes())
                         # POSIX: unlink succeeds while handle is open.
                         self.assertFalse(
@@ -226,20 +245,24 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             def provider(staging_path, cancelled):
                 staging_holder["path"] = staging_path
                 _write_wav(staging_path)
-                release.wait(3)
+                release.wait()
                 return True
 
             real_remove = os.remove
             try:
+                _warm_engine(engine)
                 with patch.object(tts.os, "remove",
-                                  side_effect=lambda p: _deny_pending(p, real_remove)):
+                                  side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                     with self.assertLogs("tts", level="WARNING") as logs:
                         result, failures, exc = _run_single(engine, provider, output)
                         self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
                         self.assertFalse(result)
                         self.assertEqual(1, len(failures))
                         self.assertEqual("timeout", failures[0].category)
-                        self.assertIn("timed out", failures[0].detail)
+                        self.assertIn("timed out after 1s", failures[0].detail)
+                        self.assertNotIn("speech retry deadline", failures[0].detail)
+                        self.assertIn("simulated pending deletion denied",
+                                      failures[0].detail)
                         self.assertIn("simulated pending deletion denied",
                                       "\n".join(logs.output))
                         self.assertEqual(b"prior bytes", output.read_bytes())
@@ -278,7 +301,7 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 with patch.object(engine, "_submit_external",
                                  side_effect=capturing_submit):
                     with patch.object(tts.os, "remove",
-                                      side_effect=lambda p: _deny_pending(p, real_remove)):
+                                      side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                         with self.assertLogs("tts", level="WARNING") as logs:
                             _, _, exc = _run_single(engine, provider, output)
                             self.assertIs(exc, sentinel)
@@ -313,19 +336,16 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             real_remove = os.remove
             try:
                 with patch.object(tts.os, "remove",
-                                  side_effect=lambda p: _deny_pending(p, real_remove)):
+                                  side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                     with self.assertLogs("tts", level="WARNING"):
                         result, failures, exc = _run_single(engine, provider, output)
                         self.assertIsNone(exc)
                         self.assertFalse(result)
                         self.assertEqual(b"prior bytes", output.read_bytes())
-                        details = [(f.category, f.detail) for f in failures]
-                        self.assertTrue(
-                            any("provider blew up" in d for _, d in details),
-                            details)
-                        self.assertFalse(
-                            any("simulated pending deletion denied" in d for _, d in details),
-                            details)
+                        self.assertEqual(1, len(failures))
+                        self.assertIn("provider blew up", failures[0].detail)
+                        self.assertNotIn("simulated pending deletion denied",
+                                         failures[0].detail)
             finally:
                 _settle_engine(engine, ())
 
@@ -366,13 +386,15 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 return True
 
             try:
-                result, _, exc = _run_single(engine, provider, output)
-                self.assertIsNone(exc)
-                self.assertTrue(result)
-                audio, rate = sf.read(str(output))
-                self.assertEqual(24000, rate)
-                self.assertEqual(240, len(audio))
-                self.assertEqual([], list(root.glob("*.pending.*")))
+                with self.assertNoLogs("tts", level="WARNING"):
+                    result, failures, exc = _run_single(engine, provider, output)
+                    self.assertIsNone(exc)
+                    self.assertTrue(result)
+                    self.assertEqual([], failures)
+                    audio, rate = sf.read(str(output))
+                    self.assertEqual(24000, rate)
+                    self.assertEqual(240, len(audio))
+                    self.assertEqual([], list(root.glob("*.pending.*")))
             finally:
                 _settle_engine(engine, ())
 
@@ -392,41 +414,27 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 _write_wav(path)
                 entered.set()
                 if text == "0":
-                    release.wait(3)
+                    release.wait()
                 return True
 
+            real_remove = os.remove
+
             def deny(path):
-                if "temp_batch_0.wav.pending." in str(path):
+                if str(path).startswith(str(old)):
                     raise PermissionError("synthetic pending deletion denied")
                 return real_remove(path)
-
-            real_remove = os.remove
-            holder = {}
-            errors = []
-
-            def run_batch():
-                try:
-                    with patch.object(engine, "_external_generate_custom",
-                                      side_effect=render):
-                        with patch.object(tts.os, "remove", side_effect=deny):
-                            holder["result"] = engine._external_batch(
-                                [{"index": 0, "speaker": "A", "text": "0"}],
-                                {"A": {"voice": "Ryan"}}, str(root), "custom")
-                except BaseException as exc:  # noqa: BLE001
-                    errors.append(exc)
 
             try:
                 cancelled = threading.Event()
                 warm = engine._submit_external(lambda: "warm", cancelled)
                 self.assertEqual("warm", warm.result(2))
-                worker = threading.Thread(target=run_batch)
-                worker.start()
-                self.assertTrue(entered.wait(2),
-                                "batch provider did not enter before the batch timeout")
-                worker.join(5)
-                self.assertFalse(worker.is_alive())
-                self.assertEqual([], errors)
-                result = holder["result"]
+                with patch.object(engine, "_external_generate_custom",
+                                  side_effect=render):
+                    with patch.object(tts.os, "remove", side_effect=deny):
+                        result = engine._external_batch(
+                            [{"index": 0, "speaker": "A", "text": "0"}],
+                            {"A": {"voice": "Ryan"}}, str(root), "custom")
+                self.assertTrue(entered.is_set())
                 self.assertEqual([], result["completed"])
                 self.assertEqual([0], [i for i, _ in result["failed"]])
                 self.assertIn("timed out", result["failed"][0][1])
@@ -447,29 +455,35 @@ class ExternalSingleCleanupTests(unittest.TestCase):
             engine._external_timeout = 300
             output = root / "audio.wav"
             output.write_bytes(b"prior bytes")
-            budget = SpeechRetryBudget()
-            budget.deadline = time.monotonic() + 1
             release = threading.Event()
             staging_holder = {}
 
             def provider(staging_path, cancelled):
                 staging_holder["path"] = staging_path
                 _write_wav(staging_path)
-                release.wait(3)
+                release.wait()
                 return True
 
             real_remove = os.remove
-            started = time.monotonic()
             try:
+                _warm_engine(engine)
+                budget = SpeechRetryBudget()
+                budget.deadline = time.monotonic() + 1
+                started = time.monotonic()
                 with ensure_speech_retry_budget(budget):
                     with patch.object(tts.os, "remove",
-                                      side_effect=lambda p: _deny_pending(p, real_remove)):
+                                      side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
                         with self.assertLogs("tts", level="WARNING") as logs:
                             result, failures, exc = _run_single(engine, provider, output)
                             self.assertIsNone(exc)
                             self.assertFalse(result)
                             self.assertEqual(1, len(failures))
                             self.assertEqual("timeout", failures[0].category)
+                            self.assertIn("speech retry deadline", failures[0].detail)
+                            self.assertIn("configured external limit", failures[0].detail)
+                            self.assertNotIn("timed out after 300s", failures[0].detail)
+                            self.assertIn("simulated pending deletion denied",
+                                          failures[0].detail)
                             self.assertIn("simulated pending deletion denied",
                                           "\n".join(logs.output))
                             self.assertEqual(b"prior bytes", output.read_bytes())
@@ -479,6 +493,74 @@ class ExternalSingleCleanupTests(unittest.TestCase):
                 _settle_engine(engine, (release,))
             self.assertFalse(Path(staging_holder["path"]).exists())
             self.assertEqual([], list(root.glob("*.pending.*")))
+
+    def test_worker_finally_cleanup_denial_keeps_future_result_and_timeout(self):
+        """Worker-finally denial after caller timeout (simulated policy).
+
+        After the caller has already recorded its timeout, the still-owned
+        worker's ``finally`` cleanup also runs under the same denial. That
+        second ``OSError`` must be logged without turning the worker future
+        into an exception. Under permanent denial the stage may remain; the
+        fixture cleans its own residual after the patch ends.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = _make_engine(root)
+            engine._external_timeout = 1
+            output = root / "audio.wav"
+            output.write_bytes(b"prior bytes")
+            release = threading.Event()
+            holder = {}
+
+            def provider(staging_path, cancelled):
+                holder["staging"] = staging_path
+                _write_wav(staging_path)
+                release.wait()
+                return True
+
+            orig_submit = engine._submit_external
+
+            def capturing_submit(function, cancelled, *args):
+                holder["cancelled"] = cancelled
+                future = orig_submit(function, cancelled, *args)
+                holder["future"] = future
+                return future
+
+            real_remove = os.remove
+            try:
+                _warm_engine(engine)
+                with patch.object(engine, "_submit_external",
+                                 side_effect=capturing_submit):
+                    with patch.object(tts.os, "remove",
+                                      side_effect=lambda p: _deny_pending(p, real_remove, str(output))):
+                        with self.assertLogs("tts", level="WARNING") as logs:
+                            result, failures, exc = _run_single(engine, provider, output)
+                            self.assertIsNone(exc, f"cleanup masked the timeout: {exc!r}")
+                            self.assertFalse(result)
+                            self.assertEqual(1, len(failures))
+                            self.assertEqual("timeout", failures[0].category)
+                            self.assertIn("timed out after 1s", failures[0].detail)
+                            self.assertIn("simulated pending deletion denied",
+                                          failures[0].detail)
+                            # Release while denial is STILL ACTIVE so the
+                            # worker-finally site itself is denied.
+                            release.set()
+                            worker_result = holder["future"].result(timeout=3)
+                            self.assertTrue(worker_result[0])
+                            self.assertIn("simulated pending deletion denied",
+                                          "\n".join(logs.output))
+                            self.assertEqual(1, len(failures))
+                            self.assertEqual(b"prior bytes", output.read_bytes())
+                self.assertFalse((root / "audio.wav").exists()
+                                 and (root / "audio.wav").read_bytes() != b"prior bytes")
+                # Permanent denial may leave the stage; remove fixture-owned
+                # residual now that the patch has ended.
+                residual = Path(holder["staging"])
+                self.assertTrue(residual.exists())
+                os.remove(residual)
+                self.assertFalse(residual.exists())
+            finally:
+                _settle_engine(engine, (release,))
 
 
 if __name__ == "__main__":

@@ -2216,8 +2216,13 @@ class TTSEngine:
         cancelled = threading.Event()
         deadline = time.monotonic() + self._external_timeout
         retry_budget = get_speech_retry_budget()
+        # Provenance flag is sampled when the deadline is first clamped, so a
+        # later mutation of the budget cannot reclassify this timeout.
+        budget_limited = False
         if retry_budget is not None:
             retry_budget.check_active()
+            if retry_budget.deadline < deadline:
+                budget_limited = True
             deadline = min(deadline, retry_budget.deadline)
         capture_inputs = is_speech_input_capture_active()
 
@@ -2246,9 +2251,16 @@ class TTSEngine:
         except FutureTimeout:
             cancelled.set()
             future.cancel()
-            _remove_staging_audio(staging_path)
-            print(f"External TTS timed out after {self._external_timeout}s")
-            apply_tts_failure(TimeoutError(f"External TTS timed out after {self._external_timeout}s"))
+            cleanup_error = _remove_staging_audio(staging_path)
+            if budget_limited:
+                message = (f"External TTS timed out at speech retry deadline "
+                           f"(configured external limit {self._external_timeout}s)")
+            else:
+                message = f"External TTS timed out after {self._external_timeout}s"
+            if cleanup_error:
+                message += f"; {cleanup_error}"
+            print(message)
+            apply_tts_failure(TimeoutError(message))
             return False
         except Exception as error:
             apply_tts_failure(error)
