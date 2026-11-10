@@ -81,9 +81,9 @@ class PublishLoopParentRecheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             replacements = self.book(root, 4)
-            move, save, moves, phases = books._move, books._save_journal, [0], []
-            def move_then_swap(*args, **kwargs):
-                result = move(*args, **kwargs)
+            exchange, save, moves, phases = books._exchange, books._save_journal, [0], []
+            def exchange_then_swap(*args, **kwargs):
+                result = exchange(*args, **kwargs)
                 moves[0] += 1
                 if moves[0] == 4:   # row 1 published; row 0's checks are done
                     os.rename(root / 'part0', root / 'part0-away')
@@ -92,7 +92,7 @@ class PublishLoopParentRecheckTests(unittest.TestCase):
             def recording(directory, document, **kwargs):
                 phases.append(document['phase'])
                 return save(directory, document, **kwargs)
-            with patch.object(books, '_move', side_effect=move_then_swap), \
+            with patch.object(books, '_exchange', side_effect=exchange_then_swap), \
                     patch.object(books, '_save_journal', side_effect=recording), \
                     self.assertRaisesRegex(ValueError, 'parent changed'):
                 with books.ensure_book_state(root):

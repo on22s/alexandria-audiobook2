@@ -1,6 +1,7 @@
 """#1660 (a): committed cleanup rechecks the row that owns each workspace entry,
 not every target once per entry, so a target's hashing does not grow with
 the number of targets (it was N+7 per target for bytes, N+8 for streams)."""
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,7 +56,11 @@ class CleanupRecheckCostTests(unittest.TestCase):
                     books.apply_book_state_locked(
                         root, {f'f{index}.bin': b'new' for index in range(3)}, [])
             self.assertEqual([True], changed)
-            self.assertEqual(1, len(list(root.glob('.book-switch-*/old-1'))))
+            # v4 rotates the slots: after publication new-1 holds row 1's
+            # original, so that is the backup cleanup must preserve. Windows
+            # (and an unsupported filesystem) keep the v3 old-1 slot.
+            slot = 'old-1' if os.name == 'nt' else 'new-1'
+            self.assertEqual(1, len(list(root.glob(f'.book-switch-*/{slot}'))))
             self.assertEqual(b'writer edit', (root / 'f1.bin').read_bytes())
 
     def test_entry_names_and_indexes_are_strict(self):

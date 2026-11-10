@@ -22,6 +22,18 @@ def stream(data):
 
 
 class BookStateStreamingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # These are the v2/v3 stream protocol contract tests. Protocol v4
+        # (one verified exchange per replacement) has its own module; pin the
+        # capability probe off so replacement-only transactions keep
+        # exercising the legacy path this class was written against (#1660).
+        import source_upload_publication as publication
+        cls._legacy_protocol_probe = patch.object(
+            publication, 'probe_exchange_support', return_value=False)
+        cls._legacy_protocol_probe.start()
+        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
     @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative cleanup')
     def test_stream_cleanup_refuses_root_swap_after_open(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -543,6 +555,8 @@ class BookStateStreamingTests(unittest.TestCase):
 import resource,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 _,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE,(32,hard))
 b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[1]))
@@ -631,6 +645,8 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); move=b._move; count=[0]
 def stop(source,destination,**kwargs):
  move(source,destination,**kwargs); count[0]+=1
@@ -1001,6 +1017,8 @@ with b.ensure_book_state(root):
             code = '''
 import resource,sys
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 import book_recovery_archive
 soft,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE,(32,hard))
@@ -1970,6 +1988,8 @@ print(len(result['entries']))
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); save=b._save_journal
 def stop(directory,document,**kwargs):
  result=save(directory,document,**kwargs)
@@ -2005,6 +2025,8 @@ with b.ensure_book_state(root):
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); old=b._move; count=0
 def kill(source,destination,**kwargs):
  global count
@@ -2035,6 +2057,8 @@ with b.ensure_book_state(root):
 import os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 original=b._move
 def stop(source,destination,**kwargs):
  original(source,destination,**kwargs)
@@ -2070,6 +2094,8 @@ with b.ensure_book_state(sys.argv[1]):pass
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); old=b._move; count=[0]
 def stop(source,destination,**kwargs):
  old(source,destination,**kwargs);count[0]+=1
@@ -2119,6 +2145,8 @@ with b.ensure_book_state(root):
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); old=b._move; count=[0]
 def stop(source,destination,**kwargs):
  old(source,destination,**kwargs);count[0]+=1
@@ -2147,6 +2175,8 @@ with b.ensure_book_state(root):b.apply_book_state_locked(root,{'audio.wav':value
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 root=Path(sys.argv[1]); old=b._move; count=[0]
 def stop(source,destination,**kwargs):
  old(source,destination,**kwargs);count[0]+=1
@@ -2185,6 +2215,8 @@ with b.ensure_book_state(root):
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
+import source_upload_publication as _publication
+_publication.probe_exchange_support=lambda _fd: False
 class Die(io.BytesIO):
  calls=0
  def read(self,n=-1):

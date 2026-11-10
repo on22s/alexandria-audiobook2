@@ -24,6 +24,16 @@ def _stream(data):
 
 @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
 class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # These are the anchored _move fence tests (#1660). v4's exchange path
+        # has its own module; pin the probe off so replacement-only
+        # transactions keep exercising the legacy _move path this class tests.
+        cls._legacy_protocol_probe = patch.object(
+            publication, 'probe_exchange_support', return_value=False)
+        cls._legacy_protocol_probe.start()
+        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
     """Permanent regression for the #1660 residual compensation race.
 
     On post-move source- or destination-parent authority loss, _move must
@@ -1127,6 +1137,15 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
 
 
 class BookStateTransaction1660RecoveryCauseTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # The legacy protocol's explicit cause chaining contract; v4 is
+        # covered by test_book_state_1660_v4_replacements.
+        cls._legacy_protocol_probe = patch.object(
+            publication, 'probe_exchange_support', return_value=False)
+        cls._legacy_protocol_probe.start()
+        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
     """Recovery failure stays primary, original trigger is explicit cause.
 
     Runs on all platforms: it needs no parent relocation, only a real

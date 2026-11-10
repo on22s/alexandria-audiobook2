@@ -96,7 +96,7 @@ class RecoveryFoundationTests(unittest.TestCase):
         report = books.inspect_book_recovery_state(self.root)
         self.assertEqual(before, self.snapshot())   # read-only
         summary = report['journal']
-        self.assertEqual(('publishing', 3, len(raw), hashlib.sha256(raw).hexdigest()),
+        self.assertEqual(('publishing', 4, len(raw), hashlib.sha256(raw).hexdigest()),
                          (summary['phase'], summary['version'], summary['bytes'], summary['sha256']))
         self.assertEqual('directory', summary['workspace_state']['kind'])
         self.assertEqual(['new-0'], summary['workspace_listing']['names'])

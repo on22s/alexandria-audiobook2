@@ -1901,6 +1901,28 @@
   "test_book_state_1660_retire_preflight": [
     "tests.test_book_state_1660_retire_preflight.RetirePreflightTests.test_hardlinked_file_in_a_retired_directory_is_refused_before_anything_is_written"
   ],
+  "test_book_state_1660_v4_replacements": [
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_after_cleanup_before_journal_unlink_finishes_new_book",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_after_commit_write_finishes_new_book",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_after_each_exchange_rolls_back",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_after_journal_write_rolls_back_to_originals",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_after_recovered_phase_write_is_reenetered",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_before_committed_cleanup_finishes_new_book",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_before_each_exchange_rolls_back",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_crash_during_rollback_is_reenetered",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_creation_row_keeps_v3_even_when_other_rows_are_replacements",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_forced_operator_quarantine_understands_v4",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_mixed_transaction_stays_on_v3_and_never_exchanges",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_replacement_only_transaction_is_v4_and_target_is_never_absent",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_streamed_crash_after_each_exchange_rolls_back",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_streamed_replacement_only_transaction_is_v4",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_unsupported_filesystem_stays_on_v3",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_v4_journal_is_learned_by_status_inspect_and_operator_command",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_v4_journal_schema_accepts_only_replacement_rows",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_v4_publishing_journal_auto_quarantines_unowned_workspace_data",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_writer_replacing_the_published_target_keeps_the_original",
+    "tests.test_book_state_1660_v4_replacements.BookStateV4ReplacementTests.test_writer_substituting_a_target_between_proof_and_exchange_rolls_back"
+  ],
   "test_book_state_legacy_migration": [
     "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_a_committed_v1_switch_is_moved_aside_and_the_book_opens",
     "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_a_directory_target_and_an_absent_workspace_migrate",
@@ -1926,8 +1948,8 @@
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_an_operator_quarantine_interrupted_before_any_move_is_rerun",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_an_uncertain_journal_write_is_a_system_error_with_the_report",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_bad_waits_and_a_relative_data_dir_are_usage_or_refusal_errors",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_keeps_a_writer_replacement_and_retires_the_journal",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_recovers_a_consistent_switch",
-    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_refuses_when_a_book_file_changed",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_reports_an_auto_quarantine",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_hash_says_which_bytes_each_file_holds",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_inspect_does_not_follow_a_link_named_like_a_quarantine",

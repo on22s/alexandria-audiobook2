@@ -97,13 +97,21 @@ class RecoveryCommandTests(unittest.TestCase):
         self.assertEqual(('completed', False, True, True),
                          (entry['state'], entry['forced'], entry['journal_held'], entry['workspace_held']))
 
-    def test_finish_refuses_when_a_book_file_changed(self):
+    def test_finish_keeps_a_writer_replacement_and_retires_the_journal(self):
+        # v4 aborts a transaction whose target a writer replaced before the
+        # swap: the writer's object stays, our staged replacement is deleted,
+        # and the journal does not stay fenced forever (#1660). Windows and
+        # an unsupported filesystem keep the v3 refusal.
         self.interrupted_switch()
         self.target.write_bytes(b'someone else')
         code, result = self.run_command('finish')
-        self.assertEqual(command.EXIT_REFUSED, code)
-        self.assertTrue(result['message'].startswith('Refused: '))
-        self.assertTrue((self.root / books.JOURNAL).exists())
+        if os.name == 'nt':
+            self.assertEqual(command.EXIT_REFUSED, code)
+            self.assertTrue((self.root / books.JOURNAL).exists())
+            return
+        self.assertEqual(command.EXIT_OK, code)
+        self.assertEqual(b'someone else', self.target.read_bytes())
+        self.assertFalse((self.root / books.JOURNAL).exists())
         self.assertEqual([], self.quarantines())
 
     def test_quarantine_requires_the_explicit_flag(self):
@@ -309,8 +317,12 @@ class RecoveryCommandTests(unittest.TestCase):
         self.assertEqual('publishing', json.loads(out.getvalue())['report']['journal']['phase'])
 
     def test_the_script_runs_and_exits_with_its_code(self):
-        self.interrupted_switch()
-        self.target.write_bytes(b'someone else')
+        import shutil
+        workspace = self.interrupted_switch()
+        # A non-directory at the journal's workspace is a refusal, so this
+        # exercises a non-zero exit propagated by the process.
+        shutil.rmtree(workspace)
+        workspace.write_bytes(b'not a directory')
         completed = subprocess.run(
             [sys.executable, str(APP_DIR / 'book_state_recovery.py'), '--data-dir', str(self.root),
              '--json', 'finish'],

@@ -14,6 +14,18 @@ import book_state_transaction as books
 
 
 class BookStateTransactionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # These are the v2/v3 protocol contract tests. Protocol v4 (one
+        # verified exchange per replacement) has its own module; pin the
+        # capability probe off so a replacement-only transaction still
+        # exercises the legacy path this class was written against (#1660).
+        import source_upload_publication as publication
+        cls._legacy_protocol_probe = patch.object(
+            publication, 'probe_exchange_support', return_value=False)
+        cls._legacy_protocol_probe.start()
+        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
     @unittest.skipIf(os.name == 'nt', 'POSIX pinned-parent relocation control')
     def test_relocated_move_parent_preserves_entries_and_fences_byte_and_stream_recovery(self):
         import source_upload_publication as publication
@@ -1733,6 +1745,15 @@ class SavedBookProposalRetentionTests(unittest.TestCase):
 
 
 class BookPersonaBindingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # The v2/v3 protocol contract; v4 is covered by its own module.
+        import source_upload_publication as publication
+        cls._legacy_protocol_probe = patch.object(
+            publication, 'probe_exchange_support', return_value=False)
+        cls._legacy_protocol_probe.start()
+        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
     def test_reselecting_same_source_returns_distinct_committed_tokens(self):
         with tempfile.TemporaryDirectory() as tmp:
             first = books.apply_book_input_selection(tmp, 'same.txt', 'same')
