@@ -23,7 +23,7 @@ Para el codificador de fragmentos original de Project, el mismo registro del pad
 el intermedio codificado y su scratch del codificador. No asigna otro
 espacio de trabajo ni reduce el presupuesto de padres paralelos. La codificación MP3 y el respaldo WAV
 permanecen dentro de ese espacio de trabajo hasta que la publicación existente de la ranura seleccionada mueve
-el resultado a `voicelines`. Por tanto, una salida forzada antes de la publicación deja
+el resultado a `voicelines`. Por tanto, una terminación abrupta antes de la publicación deja
 scratch propio en lugar de un archivo `.chunk-*` o `.render-*` sin registrar.
 El codificador lee el padre sin procesar mediante un descriptor comprobado y sin seguimiento.
 Sus archivos PCM, de salida y de error se crean en exclusiva; el hijo comprueba sus
@@ -33,7 +33,7 @@ El inodo completado permanece abierto durante la publicación de la ranura selec
 renombrados usan directorios de origen y destino fijados, y el destino seleccionado debe nombrar
 ese mismo inodo antes de cambiar los metadatos. Un reemplazo se conserva como evidencia
 y no puede convertirse en una toma correcta solo porque se decodifique como audio válido.
-El hijo confirma su versión de salida vaciada en el archivo de metadatos del codificador
+El hijo confirma la versión de su salida ya volcada (flush) en el archivo de metadatos del codificador
 acotado existente. El respaldo WAV verifica los bytes copiados mediante descriptores
 retenidos, en bloques cancelables fuera de los bloqueos de publicación. Las importaciones
 relativas se congelan antes de que el hijo entre en el scratch fijado; su cwd de lanzamiento se
@@ -45,12 +45,12 @@ La misma autoridad capturada también cubre las salidas por lotes locales partic
 para custom, clone, design, LoRA y ensemble. Cada fila participante tiene un espacio de trabajo padre separado asignado
 antes del despacho y conservado durante todos los finalizadores del lote. El procesamiento por lotes nativo de listas, la
 clasificación por longitud, el subprocesamiento por lotes y la reducción de tamaño por OOM permanecen sin cambios. Las rutas
-internas vinculan el directorio del proyecto, el índice y la reclamación activa a la ruta registrada;
+internas vinculan el directorio del proyecto, el índice y la reserva activa (claim) a la ruta registrada;
 la captura de entrada de voz usa esa misma ruta. Las filas no mapeadas conservan sus rutas de salida
 normales. Los escritores de lotes sobrescritos no reciben rutas de salida registradas.
 
 El registro es `.synthesis-workspaces-v1/registry.json` bajo la raíz de datos del proyecto.
-Guarda IDs de espacio de trabajo opacos, procedencia de reclamación/libro con hash, identidades de directorio
+Guarda IDs de espacio de trabajo opacos, procedencia de la reserva y del libro con hash, identidades de directorio
 y el recuento de ventanas declarado. No contiene texto de origen. La limpieza
 usa los arrendamientos de tareas del kernel existentes y el bloqueo del libro; una tarea activa o un libro ocupado
 posponen el mantenimiento. La cancelación normal limpia el espacio de trabajo desechable del mismo propietario,
@@ -133,5 +133,5 @@ ni fuerza la eliminación después de perder la autoridad.
 
 Las advertencias identifican registros conservados o autoridad de registro no disponible.
 Conserva esas rutas y metadatos para el diagnóstico. La aplicación no restablece un
-registro corrupto, no barre el proyecto de forma recursiva ni recurre a un derrame no rastreado
+registro corrupto, no barre el proyecto de forma recursiva ni recurre a un desbordamiento no registrado
 cuando el registro participante está lleno.

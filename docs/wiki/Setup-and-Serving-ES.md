@@ -1,10 +1,10 @@
-# Setup y servido
+# Configuración y servicio del modelo
 
 [English](Setup-and-Serving.md) · [日本語](Setup-and-Serving-JA.md) · [中文](Setup-and-Serving-CN.md) · Español
 
 La app habla con un modelo de lenguaje a través de cualquier endpoint compatible con OpenAI, en tu propia máquina
 o en una remota. La [sección de primer arranque](../../README_ES.md#primer-arranque-qué-esperar) del README
-muestra cómo iniciar llama.cpp, LM Studio, Ollama o una API alojada. Esta página cubre los ajustes de servido
+muestra cómo iniciar llama.cpp, LM Studio, Ollama o una API alojada. Esta página cubre los ajustes de servicio
 que se midió que importan.
 
 ## Reglas generales

@@ -5,7 +5,7 @@
 Cada hablante de un guion recibe una tarjeta de voz en la pestaña Voices. Esta página explica los tipos de voz
 que puedes elegir y cuándo usar cada uno.
 
-## Personas para estados de personaje
+## Personas de voz para estados de personaje
 
 La generación avanzada de personas globales crea una persona y una vista previa separadas para cada estado de edad/género asentado de un personaje. Cada estado usa su propio diálogo y la narración cercana, conservando los índices de evidencia del guion original. Los estados repetidos más adelante en la historia tienen tarjetas numeradas separadas.
 
@@ -51,13 +51,13 @@ el modelo que necesita el tipo de voz actual.
 ## Elegir un tipo
 
 ```
-Is this a main character with many lines?
-├─ Yes → Do you need a voice other than the 9 built-in ones?
-│        ├─ Yes → LoRA Voice (train one) or Built-in Voice (use a shipped one)
-│        └─ No  → Custom Voice
-└─ No  → Does the character have more than 3–4 lines?
-         ├─ Yes → Voice Clone (save a designed voice and use it as the reference)
-         └─ No  → Voice Design (no setup needed)
+¿Es un personaje principal con muchas líneas?
+├─ Sí → ¿Necesitas una voz distinta de las 9 integradas?
+│       ├─ Sí → LoRA Voice (entrena una) o Built-in Voice (usa una incluida)
+│       └─ No → Custom Voice
+└─ No → ¿El personaje tiene más de 3–4 líneas?
+        ├─ Sí → Voice Clone (guarda una voz diseñada y úsala como referencia)
+        └─ No → Voice Design (no hace falta configurar nada)
 ```
 
 ## Ancla de identidad y línea de tiempo de estilo
@@ -74,7 +74,7 @@ suena el personaje.
 - En las voces **LoRA** y **Built-in** el estilo del personaje se añade **después** de la
   instrucción de la línea: `"Excited, bright energy. Heavy Scottish accent"`.
 
-La **línea de tiempo de estilo** permite que un personaje cambie a partir de una línea dada, "más mayor tras el
+La **línea de tiempo de estilo** permite que un personaje cambie a partir de una línea dada, "mayor tras el
 salto temporal", sin convertirse en otro hablante. Cada punto de cambio fija un ancla nueva desde
 esa línea en adelante.
 
@@ -168,8 +168,7 @@ de nuevo antes de reutilizarlo; los bytes de referencia cambiados, la transcripc
 rehacen el trabajo afectado. El almacenamiento de caché está acotado, y las referencias desalojadas se preparan
 de nuevo automáticamente. Descargar el modelo de clonación borra sus cachés de referencia.
 
-Los diagnósticos recientes del TTS incluyen aciertos, fallos, desalojos y bytes de caché
-cargados. Estos recuentos describen las cargas de caché retenidas; no miden la memoria total
+Los diagnósticos recientes del TTS incluyen aciertos, fallos de caché (misses), desalojos y bytes contabilizados. Estos recuentos describen las cargas de caché retenidas; no miden la memoria total
 del proceso ni de la GPU.
 
 ## LoRA Voice
@@ -221,7 +220,7 @@ Para una línea dicha por varios personajes a la vez. Cada miembro dice la líne
 ya tiene, y los clips se mezclan. Los clips se alinean con el más largo, así que
 el resultado suena como un coro en lugar de una unión exacta.
 
-## ¿Qué consistente es cada tipo?
+## ¿Qué tan consistente es cada tipo?
 
 | tipo | consistencia | por qué |
 |---|---|---|

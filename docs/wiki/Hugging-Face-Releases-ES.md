@@ -15,7 +15,7 @@ Solo archivos cuyos derechos de redistribución se han verificado.
 - el hash del archivo exacto que se probó;
 - el modelo base y su licencia;
 - las fuentes de datos de entrenamiento y sus derechos;
-- el prompt con el que se entrenó y el comando de servido;
+- el prompt con el que se entrenó y el comando para servir el modelo;
 - resultados de evaluación completos, incluidas las limitaciones.
 
 ## Nombres de adaptadores

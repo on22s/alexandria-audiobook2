@@ -38,7 +38,7 @@ python app/book_state_recovery.py quarantine --accept-current-files
 ```
 
 - `inspect` solo mira. Muestra qué estaba haciendo el cambio, qué archivos difieren de lo que
-  esperaba, cualquier carpeta apartada y cualquier resto que dejó un fallo.
+  esperaba, cualquier carpeta separada y cualquier resto que dejó un fallo.
 - `finish` ejecuta ahora mismo la misma recuperación que haría la app.
 - `quarantine --accept-current-files` es el último recurso. Conserva los archivos del libro exactamente como
   están ahora y aparta el diario y la carpeta de trabajo a una
@@ -124,7 +124,7 @@ la respuesta.
 
   o añádelo a `start.js` en los parámetros de `shell.run`:
   `env: { HF_ENDPOINT: "https://hf-mirror.com" }`.
-- **Límites de tasa (HTTP 429):** crea una [cuenta gratuíta de Hugging Face](https://huggingface.co/join)
+- **Límites de tasa (HTTP 429):** crea una [cuenta gratuita de Hugging Face](https://huggingface.co/join)
   y pon `HF_TOKEN` con tu token de acceso.
 - **Una descarga a medias:** borra el archivo parcial de la caché de Hugging Face y prueba
   de nuevo. `download_model.py` obtiene los pesos fuera de la app.
@@ -152,7 +152,7 @@ la respuesta.
 
 ### Una voz entrenada nunca deja de hablar
 
-Es un defecto de la voz entrenada (goal 2.3), normalmente por una tasa de aprendizaje demasiado alta o
+Es un defecto de la voz entrenada (objetivo 2.3), normalmente por una tasa de aprendizaje demasiado alta o
 sobreajuste. La comprobación de parada lo detecta antes de la promoción. Usa mientras tanto una voz publicada para ese personaje,
 y reentrena con una tasa de aprendizaje de 1e-6 (ver la [Guía de entrenamiento](Training-Guide-ES.md)).
 
@@ -242,7 +242,7 @@ ffmpeg -encoders 2>/dev/null | grep mp3
 ### La voz suena plana tras el entrenamiento
 
 - A los datos de entrenamiento les falta variedad emocional: la causa más común.
-- Reconstruye el conjunto de datos con pares de emoción y texto variados (alegre, enfadado, triste, susurrado,
+- Reconstruye el conjunto de datos con pares de emoción y texto variados (alegre, enojado, triste, susurrado,
   gritado).
 - Prueba un rank LoRA más bajo (8-16) para conservar más expresividad del modelo base.
 

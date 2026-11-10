@@ -24,14 +24,13 @@ guardados reales. La comprobación puede cargar el modelo de voz nativo; no sint
 Usa **Cancel audio task** para solicitar la cancelación y espera a que la tarea termine.
 
 Una restauración correcta selecciona los bytes codificados originales, el número de toma y la revisión
-del artefacto, conservando sus recibos de generación. Mantiene la interpretación desplazada
-en el historial incluso cuando el historial automático está desactivado. No reescribe las palabras, el hablante
+del artefacto, conservando sus recibos de generación. Mantiene en el historial la toma que reemplaza incluso cuando el historial automático está desactivado. No reescribe las palabras, el hablante
 ni las instrucciones de interpretación. Una dependencia cambiada o una prueba no disponible provocan un rechazo
 y conservan la interpretación seleccionada. Las instantáneas antiguas, otras identidades de libro/línea
 y los hosts no compatibles siguen disponibles para escuchar. Las instantáneas protegidas se pueden
-restaurar; las eliminadas hay que deshacer su eliminación primero.
+restaurar; para las eliminadas, primero hay que deshacer su eliminación.
 
-El archivo permite 4.096 registros, 16 por línea y 1 GiB de audio en total.
+El historial de tomas permite 4.096 registros, 16 por línea y 1 GiB de audio en total.
 Las copias eliminadas e interrumpidas cuentan hasta que se quitan permanentemente. Una copia que todavía
 necesita un reemplazo pendiente o un deshacer de eliminación de fragmento activo no se puede quitar.
 Si la admisión falla, libera espacio del archivo o desactiva el historial automático antes de
@@ -88,13 +87,13 @@ copia incompleta antes de reintentar. La interpretación actual seleccionada se 
 El decodificador compartido también protege la conversión de referencias de entrenamiento MPEG en estéreo:
 el staging privado de checkpoints recibe una conversión mono completa antes de la publicación,
 mientras la referencia original permanece sin cambios. Los tiempos de espera del decodificador detienen y recogen
-los procesos propios. La retrollamada de escritura de archivos de un llamador conserva la propiedad hasta que su
+los procesos propios. El callback de escritura de archivos de quien llama conserva la propiedad hasta que su
 escritura termina; una escritura de sistema de archivos bloqueada no se abandona tras un tiempo de espera.
 
 ## Metadatos compactos
 
 Las escrituras del archivo pueden guardar una vez el texto repetido, las entradas de generación, la procedencia y la política
-de síntesis, direccionados por su hash de contenido. El formato compacto se usa solo
+de síntesis, indexados por su hash de contenido. El formato compacto se usa solo
 cuando ahorra al menos 4 KiB y el 5% de los bytes del manifiesto. Los recibos de origen completos
 y el audio seleccionado conservan su significado. Se aplican los mismos límites de registro, audio, profundidad
 y manifiesto completamente expandido de 16 MiB. Esto reduce los metadatos repetidos;

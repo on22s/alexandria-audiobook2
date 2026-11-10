@@ -41,7 +41,7 @@ etiqueta de entrenamiento. (Si en cambio preparas grabaciones reales, consulta l
 
 Consejos:
 
-- Cubre una variedad de emociones: neutral, alegre, enfadada, triste, tensa, autoritaria.
+- Cubre una variedad de emociones: neutral, alegre, enojada, triste, tensa, autoritaria.
 - Mezcla exclamaciones cortas ("Oh!", "Right.") con pasajes más largos.
 - Incluye al menos un pasaje neutro largo para usarlo como muestra de referencia.
 - La [Guía de entrenamiento](Training-Guide-ES.md) explica más sobre qué hace bueno a un conjunto de datos.

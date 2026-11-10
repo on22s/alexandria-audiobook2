@@ -44,7 +44,7 @@ Nombres de tarea que puedes sondear:
 | `dataset_builder` | generación por lotes del Dataset Builder |
 | `preparer` / `batch_preparer` | el Preparer |
 | `voicelab` | el pipeline de Voice Lab |
-| `benchmark` | el arnés de benchmarks |
+| `benchmark` | el banco de pruebas de benchmarks |
 
 ## Ajustes
 
@@ -154,7 +154,7 @@ curl http://127.0.0.1:4200/api/status/persona
 curl -X POST http://127.0.0.1:4200/api/cancel_persona
 ```
 
-La generación avanzada de personas incluye los estados de personaje asentados. `GET /api/voice_config/snapshot` devuelve `voices[].persona_states`, cada uno con un `version_id` generado por el servidor, el rango de origen original, una huella `segment_sha256` del segmento propio de ese estado, y `current` (si la versión guardada es la persona del estado tal como se lee ahora en el guion). Las personas de estado generadas viven en `config[speaker].versions[version_id]` y llevan procedencia `persona_state`, que solo fijan la generación y la recuperación: un guardado puede conservarla pero nunca introducirla ni cambiarla, y los ids de la forma `state_<24 hex>` están reservados. `POST /api/voices/{speaker}/versions/{id}/select` rechaza las versiones de estado; aplícalas en la línea de tiempo de voz.
+La generación avanzada de personas incluye los estados de personaje consolidados. `GET /api/voice_config/snapshot` devuelve `voices[].persona_states`, cada uno con un `version_id` generado por el servidor, el rango de origen original, una huella `segment_sha256` del segmento propio de ese estado, y `current` (si la versión guardada es la persona del estado tal como se lee ahora en el guion). Las personas de estado generadas viven en `config[speaker].versions[version_id]` y llevan procedencia `persona_state`, que solo fijan la generación y la recuperación: un guardado puede conservarla pero nunca introducirla ni cambiarla, y los ids de la forma `state_<24 hex>` están reservados. `POST /api/voices/{speaker}/versions/{id}/select` rechaza las versiones de estado; aplícalas en la línea de tiempo de voz.
 
 Para regenerar un estado, haz POST a `/api/generate_personas` con `speaker`, `state_version` y el `book_token` de la instantánea actual; el procesamiento avanzado se activa automáticamente. Una solicitud de estado no puede combinar una anulación de edad. `POST /api/persona/recover` acepta el mismo selector de estado/token para guardar un JSON de persona validado y, opcionalmente, reanudar su vista previa.
 
@@ -213,7 +213,7 @@ curl http://127.0.0.1:4200/api/book/recovery
 
 `GET /api/book/recovery` no cambia nada. Informa de `status` (`clean`, `pending`,
 `migration_required` o `unreadable`), la fase del diario, si otra operación tiene
-el bloqueo del libro, las carpetas apartadas y el estado de su recibo, los restos de fallo como recuentos y
+el bloqueo del libro, las carpetas separadas y el estado de su recibo, los restos de fallo como recuentos y
 bytes, y los comandos a ejecutar en orden. Ver [Guardados y cambios de libro
 interrumpidos](../../docs/guides/BOOK_SWITCH_RECOVERY_ES.md).
 
@@ -468,8 +468,7 @@ acotado. Volver a comprobar conserva el audio seleccionado incluso cuando encuen
 defecto de contenido. No se crea una caché de informes históricos separada.
 
 Usa `POST /api/speech_verification/cancel` para solicitar la cancelación y
-`GET /api/status/speech_verification` para inspeccionar el estado de la tarea. La reclamación sigue
-siendo propia hasta que los descendientes del proveedor y el scratch privado se hayan limpiado,
+`GET /api/status/speech_verification` para inspeccionar el estado de la tarea. La reserva (claim) sigue siendo de su dueño hasta que los descendientes del proveedor y el scratch privado se hayan limpiado,
 incluso después de que la solicitud HTTP iniciadora se desconecte. El ASR de CPU comparte un
 arrendamiento privado de cierre propio con el tiempo de palabra, así que un proveedor ocupado informa no disponible.
 

@@ -30,7 +30,7 @@ acciones de limpieza, no pasos de configuración que debas ejecutar justo despu�
 
 Ollama y el TTS local compiten por la misma VRAM. Completa primero la generación de guion,
 la revisión, las personas y cualquier otra tarea del LLM. Después ejecuta **Stop Ollama** antes
-del TTS por lotes. Esa celda retira solo el árbol iniciado por este notebook y muestra
+del TTS por lotes. Esa celda detiene solo el árbol de procesos que inició este notebook y muestra
 una instantánea real de la memoria del dispositivo. Otros procesos, cachés y contextos pueden
 seguir ocupando memoria; detener un proceso no garantiza recuperar una cantidad fija.
 

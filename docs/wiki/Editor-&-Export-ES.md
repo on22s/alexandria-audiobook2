@@ -101,7 +101,7 @@ conserva sus bytes; **Undo deletion** la restaura. **Remove permanently…** es 
 confirmada que libera almacenamiento y no se puede deshacer. Los archivos de instantánea actuales, referenciados y
 protegidos no se pueden quitar. No se ejecuta ninguna poda automática.
 
-El archivo del proyecto permite 16 registros por identidad de libro/línea, 4,096 registros y 1 GiB
+El historial de tomas del proyecto permite 16 registros por identidad de libro/línea, 4,096 registros y 1 GiB
 de carga en total. Cada copia está limitada a 64 MiB, mono/estéreo y diez minutos.
 Los metadatos están limitados a 128 KiB por registro y 16 MiB por manifiesto, más una escritura
 pendiente de metadatos acotada a 16 MiB. Las copias eliminadas e interrumpidas cuentan hasta que se quitan
@@ -119,8 +119,7 @@ tenga éxito.
 En un host compatible, las instantáneas listas con evidencia de restauración para el libro y la línea
 actuales muestran **Check & restore**. El botón inicia una comprobación de elegibilidad; no
 garantiza que la instantánea se pueda restaurar. La restauración verifica el audio guardado y
-sus dependencias de generación originales contra la línea actual, conserva la toma
-desplazada y selecciona la interpretación guardada sin generar habla nueva. Si la toma desplazada
+sus dependencias de generación originales contra la línea actual, conserva la toma que reemplaza y selecciona la interpretación guardada sin generar habla nueva. Si la toma que reemplaza
 no se puede conservar de forma segura, la restauración se rechaza. No
 cambia el guion declarado para encajar con una instantánea incompatible. La restauración verificada está
 disponible para CustomVoice, VoiceClone y LoRA locales integrados en hosts Linux compatibles.
@@ -138,7 +137,7 @@ líneas nuevas por posición o texto.
 ## Combinar
 
 Haz clic en **Merge All** para unir todos los fragmentos con audio válido en un audiolibro, en orden,
-con las pausas anteriores. El silencio al principio y al final de cada línea (aire muerto; en voces LoRA una
+con las pausas anteriores. El silencio al principio y al final de cada línea (silencio muerto; en voces LoRA una
 mediana de 310-340 ms) se recorta cuando se unen los fragmentos, así que las pausas que configuras son las
 pausas que oyes. El resultado aparece en la pestaña Result.
 

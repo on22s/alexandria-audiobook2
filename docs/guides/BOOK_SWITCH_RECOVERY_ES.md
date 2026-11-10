@@ -3,8 +3,7 @@
 # Guardados y cambios de libro interrumpidos
 
 Cargar un libro guardado, o guardar el activo, reemplaza varios archivos a la vez:
-el guion, los ajustes de voz, los archivos de capítulo, etc. La app hace esto como una
-transacción con diario para que un fallo, un corte de energía o un disco lleno nunca dejen
+el guion, los ajustes de voz, los archivos de capítulo, etc. La app hace esto como una transacción con diario (journal) para que un fallo, un corte de energía o un disco lleno nunca dejen
 un libro mitad viejo y mitad nuevo. Esta guía cubre qué pasa tras esa
 interrupción y qué hacer cuando la app no puede terminar el trabajo sola.
 
@@ -49,9 +48,9 @@ Un nombre que solo se parece, un enlace o la carpeta de trabajo que nombra el pr
 pendiente nunca se informan como huérfano.
 
 La app nunca borra estos restos: una carpeta anterior al diario no lleva prueba
-de que sea nuestra, así que recuperarla es tu decisión. Después de comprobar que
+de que sea nuestra, así que liberar ese espacio (o no) es tu decisión. Después de comprobar que
 el libro se abre y que la carpeta no es un cambio activo, bórrala tú mismo, como
-harías con una carpeta apartada. `inspect --no-lock` puede mostrar una entrada que en realidad es
+harías con una carpeta separada. `inspect --no-lock` puede mostrar una entrada que en realidad es
 staging de un cambio activo; vuelve a ejecutar `inspect` con el bloqueo antes de borrarla.
 
 ## Qué deja un fallo
@@ -90,7 +89,7 @@ la que maneja ese caso.
 - En disco: algunos archivos son nuevos y otros viejos. La versión antigua de cada archivo intercambiado (o,
   para un archivo recién creado, un marcador de posición de 64 bytes) está en la carpeta de preparación.
   Un archivo que se está creando puede mostrar brevemente ese marcador en su nombre real.
-- Siguiente apertura: cada archivo intercambiado se intercambia de vuelta, tras comprobar de nuevo
+- Siguiente apertura: se revierte cada intercambio, tras comprobar de nuevo
   ambos lados, así que el libro vuelve exactamente a como estaba antes del cambio. Los archivos que
   el cambio estaba creando desaparecen otra vez. [`_recover_book_exchange_journal`, `_undo_book_exchange`]
 - Tú: nada.
@@ -101,7 +100,7 @@ la que maneja ese caso.
   y el libro se abre con sus archivos antiguos, porque hasta que se escribe `committed`
   nada prometía que el cambio hubiera terminado. La única excepción es un diario en el que
   cada fila es un reemplazo, cada archivo demuestra su contenido nuevo y no queda ninguna copia
-  antigua que restaurar: ese se termina hacia adelante. Una mezcla de archivos terminados
+  antigua que restaurar: ese se completa hacia el estado nuevo. Una mezcla de archivos terminados
   y sin terminar que no se pueden restaurar se rechaza en lugar de abrirse como
   un libro mitad viejo y mitad nuevo. [`_recover_book_exchange_journal`]
 - Tú: nada, salvo que se niegue ("cannot be completed consistently"). Entonces
@@ -147,7 +146,7 @@ carpeta de preparación, y luego el nuevo a su sitio. No hay marcadores de posic
 fallo entre los dos renombrados deja el archivo del libro brevemente *ausente*. La recuperación
 sigue las mismas reglas que arriba: comprueba el archivo antiguo guardado, mueve cualquier
 archivo nuevo instalado a `discard-<i>` y devuelve el antiguo a su sitio, o
-termina hacia adelante si el diario ya dice `committed`.
+se completa hacia el estado nuevo si el diario ya dice `committed`.
 [`_recover_book_journal`; `apply_book_state_locked` elige v3 siempre que el intercambio
 no esté disponible, lo que incluye todos los cambios en Windows.]
 
@@ -193,7 +192,7 @@ python app/book_state_recovery.py migrate-legacy --trust-journal-hashes
 
 | Comando | Qué hace |
 |---|---|
-| `inspect` | Informe de solo lectura: el diario pendiente, el estado esperado y actual de cada archivo, la carpeta de trabajo, cada carpeta apartada con su recibo y cualquier resto de fallo (`orphaned_staging`, `journal_temporaries`). Añade `--hash` para calcular el hash de cada archivo e informar si contiene los bytes `old` del diario, sus bytes `new` o `neither`. Las marcas de tiempo por sí solas pueden pasar por alto una reescritura del mismo tamaño: las unidades FAT/exFAT guardan tiempos de 2 segundos. `--no-lock` lee mientras la app está ocupada, como una instantánea de mejor esfuerzo; una entrada que muestre puede ser staging de un cambio activo. |
+| `inspect` | Informe de solo lectura: el diario pendiente, el estado esperado y actual de cada archivo, la carpeta de trabajo, cada carpeta separada con su recibo y cualquier resto de fallo (`orphaned_staging`, `journal_temporaries`). Añade `--hash` para calcular el hash de cada archivo e informar si contiene los bytes `old` del diario, sus bytes `new` o `neither`. Las marcas de tiempo por sí solas pueden pasar por alto una reescritura del mismo tamaño: las unidades FAT/exFAT guardan tiempos de 2 segundos. `--no-lock` lee mientras la app está ocupada, como una instantánea de mejor esfuerzo; una entrada que muestre puede ser staging de un cambio activo. |
 | `finish` | Ejecuta ahora la misma recuperación que ejecuta la app. |
 | `quarantine --accept-current-files` | Conserva los archivos del libro exactamente como están ahora, aunque no coincidan con el diario. La carpeta de trabajo y el diario se apartan, no se borra nada y el libro se abre. Úsalo después de que `inspect` muestre que los archivos actuales son los que quieres. |
 | `migrate-legacy --trust-journal-hashes` | Para un diario de una versión anterior de la app (v1), que registraba el hash de cada archivo pero no su identidad. Con el flag, se confía en un archivo que contiene el hash registrado por su fase. Cuando todos los archivos coinciden, la carpeta de trabajo y el diario antiguo se mueven a `.book-switch-migration-<hash>-<nonce>/` y el libro se abre. Un guardado interrumpido a mitad de publicación no coincide con ninguno de los dos estados: cada archivo no coincidente se lista y no se mueve nada. |

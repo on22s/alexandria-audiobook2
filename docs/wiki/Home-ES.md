@@ -26,7 +26,7 @@ y cómo; las páginas de guía de usuario dicen cómo usar la app.
 
 ## Usar la app
 
-- [Setup y servido](Setup-and-Serving-ES.md) — conectar un modelo de lenguaje y ajustes de servido
+- [Configuración y servicio del modelo](Setup-and-Serving-ES.md) — conectar un modelo de lenguaje y ajustes de servicio
   que se midieron y funcionan.
 - [Generación de guion](Script-Generation-ES.md) — las tres pasadas que convierten texto en guion,
   la pasada de revisión y los prompts.

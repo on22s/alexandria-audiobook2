@@ -9,11 +9,11 @@ Cómo se ejecuta una evaluación de adaptador. Los ajustes medidos y su evidenci
 
 Usa el evaluador del repositorio, con **un servidor** y dos escalas de adaptador:
 
-- **rama base:** escala de adaptador 0.0;
-- **rama del adaptador:** la escala declarada del adaptador: 1.0, salvo que un barrido de escala registrado
+- **brazo base:** escala de adaptador 0.0;
+- **brazo del adaptador:** la escala declarada del adaptador: 1.0, salvo que un barrido de escala registrado
   eligiera otro valor.
 
-Ambas ramas usan:
+Ambos brazos usan:
 
 - temperatura 0;
 - tamaño de lote 25;
@@ -31,7 +31,7 @@ Ambas ramas usan:
 ## Cuándo se puede promocionar un adaptador
 
 - **Nunca a partir de una prueba de humo con tamaño de lote 1.** La promoción requiere la evaluación con la ventana
-  del producto y un preflight limpio del contrato servido (ver [Setup y servido](Setup-and-Serving-ES.md)).
+  del producto y un preflight limpio del contrato servido (ver [Configuración y servicio del modelo](Setup-and-Serving-ES.md)).
 - **Si un piloto elige una escala distinta de 1.0**, repite exactamente esa escala sobre el conjunto de prueba completo
   e informa de todas las escalas que se probaron. Nunca reetiquetes un fallo con escala 1 como éxito.
 - **Cita el conjunto de prueba cada vez.** El mismo adaptador puede mejorar en un conjunto de prueba y no en

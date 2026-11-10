@@ -42,7 +42,7 @@ números, los fallos y las recetas están todos en este repositorio.
 **Documentos clave**
 
 - **[GOALS.md](GOALS.md)** — qué significa "bueno" para cada objetivo, con la medición actual
-- **[RECIPES.md](RECIPES.md)** — los ajustes de entrenamiento y servido que funcionaron, cada uno con el ajuste parecido que falló
+- **[RECIPES.md](RECIPES.md)** — los ajustes de entrenamiento y servicio que funcionaron, cada uno con el ajuste parecido que falló
 - **[RESULTS_INDEX.md](RESULTS_INDEX.md)** — todos los artefactos de experimentos
 - **[Adaptadores en Hugging Face](https://huggingface.co/Om22s/alexandria-qwen3-attribution)**, y **[HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)** para cómo se publican
 
@@ -285,7 +285,7 @@ Para cada personaje, puedes:
 Otras herramientas de esta pestaña:
 
 - **Suggest LoRA Voices** empareja voces entrenadas con personajes.
-- La **style timeline** de una tarjeta permite que una voz cambie a partir de una línea dada ("más mayor tras
+- La **style timeline** de una tarjeta permite que una voz cambie a partir de una línea dada ("mayor tras
   el salto temporal"), mientras el ancla de identidad la mantiene reconociblemente la misma persona.
 - **Save to cast** y **Apply cast** llevan un reparto de voces de una serie a otra.
 
@@ -611,7 +611,7 @@ Ver [lora_ES.md](docs/guides/lora_ES.md) y [BATCH_PROCESSOR_GUIDE_ES.md](docs/gu
 
 - **Editor de fragmentos** con regeneración selectiva, un filtro para fragmentos desviados y
   reproducción en secuencia.
-- **Pausas naturales** entre hablantes y dentro de ellos, y **recorte del aire muerto** cuando se
+- **Pausas naturales** entre hablantes y dentro de ellos, y **recorte del silencio muerto** cuando se
   unen los fragmentos.
 - **MP3 combinado (128 kbps)**, archivos de voz por línea, **exportación de capítulos** con plantillas
   de nombre de archivo, un paquete **Audacity** multipista y **M4B** con capítulos.
@@ -663,13 +663,13 @@ En el orden en que los encuentras en la app:
   - descubrimiento de apodos;
   - importaciones de referencias de clonación con su transcripción, origen y base de derechos registrados.
 - **Editor**: los fragmentos se marcan cuando su audio se desvía de la voz del hablante;
-  el aire muerto se recorta al unir los fragmentos.
+  el silencio muerto se recorta al unir los fragmentos.
 - **Exportación**: MP3 de 128 kbps, exportación capítulo a capítulo con plantillas de nombre de archivo, un
   paquete Audacity y M4B con capítulos.
 - **Voice Lab**: entra un audiolibro, sale una voz LoRA con nombre: Preparer (alineación más
   enriquecimiento opcional por LLM) → dedup → entrenamiento LoRA por lotes → perfilado → nombrado, cada
   etapa dentro del entorno propio de la app.
-- **Pestaña Reports**: historial de ejecuciones, puntos de control de revisión y el arnés de benchmarks
+- **Pestaña Reports**: historial de ejecuciones, puntos de control de revisión y el banco de pruebas de benchmarks
   (entorno · LLM · TTS · entrenamiento) con un manifiesto.
 - **Adaptadores de atribución** servidos mediante `llama-server --lora`, entrenados con datos
   de derechos limpios y publicados en Hugging Face con fichas que dicen qué se midió y qué no.
@@ -757,7 +757,7 @@ razonamiento detrás de ella: [Qué modelo para tu tarjeta](docs/wiki/Which-Mode
 | 32 / 24 / 16 GB | RTX 5090, 4090, 3090, 5080, 5070 Ti, RX 9070 XT | Qwen3.8-27B UD-Q3_K_XL | 12.5 GB | **95.2%** | **sí**: +1.0 en las novelas con las que nunca se entrenó (p=0.004) |
 | 12 GB | RTX 5070, Arc B580 | Qwen3.8-27B Q2_K_XL | 9.4 GB | **93.7%** | no: sin ganancia en este quant |
 | 8 GB | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B UD-IQ2_XXS | 6.9 GB | 88.7% | **sí**: +1.3 (p=0.045) |
-| 6 GB | GTX 1660, RTX 2060, portátiles | Qwen3-8B Q4_K_M | 4.7 GB | **77.0%** *(cuatro libros)* | **sí**: +5.3 en cuatro libros, +6.2 en las nueve novelas |
+| 6 GB | GTX 1660, RTX 2060, laptops | Qwen3-8B Q4_K_M | 4.7 GB | **77.0%** *(cuatro libros)* | **sí**: +5.3 en cuatro libros, +6.2 en las nueve novelas |
 | sin GPU utilizable | — | un modelo alojado, o el transporte manual | — | **94.9-95.4%** *(cuatro libros)* | n/a |
 
 Lo que dicen las mediciones sobre elegir:
@@ -819,7 +819,7 @@ RECIPES §"Rescored 2026-09-28"):
 | 2.1 similitud de hablante | coseno ECAPA entre la voz generada y la lectura humana, como % de la propia consistencia del mismo narrador | clon en inglés 93% (LJSpeech) / 86% (una segunda lectora); japonés 98%; chino bloqueado hasta que se vuelva a medir la reparación del ancla del objetivo 2.2. Objetivo 95%. |
 | 2.8 una voz sigue siendo la misma voz | deriva en semitonos de un narrador CustomVoice en 120 líneas, frente a un ancla de sus primeras líneas | instrucciones tal como están escritas **3.49 st**; con un ancla de identidad por hablante **2.53 st** (ECAPA 0.737 → 0.771). Hay una ejecución de libro completo en cola. |
 | 2.9 significado transportado por el tono | caída alto→bajo del núcleo acentual japonés realizada, moras alineadas con CTC | lectores humanos 72.6%, clon 74.4%, LoRA 71.2%: la síntesis iguala la tasa humana |
-| aire muerto | silencio inicial en líneas de voz LoRA | mediana 310-340 ms, 4-5% de un libro; recortado al unir fragmentos (−45 dBFS, 40/80 ms conservados) |
+| silencio muerto | silencio inicial en líneas de voz LoRA | mediana 310-340 ms, 4-5% de un libro; recortado al unir fragmentos (−45 dBFS, 40/80 ms conservados) |
 | detección de diálogo de la pasada 1 | divisor por comillas en las 28 novelas de PDNC | 99.84% de recall de tramo, 94.89% de precisión: no hace falta llamada al modelo para dividir inglés entrecomillado |
 
 Objetivos cumplidos y mantenidos por una prueba (GOALS Parte II): la brecha de selección está cerrada, cada
@@ -838,7 +838,7 @@ prompt de atribución que hay que elegir en Setup.
 
 | modelo | tamaño | tarjeta en la que cabe (archivo + contexto) | mejor variante | puntuación | bueno para |
 |---|---|---:|---|---:|---|
-| DeepSeek v4-pro (API alojada) | — | ninguna | `michel2_full`, thinking low 8k | **95.4** | el techo; unos $0.50-0.75 por un libro de tamaño fixture |
+| DeepSeek v4-pro (API alojada) | — | ninguna | `michel2_full`, razonamiento bajo 8k | **95.4** | el techo; unos $0.50-0.75 por un libro de tamaño fixture |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 24 GB | `michel2` | **90.9** | el mejor modelo local; el ejemplo resuelto (`michel2_shot`) da la mejor puntuación en el libro más difícil (94.4) |
 | Qwen3.6-35B-A3B UD-Q4_K_XL / IQ3_XXS / IQ2_XXS | 22.4 / 13.2 / 10.8 GB | 24 / 16 / 16 GB | `michel2_full` | 89.6 en cuatro libros; 91.6 / 90.5 en nueve novelas con IQ3 / IQ2 | velocidad: cabe en una tarjeta de 16 GB con IQ3 o IQ2 (con `--n-cpu-moe` descargando algunos expertos) y se queda a un punto de Q4 |
 | Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2_full` | **90.5** | fuerte, pero sírvelo con razonamiento activado y el formato de razonamiento deepseek, y nunca con `--skip-chat-parsing` |
@@ -1091,7 +1091,7 @@ python app/book_state_recovery.py quarantine --accept-current-files
 ```
 
 - `inspect` solo mira. Muestra qué estaba haciendo el cambio, qué archivos difieren de lo que
-  esperaba, cualquier carpeta apartada y cualquier resto que dejó un fallo.
+  esperaba, cualquier carpeta separada y cualquier resto que dejó un fallo.
 - `finish` ejecuta ahora mismo la misma recuperación que haría la app.
 - `quarantine --accept-current-files` es el último recurso. Conserva los archivos del libro exactamente como
   están ahora y aparta el diario y la carpeta de trabajo a una

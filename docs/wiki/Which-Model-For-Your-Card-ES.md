@@ -46,7 +46,7 @@ memoria frente a 32,768, pero ninguno es el ajuste correcto para toda carga de t
 | **16 GB** | RTX 5080, 5070 Ti, RX 9070 XT / 9070, 9060 XT 16 GB | Qwen3.8-27B **UD-Q3_K_XL** | 12.5 GB | **95.2%** | **sí**: igual que arriba |
 | **12 GB** | RTX 5070, Intel Arc B580 | Qwen3.8-27B **Q2_K_XL** | 9.4 GB | **93.7%** | no: +0.1 (p=0.88) |
 | **8 GB** | RX 9060 XT 8 GB, RTX 5060 | Qwen3.8-27B **UD-IQ2_XXS** | 6.9 GB | 88.7% | **sí**: +1.3 en las ocho retenidas (p=0.045) |
-| **6 GB** | GTX 1660, RTX 2060, tarjetas de portátil | Qwen3-8B **Q4_K_M** | 4.7 GB | **76.6%** | **sí**: +6.2 (p=7e−12) |
+| **6 GB** | GTX 1660, RTX 2060, tarjetas de laptop | Qwen3-8B **Q4_K_M** | 4.7 GB | **76.6%** | **sí**: +6.2 (p=7e−12) |
 | **sin GPU utilizable** | — | un modelo alojado, o el transporte manual | — | **94.9-95.4%** *(cuatro libros)* | n/a |
 
 El adaptador de Qwen3.8 (`michel2v1`) se entrenó con The Sun Also Rises, una de las nueve novelas, así que sus

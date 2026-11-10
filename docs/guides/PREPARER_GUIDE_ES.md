@@ -43,13 +43,13 @@ Antes de ejecutar el Preparer, asegúrate de que:
 
 ### Paso 1: abre una terminal
 
-- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Intro
-- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Intro
+- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Enter
+- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Enter
 - **Linux:** abre el menú de aplicaciones y busca "Terminal"
 
 ### Paso 2: ve a la carpeta de Alexandria
 
-Escribe este comando y pulsa Intro:
+Escribe este comando y pulsa Enter:
 
 ```bash
 cd ~/.pinokio/api/alexandria-audiobook.git
@@ -98,7 +98,7 @@ Cuando termine, verás:
 ## Qué hace esta herramienta (versión muy sencilla)
 
 Imagina que tienes un audiolibro largo: alguien leyendo una novela entera en voz alta,
-quizá 60 minutos o 6 horas. Para enseñar a un ordenador a hablar como ese
+quizá 60 minutos o 6 horas. Para enseñar a una computadora a hablar como ese
 narrador, necesitas muchísimos **clips cortos** de su voz,
 cada uno etiquetado con **las palabras exactas que dijo**. Esta herramienta crea esos
 clips por ti, automáticamente.
@@ -107,7 +107,7 @@ Piénsalo así:
 
 1. **Le das el audiolibro** (un archivo de audio grande).
 2. **La herramienta escucha** y averigua dónde empieza y acaba cada palabra.
-3. **Corta el audiolibro en clips del tamaño de un aperitivo**, de unos 10 segundos cada uno,
+3. **Corta el audiolibro en clips cortos, del tamaño de un bocado**, de unos 10 segundos cada uno,
    intentando cortar en pausas naturales (como al final de una frase) para que cada
    clip no acabe a mitad de palabra.
 4. **Para cada clip, escribe las palabras** que se dijeron en él.
@@ -115,7 +115,7 @@ Piénsalo así:
    *importantes*, o dónde hizo el narrador una pausa larga `...`
 6. **Recibes un archivo zip** lleno de clips + una lista de lo que dice cada clip.
 
-Ese zip es lo que alimentas después a un programa de entrenamiento TTS, para que el ordenador
+Ese zip es lo que alimentas después a un programa de entrenamiento TTS, para que la computadora
 aprenda a copiar la voz de ese narrador.
 
 ### El gran truco nuevo: usar el libro
@@ -202,7 +202,7 @@ Regla general aproximada en una AMD Radeon RX 9070 XT:
   de audiolibro.
 - **Etiquetar los clips** (la parte lenta): unas 10 horas por 1 hora de
   audiolibro. Así que un audiolibro típico de 6 horas tarda alrededor de 60 horas de
-  tiempo de ordenador. Puedes dejarlo funcionando toda la noche; si necesitas la GPU
+  tiempo de computadora. Puedes dejarlo funcionando toda la noche; si necesitas la GPU
   para otra cosa, pulsa **Ctrl+C** para detenerlo y usa `--resume` más tarde.
 
 
@@ -426,8 +426,7 @@ Por cada fragmento conservado de baja confianza (solo con `--keep-unaligned`):
 ### Detección de archivo fuente equivocado
 
 Antes de que empiece la anotación del LLM, el preparer preescanea los primeros ~30 fragmentos
-del ASR contra la fuente. Si la alineación media está por debajo del 50% o más
-del 40% de los fragmentos caen por debajo del 60%, el preparer **aborta con un error**
+del ASR contra la fuente. Si la alineación media es inferior al 50%, o si más del 40% de los fragmentos queda por debajo del 60%, el preparer **aborta con un error**
 en lugar de desperdiciar horas de tiempo del LLM en una fuente que no coincide:
 
 ```
@@ -534,7 +533,7 @@ Se escribe un marcador `.source` en `dataset_temp/` que contiene la ruta absolut
 
 Esto evita corrupciones accidentales al reutilizar el directorio de trabajo para audiolibros distintos. El procesador por lotes depende de esta garantía para pasar `--resume` con seguridad en cada reintento.
 
-## Monitorización de la GPU
+## Monitoreo de la GPU
 
 El preparer registra estadísticas de la GPU en puntos clave:
 - Después de cargar el modelo Wav2Vec2

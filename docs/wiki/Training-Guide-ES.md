@@ -181,7 +181,7 @@ tarda unos 5.4 minutos en una RX 9070 XT.
 
 El entrenador sigue el método oficial de fine-tuning de Qwen3-TTS:
 
-- **Ponderación de subloses:** la loss del code-predictor se pondera a 0.3×, como en el
+- **Ponderación de pérdidas parciales:** la loss del code-predictor se pondera a 0.3×, como en el
   `sft_12hz.py` oficial.
 - **Embedding de hablante:** se toma de un clip de referencia consistente, no de cada muestra.
 - **Sin instrucciones durante el entrenamiento:** la voz se aprende solo del audio y el texto;
@@ -209,7 +209,7 @@ entrenamiento**. Incluye:
 
 - narración neutra;
 - alegre o emocionada;
-- enfadada o frustrada;
+- enojada o frustrada;
 - triste o sombría;
 - susurrada o tensa;
 - gritando o dando órdenes.

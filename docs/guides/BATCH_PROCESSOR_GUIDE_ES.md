@@ -37,8 +37,8 @@ Pon todos los archivos WAV de audiolibro que quieres procesar en una carpeta. Po
 
 ### Paso 2: abre una terminal
 
-- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Intro
-- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Intro
+- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Enter
+- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Enter
 - **Linux:** abre el menú de aplicaciones y busca "Terminal"
 
 ### Paso 3: ejecuta el procesador por lotes
@@ -364,7 +364,7 @@ Ejemplo:
 
 1. **Validación** - Comprueba que todos los archivos existen y son formatos de audio válidos
 2. **Comprobación del modelo** - Verifica que el modelo Gemma es accesible
-3. **Monitorización de la GPU** - Registra la memoria y el uso de la GPU al inicio
+3. **Monitoreo de la GPU** - Registra la memoria y el uso de la GPU al inicio
 4. **Procesamiento secuencial** - Procesa cada archivo uno a uno:
    - Carga el audio (16kHz + 24kHz)
    - **Transcribe con Wav2Vec2** (GPU principal, fragmentos solapados de 30s para preservar el contexto)
@@ -380,9 +380,9 @@ Ejemplo:
    - Estadísticas de GPU registradas entre archivos
 5. **Resumen** - Genera un informe del procesamiento con estadísticas del lote
 
-## Monitorización de la GPU y seguimiento del progreso
+## Monitoreo de la GPU y seguimiento del progreso
 
-### Monitorización en tiempo real
+### Monitoreo en tiempo real
 - **Memoria de la GPU**: sigue la memoria asignada/total y el porcentaje durante:
   - Después de cargar el modelo Wav2Vec2
   - Antes y durante el procesamiento de fragmentos de Wav2Vec2 (cada 50 fragmentos)

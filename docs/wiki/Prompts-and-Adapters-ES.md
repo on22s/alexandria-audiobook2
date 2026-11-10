@@ -90,7 +90,7 @@ de líneas equivocado), no para perseguir unos puntos en un modelo que ya funcio
 **Sirve los adaptadores de Muse con la fuerza de razonamiento con la que se entrenaron (`low`), excepto en IQ2_XXS,**
 donde `low` midió peor para ambos adaptadores (window25b 71.8 → 65.8, KL 83.4 → 82.4) porque el
 modelo de 2 bits sigue hasta el límite de longitud; sirve IQ2 con "none". El
-`--chat-template-kwargs` del servidor anula la solicitud, y `{"reasoning_strength":"none"}` se imprime
+`--chat-template-kwargs` del servidor tiene prioridad sobre la solicitud, y `{"reasoning_strength":"none"}` se imprime
 literalmente como un valor no entrenado; RECIPES §"September 28: prompt text, reasoning strength, and the
 cast list" tiene la tabla completa.
 
@@ -140,7 +140,7 @@ predicciones difirieron).
   incluso en las 993 líneas en las que se ofreció, el base puntuó 93.5% frente a 95.9% con la
   lista completa. El +17.6 del adaptador es sobre todo reparación del daño que causó la lista corta.
 
-  **Replicado en DeepSeek v4-pro** (thinking off, las mismas nueve novelas): 98.0% con la lista completa,
+  **Replicado en DeepSeek v4-pro** (razonamiento desactivado, las mismas nueve novelas): 98.0% con la lista completa,
   86.0% con la corta. En las líneas en las que la lista corta seguía ofreciendo al hablante puntuó
   98.7% frente a 99.0%, así que para un modelo fuerte toda la pérdida es el hablante que falta. La lista
   completa de reparto se queda.

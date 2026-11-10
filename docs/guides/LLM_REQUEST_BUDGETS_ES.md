@@ -10,7 +10,7 @@ En **Setup → LLM Settings**, cada perfil Local o Remote tiene tres límites de
 | Input ceiling | Hereda el límite global de entrada de Advanced, si está definido | Limita el prompt completo estimado, incluidas las instrucciones, el reparto y el texto circundante. |
 | Output ceiling | Sin tope por perfil: cada tarea conserva su propio tope de reintentos | Cuando se define, limita las asignaciones de finalización y la escalada de reintentos, incluido el razonamiento cuando el proveedor lo cuenta como salida. |
 
-Los valores deben ser números enteros positivos. No existe un tope superior universal ni un ajuste de ilimitado/omisión. Los techos de entrada y salida son restricciones separadas, no prueba de que su suma quepa en el contexto cargado. Por ejemplo, un techo de entrada y un techo de salida de 4.096 cada uno no pueden consumirse ambos en un contexto de 4.096 tokens.
+Los valores deben ser números enteros positivos. No existe un tope superior universal ni un ajuste de ilimitado/omisión. Los techos de entrada y salida son restricciones separadas, no es prueba de que su suma quepa en el contexto cargado. Por ejemplo, un techo de entrada y un techo de salida de 4.096 cada uno no pueden consumirse ambos en un contexto de 4.096 tokens.
 
 Si el contexto cargado es 8.192 y tu declaración es 4.096, Alexandria usa 4.096. Si el contexto cargado es 4.096 y tu declaración es 8.192, Alexandria sigue usando 4.096. Cuando el endpoint no puede exponer su contexto, la declaración aporta el presupuesto que falta. Declara el contexto que realmente admite tu modelo cargado, no su máximo anunciado.
 

@@ -36,8 +36,8 @@ Ahora deberías tener una carpeta con `metadata.jsonl` y muchos archivos `sample
 
 ### Paso 2: abre una terminal
 
-- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Intro
-- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Intro
+- **Windows:** pulsa `Win + R`, escribe `cmd` y pulsa Enter
+- **Mac:** abre Spotlight (Cmd + Space), escribe `terminal` y pulsa Enter
 - **Linux:** abre el menú de aplicaciones y busca "Terminal"
 
 ### Paso 3: ejecuta la herramienta Compare
@@ -177,7 +177,7 @@ La línea de nombres propios es una comprobación rápida de que el script ident
 nombres de personaje correctos en la fuente. Escanea palabras con mayúscula inicial que aparecen
 varias veces en medio de una frase: nombres de personajes, topónimos, términos propios de la historia
 como `Grotesqueries` o `Spirit Sight`. La alineación los usa para
-relajar el listón de aceptación de límites cuando una palabra del fragmento destrozada por el ASR (`coodo`,
+relajar el umbral de aceptación de límites cuando una palabra del fragmento destrozada por el ASR (`coodo`,
 `youth`, `caia`) queda junto a uno de esos nombres en la fuente. Si la muestra
 parece incorrecta (faltan personajes principales, está llena de palabras comunes), la alineación
 seguirá funcionando pero puede necesitar más `[e]dit` manuales en los límites de nombres propios.
@@ -217,7 +217,7 @@ Verás una salida como:
 ### Cuando el anclaje automático se equivoca
 
 Si el anclaje cae en el lugar equivocado (por ejemplo, una frase se repite en el libro y
-encontró la instancia incorrecta), anúlalo manualmente:
+encontró la instancia incorrecta), sustitúyelo manualmente:
 
 ```bash
 # Skip the first 412 words of source (e.g., copyright + TOC + dedication)
@@ -308,7 +308,7 @@ enturbie la comparación.
 ## Que la voz no se vuelva plana: prefiere `[m]erge`
 
 El LLM del preparer añade marcas de prosodia al JSONL:
-- `*word*` — **énfasis** en palabras acentuadas
+- `*word*` — **énfasis** en palabras destacadas
 - `...` — pausa natural, `....` — pausa más larga
 
 Estas marcas son lo que hace expresiva a la voz TTS entrenada. Si usas `[a]ccept

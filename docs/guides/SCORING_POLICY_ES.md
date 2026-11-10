@@ -35,7 +35,7 @@ mide la pasada equivocada y esconde un defecto real detrás de un número de pre
 El juez 1 encontró 3 en 400 filas muestreadas de grimgar03. Eso es una tasa de defecto de la pasada 1
 **muestreada** de ~0.75% en las líneas aptas para juzgar, no la tasa global de error de segmentación
 del libro: la muestra excluye narración y líneas repetidas por
-construcción, así que no puede hablar de las entradas de las que nunca tomó muestras. Vale la pena seguirlo
+construcción, así que no puede dar cuenta de las entradas de las que nunca tomó muestras. Vale la pena seguirlo
 por sí mismo, y medirlo bien si alguna vez guía una decisión.
 
 ## 3. Normalización de alias y honoríficos
@@ -89,7 +89,7 @@ el mínimo de lo que *este benchmark* puede puntuar, que es una afirmación más
 
 **Recomendación:**
 
-- **Rama primaria: `open`** — reparto completo, nombre libre. Es la configuración
+- **Brazo primario: `open`** — reparto completo, nombre libre. Es la configuración
   más cercana a producción. `closed-oracle` es un **diagnóstico condicional** — la
   precisión dado que el hablante verdadero está entre cinco candidatos proporcionados — y
   nunca debe citarse como cifra de precisión ni como techo. No limita nada

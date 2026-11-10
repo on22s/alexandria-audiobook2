@@ -72,18 +72,18 @@ en una regla de colocación sin una medición con forma de producción.
 
 ### Confusiones conocidas en esta campaña
 
-Se encontraron cuatro lagunas en el propio arnés de esta campaña a posteriori. Ninguna
+Se encontraron cuatro lagunas en el propio banco de pruebas de esta campaña a posteriori. Ninguna
 significa que los números de abajo sean inventados, pero ninguna se controló
 tampoco: trata cada conclusión de esta sección como provisional hasta que una
 nueva ejecución las aborde. La generación y la revisión de guiones (ambos objetivos) se han
-vuelto a ejecutar con el arnés corregido; consulta la nota de validación bajo cada
+vuelto a ejecutar con el banco de pruebas corregido; consulta la nota de validación bajo cada
 una de las dos primeras viñetas; las otras dos (muestreo de utilización,
 rendimiento a escala) siguen aplicándose a todos los números de TTS/LoRA/VoiceLab de este
 documento, que aún no se han vuelto a ejecutar.
 
 - **Desajuste de compilación Torch/CUDA.** En local se ejecutó Torch 2.10.0+ROCm7.0; en Thunder
   una versión anterior, Torch 2.7.0+CUDA12.6. Cada comparación de TTS/LoRA/VoiceLab de abajo se
-  midió entre dos pilas de software distintas, no solo entre dos GPU. El arnés del
+  midió entre dos pilas de software distintas, no solo entre dos GPU. El banco de pruebas del
   benchmark ahora huella la versión de Torch de ambos lados y
   (`benchmark_environment.verify_comparable_environments`) lanza un error ruidoso si
   divergen cuando ambas se recogen en un mismo preflight. **Validado
