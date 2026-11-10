@@ -278,6 +278,28 @@ def _book_target_version(path):
     return _book_info_version(path.lstat())
 
 
+# "This platform or filesystem cannot do it" stays an OSError: callers treat
+# ENOTSUP as a capability refusal. (Windows: ENOTSUP 129, EOPNOTSUPP 10045.)
+_UNSUPPORTED_BOOK_IO_ERRORS = frozenset({errno.ENOTSUP, getattr(errno, 'EOPNOTSUPP', errno.ENOTSUP)})
+
+
+@contextlib.contextmanager
+def _refuse_book_io(message):
+    """Report an artifact or journal that cannot be read as the module's refusal (#1660).
+
+    The byte digest and _move already turn an I/O failure into ValueError; the
+    stream checks, the byte identity checks and the journal read let a raw
+    OSError escape, so the same condition reached callers as two different
+    types (a 500 instead of a 409 at one route). Also usable as a decorator.
+    """
+    try:
+        yield
+    except OSError as error:
+        if error.errno in _UNSUPPORTED_BOOK_IO_ERRORS:
+            raise
+        raise ValueError(message) from error
+
+
 _FS_IOC_GETVERSION = 0x80087601  # _IOR('v', 1, long)
 _UNSUPPORTED_GENERATION_ERRORS = {errno.ENOTTY, errno.EOPNOTSUPP, errno.EINVAL, errno.ENOSYS}
 
@@ -350,6 +372,7 @@ class _BookScanBudget:
             raise ValueError('Book destination scan exceeds its byte limit')
 
 
+@_refuse_book_io('Book artifact could not be read during scan')
 def _bounded_book_file_digest(path, budget):
     before = _book_target_version(path)
     if not stat.S_ISREG(before[5]):
@@ -772,6 +795,7 @@ def compare_book_cleanup_observations(expected_raw, expected_sha256, current_raw
     return result
 
 
+@_refuse_book_io('Book artifact could not be read during scan')
 def _bounded_book_digest(path, budget):
     """Match the native book digest while bounding and fencing every scan."""
     budget.entry()
@@ -830,6 +854,7 @@ def _bounded_book_digest(path, budget):
     return hashlib.sha256(json.dumps(rows, ensure_ascii=True).encode('utf-8')).hexdigest()
 
 
+@_refuse_book_io('Book artifact could not be read during stream staging')
 def _validate_stream_target(row, target, old_version, budget):
     if target.is_symlink() or target.exists() != row['existed']:
         raise ValueError('Book artifact changed during stream staging')
@@ -840,6 +865,7 @@ def _validate_stream_target(row, target, old_version, budget):
             raise ValueError('Book artifact changed during stream staging')
 
 
+@_refuse_book_io('Book artifact could not be read during its move; recovery evidence was preserved')
 def _validate_moved_stream_original(row, path, old_version, budget):
     # Renaming may change ctime. The remaining identity, mode and content must
     # still match the admitted original before this backup can be discarded.
@@ -852,6 +878,7 @@ def _validate_moved_stream_original(row, path, old_version, budget):
         raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
 
 
+@_refuse_book_io('Book artifact could not be read during its move; recovery evidence was preserved')
 def _validate_moved_byte_original(row, path, old_version, cancel_check=None):
     """Detect content or metadata changes to a byte-transaction backup."""
     version = _book_target_version(path)
@@ -877,6 +904,7 @@ def _validate_moved_byte_replacement(row, path, cancel_check=None):
         raise ValueError('Book replacement changed during recovery; recovery evidence was preserved')
 
 
+@_refuse_book_io('Active-book original could not be read; recovery evidence was preserved')
 def _validate_byte_original(row, path, cancel_check=None):
     expected = row.get('old_file_identity')
     version = _book_target_version(path)
@@ -889,6 +917,7 @@ def _validate_byte_original(row, path, cancel_check=None):
         raise ValueError('Active-book original artifact is missing or changed')
 
 
+@_refuse_book_io('Active-book replacement could not be read; refusing destructive recovery')
 def _validate_byte_replacement(row, path, cancel_check=None):
     expected = row.get('new_file_identity')
     version = _book_target_version(path)
@@ -914,6 +943,7 @@ def _validate_staged_replacement(row, path, budget=None, cancel_check=None):
         _validate_stream_replacement(row, path, budget)
 
 
+@_refuse_book_io('Active-book replacement could not be read; refusing destructive recovery')
 def _validate_stream_replacement(row, path, budget):
     expected = row.get('new_file_identity')
     if (not isinstance(expected, list) or len(expected) != 2
@@ -930,6 +960,7 @@ def _validate_stream_replacement(row, path, budget):
         raise ValueError('Active-book replacement changed; refusing destructive recovery')
 
 
+@_refuse_book_io('Active-book original could not be read; recovery evidence was preserved')
 def _validate_stream_original(row, path, budget):
     expected = row.get('old_file_identity')
     if (not isinstance(expected, list) or len(expected) != 6
@@ -949,6 +980,7 @@ def _valid_book_digest(value):
     return type(value) is str and len(value) == 64 and all(char in '0123456789abcdef' for char in value)
 
 
+@_refuse_book_io('Committed book replacement could not be read; recovery evidence was preserved')
 def _verify_committed_stream_targets(rows, targets, budget):
     for row, target in zip(rows, targets):
         _check_stream_cancellation(budget.cancel_check)
@@ -1249,6 +1281,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             'Book transaction journal update is uncertain; evidence was preserved') from error
 
 
+@_refuse_book_io('Active-book journal could not be read')
 def _read_book_journal(path):
     before = _book_target_version(path)
     if not stat.S_ISREG(before[5]) or before[6] != 1 or before[2] > MAX_BOOK_JOURNAL_BYTES:
@@ -1659,6 +1692,7 @@ def _cleanup_tree_inventory(path, cancel_check=None):
             else _capture_cleanup_tree(path, cancel_check=cancel_check))
 
 
+@_refuse_book_io('Book transaction workspace could not be read; cleanup was refused')
 def _validate_stream_workspace_for_cleanup(workspace, data, cancel_check=None):
     """Refuse cleanup if the workspace contains anything not proven owned."""
     if not os.path.lexists(workspace):
@@ -1843,6 +1877,7 @@ def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None, inde
                 raise ValueError('Book transaction target changed; cleanup was refused')
 
 
+@_refuse_book_io('Book transaction workspace could not be read; cleanup was refused')
 def _validate_byte_workspace_for_cleanup(workspace, data, cancel_check=None):
     """Return exact regular-file identities a legacy cleanup may remove."""
     phase, rows = data['phase'], data['entries']
@@ -2796,7 +2831,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                                  hashlib.sha256(value).hexdigest() if value is not None else None)}
             if existed:
                 row['old_file_identity'] = [before_version[item] for item in (0, 1, 2, 3, 5, 6)]
-                generation = get_book_file_generation(target)
+                with _refuse_book_io('Book artifact could not be read during staging'):
+                    generation = get_book_file_generation(target)
                 if generation is not None:
                     row['old_file_generation'] = generation
             if existed and _book_target_version(target) != before_version:
@@ -2851,8 +2887,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                             staged_identities[staged_name] = (info.st_dev, info.st_ino)
                 if 'new_file_identity' not in row:
                     row['new_file_identity'] = list(staged_identities[staged_name])
-                generation = (get_book_file_generation(staged_name, dir_fd=workspace_fd)
-                              if workspace_fd is not None else get_book_file_generation(staged_path))
+                with _refuse_book_io('Book artifact could not be read during staging'):
+                    generation = (get_book_file_generation(staged_name, dir_fd=workspace_fd)
+                                  if workspace_fd is not None else get_book_file_generation(staged_path))
                 if generation is not None:
                     row['new_file_generation'] = generation
                 if workspace_fd is not None or streams:
