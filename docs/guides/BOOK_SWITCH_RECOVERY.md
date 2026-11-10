@@ -54,76 +54,128 @@ a live switch's staging; re-run `inspect` under the lock before deleting it.
 
 ## What a crash leaves behind
 
-On a filesystem that can exchange two names (the v4 protocol), a switch writes
-its journal once, exchanges each replaced file with its staged copy, writes
-`committed`, then cleans up. The table lists every point between those steps.
-"Recovery" means `recover_book_state_locked` in `app/book_state_transaction.py`,
-which every book operation runs before it reads or writes the book
-(`ensure_book_state`). The function named at the end of each row is what decides
-that case.
+A switch changes the book's files in a fixed order. On Linux and macOS (where
+the filesystem can swap two names in one step, the "v4" journal) it:
 
-| Crash point | On disk | Next open | The operator |
-|---|---|---|---|
-| Before the journal exists, during staging | `.book-switch-<id>/` holding `new-<i>` replacements and, for creations, `old-<i>` placeholders; every target still has its old file; no journal. A crash exactly during the journal write also leaves `.active_book_transaction.json.new-<id>`. | There is nothing to restore: with no journal, recovery acts on no book file (it only finishes an interrupted quarantine receipt). `inspect` reports the folder as `orphaned_staging` and the temporary as `journal_temporaries`, with counts and bytes; the Home summary shows the same totals, or null while another operation is busy. Nothing is reclaimed. | The book opens on its old files. Check that the folder is not a live switch, then delete it yourself. (`recover_book_state_locked`, `_get_leftover_staging_entries`) |
-| After the journal, before the first exchange | Journal `phase: publishing`; every target holds its old file; the workspace holds each staged replacement and each creation's placeholder. | Each target is proven against the journal's original bytes and identity, placeholders are deleted only when their nonce proves them, `recovered` is written, then the workspace and journal are removed. The book opens unchanged. (`_recover_book_exchange_journal`) | Nothing. |
-| Mid-exchanges: some rows swapped, others not | Journal still `publishing`. A swapped replacement row has the new bytes at its target and the original at `new-<i>`; a swapped creation row has the new bytes at its target and its placeholder at `new-<i>`; a swapped removal row has its placeholder at the target and the original at `old-<i>`; untouched rows are as above. | No single state covers every row, so recovery rolls back each swapped row with the complementary exchange (re-proving both names first), writes `recovered`, then cleans up. Every row ends at its pre-switch state: the old bytes, or absent for a creation. (`_recover_book_exchange_journal`, `_undo_book_exchange`) | Nothing. |
-| After every row is published, before the journal says `committed` | Journal still `publishing`; every target holds its new state (new bytes, or absent for a removal) and the workspace holds what each row displaced: the original, or a creation's placeholder. | Recovery treats this exactly like the previous row: each row is rolled back with its complementary exchange, then `recovered` and cleanup. The new files are discarded with the workspace; the book opens on its pre-switch files, with creations absent again. Recovery only writes `committed` on this path when every row is a replacement that proves its new bytes and no slot is left at all (for example a slot already gone); otherwise it rolls back, and a mix of published and unpublished rows is refused. (`_recover_book_exchange_journal`) | The book opens on its pre-switch files. If recovery refuses instead ("cannot be completed consistently"), the way out is `quarantine --accept-current-files`, which keeps whatever the targets hold now. |
-| After `committed`, during cleanup | Journal `committed`; every target holds its new state; the workspace may already be gone, partly deleted, or fully present. | Each target is re-proven against its new bytes and identity, then only workspace entries proved ours are removed and the journal is unlinked. The book opens with the new files. A workspace entry that can no longer be proved (an edited backup, an unknown file) is auto-quarantined with the journal into `.book-switch-quarantine-<journal hash>-<nonce>/` and the book still opens with the new files. (`_recover_book_exchange_journal`, `_quarantine_book_transaction`) | Nothing, unless a target no longer proves its new state: then recovery refuses instead, the book does not open, and `inspect` says which file changed. The set-aside folder can be deleted once you no longer want the evidence. |
-| During quarantine, receipt still `prepared` | `.book-switch-quarantine-<journal hash>-<nonce>/receipt.json` says `prepared`. The workspace may not have moved yet, or may have moved, or both workspace and journal may have moved. | With the journal still at the root, the next book operation resumes the same quarantine and finishes it, but only if the targets and workspace still prove what the receipt names; if they no longer do, it refuses and keeps everything. With no journal at the root, recovery re-proves the held journal's size and hash and the moved workspace's identity, and only then writes `completed`; an unprovable receipt stays `prepared` and nothing moves. (`_quarantine_book_transaction`, `_complete_interrupted_quarantines`) | If the journal was already moved, the book opens. If it was not and the quarantine can no longer prove itself, the book still refuses; `inspect` lists the folder, and `journal_held: true` means the receipt could not be completed. Leave it as evidence. |
+1. stages every new file in a private `.book-switch-<id>/` folder,
+2. writes the journal `.active_book_transaction.json` (phase `publishing`),
+3. swaps each staged file into place, one file at a time,
+4. marks the journal `committed`,
+5. deletes the staging folder and then the journal.
 
-**v3 note (Windows, or a filesystem that cannot exchange two names).** A v3
-journal publishes each row with two renames: the target to `old-<i>`, then the
-staged `new-<i>` to the target. There are no placeholders, so a crash between
-those two renames leaves the target *absent* with the staged copy still in
-`new-<i>`; a reader that runs without the book lock sees a missing file, not a
-switch in progress. The journal is written the same way, so recovery behaves
-like the rows above with one difference: it proves the backup at `old-<i>`,
-moves any installed replacement aside to `discard-<i>`, and restores the backup
-with a no-overwrite move; a journal that already says `committed` is finished
-forward (`_recover_book_journal`). `apply_book_state_locked` chooses v3 whenever
-exchange is unavailable, which includes every Windows switch.
+Every book operation runs recovery first (`recover_book_state_locked` in
+`app/book_state_transaction.py`). Here is what you find after a crash at each
+point, and what happens next time the book opens. The function in brackets is
+the one that handles that case.
 
-The rule behind every row is #1816: recovery never renames over a name whose
-authority it has lost. When it cannot prove which object is ours, it keeps the
-journal, the workspace and both objects, and refuses the book rather than
-guessing.
+**Before the journal exists (during step 1 or 2).**
+- On disk: a `.book-switch-<id>/` folder, and possibly a half-written
+  `.active_book_transaction.json.new-<id>`. Every book file is untouched.
+- Next open: nothing to undo, so the book opens as it was. `inspect` lists the
+  folder under `orphaned_staging` and the half-written file under
+  `journal_temporaries`; the Home page shows their count and size. Nothing is
+  deleted for you. [`recover_book_state_locked`, `_get_leftover_staging_entries`]
+- You: once you are sure no switch is running, delete them by hand if you want
+  the space back.
+
+**After the journal, before any file was swapped.**
+- On disk: the journal says `publishing`; every book file is still the old one.
+- Next open: each file is checked against the journal, the staging folder and
+  journal are removed, and the book opens unchanged. [`_recover_book_exchange_journal`]
+- You: nothing.
+
+**Part-way through the swaps (step 3).**
+- On disk: some files are new, some old. Each swapped file's old version (or,
+  for a newly created file, a 64-byte placeholder) sits in the staging folder.
+  A file being created can briefly show that placeholder at its real name.
+- Next open: every swapped file is swapped back, after both sides are checked
+  again, so the book returns exactly to how it was before the switch. Files the
+  switch was creating are gone again. [`_recover_book_exchange_journal`, `_undo_book_exchange`]
+- You: nothing.
+
+**All files swapped, but the journal not yet `committed`.**
+- On disk: every book file is new; the staging folder holds the old versions.
+- Next open: treated the same as the previous case. The switch is rolled back
+  and the book opens on its old files, because until `committed` is written
+  nothing promised the switch had finished. The one exception is a journal where
+  every row is a replacement, every file proves its new contents and no old
+  copy is left to restore: that is finished forward instead. A mix of finished
+  and unfinished files that cannot be restored is refused rather than opened as
+  a half-old, half-new book. [`_recover_book_exchange_journal`]
+- You: nothing, unless it refuses ("cannot be completed consistently"). Then
+  run `inspect`, and `quarantine --accept-current-files` keeps the files as they
+  are now.
+
+**After `committed`, during cleanup (step 5).**
+- On disk: the journal says `committed`; every book file is new; some of the
+  staging folder may remain.
+- Next open: each book file is checked against its new contents, then only
+  what the switch itself created is deleted and the journal is removed. Anything
+  in the staging folder that can't be proven to be ours is moved, together with
+  the journal, into `.book-switch-quarantine-<hash>-<nonce>/`, and the book
+  still opens with the new files. [`_recover_book_exchange_journal`, `_quarantine_book_transaction`]
+- You: nothing. Delete the quarantine folder when you no longer want the evidence.
+
+**During a quarantine (its `receipt.json` still says `prepared`).**
+- On disk: the quarantine folder, with the staging folder and journal moved
+  into it or still at the book root.
+- Next open: if the journal is still at the root, the quarantine is finished,
+  but only if everything still matches what the receipt recorded; otherwise
+  recovery refuses and keeps everything. If the journal was already moved, the
+  book opens, and the receipt is marked `completed` once the moved journal's
+  size and hash and the moved staging folder's identity are checked again. A
+  receipt that fails that check stays `prepared` and nothing moves.
+  [`_quarantine_book_transaction`, `_complete_interrupted_quarantines`]
+- You: nothing in the usual case. A receipt left at `prepared` is evidence that
+  something changed; `inspect` shows it.
+
+**Another program changed a book file while the switch was running.**
+At any step after the journal, if a book file is neither the switch's old nor
+its new version, recovery refuses: it does not swap, delete or set aside a file
+it didn't write. The book stays closed until you choose, with `inspect` and
+then `quarantine --accept-current-files`. (One exception: a Windows-style
+switch that fails before moving any of its files, and finds another program's
+change while giving up, removes its journal anyway. Nothing of the switch's
+was applied, the other program's change stays, and the app log gets a warning
+starting "Book switch ... was retired without recording recovered".)
+
+**Windows, and filesystems that cannot swap names (the "v3" journal).**
+These publish each file with two renames: the old file to `old-<i>` in the
+staging folder, then the new one into place. There are no placeholders, so a
+crash between the two renames leaves the book file briefly *missing*. Recovery
+follows the same rules as above: it checks the saved old file, moves any
+installed new file aside to `discard-<i>`, and puts the old one back, or
+finishes forward if the journal already says `committed`.
+[`_recover_book_journal`; `apply_book_state_locked` picks v3 whenever swapping
+is unavailable, which includes every Windows switch.]
+
+All of these follow one rule, from #1816: recovery never renames over a name it
+can no longer prove is its own. When it can't tell which file is ours, it keeps
+the journal, the staging folder and both files, and refuses to open the book
+rather than guess.
 
 ## Readers during a switch
 
-While a switch holds the book lock, a name it is creating or removing can hold
-a 64-byte placeholder instead of a file. It is the text
-`alexandria-book-placeholder-v1 `, a nonce and a newline, defined once in
-`app/book_placeholder.py`. It is never content: a reader that runs without the
-lock must treat it as "not there yet".
+While a file is being created or removed on Linux or macOS, its name can
+briefly hold a 64-byte placeholder: the text `alexandria-book-placeholder-v1 `,
+a random id and a newline (`app/book_placeholder.py`). It is never real
+content. Most of the app reads the book only after taking the book lock
+(`ensure_book_state`), which finishes or refuses any pending switch first, so it
+never sees a placeholder. The few readers that run without the lock check for it:
 
-- **Exports and downloads.** `_require_export_download` in
-  `app/routers/editor.py` answers 404 when the export is missing and 409 with
-  `SWITCH_IN_PROGRESS` ("A book switch is in progress. Wait a moment and
-  download again.") when the name holds a placeholder. That is only the early
-  answer: `ExportFileResponse.__call__` in `app/export_download.py` checks the
-  descriptor it actually serves, so a switch landing after the name check still
-  gets a 409 instead of 64 bytes named `audiobook.mp3`. ZIP downloads skip
-  placeholder members and answer 409 when every member was one
-  (`build_zip_download`); `/api/export_zip` treats a placeholder export as not
-  existing, so it answers 404 when nothing else is there.
-- **Chunk reads.** `ProjectManager._read_chunks` in `app/project.py` raises
-  `ValueError("A book switch is in progress; chunks are not available yet")`
-  when `chunks.json` or its status journal holds a placeholder. It never parses
-  it, renames it aside as corrupt, or regenerates over it. The bytes are tested
-  after being read through one descriptor (`_read_chunks_snapshot`), so a name
-  swapped between the check and the read is still caught.
-- **Book state.** A placeholder `state.json` means the source-scope inventory
-  does not exist yet: `is_scope_export_historical` in `app/project_scope_exports.py`
-  returns False rather than parsing it.
-- **Book-state reads generally** take the book lock first through
-  `ensure_book_state`, which recovers or refuses the pending switch before
-  reading; those callers see the recovered book or the refusal described above,
-  not a placeholder. The readers that deliberately run without the lock are the
-  ones that need the checks listed here.
-
-A placeholder is short-lived while the switch is healthy: it exists for the
-duration of one row's publication, and a switch that dies is handled by the
-next open as the table above describes.
+- **Downloads and exports** answer 409 `SWITCH_IN_PROGRESS` ("A book switch is
+  in progress. Wait a moment and download again.") instead of serving the
+  placeholder. The route checks the name (`_require_export_download`,
+  `app/routers/editor.py`), and the response checks the file it actually opened
+  (`ExportFileResponse`, `app/export_download.py`), so a switch that starts in
+  between is still caught. ZIP downloads skip placeholder files, and answer 409
+  if every file was one (`build_zip_download`).
+- **Chunk reads** (`ProjectManager._read_chunks`, `app/project.py`) refuse with
+  "A book switch is in progress; chunks are not available yet". They never parse
+  the placeholder, rename it as corrupt or regenerate over it, and they check
+  the bytes they read rather than the name, so a swap in between is caught too.
+- **Scope exports** treat a placeholder `state.json` as "no inventory yet"
+  (`is_scope_export_historical`, `app/project_scope_exports.py`).
 
 ## The recovery command
 
