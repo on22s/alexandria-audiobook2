@@ -1050,10 +1050,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-10T13:32:24",
+  "written": "2026-11-10T15:03:06",
   "host": "RealMitch",
   "git": {
-   "commit": "c03e23f62ddbe0b687855a1a9a72bc605c285882",
+   "commit": "3db03143b50751a33a0f11ec707bc776f107db29",
    "branch": "fix/readaloud-1844-spine-span",
    "dirty": false,
    "source_state": "clean",
