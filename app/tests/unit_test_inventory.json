@@ -1870,6 +1870,31 @@
   "test_book_state_1660_retire_preflight": [
     "tests.test_book_state_1660_retire_preflight.RetirePreflightTests.test_hardlinked_file_in_a_retired_directory_is_refused_before_anything_is_written"
   ],
+  "test_book_state_recovery_command": [
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_forced_receipt_written_by_hand_does_not_force_recovery",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_held_lock_is_busy_unless_inspecting_without_it",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_legacy_journal_needs_migration",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_malformed_journal_is_refused_not_moved",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_malformed_v1_journal_is_refused_not_sent_to_migration",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_an_operator_quarantine_interrupted_after_the_workspace_move_is_finished",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_an_operator_quarantine_interrupted_before_any_move_is_rerun",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_an_uncertain_journal_write_is_a_system_error_with_the_report",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_bad_waits_and_a_relative_data_dir_are_usage_or_refusal_errors",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_recovers_a_consistent_switch",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_refuses_when_a_book_file_changed",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_finish_reports_an_auto_quarantine",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_hash_says_which_bytes_each_file_holds",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_inspect_does_not_follow_a_link_named_like_a_quarantine",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_inspect_reports_a_clean_book",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_inspect_reports_a_hostile_receipt_with_plain_types",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_inspect_reports_a_pending_switch_without_changing_it",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_operator_quarantine_never_adopts_a_directory_that_is_not_the_workspace",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_quarantine_accepts_the_current_files_and_keeps_the_evidence",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_quarantine_requires_the_explicit_flag",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_the_default_data_dir_is_the_apps",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_the_script_runs_and_exits_with_its_code",
+    "tests.test_book_state_recovery_command.RecoveryCommandTests.test_wait_takes_the_lock_once_it_is_released"
+  ],
   "test_book_state_streaming": [
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_anchors_relative_root_before_finalization",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_checks_cancellation_after_final_lstat",
