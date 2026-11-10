@@ -37,7 +37,8 @@ from tests.test_support import get_bash_executable
 REPO = Path(__file__).parent.parent.parent
 DERIVED = ["RESULTS_INDEX.md", "results_index.csv",
            "ab_test_runtime/audit/artifact_structural_audit.json",
-           "app/tests/unit_test_inventory.json"]
+           "app/tests/unit_test_inventory.json",
+           "app/static/i18n/ui.en.json"]
 
 
 def posix_path(path):
@@ -369,7 +370,7 @@ class InterpreterResolutionTest(unittest.TestCase):
             result = self._run(caller, "--quiet", environment)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             calls = marker.read_text(encoding="utf-8").splitlines()
-            self.assertEqual(5, len(calls), calls)
+            self.assertEqual(6, len(calls), calls)
             self.assertEqual("update_test_inventory.py", calls[-1])
 
     def test_pre_commit_uses_the_shared_explicit_interpreter(self):
@@ -453,7 +454,8 @@ class InterpreterResolutionTest(unittest.TestCase):
                          "ab_test_runtime/audit/artifact_structural_audit.json",
                          "ab_test_runtime/audit/legacy_attribution_audit.json",
                          "ab_test_runtime/audit/goal_evidence_audit.json",
-                         "app/tests/unit_test_inventory.json"],
+                         "app/tests/unit_test_inventory.json",
+                         "app/static/i18n/ui.en.json"],
                         out.stdout.split())
 
     def test_automatic_resolution_accepts_windows_scripts_and_prefers_posix(self):
@@ -679,7 +681,7 @@ class InterpreterResolutionTest(unittest.TestCase):
             self.assertEqual(0, out.returncode, out.stderr)
             lines = out.stdout.splitlines()
             self.assertEqual(self._forward(interpreter), lines[0])
-            self.assertEqual(7, len(lines) - 1,
+            self.assertEqual(8, len(lines) - 1,
                              "--metadata must still print the full derived set")
             self.assertIn("RESULTS_INDEX.md", lines[1:])
             self.assertIn("app/tests/unit_test_inventory.json", lines[1:])
@@ -1100,7 +1102,7 @@ class ActualDerivedPathSafetyTests(unittest.TestCase):
                 outputs=('RESULTS_INDEX.md','results_index.csv','LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md',
                          'ab_test_runtime/audit/artifact_structural_audit.json',
                          'ab_test_runtime/audit/legacy_attribution_audit.json',
-                         'app/tests/unit_test_inventory.json','GOALS.md')
+                         'app/tests/unit_test_inventory.json','app/static/i18n/ui.en.json','GOALS.md')
                 for name in outputs:
                     target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_text('old fixture')
                 local=root/'ab_test_runtime/audit/machine_local.json';local.write_text('original local')

@@ -42,3 +42,16 @@ markup, so this runtime fallback does not hide catalog drift in CI.
 
 The existing singular default-count wording is unchanged. Grammar cleanup is
 independent of catalog acceptance; it does not change the numeric count.
+
+## Superseded by the full-interface catalog (P1)
+
+This file is the acceptance record for #1732 and is kept as history. Its
+English-keyed `setupUiEnglish` table, `applySetupUiLocale` sweep and two-option
+selector have been replaced by `app/static/js/app-i18n.js`: stable dotted keys,
+one JSON catalog per locale under `app/static/i18n/`, a generated `ui.en.json`
+parity reference, a four-locale selector plus the pseudo entry, and the `lang`
+attribute wiring. The boundary above still holds: UI locale remains separate from
+book/TTS/transcription language, setting names, values and technical identifiers
+stay untranslated, and the task log transcript remains English. The new design
+and phase plan are in the session design document; terminology is fixed by
+`docs/design/ui-i18n-glossary.md`.

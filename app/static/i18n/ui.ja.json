@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "locale": "ja",
+    "generated_from": "35e28f19",
+    "reviewers": [],
+    "review_status": {
+      "all": "machine-draft",
+      "safety": "not-reviewed"
+    }
+  },
+  "setup.finder.clear": "クリア",
+  "setup.finder.hint": "現在のサービスで設定名と説明を検索します。",
+  "setup.finder.label": "設定を検索",
+  "setup.finder.limited": "最初の {limit} 件のみ表示しています。検索を絞り込むと、より正確な結果が得られます。",
+  "setup.finder.many": "{count} 件の設定が一致しました。",
+  "setup.finder.none": "現在のサービスに一致する設定はありません。別の名前や説明で試してください。",
+  "setup.finder.one": "{count} 件の設定が一致しました。",
+  "setup.finder.opened": "元の設定を表示しています。編集を反映するには Save Configuration をクリックしてください。",
+  "setup.finder.placeholder": "コンテキスト、メモリ、言語、再試行回数などを試してください",
+  "setup.locale.storage_notice": "ブラウザーのストレージを利用できません。この画面の設定は、再読み込みするまでこのタブにのみ適用されます。",
+  "setup.preview.action": "変更をプレビュー",
+  "setup.preview.close": "プレビューを閉じる",
+  "setup.preview.defaults": "不足していた {count} 件の設定を既定値で補完しました",
+  "setup.preview.saved": "保存済み",
+  "setup.preview.title": "設定変更のプレビュー",
+  "setup.preview.would_save": "保存予定"
+}

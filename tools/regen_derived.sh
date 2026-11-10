@@ -48,6 +48,7 @@ ab_test_runtime/audit/artifact_structural_audit.json
 ab_test_runtime/audit/legacy_attribution_audit.json
 ab_test_runtime/audit/goal_evidence_audit.json
 app/tests/unit_test_inventory.json
+app/static/i18n/ui.en.json
 PATHS
 }
 
@@ -121,6 +122,9 @@ done
 ( cd "$REPO" && "$python" "$REPO/app/experiments/goal_evidence_audit.py" >/dev/null 2>&1 ) || {
     echo "regen_derived: goal_evidence_audit FAILED" >&2; exit 1; }
 say "   goal evidence audit"
+( cd "$REPO" && "$python" "$REPO/tools/i18n/extract_ui_catalog.py" ) || {
+    echo "regen_derived: extract_ui_catalog FAILED" >&2; exit 1; }
+say "   ui english catalog"
 ( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null ) || {
     echo "regen_derived: update_test_inventory FAILED" >&2; exit 1; }
 say "   unit test inventory"

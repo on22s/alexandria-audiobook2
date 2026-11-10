@@ -36,6 +36,7 @@ class LocalUiAssetTests(unittest.TestCase):
         base_assets = {
             '/static/js/app-core.js?v=__APP_BUILD__',
             '/static/js/app-help.js?v=__APP_BUILD__',
+            '/static/js/app-i18n.js?v=__APP_BUILD__',
             '/static/js/app-reports.js?v=__APP_BUILD__',
             '/static/js/app-scripts.js?v=__APP_BUILD__',
             '/static/js/app-speaker-review.js?v=__APP_BUILD__',
