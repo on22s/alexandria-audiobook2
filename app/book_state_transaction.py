@@ -92,6 +92,7 @@ QUARANTINE_RECEIPT = 'receipt.json'
 QUARANTINE_JOURNAL = 'journal.json'
 QUARANTINE_WORKSPACE = 'workspace'
 _QUARANTINE_NAME = re.compile(re.escape(QUARANTINE_PREFIX) + r'([0-9a-f]{8})-[0-9a-f]{8}')
+_MIGRATION_NAME = re.compile(re.escape(MIGRATION_PREFIX) + r'([0-9a-f]{8})-[0-9a-f]{8}')
 
 
 def _capture_target_parent_identities_path(root, relative):
@@ -2506,8 +2507,6 @@ def _validate_recovery_journal_shape(root, journal, data):
                     or (row.get('new_sha256') is not None
                         and not _valid_book_digest(row['new_sha256']))):
                 raise ValueError('Invalid legacy active-book entry')
-        raise BookJournalMigrationRequired(
-            'Legacy active-book transaction requires explicit recovery inspection')
     from book_recovery_archive import MAX_FILES, _relative_name, _validate_names
     if len(rows) > MAX_FILES:
         raise ValueError('Active-book transaction exceeds its entry limit')
@@ -2519,6 +2518,10 @@ def _validate_recovery_journal_shape(root, journal, data):
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
     _validate_parent_identity_scheme(data)
+    if data['version'] == 1:
+        # Well-formed, target names included: only migrate-legacy may act.
+        raise BookJournalMigrationRequired(
+            'Legacy active-book transaction requires explicit recovery inspection')
     if data['version'] == 3:
         if 'stream_limits' in data:
             raise ValueError('Invalid active-book byte transaction')
@@ -2895,14 +2898,14 @@ def _get_entry_identity(path):
     return [info.st_dev, info.st_ino]
 
 
-def _find_pending_quarantine(root, sha256, workspace_name):
+def _find_pending_quarantine(root, sha256, workspace_name, name_pattern=_QUARANTINE_NAME):
     """-> (directory, receipt) of the one quarantine a crash interrupted for
     this exact journal, or (None, None). A directory without a receipt is a
     crash before the receipt was written: inert, ignored and kept."""
     found = []
     with os.scandir(root) as entries:
         for entry in entries:
-            match = _QUARANTINE_NAME.fullmatch(entry.name)
+            match = name_pattern.fullmatch(entry.name)
             if (match is None or match.group(1) != sha256[:8]
                     or not entry.is_dir(follow_symlinks=False)):
                 continue
@@ -2938,9 +2941,9 @@ def _is_admitted_root_unchanged(root, root_identity):
     return admitted_root == root and tuple(admitted_identity) == tuple(root_identity)
 
 
-def _create_quarantine_directory(root, sha256):
+def _create_quarantine_directory(root, sha256, prefix=QUARANTINE_PREFIX):
     for _attempt in range(8):
-        directory = root / f'{QUARANTINE_PREFIX}{sha256[:8]}-{uuid.uuid4().hex[:8]}'
+        directory = root / f'{prefix}{sha256[:8]}-{uuid.uuid4().hex[:8]}'
         try:
             os.mkdir(directory, 0o700)
         except FileExistsError:
@@ -2956,8 +2959,63 @@ def _write_quarantine_receipt(directory, receipt):
     sync_adapter_directory(str(directory))
 
 
+def _get_legacy_migration_eligibility(root, root_identity, data):
+    """-> (workspace, workspace identity or None) for a v1 journal whose
+    targets hold the bytes its phase recorded; ValueError naming each row
+    that does not (#1660).
+
+    v1 journals carry digests but no identities, so the operator's flag is
+    the trust decision: a matching digest is taken as ours. committed
+    targets must hold the new bytes (absent for removals); publishing and
+    recovered targets the originals (absent when none existed). A switch
+    interrupted mid-publish matches neither and is refused, nothing moved."""
+    journal = root / JOURNAL
+    try:
+        _validate_recovery_journal_shape(root, journal, data)
+    except BookJournalMigrationRequired:
+        pass
+    else:
+        raise ValueError('Book journal is not a legacy v1 journal; run finish instead')
+    workspace = _get_path(root, data['workspace'])
+    rows = data['entries']
+    targets = _get_recovery_targets(root, journal, workspace, rows, None)
+    committed = data['phase'] == 'committed'
+    mismatches = []
+    for row, target in zip(rows, targets):
+        expected = row['new_sha256'] if committed else (row['old_sha256'] if row['existed'] else None)
+        if expected is None:
+            if os.path.lexists(target):
+                mismatches.append(f"{row['path']}: should be absent")
+            continue
+        try:
+            digest = _get_digest(target)
+        except (OSError, ValueError):
+            digest = None
+        if digest != expected:
+            mismatches.append(f"{row['path']}: does not hold the {'new' if committed else 'original'} bytes")
+    if mismatches:
+        hint = ('' if committed else
+                '; a switch interrupted mid-publish keeps originals in the workspace as old-N')
+        shown = '; '.join(mismatches[:10]) + (f'; and {len(mismatches) - 10} more' if len(mismatches) > 10 else '')
+        raise ValueError(f'Legacy book files do not match the journal, nothing was moved: {shown}{hint}')
+    try:
+        info = os.lstat(workspace)
+    except FileNotFoundError:
+        workspace_identity = None
+    except OSError as error:
+        raise ValueError('Legacy book workspace could not be read; nothing was moved') from error
+    else:
+        if (not stat.S_ISDIR(info.st_mode) or getattr(info, 'st_file_attributes', 0)
+                & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise ValueError('Legacy book workspace is not a plain directory; nothing was moved')
+        workspace_identity = [info.st_dev, info.st_ino]
+    if not _is_admitted_root_unchanged(root, root_identity):
+        raise ValueError('Book root changed during migration; nothing was moved')
+    return workspace, workspace_identity
+
+
 def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_check=None,
-                                 force=False):
+                                 force=False, legacy=False):
     """Move a stuck switch's workspace and journal aside; never delete (#1660).
 
     With a refusal: quarantine when _get_quarantine_eligibility allows it.
@@ -2977,31 +3035,40 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     if not isinstance(data, dict) or not isinstance(data.get('workspace'), str):
         return False
     sha256 = hashlib.sha256(raw).hexdigest()
-    quarantine, receipt = _find_pending_quarantine(root, sha256, data['workspace'])
+    prefix, pattern = ((MIGRATION_PREFIX, _MIGRATION_NAME) if legacy
+                       else (QUARANTINE_PREFIX, _QUARANTINE_NAME))
+    quarantine, receipt = _find_pending_quarantine(root, sha256, data['workspace'], pattern)
     if quarantine is None and refusal is None:
         return False
+    if legacy:
+        # Raises with each mismatched row; v1 is never moved automatically.
+        workspace, workspace_identity = _get_legacy_migration_eligibility(
+            root, root_identity, data)
     # A resumed operator quarantine keeps the operator's decision, but only
     # once its workspace was moved: receipts are not authenticated, so a
     # forced receipt alone must not turn ordinary recovery into a forced
     # quarantine. Before that, the operator re-runs the quarantine.
-    force = force or (receipt is not None and receipt.get('forced') is True
-                      and _get_entry_identity(quarantine / QUARANTINE_WORKSPACE) is not None)
-    eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check, force=force)
-    if eligible is None:
-        if quarantine is not None:
-            raise ValueError('An interrupted book quarantine can no longer prove its targets; '
-                             'recovery evidence was preserved')
-        return False
-    workspace, workspace_identity = eligible
+    else:
+        force = force or (receipt is not None and receipt.get('forced') is True
+                          and _get_entry_identity(quarantine / QUARANTINE_WORKSPACE) is not None)
+        eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check, force=force)
+        if eligible is None:
+            if quarantine is not None:
+                raise ValueError('An interrupted book quarantine can no longer prove its targets; '
+                                 'recovery evidence was preserved')
+            return False
+        workspace, workspace_identity = eligible
     if quarantine is None:
         receipt = {'version': 1, 'state': 'prepared', 'refusal': str(refusal)[:1000],
                    'forced': bool(force),
                    'journal': {'sha256': sha256, 'bytes': len(raw),
                                'version': data.get('version'), 'phase': data.get('phase')},
                    'workspace': {'name': data['workspace'], 'identity': workspace_identity}}
+        if legacy:
+            receipt.update({'kind': 'legacy-migration', 'trust': 'journal-digests'})
         if not _is_admitted_root_unchanged(root, root_identity):
             raise ValueError('Book root changed during quarantine; recovery evidence was preserved')
-        quarantine = _create_quarantine_directory(root, sha256)
+        quarantine = _create_quarantine_directory(root, sha256, prefix)
         _write_quarantine_receipt(quarantine, receipt)
     # The receipt names this quarantine now: finish without cancellation.
     quarantine_identity = _get_entry_identity(quarantine)
@@ -3074,6 +3141,26 @@ def quarantine_book_state_locked(root, root_identity):
     return True
 
 
+def migrate_legacy_book_state_locked(root, root_identity):
+    """The operator's migration of a legacy v1 journal (#1660); caller holds
+    book_operator_locked.
+
+    v1 journals record digests but no identities. With the operator's
+    confirmation, a target holding the digest its phase recorded is trusted
+    as ours; when every target does, the workspace and the v1 journal move
+    into .book-switch-migration-<sha8>-<nonce8>/ and the book opens. Nothing
+    is deleted. -> False when no journal is pending; ValueError naming the
+    mismatched rows otherwise."""
+    root = Path(root)
+    if not os.path.lexists(root / JOURNAL):
+        return False
+    if not _quarantine_book_transaction(
+            root, root_identity,
+            refusal='Operator migrated a legacy v1 journal by its recorded digests', legacy=True):
+        raise ValueError('Legacy book journal could not be read; run inspect for details')
+    return True
+
+
 def _inspect_quarantine(directory):
     """-> one retained quarantine's receipt and what is on disk beside it."""
     entry = {'name': directory.name}
@@ -3098,7 +3185,8 @@ def _inspect_quarantine(directory):
     workspace = receipt.get('workspace') if isinstance(receipt.get('workspace'), dict) else {}
     def text(value):
         return value if isinstance(value, str) else None
-    entry.update({'state': text(receipt.get('state')), 'forced': receipt.get('forced') is True,
+    entry.update({'kind': text(receipt.get('kind')) or 'quarantine',
+                  'state': text(receipt.get('state')), 'forced': receipt.get('forced') is True,
                   'refusal': text(receipt.get('refusal')), 'phase': text(journal.get('phase')),
                   'journal_sha256': text(journal.get('sha256')),
                   'workspace': text(workspace.get('name'))})
@@ -3231,7 +3319,7 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
     if 'error' in root_listing:
         report['retained_error'] = root_listing['error']
     report['quarantines'] = [_inspect_quarantine(root / name) for name in report['retained']
-                             if _QUARANTINE_NAME.fullmatch(name)]
+                             if _QUARANTINE_NAME.fullmatch(name) or _MIGRATION_NAME.fullmatch(name)]
     journal = root / JOURNAL
     if not os.path.lexists(journal):
         return report

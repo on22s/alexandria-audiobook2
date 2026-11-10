@@ -3,6 +3,7 @@
     python book_state_recovery.py [--data-dir DIR] [--json] [--wait SECONDS] inspect [--no-lock] [--hash]
     python book_state_recovery.py [--data-dir DIR] [--json] [--wait SECONDS] finish
     python book_state_recovery.py [--data-dir DIR] [--json] [--wait SECONDS] quarantine --accept-current-files
+    python book_state_recovery.py [--data-dir DIR] [--json] [--wait SECONDS] migrate-legacy --trust-journal-hashes
 
 inspect     Read-only report: the pending journal, each file's expected and
             current identity, the workspace, and every retained quarantine
@@ -17,6 +18,14 @@ quarantine  Move the pending switch's workspace and journal aside even though
             are now. Nothing is deleted; the evidence stays in
             .book-switch-quarantine-*/. If it is interrupted before the
             workspace moves, run it again; afterwards, finish completes it.
+
+migrate-legacy
+            For a legacy v1 journal (exit 5 elsewhere). v1 journals record
+            each file's hash but not its identity: with the flag, a file
+            holding the hash its phase recorded is trusted as the app's.
+            When every file matches, the workspace and the v1 journal move
+            into .book-switch-migration-*/ and the book opens; otherwise
+            each mismatched file is listed and nothing moves.
 
 Receipts are not authenticated: anyone who can write the data directory can
 already change the book's files, so the command trusts that directory.
@@ -59,7 +68,50 @@ def _get_completed_quarantines(report):
             if entry.get('state') == 'completed'}
 
 
-MIGRATION_MESSAGE = 'A legacy v1 journal is pending; it needs migrate-legacy.'
+MIGRATION_MESSAGE = 'A legacy v1 journal is pending; run migrate-legacy --trust-journal-hashes.'
+COMMAND = 'python app/book_state_recovery.py'
+
+
+def get_book_recovery_summary(data_dir, *, wait=0.25):
+    """-> what the app shows about a book's recovery state (#1660).
+
+    {'status': 'clean' | 'pending' | 'migration_required' | 'unreadable',
+     'phase', 'locked', 'retained': [{'name', 'kind', 'state', 'forced'}],
+     'commands': [{'purpose', 'command'}]}. Read-only: inspects under the
+    lock, or without it when another operation holds it ('locked': True).
+
+    The app runs recovery before every book operation, so a journal still
+    pending here is one recovery refused: the commands are what helps next,
+    run from the repository root. Nothing in this summary is deleted."""
+    import book_state_transaction as books
+    try:
+        with books.book_operator_locked(data_dir, timeout=wait) as (root, _identity):
+            report = books.inspect_book_recovery_state(root)
+            legacy = books.is_book_journal_migration_required(root)
+        locked = False
+    except TimeoutError:
+        root = books.get_admitted_book_root(data_dir)
+        report = books.inspect_book_recovery_state(root)
+        legacy = books.is_book_journal_migration_required(root)
+        locked = True
+    journal = report['journal']
+    inspect = {'purpose': 'See what is pending and why', 'command': f'{COMMAND} inspect --hash'}
+    if 'retained_error' in report or journal.get('error'):
+        status, commands = 'unreadable', [inspect]
+    elif not journal.get('present'):
+        status, commands = 'clean', []
+    elif legacy:
+        status, commands = 'migration_required', [inspect, {
+            'purpose': 'Set aside a save from an older version once its files are checked',
+            'command': f'{COMMAND} migrate-legacy --trust-journal-hashes'}]
+    else:
+        status, commands = 'pending', [inspect, {
+            'purpose': "Keep the book's files as they are now",
+            'command': f'{COMMAND} quarantine --accept-current-files'}]
+    retained = [{key: entry.get(key) for key in ('name', 'kind', 'state', 'forced')}
+                for entry in report.get('quarantines', [])]
+    return {'status': status, 'phase': journal.get('phase'), 'locked': locked,
+            'retained': retained, 'commands': commands}
 
 
 def _run_inspect(books, data_dir, wait, no_lock, hashes):
@@ -85,16 +137,24 @@ def _run_change(books, data_dir, wait, command, seen):
         before = seen['report'] = books.inspect_book_recovery_state(root)
         if not before['journal'].get('present'):
             return EXIT_OK, 'No book switch is pending.', before
-        if books.is_book_journal_migration_required(root):
+        legacy = books.is_book_journal_migration_required(root)
+        if command == 'migrate-legacy':
+            if not legacy:
+                return (EXIT_REFUSED, 'The pending journal is not a legacy v1 journal; run finish.',
+                        before)
+            books.migrate_legacy_book_state_locked(root, identity)
+        elif legacy:
             return EXIT_MIGRATION, MIGRATION_MESSAGE, before
-        if command == 'finish':
+        elif command == 'finish':
             books.recover_book_state_locked(
                 root, expected_root=root, expected_root_identity=identity)
         else:
             books.quarantine_book_state_locked(root, identity)
         after = books.inspect_book_recovery_state(root)
     added = sorted(_get_completed_quarantines(after) - _get_completed_quarantines(before))
-    if added:
+    if added and command == 'migrate-legacy':
+        message = f'The legacy journal and its workspace were moved into {Path(root) / added[0]}.'
+    elif added:
         message = f'The pending switch was quarantined in {Path(root) / added[0]}.'
     else:
         message = 'The pending switch was recovered.'
@@ -139,6 +199,9 @@ def _get_parser():
     quarantine = commands.add_parser('quarantine', help='accept the current files')
     quarantine.add_argument('--accept-current-files', action='store_true', required=True,
                             help='required: the book keeps its files as they are now')
+    migrate = commands.add_parser('migrate-legacy', help='move a v1 journal aside by its hashes')
+    migrate.add_argument('--trust-journal-hashes', action='store_true', required=True,
+                         help="required: a file holding the journal's hash is trusted as the app's")
     return parser
 
 

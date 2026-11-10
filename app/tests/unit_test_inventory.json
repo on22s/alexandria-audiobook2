@@ -1870,6 +1870,18 @@
   "test_book_state_1660_retire_preflight": [
     "tests.test_book_state_1660_retire_preflight.RetirePreflightTests.test_hardlinked_file_in_a_retired_directory_is_refused_before_anything_is_written"
   ],
+  "test_book_state_legacy_migration": [
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_a_committed_v1_switch_is_moved_aside_and_the_book_opens",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_a_removed_file_that_is_back_is_a_mismatch",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_a_switch_interrupted_mid_publish_is_refused_with_each_row_named",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_an_interrupted_migration_is_never_finished_automatically_and_resumes",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_migrate_legacy_needs_its_flag_and_a_v1_journal",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_publishing_and_recovered_v1_switches_need_the_originals",
+    "tests.test_book_state_legacy_migration.LegacyMigrationTests.test_unsafe_v1_target_names_are_refused_not_migrated",
+    "tests.test_book_state_legacy_migration.RecoverySummaryTests.test_a_busy_lock_still_reports_without_waiting",
+    "tests.test_book_state_legacy_migration.RecoverySummaryTests.test_each_status_names_the_commands_that_help",
+    "tests.test_book_state_legacy_migration.RecoverySummaryTests.test_the_route_reports_the_summary_read_only"
+  ],
   "test_book_state_recovery_command": [
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_forced_receipt_written_by_hand_does_not_force_recovery",
     "tests.test_book_state_recovery_command.RecoveryCommandTests.test_a_held_lock_is_busy_unless_inspecting_without_it",
@@ -2145,6 +2157,7 @@
     "tests.test_book_workspace.BookWorkspaceTests.test_wrong_book_journal_and_corrupt_chunk_data_remain_unavailable_and_untouched"
   ],
   "test_book_workspace_js": [
+    "tests.test_book_workspace_js.BookWorkspaceJsTests.test_a_stuck_book_names_the_recovery_commands_as_text",
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_continue_refreshes_identity_and_navigates_without_any_mutating_api",
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_declared_task_targets_exist_and_audio_uses_its_actual_cancel_screen",
     "tests.test_book_workspace_js.BookWorkspaceJsTests.test_failed_library_loader_releases_button_and_refreshes_actual_selected_book",
