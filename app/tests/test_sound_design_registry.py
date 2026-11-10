@@ -18,6 +18,7 @@ from sound_design_registry import (ACTIVE_CUES, MAX_REGISTRY_BYTES, get_saved_so
     get_sound_design_registry, get_sound_design_registry_bytes)
 from tests.test_sound_design_cues import recipe
 from tests import test_saved_book_publication as saved_publication
+from tests.test_support import book_publication_mutations, intercept_book_publications
 from routers import scripts_library, script
 
 
@@ -316,14 +317,16 @@ class SoundDesignSavedBookTests(unittest.TestCase):
             before_renditions = self.write_renditions(root)
             before_cues = (root / ACTIVE_CUES).read_bytes()
             before_state = (root / 'state.json').read_bytes()
-            move = books._move; failed = False
-            def fail_after_install(source, destination, **kwargs):
+            failed = False
+            def fail_after_install(target):
                 nonlocal failed
-                move(source, destination, **kwargs)
-                if Path(destination) == root / ACTIVE_RENDITIONS and not failed:
+                if target == root / ACTIVE_RENDITIONS and not failed:
                     failed = True
                     raise OSError('fixture after cue install')
-            with patch.object(books, '_move', side_effect=fail_after_install):
+            # after= fires once the row is published on either protocol (the
+            # v3 publish move or the v4 exchange), so the cue registry is
+            # installed exactly when the failure lands (#1660).
+            with intercept_book_publications(books, after=fail_after_install):
                 response = client.post('/api/scripts/load', json={'name': 'one'})
             self.assertTrue(failed)
             self.assertEqual(500, response.status_code)
@@ -337,22 +340,24 @@ class SoundDesignSavedBookTests(unittest.TestCase):
 import os, sys
 from pathlib import Path
 import book_state_transaction as books
-root = Path(sys.argv[1]); point = int(sys.argv[2]); count = 0
+from tests.test_support import book_publication_mutations
+root = Path(sys.argv[1]); point = int(sys.argv[2])
 if point:
-    move = books._move
-    def stop_after_move(source, destination, **kwargs):
-        global count
-        move(source, destination, **kwargs); count += 1
-        if count == point: os._exit(77)
-    books._move = stop_after_move
+    def stop_after(ordinal, name, args):
+        if ordinal == point: os._exit(77)
+    def run():
+        with book_publication_mutations(books, after=stop_after):
+            books.apply_book_input_selection(root, 'new.txt', 'new')
 else:
-    save = books._save_journal
-    def stop_after_commit(root, journal, **kwargs):
-        result = save(root, journal, **kwargs)
-        if journal['phase'] == 'committed': os._exit(78)
-        return result
-    books._save_journal = stop_after_commit
-books.apply_book_input_selection(root, 'new.txt', 'new')
+    def run():
+        save = books._save_journal
+        def stop_after_commit(root, journal, **kwargs):
+            result = save(root, journal, **kwargs)
+            if journal['phase'] == 'committed': os._exit(78)
+            return result
+        books._save_journal = stop_after_commit
+        books.apply_book_input_selection(root, 'new.txt', 'new')
+run()
 """
         for point in (1, 2, 3, 0):
             with self.subTest(point=point), self.fixture() as (root, _api):

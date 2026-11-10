@@ -19,6 +19,7 @@ from project_scope_apply import (apply_source_scope, apply_source_scope_undo,
                                  get_source_scope_undo_preview, FILES, UNDO)
 from project_scope_plan import get_scope_preview
 from take_retention import get_captured_take
+from tests.test_support import book_publication_mutations
 
 
 class InjectedScopeFault(OSError):
@@ -69,23 +70,32 @@ def run_crash_child(root, mode, boundary):
     with admission(root):
         if boundary == 'committed':
             transaction._finish_transaction = lambda *args,**kwargs:os._exit(73)
+            apply_operation(root, mode)
         else:
-            real = transaction._move
-            count = 0
-            def crash_after_move(*args, **kwargs):
-                nonlocal count
-                result = real(*args, **kwargs); count += 1
-                if count == int(boundary):os._exit(73)
-                return result
-            transaction._move = crash_after_move
-        apply_operation(root, mode)
+            point = int(boundary)
+            def crash_after(ordinal, name, *_args):
+                if ordinal == point:
+                    os._exit(73)
+            with book_publication_mutations(transaction, after=crash_after):
+                apply_operation(root, mode)
     raise AssertionError('Requested crash boundary was not reached')
 
 
 class ScopeFailureTests(unittest.TestCase):
+    def mutation_points(self, mode):
+        """How many post-journal mutations this protocol's publication makes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp).resolve();get_fixture(root)
+            with admission(root):
+                if mode=='undo':apply_operation(root,'apply')
+                with book_publication_mutations(transaction) as state:
+                    apply_operation(root,mode)
+            return state['count']
+
     def test_staged_write_and_partial_replace_failures_restore_exact_originals(self):
         for mode in ('apply','undo'):
-            for failure in ('write',1,2,5,9,10):
+            points=tuple(range(1,self.mutation_points(mode)+1))
+            for failure in ('write',)+points:
                 with self.subTest(mode=mode,failure=failure),tempfile.TemporaryDirectory() as tmp:
                     root=Path(tmp).resolve();get_fixture(root)
                     with admission(root):
@@ -107,13 +117,14 @@ class ScopeFailureTests(unittest.TestCase):
                                     faults.enter_context(patch.object(transaction,name,staging_fault(name)))
                                 expected=InjectedScopeFault
                             else:
-                                original=getattr(transaction,'_move');count=0
-                                def fail_move(*args,**kwargs):
-                                    nonlocal count
-                                    count+=1
-                                    if count==failure:raise OSError('injected scope fault')
-                                    return original(*args,**kwargs)
-                                faults.enter_context(patch.object(transaction,'_move',fail_move))
+                                def fail_at(ordinal,name,_args,failure=failure):
+                                    if ordinal==failure:
+                                        raise OSError('injected scope fault')
+                                # Fail every post-journal mutation in turn: a v3
+                                # move or a v4 exchange/placeholder create or
+                                # delete (#1660), not one protocol's ordinals.
+                                faults.enter_context(book_publication_mutations(
+                                    transaction,before=fail_at))
                                 expected=OSError
                             with self.assertRaises(expected):
                                 apply_operation(root,mode)
@@ -123,7 +134,9 @@ class ScopeFailureTests(unittest.TestCase):
 
     def test_real_process_death_recovers_precommit_and_preserves_committed_apply_and_undo(self):
         for mode in ('apply','undo'):
-            for boundary in ('1','5','10','committed'):
+            points=self.mutation_points(mode)
+            chosen=sorted({1,max(1,points//2),points})
+            for boundary in tuple(str(n) for n in chosen)+('committed',):
                 with self.subTest(mode=mode,boundary=boundary),tempfile.TemporaryDirectory() as tmp:
                     root=Path(tmp).resolve();get_fixture(root)
                     with admission(root):

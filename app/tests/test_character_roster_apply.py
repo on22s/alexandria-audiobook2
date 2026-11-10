@@ -11,6 +11,7 @@ from character_roster_apply import (ensure_character_roster_admission, apply_cha
     apply_character_roster_undo, get_character_roster_undo_status, discard_character_roster_undo)
 from character_roster_snapshot import get_character_roster_preview, UNDO
 from tests import test_character_roster_snapshot as snapshot_tests
+from tests.test_support import book_publication_mutations
 
 
 class CharacterRosterApplyTests(unittest.TestCase):
@@ -91,13 +92,12 @@ class CharacterRosterApplyTests(unittest.TestCase):
             with self.subTest(mode=mode),self.admission():
                 preview=get_character_roster_preview(self.root,self.proposal)
                 if mode=='undo':apply_character_roster(self.root,self.proposal,preview['revision'])
-                before=self.files();original=transaction._move;count=0
-                def fail_once(*args, **kwargs):
-                    nonlocal count
-                    count+=1
-                    if count==2:raise OSError('injected roster publication failure')
-                    return original(*args, **kwargs)
-                with patch.object(transaction,'_move',fail_once),self.assertRaises(OSError):
+                before=self.files()
+                def fail_at_second_mutation(ordinal,name,*_args):
+                    if ordinal==2:raise OSError('injected roster publication failure')
+                # The second post-journal mutation on either protocol: v3's
+                # second move or v4's second exchange (#1660).
+                with book_publication_mutations(transaction,before=fail_at_second_mutation),self.assertRaises(OSError):
                     if mode=='approve':apply_character_roster(self.root,self.proposal,preview['revision'])
                     else:apply_character_roster_undo(self.root,get_character_roster_undo_status(self.root)['revision'])
                 self.assertEqual(before,self.files());self.assertEqual([],list(self.root.glob('.book-switch-*')))

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 import book_state_transaction as books
 import core
 from routers import scripts_library as routes
+from tests.test_support import book_publication_mutations, intercept_book_publications
 
 
 class SavedBookPublicationTests(unittest.TestCase):
@@ -310,16 +311,14 @@ class SavedBookPublicationTests(unittest.TestCase):
             self.assertNotIn('speech_date_order',json.loads((root/'state.json').read_text()))
 
     def test_real_metadata_publication_failure_restores_every_original_saved_artifact(self):
-        import source_upload_publication
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.artifacts(root);move=source_upload_publication.move_source_upload_exclusively;failed=False
-            def fail_metadata(source,destination,*args,**kwargs):
+            before=self.artifacts(root);failed=False
+            metadata=root/'scripts'/'book.meta.json'
+            def fail_metadata(target):
                 nonlocal failed
-                if (not failed and Path(destination).name == 'book.meta.json'
-                        and Path(source).name.startswith('new-')):
+                if not failed and target==metadata:
                     failed=True;raise OSError('fixture metadata publication disk full')
-                return move(source,destination,*args,**kwargs)
-            with patch.object(source_upload_publication,'move_source_upload_exclusively',side_effect=fail_metadata):
+            with intercept_book_publications(books,before=fail_metadata):
                 response=client.post('/api/scripts/save',json={'name':'book'})
             self.assertTrue(failed)
             self.assertEqual(500,response.status_code)
@@ -407,13 +406,12 @@ class SavedBookPublicationTests(unittest.TestCase):
 
     def test_delete_move_failure_rolls_back_complete_family(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.artifacts(root);move=books._move;count=0
-            def fail_once(source,destination, **kwargs):
-                nonlocal count
-                count+=1
-                if count==3:raise OSError('fixture removal disk full')
-                return move(source,destination, **kwargs)
-            with patch.object(books,'_move',side_effect=fail_once):
+            before=self.artifacts(root)
+            def fail_at(ordinal,name):
+                # The third post-journal mutation on either protocol: a v3
+                # move or a v4 exchange/proven delete (#1660).
+                if ordinal==3:raise OSError('fixture removal disk full')
+            with book_publication_mutations(books,before=fail_at):
                 response=client.delete('/api/scripts/book')
             self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.artifacts(root))
@@ -423,18 +421,15 @@ class SavedBookPublicationTests(unittest.TestCase):
 from pathlib import Path
 import core,book_state_transaction as books
 from routers import scripts_library as routes
+from tests.test_support import book_publication_mutations
 root=Path(sys.argv[1])
 for module in (routes,core):
  module.DATA_DIR=str(root);module.SCRIPTS_DIR=str(root/'scripts')
  module.SCRIPT_PATH=str(root/'annotated_script.json');module.VOICE_CONFIG_PATH=str(root/'voice_config.json')
-move=books._move;count=0
-def die(source,destination, **kwargs):
- global count
- result=move(source,destination, **kwargs);count+=1
- if count==3:os._exit(77)
- return result
-books._move=die
-routes._save_script_sync(routes.ScriptSaveRequest(name='book'))
+def die(ordinal,name,args):
+ if ordinal==3:os._exit(77)
+with book_publication_mutations(books,after=die):
+ routes._save_script_sync(routes.ScriptSaveRequest(name='book'))
 '''
         with self.fixture() as (root,api),TestClient(api) as client:
             before=self.artifacts(root)

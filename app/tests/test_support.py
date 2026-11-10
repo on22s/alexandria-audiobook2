@@ -1,4 +1,4 @@
-from contextlib import contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 import functools
 import json
 import os
@@ -284,6 +284,44 @@ def intercept_book_publications(module, before=None, after=None):
     with patch.object(module, '_move', side_effect=wrap(original_move, False)), \
             patch.object(module, '_exchange', side_effect=wrap(original_exchange, True)):
         yield
+
+
+# Every post-journal mutation a book publication makes. A v3 row is a backup
+# move plus a publish move; a v4 row is one exchange, a creation adds an O_EXCL
+# target-placeholder create, and a removal adds one proven delete. Staging
+# placeholders are created before the journal, like v3 staging, so they are not
+# among them.
+BOOK_MUTATION_SEAMS = ('_move', '_exchange', '_create_book_placeholder_at',
+                       '_delete_book_placeholder_at')
+
+
+@contextmanager
+def book_publication_mutations(module, *, before=None, after=None):
+    """Intercept every post-journal name mutation a publication makes.
+
+    before(ordinal, name, args) runs before that mutation (raise to inject a
+    failed mutation at that exact point); after(ordinal, name, args) runs once
+    it is done (raise or exit to emulate process death there). The yielded
+    dict holds the running `count`, so a test can pin how many points the
+    protocol has and sweep them all instead of naming one protocol's ordinals.
+    """
+    originals = {name: getattr(module, name) for name in BOOK_MUTATION_SEAMS}
+    state = {'count': 0}
+    def wrap(name, original):
+        def call(*args, **kwargs):
+            state['count'] += 1
+            ordinal = state['count']
+            if before is not None:
+                before(ordinal, name, args)
+            result = original(*args, **kwargs)
+            if after is not None:
+                after(ordinal, name, args)
+            return result
+        return call
+    with ExitStack() as stack:
+        for name, original in originals.items():
+            stack.enter_context(patch.object(module, name, side_effect=wrap(name, original)))
+        yield state
 
 
 @functools.lru_cache(maxsize=1)

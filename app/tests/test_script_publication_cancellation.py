@@ -18,6 +18,7 @@ from fastapi import HTTPException
 import book_state_transaction as books
 import core
 from routers import script
+from tests.test_support import intercept_book_publications
 from script_selection_binding import capture_generation_selection, publish_generated_script
 
 
@@ -67,18 +68,16 @@ class PublicationCancellationTests(unittest.TestCase):
     def test_cancel_waits_for_publication_transaction_and_reports_the_result(self):
         with self.fixture() as (root, states, old, publish):
             entered, release, finished = threading.Event(), threading.Event(), threading.Event()
-            move = books._move; outcomes = []
-            def pause(source, destination, **kwargs):
-                result = move(source, destination, **kwargs)
-                if Path(destination) == root / 'annotated_script.json':
+            outcomes = []
+            def pause(published):
+                if published == root / 'annotated_script.json':
                     entered.set()
                     if not release.wait(5): raise RuntimeError('test timeout')
-                return result
             def cancel():
                 try: outcomes.append(script._cancel_script_generation_sync())
                 except Exception as error: outcomes.append(error)
                 finally: finished.set()
-            with patch.object(books, '_move', side_effect=pause):
+            with intercept_book_publications(books, after=pause):
                 worker = threading.Thread(target=publish); worker.start()
                 self.assertTrue(entered.wait(5))
                 caller = threading.Thread(target=cancel); caller.start()
@@ -123,14 +122,12 @@ class PublicationCancellationTests(unittest.TestCase):
 from pathlib import Path
 import book_state_transaction as books
 from script_selection_binding import capture_generation_selection,publish_generated_script
+from tests.test_support import intercept_book_publications
 root=Path(sys.argv[1]); source=root/'source.txt'; selected=capture_generation_selection(str(root),str(source))
-move=books._move
-def die(src,dst, **kwargs):
- result=move(src,dst, **kwargs)
- if Path(dst)==root/'annotated_script.json': os._exit(77)
- return result
-books._move=die
-publish_generated_script(str(root),selected['book_token'],str(source),selected['source_sha256'],b'[{"text":"One line."}]',expected_run_id='a'*32)
+def die(published):
+ if published==root/'annotated_script.json': os._exit(77)
+with intercept_book_publications(books,after=die):
+ publish_generated_script(str(root),selected['book_token'],str(source),selected['source_sha256'],b'[{"text":"One line."}]',expected_run_id='a'*32)
 '''
         with self.fixture() as (root, states, old, publish):
             result = subprocess.run([sys.executable, '-c', worker, str(root)],

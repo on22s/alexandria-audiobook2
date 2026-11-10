@@ -21,6 +21,7 @@ from character_roster_snapshot import get_character_roster_preview, UNDO
 from routers import character_roster as api
 from tests.test_character_roster import SOURCE1, A, entry, decision, proposal
 from tests.test_project_scope_failures import get_fixture, get_bytes
+from tests.test_support import book_publication_mutations
 from utils import file_lock
 
 
@@ -51,16 +52,14 @@ def run_crash_child(root, mode, boundary):
     with admission(root):
         if boundary == 'committed':
             transaction._finish_transaction = lambda *args, **kwargs: os._exit(73)
+            apply_operation(root, mode)
         else:
-            real = transaction._move; count = 0
-            def crash_after_move(*args, **kwargs):
-                nonlocal count
-                result = real(*args, **kwargs); count += 1
-                if count == int(boundary):
+            point = int(boundary)
+            def crash_after(ordinal, name, *_args):
+                if ordinal == point:
                     os._exit(73)
-                return result
-            transaction._move = crash_after_move
-        apply_operation(root, mode)
+            with book_publication_mutations(transaction, after=crash_after):
+                apply_operation(root, mode)
     raise AssertionError('Requested roster crash boundary was not reached')
 
 
@@ -83,9 +82,20 @@ def hold_foreign_owner(root, mode, ready):
 
 
 class CharacterRosterFailureTests(unittest.TestCase):
+    def mutation_points(self, mode):
+        """How many post-journal mutations this protocol's publication makes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve(); save_fixture(root)
+            with admission(root):
+                if mode == 'undo': apply_operation(root, 'apply')
+                with book_publication_mutations(transaction) as state:
+                    apply_operation(root, mode)
+            return state['count']
+
     def test_abrupt_process_death_rolls_back_precommit_and_keeps_committed_apply_and_undo(self):
         for mode in ('apply', 'undo'):
-            for boundary in ('1', '2', '3', '4', 'committed'):
+            boundaries = tuple(str(n) for n in range(1, self.mutation_points(mode) + 1))
+            for boundary in boundaries + ('committed',):
                 with self.subTest(mode=mode, boundary=boundary), tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp).resolve(); save_fixture(root)
                     with admission(root):
