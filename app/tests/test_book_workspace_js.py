@@ -130,6 +130,44 @@ finished=true;
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_a_stuck_book_names_the_recovery_commands_as_text(self):
+        self.run_js(r'''
+(async()=>{
+ responses['/api/workspace']=new Error('409');
+ responses['/api/book/recovery']={status:'pending',commands:[
+  {purpose:'See what is pending and why',command:'python app/book_state_recovery.py inspect --hash'},
+  {purpose:'<b>Keep</b>',command:'python app/book_state_recovery.py quarantine --accept-current-files'},
+  {purpose:7,command:'ignored'}]};
+ assert.equal(await context.refreshBookWorkspace(),null);
+ const text=elements('workspace-feedback').textContent;
+ assert(text.startsWith('An interrupted book save has not been finished'),text);
+ assert(text.includes('inspect --hash')&&text.includes('quarantine --accept-current-files'),text);
+ assert(text.includes('<b>Keep</b>')&&!text.includes('ignored'),text);
+ assert.equal(elements('workspace-feedback').children.length,0);
+ for(const reply of [{status:'clean',commands:[]},{status:'toString'},null,new Error('offline')]){
+  responses['/api/book/recovery']=reply;await context.refreshBookWorkspace();
+  assert(elements('workspace-feedback').textContent.includes('earlier reading'),String(reply&&reply.status));
+ }
+ responses['/api/book/recovery']={status:'migration_required',commands:[]};await context.refreshBookWorkspace();
+ assert(elements('workspace-feedback').textContent.includes('older version'));
+ responses['/api/workspace']=snapshot();const before=requests.length;await context.refreshBookWorkspace();
+ assert(!requests.slice(before).includes('/api/book/recovery'));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_a_late_recovery_hint_never_overwrites_a_newer_reading(self):
+        self.run_js(r'''
+(async()=>{
+ responses['/api/workspace']=new Error('409');let release;
+ responses['/api/book/recovery']=()=>new Promise(resolve=>release=resolve);
+ const stale=context.refreshBookWorkspace();await new Promise(setImmediate);
+ responses['/api/workspace']=snapshot('Book B');await context.refreshBookWorkspace();
+ release({status:'pending',commands:[{purpose:'x',command:'y'}]});await stale;
+ assert(elements('workspace-feedback').textContent.startsWith('Book status updated'),elements('workspace-feedback').textContent);
+ assert.equal(elements('workspace-book-name').textContent,'Book B');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_late_reply_is_ignored_and_queued_refresh_does_not_overlap_requests(self):
         self.run_js(r'''
 (async()=>{

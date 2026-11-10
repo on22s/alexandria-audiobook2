@@ -298,6 +298,7 @@ async function refreshBookWorkspace() {
     }
     if (book.status !== 'fulfilled') {
         document.getElementById('workspace-feedback').textContent = 'Book status could not be refreshed. Any displayed facts are from an earlier reading. Continue is unavailable until Refresh succeeds.';
+        await showBookRecoveryHint(request);
         return null;
     }
     const data = book.value;
@@ -312,6 +313,30 @@ async function refreshBookWorkspace() {
     renderBookWorkspace(data);
     document.getElementById('workspace-feedback').textContent = `Book status updated at ${new Date().toLocaleTimeString()}.`;
     return data;
+}
+
+const BOOK_RECOVERY_LEADS = {
+    pending: 'An interrupted book save has not been finished, so the book cannot open yet. Nothing was deleted.',
+    migration_required: 'An interrupted save from an older version of the app needs a one-time check before the book can open. Nothing was deleted.',
+    unreadable: 'The book\'s recovery state could not be read, so the book cannot open yet. Nothing was changed.'
+};
+
+function getBookRecoveryText(summary) {
+    if (!summary || typeof summary !== 'object' || !Object.hasOwn(BOOK_RECOVERY_LEADS, summary.status)) { return null; }
+    const commands = Array.isArray(summary.commands) ? summary.commands.filter(item => item
+        && typeof item.purpose === 'string' && typeof item.command === 'string') : [];
+    const steps = commands.map(item => `${item.purpose}: ${item.command}`).join(' — ');
+    return steps ? `${BOOK_RECOVERY_LEADS[summary.status]} In a terminal in the Alexandria folder — ${steps}` : BOOK_RECOVERY_LEADS[summary.status];
+}
+
+// When the book cannot be read, ask why: an interrupted save names the
+// command that resolves it instead of a generic refresh failure (#1660).
+async function showBookRecoveryHint(request) {
+    let summary;
+    try { summary = await API.get('/api/book/recovery'); } catch (error) { return; }
+    if (request !== workspaceBookRequest) { return; }
+    const text = getBookRecoveryText(summary);
+    if (text) { document.getElementById('workspace-feedback').textContent = text; }
 }
 
 async function continueBookWorkspace() {

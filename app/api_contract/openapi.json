@@ -7341,6 +7341,23 @@
         "summary": "Benchmark Status"
       }
     },
+    "/api/book/recovery": {
+      "get": {
+        "description": "Read-only: an interrupted book switch, set-aside evidence, and the commands that help (#1660).",
+        "operationId": "get_book_recovery_status_api_book_recovery_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Book Recovery Status"
+      }
+    },
     "/api/calibre/browse-next": {
       "post": {
         "operationId": "calibre_browse_next_api_calibre_browse_next_post",

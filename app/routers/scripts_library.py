@@ -230,6 +230,23 @@ async def get_book_workspace_status():
     return await asyncio.to_thread(_get_book_workspace_sync)
 
 
+def _get_book_recovery_sync():
+    from book_state_recovery import get_book_recovery_summary
+    try:
+        return get_book_recovery_summary(DATA_DIR)
+    except (OSError, ValueError) as error:
+        logger.warning("Book recovery state could not be read: %s: %s", type(error).__name__, str(error)[:240])
+        raise HTTPException(status_code=409, detail=(
+            "Book recovery state could not be read. Run python app/book_state_recovery.py inspect "
+            "to see why. Nothing was changed.")) from error
+
+
+@router.get("/api/book/recovery")
+async def get_book_recovery_status():
+    """Read-only: an interrupted book switch, set-aside evidence, and the commands that help (#1660)."""
+    return await asyncio.to_thread(_get_book_recovery_sync)
+
+
 class CollectionOverviewRequest(BaseModel):
     names: list[str] = Field(default_factory=list, max_length=MAX_OVERVIEW_BOOKS)
 
