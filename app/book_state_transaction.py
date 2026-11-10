@@ -30,6 +30,10 @@ class BookJournalPublicationUncertain(ValueError):
     """Journal replacement may have occurred; preserve transaction evidence."""
 
 
+class BookJournalMigrationRequired(ValueError):
+    """A well-formed legacy v1 journal: only an explicit migration may act on it."""
+
+
 def _get_book_scope_owner():
     try:
         task = asyncio.current_task()
@@ -2502,7 +2506,8 @@ def _validate_recovery_journal_shape(root, journal, data):
                     or (row.get('new_sha256') is not None
                         and not _valid_book_digest(row['new_sha256']))):
                 raise ValueError('Invalid legacy active-book entry')
-        raise ValueError('Legacy active-book transaction requires explicit recovery inspection')
+        raise BookJournalMigrationRequired(
+            'Legacy active-book transaction requires explicit recovery inspection')
     from book_recovery_archive import MAX_FILES, _relative_name, _validate_names
     if len(rows) > MAX_FILES:
         raise ValueError('Active-book transaction exceeds its entry limit')
@@ -2975,8 +2980,12 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     quarantine, receipt = _find_pending_quarantine(root, sha256, data['workspace'])
     if quarantine is None and refusal is None:
         return False
-    # A resumed operator quarantine keeps the operator's decision.
-    force = force or (receipt is not None and receipt.get('forced') is True)
+    # A resumed operator quarantine keeps the operator's decision, but only
+    # once its workspace was moved: receipts are not authenticated, so a
+    # forced receipt alone must not turn ordinary recovery into a forced
+    # quarantine. Before that, the operator re-runs the quarantine.
+    force = force or (receipt is not None and receipt.get('forced') is True
+                      and _get_entry_identity(quarantine / QUARANTINE_WORKSPACE) is not None)
     eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check, force=force)
     if eligible is None:
         if quarantine is not None:
@@ -3069,6 +3078,15 @@ def _inspect_quarantine(directory):
     """-> one retained quarantine's receipt and what is on disk beside it."""
     entry = {'name': directory.name}
     try:
+        info = os.lstat(directory)
+    except OSError as error:
+        entry['error'] = f'{type(error).__name__}: {error}'
+        return entry
+    if (not stat.S_ISDIR(info.st_mode)
+            or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        entry['error'] = 'Not a plain directory; not read'
+        return entry
+    try:
         receipt, _version = _read_book_journal(directory / QUARANTINE_RECEIPT)
     except (OSError, ValueError) as error:
         entry['error'] = f'{type(error).__name__}: {error}'
@@ -3078,14 +3096,20 @@ def _inspect_quarantine(directory):
         return entry
     journal = receipt.get('journal') if isinstance(receipt.get('journal'), dict) else {}
     workspace = receipt.get('workspace') if isinstance(receipt.get('workspace'), dict) else {}
-    entry.update({'state': receipt.get('state'), 'forced': receipt.get('forced', False),
-                  'refusal': receipt.get('refusal'), 'phase': journal.get('phase'),
-                  'journal_sha256': journal.get('sha256'), 'workspace': workspace.get('name')})
+    def text(value):
+        return value if isinstance(value, str) else None
+    entry.update({'state': text(receipt.get('state')), 'forced': receipt.get('forced') is True,
+                  'refusal': text(receipt.get('refusal')), 'phase': text(journal.get('phase')),
+                  'journal_sha256': text(journal.get('sha256')),
+                  'workspace': text(workspace.get('name'))})
+    entry['journal_held'] = False
     try:
-        raw = _read_book_journal(directory / QUARANTINE_JOURNAL, include_raw=True)[2]
-        entry['journal_held'] = hashlib.sha256(raw).hexdigest() == journal.get('sha256')
+        # Size first: hash a held journal only when it can match.
+        if os.lstat(directory / QUARANTINE_JOURNAL).st_size == journal.get('bytes'):
+            raw = _read_book_journal(directory / QUARANTINE_JOURNAL, include_raw=True)[2]
+            entry['journal_held'] = hashlib.sha256(raw).hexdigest() == journal.get('sha256')
     except (OSError, ValueError):
-        entry['journal_held'] = False
+        pass
     entry['workspace_held'] = os.path.lexists(directory / QUARANTINE_WORKSPACE)
     return entry
 
@@ -3095,6 +3119,19 @@ def _is_retained_evidence_name(name):
 
     Case-folded: Windows and macOS open the same directory for any casing."""
     return name.casefold().startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))
+
+
+def is_book_journal_migration_required(root):
+    """Whether root's pending journal is a well-formed legacy v1 journal."""
+    journal = Path(root) / JOURNAL
+    try:
+        data, _version = _read_book_journal(journal)
+        _validate_recovery_journal_shape(Path(root), journal, data)
+    except BookJournalMigrationRequired:
+        return True
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
+    return False
 
 
 def get_admitted_book_root(data_dir):
@@ -3144,16 +3181,21 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
             _held_books.reset(token)
 
 
-def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES):
+def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
+                                include_hashes=False):
     """-> a read-only report of a book root's pending transaction (#1660).
 
     For operators and the recovery command: the journal (version, phase,
     workspace, digest of its exact bytes), each entry's expected identity
     beside what the name holds now, the workspace listing, and any retained
-    quarantine/migration evidence. Nothing is written or moved, no book
-    artifact is hashed, and a malformed journal is reported rather than
-    raised. Pass the admitted root; hold book_operator_locked for a snapshot
-    consistent with the recovery that follows.
+    quarantine/migration evidence. Nothing is written or moved, and a
+    malformed journal is reported rather than raised. Pass the admitted root;
+    hold book_operator_locked for a snapshot consistent with the recovery
+    that follows.
+
+    Identity and timestamps can miss a same-size rewrite (FAT/exFAT keep
+    2-second times), so include_hashes also hashes each entry's current
+    file and reports whether it holds the journal's old or new bytes.
     """
     from book_recovery_archive import MAX_FILES
     if type(entry_limit) is not int or not 1 <= entry_limit <= MAX_LEGACY_CLEANUP_ENTRIES:
@@ -3227,9 +3269,21 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES)
         entry = {'path': path, 'expected': {key: row.get(key) for key in (
             'existed', 'old_sha256', 'new_sha256', 'old_file_identity', 'new_file_identity')}}
         try:
-            entry['current'] = observe(_get_path(root, path))
+            current = _get_path(root, path)
+            entry['current'] = observe(current)
         except (OSError, ValueError, TypeError) as error:
             entry['current'] = {'exists': None, 'error': f'{type(error).__name__}: {error}'}
+            current = None
+        if include_hashes and current is not None and entry['current'].get('exists'):
+            try:
+                digest = _get_digest(current)
+            except (OSError, ValueError) as error:
+                entry['current']['hash_error'] = f'{type(error).__name__}: {error}'
+            else:
+                entry['current']['sha256'] = digest
+                entry['current']['holds'] = ('new' if digest == row.get('new_sha256') else
+                                             'old' if digest == row.get('old_sha256') else
+                                             'neither')
         report['entries'].append(entry)
     return report
 
