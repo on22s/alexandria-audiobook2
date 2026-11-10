@@ -1,4 +1,4 @@
-[English](VOICE_REFERENCE.md) | [中文](VOICE_REFERENCE_CN.md) | [日本語](VOICE_REFERENCE_JA.md)
+[English](VOICE_REFERENCE.md) | [中文](VOICE_REFERENCE_CN.md) | [日本語](VOICE_REFERENCE_JA.md) | [Español](VOICE_REFERENCE_ES.md)
 
 # Voice Reference
 

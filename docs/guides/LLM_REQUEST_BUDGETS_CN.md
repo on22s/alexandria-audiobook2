@@ -1,4 +1,4 @@
-[English](LLM_REQUEST_BUDGETS.md) | [中文](LLM_REQUEST_BUDGETS_CN.md) | [日本語](LLM_REQUEST_BUDGETS_JA.md)
+[English](LLM_REQUEST_BUDGETS.md) | [中文](LLM_REQUEST_BUDGETS_CN.md) | [日本語](LLM_REQUEST_BUDGETS_JA.md) | [Español](LLM_REQUEST_BUDGETS_ES.md)
 
 # LLM 请求预算
 

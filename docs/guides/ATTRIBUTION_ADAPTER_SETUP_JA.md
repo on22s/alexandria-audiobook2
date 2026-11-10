@@ -1,4 +1,4 @@
-[English](ATTRIBUTION_ADAPTER_SETUP.md) | [中文](ATTRIBUTION_ADAPTER_SETUP_CN.md) | 日本語
+[English](ATTRIBUTION_ADAPTER_SETUP.md) | [中文](ATTRIBUTION_ADAPTER_SETUP_CN.md) | 日本語 | [Español](ATTRIBUTION_ADAPTER_SETUP_ES.md)
 
 # 話者判定用アダプターを有効にする
 

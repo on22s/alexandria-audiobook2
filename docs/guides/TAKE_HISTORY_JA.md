@@ -1,4 +1,4 @@
-[English](TAKE_HISTORY.md) | [中文](TAKE_HISTORY_CN.md) | 日本語
+[English](TAKE_HISTORY.md) | [中文](TAKE_HISTORY_CN.md) | 日本語 | [Español](TAKE_HISTORY_ES.md)
 
 # テイク履歴
 
