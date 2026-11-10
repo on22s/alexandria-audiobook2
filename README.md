@@ -1078,10 +1078,13 @@ characters are deliberately removed before the TTS (goal 5.1).
 
 ### A saved book will not open after a crash
 
-Loading or saving a book replaces several files at once, so the app journals the switch.
-An interrupted switch is finished or rolled back the next time the book is opened. If the
-files no longer match the journal, the app refuses to open the book rather than guess, and
-the Home page names the commands to try. In a terminal in the Alexandria folder, with the
+Loading or saving a book replaces several files together. The app keeps a journal of each
+switch, so if one is interrupted (a crash, a power cut, a full disk), the app finishes it or
+undoes it the next time the book opens. Usually you never notice.
+
+If the book's files no longer match the journal, for example because another program edited
+one mid-switch, the app will not guess which version is right. It refuses to open the book,
+and the Home page shows which commands to try. Run them from the Alexandria folder with the
 app's Python:
 
 ```bash
@@ -1090,14 +1093,17 @@ python app/book_state_recovery.py finish
 python app/book_state_recovery.py quarantine --accept-current-files
 ```
 
-`inspect` is read-only and reports the pending journal, each file's expected and current
-state, the working folder, and any crash leftovers. `finish` runs the same recovery the app
-runs. `quarantine --accept-current-files` is the last resort: it keeps the book's files
-exactly as they are now and moves the journal and working folder into a
-`.book-switch-quarantine-*` folder. Nothing is deleted. A journal written by an older
-version of the app needs `migrate-legacy --trust-journal-hashes`. See [Interrupted book
-saves and switches](docs/guides/BOOK_SWITCH_RECOVERY.md) for every crash state and exit
-code.
+- `inspect` only looks. It shows what the switch was doing, which files differ from what it
+  expected, any set-aside folders, and anything a crash left behind.
+- `finish` runs the same recovery the app would, right now.
+- `quarantine --accept-current-files` is the last resort. It keeps the book's files exactly as
+  they are now and moves the journal and working folder aside into a
+  `.book-switch-quarantine-*` folder. Nothing is deleted.
+- If the app says the journal is from an older version, use
+  `migrate-legacy --trust-journal-hashes`.
+
+[Interrupted book saves and switches](docs/guides/BOOK_SWITCH_RECOVERY.md) covers every crash
+state and exit code.
 
 ## API reference
 

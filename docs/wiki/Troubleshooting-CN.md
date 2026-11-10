@@ -2,7 +2,7 @@
 
 [English](Troubleshooting.md) · [日本語](Troubleshooting-JA.md)
 
-## 本与保存
+## 书与保存
 
 ### 崩溃后保存的书打不开
 
