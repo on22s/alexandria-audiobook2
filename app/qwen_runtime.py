@@ -717,10 +717,11 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
         return (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode), info.st_size,
                 info.st_mtime_ns, info.st_ctime_ns)
     before_file = os.lstat(exe)
+    capture_options = {} if cancel_check is None else {"cancel_check": cancel_check}
     try:
         completed = run_owned_capture(
             [selected, "-c", _IDENTITY_SOURCE], timeout=timeout,
-            env=_isolated_worker_env())
+            env=_isolated_worker_env(), **capture_options)
     except (subprocess.TimeoutExpired, OSError, ValueError) as error:
         raise ValueError("Qwen runtime identity capture failed: %s" % error) from error
     if completed.returncode != 0:
@@ -942,6 +943,10 @@ def run_qwen_alignment_full(command, job_path, result_path, cancel_check,
     # stripped too, so an operator-set PYTHONPATH/LD_PRELOAD cannot
     # hijack the isolated interpreter's imports/libraries.
     env = _isolated_worker_env()
+    if worker_env is not None:
+        for key in ("GPU_LOCK", "ALEXANDRIA_GPU_LOCK_HELD",
+                    "ALEXANDRIA_GPU_LOCK_PID", "ALEXANDRIA_GPU_LOCK_FD"):
+            env.pop(key, None)
     if worker_env:
         safe_env = {key: value for key, value in worker_env.items()
                     if key not in ("HF_HUB_OFFLINE", "HF_HUB_DISABLE_TELEMETRY", "TRANSFORMERS_OFFLINE",

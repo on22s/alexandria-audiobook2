@@ -150,6 +150,8 @@ class FinalUiRepairTests(fixtures._FixtureMixin):
         self.assertEqual((False, 'EPUB read-aloud failed: Controlled source-reader rejection'), outcome)
 
     def test_download_source_identity_streams_without_materializing_source(self):
+        import readalong_sidecar
+        from project_scope_files import MAX_SCRIPT_BYTES
         editor, manager = self._fixture(self._mkdtmp())
         source = Path(manager.root_dir) / 'book.txt'
         expected = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -158,8 +160,11 @@ class FinalUiRepairTests(fixtures._FixtureMixin):
             if path == source:
                 raise AssertionError('source identity must use bounded streaming')
             return original(path)
-        with patch.object(Path, 'read_bytes', read_bytes):
+        with patch.object(Path, 'read_bytes', read_bytes), patch.object(
+                readalong_sidecar, 'get_audio_file_sha256',
+                wraps=readalong_sidecar.get_audio_file_sha256) as capture:
             identity = editor._get_current_readalong_identity()
+        capture.assert_called_once_with(str(source), limit=MAX_SCRIPT_BYTES, allow_empty=True)
         self.assertEqual(expected, identity['source_sha256'])
 
     def test_download_source_identity_enforces_shared_source_size_bound(self):
@@ -265,8 +270,145 @@ class FinalUiRepairTests(fixtures._FixtureMixin):
             if path == receipt:
                 raise AssertionError('receipt size must be refused before raw read')
             return original(path)
-        with patch.object(Path, 'read_bytes', read_bytes):
+        with patch.object(Path, 'read_bytes', read_bytes), patch.object(
+                editor, '_read_bounded_preference_bytes',
+                wraps=editor._read_bounded_preference_bytes) as capture:
+            with self.assertRaises(HTTPException) as caught:
+                editor._validated_epub_bytes()
+        capture.assert_called_once_with(str(receipt), file_description='EPUB read-aloud receipt')
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertIn('receipt', str(caught.exception.detail).lower())
+
+    def _published_read_fixture(self):
+        editor, manager = self._fixture(self._mkdtmp())
+        root = Path(manager.root_dir)
+        artifact = root / 'readaloud.epub'
+        raw = fixtures._chapter_epub()
+        artifact.write_bytes(raw)
+        receipt = dict.fromkeys(('book_token', 'rows_digest', 'source_sha256',
+            'settings_digest', 'retained_epub_sha256', 'audio_sha256'), 'f' * 64)
+        receipt['epub_sha256'] = hashlib.sha256(raw).hexdigest()
+        (root / 'readaloud.receipt.json').write_text(json.dumps(receipt), encoding='utf-8')
+        return editor, artifact, receipt
+
+    def test_bounded_metadata_refuses_same_size_rewrite_after_actual_read(self):
+        editor, manager = self._fixture(self._mkdtmp())
+        metadata = Path(manager.root_dir) / 'readalong_timing.json'
+        original_bytes, replacement = b'{"v":1}', b'{"v":2}'
+        metadata.write_bytes(original_bytes)
+        before = metadata.stat()
+        original_read = os.read
+        observed = []
+        def read(descriptor, count):
+            block = original_read(descriptor, count)
+            if block and not observed:
+                observed.append(block)
+                metadata.write_bytes(replacement)
+                os.utime(metadata, ns=(before.st_atime_ns, before.st_mtime_ns + 2000000000))
+            return block
+        with patch.object(os, 'read', side_effect=read):
+            with self.assertRaisesRegex(ValueError, 'changed during read'):
+                editor._read_bounded_preference_bytes(metadata)
+        self.assertEqual([original_bytes], observed)
+        self.assertEqual(replacement, metadata.read_bytes())
+
+    def test_bounded_metadata_refuses_named_identity_change_at_actual_eof(self):
+        editor, manager = self._fixture(self._mkdtmp())
+        metadata = Path(manager.root_dir) / 'readaloud.receipt.json'
+        metadata.write_bytes(b'{"observed":"receipt"}')
+        original_read, original_lstat = os.read, os.lstat
+        state = {'eof': False}
+        def read(descriptor, count):
+            block = original_read(descriptor, count)
+            if not block:
+                state['eof'] = True
+            return block
+        def named(path, *args, **kwargs):
+            info = original_lstat(path, *args, **kwargs)
+            if state['eof'] and Path(path) == metadata:
+                return types.SimpleNamespace(st_mode=info.st_mode, st_dev=info.st_dev,
+                    st_ino=info.st_ino + 1, st_size=info.st_size,
+                    st_mtime_ns=info.st_mtime_ns, st_ctime_ns=info.st_ctime_ns)
+            return info
+        with patch.object(os, 'read', side_effect=read), patch.object(os, 'lstat', side_effect=named):
+            with self.assertRaisesRegex(ValueError, 'changed during read'):
+                editor._read_bounded_preference_bytes(metadata, file_description='EPUB receipt')
+        self.assertTrue(state['eof'])
+
+    def test_bounded_metadata_preserves_missing_and_empty_raw_states(self):
+        editor, manager = self._fixture(self._mkdtmp())
+        metadata = Path(manager.root_dir) / 'raw-metadata.json'
+        self.assertIsNone(editor._read_bounded_preference_bytes(metadata))
+        metadata.write_bytes(b'')
+        self.assertEqual(b'', editor._read_bounded_preference_bytes(metadata))
+
+    def test_published_epub_hash_read_error_is_409_from_actual_shared_reader(self):
+        import audio_source_io
+        from fastapi import HTTPException
+        editor, _artifact, _receipt = self._published_read_fixture()
+        with patch.object(audio_source_io, 'read_bounded_audio_hash',
+                          side_effect=OSError('controlled descriptor read failure')) as read:
+            with self.assertRaises(HTTPException) as caught:
+                editor._validated_epub_bytes()
+        read.assert_called_once()
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertIn('controlled descriptor read failure', caught.exception.detail)
+
+    def test_wrong_published_hash_refuses_before_full_buffering(self):
+        import audio_source_io
+        from fastapi import HTTPException
+        editor, artifact, receipt = self._published_read_fixture()
+        receipt['epub_sha256'] = 'e' * 64
+        artifact.with_name('readaloud.receipt.json').write_text(json.dumps(receipt), encoding='utf-8')
+        original_read = Path.read_bytes
+        original_hash = audio_source_io.read_bounded_audio_hash
+        observed = []
+        def raw(path):
+            if path == artifact:
+                raise AssertionError('unverified published output must not use raw materialization')
+            return original_read(path)
+        def stream_hash(stream, limit, check):
+            result = original_hash(stream, limit, check)
+            observed.append((limit, result))
+            return result
+        with patch.object(Path, 'read_bytes', raw), patch.object(
+                audio_source_io, 'read_bounded_audio_hash', side_effect=stream_hash):
             with self.assertRaises(HTTPException) as caught:
                 editor._validated_epub_bytes()
         self.assertEqual(409, caught.exception.status_code)
-        self.assertIn('receipt', str(caught.exception.detail).lower())
+        self.assertEqual(1, len(observed))
+        self.assertEqual(artifact.stat().st_size, observed[0][0])
+        self.assertIn('does not match its receipt', caught.exception.detail)
+
+    def test_published_epub_growth_refuses_with_captured_extent(self):
+        import audio_source_io
+        from fastapi import HTTPException
+        editor, artifact, _receipt = self._published_read_fixture()
+        original_hash = audio_source_io.read_bounded_audio_hash
+        old_size = artifact.stat().st_size
+        observed = []
+        def stream_hash(stream, limit, check):
+            observed.append(limit)
+            with artifact.open('ab') as writer:
+                writer.write(b'growth')
+            return original_hash(stream, limit, check)
+        with patch.object(audio_source_io, 'read_bounded_audio_hash', side_effect=stream_hash):
+            with self.assertRaises(HTTPException) as caught:
+                editor._validated_epub_bytes()
+        self.assertEqual([old_size], observed)
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertGreater(artifact.stat().st_size, old_size)
+
+    def test_default_audio_hash_refuses_empty_regular_file(self):
+        import readalong_sidecar
+        path = Path(self._mkdtmp()) / 'empty.mp3'
+        path.write_bytes(b'')
+        with self.assertRaisesRegex(ValueError, 'nonempty|empty'):
+            readalong_sidecar.get_audio_file_sha256(path)
+
+    def test_audio_hash_requires_boolean_empty_policy(self):
+        import readalong_sidecar
+        path = Path(self._mkdtmp()) / 'empty.mp3'
+        path.write_bytes(b'')
+        with self.assertRaisesRegex(ValueError, 'boolean'):
+            readalong_sidecar.get_audio_file_sha256(path, allow_empty=1)

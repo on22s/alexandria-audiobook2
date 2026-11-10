@@ -1,9 +1,11 @@
 """Tiny production EPUB admission, archive and fragment regressions (#1844)."""
 import io
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import struct
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -53,7 +55,167 @@ def _build_fragments(count, *, reserved=0):
                 aligned_rows=aligned)
 
 
+def _with_extra_members(raw, members):
+    buffer = io.BytesIO(raw)
+    with zipfile.ZipFile(buffer, "a", zipfile.ZIP_DEFLATED) as output:
+        for name, payload in members.items():
+            output.writestr(name, payload)
+    return buffer.getvalue()
+
+
+def _with_compression_method(raw, member, method):
+    changed = bytearray(raw)
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        local = archive.getinfo(member).header_offset
+    struct.pack_into("<H", changed, local + 8, method)
+    position = 0
+    while True:
+        position = changed.index(b"PK\x01\x02", position)
+        name_len, extra_len, comment_len = struct.unpack_from("<HHH", changed, position + 28)
+        if changed[position + 46:position + 46 + name_len] == member.encode("utf-8"):
+            struct.pack_into("<H", changed, position + 10, method)
+            return bytes(changed)
+        position += 46 + name_len + extra_len + comment_len
+
+
+@contextmanager
+def _changed_named_identity(source, *, after_eof=True):
+    """Model namespace replacement without claiming a physical OS race."""
+    import audio_take_history
+    real_open = audio_take_history._open_regular
+    real_lstat = os.lstat
+    state = {"changed": False, "named_checks": 0}
+
+    class ReadProxy:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+        def __enter__(self):
+            self.stream.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.stream.__exit__(*args)
+
+        def read(self, size=-1):
+            value = self.stream.read(size)
+            if after_eof and not value:
+                state["changed"] = True
+            return value
+
+    def open_proxy(*args, **kwargs):
+        stream, before = real_open(*args, **kwargs)
+        return ReadProxy(stream), before
+
+    def named_version(path, *args, **kwargs):
+        info = real_lstat(path, *args, **kwargs)
+        if Path(path) == source and state["changed"]:
+            state["named_checks"] += 1
+            return SimpleNamespace(st_dev=info.st_dev, st_ino=info.st_ino + 1,
+                st_size=info.st_size, st_mtime_ns=info.st_mtime_ns,
+                st_ctime_ns=info.st_ctime_ns)
+        return info
+
+    with patch.object(audio_take_history, "_open_regular", side_effect=open_proxy), \
+            patch.object(os, "lstat", side_effect=named_version):
+        yield state
+
+
 class FinalEpubAdmissionTests(unittest.TestCase):
+    def test_retained_bytes_and_hash_require_current_named_identity(self):
+        for reader in (readalong_export.get_retained_epub_bytes,
+                       readalong_export.get_retained_epub_sha256):
+            with self.subTest(reader=reader.__name__), \
+                    tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+                source = Path(tmp) / "book.source.epub"
+                source.write_bytes(_source_epub("<p>Echo.</p>"))
+                with _changed_named_identity(source) as state:
+                    with self.assertRaises(ValueError):
+                        reader(source)
+                self.assertTrue(state["changed"])
+                self.assertGreater(state["named_checks"], 0)
+
+    def test_language_path_requires_current_named_identity(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+            source = Path(tmp) / "book.source.epub"
+            source.write_bytes(_source_epub("<p>Echo.</p>"))
+            read_package = er.get_epub_package
+            with _changed_named_identity(source, after_eof=False) as state:
+                def change_after_parse(*args, **kwargs):
+                    result = read_package(*args, **kwargs)
+                    state["changed"] = True
+                    return result
+
+                with patch.object(er, "get_epub_package", side_effect=change_after_parse):
+                    with self.assertRaises(ValueError):
+                        er.get_epub_language_from_path(source)
+            self.assertGreater(state["named_checks"], 0)
+
+    def test_root_alias_member_refused_before_source_copy(self):
+        args = _build_fragments(2)
+        args["retained_epub_bytes"] = _with_extra_members(
+            args["retained_epub_bytes"], {".": b"root alias sentinel"})
+        with self.assertRaisesRegex(ValueError, "Unsafe EPUB archive member"):
+            er.build_epub_readaloud(**args)
+
+    def test_root_alias_member_refused_by_built_validator(self):
+        raw, _report = er.build_epub_readaloud(**_build_fragments(2))
+        raw = _with_extra_members(raw, {".": b"root alias sentinel"})
+        with self.assertRaisesRegex(ValueError, "Unsafe EPUB archive member"):
+            er.validate_epub_readaloud(raw)
+
+    def test_nested_encoded_and_noncover_payloads_preserved(self):
+        members = {"OEBPS/styles/book.css": b"p { color: black; }",
+                   "OEBPS/fonts/book%20font.woff": b"synthetic opaque font",
+                   "OEBPS/images/extra.png": b"synthetic opaque image",
+                   "OEBPS/toc.ncx": b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"/>'}
+        args = _build_fragments(2)
+        args["retained_epub_bytes"] = _with_extra_members(args["retained_epub_bytes"], members)
+        raw, _report = er.build_epub_readaloud(**args)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            self.assertEqual(members, {name: archive.read(name) for name in members})
+
+    def test_unsupported_metadata_compression_has_value_error_contract(self):
+        raw = _source_epub("<p>Echo.</p>")
+        for member in ("META-INF/container.xml", "OEBPS/content.opf"):
+            with self.subTest(member=member):
+                changed = _with_compression_method(raw, member, 99)
+                with self.assertRaisesRegex(ValueError, "unsupported or unavailable") as caught:
+                    er.get_epub_language_from_path(io.BytesIO(changed))
+                self.assertIsInstance(caught.exception.__cause__, NotImplementedError)
+
+    def test_optional_metadata_codecs_preserved_or_truthfully_unavailable(self):
+        raw = _source_epub("<p>Echo.</p>")
+        for method, module in ((zipfile.ZIP_BZIP2, "bz2"), (zipfile.ZIP_LZMA, "lzma")):
+            with self.subTest(module=module):
+                if getattr(zipfile, module) is not None:
+                    output = io.BytesIO()
+                    with zipfile.ZipFile(io.BytesIO(raw)) as source, \
+                            zipfile.ZipFile(output, "w", method) as target:
+                        for name in source.namelist():
+                            target.writestr(name, source.read(name))
+                    compressed = output.getvalue()
+                    self.assertEqual("en", er.get_epub_language_from_path(io.BytesIO(compressed)))
+                else:
+                    compressed = _with_compression_method(raw, "META-INF/container.xml", method)
+                with patch.object(zipfile, module, None):
+                    with self.assertRaisesRegex(ValueError, "unsupported or unavailable") as caught:
+                        er.get_epub_language_from_path(io.BytesIO(compressed))
+                self.assertIsInstance(caught.exception.__cause__, RuntimeError)
+                self.assertNotIn("malformed", str(caught.exception))
+
+    def test_unavailable_metadata_codec_diagnostic_is_bounded(self):
+        raw = _source_epub("<p>Echo.</p>")
+        cause = RuntimeError("x" * 1024)
+        with patch.object(er, "get_epub_package", side_effect=cause):
+            with self.assertRaisesRegex(ValueError, "unsupported or unavailable") as caught:
+                er.get_epub_language_from_path(io.BytesIO(raw))
+        self.assertIs(cause, caught.exception.__cause__)
+        self.assertLess(len(str(caught.exception)), 400)
+
     def test_language_paths_obey_retained_bound(self):
         raw = _source_epub("<p>Echo.</p>")
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
@@ -148,6 +310,36 @@ class FinalEpubAdmissionTests(unittest.TestCase):
 
 
 class FinalEpubFragmentTests(unittest.TestCase):
+    def test_distinct_source_elements_with_id_alias_collisions_refuse(self):
+        for first, second in (("xml:id", "xml:id"), ("id", "xml:id")):
+            with self.subTest(first=first, second=second):
+                body = '<p>One <em %s="dup">A</em> two. <span %s="dup">B</span> three.</p>'
+                args = _build_fragments(1)
+                args["retained_epub_bytes"] = _source_epub(body % (first, second))
+                args["script_entries"][0].update(prepared_text="One A two. B three.", end_frame=50)
+                args["aligned_rows"] = [{"tokens": [
+                    {"text": word, "start_time": index * 0.01, "end_time": (index + 1) * 0.01}
+                    for index, word in enumerate(("One", "A", "two", "B", "three"))]}]
+                with self.assertRaisesRegex(ValueError, "Duplicate element id"):
+                    er.build_epub_readaloud(**args)
+
+    def test_equal_source_aliases_and_straddling_element_preserved(self):
+        args = _build_fragments(1)
+        args["retained_epub_bytes"] = _source_epub(
+            '<p>One <em id="keep" xml:id="keep">A two. B</em> three.</p>')
+        args["script_entries"][0].update(prepared_text="One A two. B three.", end_frame=50)
+        args["aligned_rows"] = [{"tokens": [
+            {"text": word, "start_time": index * 0.01, "end_time": (index + 1) * 0.01}
+            for index, word in enumerate(("One", "A", "two", "B", "three"))]}]
+        raw, _report = er.build_epub_readaloud(**args)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            root = ET.fromstring(archive.read("OEBPS/ch1.xhtml"))
+        body = root.find("{%s}body" % er.XHTML_NS)
+        self.assertEqual("One A two. B three.", "".join(body.itertext()))
+        self.assertEqual(1, sum(node.get("id") == "keep" for node in body.iter()))
+        self.assertEqual(1, sum(node.get("{http://www.w3.org/XML/1998/namespace}id") == "keep"
+                                for node in body.iter()))
+
     def _counted_set(self, counter, cancel_after=None):
         class CountedSet(set):
             def __init__(self, *args):
@@ -175,6 +367,9 @@ class FinalEpubFragmentTests(unittest.TestCase):
                                  [item.get("id") for item in paragraphs])
                 self.assertEqual("Echo." * count, "".join(document.find(
                     "{%s}body" % er.XHTML_NS).itertext()))
+                # This monitors the known set-rescan regression, not every
+                # possible future allocator implementation or wall-clock cost.
+                self.assertGreater(counter["checks"], 0, "Allocator work probe was not exercised")
                 self.assertLessEqual(counter["checks"], 4 * count)
 
     def test_fresh_fragment_collision_loop_polls_cancel(self):

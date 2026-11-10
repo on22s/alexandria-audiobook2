@@ -1,16 +1,19 @@
 """Final #1844 runtime repairs: lease handoff and bounded punctuation planning.
 
 No model or GPU is used. Descriptor tests capture the actual launch contract;
-the planner cost assertion counts consumed candidates rather than elapsed time.
+the planner cost assertion counts index comparisons rather than elapsed time.
 """
 import builtins
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import qwen_align as qa
 import qwen_runtime as qr
@@ -167,6 +170,238 @@ class FinalWorkerBridgeTests(unittest.TestCase):
                 self.assertEqual('0', environment['HF_HUB_OFFLINE'])
 
 
+class FinalAmbientLeaseTests(unittest.TestCase):
+    def _assert_launch_contract(self, kind, ambient_present=True):
+        import subprocess_ownership as ownership
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job, result = root / 'job.json', root / 'result.json'
+            job.write_text(json.dumps({'device': 'cpu', 'dtype': 'float32', 'rows': []}))
+            with (root / 'ambient.lock').open('a') as ambient, \
+                    (root / 'admitted.lock').open('a') as admitted, \
+                    (root / 'task.lock').open('a') as task:
+                def gpu_environment(handle):
+                    return dict(GPU_LOCK=str(handle.name), ALEXANDRIA_GPU_LOCK_HELD='1',
+                                ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()),
+                                ALEXANDRIA_GPU_LOCK_FD=str(handle.fileno()))
+
+                ambient_env = gpu_environment(ambient)
+                worker_env = (None if kind == 'legacy' else
+                              gpu_environment(admitted) if kind == 'gpu' else
+                              dict(PYTHONPATH='controlled-override', HF_HUB_OFFLINE='0')
+                              if kind == 'unsafe_cpu' else {})
+                captured = []
+
+                def launch(command, **kwargs):
+                    captured.append(kwargs)
+                    Path(command[-1]).write_text(json.dumps(
+                        dict(ok=True, tokens={}, windows={}, provider={})))
+                    return types.SimpleNamespace(wait=lambda timeout=None: 0, poll=lambda: 0)
+
+                with patch.dict(os.environ, ambient_env, clear=False), \
+                        patch.object(ownership, 'sys', types.SimpleNamespace(platform='linux')), \
+                        patch.object(qr, 'start_owned_subprocess', side_effect=launch):
+                    if not ambient_present:
+                        for key in ambient_env:
+                            os.environ.pop(key, None)
+                    qr.run_qwen_alignment_full(['controlled-not-executed'], job, result,
+                        lambda: False, task_lease_fd=task.fileno(), worker_env=worker_env)
+                self.assertEqual(1, len(captured))
+                actual = captured[0]
+                expected = (ambient.fileno() if kind == 'legacy' else
+                            admitted.fileno() if kind == 'gpu' else None)
+                self.assertEqual(expected, actual['gpu_lease_fd'])
+                self.assertEqual(task.fileno(), actual['task_lease_fd'])
+                child = actual['env']
+                for key in ('HF_HUB_OFFLINE', 'HF_HUB_DISABLE_TELEMETRY', 'TRANSFORMERS_OFFLINE'):
+                    self.assertEqual('1', child[key])
+                self.assertNotIn('PYTHONPATH', child)
+                if kind in ('legacy', 'gpu'):
+                    expected_env = ambient_env if kind == 'legacy' else gpu_environment(admitted)
+                    for key, value in expected_env.items():
+                        self.assertEqual(value, child[key])
+                else:
+                    for key in ambient_env:
+                        self.assertNotIn(key, child)
+
+    def test_explicit_cpu_clears_ambient_gpu_capability(self):
+        self._assert_launch_contract('cpu')
+
+    def test_explicit_cpu_override_stays_isolated(self):
+        self._assert_launch_contract('unsafe_cpu')
+
+    def test_legacy_none_retains_ambient_gpu_capability(self):
+        self._assert_launch_contract('legacy')
+
+    def test_captured_gpu_replaces_ambient_capability(self):
+        self._assert_launch_contract('gpu')
+
+    def test_explicit_cpu_without_ambient_gpu_keeps_task_lease(self):
+        self._assert_launch_contract('cpu', ambient_present=False)
+
+
+class FinalOwnedCaptureCancellationTests(unittest.TestCase):
+    def _cancel_child(self, *, identity=False, timeout=60, callback_error=False):
+        import subprocess_ownership as owned
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ready, completed = Path(tmp) / 'ready', Path(tmp) / 'completed'
+            code = ("import json,os,pathlib,sys,time\n"
+                    "pathlib.Path(%r).write_text(str(os.getpid()))\n"
+                    "time.sleep(5)\n"
+                    "pathlib.Path(%r).touch()\n"
+                    "print(json.dumps({'python_version':sys.version.split()[0],"
+                    "'packages':{},'prefix':sys.prefix}))\n") % (str(ready), str(completed))
+            processes, stopped = [], []
+            native_start, native_stop = owned.start_owned_subprocess, owned.stop_owned_subprocess
+
+            def start(*args, **kwargs):
+                process = native_start(*args, **kwargs)
+                processes.append(process)
+                return process
+
+            def stop(process, *args, **kwargs):
+                result = native_stop(process, *args, **kwargs)
+                self.assertIsNotNone(process.poll())
+                self.assertFalse(owned.is_subprocess_tree_running(process))
+                stopped.append(process)
+                return result
+
+            def cancelled():
+                if ready.exists() and callback_error:
+                    raise RuntimeError('controlled callback failure')
+                return ready.exists()
+
+            with patch.object(owned, 'start_owned_subprocess', side_effect=start), \
+                    patch.object(owned, 'stop_owned_subprocess', side_effect=stop):
+                error = RuntimeError if callback_error else ValueError
+                message = 'controlled callback failure' if callback_error else 'cancelled'
+                with self.assertRaisesRegex(error, message):
+                    if identity:
+                        with patch.object(qr, '_IDENTITY_SOURCE', code):
+                            qr.get_qwen_runtime_identity(sys.executable, cancel_check=cancelled,
+                                                         timeout=timeout)
+                    else:
+                        owned.run_owned_capture([sys.executable, '-c', code], timeout=timeout,
+                                                cancel_check=cancelled)
+            self.assertTrue(ready.exists(), 'cancellation must occur after real child admission')
+            self.assertFalse(completed.exists(), 'capture waited for natural completion before cancelling')
+            self.assertEqual(processes, stopped)
+            self.assertEqual(1, len(processes))
+            self.assertTrue(processes[0].stdout.closed)
+            self.assertTrue(processes[0].stderr.closed)
+
+    def test_identity_cancellation_stops_and_reaps_metadata_child(self):
+        self._cancel_child(identity=True)
+
+    def test_capture_timeout_none_can_cancel_and_reap(self):
+        self._cancel_child(timeout=None)
+
+    def test_callback_exception_stops_and_reaps_child(self):
+        self._cancel_child(callback_error=True)
+
+    def test_false_callback_preserves_outputs_and_nonzero_exit(self):
+        import subprocess_ownership as owned
+
+        command = [sys.executable, '-c',
+                   "import sys;print('output');print('error',file=sys.stderr);sys.exit(7)"]
+        for options in ({}, {'cancel_check': lambda: False}):
+            with self.subTest(callback=bool(options)):
+                result = owned.run_owned_capture(command, timeout=5, **options)
+                self.assertEqual(7, result.returncode)
+                self.assertEqual(b'output\r\n' if os.name == 'nt' else b'output\n', result.stdout)
+                self.assertEqual(b'error\r\n' if os.name == 'nt' else b'error\n', result.stderr)
+
+    def test_already_cancelled_capture_does_not_start_child(self):
+        import subprocess_ownership as owned
+
+        process = types.SimpleNamespace(stdout=io.BytesIO(), stderr=io.BytesIO())
+        with patch.object(owned, 'start_owned_subprocess', return_value=process) as start, \
+                patch.object(owned, 'stop_owned_subprocess'):
+            with self.assertRaisesRegex(ValueError, 'Owned capture cancelled'):
+                owned.run_owned_capture(['controlled-not-executed'], timeout=1,
+                                        cancel_check=lambda: True)
+        start.assert_not_called()
+
+    def test_prelaunch_callback_exception_does_not_start_child(self):
+        import subprocess_ownership as owned
+
+        def cancelled():
+            raise RuntimeError('controlled prelaunch callback failure')
+
+        process = types.SimpleNamespace(stdout=io.BytesIO(), stderr=io.BytesIO())
+        with patch.object(owned, 'start_owned_subprocess', return_value=process) as start, \
+                patch.object(owned, 'stop_owned_subprocess'):
+            with self.assertRaisesRegex(RuntimeError, 'controlled prelaunch callback failure'):
+                owned.run_owned_capture(['controlled-not-executed'], timeout=1, cancel_check=cancelled)
+        start.assert_not_called()
+
+    def test_default_capture_uses_exact_single_communicate_call(self):
+        import subprocess_ownership as owned
+
+        for timeout in (3, None):
+            process = types.SimpleNamespace(stdout=io.BytesIO(), stderr=io.BytesIO(),
+                                            returncode=7, communicate=Mock(return_value=(b'out', b'err')))
+            with patch.object(owned, 'start_owned_subprocess', return_value=process):
+                result = owned.run_owned_capture(['controlled'], timeout=timeout)
+            process.communicate.assert_called_once_with(timeout=timeout)
+            self.assertEqual((7, b'out', b'err'), (result.returncode, result.stdout, result.stderr))
+            self.assertTrue(process.stdout.closed)
+            self.assertTrue(process.stderr.closed)
+
+    def test_polling_deadline_preserves_original_timeout_and_partial_bytes(self):
+        import subprocess_ownership as owned
+
+        command = ['controlled-child']
+        process = types.SimpleNamespace(stdout=io.BytesIO(), stderr=io.BytesIO(), returncode=None,
+            communicate=Mock(side_effect=[
+                subprocess.TimeoutExpired(command, .1, output=b'first', stderr=b'error1'),
+                subprocess.TimeoutExpired(command, .1, output=b'first+second', stderr=b'error1+2')]))
+        with patch.object(owned, 'start_owned_subprocess', return_value=process), \
+                patch.object(owned, 'stop_owned_subprocess') as stop, \
+                patch.object(owned.time, 'monotonic', side_effect=[10., 10.05, 10.10, 10.15, 10.26]):
+            with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                owned.run_owned_capture(command, timeout=.25, cancel_check=lambda: False)
+        self.assertEqual(command, caught.exception.cmd)
+        self.assertEqual(.25, caught.exception.timeout)
+        self.assertEqual(b'first+second', caught.exception.output)
+        self.assertEqual(b'error1+2', caught.exception.stderr)
+        self.assertEqual(2, process.communicate.call_count)
+        stop.assert_called_once_with(process, timeout=1)
+        self.assertTrue(process.stdout.closed)
+        self.assertTrue(process.stderr.closed)
+
+    def test_actual_deadline_timeout_reaps_before_pipe_cleanup(self):
+        import subprocess_ownership as owned
+
+        processes, stopped = [], []
+        native_start, native_stop = owned.start_owned_subprocess, owned.stop_owned_subprocess
+
+        def start(*args, **kwargs):
+            process = native_start(*args, **kwargs)
+            processes.append(process)
+            return process
+
+        def stop(process, *args, **kwargs):
+            result = native_stop(process, *args, **kwargs)
+            self.assertIsNotNone(process.poll())
+            self.assertFalse(owned.is_subprocess_tree_running(process))
+            stopped.append(process)
+            return result
+
+        with patch.object(owned, 'start_owned_subprocess', side_effect=start), \
+                patch.object(owned, 'stop_owned_subprocess', side_effect=stop):
+            with self.assertRaises(subprocess.TimeoutExpired) as caught:
+                owned.run_owned_capture([sys.executable, '-c', 'import time;time.sleep(5)'],
+                                        timeout=.2, cancel_check=lambda: False)
+        self.assertEqual(.2, caught.exception.timeout)
+        self.assertEqual(processes[0].args, caught.exception.cmd)
+        self.assertEqual(processes, stopped)
+        self.assertTrue(processes[0].stdout.closed)
+        self.assertTrue(processes[0].stderr.closed)
+
+
 class FinalPunctuationPlannerTests(unittest.TestCase):
     def test_punctuation_fold_does_not_rescan_all_spoken_candidates(self):
         text = 'w. ! ' * 32
@@ -174,24 +409,26 @@ class FinalPunctuationPlannerTests(unittest.TestCase):
         sentences = [dict(start=start, end=end, words=qa.count_units(text[start:end]))
                      for start, end in ranges]
         original = [dict(sentence) for sentence in sentences]
-        consumed = [0]
+        comparisons = [0]
 
-        def counted(function):
-            def run(*args, **kwargs):
-                if len(args) == 1 and isinstance(args[0], types.GeneratorType):
-                    def values():
-                        for value in args[0]:
-                            consumed[0] += 1
-                            yield value
-                    return function(values(), **kwargs)
-                return function(*args, **kwargs)
-            return run
+        class CountedIndex(int):
+            def __lt__(self, other):
+                comparisons[0] += 1
+                return int.__lt__(self, other)
 
-        with patch.object(qa, 'max', counted(builtins.max), create=True), \
-                patch.object(qa, 'min', counted(builtins.min), create=True):
+            def __gt__(self, other):
+                comparisons[0] += 1
+                return int.__gt__(self, other)
+
+        def enumerate_indexes(values, start=0):
+            for index, value in builtins.enumerate(values, start):
+                yield CountedIndex(index), value
+
+        with patch.object(qa, 'enumerate', enumerate_indexes, create=True):
             windows = qa.get_aligner_windows(60.0, sentences, text=text)
-        self.assertLessEqual(consumed[0], 4 * len(sentences),
-                             'punctuation folding repeatedly consumes all spoken candidates')
+        self.assertGreater(comparisons[0], 0, 'cost instrumentation must observe actual index work')
+        self.assertLessEqual(comparisons[0], 4 * len(sentences),
+                             'punctuation folding repeatedly compares all spoken candidates')
         self.assertEqual(original, sentences, 'planning must not mutate sentence inputs')
         self.assertEqual(0, windows[0]['char_start'])
         self.assertEqual(len(text), windows[-1]['char_end'])

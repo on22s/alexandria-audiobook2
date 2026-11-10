@@ -346,8 +346,9 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
     seen_ids = set()
     for element in root.iter():
-        element_id = element.get('id')
-        if element_id:
+        element_ids = {element.get('id'),
+                       element.get('{http://www.w3.org/XML/1998/namespace}id')}
+        for element_id in element_ids - {None, ""}:
             if element_id in seen_ids:
                 # Duplicate stable ids would make SMIL references ambiguous.
                 raise ValueError(f"Duplicate element id in spine document: {element_id}")
@@ -717,6 +718,9 @@ def get_epub_language_from_path(retained_path):
         return _get_validated_epub_language(metadata) or ""
     except (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError) as error:
         raise ValueError("Retained EPUB archive or publication metadata is malformed.") from error
+    except RuntimeError as error:  # Includes NotImplementedError from ZIP codecs/features.
+        raise ValueError("Retained EPUB ZIP reading is unsupported or unavailable: %s"
+                         % str(error)[:256]) from error
 
 
 def _svg_has_text(stream, cancel_check=None):
@@ -826,7 +830,7 @@ def _validate_retained_member_name(name):
     if not isinstance(name, str) or not name:
         raise ValueError("Invalid EPUB archive member.")
     path = PurePosixPath(name)
-    if ("\\" in name or "\0" in name or path.is_absolute()
+    if (not path.parts or "\\" in name or "\0" in name or path.is_absolute()
             or PureWindowsPath(name).drive or ".." in path.parts
             or name not in (path.as_posix(), path.as_posix() + "/")):
         raise ValueError("Unsafe EPUB archive member: %s" % name)
@@ -1329,6 +1333,7 @@ def validate_epub_readaloud(archive_bytes):
             if media == SMIL_MEDIA_TYPE and item_id not in associated:
                 raise ValueError("Built EPUB SMIL is not associated with any XHTML.")
         for member in names:
+            _validate_retained_member_name(member)
             if member.endswith('.smil') and member not in smil_paths:
                 raise ValueError(f"Built EPUB contains an undeclared SMIL file: {member}")
         xhtml_ids = {}

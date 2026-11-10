@@ -71,7 +71,8 @@ def _open_retained_epub(path, cancel_check=None):
             allow_hardlinks=True, file_description="Retained EPUB")
         with stream:
             yield stream
-            if _version(os.fstat(stream.fileno())) != _version(before):
+            if (_version(os.fstat(stream.fileno())) != _version(before)
+                    or _version(os.lstat(path)) != _version(before)):
                 raise ValueError("retained upload changed during read")
     except (ValueError, OSError) as error:
         raise ValueError("Retained EPUB is unavailable or outside its regular-file bound: %s" % error) from error

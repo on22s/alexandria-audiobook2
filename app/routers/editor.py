@@ -2306,6 +2306,7 @@ def _read_bounded_preference_bytes(path, *, file_description="Timing preference"
     present file that is not a bounded regular file.
     """
     import stat as _stat
+    from audio_take_history import _version
     try:
         info = os.lstat(path)
     except FileNotFoundError:
@@ -2318,7 +2319,7 @@ def _read_bounded_preference_bytes(path, *, file_description="Timing preference"
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
-        if not _stat.S_ISREG(opened.st_mode) or opened.st_size != info.st_size:
+        if not _stat.S_ISREG(opened.st_mode) or _version(opened) != _version(info):
             raise ValueError("%s changed during read." % file_description)
         chunks = []
         total = 0
@@ -2330,6 +2331,10 @@ def _read_bounded_preference_bytes(path, *, file_description="Timing preference"
             if total > 16384:
                 raise ValueError("%s exceeds its bound." % file_description)
             chunks.append(block)
+        if (total != opened.st_size
+                or _version(os.fstat(descriptor)) != _version(opened)
+                or _version(os.lstat(path)) != _version(opened)):
+            raise ValueError("%s changed during read." % file_description)
         return b"".join(chunks)
     finally:
         os.close(descriptor)
@@ -2656,9 +2661,18 @@ def _validated_epub_bytes():
             receipt_path, file_description="EPUB read-aloud receipt"))
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail=f"EPUB read-aloud receipt is invalid: {error}") from error
+    from export_quality import ensure_export_file
+    from audio_source_io import read_bounded_audio_hash
     try:
-        raw = Path(path).read_bytes()
-    except OSError as error:
+        with ensure_export_file(path) as (stream, version):
+            digest, size = read_bounded_audio_hash(stream, version[2], lambda: None)
+            if size != version[2] or digest != receipt["epub_sha256"]:
+                raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its receipt. Rebuild the EPUB read-aloud.")
+            stream.seek(0)
+            raw = stream.read(version[2] + 1)
+            if len(raw) != version[2]:
+                raise ValueError("Finished EPUB changed while reading.")
+    except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail=f"EPUB read-aloud is invalid: {error}") from error
     if hashlib.sha256(raw).hexdigest() != receipt["epub_sha256"]:
         raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its receipt. Rebuild the EPUB read-aloud.")
