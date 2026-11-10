@@ -1364,14 +1364,17 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 # v4 has no separate backup move: the removal's exchange with
                 # its workspace placeholder is the backup, so crash right after
                 # it. The original directory then sits in the removal's slot.
+                interrupted=[]
                 def interrupt_after_exchange(published):
+                    interrupted.append(published)
                     raise SystemExit('fixture process exit')
                 with books.ensure_book_state(root), \
                      intercept_book_publications(books, after=interrupt_after_exchange), \
                      patch.object(books, 'recover_book_state_locked',
                                   side_effect=SystemExit('fixture process exit')), \
-                     self.assertRaises(SystemExit):
+                     self.assertRaisesRegex(SystemExit, 'fixture process exit'):
                     books.apply_book_state_locked(root, {}, ['old-directory'])
+                self.assertEqual([target], interrupted)
             else:
                 move = books._move
                 def interrupt_after_backup(source, destination, **kwargs):
@@ -1562,9 +1565,10 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
         # exact previous book back. v3 moves an existing row aside and then
         # publishes it (2 moves per replacement) and creates a file with one:
         # 10 move points. v4 publishes each row with one exchange, plus a
-        # target-placeholder create for the creation and one delete per
-        # removal: 7 + 1 + 3 = 11 points (#1660 step 4). The count is pinned so
-        # a changed protocol fails here instead of silently testing less.
+        # target-placeholder publish (anchored rename) for the creation and one
+        # delete per removal: 7 + 1 + 3 = 11 points (#1660 step 4). The count is
+        # pinned so a changed protocol fails here instead of silently testing
+        # less.
         from contextlib import ExitStack
         v4 = self._book_protocol == 'v4'
         seams = (('_exchange', '_create_book_placeholder_at',
@@ -1653,7 +1657,7 @@ else:
                 raise SystemExit('fixture stop')
             if v4:
                 with intercept_book_publications(books,after=stop),patch.object(books,'recover_book_state_locked'):
-                    with self.assertRaises(SystemExit):self.switch(root)
+                    with self.assertRaisesRegex(SystemExit,'fixture stop'):self.switch(root)
             else:
                 move=books._move;counter=0
                 def leave_pending(source,destination, **kwargs):
@@ -2028,7 +2032,7 @@ class BookPersonaBindingTests(BookProtocolCases, unittest.TestCase):
             else:
                 context = patch.object(books,'_move',side_effect=die)
             with books.ensure_book_state(tmp),context,patch.object(books,'recover_book_state_locked'):
-                with self.assertRaises(SystemExit):books.apply_book_state_locked(tmp,{'script.json':b'new script','state.json':b'new identity'},[])
+                with self.assertRaisesRegex(SystemExit,'fixture interruption'):books.apply_book_state_locked(tmp,{'script.json':b'new script','state.json':b'new identity'},[])
             self.assertEqual(b'new script',(root/'script.json').read_bytes())
             def reset():
                 self.assertEqual(b'old script',(root/'script.json').read_bytes());self.assertEqual(b'old identity',(root/'state.json').read_bytes());self.assertFalse((root/books.JOURNAL).exists())

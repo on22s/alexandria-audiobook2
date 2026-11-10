@@ -1,5 +1,6 @@
 from contextlib import ExitStack, contextmanager, nullcontext
 import functools
+import inspect
 import json
 import os
 from pathlib import Path
@@ -259,6 +260,23 @@ def get_book_publication_target(source, destination, *, exchange=False):
     return None
 
 
+def _require_callback_arity(callback, count, label):
+    """Fail at context entry when a hook cannot take its documented arguments.
+
+    A wrong-arity callback otherwise raises TypeError at the first mutation,
+    which a test that only checks "some exception" can mistake for the error it
+    meant to inject (#1660 review).
+    """
+    if callback is None:
+        return
+    try:
+        inspect.signature(callback).bind(*([None] * count))
+    except (TypeError, ValueError) as error:
+        raise TypeError(
+            f'{label} must accept {count} positional argument(s); '
+            f'got {callback!r}: {error}') from error
+
+
 @contextmanager
 def intercept_book_publications(module, before=None, after=None):
     """Intercept each row publication on whichever protocol is in use.
@@ -270,6 +288,8 @@ def intercept_book_publications(module, before=None, after=None):
     companion exchange that a rollback makes has the same direction, so after
     a deliberate abort the same target can be seen again.
     """
+    _require_callback_arity(before, 1, 'intercept_book_publications before')
+    _require_callback_arity(after, 1, 'intercept_book_publications after')
     original_move, original_exchange = module._move, module._exchange
     def wrap(original, exchange):
         def publication(source, destination, **kwargs):
@@ -287,10 +307,10 @@ def intercept_book_publications(module, before=None, after=None):
 
 
 # Every post-journal mutation a book publication makes. A v3 row is a backup
-# move plus a publish move; a v4 row is one exchange, a creation adds an O_EXCL
-# target-placeholder create, and a removal adds one proven delete. Staging
-# placeholders are created before the journal, like v3 staging, so they are not
-# among them.
+# move plus a publish move; a v4 row is one exchange, a creation adds one
+# no-overwrite placeholder publish (which is itself an anchored move), and a
+# removal adds one proven delete. Placeholders are staged in the workspace
+# before the journal, like v3 staging, so their create is not among them.
 BOOK_MUTATION_SEAMS = ('_move', '_exchange', '_create_book_placeholder_at',
                        '_delete_book_placeholder_at')
 
@@ -305,6 +325,8 @@ def book_publication_mutations(module, *, before=None, after=None):
     dict holds the running `count`, so a test can pin how many points the
     protocol has and sweep them all instead of naming one protocol's ordinals.
     """
+    _require_callback_arity(before, 3, 'book_publication_mutations before')
+    _require_callback_arity(after, 3, 'book_publication_mutations after')
     originals = {name: getattr(module, name) for name in BOOK_MUTATION_SEAMS}
     state = {'count': 0}
     def wrap(name, original):

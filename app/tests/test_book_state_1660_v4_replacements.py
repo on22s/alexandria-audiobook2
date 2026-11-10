@@ -227,6 +227,24 @@ class BookStateV4ReplacementTests(unittest.TestCase):
         self.assertEqual({3, 3}, {record['version'] for record in records})
         self.assertEqual({3, 3}, {record['version'] for record in records})
 
+    def test_unsupported_filesystem_creation_and_removal_stay_v3_without_placeholders(self):
+        self._prepare()
+        records, recorder = self._capture_journals()
+        def refuse_exchange(*args, **kwargs):
+            raise AssertionError('an unsupported probe must not exchange')
+        with recorder, \
+             patch.object(publication, 'probe_exchange_support', return_value=False), \
+             patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=refuse_exchange):
+            self._apply({'brand-new.json': b'created'}, removals=['part-1.json'])
+        self.assertEqual({3}, {record['version'] for record in records})
+        for record in records:
+            for entry in record['entries']:
+                self.assertNotIn('placeholder', entry)
+                self.assertNotIn('target_placeholder', entry)
+        self.assertEqual(b'created', (self.root / 'brand-new.json').read_bytes())
+        self.assertFalse((self.root / 'part-1.json').exists())
+
     # --- crash-state enumeration -----------------------------------------
 
     def test_crash_after_journal_write_rolls_back_to_originals(self):

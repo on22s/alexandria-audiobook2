@@ -126,7 +126,7 @@ class ScopeFailureTests(unittest.TestCase):
                                 faults.enter_context(book_publication_mutations(
                                     transaction,before=fail_at))
                                 expected=OSError
-                            with self.assertRaises(expected):
+                            with self.assertRaisesRegex(expected,'injected scope fault'):
                                 apply_operation(root,mode)
                         if failure=='write':self.assertEqual(1,len(reached))
                         self.assertEqual(before,get_bytes(root))

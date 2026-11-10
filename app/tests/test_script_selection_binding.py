@@ -272,7 +272,7 @@ class ScriptSelectionBindingTests(unittest.TestCase):
                 if target == binding_path:
                     raise OSError('injected publication failure')
             with intercept_book_publications(transaction, before=fail_on_binding):
-                with self.assertRaises(OSError):
+                with self.assertRaisesRegex(OSError, 'injected publication failure'):
                     publish_generated_script(tmp, token, str(source),
                         hashlib.sha256(b'source').hexdigest(), self.script, expected_run_id='f' * 32, complete_manifest=True)
             self.assertEqual(b'old script', (root / 'annotated_script.json').read_bytes())

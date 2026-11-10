@@ -106,7 +106,7 @@ class SavedBookExportTests(unittest.TestCase):
             # exchange both start at the export name (#1660).
             if args and Path(args[0]) == self.exports[1]:
                 raise PermissionError("export is open")
-        with book_publication_mutations(book_transaction,before=fail_export),self.assertRaises(PermissionError):
+        with book_publication_mutations(book_transaction,before=fail_export),self.assertRaisesRegex(PermissionError,'export is open'):
             self.load()
         self.assertEqual(before,{name:(self.root/name).read_bytes() for name in before})
         self.assertFalse((self.root/'state.json').exists())

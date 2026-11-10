@@ -1921,9 +1921,10 @@ def _get_exchange_slot_names(index):
     """Every workspace slot a v4 row may occupy, whichever direction moved it.
 
     A replacement is staged at new-<index> and the exchange leaves the original
-    there; a removal stages its placeholder at old-<index> and the exchange
-    leaves the original there. discard-<index> belongs to the legacy protocol
-    only, so v4 cleanup must never accept that name (#1660 follow-up)."""
+    there; a removal stages its placeholder at old-<index> (a creation stages
+    its placeholder there too, before publishing it to the target) and the
+    exchange leaves the original there. discard-<index> belongs to the legacy
+    protocol only, so v4 cleanup must never accept that name (#1660 follow-up)."""
     return (f'old-{index}', f'new-{index}')
 
 
@@ -1964,12 +1965,27 @@ def _get_book_row_placeholder(row):
     return None
 
 
+def _get_staged_book_placeholders(rows):
+    """-> {workspace old-<index>: evidence} for the placeholders we staged.
+
+    A removal and a creation both stage their placeholder in the workspace
+    before the journal (#1660)."""
+    result = {}
+    for index, row in enumerate(rows):
+        evidence = _get_book_row_placeholder(row)
+        if evidence is not None:
+            result[f'old-{index}'] = evidence
+    return result
+
+
 def _valid_book_placeholder_evidence(value, *, created):
     """Whether a journaled placeholder record is exactly recoverable.
 
-    created=True is a target_placeholder, journaled before the create: no
-    identity or generation can exist yet, so both must be null. A removal's
-    placeholder is staged first, so its identity is required and its
+    created=True is a target_placeholder, journaled after the complete
+    placeholder was staged in our workspace: its identity (and generation)
+    is required for a new journal, while a journal written before the
+    placeholder was staged (identity null) stays readable. A removal's
+    placeholder is also staged first, so its identity is required and its
     generation is optional evidence."""
     if (not isinstance(value, dict)
             or set(value) != {'kind', 'nonce', 'identity', 'generation'}):
@@ -1984,7 +2000,10 @@ def _valid_book_placeholder_evidence(value, *, created):
     elif nonce is not None:
         return False
     if created:
-        return identity is None and generation is None
+        return ((identity is None or
+                 isinstance(identity, list) and len(identity) == 2
+                 and all(type(item) is int and item >= 0 for item in identity))
+                and (generation is None or _valid_book_file_generation(generation)))
     return (isinstance(identity, list) and len(identity) == 2
             and all(type(item) is int and item >= 0 for item in identity)
             and (generation is None or _valid_book_file_generation(generation)))
@@ -2075,27 +2094,76 @@ def _read_book_placeholder(evidence, *, path=None, dir_fd=None, name=None):
     return info if raw == expected_bytes else None
 
 
-def _create_book_placeholder(directory_fd, name, kind, nonce):
+def _write_book_placeholder_bytes(descriptor, data):
+    """Write every placeholder byte; os.write may report a short write."""
+    view = memoryview(data)
+    while view:
+        written = os.write(descriptor, view)
+        if written <= 0:
+            raise OSError(errno.EIO, 'Book placeholder write made no progress')
+        view = view[written:]
+
+
+def _remove_book_placeholder_by_identity(directory_fd, name, identity, kind):
+    """Remove the placeholder object this call created, proven by identity.
+
+    Used only after a failed create: the object never became a complete,
+    nonce-provable placeholder, so generic cleanup must not adopt it. The
+    name is removed only while it still holds the exact object created here;
+    a deletion failure is suppressed so the original write error surfaces."""
+    if identity is None:
+        return
+    try:
+        info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    except OSError:
+        return
+    if [info.st_dev, info.st_ino] != list(identity):
+        return
+    try:
+        if kind == 'directory':
+            os.rmdir(name, dir_fd=directory_fd)
+        else:
+            os.unlink(name, dir_fd=directory_fd)
+    except OSError:
+        pass
+
+
+def _create_book_placeholder(directory_fd, name, kind, nonce, *, on_create=None):
     """Create the placeholder as ours alone -> [dev, ino].
 
     O_EXCL (file) / mkdir (directory) is the no-overwrite promise a creation
-    needs: a writer who created the name first makes this raise before any
-    book artifact has been mutated (#1660)."""
+    needs. on_create(identity) runs before a file's bytes are written, so a
+    caller can record the object as its own before it can fail. A failed
+    file write never leaves a partial at `name`: this call removes the exact
+    object it created by identity, then re-raises the original error (#1660).
+    """
     if kind == 'directory':
         os.mkdir(name, _PLACEHOLDER_MODE[kind], dir_fd=directory_fd)
         info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        identity = [info.st_dev, info.st_ino]
+        if on_create is not None:
+            on_create(identity)
     else:
         descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
                              | getattr(os, 'O_NOFOLLOW', 0),
                              _PLACEHOLDER_MODE[kind], dir_fd=directory_fd)
+        identity = None
         try:
-            os.write(descriptor, get_book_placeholder_bytes(nonce))
+            info = os.fstat(descriptor)
+            identity = [info.st_dev, info.st_ino]
+            if on_create is not None:
+                on_create(identity)
+            _write_book_placeholder_bytes(descriptor, get_book_placeholder_bytes(nonce))
             os.fsync(descriptor)
             info = os.fstat(descriptor)
-        finally:
+        except BaseException:
             os.close(descriptor)
+            _remove_book_placeholder_by_identity(directory_fd, name, identity, kind)
+            raise
+        os.close(descriptor)
+        identity = [info.st_dev, info.st_ino]
     os.fsync(directory_fd)
-    return [info.st_dev, info.st_ino]
+    return identity
 
 
 def _delete_book_placeholder(evidence, *, path=None, dir_fd=None, name=None):
@@ -2133,17 +2201,33 @@ def _expect_book_placeholder(row, key):
     return matches
 
 
-def _create_book_placeholder_at(root, target, slot, kind, nonce, *, anchor_identity,
-                                target_parent_identity):
-    """Create a placeholder at a target name through its proven parent."""
+def _create_book_placeholder_at(root, target, staging, evidence, *, anchor_identity,
+                                workspace_identity, target_parent_identity):
+    """Publish a pre-staged placeholder to a target name through its parent.
+
+    The target name is never written into (#1660). The complete placeholder
+    was created and fsynced in our private workspace before the journal, so
+    this is one anchored no-overwrite rename: a writer who created the target
+    first makes it fail before anything moved, and a crash leaves either no
+    target or a complete, nonce-provable placeholder.
+    """
     with _anchored_mutation(
-            root, target, slot, anchor_identity=anchor_identity,
-            source_parent_identity=target_parent_identity) as pair:
+            root, target, staging, anchor_identity=anchor_identity,
+            source_parent_identity=target_parent_identity,
+            destination_parent_identity=workspace_identity) as pair:
         pair.require_named_parents()
         pair.require_expected_parents()
-        identity = _create_book_placeholder(pair.source_fd, pair.source_name, kind, nonce)
-        pair.sync_parents()
-        return identity
+        if _read_book_placeholder(evidence, dir_fd=pair.destination_fd,
+                                  name=pair.destination_name) is None:
+            raise ValueError(
+                'A book placeholder changed before publication; '
+                'recovery evidence was preserved')
+    _move(staging, target, exclusive=True, anchor=root, anchor_identity=anchor_identity,
+          source_parent_identity=workspace_identity,
+          destination_parent_identity=target_parent_identity,
+          expected_source_identity=evidence.get('identity'),
+          expected_source_generation=(evidence.get('generation')
+                                      if evidence.get('identity') is not None else None))
 
 
 def _delete_book_placeholder_at(root, target, slot, evidence, *, anchor_identity,
@@ -3525,8 +3609,16 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         _check_stream_cancellation(cancel_check)
         original, replacement, placeholder, foreign = _get_book_workspace_slots(
             workspace, index, row)
-        if sum(owner is not None
-               for owner in (original, replacement, placeholder)) > 1:
+        owners = [owner for owner in (original, replacement, placeholder)
+                  if owner is not None]
+        # A creation keeps its staged replacement and its staged placeholder in
+        # two different slots until the placeholder is published; that pair is
+        # expected. Any other multiple ownership is inconsistent evidence.
+        creation_pair = (not row['existed'] and row['new_sha256'] is not None
+                         and original is None and replacement is not None
+                         and placeholder is not None
+                         and len(set(owners)) == 2)
+        if len(owners) > 1 and not creation_pair:
             raise ValueError(
                 'Book transaction has two workspace owners for one target; '
                 'recovery evidence was preserved')
@@ -4702,28 +4794,48 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 raise ValueError('Book artifact changed during staging')
             target_versions.append(before_version)
             if not existed and value is not None and exchange_supported:
-                # A creation's target is absent; the journal is written before
-                # the O_EXCL create, so only the intent (kind + nonce) can be
-                # recorded here (#1660 step 4).
-                row['target_placeholder'] = _get_book_placeholder_evidence(
-                    'file', _get_book_placeholder_nonce())
+                # A creation's placeholder is staged completely in our
+                # private workspace before the journal, so a crash can never
+                # leave a short file at the target name. Its identity (and
+                # generation) is journaled, and the target is later published
+                # with one no-overwrite rename (#1660 step 4).
+                kind, nonce = 'file', _get_book_placeholder_nonce()
+                evidence = _get_book_placeholder_evidence(kind, nonce)
+                staged_name = f'old-{index}'
+                staged_placeholders[staged_name] = evidence
+                def record_creation(identity, evidence=evidence):
+                    evidence['identity'] = list(identity)
+                _create_book_placeholder(
+                    workspace_fd, staged_name, kind, nonce,
+                    on_create=record_creation)
+                if not streams:
+                    with _refuse_book_io(_STAGING_READ_ERROR):
+                        generation = get_book_file_generation(staged_name, dir_fd=workspace_fd)
+                    if generation is not None:
+                        evidence['generation'] = generation
+                row['target_placeholder'] = evidence
             if existed and value is None and exchange_supported:
                 # A removal stages a same-type placeholder in our workspace
                 # before the journal: the exchange needs a second object, and
-                # recovery deletes it only by this nonce/identity.
+                # recovery deletes it only by this nonce/identity. Register it
+                # before writing, so a failed write is still ours to remove and
+                # cannot mask the original error (#1660).
                 kind = _get_book_placeholder_kind(before_version[5])
                 nonce = _get_book_placeholder_nonce()
                 evidence = _get_book_placeholder_evidence(kind, nonce)
                 staged_name = f'old-{index}'
-                evidence['identity'] = _create_book_placeholder(
-                    workspace_fd, staged_name, kind, nonce)
+                staged_placeholders[staged_name] = evidence
+                def record_removal(identity, evidence=evidence):
+                    evidence['identity'] = list(identity)
+                _create_book_placeholder(
+                    workspace_fd, staged_name, kind, nonce,
+                    on_create=record_removal)
                 if not streams:
                     with _refuse_book_io(_STAGING_READ_ERROR):
                         generation = get_book_file_generation(staged_name, dir_fd=workspace_fd)
                     if generation is not None:
                         evidence['generation'] = generation
                 row['placeholder'] = evidence
-                staged_placeholders[staged_name] = evidence
             if value is not None:
                 with _refuse_book_io(_STAGING_READ_ERROR):
                     mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o600
@@ -4902,15 +5014,18 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         raise ValueError(
                             'Book removal did not settle at an absent target')
                 elif not row['existed'] and row['new_sha256'] is not None:
-                    # Creation: the intent (kind + nonce) is already in the
-                    # journal, so the O_EXCL create at T is recoverable by
-                    # nonce alone. A writer who created T first makes the
-                    # create fail before any mutation.
+                    # Creation: the complete placeholder already sits in our
+                    # workspace (old-i), journaled by nonce and identity. One
+                    # anchored no-overwrite rename publishes it at T; a writer
+                    # who created T first fails it before anything moved, and
+                    # only then does the exchange install the replacement.
                     slot = workspace / f'new-{index}'
+                    staging = workspace / f'old-{index}'
                     evidence = row['target_placeholder']
                     _create_book_placeholder_at(
-                        root, target, slot, evidence['kind'], evidence['nonce'],
+                        root, target, staging, evidence,
                         anchor_identity=root_identity,
+                        workspace_identity=workspace_identity,
                         target_parent_identity=target_parent)
                     _exchange(slot, target, anchor=root, anchor_identity=root_identity,
                               source_parent_identity=workspace_identity,
@@ -5084,9 +5199,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     try:
                         _delete_unpublished_book_placeholders(
                             workspace, workspace_identity,
-                            {f'old-{index}': row['placeholder']
-                             for index, row in enumerate(data['entries'])
-                             if row.get('placeholder') is not None},
+                            _get_staged_book_placeholders(data['entries']),
                             parent_fd=root_fd)
                         journal_version = _retire_unpublished_journal(
                             root, data, journal_version, root_fd)
@@ -5101,9 +5214,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     try:
                         _delete_unpublished_book_placeholders(
                             workspace, workspace_identity,
-                            {f'old-{index}': row['placeholder']
-                             for index, row in enumerate(data['entries'])
-                             if row.get('placeholder') is not None},
+                            _get_staged_book_placeholders(data['entries']),
                             parent_fd=root_fd)
                         journal_version = _retire_unpublished_journal(
                             root, data, journal_version, root_fd, targets)

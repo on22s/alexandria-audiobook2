@@ -1,14 +1,16 @@
 """Protocol v4: removals and creations publish through a journaled placeholder (#1660).
 
 A removal swaps its target with a same-type workspace placeholder and deletes
-only the object whose nonce proves it ours; a creation journals its nonce
-before an O_EXCL create at the target and swaps it with the staged
+only the object whose nonce proves it ours; a creation stages a complete
+placeholder in the private workspace before the journal, publishes it at the
+target with one no-overwrite rename, then swaps it with the staged
 replacement. These tests enumerate every crash point of both directions for
 file and directory targets, then prove the next admission reaches a
 consistent book without deleting anything that is not ours. Writer races fix
 the two consequences that matter: a writer's object is never swapped out and
 a placeholder is never deleted without its own proof.
 """
+import errno
 import hashlib
 import io
 import json
@@ -213,7 +215,7 @@ class BookStateV4PlaceholderTests(unittest.TestCase):
                 self.root.mkdir()
                 (self.root / 'chapters').mkdir()
                 (self.root / 'chapters' / 'one.wav').write_bytes(b'chapter bytes')
-                expected = ({} if point in ('committed', 'cleanup', 'unlink')
+                expected = ({} if point in ('committed', 'cleanup')
                         else original)
                 if point == 'journal':
                     with patch.object(books, '_save_journal',
@@ -302,6 +304,81 @@ class BookStateV4PlaceholderTests(unittest.TestCase):
                         self._crash_apply({'brand-new.json': b'created'})
                 self._assert_recovered(expected)
 
+    def test_creation_crash_after_staged_slot_write_before_publish_removes_only_our_slot(self):
+        # The complete placeholder is staged in old-0 before the journal. A
+        # crash after the journal but before its no-overwrite publish leaves
+        # the target absent; recovery deletes only our nonce-proven slot.
+        with patch.object(books, '_create_book_placeholder_at',
+                          side_effect=_Crash('crash before placeholder publish')):
+            self._crash_apply({'brand-new.json': b'created'})
+        self.assertEqual('publishing', self._journal()['phase'])
+        self.assertFalse((self.root / 'brand-new.json').exists())
+        self.assertTrue(book_placeholder.is_book_placeholder(
+            self._workspace() / 'old-0'))
+        self.assertEqual(b'created', (self._workspace() / 'new-0').read_bytes())
+        self._assert_recovered({})
+
+    def test_creation_crash_after_placeholder_publish_recovers_to_absent(self):
+        with patch.object(books, '_create_book_placeholder_at',
+                          side_effect=self._crash_after(
+                              books._create_book_placeholder_at, 1)):
+            self._crash_apply({'brand-new.json': b'created'})
+        self.assertTrue(book_placeholder.is_book_placeholder(
+            self.root / 'brand-new.json'))
+        self.assertEqual(2, len(self._journal()['entries'][0]
+                                 ['target_placeholder']['identity']))
+        self.assertFalse((self._workspace() / 'old-0').exists())
+        self.assertEqual(b'created', (self._workspace() / 'new-0').read_bytes())
+        self._assert_recovered({})
+
+    def test_creation_placeholder_write_failure_leaves_no_target_or_partial(self):
+        # ENOSPC while writing the slot must not leave a short file at the
+        # target name; the failed slot is removed and the original error
+        # surfaces rather than a cleanup refusal.
+        def no_space(descriptor, data):
+            raise OSError(errno.ENOSPC, 'No space left on device')
+        with patch.object(books, '_write_book_placeholder_bytes', side_effect=no_space):
+            with self.assertRaises(OSError) as raised:
+                self._apply({'brand-new.json': b'created'})
+        self.assertEqual(errno.ENOSPC, raised.exception.errno)
+        self.assertIn('No space left on device', str(raised.exception))
+        self.assertFalse((self.root / 'brand-new.json').exists())
+        self.assertFalse((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(self.root.glob('.book-switch-*')))
+
+    def test_removal_placeholder_write_failure_surfaces_the_original_error(self):
+        # The removal's staged placeholder is ours before its first byte is
+        # written, so a failed write is cleaned up and the ENOSPC error is not
+        # masked by a refusal to remove an unowned workspace entry.
+        (self.root / 'part-1.json').write_bytes(b'original-1')
+        def no_space(descriptor, data):
+            raise OSError(errno.ENOSPC, 'No space left on device')
+        with patch.object(books, '_write_book_placeholder_bytes', side_effect=no_space):
+            with self.assertRaises(OSError) as raised:
+                self._apply({}, ['part-1.json'])
+        self.assertEqual(errno.ENOSPC, raised.exception.errno)
+        self.assertIn('No space left on device', str(raised.exception))
+        self.assertEqual({'part-1.json': b'original-1'}, _snapshot(self.root))
+        self.assertFalse((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(self.root.glob('.book-switch-*')))
+
+    def test_removal_placeholder_failure_after_complete_write_is_cleaned_up(self):
+        # A failure after the placeholder was fully written (the directory
+        # fsync, say) must remove our own registered placeholder instead of
+        # refusing it as unowned and masking the original error (#1660).
+        (self.root / 'part-1.json').write_bytes(b'original-1')
+        real = books._create_book_placeholder
+        def fail_after_write(*args, **kwargs):
+            real(*args, **kwargs)
+            raise OSError(errno.EIO, 'fixture placeholder directory fsync failed')
+        with patch.object(books, '_create_book_placeholder', side_effect=fail_after_write):
+            with self.assertRaises(OSError) as raised:
+                self._apply({}, ['part-1.json'])
+        self.assertIn('fixture placeholder directory fsync failed', str(raised.exception))
+        self.assertEqual({'part-1.json': b'original-1'}, _snapshot(self.root))
+        self.assertFalse((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(self.root.glob('.book-switch-*')))
+
     def test_streamed_mixed_transaction_publishes_and_rolls_back(self):
         # A streamed transaction with a creation and a removal also publishes
         # through placeholders and uses the same cleanup rules (#1660).
@@ -360,14 +437,15 @@ class BookStateV4PlaceholderTests(unittest.TestCase):
         self.assertFalse((self.root / 'part-1.json').exists())
         self.assertFalse((self.root / 'chapters').exists())
         self.assertEqual([], list(self.root.glob('.book-switch-*')))
-        # Removal rows journal a staged placeholder; a creation journals only
-        # its intent, so its identity stays null until recovery reads the nonce.
+        # A removal and a creation both stage their placeholder before the
+        # journal, so both journal its identity; only the status of the target
+        # (placeheld vs absent) distinguishes the two directions.
         removal = records[0]['entries'][2]
         creation = records[0]['entries'][1]
         self.assertEqual('file', removal['placeholder']['kind'])
         self.assertEqual(32, len(removal['placeholder']['nonce']))
         self.assertIsNotNone(removal['placeholder']['identity'])
-        self.assertIsNone(creation['target_placeholder']['identity'])
+        self.assertEqual(2, len(creation['target_placeholder']['identity']))
         self.assertEqual(32, len(creation['target_placeholder']['nonce']))
 
     def test_capability_probe_runs_inside_the_private_workspace(self):
@@ -396,31 +474,57 @@ with books.ensure_book_state(sys.argv[1]):
 
     # --- writer races -----------------------------------------------------
 
-    def test_writer_who_creates_the_target_before_our_o_excl_is_never_overwritten(self):
+    def test_writer_creating_the_target_before_our_placeholder_publish_is_never_overwritten(self):
         writer = b'writer got here first'
-        real = books._create_book_placeholder
-        def collide(directory_fd, name, kind, nonce):
-            descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
-                                 dir_fd=directory_fd)
-            try:
-                os.write(descriptor, writer)
-            finally:
-                os.close(descriptor)
-            return real(directory_fd, name, kind, nonce)   # O_EXCL now fails
-        with patch.object(books, '_create_book_placeholder', side_effect=collide):
+        real = books._move
+        created = []
+        def collide(source, destination, **kwargs):
+            if (not created and Path(source).name == 'old-0'
+                    and Path(destination) == self.root / 'brand-new.json'):
+                created.append(destination)
+                destination.write_bytes(writer)
+            return real(source, destination, **kwargs)
+        with patch.object(books, '_move', side_effect=collide):
             with self.assertRaises(ValueError) as raised:
                 self._apply({'brand-new.json': b'created'})
-        # The forward EEXIST is the trigger; recovery then refuses the
-        # writer's object as the operator's decision and says so.
+        # The no-overwrite rename fails with EEXIST before the target changes;
+        # recovery then refuses the writer's object as the operator's decision.
+        self.assertEqual([self.root / 'brand-new.json'], created)
         self.assertIsInstance(raised.exception.__cause__, FileExistsError)
         self.assertEqual(writer, (self.root / 'brand-new.json').read_bytes())
-        # The writer's object is the operator's decision; ours is preserved.
         with self.assertRaisesRegex(ValueError, 'A book file changed during the switch'):
             with books.ensure_book_state(str(self.root)):
                 pass
         self.assertEqual(writer, (self.root / 'brand-new.json').read_bytes())
         self.assertEqual(b'created', (self._workspace() / 'new-0').read_bytes())
+        self.assertTrue(book_placeholder.is_book_placeholder(
+            self._workspace() / 'old-0'))
         self.assertEqual([], list(self.root.glob(books.QUARANTINE_PREFIX + '*')))
+
+    def test_writer_writing_into_a_directory_placeholder_is_refused_and_kept(self):
+        (self.root / 'chapters').mkdir()
+        (self.root / 'chapters' / 'one.wav').write_bytes(b'chapter bytes')
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=self._crash_after_exchange(1)):
+            self._crash_apply({}, ['chapters'])
+        self.assertEqual([], list((self.root / 'chapters').iterdir()))
+        (self.root / 'chapters' / 'writer.txt').write_bytes(b'writer file')
+        with self.assertRaisesRegex(ValueError, 'A book file changed during the switch'):
+            with books.ensure_book_state(str(self.root)):
+                pass
+        self.assertEqual(b'writer file',
+                         (self.root / 'chapters' / 'writer.txt').read_bytes())
+        self.assertTrue((self._workspace() / 'old-0' / 'one.wav').exists())
+        self.assertTrue((self.root / books.JOURNAL).exists())
+
+    def test_writer_deleting_a_directory_placeholder_restores_the_original(self):
+        (self.root / 'chapters').mkdir()
+        (self.root / 'chapters' / 'one.wav').write_bytes(b'chapter bytes')
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=self._crash_after_exchange(1)):
+            self._crash_apply({}, ['chapters'])
+        (self.root / 'chapters').rmdir()
+        self._assert_recovered({'chapters/one.wav': b'chapter bytes'})
 
     def test_writer_replacing_our_placeholder_is_never_swapped_out(self):
         # The writer's object is a *valid-format* placeholder with another

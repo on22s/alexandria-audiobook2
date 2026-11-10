@@ -406,13 +406,28 @@ class SavedBookPublicationTests(unittest.TestCase):
 
     def test_delete_move_failure_rolls_back_complete_family(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            before=self.artifacts(root)
-            def fail_at(ordinal,name):
+            before=self.artifacts(root);injected=[]
+            def fail_at(ordinal,name,args):
                 # The third post-journal mutation on either protocol: a v3
                 # move or a v4 exchange/proven delete (#1660).
-                if ordinal==3:raise OSError('fixture removal disk full')
-            with book_publication_mutations(books,before=fail_at):
+                if ordinal==3:
+                    injected.append((ordinal,name))
+                    raise OSError('fixture removal disk full')
+            delete=routes._delete_script_sync;raised=[]
+            def record(name):
+                try:return delete(name)
+                except BaseException as error:raised.append(error);raise
+            # The route's own sync function is the boundary: recording there
+            # proves the injected OSError escaped, not a signature TypeError.
+            with patch.object(routes,'_delete_script_sync',side_effect=record), \
+                 book_publication_mutations(books,before=fail_at):
                 response=client.delete('/api/scripts/book')
+            self.assertEqual(1,len(injected))
+            self.assertEqual(3,injected[0][0])
+            self.assertIn(injected[0][1],('_move','_exchange'))
+            self.assertEqual(1,len(raised))
+            self.assertIsInstance(raised[0],OSError)
+            self.assertEqual('fixture removal disk full',str(raised[0]))
             self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.artifacts(root))
 

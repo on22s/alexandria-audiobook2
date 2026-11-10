@@ -78,7 +78,7 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
                 if str(target)==checkpoint_path and not failed_once:
                     failed_once=True
                     raise OSError('delta recovery publication failed')
-            with intercept_book_publications(books,before=fail),self.assertRaises(OSError):
+            with intercept_book_publications(books,before=fail),self.assertRaisesRegex(OSError,'delta recovery publication failed'):
                 script.apply_manual_recovery(self.entries(),'manual')
             after={str(p):p.read_bytes() for p in root.rglob('*')
                    if p.is_file() and not p.name.endswith('.lock')}
@@ -288,7 +288,7 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
             def leave_pending(target):
                 if str(target)==script.three_pass_checkpoint_path(path):
                     raise SystemExit('interrupted recovery')
-            with intercept_book_publications(books,after=leave_pending),patch.object(books,'recover_book_state_locked'),self.assertRaises(SystemExit):
+            with intercept_book_publications(books,after=leave_pending),patch.object(books,'recover_book_state_locked'),self.assertRaisesRegex(SystemExit,'interrupted recovery'):
                 script.apply_manual_recovery(self.entries(),'manual')
             self.assertTrue((root/books.JOURNAL).exists())
             app=FastAPI();app.add_middleware(core.TaskClaimMiddleware);app.include_router(script.router)

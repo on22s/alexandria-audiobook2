@@ -97,7 +97,7 @@ class CharacterRosterApplyTests(unittest.TestCase):
                     if ordinal==2:raise OSError('injected roster publication failure')
                 # The second post-journal mutation on either protocol: v3's
                 # second move or v4's second exchange (#1660).
-                with book_publication_mutations(transaction,before=fail_at_second_mutation),self.assertRaises(OSError):
+                with book_publication_mutations(transaction,before=fail_at_second_mutation),self.assertRaisesRegex(OSError,'injected roster publication failure'):
                     if mode=='approve':apply_character_roster(self.root,self.proposal,preview['revision'])
                     else:apply_character_roster_undo(self.root,get_character_roster_undo_status(self.root)['revision'])
                 self.assertEqual(before,self.files());self.assertEqual([],list(self.root.glob('.book-switch-*')))
