@@ -19,7 +19,7 @@
 
 **Optimize LM Studio settings** のローカルのフォールバックは 8,192 トークン・1 スロットです。既知のモデルでは 16,384 / 32,768、場合によっては 2 スロットを選びますが、2 GiB の余裕を残す VRAM ガードが働きます。モデル不明や計測値を読めない場合はフォールバックを維持します。リモートの最適化は別の 98,304 トークン・2 スロット目標を持つため、任意のリモート機で安全と考えず、資源と設定を確認してください。
 
-これは [現行のロード設定](../../app/lmstudio_settings.py)と[事前確認・予算処理](../../app/three_pass_generate.py)の説明で、今回新しく測定したハードウェア性能ではありません。[モデル選択ガイド（英語）](Which-Model-For-Your-Card.md)のメモリー値も、記載された条件での測定です。
+これは [現行のロード設定](../../app/lmstudio_settings.py)と[事前確認・予算処理](../../app/three_pass_generate.py)の説明で、今回新しく測定したハードウェア性能ではありません。[モデル選択ガイド](Which-Model-For-Your-Card-JA.md)のメモリー値も、記載された条件での測定です。
 
 ## Muse-Glimmer-30B
 
@@ -38,4 +38,4 @@ llama-server \
 
 ## アダプターの評価前
 
-本格的な評価の前に served-contract preflight を実行し、候補の scale と基準の scale `0.0` の両方で `michel2_full` の応答を正しく解析できることを確認します。候補の scale は成果物に記録し、測定で小さい値を選んだ場合に `1.0` と決めつけないでください。詳しくは[評価手順（英語）](Evaluation-Recipes.md)を参照してください。
+本格的な評価の前に served-contract preflight を実行し、候補の scale と基準の scale `0.0` の両方で `michel2_full` の応答を正しく解析できることを確認します。候補の scale は成果物に記録し、測定で小さい値を選んだ場合に `1.0` と決めつけないでください。詳しくは[評価手順](Evaluation-Recipes-JA.md)を参照してください。
