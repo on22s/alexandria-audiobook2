@@ -699,16 +699,14 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                         books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
-            # The open descriptor names the original object, which the
-            # protocol moved to its backup slot (v3 old-0, v4 new-0).
-            if (root / books.JOURNAL).exists():
-                self.assertEqual(b'writer edit', get_book_original_slot(root).read_bytes())
-                self.assertEqual(b'generated', target.read_bytes())
-            else:
-                # v4 undid the swap with the observed edited object and retired
-                # the workspace: the writer's edit is the book at the target.
-                self.assertEqual(b'writer edit', target.read_bytes())
-                self.assertEqual([], list(root.glob('.book-switch-*')))
+            # A writer's edit to the original is the operator's decision under
+            # every protocol (#1660): the journal stays, and both the edit and
+            # our replacement survive, at the target or in the workspace (v3
+            # keeps the new bytes published; v4 swaps the edit back first).
+            self.assertTrue((root / books.JOURNAL).exists())
+            kept = {target.read_bytes()} | {
+                path.read_bytes() for path in root.glob('.book-switch-*/*') if path.is_file()}
+            self.assertLessEqual({b'writer edit', b'generated'}, kept)
 
     @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
     def test_committed_byte_recovery_preserves_backup_modified_after_commit(self):

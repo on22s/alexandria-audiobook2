@@ -363,30 +363,36 @@ class BookStateV4ReplacementTests(unittest.TestCase):
                         destination_dir_fd=destination_dir_fd)
         with patch.object(publication, 'exchange_source_upload_names',
                           side_effect=substitute_then_exchange):
-            with self.assertRaises(books.BookExchangeDiverged) as raised:
+            with self.assertRaises(ValueError) as raised:
                 self._apply({'part-0.json': passed, 'part-1.json': b'replacement-1'})
-        self.assertIsNotNone(raised.exception.undone)
+        # The exchange diverged and was undone; recovery then refuses, because
+        # a writer's object at a target is the operator's decision (#1660).
+        diverged = raised.exception
+        while diverged is not None and not isinstance(diverged, books.BookExchangeDiverged):
+            diverged = diverged.__cause__
+        self.assertIsNotNone(diverged)
+        self.assertIsNotNone(diverged.undone)
         # Every object survives: the writer's object at the target, the
         # original at the name the writer moved it to, and nothing adopted.
         self.assertEqual(b'writer-foreign', (self.root / 'part-0.json').read_bytes())
         self.assertEqual(b'original-0', sentinel.read_bytes())
-        # The abort rolls the whole transaction back, so the untouched row
-        # holds its original again (never the new bytes).
         self.assertEqual(b'original-1', (self.root / 'part-1.json').read_bytes())
-        self.assertFalse((self.root / books.JOURNAL).exists())
-        # Not retired silently: the abandoned switch is kept, with its reason,
-        # in one quarantine (journal, workspace and staged files included).
+        # Not retired, not auto-quarantined: the journal and workspace stay.
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(self.root.glob(books.QUARANTINE_PREFIX + '*')))
+        with self.assertRaises(ValueError):
+            with books.ensure_book_state(str(self.root)):
+                pass
+        self.assertEqual(b'writer-foreign', (self.root / 'part-0.json').read_bytes())
+        # The operator keeps the current files; nothing is deleted.
+        import book_state_recovery
+        with patch('sys.stdout', new_callable=io.StringIO):
+            self.assertEqual(0, book_state_recovery.main(
+                ['--data-dir', str(self.root), 'quarantine', '--accept-current-files']))
+        self.assertEqual(b'writer-foreign', (self.root / 'part-0.json').read_bytes())
         [quarantine] = list(self.root.glob(books.QUARANTINE_PREFIX + '*'))
-        receipt = json.loads((quarantine / books.QUARANTINE_RECEIPT).read_text())
-        self.assertEqual('completed', receipt['state'])
-        self.assertIn('writer replaced a book file', receipt['refusal'])
         self.assertEqual(b'replacement-0',
                          (quarantine / books.QUARANTINE_WORKSPACE / 'new-0').read_bytes())
-        self.assertEqual([quarantine], list(self.root.glob('.book-switch-*')))
-        # Idempotent admission: the writer's object is never rewritten.
-        with books.ensure_book_state(str(self.root)):
-            pass
-        self.assertEqual(b'writer-foreign', (self.root / 'part-0.json').read_bytes())
 
     def test_writer_replacing_the_published_target_keeps_the_original(self):
         self._prepare()

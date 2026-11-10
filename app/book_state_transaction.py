@@ -3203,17 +3203,10 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         if kind != 'original':
             unresolved.append((plan, kind))
     if unresolved:
-        # R5 abandoned: a writer replaced these targets before our exchange
-        # and took the originals itself, so there is nothing of ours to put
-        # back. Keep every object and record why, by moving the workspace and
-        # journal aside, rather than retiring silently or staying stuck. A
-        # target that is merely missing (or still ours) stays refused.
-        if all(kind == 'foreign' and plan['original'] is None for plan, kind in unresolved):
-            if _quarantine_book_transaction(
-                    root, root_identity, force=True, cancel_check=cancel_check,
-                    refusal='A writer replaced a book file during publication; '
-                            'the switch was abandoned and its evidence kept'):
-                return True
+        # A writer's object at a target (or a missing one) is the operator's
+        # decision, as for every target-side refusal (#1660): never retired
+        # silently, never auto-quarantined. book_state_recovery.py quarantine
+        # --accept-current-files keeps the current files.
         raise ValueError(
             'Book transaction rollback could not restore every original; '
             'recovery evidence was preserved')
