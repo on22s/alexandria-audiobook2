@@ -13,7 +13,7 @@ and how; the user-guide pages say how to use the app.
   [Your first audiobook](../../README.md#your-first-audiobook). Start with the original
   [short sample](../examples/first-book.txt), assign CustomVoice presets, render, merge and
   download an MP3 before trying a full book.
-- **中文入门：**[安装与第一本有声书](../../README_CN.md#从这里开始)。本 Wiki 的详细页面目前为英文。
+- **中文入门：**[安装与第一本有声书](../../README_CN.md#从这里开始)。详细页面以英文为主；另有[中文故障排查](Troubleshooting-CN.md)。
 - **Research or develop:** the [research pages below](#research),
   [GOALS](../../GOALS.md), [RECIPES](../../RECIPES.md) and
   [contributor instructions](../../README.md#contributing) preserve the measurements,

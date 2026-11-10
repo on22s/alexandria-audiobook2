@@ -323,7 +323,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 
 ## API 参考
 
-见英文页 [API reference](README.md#api-reference)：可选的 HTTP Basic 认证、核心流程的 curl / Python / JavaScript 示例，以及按路由文件生成的 181 条路由表。交互式文档在 `/docs`，schema 在 `/openapi.json`。
+见英文页 [API reference](README.md#api-reference)：可选的 HTTP Basic 认证、核心流程的 curl / Python / JavaScript 示例，以及按路由文件生成的 181 条路由表。交互式文档在 `/docs`，schema 在 `/openapi.json`。`GET /api/book/recovery` 只读地报告待处理的书切换、已移开的证据和可用的恢复命令。
 
 ## 推荐的 LLM 模型
 
@@ -391,6 +391,17 @@ ffmpeg 缺失或不在 PATH；安装器会把它装进环境，所以 428 字节
 
 ### 文本乱码或缺字
 上传时的来源修复处理常见编码；仍显示 `â€™` 的书，用已保存脚本里的修复预览。图形假名等不可读内容会在到达 TTS 前按设计丢弃（目标 5.1）。
+
+### 崩溃后保存的书打不开
+加载或保存一本书会一次替换多个文件，应用会把这次切换记入事务日志。被中断的切换会在下次打开书时自动完成或回滚。如果文件与事务日志不一致，应用不会猜测，而是拒绝打开，并在 Home 页按顺序给出要尝试的命令。在 Alexandria 文件夹中用应用的 Python 运行：
+
+```bash
+python app/book_state_recovery.py inspect --hash
+python app/book_state_recovery.py finish
+python app/book_state_recovery.py quarantine --accept-current-files
+```
+
+`inspect` 只读，报告待处理的事务日志、每个文件的预期状态与当前状态、工作文件夹和崩溃残留。`finish` 立即执行应用本身使用的恢复。`quarantine --accept-current-files` 是最后手段：保留当前文件不动，把事务日志和工作文件夹移到 `.book-switch-quarantine-*`，不删除任何内容。旧版本应用写的事务日志需要 `migrate-legacy --trust-journal-hashes`。各种崩溃状态和退出码见[中文指南](docs/guides/BOOK_SWITCH_RECOVERY_CN.md)。
 
 ## 提示词自定义
 

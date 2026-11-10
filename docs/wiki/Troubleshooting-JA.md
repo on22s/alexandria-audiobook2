@@ -4,6 +4,25 @@
 
 まず Script の Generate 下の活動表示、`logs/api/<task>-latest.log`、`logs/llm_responses.log`・`logs/review_responses.log` を確認します。各応答を生んだリクエストは隣の `*.requests.log` に `request=` ID で記録されています。活動表示は待機理由、試行、残り時間を示します。ランチャーのログは `logs/api/start.js/latest`、関連セッションは `logs/sessions/` です。Pinokio の起動問題は [README](../../README_JA.md#pinokio-が-open-web-ui-まで進まない)を参照してください。
 
+## 本と保存
+
+### クラッシュ後に保存済みの本が開かない
+
+本の読み込みや保存は複数のファイルをまとめて置き換えるため、アプリは切り替えをジャーナルに記録します。中断された切り替えは次に本を開くときに完了または巻き戻されます。ファイルがジャーナルと一致しない場合、アプリは推測せずに本を開くのを拒否し、Home ページに試す順序でコマンドを表示します。Alexandria フォルダーでアプリの Python を使って実行します。
+
+```bash
+python app/book_state_recovery.py inspect --hash
+python app/book_state_recovery.py finish
+python app/book_state_recovery.py quarantine --accept-current-files
+```
+
+- `inspect` は読み取り専用で、保留中のジャーナル、各ファイルの期待状態と現在状態、作業フォルダー、退避フォルダー、クラッシュの残骸を表示します。何も回収しません。
+- `finish` はアプリが本を開く前に実行する復旧をその場で行います。
+- `quarantine --accept-current-files` は最後の手段です。現在のファイルをそのまま残し、ジャーナルと作業フォルダーを `.book-switch-quarantine-*` に移します。何も削除しません。
+- 古いバージョンのアプリが書いたジャーナルには `migrate-legacy --trust-journal-hashes` が必要です。
+
+切り替えが動いていないと確かめるまで `.book-switch-*` フォルダーを消さないでください。ジャーナルができる前にクラッシュが残したフォルダーは自動では回収されません。各クラッシュ状態、復旧の要約、終了コードは[日本語ガイド](../../docs/guides/BOOK_SWITCH_RECOVERY_JA.md)にあります。
+
 ## 台本生成
 
 ### 失敗する・応答が不正

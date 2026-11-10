@@ -280,6 +280,18 @@ Base URL、ロードされた Model Name、`logs/review_responses.log` の実際
 - 短すぎるクローン参照は声が不安定になりやすいため、ノイズのない十分な長さの音声と正確な文字起こしを使います。
 - 文字化けはアップロード時の修復や **Saved Scripts** の修復プレビューを確認します。
 
+### クラッシュ後に保存済みの本が開かない
+
+本の読み込みや保存は複数のファイルをまとめて置き換えるため、アプリは切り替えをジャーナルに記録します。中断された切り替えは次に本を開くときに完了または巻き戻されます。ファイルがジャーナルと一致しない場合、アプリは推測せずに本を開くのを拒否し、Home ページに試す順序でコマンドを表示します。Alexandria フォルダーでアプリの Python を使って実行します。
+
+```bash
+python app/book_state_recovery.py inspect --hash
+python app/book_state_recovery.py finish
+python app/book_state_recovery.py quarantine --accept-current-files
+```
+
+`inspect` は読み取り専用で、保留中のジャーナル、各ファイルの期待状態と現在状態、作業フォルダー、クラッシュの残骸を表示します。`finish` はアプリが実行する復旧をその場で行います。`quarantine --accept-current-files` は最後の手段で、現在のファイルをそのまま残し、ジャーナルと作業フォルダーを `.book-switch-quarantine-*` に移します。何も削除しません。古いバージョンのアプリが書いたジャーナルには `migrate-legacy --trust-journal-hashes` が必要です。各クラッシュ状態と終了コードは[日本語ガイド](docs/guides/BOOK_SWITCH_RECOVERY_JA.md)にあります。
+
 詳しくは [Wiki のトラブルシューティング](docs/wiki/Troubleshooting-JA.md)を参照してください。
 
 ## 認証と外部からのアクセス

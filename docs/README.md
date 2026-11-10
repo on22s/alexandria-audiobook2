@@ -10,7 +10,7 @@ most often need. Supporting guides and reference material are grouped here.
 | Setup, operating, and feature guides | [`guides/`](guides/) |
 | Keeping and auditioning prior audio performances | [`guides/TAKE_HISTORY.md`](guides/TAKE_HISTORY.md) |
 | Interrupted synthesis working-file cleanup | [`guides/SYNTHESIS_WORKSPACE_RECOVERY.md`](guides/SYNTHESIS_WORKSPACE_RECOVERY.md) |
-| A book that will not open after an interrupted save or switch | [`guides/BOOK_SWITCH_RECOVERY.md`](guides/BOOK_SWITCH_RECOVERY.md) |
+| A book that will not open after an interrupted save or switch | [`guides/BOOK_SWITCH_RECOVERY.md`](guides/BOOK_SWITCH_RECOVERY.md) (also [中文](guides/BOOK_SWITCH_RECOVERY_CN.md), [日本語](guides/BOOK_SWITCH_RECOVERY_JA.md)) |
 | Thunder measurements and inference-stack notes | [`guides/THUNDER_COMPUTE.md`](guides/THUNDER_COMPUTE.md), [`operations/`](operations/) |
 | Model and adapter evaluation results | [`results/`](results/), [`../RECIPES.md`](../RECIPES.md), [`../RESULTS_INDEX.md`](../RESULTS_INDEX.md) |
 | Voice adapter source provenance | [`../lora_models/provenance.csv`](../lora_models/provenance.csv) |
