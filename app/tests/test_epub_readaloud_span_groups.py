@@ -14,9 +14,9 @@ from epub_readaloud import (build_epub_readaloud, map_spine_to_chunks,
                             validate_epub_readaloud)
 from tests.test_epub_readaloud_sentences import SMIL, XHTML, _source_epub
 
-BODY = '<h2>Chapter 3: Mana Evaluation (2)</h2><p>The test began at dawn.</p>'
+BODY = '<h2>Chapter 3: River Survey (2)</h2><p>The test began at dawn.</p>'
 SPANNING = [{"index": 0,
-             "prepared_text": "Chapter 3: Mana Evaluation (2). The test began at dawn.",
+             "prepared_text": "Chapter 3: River Survey (2). The test began at dawn.",
              "start_frame": 0, "end_frame": 96000, "sample_rate": 24000}]
 
 
@@ -34,12 +34,12 @@ def _par_clips(smil):
 class SpanMappingTests(unittest.TestCase):
     def test_span_still_refused_without_opt_in(self):
         with self.assertRaisesRegex(ValueError, "spans multiple spine segments"):
-            map_spine_to_chunks(_spine("Chapter 3: Mana Evaluation (2)", "The test began at dawn."),
+            map_spine_to_chunks(_spine("Chapter 3: River Survey (2)", "The test began at dawn."),
                                 SPANNING)
 
     def test_span_group_rows_carry_word_windows(self):
         mapping, cursor = map_spine_to_chunks(
-            _spine("Chapter 3: Mana Evaluation (2)", "The test began at dawn."),
+            _spine("Chapter 3: River Survey (2)", "The test began at dawn."),
             SPANNING, allow_span=True, require_full_coverage=True)
         self.assertEqual(1, cursor)
         self.assertEqual([0, 1], [row["segment_index"] for row in mapping])
@@ -61,13 +61,13 @@ class SpanMappingTests(unittest.TestCase):
 
     def test_changed_word_inside_group_still_refuses(self):
         with self.assertRaises(ValueError):
-            map_spine_to_chunks(_spine("Chapter 3: Mana Evaluation (2)", "The test began at dusk."),
+            map_spine_to_chunks(_spine("Chapter 3: River Survey (2)", "The test began at dusk."),
                                 SPANNING, allow_span=True)
 
     def test_group_that_never_reaches_a_chunk_boundary_refuses(self):
         # The chunk continues past the last block of this spine document.
         with self.assertRaisesRegex(ValueError, "spans multiple spine segments"):
-            map_spine_to_chunks(_spine("Chapter 3: Mana Evaluation (2)", "The test began"),
+            map_spine_to_chunks(_spine("Chapter 3: River Survey (2)", "The test began"),
                                 SPANNING, allow_span=True)
 
 
@@ -88,13 +88,13 @@ class SpanBuildTests(unittest.TestCase):
         self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
 
     def test_cpu_mode_refuses_non_sibling_blocks(self):
-        body = '<header><h2>Chapter 3: Mana Evaluation (2)</h2></header><p>The test began at dawn.</p>'
+        body = '<header><h2>Chapter 3: River Survey (2)</h2></header><p>The test began at dawn.</p>'
         with self.assertRaisesRegex(ValueError, "not sibling blocks"):
             build_epub_readaloud(retained_epub_bytes=_source_epub(body), audio_bytes=b'\xff\xfbmp3',
                                  audio_filename='audiobook.mp3', script_entries=SPANNING)
 
     def test_qwen_mode_times_each_block_from_its_own_tokens(self):
-        words = ["Chapter", "3", "Mana", "Evaluation", "2", "The", "test", "began", "at", "dawn"]
+        words = ["Chapter", "3", "River", "Survey", "2", "The", "test", "began", "at", "dawn"]
         tokens = [{"text": w, "start_time": i * 0.4, "end_time": (i + 1) * 0.4}
                   for i, w in enumerate(words)]
         result, _report = build_epub_readaloud(
