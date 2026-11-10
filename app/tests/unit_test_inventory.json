@@ -1836,6 +1836,13 @@
     "tests.test_book_state_1660_publish_loop.PublishLoopParentRecheckTests.test_no_parent_walk_starts_after_cancellation_before_the_first_move",
     "tests.test_book_state_1660_publish_loop.PublishLoopParentRecheckTests.test_parent_rechecks_grow_linearly_with_the_target_count"
   ],
+  "test_book_state_1660_recovery_foundations": [
+    "tests.test_book_state_1660_recovery_foundations.RecoveryFoundationTests.test_a_journal_never_points_recovery_at_retained_evidence",
+    "tests.test_book_state_1660_recovery_foundations.RecoveryFoundationTests.test_inspect_reports_a_malformed_journal_instead_of_raising",
+    "tests.test_book_state_1660_recovery_foundations.RecoveryFoundationTests.test_inspect_reports_an_interrupted_switch_without_changing_anything",
+    "tests.test_book_state_1660_recovery_foundations.RecoveryFoundationTests.test_inspect_reports_nothing_pending_for_a_clean_book",
+    "tests.test_book_state_1660_recovery_foundations.RecoveryFoundationTests.test_operator_lock_yields_the_admitted_root"
+  ],
   "test_book_state_1660_retire_preflight": [
     "tests.test_book_state_1660_retire_preflight.RetirePreflightTests.test_hardlinked_file_in_a_retired_directory_is_refused_before_anything_is_written"
   ],
