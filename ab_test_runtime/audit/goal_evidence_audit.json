@@ -1050,16 +1050,27 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T22:16:20",
+  "written": "2026-11-09T22:52:59",
   "host": "RealMitch",
   "git": {
-   "commit": "28293542e6b4ada0e1cbe44a2558611acb3c4d1e",
+   "commit": "c8f03ad0034b2df512cd8e9ad9919063f65e72ac",
    "branch": "codex/1844-final-ui",
    "dirty": true,
-   "source_state": "dirty:49386cfb460c",
+   "source_state": "dirty:94ad3e275bdc",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_qwen_runtime.py"
+    "M  .github/workflows/qwen-readalong.yml",
+    "M  app/epub_readaloud.py",
+    "M  app/qwen_align.py",
+    "M  app/readalong_export.py",
+    "M  app/readalong_sidecar.py",
+    "M  app/routers/editor.py",
+    "M  app/static/js/app-readalong.js",
+    "A  app/tests/test_qwen_final_epub_repairs.py",
+    "A  app/tests/test_qwen_final_runtime_repairs.py",
+    "A  app/tests/test_qwen_final_ui_repairs.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/readalong.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

@@ -394,6 +394,10 @@
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) { return; }
       statusEl(channel).textContent = 'Cancel was not accepted: ' + (e && e.message ? e.message : 'unknown error');
+      if (channel.pollingPaused) {
+        channel.pollingPaused = false;
+        poll(channel, taskId, 0, 0);
+      }
     });
   }
 

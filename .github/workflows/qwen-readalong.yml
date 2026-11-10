@@ -108,6 +108,7 @@ jobs:
           tests.test_inline_ids tests.test_qwen_runtime_identity
           tests.test_qwen_review_repairs tests.test_qwen_score_decoder
           tests.test_qwen_timing_repair tests.test_qwen_review_v2_repairs
+          tests.test_qwen_final_runtime_repairs tests.test_qwen_final_epub_repairs tests.test_qwen_final_ui_repairs
           tests.test_epub_readaloud tests.test_epub_readaloud_conformance
           tests.test_readalong_r2 tests.test_readalong_r4
           tests.test_book_workspace_js tests.test_local_ui_assets tests.test_readalong_sidecar

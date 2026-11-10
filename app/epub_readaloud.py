@@ -675,7 +675,10 @@ def _read_archive_member_bounded(archive, name, max_bytes, *, member_index=None)
         raise ValueError("Unsafe EPUB archive member: %s" % name)
     if info.is_dir() or (info.flag_bits & 0x1):
         raise ValueError("EPUB archive member is unsafe or encrypted: %s" % name)
-    return read_zip_member_bounded(archive, name, max_bytes)
+    raw = read_zip_member_bounded(archive, name, max_bytes)
+    if len(raw) != info.file_size:
+        raise ValueError("EPUB archive member disagrees with its declared size: %s" % name)
+    return raw
 
 
 def _get_validated_epub_language(metadata):
@@ -696,16 +699,24 @@ def get_epub_language_from_path(retained_path):
     never materialized. Returns the language tag or ''.
     """
     import zipfile as _zf
+    import os as _os
+    from contextlib import nullcontext
+    if isinstance(retained_path, (str, _os.PathLike)):
+        # Lazy import keeps the in-memory builder API free of an import cycle.
+        from readalong_export import _open_retained_epub
+        source_context = _open_retained_epub(retained_path)
+    else:
+        source_context = nullcontext(retained_path)
     try:
-        with _zf.ZipFile(retained_path) as archive:
+        with source_context as source, _zf.ZipFile(source) as archive:
             _preflight_retained_members(archive.infolist())
             opf_path, package = get_epub_package(
                 archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
-    except _zf.BadZipFile as error:
-        raise ValueError("Retained EPUB archive is malformed.") from error
-    namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
-    metadata = package.find(namespace + 'metadata')
-    return _get_validated_epub_language(metadata) or ""
+        namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
+        metadata = package.find(namespace + 'metadata')
+        return _get_validated_epub_language(metadata) or ""
+    except (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError) as error:
+        raise ValueError("Retained EPUB archive or publication metadata is malformed.") from error
 
 
 def _svg_has_text(stream, cancel_check=None):
@@ -791,13 +802,17 @@ def _stream_retained_member(source_archive, out_archive, name, cancel_check=None
     zinfo.create_system = info.create_system
     with source_archive.open(info) as src, out_archive.open(
             zinfo, 'w', force_zip64=info.file_size > zipfile.ZIP64_LIMIT) as dst:
+        copied = 0
         while True:
             if cancel_check is not None and cancel_check():
                 raise ValueError("EPUB read-aloud cancelled.")
             block = src.read(1024 * 1024)
             if not block:
                 break
+            copied += len(block)
             dst.write(block)
+        if copied != info.file_size:
+            raise ValueError("EPUB archive member disagrees with its declared size: %s" % name)
 
 
 def _validate_retained_member_name(name):
@@ -1726,6 +1741,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             def next_id():
                 counter[0] += 1
                 while True:
+                    _ensure_not_cancelled(cancel_check)
                     cand = f"aa2-p-{counter[0]:04d}"
                     if cand not in assigned:
                         assigned.add(cand)
@@ -1750,20 +1766,15 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                 expanded.extend(sentence_rows)
             mapping = expanded
             for row in mapping:
+                _ensure_not_cancelled(cancel_check)
                 if row["fragment"] is None:
                     segment = segments[row["segment_index"]]
                     existing_frag = segment["fragment"]
                     if existing_frag is not None:
                         row["fragment"] = existing_frag
                         continue
-                    n = 1
-                    while True:
-                        cand = f"aa2-p-{n:04d}"
-                        if cand not in assigned:
-                            break
-                        n += 1
+                    cand = next_id()
                     segment["element"].set('id', cand)
-                    assigned.add(cand)
                     row["fragment"] = cand
         else:
             for position, row in enumerate(mapping, 1):

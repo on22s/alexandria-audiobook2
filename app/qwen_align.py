@@ -592,6 +592,7 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
     # character is covered exactly once without planning a
     # zero-length window or an empty-token sentence clip. An
     # all-punctuation row still refuses (no alignable words).
+    from bisect import bisect_left
     sentences = [dict(s) for s in sentences]
     spoken = [i for i, s in enumerate(sentences) if s["words"] > 0]
     if not spoken:
@@ -599,9 +600,8 @@ def get_aligner_windows(row_duration_sec, sentences, text=None):
     for i, sentence in enumerate(sentences):
         if sentence["words"] > 0:
             continue
-        prev_idx = max((j for j in spoken if j < i), default=None)
-        next_idx = min((j for j in spoken if j > i), default=None)
-        target = prev_idx if prev_idx is not None else next_idx
+        spoken_position = bisect_left(spoken, i)
+        target = spoken[spoken_position - 1] if spoken_position else spoken[0]
         if target < i:
             sentences[target]["end"] = max(sentences[target]["end"], sentence["end"])
         else:

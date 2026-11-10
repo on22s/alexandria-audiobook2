@@ -2178,8 +2178,11 @@ def _get_current_readalong_identity():
     if not isinstance(input_path, str) or not input_path:
         raise HTTPException(status_code=409, detail="Read-along receipt identity is unavailable.")
     try:
-        source_bytes = Path(input_path).read_bytes()
-    except OSError as error:
+        from project_scope_files import MAX_SCRIPT_BYTES
+        from readalong_sidecar import get_audio_file_sha256
+        source_sha256, _size = get_audio_file_sha256(
+            input_path, limit=MAX_SCRIPT_BYTES, allow_empty=True)
+    except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="Read-along source is unavailable. Rebuild the sidecar.") from error
     try:
         pause_defaults = project_manager._load_pause_defaults()
@@ -2187,7 +2190,7 @@ def _get_current_readalong_identity():
     except OSError as error:
         raise HTTPException(status_code=409, detail="Read-along settings are unavailable. Restore the settings and rebuild the export.") from error
     return {"book_token": book_token, "rows_digest": rows_digest,
-            "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "source_sha256": source_sha256,
             "settings_digest": settings_digest}
 
 
@@ -2296,7 +2299,7 @@ async def build_readaloud_epub_endpoint(background_tasks: BackgroundTasks,
     return await asyncio.to_thread(_start_readaloud_epub, background_tasks, request)
 
 
-def _read_bounded_preference_bytes(path):
+def _read_bounded_preference_bytes(path, *, file_description="Timing preference"):
     """Read preference bytes under the bounded/no-follow contract.
 
     Returns None for a missing file; raises ValueError for a
@@ -2309,14 +2312,14 @@ def _read_bounded_preference_bytes(path):
         return None
     if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
             or info.st_size > 16384:
-        raise ValueError("Timing preference is not a bounded regular file.")
+        raise ValueError("%s is not a bounded regular file." % file_description)
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
         | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
         if not _stat.S_ISREG(opened.st_mode) or opened.st_size != info.st_size:
-            raise ValueError("Timing preference changed during read.")
+            raise ValueError("%s changed during read." % file_description)
         chunks = []
         total = 0
         while True:
@@ -2325,7 +2328,7 @@ def _read_bounded_preference_bytes(path):
                 break
             total += len(block)
             if total > 16384:
-                raise ValueError("Timing preference exceeds its bound.")
+                raise ValueError("%s exceeds its bound." % file_description)
             chunks.append(block)
         return b"".join(chunks)
     finally:
@@ -2502,10 +2505,11 @@ def _start_readaloud_epub(background_tasks, request):
                         current, chunks = _ensure_editor_integrity_locked()
                         if current["snapshot"] != admitted_snapshot:
                             raise ValueError("Source or editor chunks changed after admission; review again.")
-                    from core import get_task_lease_descriptor
+                    from core import get_gpu_task_environment, get_task_lease_descriptor
                     active_timing = dict(timing)
                     active_timing["task_lease_fd"] = get_task_lease_descriptor(state)
                     if active_timing.get("timing_mode") == "qwen":
+                        active_timing["worker_env"] = get_gpu_task_environment(state, env={})
                         # Re-observe the pinned interpreter and model before
                         # launching the worker: a replaced interpreter or
                         # model after admission refuses without inference.
@@ -2514,8 +2518,11 @@ def _start_readaloud_epub(background_tasks, request):
                                                    get_qwen_runtime_identity)
                         try:
                             runtime_now = get_qwen_runtime_identity(
-                                active_timing["runtime"]["python"])
+                                active_timing["runtime"]["python"],
+                                cancel_check=lambda: state.get("cancel", False))
                         except ValueError as error:
+                            if state.get("cancel", False) and "cancelled" in str(error).lower():
+                                raise ExportCancelled("Export cancelled") from error
                             raise RuntimeError(str(error)) from error
                         if (get_qwen_runtime_digest(runtime_now)
                                 != active_timing["runtime"].get("runtime_digest")):
@@ -2530,8 +2537,11 @@ def _start_readaloud_epub(background_tasks, request):
                                     "torch_version": active_timing.get("torch_version"),
                                     "device": active_timing.get("device"),
                                     "dtype": active_timing.get("dtype"),
-                                    "identity": runtime_now})
+                                    "identity": runtime_now},
+                                cancel_check=lambda: state.get("cancel", False))
                         except ValueError as error:
+                            if state.get("cancel", False) and "cancelled" in str(error).lower():
+                                raise ExportCancelled("Export cancelled") from error
                             raise RuntimeError(str(error)) from error
                         if current_digest != active_timing.get("provider_digest"):
                             raise RuntimeError(
@@ -2642,7 +2652,8 @@ def _validated_epub_bytes():
         raise HTTPException(status_code=409, detail="EPUB read-aloud has no receipt. Rebuild the EPUB read-aloud.")
     require_scope_export_current(DATA_DIR, receipt_path)
     try:
-        receipt = get_validated_epub_receipt(Path(receipt_path).read_bytes())
+        receipt = get_validated_epub_receipt(_read_bounded_preference_bytes(
+            receipt_path, file_description="EPUB read-aloud receipt"))
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail=f"EPUB read-aloud receipt is invalid: {error}") from error
     try:

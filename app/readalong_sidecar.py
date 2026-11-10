@@ -26,24 +26,27 @@ _FORBIDDEN_KEYS = {"audio_path", "api_key", "password", "token", "voice", "voice
 _STATUSES = {"aligned-estimated", "chunk-estimated", "missing", "ambiguous"}
 
 
-def get_audio_file_sha256(path, limit=2 * 1024**3, *, cancel_check=None):
+def get_audio_file_sha256(path, limit=2 * 1024**3, *, cancel_check=None, allow_empty=False):
     """Bounded SHA-256 of the exported file; never loads it whole if huge."""
     if type(limit) is not int or limit < 1:
         raise ValueError("File binding limit must be a positive integer.")
+    if type(allow_empty) is not bool:
+        raise ValueError("File binding empty-file policy must be a boolean.")
     import os
     from pathlib import Path
     from audio_source_io import read_bounded_audio_hash
     from audio_take_history import _open_regular, _version
     ensure_audio_export_active(cancel_check)
     stream, before = _open_regular(
-        path, Path(path).parent, limit, allow_hardlinks=True,
+        path, Path(path).parent, limit, allow_empty=allow_empty, allow_hardlinks=True,
         file_description="Exported audio")
     with stream:
         digest, size = read_bounded_audio_hash(
             stream, limit, lambda: ensure_audio_export_active(cancel_check))
-        if _version(os.fstat(stream.fileno())) != _version(before):
+        if (_version(os.fstat(stream.fileno())) != _version(before)
+                or _version(os.lstat(path)) != _version(before)):
             raise ValueError("Exported audio changed while hashing.")
-    if size == 0:
+    if size == 0 and not allow_empty:
         raise ValueError("Exported audio is empty.")
     return digest, size
 

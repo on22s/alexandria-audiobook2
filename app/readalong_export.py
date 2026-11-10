@@ -54,6 +54,7 @@ from readalong_sidecar import (build_readalong_sidecar, get_audio_file_sha256,
                                map_word_spans_to_frames, get_readalong_timing_report)
 from speech_text import get_speech_preparation
 from tts import ExportCancelled, ensure_audio_export_active, iter_timeline, get_trim_bounds_ms
+from audio_generation_owner import AudioGenerationCancelled
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
@@ -781,7 +782,8 @@ def _require_qwen_provider_current(timing_runtime, capability, timing, cancel_ch
 
 
 def collect_aligned_rows(data, language_name, capability, cancel_check, staging_path,
-                         task_lease_fd=None, prepared_texts=None, before_worker=None):
+                         task_lease_fd=None, prepared_texts=None, before_worker=None,
+                         worker_env=None):
     """Run real Qwen alignment against the captured assembled PCM.
 
     Audio comes from ``data["pcm_path"]`` at the exact promoted
@@ -898,7 +900,7 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
         before_worker()
     tokens_by_id, windows_by_id, provider = run_qwen_alignment_full(
         get_qwen_worker_command(capability["python"]), job_path, result_path,
-        cancel_check, task_lease_fd=task_lease_fd)
+        cancel_check, task_lease_fd=task_lease_fd, worker_env=worker_env)
     _validate_worker_provider(provider, capability)
 
     expected_ids = {"r%d" % row["position"] for row in rows}
@@ -1233,6 +1235,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                     aligned_rows, alignment = collect_aligned_rows(
                         data, language, capability, cancel_check, staging.path,
                         task_lease_fd=timing.get("task_lease_fd"),
+                        worker_env=timing.get("worker_env"),
                         prepared_texts=[entry["prepared_text"] for entry in script_entries],
                         before_worker=lambda: _require_qwen_provider_current(
                             timing_runtime, capability, timing, cancel_check))
@@ -1310,6 +1313,10 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
         return True, f"readaloud.epub ({report['spine_documents']} spine documents, {report['bytes']} bytes)"
     except ExportCancelled:
         return False, "Export cancelled"
+    except AudioGenerationCancelled as error:
+        if cancel_check():
+            return False, "Export cancelled"
+        return False, f"EPUB read-aloud failed: {error}"
     except Exception as error:
         # Surface fail-closed reasons verbatim; never substitute text-only EPUB.
         return False, f"EPUB read-aloud failed: {error}"

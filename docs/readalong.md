@@ -294,6 +294,12 @@ Qwen result never approves content that mapping refused. Alignment is
 real model inference behind this build's admission — no proportional,
 fake, or word-count timing exists in the production path.
 
+Sentence boundaries use text heuristics rather than semantic sentence
+recognition. A terminal acronym can merge with the following sentence:
+`He lives in the U.S. He works there.` may produce one sentence span and
+one clip envelope. Dotted acronyms within a sentence remain intact, but
+sentence-level timing does not guarantee one span per semantic sentence.
+
 - **Placement.** Inference never runs in the export task's thread. The
   export exact-PCMs (`combined.pcm` at the promoted bounds) are sliced
   per editor row and aligned in an owned subprocess worker
@@ -365,8 +371,9 @@ fake, or word-count timing exists in the production path.
   from the donor's LIS fast path, and the parent diagnostics that
   used the donor's exact function are not proof of this code.
 - **Provider-code identity.** The provider digest also hashes the
-  actual bytes of `qwen_align_worker.py` and `qwen_score_decoder.py`,
-  so changing the encoder adapter or decoder changes identity and a
+  actual bytes of `qwen_align_worker.py`, `qwen_score_decoder.py` and
+  `qwen_align.py`, so changing the encoder adapter, decoder or shared
+  alignment logic changes identity and a
   stale artifact cannot download as fresh.
 - **Staging PCM formats.** Row staging supports the core PCM contract
   widths 1/2/4 (see `get_pcm_source_shape`); the official Qwen decode
