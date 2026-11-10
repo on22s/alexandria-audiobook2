@@ -21,7 +21,7 @@ Preparer 把一本有声书（音频文件）转换成 Alexandria TTS 引擎的�
 2. **可选地与原始的书对照**，让文本使用书里的拼写（而不是 AI 听错的那个）
 3. **把音频切成小分块**（每个约 10 秒），存成 WAV 文件，另附一个元数据文件
 
-输出是一个 `.zip` 文件，你可以把它喂给 Alexandria 的 LoRA Training 页，给 TTS 引擎教一个新声音。
+输出是一个 `.zip` 文件，你可以把它喂给 Alexandria 的 Training 页，给 TTS 引擎教一个新声音。
 
 ### 这是给谁用的？
 
@@ -262,11 +262,11 @@ python alexandria_preparer_rocm_compatible.py \
 - `--enrich-narration-style` —— 让 LLM 提取叙述风格（例如 "calm"、"energetic"、"sad"、"questioning"）
 - `--enrich-emotional-tone` —— 让 LLM 提取情绪基调（例如 "happy"、"anxious"、"neutral"、"excited"）
 
-### 说话人日志（可选）
+### 说话人分离（diarization）（可选）
 通过 pyannote.audio 把转写出的词归属到日志出的说话人。需要 Install 创建的、隔离的 AMD Linux/ROCm `preparer_env`（包含
 `requirements-diarization.txt`），以及一个已经接受
 `pyannote/speaker-diarization-community-1` 条款的 Hugging Face token。
-- `--diarize` —— 始终对整个音频跑完整的说话人日志
+- `--diarize` —— 始终对整个音频跑完整的说话人分离（diarization）
 - `--auto-detect-speakers` —— 先跑一次便宜的抽样预检（三个 120 秒窗口，约 2–3 分钟），只有当某个窗口里出现占该窗口语音时间 ≥10% 的第二位说话人时，才跑完整的、昂贵的日志流程。音频短于 15 分钟，或预检跑不起来时会跳过（退回完整日志）。显式的 `--diarize` 优先级高于这个开关。
 - `--hf-token TOKEN` —— Hugging Face token（默认取 `HF_TOKEN` 环境变量）；上面两个开关都需要它
 - 运行 `python3 env_doctor.py`（仓库根目录）可以检查你准备用来跑 Preparer 的那个解释器里是否装了 `pyannote.audio`。
@@ -413,7 +413,7 @@ app/env/bin/python alexandria_preparer_rocm_compatible.py \
 
 ### 对下游对比复核的影响
 
-源文引导模式会大幅减少你用 `alexandria_compare.py` 复核结果 JSONL 时看到的东西。用户通常会做的大部分编辑（角色名 ASR 修正、方言拼写修正）都在准备阶段就已完成。对比复核变成了语律抽查——通常每本书几分钟，而不是一小时。
+源文引导模式会大幅减少你用 `alexandria_compare.py` 复核结果 JSONL 时看到的东西。用户通常会做的大部分编辑（角色名 ASR 修正、方言拼写修正）都在准备阶段就已完成。对比复核变成了韵律抽查——通常每本书几分钟，而不是一小时。
 
 ## 感知停顿的分块边界
 

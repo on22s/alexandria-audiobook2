@@ -15,9 +15,9 @@ README 的 [Troubleshooting](../../README.md#troubleshooting) 一节覆盖启动
 
 ### 崩溃后保存的书打不开
 
-加载或保存一本书会一起替换好几个文件。应用会为每次切换记一份日志，所以切换被打断时（崩溃、断电、磁盘满），下次打开这本书时应用会把它做完或撤销。通常你根本察觉不到。
+加载或保存一本书会一起替换好几个文件。应用会为每次切换记一份事务日志（journal），所以切换被打断时（崩溃、断电、磁盘满），下次打开这本书时应用会把它做完或撤销。通常你根本察觉不到。
 
-如果书的文件和日志对不上，比如另一个程序在切换途中改了某个文件，应用不会去猜哪个版本才对。它会拒绝打开这本书，并在 Home 页告诉你该试哪些命令。在 Alexandria 文件夹里用应用的 Python 运行：
+如果书的文件和事务日志对不上，比如另一个程序在切换途中改了某个文件，应用不会去猜哪个版本才对。它会拒绝打开这本书，并在 Home 页告诉你该试哪些命令。在 Alexandria 文件夹里用应用的 Python 运行：
 
 ```bash
 python app/book_state_recovery.py inspect --hash
@@ -27,10 +27,10 @@ python app/book_state_recovery.py quarantine --accept-current-files
 
 - `inspect` 只查看，不改动。它会显示切换当时在做什么、哪些文件和预期不同、被移开的文件夹，以及崩溃留下的东西。
 - `finish` 立即执行应用自己会做的那套恢复。
-- `quarantine --accept-current-files` 是最后手段。它把书的文件原样保留，把日志和工作文件夹移到一个 `.book-switch-quarantine-*` 文件夹里。不会删除任何东西。
-- 如果应用提示日志来自旧版本，请用 `migrate-legacy --trust-journal-hashes`。
+- `quarantine --accept-current-files` 是最后手段。它把书的文件原样保留，把事务日志和工作文件夹移到一个 `.book-switch-quarantine-*` 文件夹里。不会删除任何东西。
+- 如果应用提示事务日志来自旧版本，请用 `migrate-legacy --trust-journal-hashes`。
 
-在确定没有切换正在进行之前，不要动任何 `.book-switch-*` 文件夹。崩溃在日志写入之前留下的文件夹不会被自动清理，所以等书能正常打开后，你可以自己删掉它。每种崩溃状态、Home 页上的摘要和退出码，见[书的保存与切换被中断](../guides/BOOK_SWITCH_RECOVERY_CN.md)。
+在确定没有切换正在进行之前，不要动任何 `.book-switch-*` 文件夹。崩溃在事务日志写入之前留下的文件夹不会被自动清理，所以等书能正常打开后，你可以自己删掉它。每种崩溃状态、Home 页上的摘要和退出码，见[书的保存与切换被中断](../guides/BOOK_SWITCH_RECOVERY_CN.md)。
 
 ## 脚本生成
 
@@ -113,7 +113,7 @@ python app/book_state_recovery.py quarantine --accept-current-files
 
 ### 训练出的声音停不下来
 
-这是训练出声音的缺陷（目标 2.3），通常来自过高的学习率或过拟合。停止检查会在采纳前发现它。这期间先给该角色用一个随附声音，并以 1e-6 的学习率重新训练（见[训练指南](Training-Guide-CN.md)）。
+这是训练出声音的缺陷（目标 2.3），通常来自过高的学习率或过拟合。终止检测（stop check）会在采纳前发现它。这期间先给该角色用一个随附声音，并以 1e-6 的学习率重新训练（见[训练指南](Training-Guide-CN.md)）。
 
 ### Voice Design 出问题
 
@@ -191,7 +191,7 @@ ffmpeg -encoders 2>/dev/null | grep mp3
 ### 训练后声音平淡
 
 - 训练数据缺少情绪多样性——最常见的原因。
-- 用情绪和文本多样的对子（高兴、愤怒、悲伤、低语、喊叫）重建数据集。
+- 用情绪和文本都多样的样本对（高兴、愤怒、悲伤、低语、喊叫）重建数据集。
 - 试更低的 LoRA rank（8–16），以保留更多基础模型的表现力。
 
 ### 训练崩溃或卡住

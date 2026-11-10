@@ -2,7 +2,7 @@
 
 [中文主页](Home-CN.md) · [English](Dataset-Builder.md)
 
-Dataset 页一次构建一个样本的 LoRA 训练数据集，让你在定稿前试听每个样本。
+Dataset 页让你一次一个样本地构建 LoRA 训练数据集，并在定稿前试听每个样本。
 
 ## 什么时候用
 

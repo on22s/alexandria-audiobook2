@@ -22,7 +22,7 @@
 
 这一部分记录了测试 AI 对各类声音描述跟随程度的实验。核心发现是：
 
-> **先讲解剖结构的描述效果最好。** 永远从声音的音区开始（男声用 bass/baritone/tenor，女声用 contralto/mezzo/soprano），然后加 2-3 个质感词。绝不要把"听起来怎么样"和"这个人举止如何"混在一起——AI 会糊涂。
+> **先描述声音构造（anatomy）的写法效果最好。** 永远从声音的音区开始（男声用 bass/baritone/tenor，女声用 contralto/mezzo/soprano），然后加 2-3 个质感词。绝不要把"听起来怎么样"和"这个人举止如何"混在一起——AI 会糊涂。
 
 ### 快速示例：坏的声音描述 vs 好的声音描述
 
@@ -44,7 +44,7 @@
 
 ### 一句话规则
 
-1. **永远先给音区：** 男声 bass（男低音）/baritone（男中音）/tenor（男高音），女声 contralto（女低音）/mezzo/soprano（女高音）
+1. **永远先给音区：** 男声 bass（男低音）/baritone（男中音）/tenor（男高音），女声 contralto（女低音）/mezzo（女中音）/soprano（女高音）
 2. **再加 2-3 个质感词：** smooth（平滑）、gravelly（沙砾感）、breathy（气声）、rich（丰润）、thin（单薄）等
 3. **再加 1 个演绎词：** slow（缓慢）、fast（快）、deliberate（从容）、rhythmic（有节奏）等
 4. **绝不要把声学术语和行为术语混在一起：** "warm gravelly baritone"（温暖沙砾感的男中音）✓ 对；"friendly confident baritone"（友好自信的男中音）✗ 错
@@ -226,7 +226,7 @@
 
 | 策略 | 思路 | 示例 |
 |----------|----------|---------|
-| **Anatomy（解剖式）** | 物理/声学特征 | "A deep male baritone with resonant chest voice, smooth timbre, slight vocal fry" |
+| **Anatomy（声音构造式）** | 物理/声学特征 | "A deep male baritone with resonant chest voice, smooth timbre, slight vocal fry" |
 | **Persona（人设式）** | 角色身份 | "A kind elderly grandfather who speaks with patience and gentle authority" |
 | **Technical（技术式）** | 音频工程术语 | "A well-projected male voice with crisp diction, moderate pace, controlled dynamic range" |
 | **Emotion（情绪式）** | 只讲情绪品质 | "A calm, reassuring male voice that sounds confident, trustworthy, and steady" |
@@ -244,9 +244,9 @@
 
 ### 第一轮结论
 
-**先讲解剖结构的描述胜出。** 模型需要具体的声学目标（音高、音区、音色、质地）才能产出稳定的声音。抽象的品质（情绪、人设、场景）给了它太多解释空间。
+**先描述声音构造的写法胜出。** 模型需要具体的声学目标（音高、音区、音色、质地）才能产出稳定的声音。抽象的品质（情绪、人设、场景）给了它太多解释空间。
 
-## 第二轮：解剖优先的混合写法
+## 第二轮：声音构造优先的混合写法
 
 所有描述都改写为：音区 + 音色 + 语气形容词。不含演绎/表演类的词（那些属于 `instruct`）。
 
@@ -279,7 +279,7 @@
 - 能量：`bright`（明亮）、`youthful energy`（年轻的活力）（来自 Brightness/Weight——见下方调查）
 - 单纯的模糊暖意：`warm`（温暖）、`deep`（低沉），没有锚定的质感词
 
-**观察：** 在所有描述下，女声的一致性都优于男声。
+**观察：** 在所有描述下，女声的一致性总体优于男声。
 
 ## Bright Tenor 调查
 
