@@ -1811,6 +1811,14 @@
     "tests.test_book_state_1660_cleanup_cost.CleanupRecheckCostTests.test_each_entry_is_preceded_by_a_recheck_of_its_own_row",
     "tests.test_book_state_1660_cleanup_cost.CleanupRecheckCostTests.test_entry_names_and_indexes_are_strict"
   ],
+  "test_book_state_1660_io_errors": [
+    "tests.test_book_state_1660_io_errors.BookIoErrorCoverageTests.test_an_unreadable_workspace_is_not_treated_as_absent",
+    "tests.test_book_state_1660_io_errors.BookIoErrorCoverageTests.test_every_decorated_family_reports_io_errors_as_refusals",
+    "tests.test_book_state_1660_io_errors.BookIoErrorCoverageTests.test_staging_reads_are_refusals",
+    "tests.test_book_state_1660_io_errors.BookIoErrorTests.test_original_checks_report_io_errors_as_refusals",
+    "tests.test_book_state_1660_io_errors.BookIoErrorTests.test_scan_io_error_is_a_refusal_but_unsupported_stays_oserror",
+    "tests.test_book_state_1660_io_errors.BookIoErrorTests.test_unreadable_journal_is_a_refusal_and_is_left_alone"
+  ],
   "test_book_state_1660_prepublication_crash": [
     "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_changed_original_is_never_marked_recovered",
     "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_crash_after_recovered_save_with_workspace_present_recovers",
