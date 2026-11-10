@@ -1,3 +1,5 @@
+[English](LLM_REQUEST_BUDGETS.md) | [中文](LLM_REQUEST_BUDGETS_CN.md) | [日本語](LLM_REQUEST_BUDGETS_JA.md)
+
 # LLM request budgets
 
 In **Setup → LLM Settings**, each Local or Remote profile has three optional token limits:

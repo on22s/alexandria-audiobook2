@@ -1,3 +1,5 @@
+[English](lora.md) | [中文](lora_CN.md) | [日本語](lora_JA.md)
+
 # Qwen3-TTS LoRA Training Guide for Alexandria
 
 ## What Is LoRA? (Plain English)

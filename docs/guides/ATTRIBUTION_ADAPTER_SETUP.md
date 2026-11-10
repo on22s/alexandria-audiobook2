@@ -1,3 +1,5 @@
+[English](ATTRIBUTION_ADAPTER_SETUP.md) | [中文](ATTRIBUTION_ADAPTER_SETUP_CN.md) | [日本語](ATTRIBUTION_ADAPTER_SETUP_JA.md)
+
 # Turning on an attribution adapter
 
 The adapters exist for one reason now: **to let a smaller quant ship.** The

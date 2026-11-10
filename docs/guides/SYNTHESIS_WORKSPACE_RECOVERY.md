@@ -1,3 +1,5 @@
+[English](SYNTHESIS_WORKSPACE_RECOVERY.md) | [中文](SYNTHESIS_WORKSPACE_RECOVERY_CN.md) | [日本語](SYNTHESIS_WORKSPACE_RECOVERY_JA.md)
+
 # Disposable synthesis workspace recovery
 
 Owned local synthesis windows on Linux now register their working WAVs before

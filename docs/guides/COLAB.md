@@ -1,3 +1,5 @@
+[English](COLAB.md) | [中文](COLAB_CN.md) | [日本語](COLAB_JA.md)
+
 # Google Colab
 
 Use [the main-branch notebook](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)

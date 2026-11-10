@@ -1,3 +1,5 @@
+[English](VOICE_REFERENCE.md) | [中文](VOICE_REFERENCE_CN.md) | [日本語](VOICE_REFERENCE_JA.md)
+
 # Voice Reference
 
 A comprehensive vocal direction lexicon compiled from professional acting glossaries and voice-over direction databases, combined with empirical findings from Qwen3-TTS VoiceDesign testing.
