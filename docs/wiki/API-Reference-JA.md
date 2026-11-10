@@ -112,6 +112,14 @@ curl http://127.0.0.1:4200/api/book/recovery
 
 読み取り専用です。`status`（`clean` / `pending` / `migration_required` / `unreadable`）、ジャーナルの段階、他の処理が本のロックを保持しているか、退避フォルダーとその受領書の状態、クラッシュの残骸の件数とバイト数、試す順序のコマンドを返します。何も変更しません。各状態の意味は[中断した本の保存と切り替え](../../docs/guides/BOOK_SWITCH_RECOVERY_JA.md)を参照してください。
 
+## 生成音声の任意の検証
+
+構成 API で `tts.speech_verification: {"enabled": true}` を保存すると、以降に生成するテイクを検査できます。既定は無効です。最初の対象は English のモノラル音声で、Linux の CPU で動くキャッシュ済みの whisper.cpp Small.en と、強い確認用の別の Large-v3 チェックポイントを使います。自動では何もダウンロードしません。リソースの不足、未対応の入力、有限の根拠の制限は、明示的な unavailable の結果になります。検査は CPU 時間と RAM を追加し、ASR と短い行の音響的な根拠には引き続き聴いての確認が必要です。
+
+検査は完成したテイクを、合成 API で観測した正確な文章と比較します。確認された実質的な欠落や余分な箇所があると、新しい試行を拒否して以前に選択したテイクを保持し、その他の差異はレビューの根拠として残ります。`GET /api/chunks` と `/api/chunks/status` は、入力・UID・本・選択中のテイクが一致している間だけ `speech_verification` のメタデータを返します。`speech_verification_failure` と `speech_verification_recheck` は、拒否された試行と再検査を選択中のテイクと分けて示し、`/api/chunks/quality` は発話レビューの区分を返します。保存した 1 つのテイクの再検査は `POST /api/chunks/{index}/speech_verification` に `expected_book_token`、`expected_uid`、`expected_audio_revision` を付けて送ります。取り消しは `POST /api/speech_verification/cancel`、タスクの状態は `GET /api/status/speech_verification` です。
+
+詳細は[生成音声の検証（英語）](API-Reference.md#optional-generated-speech-verification)を参照してください。
+
 ## 追加の例
 
 [保存した台本](API-Reference.md#saved-scripts)、[Designer](API-Reference.md#voice-designer)、[Python](API-Reference.md#a-whole-book-from-python)、[JavaScript](API-Reference.md#the-same-from-javascript)の例は英語の正本にあります。新しい機能の正確なリクエスト契約は実行中の `/docs` と `/openapi.json` でも確認してください。
