@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-10T15:03:06",
+  "written": "2026-11-10T15:46:16",
   "host": "RealMitch",
   "git": {
-   "commit": "3db03143b50751a33a0f11ec707bc776f107db29",
-   "branch": "fix/readaloud-1844-spine-span",
+   "commit": "70ad3080df6cdd974892b29ba5abcfa917bf16fb",
+   "branch": "HEAD",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,
@@ -1065,8 +1065,8 @@
   },
   "args": {
    "goals": "GOALS.md",
-   "audit": "ab_test_runtime\\audit\\artifact_structural_audit.json",
-   "out": "ab_test_runtime\\audit\\goal_evidence_audit.json",
+   "audit": "ab_test_runtime/audit/artifact_structural_audit.json",
+   "out": "ab_test_runtime/audit/goal_evidence_audit.json",
    "check": false
   }
  }
