@@ -187,6 +187,13 @@ def _is_abbreviation(text, dot_index):
     return False
 
 
+# The upstream Qwen3-ForcedAligner processor (qwen-asr 0.0.6,
+# Qwen3ForceAlignProcessor.clean_token) keeps ONLY letters (L*), numbers (N*)
+# and the ASCII apostrophe, so "one’s" (curly) reaches us as "ones" while
+# "one's" (ASCII) stays "one's" (#1844). The script text and the EPUB text
+# may use different apostrophe styles, so apostrophes of every kind are
+# left out of BOTH the expected stream and the token key: letters and
+# digits must still match exactly, only "it's" vs "its" become equal.
 _AA2_WORDS_RE = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
 
 
@@ -279,6 +286,8 @@ def _get_normalized_stream_detailed(text):
     out_chars, out_starts, out_ends = [], [], []
     for match in _AA2_WORDS_RE.finditer(folded):
         for pos in range(match.start(), match.end()):
+            if folded[pos] == "'":
+                continue
             out_chars.append(folded[pos])
             out_starts.append(starts[pos])
             out_ends.append(ends[pos])
@@ -305,7 +314,7 @@ def get_token_key(token_text):
         return ""
     folded = unicodedata.normalize("NFKC", token_text)
     folded = folded.casefold().replace("’", "'").replace("‘", "'")
-    return "".join(_AA2_WORDS_RE.findall(folded))
+    return "".join(_AA2_WORDS_RE.findall(folded)).replace("'", "")
 
 
 def _map_tokens_internal(text, tokens):

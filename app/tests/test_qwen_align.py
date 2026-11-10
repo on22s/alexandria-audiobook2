@@ -125,13 +125,58 @@ class TokenValidationTests(unittest.TestCase):
         qa.require_exact_coverage(text, tokens)
 
     def test_normalized_stream_agrees_with_aa2(self):
-        # Char stream of the aligner core must match AA2 get_normalized_words.
+        # Char stream of the aligner core must match AA2 get_normalized_words
+        # with apostrophes left out (#1844): epub_readaloud's span-group
+        # slicing converts word offsets to stream offsets this way.
         from epub_readaloud import get_normalized_words
         for text in ("Hello Synthetic World.", "Dr. Smith's 3.50 euros!",
-                     "你好世界。", "Café — naïve test"):
+                     "Dr. Smith’s turn", "你好世界。", "Café — naïve test"):
             self.assertEqual(
-                "".join(get_normalized_words(text)),
+                "".join(get_normalized_words(text)).replace("'", ""),
                 qa.get_normalized_stream(text)[0])
+
+    def test_curly_apostrophe_matches_aligner_drop(self):
+        # Reproduces #1844: EPUB text uses U+2019 as the apostrophe. The
+        # upstream Qwen3-ForcedAligner processor (is_kept_char) keeps only
+        # the ASCII apostrophe, so "one’s" is emitted as "ones". The old
+        # AA2 normalization folded U+2019 -> ASCII "'" and kept it, so the
+        # stream read "one's" and require_exact_coverage raised
+        # "1 unmatched token(s), first: 'ones'". Confirmed failing on the
+        # unpatched code before this fix.
+        text = "one\u2019s"
+        tokens = [{"text": "ones", "start_time": 0.0, "end_time": 0.4}]
+        spans = qa.require_exact_coverage(text, tokens)
+        self.assertEqual(1, len(spans))
+        self.assertEqual((0, len(text)), (spans[0][1], spans[0][2]))
+        # The dropped apostrophe is shared by the stream and the token key.
+        self.assertEqual("ones", qa.get_normalized_stream(text)[0])
+        self.assertEqual("ones", qa.get_token_key("ones"))
+
+    def test_ascii_apostrophe_token_matches_either_text_style(self):
+        # The aligner keeps an ASCII apostrophe ("one's") but drops a curly
+        # one ("ones"); the book and the script may use either style, so
+        # every combination must correspond (#1844).
+        for text in ("one's", "one’s"):
+            for token_text in ("one's", "ones"):
+                with self.subTest(text=text, token=token_text):
+                    tokens = [{"text": token_text, "start_time": 0.0, "end_time": 0.4}]
+                    self.assertEqual(1, len(qa.require_exact_coverage(text, tokens)))
+
+    def test_fabricated_word_still_rejected_after_apostrophe_fix(self):
+        # A genuinely different word must still fail closed: the apostrophe
+        # fix must not weaken the exact-correspondence check.
+        text = "one\u2019s"
+        tokens = [{"text": "once", "start_time": 0.0, "end_time": 0.4}]
+        with self.assertRaises(ValueError):
+            qa.require_exact_coverage(text, tokens)
+
+    def test_partial_coverage_still_rejected_with_apostrophes(self):
+        # Full coverage is still required: dropping one apostrophe-affected
+        # token leaves the stream uncovered and must raise, never fall back.
+        text = "one\u2019s own"
+        tokens = [{"text": "ones", "start_time": 0.0, "end_time": 0.4}]
+        with self.assertRaises(ValueError):
+            qa.require_exact_coverage(text, tokens)
 
     def test_nonfinite_rejected(self):
         for bad in (float("nan"), float("inf"), float("-inf")):

@@ -1050,18 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-10T00:39:11",
+  "written": "2026-11-10T15:03:06",
   "host": "RealMitch",
   "git": {
-   "commit": "501055f4e829e501ba329753062aee00c138e1c9",
-   "branch": "codex/1844-final-ui",
-   "dirty": true,
-   "source_state": "dirty:57f201e85bbe",
+   "commit": "3db03143b50751a33a0f11ec707bc776f107db29",
+   "branch": "fix/readaloud-1844-spine-span",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/static/js/app-help.js",
-    "M  app/tests/test_readalong_defects.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
