@@ -240,6 +240,7 @@ if (document.getElementById('setup-ui-locale')) {
     const preference = readUiLocalePreference();
     if (!preference.available) { applySystemStatusText('setup-ui-locale-status', getSetupUiStorageNotice()); }
     applyUiLocaleAndSearchStatus(resolveUiLocale(preference.stored));
+    renderUiLocaleOptions();
     preloadUiCatalogs().then(() => {
         applyUiCatalog();
         renderSetupSearchStatus();

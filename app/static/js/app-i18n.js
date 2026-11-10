@@ -210,9 +210,15 @@ function preloadUiCatalogs() {
 }
 
 function isUiLocaleDraft(locale) {
-    const catalog = uiCatalogs.get(normalizeUiLocale(locale));
-    if (!catalog || !catalog.meta || !catalog.meta.review_status) {
+    const normalized = normalizeUiLocale(locale);
+    if (!Object.hasOwn(UI_CATALOG_URLS, normalized)) {
         return false;
+    }
+    const catalog = uiCatalogs.get(normalized);
+    if (!catalog || !catalog.meta || !catalog.meta.review_status) {
+        // Fail closed: a translated locale is a draft until its own catalog
+        // says otherwise, including while that catalog is still loading.
+        return true;
     }
     return catalog.meta.review_status.all !== 'human-reviewed';
 }

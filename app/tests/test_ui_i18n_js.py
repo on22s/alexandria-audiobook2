@@ -183,11 +183,14 @@ for(const [value,text] of [['en','English'],['zh-CN','简体中文'],['ja','日�
                            ['es-419','Español (Latinoamérica)'],['qps-ploc','Pseudo-English (layout test, not a translation)']]){
  const option=selector.appendChild(new Element('option',{value}));option.textContent=text;
 }
+const labels=()=>JSON.stringify(selector.children.map(option=>option.textContent));
+context.renderUiLocaleOptions();
+assert.strictEqual(labels(),JSON.stringify(['English','简体中文 (draft)','日本語 (draft)','Español (Latinoamérica) (draft)',
+                                'Pseudo-English (layout test, not a translation)']));
 setUiCatalog('zh-CN',catalog({}));
 setUiCatalog('ja',catalog({},{all:'human-reviewed',safety:'human-reviewed'}));
 setUiCatalog('es-419',catalog({}));
 context.renderUiLocaleOptions();
-const labels=()=>JSON.stringify(selector.children.map(option=>option.textContent));
 assert.strictEqual(labels(),JSON.stringify(['English','简体中文 (draft)','日本語','Español (Latinoamérica) (draft)',
                                 'Pseudo-English (layout test, not a translation)']));
 context.renderUiLocaleOptions();
@@ -195,12 +198,15 @@ assert.strictEqual(labels(),JSON.stringify(['English','简体中文 (draft)','�
                                 'Pseudo-English (layout test, not a translation)']));
 ''')
 
-    def test_a_locale_without_metadata_is_not_marked_draft(self):
+    def test_untranslated_locales_are_never_marked_draft(self):
         self.run_js(r'''
 const selector=body.appendChild(new Element('select',{id:'setup-ui-locale'}));
-const option=selector.appendChild(new Element('option',{value:'zh-CN'}));option.textContent='简体中文';
+for(const [value,text] of [['en','English'],['qps-ploc','Pseudo-English (layout test, not a translation)']]){
+ const option=selector.appendChild(new Element('option',{value}));option.textContent=text;
+}
 context.renderUiLocaleOptions();
-assert.strictEqual(option.textContent,'简体中文');
+assert.strictEqual(JSON.stringify(selector.children.map(option=>option.textContent)),
+                   JSON.stringify(['English','Pseudo-English (layout test, not a translation)']));
 ''')
 
     def test_the_attribute_sweep_uses_the_authored_value_and_never_html(self):
