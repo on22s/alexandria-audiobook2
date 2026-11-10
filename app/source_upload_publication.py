@@ -16,6 +16,26 @@ def create_source_upload_stage(directory, *, limit):
     return OwnedSourceUploadStage(directory, byte_limit=limit)
 
 
+# renameat2 / renamex_np flags. Linux: RENAME_NOREPLACE 1 << 0, RENAME_EXCHANGE
+# 1 << 1. macOS <sys/stdio.h>: RENAME_SWAP 0x2, RENAME_EXCL 0x4 (10.12+).
+_LINUX_NOREPLACE, _LINUX_EXCHANGE = 1, 2
+_DARWIN_SWAP, _DARWIN_EXCL = 2, 4
+
+
+def _validate_anchored_names(source, destination, source_dir_fd, destination_dir_fd):
+    """-> whether the call is directory-anchored; refuses malformed anchored names."""
+    anchored = source_dir_fd is not None or destination_dir_fd is not None
+    if anchored and (
+            type(source_dir_fd) is not int or source_dir_fd < 0
+            or type(destination_dir_fd) is not int or destination_dir_fd < 0
+            or type(source) is not str or type(destination) is not str
+            or os.path.basename(source) != source or os.path.basename(destination) != destination
+            or source in ('', '.', '..') or destination in ('', '.', '..')
+            or any(char in value for value in (source, destination) for char in ('\\', '\0'))):
+        raise ValueError('Exclusive directory-anchored move needs valid descriptors and names')
+    return anchored
+
+
 def move_source_upload_exclusively(source, destination, *, source_dir_fd=None, destination_dir_fd=None):
     """Atomic no-overwrite move, with no intermediate second hard link.
 
@@ -23,20 +43,116 @@ def move_source_upload_exclusively(source, destination, *, source_dir_fd=None, d
     existing single-link source admission rule. Unsupported OS/filesystem pairs
     fail closed; a normal Unix rename would silently overwrite another owner.
     """
-    anchored = source_dir_fd is not None or destination_dir_fd is not None
+    anchored = _validate_anchored_names(source, destination, source_dir_fd, destination_dir_fd)
     if anchored:
-        if (type(source_dir_fd) is not int or source_dir_fd < 0
-                or type(destination_dir_fd) is not int or destination_dir_fd < 0
-                or type(source) is not str or type(destination) is not str
-                or os.path.basename(source) != source or os.path.basename(destination) != destination
-                or source in ('', '.', '..') or destination in ('', '.', '..')
-                or any(char in value for value in (source, destination) for char in ('\\', '\0'))):
-            raise ValueError('Exclusive directory-anchored move needs valid descriptors and names')
         if os.name == 'nt':
             raise OSError(errno.ENOTSUP, 'Directory-anchored exclusive moves are unavailable')
     elif os.name == 'nt':
         os.rename(source, destination)
         return
+    _rename_names(source, destination, source_dir_fd, destination_dir_fd, anchored,
+                  linux_flag=_LINUX_NOREPLACE, darwin_flag=_DARWIN_EXCL,
+                  unavailable='Exclusive source upload publication is unavailable',
+                  failed='Exclusive source upload publication failed')
+
+
+def exchange_source_upload_names(source, destination, *, source_dir_fd=None, destination_dir_fd=None):
+    """Atomically swap two existing names; never overwrites (#1660).
+
+    Linux renameat2(RENAME_EXCHANGE), macOS renamex_np/renameatx_np(RENAME_SWAP).
+    Both names must exist (otherwise ENOENT). Unlike a rename, whatever each
+    name held survives at the other name, so a substituted object is displaced
+    rather than destroyed, and the same call undoes the swap. There is no
+    fallback: Windows, other platforms and a libc without the symbol raise
+    ENOTSUP, and a filesystem that rejects the flag raises its own errno (see
+    probe_exchange_support).
+    """
+    anchored = _validate_anchored_names(source, destination, source_dir_fd, destination_dir_fd)
+    if os.name == 'nt':
+        raise OSError(errno.ENOTSUP, 'Book exchange publication is unavailable')
+    _rename_names(source, destination, source_dir_fd, destination_dir_fd, anchored,
+                  linux_flag=_LINUX_EXCHANGE, darwin_flag=_DARWIN_SWAP,
+                  unavailable='Book exchange publication is unavailable',
+                  failed='Book exchange publication failed')
+
+
+# errno meaning "this filesystem, kernel or libc cannot exchange", as opposed
+# to resource errors (EMFILE, ENOMEM, ...) that say nothing about capability.
+_EXCHANGE_UNSUPPORTED = {errno.EINVAL, errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP,
+                         errno.EXDEV, errno.EBUSY, errno.EPERM, errno.ENOENT,
+                         errno.ENOTDIR, errno.EISDIR, getattr(errno, 'ENOLINK', errno.EINVAL)}
+
+
+def probe_exchange_support(directory_fd):
+    """-> whether names inside the directory `directory_fd` can be exchanged.
+
+    Swaps two private files and two private directories created inside it,
+    checks that each side now holds the other's object (and, for the files,
+    the other's bytes), and removes them. A capability errno returns False;
+    resource errors propagate. Callers probe a directory on the same
+    filesystem as the names they will exchange, before mutating anything.
+    """
+    import secrets
+    if type(directory_fd) is not int or directory_fd < 0:
+        raise ValueError('Exchange probe needs a directory descriptor')
+    token = secrets.token_hex(8)
+    files = [f'.exchange-probe-{token}-{side}' for side in 'ab']
+    folders = [f'.exchange-probe-{token}-dir-{side}' for side in 'ab']
+    created_files, created_folders, identities = [], [], {}
+    try:
+        for name in files:
+            descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
+                                 0o600, dir_fd=directory_fd)
+            created_files.append(name)
+            try:
+                os.write(descriptor, name.encode())
+                os.fsync(descriptor)
+                info = os.fstat(descriptor)
+            finally:
+                os.close(descriptor)
+            identities[name] = (info.st_dev, info.st_ino)
+        for name in folders:
+            os.mkdir(name, 0o700, dir_fd=directory_fd)
+            created_folders.append(name)
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            identities[name] = (info.st_dev, info.st_ino)
+        try:
+            for first, second in (files, folders):
+                exchange_source_upload_names(first, second, source_dir_fd=directory_fd,
+                                             destination_dir_fd=directory_fd)
+        except OSError as error:
+            if error.errno in _EXCHANGE_UNSUPPORTED:
+                return False
+            raise
+        for first, second in (files, folders):
+            for name, other in ((first, second), (second, first)):
+                info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                if (info.st_dev, info.st_ino) != identities[other]:
+                    return False
+        for name, other in ((files[0], files[1]), (files[1], files[0])):
+            descriptor = os.open(name, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0), dir_fd=directory_fd)
+            try:
+                if os.read(descriptor, 256) != other.encode():
+                    return False
+            finally:
+                os.close(descriptor)
+        return True
+    finally:
+        for name in created_files:
+            try:
+                os.unlink(name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+        for name in created_folders:
+            try:
+                os.rmdir(name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+
+
+def _rename_names(source, destination, source_dir_fd, destination_dir_fd, anchored, *,
+                  linux_flag, darwin_flag, unavailable, failed):
+    """One native rename with the given flags; never a plain rename (ENOTSUP if unavailable)."""
     import ctypes
     library = ctypes.CDLL(None, use_errno=True)
     source, destination = os.fsencode(source), os.fsencode(destination)
@@ -45,25 +161,25 @@ def move_source_upload_exclusively(source, destination, *, source_dir_fd=None, d
     if sys.platform.startswith('linux'):
         operation = getattr(library, 'renameat2', None)
         arguments = (source_dir_fd if anchored else -100, source,
-                     destination_dir_fd if anchored else -100, destination, 1)  # RENAME_NOREPLACE
+                     destination_dir_fd if anchored else -100, destination, linux_flag)
         types = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
     elif sys.platform == 'darwin':
         if anchored:
             operation = getattr(library, 'renameatx_np', None)
-            arguments = (source_dir_fd, source, destination_dir_fd, destination, 4)
+            arguments = (source_dir_fd, source, destination_dir_fd, destination, darwin_flag)
             types = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
         else:
             operation = getattr(library, 'renamex_np', None)
-            arguments = (source, destination, 4)  # RENAME_EXCL, macOS 10.12+
+            arguments = (source, destination, darwin_flag)
             types = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
     else:
         operation = None
     if operation is None:
-        raise OSError(errno.ENOTSUP, 'Exclusive source upload publication is unavailable')
+        raise OSError(errno.ENOTSUP, unavailable)
     operation.argtypes = types
     operation.restype = ctypes.c_int
     if operation(*arguments) != 0:
-        raise OSError(ctypes.get_errno(), 'Exclusive source upload publication failed')
+        raise OSError(ctypes.get_errno(), failed)
 
 
 def get_retained_epub_name(txt_filename):
