@@ -36,7 +36,6 @@ from export_download import ExportFileResponse, open_export_reader
 
 from book_placeholder import is_book_placeholder, is_book_placeholder_stream
 from export_download import SWITCH_IN_PROGRESS
-from export_file_io import open_export_reader
 from core import (
     AUDIOBOOK_PATH,
     CONFIG_PATH,
@@ -91,13 +90,13 @@ def build_zip_download(members, filename):
         written = 0
         with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as archive:
             for source, name in members:
-                with open_export_reader(source) as stream:
+                with open(source, "rb") as stream:
                     info = os.fstat(stream.fileno())
                     if is_book_placeholder_stream(stream, info.st_size):
                         continue
                     entry = zipfile.ZipInfo(name, time.localtime(info.st_mtime)[:6])
                     with archive.open(entry, "w", force_zip64=True) as out:
-                        shutil.copyfileobj(stream, out, 1024 * 1024)
+                        shutil.copyfileobj(stream, out, 65536)   # bounded source reads
                     written += 1
         if members and not written:
             raise HTTPException(status_code=409, detail=SWITCH_IN_PROGRESS)
