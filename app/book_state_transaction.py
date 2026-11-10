@@ -10,6 +10,7 @@ import io
 import json
 from editor_poll_snapshot import get_snapshot_digest
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -960,11 +961,41 @@ def _verify_committed_stream_targets(rows, targets, budget):
             _validate_stream_replacement(row, target, budget)
 
 
-def _verify_stream_cleanup_targets(root, data, *, cancel_check=None):
+_WORKSPACE_ENTRY_NAME = re.compile(r'(?:old|new|discard)-(0|[1-9][0-9]*)')
+
+
+def _get_workspace_entry_index(name):
+    """-> the row a validated workspace entry (old-N, new-N, discard-N) belongs to.
+
+    Strict: any other form raises, so a future entry kind cannot silently turn
+    the pre-deletion recheck into a check of no row at all."""
+    match = _WORKSPACE_ENTRY_NAME.fullmatch(name)
+    if match is None:
+        raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
+    return int(match.group(1))
+
+
+def _require_cleanup_row_index(index, rows):
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(rows):
+        raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
+
+
+def _verify_stream_cleanup_targets(root, data, *, cancel_check=None, index=None):
+    """Recheck the cleanup targets: all rows, or only row `index` (#1660).
+
+    Before deleting a workspace entry, cleanup rechecks only the row that owns
+    it; full passes still run before and after. Rechecking every row per entry
+    made each target's hashing grow with the number of targets.
+    """
     rows = data['entries']
+    parent_identities = data.get('target_parent_identities')
+    if index is not None:
+        _require_cleanup_row_index(index, rows)
+        rows = rows[index:index + 1]
+        if parent_identities is not None:
+            parent_identities = parent_identities[index:index + 1]
     targets = [_get_path(root, row['path']) for row in rows]
     names = [row['path'] for row in rows]
-    parent_identities = data.get('target_parent_identities')
     def check_parents():
         _check_stream_cancellation(cancel_check)
         if parent_identities is not None:
@@ -1792,7 +1823,11 @@ def _unlink_owned_staging_file(workspace, name, directory_fd):
         os.unlink(workspace / name)
 
 
-def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None):
+def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None, index=None):
+    """Recheck the byte cleanup targets: all rows, or only row `index` (#1660)."""
+    if index is not None:
+        _require_cleanup_row_index(index, rows)
+        rows, targets = rows[index:index + 1], targets[index:index + 1]
     for row, target in zip(rows, targets):
         _check_stream_cancellation(cancel_check)
         expected = row['new_sha256'] if phase == 'committed' else row['old_sha256']
@@ -1969,7 +2004,7 @@ def _cleanup_validated_windows_workspace(root, workspace, versions,
         if observed != set(versions):
             raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
         for name in sorted(versions):
-            validate_targets()
+            validate_targets(_get_workspace_entry_index(name))   # the row this entry belongs to
             _require_book_journal_version(root, journal_version)
             evidence = versions[name]
             _remove_windows_owned_tree(workspace / name, evidence['version'],
@@ -1993,8 +2028,8 @@ def _cleanup_validated_byte_workspace(root, workspace, data, targets, journal_ve
         versions = _validate_byte_workspace_for_cleanup(
             workspace, data, cancel_check=cancel_check)
         _cleanup_validated_windows_workspace(root, workspace, versions,
-            lambda: _validate_byte_cleanup_targets(
-                data['entries'], targets, data['phase'], cancel_check=cancel_check),
+            lambda index=None: _validate_byte_cleanup_targets(
+                data['entries'], targets, data['phase'], cancel_check=cancel_check, index=index),
             journal_version)
         return
     if (os.open not in os.supports_dir_fd
@@ -2025,7 +2060,8 @@ def _cleanup_validated_byte_workspace(root, workspace, data, targets, journal_ve
                 for name in sorted(versions):
                     _require_book_journal_version(root, journal_version)
                     _validate_byte_cleanup_targets(
-                        data['entries'], targets, data['phase'], cancel_check=cancel_check)
+                        data['entries'], targets, data['phase'], cancel_check=cancel_check,
+                        index=_get_workspace_entry_index(name))
                     current = os.stat(name, dir_fd=workspace_fd, follow_symlinks=False)
                     evidence = versions[name]
                     version = evidence['version']
@@ -2069,8 +2105,8 @@ def _cleanup_validated_stream_workspace(root, workspace, data, journal_version,
         versions = _validate_stream_workspace_for_cleanup(
             workspace, data, cancel_check=cancel_check)
         _cleanup_validated_windows_workspace(root, workspace, versions,
-            lambda: _verify_stream_cleanup_targets(
-                root, data, cancel_check=cancel_check), journal_version)
+            lambda index=None: _verify_stream_cleanup_targets(
+                root, data, cancel_check=cancel_check, index=index), journal_version)
         return
     if (os.open not in os.supports_dir_fd
             or os.stat not in os.supports_dir_fd or os.unlink not in os.supports_dir_fd
@@ -2096,7 +2132,8 @@ def _cleanup_validated_stream_workspace(root, workspace, data, journal_version,
                 raise ValueError('Book transaction workspace changed; cleanup was refused')
             for name in sorted(versions):
                 _require_book_journal_version(root, journal_version)
-                _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check)
+                _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check,
+                                               index=_get_workspace_entry_index(name))
                 current = os.stat(name, dir_fd=workspace_fd, follow_symlinks=False)
                 evidence = versions[name]
                 version = evidence['version']
