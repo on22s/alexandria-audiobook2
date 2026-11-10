@@ -12,6 +12,7 @@ import logging
 import json
 import os
 import soundfile
+import shutil
 import tempfile
 import time
 import uuid
@@ -33,7 +34,9 @@ from project_scope_exports import require_scope_export_current
 from audio_stream_response import AudioStreamResponse
 from export_download import ExportFileResponse, open_export_reader
 
-from book_placeholder import is_book_placeholder
+from book_placeholder import is_book_placeholder, is_book_placeholder_stream
+from export_download import SWITCH_IN_PROGRESS
+from export_file_io import open_export_reader
 from core import (
     AUDIOBOOK_PATH,
     CONFIG_PATH,
@@ -77,13 +80,27 @@ router = APIRouter()
 
 
 def build_zip_download(members, filename):
-    """Build a ZIP on disk and remove it after FileResponse finishes."""
+    """Build a ZIP on disk and remove it after FileResponse finishes.
+
+    Each member is copied from one opened file, so a book switch's
+    placeholder (#1660) is left out by what was opened, not by its name.
+    409 when every member was one."""
     fd, path = tempfile.mkstemp(prefix=".alexandria-export-", suffix=".zip", dir=DATA_DIR)
     os.close(fd)
     try:
+        written = 0
         with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as archive:
             for source, name in members:
-                archive.write(source, name)
+                with open_export_reader(source) as stream:
+                    info = os.fstat(stream.fileno())
+                    if is_book_placeholder_stream(stream, info.st_size):
+                        continue
+                    entry = zipfile.ZipInfo(name, time.localtime(info.st_mtime)[:6])
+                    with archive.open(entry, "w", force_zip64=True) as out:
+                        shutil.copyfileobj(stream, out, 1024 * 1024)
+                    written += 1
+        if members and not written:
+            raise HTTPException(status_code=409, detail=SWITCH_IN_PROGRESS)
     except BaseException:
         os.unlink(path)
         raise
@@ -436,9 +453,8 @@ def _require_export_download(path, missing_detail):
     the user 64 bytes named audiobook.mp3."""
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=missing_detail)
-    if is_book_placeholder(path):
-        raise HTTPException(status_code=409, detail=(
-            "A book switch is in progress. Wait a moment and download again."))
+    if is_book_placeholder(path):   # early answer; the served descriptor is checked again
+        raise HTTPException(status_code=409, detail=SWITCH_IN_PROGRESS)
 
 
 @router.head("/api/audiobook")
@@ -1483,7 +1499,7 @@ async def get_audacity_export():
     zip_path = os.path.join(DATA_DIR, "audacity_export.zip")
     _require_export_download(zip_path, "Audacity export not found. Generate it first.")
     require_scope_export_current(DATA_DIR, zip_path)
-    return FileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
+    return ExportFileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
 
 def get_unready_export_speakers():
     """Read readiness without treating unusable state as an empty roster."""

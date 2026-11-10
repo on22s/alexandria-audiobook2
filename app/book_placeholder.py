@@ -24,6 +24,20 @@ def get_book_placeholder_bytes(nonce):
     return PLACEHOLDER_PREFIX + nonce.encode('ascii') + b'\n'
 
 
+def is_book_placeholder_stream(stream, size):
+    """Whether an already-open binary stream of `size` bytes is a placeholder.
+
+    For readers that serve or copy what they opened: checking the open file,
+    not the name, leaves no window for a switch to land in between. The
+    stream is left at offset 0."""
+    if size != PLACEHOLDER_SIZE:
+        return False
+    stream.seek(0)
+    raw = stream.read(PLACEHOLDER_SIZE + 1)
+    stream.seek(0)
+    return is_book_placeholder_bytes(raw)
+
+
 def is_book_placeholder_bytes(raw):
     """Whether raw is exactly a book placeholder."""
     return isinstance(raw, (bytes, bytearray)) and _PLACEHOLDER.fullmatch(bytes(raw)) is not None
@@ -39,9 +53,12 @@ def is_book_placeholder(path):
         info = os.lstat(path)
         if not stat.S_ISREG(info.st_mode) or info.st_size != PLACEHOLDER_SIZE:
             return False
-        flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_BINARY', 0)
+        flags = (os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+                 | getattr(os, 'O_BINARY', 0))
         descriptor = os.open(path, flags)
         try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                return False   # replaced after the lstat
             raw = os.read(descriptor, PLACEHOLDER_SIZE + 1)
         finally:
             os.close(descriptor)

@@ -3,10 +3,13 @@ import asyncio
 import os
 import stat
 from secrets import token_hex
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.datastructures import MutableHeaders
 from upload_operation import await_upload_operation
 from export_file_io import open_export_reader
+from book_placeholder import is_book_placeholder_stream
+
+SWITCH_IN_PROGRESS = 'A book switch is in progress. Wait a moment and download again.'
 
 
 class ExportFileResponse(FileResponse):
@@ -26,6 +29,11 @@ class ExportFileResponse(FileResponse):
             self.stat_result = await self._io(os.fstat, self.stream.fileno())
             if not stat.S_ISREG(self.stat_result.st_mode):
                 raise RuntimeError('Export download requires a regular file')
+            # The descriptor being served, not the name (#1660): a switch
+            # creating or removing this export leaves a placeholder there.
+            if await self._io(is_book_placeholder_stream, self.stream, self.stat_result.st_size):
+                return await JSONResponse({'detail': SWITCH_IN_PROGRESS}, status_code=409)(
+                    scope, receive, send)
             self.set_stat_headers(self.stat_result)
             return await super().__call__(scope, receive, send)
         finally:

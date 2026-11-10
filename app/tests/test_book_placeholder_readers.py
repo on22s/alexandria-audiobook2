@@ -116,5 +116,83 @@ class PlaceholderReaderTests(unittest.TestCase):
         self.assertFalse(is_scope_export_historical(self.root, self.root / 'audiobook.m4b'))
 
 
+    def switch_lands_after_the_name_check(self, *paths):
+        """Patch the scope check, which runs between the name check and the
+        open, to put a switch's placeholder down at each path."""
+        from routers import editor
+        real = editor.require_scope_export_current
+        def lands(root, path):
+            result = real(root, path)
+            for target in paths:
+                Path(target).write_bytes(PLACEHOLDER)
+            return result
+        patcher = patch.object(editor, 'require_scope_export_current', side_effect=lands)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_served_descriptor_is_checked_not_only_the_name(self):
+        client, mp3, m4b = self.client()
+        audacity = self.root / 'audacity_export.zip'
+        self.switch_lands_after_the_name_check(mp3, m4b, audacity)
+        for route in ('/api/audiobook', '/api/audiobook_m4b', '/api/export_audacity'):
+            with self.subTest(route=route):
+                for path in (mp3, m4b, audacity):   # real at the name check
+                    path.write_bytes(b'real export bytes')
+                response = client.get(route)
+                self.assertEqual(409, response.status_code)
+                self.assertNotIn(b'alexandria-book-placeholder', response.content)
+        self.assertEqual(409, client.head('/api/audiobook').status_code)
+
+    def test_a_zip_built_while_a_switch_lands_never_contains_the_placeholder(self):
+        client, mp3, m4b = self.client()
+        mp3.write_bytes(b'real mp3')
+        m4b.write_bytes(b'real m4b')
+        self.switch_lands_after_the_name_check(mp3, m4b)
+        response = client.get('/api/export_zip')
+        self.assertEqual(409, response.status_code)
+
+    def test_head_and_ranges_still_work_on_a_real_export(self):
+        client, mp3, _m4b = self.client()
+        mp3.write_bytes(b'real export bytes')
+        self.assertEqual(200, client.head('/api/audiobook').status_code)
+        mp3.write_bytes(PLACEHOLDER)
+        self.assertEqual(409, client.head('/api/audiobook').status_code)
+        mp3.write_bytes(b'real export bytes')
+        response = client.get('/api/audiobook', headers={'Range': 'bytes=2-5'})
+        self.assertEqual((206, b'al e'), (response.status_code, response.content))
+
+    def test_a_placeholder_journal_beside_a_real_chunks_file_is_refused(self):
+        from project import ProjectManager
+        from chunk_status_journal import get_chunk_status_journal_path
+        manager = ProjectManager(str(self.root))
+        manager.save_chunks([{'id': 0, 'uid': 'a', 'speaker': 'A', 'text': 'Hi.'}])
+        journal = Path(get_chunk_status_journal_path(str(self.root / 'chunks.json')))
+        if journal.exists():
+            journal.unlink()
+        journal.write_bytes(PLACEHOLDER)
+        with self.assertRaisesRegex(ValueError, 'book switch is in progress'):
+            manager.load_chunks()
+        self.assertEqual(PLACEHOLDER, journal.read_bytes())
+
+    def test_a_placeholder_landing_after_the_read_is_never_renamed_aside(self):
+        from project import ProjectManager
+        manager = ProjectManager(str(self.root))
+        (self.root / 'annotated_script.json').write_text(json.dumps([{'speaker': 'A', 'text': 'Hi.'}]))
+        chunks = self.root / 'chunks.json'
+        chunks.write_bytes(b'{corrupt')
+        parse = ProjectManager._parse_chunks_snapshot
+        def lands(raw):
+            chunks.unlink()
+            chunks.write_bytes(PLACEHOLDER)   # the switch, after our one read
+            return parse(raw)
+        with patch.object(ProjectManager, '_parse_chunks_snapshot', side_effect=lands), \
+                self.assertRaisesRegex(ValueError, 'changed while it was being read'):
+            manager.load_chunks()
+        self.assertEqual(PLACEHOLDER, chunks.read_bytes())
+        self.assertEqual([], [p.name for p in self.root.iterdir() if '.corrupt' in p.name])
+        chunks.write_bytes(b'{corrupt')   # an ordinary corrupt file is still backed up
+        manager.load_chunks()
+        self.assertTrue((self.root / 'chunks.json.corrupt').exists())
+
 if __name__ == '__main__':
     unittest.main()
