@@ -708,12 +708,8 @@ with intercept_book_publications(b, after=stop):
             with patch.object(books, '_finish_transaction', side_effect=observe_cleanup), \
                  books.ensure_book_state(root, cancel_check=deferred_cancel):
                 pass
-            if self._book_protocol == 'v4':
-                # v4's completion passes the (deferred, false) cancel check
-                # through to cleanup; the promise is that it is not surfaced.
-                self.assertEqual(1, len(cleanup_checks))
-            else:
-                self.assertEqual([None], cleanup_checks)
+            # The completion's cleanup is never cancellable, on any protocol.
+            self.assertEqual([None], cleanup_checks)
             self.assertFalse((root / books.JOURNAL).exists())
             self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
 
@@ -1900,23 +1896,12 @@ print(len(result['entries']))
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new'),
                         'state.json': b'new state'}, [], stream_byte_limit=100)
-            if (root / books.JOURNAL).exists():
-                self.assertEqual(b'concurrent edit', state.read_bytes())
-                self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
-                self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
-            else:
-                # v4 rolled the published rows back with complementary
-                # exchanges and quarantined the workspace, so the writer's
-                # edit survives in quarantine rather than at its target.
-                from tests.test_support import get_quarantined_path
-                self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
-                self.assertEqual(b'old state', state.read_bytes())
-                [quarantine] = [entry for entry in root.iterdir()
-                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
-                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
-                preserved = get_quarantined_path(
-                    self, root, root / qjournal['workspace'] / 'new-1')
-                self.assertEqual(b'concurrent edit', preserved.read_bytes())
+            # Every protocol: the writer's edit stays live and the journal
+            # keeps the evidence; nothing is swapped over it (#1660).
+            self.assertTrue((root / books.JOURNAL).exists())
+            self.assertEqual(b'concurrent edit', state.read_bytes())
+            self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
+            self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
 
     def test_edit_at_move_boundary_is_preserved_in_recovery_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2032,24 +2017,10 @@ print(len(result['entries']))
             with intercept_book_publications(books, after=edit_after_publish):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100)
-            if (root / books.JOURNAL).exists():
-                self.assertEqual(b'concurrent edit', target.read_bytes())
-                journal = json.loads((root / books.JOURNAL).read_text())
-                self.assertEqual('publishing', journal['phase'])
-                self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
-            else:
-                # v4 undid the swap with the observed edited object and
-                # quarantined the workspace: the original is back at the
-                # target and the writer's edit is preserved, not deleted.
-                from tests.test_support import get_quarantined_path
-                self.assertEqual(b'old audio', target.read_bytes())
-                [quarantine] = [entry for entry in root.iterdir()
-                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
-                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
-                slot = 'new-0' if qjournal['version'] == 4 else 'old-0'
-                preserved = get_quarantined_path(
-                    self, root, root / qjournal['workspace'] / slot)
-                self.assertEqual(b'concurrent edit', preserved.read_bytes())
+            self.assertEqual(b'concurrent edit', target.read_bytes())
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual('publishing', journal['phase'])
+            self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
 
     def test_committed_recovery_preserves_backup_if_output_changed_or_missing(self):
         worker = '''

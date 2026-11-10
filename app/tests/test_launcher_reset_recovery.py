@@ -136,18 +136,28 @@ class LauncherResetRecoveryTests(unittest.TestCase):
                 self.assertEqual(b'exact reusable cast', (root / 'voice_library.json').read_bytes())
 
     def test_invalid_recovery_evidence_refuses_before_any_reset_deletion(self):
-        # A v4 exchange never leaves a target absent, so the v3 "changed
-        # replacement"/"missing original slot" states are not evidence of
-        # damage any more: v4 rolls a writer's substituted target back and
-        # quarantines it (#1660, R5/R8). What still refuses in both protocols
-        # is a journal or workspace that cannot be admitted as ours at all.
-        for kind in ('malformed journal', 'replaced workspace'):
+        for kind in ('changed replacement', 'missing original', 'malformed journal',
+                     'replaced workspace'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 self.prepare(root)
                 self.interrupt(root)
                 journal = root / books.JOURNAL
-                if kind == 'malformed journal':
+                version = json.loads(journal.read_text())['version']
+                if kind == 'changed replacement':
+                    # A human edit is the live book under every protocol: the
+                    # reset must refuse and delete nothing (#1660).
+                    (root / 'annotated_script.json').write_bytes(b'human edit after interruption')
+                elif kind == 'missing original':
+                    if version == 4:
+                        # v4's R9: with the original slot gone and every target
+                        # proving the published replacement, recovery finishes
+                        # the switch (nothing further can be lost); only v3
+                        # refuses this state.
+                        continue
+                    data = json.loads(journal.read_text())
+                    (root / data['workspace'] / 'old-0').unlink()
+                elif kind == 'malformed journal':
                     journal.write_text('not valid JSON')
                 else:
                     data = json.loads(journal.read_text())

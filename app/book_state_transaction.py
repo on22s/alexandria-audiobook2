@@ -3111,8 +3111,11 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
             cancel_check=cancel_check)
         return True
 
-    # Classify every row by identity before mutating anything.
+    # Classify every row before mutating anything. Identity alone cannot
+    # prove a target: an in-place edit keeps the inode. A target counts as
+    # ours only after its digest (and generation) are proven too.
     plans = []
+    proof_budget = _get_exchange_recovery_budget(limits, cancel_check)
     for index, (row, target) in enumerate(zip(rows, targets)):
         _check_stream_cancellation(cancel_check)
         original, replacement, foreign = _get_book_workspace_slots(workspace, index, row)
@@ -3120,10 +3123,22 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
             raise ValueError(
                 'Book transaction has two workspace owners for one target; '
                 'recovery evidence was preserved')
-        plans.append({'index': index, 'row': row, 'target': target,
-                      'kind': _get_book_name_kind(row, target),
+        kind = _get_book_name_kind(row, target)
+        if kind in ('original', 'replacement'):
+            try:
+                _validate_exchange_target(row, target, limits=limits, budget=proof_budget,
+                                          cancel_check=cancel_check, expected=kind)
+            except ValueError:
+                kind = 'foreign'
+        plans.append({'index': index, 'row': row, 'target': target, 'kind': kind,
                       'original': original, 'replacement': replacement,
                       'foreign': foreign})
+    if any(plan['kind'] == 'foreign' for plan in plans):
+        # A writer's object at a target -- an edit in place or a new file --
+        # is the live book and the operator's decision, as on v2/v3 (#1660):
+        # nothing is swapped over it, retired or auto-quarantined.
+        raise ValueError(
+            'A book file changed during the switch; recovery evidence was preserved')
     needs_commit = any(plan['kind'] == 'replacement' and plan['original'] is None
                        for plan in plans)
     if needs_commit:
@@ -3164,13 +3179,13 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         row, target = plan['row'], plan['target']
         target_parent = (parent_identities[plan['index']]
                          if parent_identities is not None else None)
-        if plan['kind'] in ('replacement', 'foreign') and plan['original'] is not None:
+        if plan['kind'] == 'replacement' and plan['original'] is not None:
             try:
                 _undo_book_exchange(
                     root, root_identity, row, target, workspace / plan['original'],
                     target_parent_identity=target_parent,
                     workspace_identity=workspace_identity,
-                    target_holds_replacement=plan['kind'] == 'replacement')
+                    target_holds_replacement=True)
             except OSError as error:
                 from source_upload_publication import _EXCHANGE_UNSUPPORTED
                 if error.errno not in _EXCHANGE_UNSUPPORTED:
@@ -3216,12 +3231,13 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
     if parent_identities is not None:
         _require_transaction_parent_identities(
             root, names, parent_identities, cancel_check=cancel_check)
+    # Like v2/v3: once restored, cleanup is not cancellable, so a cancel can
+    # never leave a half-cleaned workspace behind a 'recovered' journal.
     _finish_transaction(
         root, workspace, journal_version=journal_version,
         stream_data=data if limits is not None else None,
         byte_data=data if limits is None else None,
-        targets=targets if limits is None else None,
-        cancel_check=cancel_check)
+        targets=targets if limits is None else None)
     return True
 
 

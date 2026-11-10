@@ -518,23 +518,12 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
             self.assertTrue(changed)
-            if (root / books.JOURNAL).exists():
-                journal = json.loads((root / books.JOURNAL).read_text())
-                self.assertEqual('publishing', journal['phase'])
-                self.assertEqual(b'writer edit', target.read_bytes())
-                self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
-            else:
-                # v4 restored the original and quarantined the writer's edit
-                # after the committed journal was written; nothing was deleted.
-                from tests.test_support import get_quarantined_path
-                self.assertEqual(b'original', target.read_bytes())
-                [quarantine] = [entry for entry in root.iterdir()
-                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
-                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
-                slot = 'new-0' if qjournal['version'] == 4 else 'old-0'
-                backup = get_quarantined_path(
-                    self, root, root / qjournal['workspace'] / slot)
-                self.assertEqual(b'writer edit', backup.read_bytes())
+            # Under every protocol: the writer's edit stays the live book, the
+            # journal keeps 'publishing' and the original stays in its slot.
+            self.assertEqual(b'writer edit', target.read_bytes())
+            journal = json.loads((root / books.JOURNAL).read_text())
+            self.assertEqual('publishing', journal['phase'])
+            self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
 
     def test_phase_update_refuses_journal_replaced_before_write(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -699,14 +688,17 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                         books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
-            # A writer's edit to the original is the operator's decision under
-            # every protocol (#1660): the journal stays, and both the edit and
-            # our replacement survive, at the target or in the workspace (v3
-            # keeps the new bytes published; v4 swaps the edit back first).
-            self.assertTrue((root / books.JOURNAL).exists())
-            kept = {target.read_bytes()} | {
-                path.read_bytes() for path in root.glob('.book-switch-*/*') if path.is_file()}
-            self.assertLessEqual({b'writer edit', b'generated'}, kept)
+            # The journal stays and nothing is deleted under every protocol
+            # (#1660); where each object ends up is the protocol's own rule.
+            journal = json.loads((root / books.JOURNAL).read_text())
+            if self._book_protocol == 'v4':
+                # v4 undoes its swap in line, so the edited original is live
+                # again and our replacement waits in its slot.
+                self.assertEqual(b'writer edit', target.read_bytes())
+                self.assertEqual(b'generated', (root / journal['workspace'] / 'new-0').read_bytes())
+            else:
+                self.assertEqual(b'generated', target.read_bytes())
+                self.assertEqual(b'writer edit', get_book_original_slot(root).read_bytes())
 
     @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
     def test_committed_byte_recovery_preserves_backup_modified_after_commit(self):

@@ -59,7 +59,8 @@ class CleanupRecheckCostTests(unittest.TestCase):
             # v4 rotates the slots: after publication new-1 holds row 1's
             # original, so that is the backup cleanup must preserve. Windows
             # (and an unsupported filesystem) keep the v3 old-1 slot.
-            slot = 'old-1' if os.name == 'nt' else 'new-1'
+            from tests.test_support import exchange_protocol_available
+            slot = 'new-1' if exchange_protocol_available() else 'old-1'
             self.assertEqual(1, len(list(root.glob(f'.book-switch-*/{slot}'))))
             self.assertEqual(b'writer edit', (root / 'f1.bin').read_bytes())
 
