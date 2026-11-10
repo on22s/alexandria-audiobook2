@@ -120,7 +120,11 @@ def _get_rename_request(name):
     two UTF-16 units): the terminator was dropped and the kernel read past the
     buffer into a garbage name (#1660 review).
     """
-    encoded = name.encode('utf-16-le')
+    if '\0' in name:
+        raise ValueError('Invalid Windows rename destination')   # the kernel would truncate at it
+    # surrogatepass: NTFS allows unpaired surrogates in names, and a path
+    # rename moved them; keep each as its single UTF-16 unit.
+    encoded = name.encode('utf-16-le', 'surrogatepass')
     offset = _RenameInformation.name.offset
     request = ctypes.create_string_buffer(
         max(ctypes.sizeof(_RenameInformation), offset + len(encoded) + 2))

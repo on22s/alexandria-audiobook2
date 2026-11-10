@@ -995,8 +995,9 @@ class NativeWindowsHandleRenameTests(unittest.TestCase):
         # FILE_RENAME_INFO is sized in UTF-16 units: an emoji is two. Sizing by
         # code points dropped the terminator, so the kernel read past the name.
         # Uses the full six-field version, so that comparison is exercised too.
+        # An unpaired surrogate is a valid NTFS name a path rename also moved.
         for book, leaf in (('Book\U0001F600\U0001F4DA', 'old-0'), ('Book\U0001F600', 'old-0'),
-                           ('plain', 'abc\U0001F600xyz.bin')):
+                           ('plain', 'abc\U0001F600xyz.bin'), ('Book\ud800part', 'old-0')):
             for pad in range(4):   # every path length mod 4
                 with self.subTest(book=book, leaf=leaf, pad=pad), tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp) / (book + 'p' * pad)
