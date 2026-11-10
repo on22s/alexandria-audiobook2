@@ -2844,7 +2844,7 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
     files, never from the refusal's message. An unreadable, non-directory or
     reparse-point workspace stays refused."""
     try:
-        (workspace, _persisted, rows, names, limits,
+        (workspace, persisted_identity, rows, names, limits,
          parent_identities) = _validate_recovery_journal_shape(root, root / JOURNAL, data)
         if parent_identities is not None:
             _require_transaction_parent_identities(
@@ -2865,8 +2865,9 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
                     & stat.FILE_ATTRIBUTE_REPARSE_POINT):
                 return None
             workspace_identity = [info.st_dev, info.st_ino]
-        admitted_root, admitted_identity = _direct_book_root(root)
-        if admitted_root != root or tuple(admitted_identity) != tuple(root_identity):
+            if persisted_identity is not None and workspace_identity != persisted_identity:
+                return None   # another directory at the name is not ours to move
+        if not _is_admitted_root_unchanged(root, root_identity):
             return None
     except (ValueError, OSError):
         return None
@@ -2910,7 +2911,8 @@ def _find_pending_quarantine(root, sha256, workspace_name):
             workspace = receipt.get('workspace')
             identity = workspace.get('identity') if isinstance(workspace, dict) else None
             if (receipt.get('version') != 1 or receipt.get('state') != 'prepared'
-                    or not isinstance(workspace, dict) or workspace.get('name') != workspace_name
+                    or not isinstance(workspace, dict) or 'identity' not in workspace
+                    or workspace.get('name') != workspace_name
                     or (identity is not None and (
                         not isinstance(identity, list) or len(identity) != 2
                         or any(type(value) is not int or value < 0 for value in identity)))):
@@ -2919,6 +2921,11 @@ def _find_pending_quarantine(root, sha256, workspace_name):
     if len(found) > 1:
         raise ValueError('More than one book quarantine is pending for this transaction')
     return found[0] if found else (None, None)
+
+
+def _is_admitted_root_unchanged(root, root_identity):
+    admitted_root, admitted_identity = _direct_book_root(root)
+    return admitted_root == root and tuple(admitted_identity) == tuple(root_identity)
 
 
 def _create_quarantine_directory(root, sha256):
@@ -2974,6 +2981,8 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
                    'journal': {'sha256': sha256, 'bytes': len(raw),
                                'version': data.get('version'), 'phase': data.get('phase')},
                    'workspace': {'name': data['workspace'], 'identity': workspace_identity}}
+        if not _is_admitted_root_unchanged(root, root_identity):
+            raise ValueError('Book root changed during quarantine; recovery evidence was preserved')
         quarantine = _create_quarantine_directory(root, sha256)
         _write_quarantine_receipt(quarantine, receipt)
     # The receipt names this quarantine now: finish without cancellation.
@@ -2991,6 +3000,12 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
               destination_parent_identity=quarantine_identity,
               expected_source_identity=workspace_identity)
         if _get_entry_identity(moved_workspace) != workspace_identity:
+            # POSIX renames by name: a directory swapped in after the check
+            # was moved instead. Put it back so the quarantine holds only what
+            # its receipt names; the next run decides again.
+            _move(moved_workspace, workspace, **anchored,
+                  source_parent_identity=quarantine_identity,
+                  destination_parent_identity=list(root_identity))
             raise ValueError('Book transaction workspace changed during quarantine; '
                              'recovery evidence was preserved')
     elif moved_identity != recorded:
