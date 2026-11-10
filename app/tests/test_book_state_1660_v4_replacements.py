@@ -689,5 +689,26 @@ class BookStateV4ReplacementTests(unittest.TestCase):
         (self.root / 'part-0.json').rename(self.root / 'removed-by-someone')
         self._assert_recovered({**originals, 'removed-by-someone': b'replacement-0'})
 
+    def test_an_edit_made_after_classification_is_never_swapped_out(self):
+        # Every target is proven at classification, but the undo of row 0
+        # runs before row 1's: an in-place edit to row 1 in between keeps its
+        # inode, so only the re-proof right before row 1's undo can see it.
+        self._prepare()
+        self._crash_after_exchanges(2)   # both published
+        undo, done = books._undo_book_exchange, []
+        def edit_the_next_target_first(*args, **kwargs):
+            result = undo(*args, **kwargs)
+            if not done:
+                (self.root / 'part-1.json').write_bytes(b'writer edit-1')   # same inode
+                done.append(True)
+            return result
+        with patch.object(books, '_undo_book_exchange', side_effect=edit_the_next_target_first):
+            with self.assertRaisesRegex(ValueError, 'A book file changed during the switch'):
+                with books.ensure_book_state(str(self.root)):
+                    pass
+        self.assertEqual(b'writer edit-1', (self.root / 'part-1.json').read_bytes())
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(self.root.glob(books.QUARANTINE_PREFIX + '*')))
+
 if __name__ == '__main__':
     unittest.main()

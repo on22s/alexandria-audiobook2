@@ -1927,13 +1927,8 @@ print(len(result['entries']))
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100)
             self.assertEqual(b'concurrent edit', target.read_bytes())
-            if (root / books.JOURNAL).exists():
-                journal = json.loads((root / books.JOURNAL).read_text())
-                backup = root / journal['workspace'] / 'old-0'
-                self.assertFalse(backup.exists())
-            else:
-                # v4 refused before the exchange and retired our workspace.
-                self.assertEqual([], list(root.glob('.book-switch-*')))
+            journal = json.loads((root / books.JOURNAL).read_text())   # kept, as on main
+            self.assertFalse((root / journal['workspace'] / 'old-0').exists())
 
     @unittest.skipIf(os.name == 'nt', 'Anchored book moves are not yet supported on Windows')
     def test_symlink_swapped_at_rename_does_not_write_outside_project(self):

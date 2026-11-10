@@ -3180,6 +3180,17 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         target_parent = (parent_identities[plan['index']]
                          if parent_identities is not None else None)
         if plan['kind'] == 'replacement' and plan['original'] is not None:
+            # Prove this target again right before its own undo: an edit in
+            # place since classification keeps the inode, so the exchange's
+            # identity predicate alone would swap it out (#1660 re-review).
+            try:
+                _validate_exchange_target(
+                    row, target, limits=limits,
+                    budget=_get_exchange_recovery_budget(limits, cancel_check),
+                    cancel_check=cancel_check, expected='replacement')
+            except ValueError as error:
+                raise ValueError('A book file changed during the switch; '
+                                 'recovery evidence was preserved') from error
             try:
                 _undo_book_exchange(
                     root, root_identity, row, target, workspace / plan['original'],

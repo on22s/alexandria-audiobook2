@@ -634,19 +634,14 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
             self.assertEqual(b'writer edit', target.read_bytes())
-            if (root / books.JOURNAL).exists():
-                journal = json.loads((root / books.JOURNAL).read_text())
-                if journal['version'] == 4:
-                    # Nothing was exchanged, so the writer's file is the target
-                    # and our staged replacement stays in new-0.
-                    self.assertEqual(b'generated',
-                                     (root / journal['workspace'] / 'new-0').read_bytes())
-                else:
-                    self.assertFalse((root / journal['workspace'] / 'old-0').exists())
+            journal = json.loads((root / books.JOURNAL).read_text())   # kept, as on main
+            if journal['version'] == 4:
+                # Nothing was exchanged, so the writer's file is the target
+                # and our staged replacement stays in new-0.
+                self.assertEqual(b'generated',
+                                 (root / journal['workspace'] / 'new-0').read_bytes())
             else:
-                # v4 refused before the swap; recovery retired our workspace
-                # and the writer's file at the target is the book.
-                self.assertEqual([], list(root.glob('.book-switch-*')))
+                self.assertFalse((root / journal['workspace'] / 'old-0').exists())
 
     @unittest.skipIf(os.name == 'nt', 'POSIX mode semantics required')
     def test_byte_transaction_preserves_mode_change_during_original_move(self):
