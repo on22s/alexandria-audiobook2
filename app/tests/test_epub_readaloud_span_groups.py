@@ -110,6 +110,25 @@ class SpanBuildTests(unittest.TestCase):
         self.assertNotEqual(clips[0][0], clips[1][0])
         self.assertEqual(clips[0][2], clips[1][1], clips)
 
+    def test_qwen_mode_book_and_script_apostrophe_styles_may_differ(self):
+        # EPUB uses a curly apostrophe, the script an ASCII one; the aligner
+        # keeps the ASCII one. Both blocks still time from their tokens.
+        body = '<h2>Chapter 3</h2><p>It was one’s turn.</p>'
+        entries = [{"index": 0, "prepared_text": "Chapter 3. It was one's turn.",
+                    "start_frame": 0, "end_frame": 72000, "sample_rate": 24000}]
+        words = ["Chapter", "3", "It", "was", "one's", "turn"]
+        tokens = [{"text": w, "start_time": i * 0.5, "end_time": (i + 1) * 0.5}
+                  for i, w in enumerate(words)]
+        result, _report = build_epub_readaloud(
+            retained_epub_bytes=_source_epub(body), audio_bytes=b'\xff\xfbmp3',
+            audio_filename='audiobook.mp3', script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            smil = ET.fromstring(archive.read('OEBPS/ch1.smil'))
+        clips = _par_clips(smil)
+        self.assertEqual(2, len(clips), clips)
+        self.assertEqual(clips[0][2], clips[1][1], clips)
 
 if __name__ == "__main__":
     unittest.main()

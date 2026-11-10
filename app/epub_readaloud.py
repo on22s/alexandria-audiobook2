@@ -1274,7 +1274,8 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         # #1844: this segment is one member of a chunk span group; keep
         # only the aligned tokens inside its word window. A token that
         # straddles the window edge has no honest owner and refuses.
-        group_words = [w for i in row["chunk_indexes"]
+        # Stream lengths: qwen_align leaves apostrophes out of the stream.
+        group_words = [w.replace("'", "") for i in row["chunk_indexes"]
                        for w in get_normalized_words(script_entries[i]["prepared_text"])]
         word_start, word_end = row["span_words"]
         window_start = sum(len(w) for w in group_words[:word_start])

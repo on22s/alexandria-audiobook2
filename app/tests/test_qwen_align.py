@@ -125,12 +125,14 @@ class TokenValidationTests(unittest.TestCase):
         qa.require_exact_coverage(text, tokens)
 
     def test_normalized_stream_agrees_with_aa2(self):
-        # Char stream of the aligner core must match AA2 get_normalized_words.
+        # Char stream of the aligner core must match AA2 get_normalized_words
+        # with apostrophes left out (#1844): epub_readaloud's span-group
+        # slicing converts word offsets to stream offsets this way.
         from epub_readaloud import get_normalized_words
         for text in ("Hello Synthetic World.", "Dr. Smith's 3.50 euros!",
-                     "你好世界。", "Café — naïve test"):
+                     "Dr. Smith’s turn", "你好世界。", "Café — naïve test"):
             self.assertEqual(
-                "".join(get_normalized_words(text)),
+                "".join(get_normalized_words(text)).replace("'", ""),
                 qa.get_normalized_stream(text)[0])
 
     def test_curly_apostrophe_matches_aligner_drop(self):
@@ -149,6 +151,16 @@ class TokenValidationTests(unittest.TestCase):
         # The dropped apostrophe is shared by the stream and the token key.
         self.assertEqual("ones", qa.get_normalized_stream(text)[0])
         self.assertEqual("ones", qa.get_token_key("ones"))
+
+    def test_ascii_apostrophe_token_matches_either_text_style(self):
+        # The aligner keeps an ASCII apostrophe ("one's") but drops a curly
+        # one ("ones"); the book and the script may use either style, so
+        # every combination must correspond (#1844).
+        for text in ("one's", "one’s"):
+            for token_text in ("one's", "ones"):
+                with self.subTest(text=text, token=token_text):
+                    tokens = [{"text": token_text, "start_time": 0.0, "end_time": 0.4}]
+                    self.assertEqual(1, len(qa.require_exact_coverage(text, tokens)))
 
     def test_fabricated_word_still_rejected_after_apostrophe_fix(self):
         # A genuinely different word must still fail closed: the apostrophe

@@ -187,24 +187,18 @@ def _is_abbreviation(text, dot_index):
     return False
 
 
-# The upstream Qwen3-ForcedAligner processor (Qwen3ForceAlignProcessor.
-# is_kept_char) keeps ONLY the ASCII apostrophe U+0027, letters (L*) and
-# numbers (N*); every other character — including the curly apostrophes
-# U+2019/U+2018 that EPUB text commonly uses for "one's" — is dropped,
-# never folded to ASCII. This regex mirrors that: `'` is the only
-# intra-word apostrophe, so a curly apostrophe is a word boundary that
-# the stream drops, matching the aligner's "one’s" -> "ones".
-_AA2_WORDS_RE = re.compile(r"\w+(?:'\w+)*", re.UNICODE)
+# The upstream Qwen3-ForcedAligner processor (qwen-asr 0.0.6,
+# Qwen3ForceAlignProcessor.clean_token) keeps ONLY letters (L*), numbers (N*)
+# and the ASCII apostrophe, so "one’s" (curly) reaches us as "ones" while
+# "one's" (ASCII) stays "one's" (#1844). The script text and the EPUB text
+# may use different apostrophe styles, so apostrophes of every kind are
+# left out of BOTH the expected stream and the token key: letters and
+# digits must still match exactly, only "it's" vs "its" become equal.
+_AA2_WORDS_RE = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
 
 
 def count_units(text):
-    """Count AA2 word tokens, roughly matching an aligner's tokens.
-
-    Unlike the validated stream (which drops a curly apostrophe because
-    the aligner emits "ones" for "one’s"), the word COUNT folds curly
-    apostrophes to ASCII first: the aligner whitespace-splits before
-    dropping non-kept characters, so "one’s" is still ONE token.
-    """
+    """Count AA2 word tokens, roughly matching an aligner's tokens."""
     folded = unicodedata.normalize("NFKC", text or "").casefold()
     folded = folded.replace("’", "'").replace("‘", "'")
     return len(_AA2_WORDS_RE.findall(folded))
@@ -283,7 +277,7 @@ def _get_normalized_stream_detailed(text):
     ends = []
     for start, stop in _normalized_clusters(text or ""):
         folded = unicodedata.normalize("NFKC", text[start:stop])
-        folded = folded.casefold()
+        folded = folded.casefold().replace("’", "'").replace("‘", "'")
         for char in folded:
             folded_chars.append(char)
             starts.append(start)
@@ -292,6 +286,8 @@ def _get_normalized_stream_detailed(text):
     out_chars, out_starts, out_ends = [], [], []
     for match in _AA2_WORDS_RE.finditer(folded):
         for pos in range(match.start(), match.end()):
+            if folded[pos] == "'":
+                continue
             out_chars.append(folded[pos])
             out_starts.append(starts[pos])
             out_ends.append(ends[pos])
@@ -317,8 +313,8 @@ def get_token_key(token_text):
     if not isinstance(token_text, str):
         return ""
     folded = unicodedata.normalize("NFKC", token_text)
-    folded = folded.casefold()
-    return "".join(_AA2_WORDS_RE.findall(folded))
+    folded = folded.casefold().replace("’", "'").replace("‘", "'")
+    return "".join(_AA2_WORDS_RE.findall(folded)).replace("'", "")
 
 
 def _map_tokens_internal(text, tokens):
