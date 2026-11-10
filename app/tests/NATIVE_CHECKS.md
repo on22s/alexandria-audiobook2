@@ -97,7 +97,7 @@ python tests/native_windows_transaction_checks.py
 
 Set `PYTHONPATH` to `.`. The `windows-owner` job runs it after installing the
 script-router dependencies it imports. It rejects a non-Windows host with exit 2
-and accepts only 42 successful tests with zero skips: recovery-archive directory
+and accepts only 45 successful tests with zero skips: recovery-archive directory
 guards and unsafe-entry observations (11), native staging identities and handles in the book transaction (5),
 book-move identity, generation-read failures, cleanup and sharing handles (5), published-script cancellation
 through the owned job (3), short-name/ancestor path admission (2), and sound-upload
@@ -109,7 +109,10 @@ substituted source name, block substitution while held, never replace an
 existing destination, and create names outside the BMP exactly (4, #1660), and
 journals that record each target's parent chain by path so a parent folder
 swapped before recovery (leaf or any ancestor) is refused and a junction
-parent is refused when the chain is recorded (4, #1660). The
+parent is refused when the chain is recorded (4, #1660), and auto-quarantine
+that renames the stuck workspace directory itself through its verified handle,
+waits for a file held open inside it, and never follows a junction workspace
+(3, #1660). The
 short-name check requires a volume providing a distinct DOS short spelling;
 absence fails native qualification rather than passing a skipped check.
 Do not add `skipUnless` Windows guards to discovered

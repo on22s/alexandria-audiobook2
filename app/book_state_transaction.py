@@ -84,6 +84,10 @@ WINDOWS_PARENT_SCHEME = 'windows-path'
 # share the reserved .book-switch- prefix, so no book target may use them.
 QUARANTINE_PREFIX = '.book-switch-quarantine-'
 MIGRATION_PREFIX = '.book-switch-migration-'
+QUARANTINE_RECEIPT = 'receipt.json'
+QUARANTINE_JOURNAL = 'journal.json'
+QUARANTINE_WORKSPACE = 'workspace'
+_QUARANTINE_NAME = re.compile(re.escape(QUARANTINE_PREFIX) + r'([0-9a-f]{8})-[0-9a-f]{8}')
 
 
 def _capture_target_parent_identities_path(root, relative):
@@ -2457,25 +2461,12 @@ def _validate_committed_byte_backups(workspace, rows, targets, cancel_check=None
                 raise ValueError('Committed book backup changed; recovery evidence was preserved')
 
 
-def recover_book_state_locked(data_dir, *, cancel_check=None,
-                              expected_root=None, expected_root_identity=None):
-    """Restore an interrupted switch; caller holds the book-operation lock."""
-    root, root_identity = _direct_book_root(data_dir)
-    if (expected_root is None) != (expected_root_identity is None):
-        raise ValueError('Book recovery root expectation is incomplete')
-    if expected_root is not None:
-        expected_root = Path(expected_root)
-        if (not isinstance(expected_root_identity, (list, tuple))
-                or len(expected_root_identity) != 2
-                or any(type(value) is not int or value < 0
-                       for value in expected_root_identity)):
-            raise ValueError('Invalid book recovery root identity')
-        if root != expected_root or root_identity != tuple(expected_root_identity):
-            raise ValueError('Book root changed during admission; alias scope no longer matches')
-    journal = root / JOURNAL
-    if not os.path.lexists(journal):
-        return False
-    data, journal_version = _read_book_journal(journal)
+def _validate_recovery_journal_shape(root, journal, data):
+    """-> (workspace, persisted workspace identity, rows, names, limits, parent
+    identities) for a parsed journal, or ValueError (#1660).
+
+    Pure: it reads no target or workspace. Recovery and auto-quarantine both
+    call it, so the two can never disagree about what a valid journal is."""
     if (not isinstance(data, dict) or type(data.get('version')) is not int
             or data['version'] not in (1, 2, 3)
             or data.get('phase') not in ('publishing', 'recovered', 'committed')):
@@ -2523,9 +2514,6 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
     _validate_parent_identity_scheme(data)
-    if parent_identities is not None:
-        _require_transaction_parent_identities(
-            root, names, parent_identities, cancel_check=cancel_check)
     if data['version'] == 3:
         if 'stream_limits' in data:
             raise ValueError('Invalid active-book byte transaction')
@@ -2581,13 +2569,68 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
             expected_keys |= _get_book_file_generation_keys(row, existed, new)
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book stream entry')
-        original_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
-        replacement_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
+    return workspace, persisted_workspace_identity, rows, names, limits, parent_identities
+
+
+def _get_recovery_targets(root, journal, workspace, rows, limits):
+    """-> each row's target path, refusing unsafe, duplicate or nested ones.
+
+    Resolves paths, so recovery calls it only after the parent chains are
+    rechecked: a swapped parent must be reported as one."""
     targets = [_get_path(root, row['path']) for row in rows]
     if (len(set(targets)) != len(targets)
             or any(target == journal or target.is_relative_to(workspace) for target in targets)
             or limits is None and any(a != b and a.is_relative_to(b) for a in targets for b in targets)):
         raise ValueError('Invalid active-book targets')
+    return targets
+
+
+def recover_book_state_locked(data_dir, *, cancel_check=None,
+                              expected_root=None, expected_root_identity=None):
+    """Restore an interrupted switch; caller holds the book-operation lock.
+
+    A switch recovery refuses while every target is consistent is quarantined
+    instead of left stuck (#1660); see _quarantine_book_transaction."""
+    root, root_identity = _direct_book_root(data_dir)
+    if (expected_root is None) != (expected_root_identity is None):
+        raise ValueError('Book recovery root expectation is incomplete')
+    if expected_root is not None:
+        expected_root = Path(expected_root)
+        if (not isinstance(expected_root_identity, (list, tuple))
+                or len(expected_root_identity) != 2
+                or any(type(value) is not int or value < 0
+                       for value in expected_root_identity)):
+            raise ValueError('Invalid book recovery root identity')
+        if root != expected_root or root_identity != tuple(expected_root_identity):
+            raise ValueError('Book root changed during admission; alias scope no longer matches')
+    journal = root / JOURNAL
+    if not os.path.lexists(journal):
+        return False
+    if _quarantine_book_transaction(root, root_identity, cancel_check=cancel_check):
+        return True
+    try:
+        return _recover_book_journal(root, root_identity, journal, cancel_check)
+    except BookJournalPublicationUncertain:
+        raise
+    except ValueError as refusal:
+        if not _quarantine_book_transaction(
+                root, root_identity, refusal=refusal, cancel_check=cancel_check):
+            raise
+        return True
+
+
+def _recover_book_journal(root, root_identity, journal, cancel_check):
+    """recover_book_state_locked's restore or finish of an admitted journal."""
+    data, journal_version = _read_book_journal(journal)
+    (workspace, persisted_workspace_identity, rows, names, limits,
+     parent_identities) = _validate_recovery_journal_shape(root, journal, data)
+    if parent_identities is not None:
+        _require_transaction_parent_identities(
+            root, names, parent_identities, cancel_check=cancel_check)
+    if limits is not None:
+        original_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
+        replacement_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
+    targets = _get_recovery_targets(root, journal, workspace, rows, limits)
     if data['phase'] == 'committed' and limits is None:
         _validate_committed_byte_backups(
             workspace, rows, targets, cancel_check=cancel_check)
@@ -2787,6 +2830,210 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
                         stream_data=data if limits is not None else None,
                         byte_data=data if limits is None else None,
                         targets=targets if limits is None else None)
+    return True
+
+
+def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
+    """-> (workspace, workspace identity or None) when a refused switch may be
+    quarantined, else None (#1660).
+
+    Eligible only when the journal passes recovery's own shape checks and every
+    target already holds what the journal's phase says it must: the originals
+    for publishing/recovered, the replacements for committed. Then the live
+    book is consistent and only the workspace is in doubt. Decided from the
+    files, never from the refusal's message. An unreadable, non-directory or
+    reparse-point workspace stays refused."""
+    try:
+        (workspace, persisted_identity, rows, names, limits,
+         parent_identities) = _validate_recovery_journal_shape(root, root / JOURNAL, data)
+        if parent_identities is not None:
+            _require_transaction_parent_identities(
+                root, names, parent_identities, cancel_check=cancel_check)
+        targets = _get_recovery_targets(root, root / JOURNAL, workspace, rows, limits)
+        if limits is not None:
+            _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check)
+        else:
+            _validate_byte_cleanup_targets(
+                rows, targets, 'committed' if data['phase'] == 'committed' else 'recovered',
+                cancel_check=cancel_check)
+        try:
+            info = os.lstat(workspace)
+        except FileNotFoundError:
+            workspace_identity = None
+        else:
+            if (not stat.S_ISDIR(info.st_mode) or getattr(info, 'st_file_attributes', 0)
+                    & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                return None
+            workspace_identity = [info.st_dev, info.st_ino]
+            if persisted_identity is not None and workspace_identity != persisted_identity:
+                return None   # another directory at the name is not ours to move
+        if not _is_admitted_root_unchanged(root, root_identity):
+            return None
+    except (ValueError, OSError):
+        return None
+    return workspace, workspace_identity
+
+
+def _get_entry_identity(path):
+    """-> [dev, ino] of a name, or None when absent; other errors refuse."""
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ValueError('Book quarantine could not be read; recovery evidence was preserved') from error
+    return [info.st_dev, info.st_ino]
+
+
+def _find_pending_quarantine(root, sha256, workspace_name):
+    """-> (directory, receipt) of the one quarantine a crash interrupted for
+    this exact journal, or (None, None). A directory without a receipt is a
+    crash before the receipt was written: inert, ignored and kept."""
+    found = []
+    with os.scandir(root) as entries:
+        for entry in entries:
+            match = _QUARANTINE_NAME.fullmatch(entry.name)
+            if (match is None or match.group(1) != sha256[:8]
+                    or not entry.is_dir(follow_symlinks=False)):
+                continue
+            receipt_path = Path(entry.path) / QUARANTINE_RECEIPT
+            if not os.path.lexists(receipt_path):
+                continue
+            try:
+                receipt, _version = _read_book_journal(receipt_path)
+            except (OSError, ValueError) as error:
+                raise ValueError('Book quarantine receipt could not be read; recovery evidence was preserved') from error
+            journal = receipt.get('journal') if isinstance(receipt, dict) else None
+            if not isinstance(journal, dict) or journal.get('sha256') != sha256:
+                continue
+            if receipt.get('state') == 'completed':
+                continue
+            workspace = receipt.get('workspace')
+            identity = workspace.get('identity') if isinstance(workspace, dict) else None
+            if (receipt.get('version') != 1 or receipt.get('state') != 'prepared'
+                    or not isinstance(workspace, dict) or 'identity' not in workspace
+                    or workspace.get('name') != workspace_name
+                    or (identity is not None and (
+                        not isinstance(identity, list) or len(identity) != 2
+                        or any(type(value) is not int or value < 0 for value in identity)))):
+                raise ValueError('Invalid book quarantine receipt; recovery evidence was preserved')
+            found.append((root / entry.name, receipt))
+    if len(found) > 1:
+        raise ValueError('More than one book quarantine is pending for this transaction')
+    return found[0] if found else (None, None)
+
+
+def _is_admitted_root_unchanged(root, root_identity):
+    admitted_root, admitted_identity = _direct_book_root(root)
+    return admitted_root == root and tuple(admitted_identity) == tuple(root_identity)
+
+
+def _create_quarantine_directory(root, sha256):
+    for _attempt in range(8):
+        directory = root / f'{QUARANTINE_PREFIX}{sha256[:8]}-{uuid.uuid4().hex[:8]}'
+        try:
+            os.mkdir(directory, 0o700)
+        except FileExistsError:
+            continue
+        sync_adapter_directory(str(root))
+        return directory
+    raise ValueError('Book quarantine directory could not be created')
+
+
+def _write_quarantine_receipt(directory, receipt):
+    from utils import atomic_json_write
+    atomic_json_write(receipt, str(directory / QUARANTINE_RECEIPT), allow_nonatomic_fallback=False)
+    sync_adapter_directory(str(directory))
+
+
+def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_check=None):
+    """Move a stuck switch's workspace and journal aside; never delete (#1660).
+
+    With a refusal: quarantine when _get_quarantine_eligibility allows it.
+    Without one: only resume a quarantine a crash interrupted, which must run
+    before normal recovery, since recovery would retire a journal whose
+    workspace was already moved. -> True when the journal is now retired.
+
+    <root>/.book-switch-quarantine-<journal sha8>-<nonce8>/ holds receipt.json
+    (prepared, then completed), journal.json (the journal itself, moved, so
+    byte-identical) and workspace/ (the workspace, moved, when it existed).
+    """
+    journal = root / JOURNAL
+    try:
+        data, journal_version, raw = _read_book_journal(journal, include_raw=True)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(data, dict) or not isinstance(data.get('workspace'), str):
+        return False
+    sha256 = hashlib.sha256(raw).hexdigest()
+    quarantine, receipt = _find_pending_quarantine(root, sha256, data['workspace'])
+    if quarantine is None and refusal is None:
+        return False
+    eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check)
+    if eligible is None:
+        if quarantine is not None:
+            raise ValueError('An interrupted book quarantine can no longer prove its targets; '
+                             'recovery evidence was preserved')
+        return False
+    workspace, workspace_identity = eligible
+    if quarantine is None:
+        receipt = {'version': 1, 'state': 'prepared', 'refusal': str(refusal)[:1000],
+                   'journal': {'sha256': sha256, 'bytes': len(raw),
+                               'version': data.get('version'), 'phase': data.get('phase')},
+                   'workspace': {'name': data['workspace'], 'identity': workspace_identity}}
+        if not _is_admitted_root_unchanged(root, root_identity):
+            raise ValueError('Book root changed during quarantine; recovery evidence was preserved')
+        quarantine = _create_quarantine_directory(root, sha256)
+        _write_quarantine_receipt(quarantine, receipt)
+    # The receipt names this quarantine now: finish without cancellation.
+    quarantine_identity = _get_entry_identity(quarantine)
+    recorded = receipt['workspace']['identity']
+    moved_workspace = quarantine / QUARANTINE_WORKSPACE
+    moved_identity = _get_entry_identity(moved_workspace)
+    anchored = dict(exclusive=True, anchor=root, anchor_identity=tuple(root_identity))
+    if workspace_identity is not None:
+        if moved_identity is not None or workspace_identity != recorded:
+            raise ValueError('Book transaction workspace changed during quarantine; '
+                             'recovery evidence was preserved')
+        _move(workspace, moved_workspace, **anchored,
+              source_parent_identity=list(root_identity),
+              destination_parent_identity=quarantine_identity,
+              expected_source_identity=workspace_identity)
+        if _get_entry_identity(moved_workspace) != workspace_identity:
+            # POSIX renames by name: a directory swapped in after the check
+            # was moved instead. Put it back so the quarantine holds only what
+            # its receipt names; the next run decides again.
+            _move(moved_workspace, workspace, **anchored,
+                  source_parent_identity=quarantine_identity,
+                  destination_parent_identity=list(root_identity))
+            raise ValueError('Book transaction workspace changed during quarantine; '
+                             'recovery evidence was preserved')
+    elif moved_identity != recorded:
+        raise ValueError('Book transaction workspace changed during quarantine; '
+                         'recovery evidence was preserved')
+    moved_journal = quarantine / QUARANTINE_JOURNAL
+    _move(journal, moved_journal, **anchored,
+          source_parent_identity=list(root_identity),
+          destination_parent_identity=quarantine_identity,
+          expected_source_identity=[journal_version[index] for index in (0, 1, 2, 3, 5, 6)])
+    try:
+        moved_raw = _read_book_journal(moved_journal, include_raw=True)[2]
+    except (OSError, ValueError):
+        moved_raw = None
+    if moved_raw != raw:
+        # Another writer replaced the journal between the read and the move.
+        # Put both names back; nothing is deleted.
+        _move(moved_journal, journal, **anchored,
+              source_parent_identity=quarantine_identity,
+              destination_parent_identity=list(root_identity))
+        if _get_entry_identity(moved_workspace) is not None:
+            _move(moved_workspace, workspace, **anchored,
+                  source_parent_identity=quarantine_identity,
+                  destination_parent_identity=list(root_identity))
+        raise ValueError('Book journal changed during quarantine; recovery evidence was preserved')
+    sync_adapter_directory(str(root))
+    receipt['state'] = 'completed'
+    _write_quarantine_receipt(quarantine, receipt)
     return True
 
 
