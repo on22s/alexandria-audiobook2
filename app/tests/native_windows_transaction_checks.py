@@ -1012,7 +1012,94 @@ class NativeWindowsHandleRenameTests(unittest.TestCase):
                     self.assertEqual(b'verified', (root / 'stage' / leaf).read_bytes())
 
 
-NATIVE_TEST_COUNT = 38
+class NativeWindowsParentChainTests(unittest.TestCase):
+    """#1660: Windows journals record each target's parent chain by path, so a
+    parent folder swapped before recovery is refused instead of trusted."""
+
+    class _Crash(BaseException):
+        pass
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        (self.root / 'sub').mkdir()
+        (self.root / 'sub' / 'file.json').write_bytes(b'original')
+
+    def interrupt_after_journal(self):
+        save, documents = books._save_journal, []
+        def recording(directory, document, **kwargs):
+            documents.append(json.loads(json.dumps(document)))
+            return save(directory, document, **kwargs)
+        def crash(*args, **kwargs):
+            raise self._Crash()
+        # Process death: the failure handler's own cleanup must not run either.
+        with patch.object(books, '_save_journal', side_effect=recording), \
+                patch.object(books, '_validate_staged_replacement', side_effect=crash), \
+                patch.object(books, '_retire_unpublished_journal', side_effect=crash), \
+                self.assertRaises(self._Crash):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {'sub/file.json': b'replacement'}, [])
+        return documents[0]
+
+    def test_journal_records_the_path_scheme_and_parent_chain(self):
+        journal = self.interrupt_after_journal()
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        self.assertEqual(books.WINDOWS_PARENT_SCHEME, journal['target_parent_identity_scheme'])
+        root, sub = self.root.lstat(), (self.root / 'sub').lstat()
+        self.assertEqual([[[root.st_dev, root.st_ino], [sub.st_dev, sub.st_ino]]],
+                         journal['target_parent_identities'])
+        with books.ensure_book_state(self.root):   # untouched parent: recovery completes
+            pass
+        self.assertFalse((self.root / books.JOURNAL).exists())
+
+    def test_parent_swapped_before_recovery_is_refused(self):
+        # The original file itself is moved into a substitute folder: its own
+        # identity is unchanged, so only the parent chain can tell. Without a
+        # recorded chain, recovery trusted it and retired the journal.
+        self.interrupt_after_journal()
+        os.rename(self.root / 'sub', self.root / 'sub-away')
+        (self.root / 'sub').mkdir()
+        os.rename(self.root / 'sub-away' / 'file.json', self.root / 'sub' / 'file.json')
+        with self.assertRaisesRegex(ValueError, 'parent changed'):
+            with books.ensure_book_state(self.root):
+                pass
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        self.assertEqual(b'original', (self.root / 'sub' / 'file.json').read_bytes())
+
+    def test_intermediate_ancestor_swapped_before_recovery_is_refused(self):
+        # Only the grandparent changes: the leaf parent folder (and the file in
+        # it) keep their identities, so only a full-chain recheck can tell.
+        (self.root / 'a' / 'b').mkdir(parents=True)
+        (self.root / 'a' / 'b' / 'file.json').write_bytes(b'original')
+        save, crash = books._save_journal, lambda *a, **k: (_ for _ in ()).throw(self._Crash())
+        with patch.object(books, '_validate_staged_replacement', side_effect=crash),                 patch.object(books, '_retire_unpublished_journal', side_effect=crash),                 self.assertRaises(self._Crash):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {'a/b/file.json': b'replacement'}, [])
+        os.rename(self.root / 'a', self.root / 'a-away')
+        (self.root / 'a').mkdir()
+        os.rename(self.root / 'a-away' / 'b', self.root / 'a' / 'b')
+        with self.assertRaisesRegex(ValueError, 'parent changed'):
+            with books.ensure_book_state(self.root):
+                pass
+        self.assertTrue((self.root / books.JOURNAL).exists())
+
+    def test_a_junction_parent_is_refused_when_the_chain_is_recorded(self):
+        # A junction that stays inside the book root passes path admission;
+        # recording its chain must still refuse it rather than trust it.
+        real = self.root / 'real'
+        real.mkdir()
+        subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.root / 'j'), str(real)],
+                       check=True, capture_output=True)
+        self.addCleanup(lambda: os.rmdir(self.root / 'j') if (self.root / 'j').exists() else None)
+        with self.assertRaisesRegex(ValueError, 'not a plain directory'):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {}, ['j/absent.json'])
+        self.assertFalse((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(real.iterdir()))
+
+
+NATIVE_TEST_COUNT = 42
 
 
 def main():
@@ -1027,7 +1114,7 @@ def main():
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
             NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests,
             NativeWindowsBookRootSharingTests, NativeWindowsUploadRenameRetryTests,
-            NativeWindowsHandleRenameTests))
+            NativeWindowsHandleRenameTests, NativeWindowsParentChainTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1

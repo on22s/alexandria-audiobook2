@@ -79,6 +79,74 @@ def _capture_target_parent_identities(root_fd, relative):
         os.close(current)
 
 
+WINDOWS_PARENT_SCHEME = 'windows-path'
+
+
+def _capture_target_parent_identities_path(root, relative):
+    """Capture a parent chain by path for Windows, which has no dir_fd (#1660).
+
+    Same shape as the POSIX chain: the root's [dev, ino], then one entry per
+    parent component, None from the first missing one. A component that is
+    not a plain directory (a file, a symlink, or a reparse point such as a
+    junction) is refused rather than recorded.
+
+    Path-based, so this is detection evidence for crash recovery, not a
+    boundary: during a move the rename-denying parent guard is the boundary.
+    The evidence is only as strong as the filesystem's directory file IDs
+    (stable on NTFS; a volume reporting st_ino 0 gives no protection).
+    """
+    if not isinstance(relative, str):
+        raise ValueError('Invalid book artifact path')
+    path = Path(relative)
+    # anchor/drive: on Windows '/x' and 'C:x' are not "absolute" but escape the root.
+    if (path.is_absolute() or path.anchor or path.drive or not path.parts
+            or '..' in path.parts or len(path.parts) > 128):
+        raise ValueError('Invalid book artifact path')
+
+    def identity(info):
+        reparse = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)
+        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                or getattr(info, 'st_file_attributes', 0) & reparse):
+            raise ValueError('Book artifact parent is not a plain directory')
+        return [info.st_dev, info.st_ino]
+    current = Path(root)
+    identities = [identity(os.lstat(current))]
+    missing = False
+    for component in path.parts[:-1]:
+        if missing:
+            identities.append(None)
+            continue
+        current = current / component
+        try:
+            info = os.lstat(current)
+        except (FileNotFoundError, NotADirectoryError):
+            missing = True
+            identities.append(None)
+            continue
+        identities.append(identity(info))
+    return identities
+
+
+def _validate_parent_identity_scheme(data, platform=None):
+    """Refuse parent chains this platform cannot recheck (#1660).
+
+    No scheme with chains means POSIX no-follow evidence; "windows-path" means
+    path-captured Windows evidence. Each can only be rechecked where it was
+    captured: a POSIX st_ino never matches a Windows file ID, so checking it
+    would misreport "parent changed"."""
+    platform = os.name if platform is None else platform
+    chains, scheme = data.get('target_parent_identities'), data.get('target_parent_identity_scheme')
+    if scheme not in (None, WINDOWS_PARENT_SCHEME):
+        raise ValueError('Invalid active-book parent identity evidence')
+    if chains is None:
+        if scheme is not None:
+            raise ValueError('Invalid active-book parent identity evidence')
+        return
+    if (scheme == WINDOWS_PARENT_SCHEME) != (platform == 'nt'):
+        raise ValueError('Book artifact parent evidence cannot be rechecked on this platform; '
+                         'recovery evidence was preserved')
+
+
 def _require_target_parent_identities(root_fd, relative, expected):
     """Refuse a changed or substituted parent chain without following links."""
     try:
@@ -112,8 +180,25 @@ def _validate_target_parent_identity_evidence(names, evidence, *, cancel_check=N
 
 
 def _require_transaction_parent_identities(root, names, evidence, *, root_fd=None, cancel_check=None):
-    """Recheck every persisted parent chain through the admitted root handle."""
-    if (os.name == 'nt' or os.open not in os.supports_dir_fd
+    """Recheck every persisted parent chain through the admitted root handle.
+
+    Windows has no dir_fd, so it rechecks the same chain by path (#1660)."""
+    if os.name == 'nt':
+        for name in names:
+            _check_stream_cancellation(cancel_check)
+            if not isinstance(name, str):
+                raise ValueError('Invalid book artifact path')
+        _validate_target_parent_identity_evidence(names, evidence, cancel_check=cancel_check)
+        for name, expected in zip(names, evidence):
+            _check_stream_cancellation(cancel_check)
+            try:
+                current = _capture_target_parent_identities_path(root, name)
+            except (OSError, ValueError) as error:
+                raise ValueError('Book artifact parent changed; recovery evidence was preserved') from error
+            if current != expected:
+                raise ValueError('Book artifact parent changed; recovery evidence was preserved')
+        return
+    if (os.open not in os.supports_dir_fd
             or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
         raise OSError(errno.ENOTSUP, 'Anchored parent capture is unavailable')
     for name in names:
@@ -1354,8 +1439,9 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                 if (anchor_identity is not None and
                         (current_root.st_dev, current_root.st_ino) != anchor_identity):
                     raise ValueError('Book move root changed; recovery evidence was preserved')
-                for parent_path, expected in ((Path(source).parent, source_parent_identity),
-                                               (Path(destination).parent, destination_parent_identity)):
+                for moved, expected in ((Path(source), source_parent_identity),
+                                        (Path(destination), destination_parent_identity)):
+                    parent_path = moved.parent
                     if expected is None:
                         continue
                     if not isinstance(expected, (list, tuple)) or not expected:
@@ -1364,6 +1450,15 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                         if any(not isinstance(pair, (list, tuple)) or len(pair) != 2
                                or any(type(value) is not int or value < 0 for value in pair)
                                for pair in expected):
+                            raise ValueError('Book move parent changed; recovery evidence was preserved')
+                        # A full persisted chain: recheck every ancestor, as the
+                        # POSIX branch does, not only the leaf parent (#1660).
+                        try:
+                            current = _capture_target_parent_identities_path(
+                                anchor, moved.relative_to(anchor).as_posix())
+                        except (OSError, ValueError) as error:
+                            raise ValueError('Book move parent changed; recovery evidence was preserved') from error
+                        if current != [list(pair) for pair in expected]:
                             raise ValueError('Book move parent changed; recovery evidence was preserved')
                         chain = expected[-1]
                     else:
@@ -2420,6 +2515,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
            for name in names):
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
+    _validate_parent_identity_scheme(data)
     if parent_identities is not None:
         _require_transaction_parent_identities(
             root, names, parent_identities, cancel_check=cancel_check)
@@ -2842,6 +2938,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         if root_fd is not None:
             parent_identities = [
                 _capture_target_parent_identities(root_fd, name) for name in names]
+        elif os.name == 'nt':
+            parent_identities = [
+                _capture_target_parent_identities_path(root, name) for name in names]
         for index, ((name, value), target) in enumerate(zip(operations, targets)):
             if value is not None and not isinstance(value, (bytes, BookStateStream)):
                 raise ValueError('Book replacements must be bytes')
@@ -2961,6 +3060,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             data['stream_limits'] = {'bytes':stream_byte_limit, 'entries':MAX_FILES}
         if parent_identities is not None:
             data['target_parent_identities'] = parent_identities
+            if root_fd is None:
+                data['target_parent_identity_scheme'] = WINDOWS_PARENT_SCHEME
         if root_guard is not None:
             root_guard.check()
         journal_version = _save_journal(

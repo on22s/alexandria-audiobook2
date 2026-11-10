@@ -323,7 +323,10 @@ class BookStateStreamingTests(unittest.TestCase):
             for name in ('..', '/', '//', ''):
                 with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Invalid book artifact path'):
                     books._require_transaction_parent_identities(root, [name], [[[info.st_dev, info.st_ino]]])
-            with patch.object(books.os, 'name', 'nt'):
+            # A POSIX host without descriptor-relative calls still refuses. (On
+            # Windows the chain is rechecked by path instead, #1660; that is
+            # covered by the native Windows parent-chain checks.)
+            with patch.object(books.os, 'supports_dir_fd', set()):
                 with self.assertRaisesRegex(OSError, 'Anchored parent capture is unavailable'):
                     books._require_transaction_parent_identities(root, ['one'],
                                                                   [[[info.st_dev, info.st_ino]]])
