@@ -18,8 +18,10 @@ Integration is inside the Result/export workflow, not a disconnected CLI.
      SMIL Media Overlays from a fresh MP3 encode, using the retained
      original EPUB. No Merge All is needed first. Fails closed with
      editor text when no synchronization can be justified.
-3. Both builds are owned CPU background tasks (`readalong_sidecar`,
-   `readaloud_epub`) in `process_state` with owner-fenced cancel,
+3. Both builds are owned background tasks (`readalong_sidecar`,
+   `readaloud_epub`) in `process_state`. Sidecar and chunk timing use CPU;
+   Qwen timing uses the admitted CPU or GPU device, with GPU builds
+   reserving the shared GPU lock. Both builds have owner-fenced cancel,
    shared integrity approval (`ensureMergeIntegrityApproval`, same
    snapshot semantics), `admitted_snapshot` comparison in the worker,
    `verify_sources()` and `ensure_publication_transaction` publication
@@ -217,8 +219,10 @@ snapshot separately guards the original TXT identity.
   no inference or billable calls. Word timing reuses cached spans
   only. Retention counts toward the existing upload quota
   (`MAX_UPLOAD_STORAGE_BYTES`); the inventory is metadata-only.
-- CPU-only tasks under the GPU exclusion set; ordinary merge/M4B/
-  chapter paths unchanged.
+- Sidecar and chunk timing use CPU. Qwen GPU timing reserves the shared
+  GPU lock and is refused while conflicting GPU work is active;
+  wait for that work to finish and start the build again. Ordinary
+  merge/M4B/chapter paths are unchanged.
 - EPUB `readaloud.receipt.json` is the R2 seam described above; it
   adds one small JSON beside the EPUB in the same transaction. EPUBs
   built before this slice have no receipt and are refused with 409
@@ -443,6 +447,8 @@ fake, or word-count timing exists in the production path.
 - **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
   not dependencies of this app; no parallel packager exists. The
   sentence idea and parts of the tokenizer/window logic adapt
-  ReadAloudMaker (MIT, pinned above) under attribution in
+  ReadAloudMaker (MIT, commit `8ba70a83383e8a5bddd8b859016ffbbcefccba18`)
+  under attribution in
   `THIRD_PARTY_NOTICES.md`; its standalone server, build, and
-  packager/validator choices are not transplanted.
+  packager/validator choices are not transplanted. This sentence-timing
+  donor revision is distinct from the earlier packaging reference above.

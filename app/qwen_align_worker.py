@@ -326,6 +326,7 @@ def _check_slice_tokens(tokens, slice_seconds):
 
 
 def _align_row(model, row, language, decode, work_dir):
+    from qwen_align import get_absolute_token_time
     with wave.open(str(row["wav_path"]), "rb") as stream:
         rate = stream.getframerate()
         total_frames = stream.getnframes()
@@ -408,8 +409,8 @@ def _align_row(model, row, language, decode, work_dir):
         # offset + token time and requires exact agreement.
         for token in tokens:
             merged.append({"text": token["text"],
-                           "start_time": offset + token["start_time"],
-                           "end_time": offset + token["end_time"]})
+                           "start_time": get_absolute_token_time(cursor_frame, rate, token["start_time"]),
+                           "end_time": get_absolute_token_time(cursor_frame, rate, token["end_time"])})
         cursor_frame = new_cursor
     return merged, accepted
 

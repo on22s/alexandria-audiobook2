@@ -81,6 +81,23 @@ class TextlessTailTests(unittest.TestCase):
 
 
 class SentenceResourceTests(unittest.TestCase):
+    def test_unplannable_row_refusal_identifies_row_before_pcm_io(self):
+        import readalong_export as rexp
+        with tempfile.TemporaryDirectory() as tmp:
+            data = dict(layout=(1, RATE, 2), bounds=[(0, RATE), (RATE, 201 * RATE)],
+                timeline=[({'text': 'One.'}, None, 0), ({'text': '字' * 30}, None, 0)],
+                pcm_path=str(Path(tmp) / 'unopened.pcm'))
+            with self.assertRaisesRegex(ValueError, 'row 1'):
+                rexp.collect_aligned_rows(data, 'Chinese', {}, lambda: False, tmp)
+            self.assertFalse((Path(tmp) / 'qwen' / 'row-0.wav').exists())
+
+    def test_dotted_abbreviations_remain_one_sentence(self):
+        import qwen_align as qa
+        for text in ('The U.S. Army marched.', 'They met the U.K. envoy.',
+                     'Try e.g. apples.', 'Use i.e. the original text.'):
+            with self.subTest(text=text):
+                self.assertEqual([(0, len(text))], qa.split_sentences(text))
+
     def test_long_word_partition_keeps_punctuation_with_spoken_windows(self):
         import qwen_align as qa
         for text in ('word word —', '— word word', '— word — word —'):
@@ -152,6 +169,17 @@ class SentenceResourceTests(unittest.TestCase):
 
 
 class DeepMetadataTests(unittest.TestCase):
+    def test_corrupt_retained_zip_has_value_error_contract(self):
+        import epub_readaloud as er
+        with self.assertRaises(ValueError):
+            er.get_epub_language_from_path(io.BytesIO(b'not a zip'))
+
+    def test_deep_sidecar_has_value_error_contract(self):
+        from readalong_sidecar import get_validated_sidecar
+        raw = b'{"unknown":' + b'[' * 1500 + b'0' + b']' * 1500 + b'}'
+        with self.assertRaises(ValueError):
+            get_validated_sidecar(raw)
+
     def test_early_language_checks_archive_budget_before_xml(self):
         import epub_readaloud as er
         import archive_utils
@@ -1715,8 +1743,8 @@ class DeepSeekV3Tests(_FixtureMixin):
         capability = self._ready_capability(self._mkdtmp())
         capability["runtime_identity"] = capability.pop("runtime")
         timing = {"timing_mode": "qwen", "device": "cpu", "dtype": "float32",
-                  "language": "English", "provider_digest": "x" * 64,
-                  "qwen_asr_version": "0.0.6", "torch_version": "x",
+                  "language": "English", "provider_digest": capability["provider_digest"],
+                  "qwen_asr_version": "0.0.6", "torch_version": capability["torch_version"],
                   "capability": capability,
                   "runtime": capability["runtime_identity"],
                   "preference": {"timing_mode": "qwen", "timing_device": "auto",
@@ -1892,6 +1920,37 @@ class NormalizationFollowupTests(_FixtureMixin):
 
 
 class PubPhaseTests(_FixtureMixin):
+    def test_provider_drift_during_slice_staging_refuses_before_worker(self):
+        from tests.test_readalong_qwen import QwenBuildTests
+        import qwen_runtime as qr
+        import readalong_export as rexp
+        fixture = QwenBuildTests()
+        self.addCleanup(fixture.doCleanups)
+        tmp, upstream = fixture._mkdtmp(), fixture._mkdtmp()
+        _editor, manager = fixture._fixture(tmp)
+        cap = fixture._capability(tmp, upstream)
+        timing = dict(timing_mode='qwen', device='cpu', language='English',
+            provider_digest=cap['provider_digest'], capability=cap,
+            qwen_asr_version='0.0.6', torch_version='2.10.0+cpu', dtype='float32')
+        original = rexp._write_row_slice_wav
+        staged, launched = [], []
+        def stage(*args, **kwargs):
+            result = original(*args, **kwargs)
+            (Path(cap['model_dir']) / 'config.json').write_text('{"changed":true}', encoding='utf-8')
+            staged.append(True)
+            return result
+        def command(_python):
+            launched.append(True)
+            return [sys.executable, str(FAKE)]
+        with patch.object(rexp, '_write_row_slice_wav', side_effect=stage), \
+                patch.object(qr, 'get_qwen_worker_command', side_effect=command):
+            success, message = rexp.build_epub_export(manager, lambda: False, timing=timing)
+        self.assertTrue(staged)
+        self.assertFalse(success)
+        self.assertIn('provider changed', message.lower())
+        self.assertEqual([], launched, 'drift must fail before executing the selected worker')
+        self.assertFalse((Path(tmp) / 'readaloud.epub').exists())
+
     def test_prepublication_fresh_hash_after_worker(self):
         from tests.test_readalong_qwen import QwenBuildTests
         import qwen_runtime as qr
@@ -1936,6 +1995,31 @@ class PubPhaseTests(_FixtureMixin):
 
 
 class RetainedSourceResolutionTests(_FixtureMixin):
+    def test_unreadable_fallback_does_not_claim_missing_or_unique(self):
+        import readalong_export as rexp
+        tmp = self._mkdtmp()
+        self._fixture(tmp)
+        retained = Path(tmp) / 'book.source.epub'
+        retained.rename(Path(tmp) / 'renamed.source.epub')
+        with patch.object(rexp, 'get_audio_file_sha256', side_effect=OSError('controlled unreadable file')):
+            with self.assertRaisesRegex(ValueError, 'could not inspect'):
+                rexp.get_retained_epub_candidate_path(str(Path(tmp) / 'book.txt'))
+
+    def test_source_text_currency_hash_does_not_materialize_text(self):
+        import readalong_export as rexp
+        tmp = self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        source = Path(tmp) / 'book.txt'
+        original = Path.read_bytes
+        def read_bytes(path):
+            if path == source:
+                raise AssertionError('source TXT must use bounded streaming capture')
+            return original(path)
+        with patch.object(Path, 'read_bytes', read_bytes):
+            retained, selected = rexp._locate_retained_epub(manager, lambda: False, source_txt=str(source))
+        self.assertTrue(retained)
+        self.assertEqual(str(source), selected)
+
     def test_fallback_budgets_and_cancellation_do_not_return_partial_matches(self):
         import archive_utils
         import readalong_export as rexp
@@ -2258,6 +2342,60 @@ class NvmlProbeTests(unittest.TestCase):
 
 
 class JsHarnessTests(unittest.TestCase):
+    def test_long_running_build_remains_owned_until_two_hour_terminal(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve(null); await flush(); await flush();
+  var elapsed = 0, timers = [], requests = 0, downloads = 0;
+  var realTimeout = setTimeout;
+  setTimeout = function(fn, delay) { if (delay >= 1000) { timers.push({fn:fn,delay:delay}); return timers.length; } return realTimeout(fn, delay); };
+  _els['readaloud-status'] = _mkEl('readaloud-status');
+  _els['readaloud-cancel-btn'] = _mkEl('readaloud-cancel-btn');
+  _els['readaloud-build-btn'] = _mkEl('readaloud-build-btn');
+  document.createElement = function(tag) { var el = _mkEl('',tag); el.click = function() { downloads += 1; }; return el; };
+  window.ensureReadalongIntegrityApproval = function() { return Promise.resolve('a'.repeat(64)); };
+  API.post = function() { return Promise.resolve({status:'started',claim_id:'owned-claim',book_token:'owned-book'}); };
+  API.get = function() { requests += 1; return Promise.resolve({task_claim_id:'owned-claim',readalong_book_token:'owned-book',running:elapsed < 7200000,result:elapsed >= 7200000 ? {status:'done'} : null}); };
+  window.buildReadaloudEpub(); await flush(); await flush();
+  while (timers.length && elapsed < 7300000) {
+    var next = timers.shift(); elapsed += next.delay; next.fn(); await Promise.resolve(); await Promise.resolve();
+    if (elapsed >= 1860000 && elapsed < 7200000) {
+      ok(_els['readaloud-cancel-btn'].style.display !== 'none', 'long build must retain Cancel');
+      ok(_els['readaloud-build-btn'].disabled, 'long build must remain owned');
+    }
+  }
+  ok(downloads === 1, 'terminal result at two hours must still download once');
+  ok(requests <= 1800, 'slow continuation must preserve bounded request budget');
+  ok(_els['readaloud-cancel-btn'].style.display === 'none', 'terminal build must release controls');
+  console.log('long-build-owned-ok');
+})();
+""", 'long-build-owned-ok')
+
+    def test_poll_budget_preserves_cancel_identity_and_cancel_resumes_status(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve(null); await flush(); await flush();
+  var timers = [], posted = [], cancelled = false, requests = 0;
+  var realTimeout = setTimeout;
+  setTimeout = function(fn, delay) { if (delay >= 1000) { timers.push(fn); return timers.length; } return realTimeout(fn, delay); };
+  _els['readaloud-status'] = _mkEl('readaloud-status');
+  _els['readaloud-cancel-btn'] = _mkEl('readaloud-cancel-btn');
+  _els['readaloud-build-btn'] = _mkEl('readaloud-build-btn');
+  window.ensureReadalongIntegrityApproval = function() { return Promise.resolve('a'.repeat(64)); };
+  API.post = function(url, body) { posted.push(body); if (url.endsWith('/cancel')) { cancelled = true; return Promise.resolve({}); } return Promise.resolve({status:'started',claim_id:'owned-claim',book_token:'owned-book'}); };
+  API.get = function() { requests += 1; return Promise.resolve({task_claim_id:'owned-claim',readalong_book_token:'owned-book',running:!cancelled,result:cancelled ? {status:'cancelled',message:'Export cancelled'} : null}); };
+  window.buildReadaloudEpub(); await flush(); await flush();
+  for (var i=0; i < 1801 && timers.length; i++) { timers.shift()(); await Promise.resolve(); await Promise.resolve(); }
+  ok(requests <= 1800 && timers.length === 0, 'polling must stop at its finite budget');
+  ok(_els['readaloud-cancel-btn'].style.display !== 'none', 'budget exhaustion must retain Cancel');
+  ok(_els['readaloud-build-btn'].disabled, 'unconfirmed running build must remain owned');
+  window.cancelReadaloudEpub(); await flush(); await flush();
+  ok(posted[1].claim_id === 'owned-claim' && posted[1].book_token === 'owned-book', 'Cancel must retain exact owned identity');
+  ok(_els['readaloud-status'].textContent.indexOf('Build cancelled') >= 0, 'Cancel must resume status to terminal');
+  console.log('budget-cancel-owned-ok');
+})();
+""", 'budget-cancel-owned-ok')
+
     def test_unlisted_saved_language_stays_visible_and_clears_on_book_reset(self):
         self._run_js(r"""
 (async function() {

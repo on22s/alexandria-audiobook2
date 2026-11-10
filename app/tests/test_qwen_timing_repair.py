@@ -243,6 +243,80 @@ class WorkerWindowValidationTests(unittest.TestCase):
         validated = self._run(windows, merged)
         self.assertEqual(4, len(validated))
 
+    def test_touching_timestamp_bins_use_worker_frame_arithmetic(self):
+        text = 'One. Two. Three.'
+        for rate in (24000, 44100, 48000):
+            ends = (.08, .4 if rate == 44100 else .32, .24)
+            plans, windows, merged = [], [], []
+            char_start, frame_start = 0, 0
+            for word, end in zip(('One.', 'Two.', 'Three.'), ends):
+                char_end = char_start + len(word) + (word != 'Three.')
+                plan = dict(char_start=char_start, char_end=char_end)
+                token = dict(text=word, start_time=0.0, end_time=end)
+                offset = frame_start / float(rate)
+                plans.append(plan)
+                windows.append(dict(plan, start_frame=frame_start,
+                    end_frame=frame_start + rate, offset_sec=offset,
+                    slice_duration_sec=1.0, calls=1, tokens=[token]))
+                merged.append(dict(token, start_time=offset, end_time=offset + end))
+                frame_start += int(round(end * rate))
+                char_start = char_end
+            with self.subTest(rate=rate):
+                actual = qa.validate_sequential_windows(text, plans, windows, merged,
+                    sample_rate=rate, total_frames=3 * rate, row_duration_sec=3.0)
+                self.assertEqual(3, len(actual))
+                for previous, current in zip(actual, actual[1:]):
+                    self.assertLessEqual(previous['end_time'], current['start_time'])
+                self.assertEqual(frame_start / float(rate), actual[-1]['end_time'])
+
+    def test_actual_worker_touching_bins_pass_parent_validation(self):
+        import qwen_align_worker as worker
+
+        text = "One. Two. Three."
+        ranges = qa.cover_ranges(text, qa.split_sentences(text))
+        for rate, middle_bins, middle_end in (
+                (24000, 4, .32), (44100, 5, .4), (48000, 4, .32),
+                (24000, 7, .56), (44100, 7, .56), (48000, 7, .56)):
+            with self.subTest(rate=rate, middle_bins=middle_bins), \
+                    tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / "row.wav"
+                with wave.open(str(source), "wb") as stream:
+                    stream.setnchannels(1)
+                    stream.setsampwidth(2)
+                    stream.setframerate(rate)
+                    stream.writeframes(b"\x00\x00" * (3 * rate))
+                self.assertLess(source.stat().st_size, 300000)
+                plans = [dict(char_start=start, char_end=end,
+                              est_start_sec=0.0, est_end_sec=3.0)
+                         for start, end in ranges]
+                bin_counts = (1, middle_bins, 3)
+                ends = (.08, middle_end, .24)
+                frame_edges = [0]
+                for count in bin_counts:
+                    frame_edges.append(frame_edges[-1] + count * (rate * 80 // 1000))
+                returned = [[dict(text=text[start:end].strip(),
+                                  start_time=0.0, end_time=end_time)]
+                            for (start, end), end_time in zip(ranges, ends)]
+                row = dict(text=text, wav_path=str(source), duration_sec=3.0,
+                           windows=plans)
+                # Exercise real WAV slicing, geometry checks and cursor
+                # advancement; replace only the model inference boundary.
+                with patch.object(worker, "_align_slice", side_effect=returned) as align:
+                    merged, windows = worker._align_row(object(), row, "English", None, root)
+                self.assertEqual(3, align.call_count)
+                self.assertEqual(frame_edges[:-1], [w["start_frame"] for w in windows])
+                self.assertEqual([3 * rate] * 3, [w["end_frame"] for w in windows])
+                for index, token in enumerate(merged):
+                    self.assertEqual(frame_edges[index] / float(rate), token["start_time"])
+                    self.assertEqual(frame_edges[index + 1] / float(rate), token["end_time"])
+                for previous, current in zip(merged, merged[1:]):
+                    self.assertEqual(previous["end_time"], current["start_time"])
+                validated = qa.validate_sequential_windows(
+                    text, plans, windows, merged, sample_rate=rate,
+                    total_frames=3 * rate, row_duration_sec=3.0)
+                self.assertEqual(merged, validated)
+
     def test_merged_nan_cannot_bypass_window_corroboration(self):
         for key in ('start_time', 'end_time'):
             with self.subTest(key=key):
@@ -359,8 +433,9 @@ class CancellationAndIdentityTests(unittest.TestCase):
         self.assertEqual(64, len(digest))
         worker = Path(qr.__file__).resolve().parent / "qwen_align_worker.py"
         decoder = Path(qr.__file__).resolve().parent / "qwen_score_decoder.py"
+        core = Path(qr.__file__).resolve().parent / "qwen_align.py"
         expected = hashlib.sha256()
-        for path in (worker, decoder):
+        for path in (worker, decoder, core):
             expected.update(path.name.encode("utf-8"))
             expected.update(b"\x00")
             expected.update(path.read_bytes())

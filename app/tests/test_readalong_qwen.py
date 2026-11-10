@@ -258,6 +258,21 @@ class QwenReceiptTests(unittest.TestCase):
 
 
 class QwenBuildTests(_FixtureMixin):
+    def test_model_language_subset_refuses_before_assembly(self):
+        tmp, upstream = self._mkdtmp(), self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        capability = self._capability(tmp, upstream)
+        capability['languages'] = ['French']
+        timing = dict(timing_mode='qwen', device='cpu', language='English',
+            provider_digest=capability['provider_digest'], capability=capability,
+            qwen_asr_version='0.0.6', torch_version='2.10.0+cpu', dtype='float32')
+        import readalong_export as rexp
+        with patch.object(rexp, '_assemble_with_store', side_effect=AssertionError('must refuse before assembly')) as assembly:
+            success, message = rexp.build_epub_export(manager, lambda: False, timing=timing)
+        self.assertFalse(success)
+        self.assertIn('selected Qwen model', message)
+        assembly.assert_not_called()
+
     def test_builder_accepts_canonical_capability_runtime_identity(self):
         tmp = self._mkdtmp()
         upstream = self._mkdtmp()

@@ -28,7 +28,10 @@ class CancelTests(_FixtureMixin):
                   "provider_digest": capability["provider_digest"],
                   "capability": capability, "reason": "test", "qwen_asr_version": "0.0.6", "torch_version": "2.10.0+cpu", "dtype": "float32", "runtime": capability["runtime"]}
         slow_worker = Path(inner_tmp) / "slow_worker.py"
-        slow_worker.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+        worker_marker = Path(inner_tmp) / "worker-started"
+        slow_worker.write_text(
+            "import pathlib, time\npathlib.Path(%r).write_text('started')\ntime.sleep(60)\n"
+            % str(worker_marker), encoding="utf-8")
         cancelled = threading.Event()
         cancelled.set()
         cancelled.clear()
@@ -50,14 +53,20 @@ class CancelTests(_FixtureMixin):
         thread.start()
         # Let assembly finish and the worker spawn, then cancel.
         import time
-        for _ in range(100):
-            if (Path(inner_tmp) / "cloned_audiobook.mp3").exists():
-                break
-            time.sleep(0.1)
-        cancelled.set()
+        worker_started = False
+        try:
+            for _ in range(100):
+                if worker_marker.exists():
+                    worker_started = True
+                    break
+                time.sleep(0.1)
+        finally:
+            cancelled.set()
         self.assertTrue(done.wait(timeout=20), "cancel did not stop the build")
+        self.assertTrue(worker_started, "test never observed the alignment worker start")
         ok, message = outcome[0]
         self.assertFalse(ok)
+        self.assertEqual("Export cancelled", message)
         self.assertFalse((Path(inner_tmp) / "readaloud.epub").exists(),
                          "cancelled build must publish nothing")
 
@@ -139,9 +148,21 @@ class StaleDownloadTests(_FixtureMixin):
         from fastapi import HTTPException
         model = Path(cap["model_dir"]) / "config.json"
         model.write_text('{"replaced": true}', encoding="utf-8")
-        with self.assertRaises(HTTPException) as caught:
-            asyncio.run(editor.download_readaloud_epub())
+        import qwen_runtime
+        current_cap = dict(cap)
+        current_cap.update(device="cpu", dtype="float32", runtime_identity=cap["runtime"])
+        current_cap["provider_digest"] = qwen_runtime.get_qwen_provider_digest(
+            cap["model_dir"], runtime_identity={
+                "qwen_asr_version": cap["qwen_asr_version"],
+                "torch_version": cap["torch_version"], "device": "cpu",
+                "dtype": "float32", "identity": cap["runtime"]})
+        self.assertNotEqual(cap["provider_digest"], current_cap["provider_digest"])
+        with patch.object(qwen_runtime, "get_qwen_capability", return_value=current_cap), \
+                patch.object(qwen_runtime, "get_qwen_model_candidates", return_value=[cap["model_dir"]]):
+            with self.assertRaises(HTTPException) as caught:
+                asyncio.run(editor.download_readaloud_epub())
         self.assertEqual(409, caught.exception.status_code)
+        self.assertIn("provider changed", str(caught.exception.detail).lower())
 
 
 class CJKTests(unittest.TestCase):

@@ -110,5 +110,5 @@ jobs:
           tests.test_qwen_timing_repair tests.test_qwen_review_v2_repairs
           tests.test_epub_readaloud tests.test_epub_readaloud_conformance
           tests.test_readalong_r2 tests.test_readalong_r4
-          tests.test_book_workspace_js tests.test_local_ui_assets
+          tests.test_book_workspace_js tests.test_local_ui_assets tests.test_readalong_sidecar
           tests.test_audio_take_history.AudioTakeHistoryTests.test_source_hardlinks_refuse_without_symlink_privilege

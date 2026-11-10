@@ -1937,7 +1937,7 @@ def _require_readaloud_timing_current(receipt):
         from qwen_align import get_aligner_language_name
         try:
             if want_language:
-                want_language = get_aligner_language_name(want_language)
+                want_language = get_aligner_language_name(want_language, capability.get("languages"))
             else:
                 # Cleared to EPUB language: derive from the current
                 # retained EPUB so a language shift still invalidates.
@@ -1953,7 +1953,7 @@ def _require_readaloud_timing_current(receipt):
                     tag = get_epub_language_from_path(retained_path)
                     if tag in ("", "und"):
                         raise ValueError("EPUB has no usable dc:language")
-                    want_language = get_aligner_language_name(tag)
+                    want_language = get_aligner_language_name(tag, capability.get("languages"))
                 except (ValueError, OSError) as error:
                     raise HTTPException(status_code=409, detail=(
                         "EPUB read-aloud timing language is unavailable: %s Rebuild it." % error)) from error
@@ -2409,7 +2409,7 @@ def _start_readaloud_epub(background_tasks, request):
         if policy["timing_mode"] == "qwen":
             if isinstance(timing_language, str) and timing_language:
                 try:
-                    timing_language = get_aligner_language_name(timing_language)
+                    timing_language = get_aligner_language_name(timing_language, capability.get("languages"))
                 except ValueError as error:
                     raise HTTPException(status_code=400, detail=str(error)) from error
                 # Canonicalize the persisted representation (en ->

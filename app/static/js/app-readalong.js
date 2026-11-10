@@ -11,8 +11,10 @@
 (function () {
   'use strict';
   var POLL_INTERVAL_MS = 1000;
+  var SLOW_POLL_INTERVAL_MS = 5000;
+  var FAST_POLLS = 300;       // after five minutes, follow long Qwen builds slowly
   var ERROR_BUDGET = 8;       // consecutive poll failures before giving up
-  var MAX_POLLS = 1800;       // ~30 minutes of polling, then a clear stop
+  var MAX_POLLS = 1800;       // finite requests covering ~130 minutes with slow polls
 
   function createChannel(config) {
     return {
@@ -31,6 +33,7 @@
       bookToken: null,
       timer: null,
       busy: false,
+      pollingPaused: false,
     };
   }
 
@@ -234,6 +237,7 @@
 
   function setBusy(channel, busy) {
     channel.busy = busy;
+    if (!busy) { channel.pollingPaused = false; }
     var buildBtn = channel.buildBtnId ? document.getElementById(channel.buildBtnId) : null;
     if (buildBtn) { buildBtn.disabled = busy; }
     var cancelBtn = channel.cancelId ? document.getElementById(channel.cancelId) : null;
@@ -256,9 +260,8 @@
       return;
     }
     if (pollCount >= MAX_POLLS) {
-      setBusy(channel, false);
-      channel.claimId = null;
-      statusEl(channel).textContent = 'Stopped waiting for this build. Check the Result status, then try again — the export is not confirmed.';
+      channel.pollingPaused = true;
+      statusEl(channel).textContent = 'Stopped checking this build after the status request limit. The export is not confirmed. Cancel remains available and resumes status checks.';
       return;
     }
     API.get('/api/status/' + channel.taskName).then(function (status) {
@@ -303,7 +306,8 @@
       }
       if (status.running) {
         statusEl(channel).textContent = last || 'Working...';
-        channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); }, POLL_INTERVAL_MS);
+        channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); },
+          pollCount < FAST_POLLS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
         return;
       }
       // Not running and no typed result: the build produced no usable
@@ -383,6 +387,10 @@
     API.post(channel.cancelUrl, body).then(function () {
       if (!isCurrent(channel, taskId)) { return; }
       statusEl(channel).textContent = 'Cancel requested. Waiting for the build to stop...';
+      if (channel.pollingPaused) {
+        channel.pollingPaused = false;
+        poll(channel, taskId, 0, 0);
+      }
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) { return; }
       statusEl(channel).textContent = 'Cancel was not accepted: ' + (e && e.message ? e.message : 'unknown error');

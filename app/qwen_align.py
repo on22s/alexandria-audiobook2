@@ -27,6 +27,7 @@ before any time is used as a clip.
 import math
 import re
 import unicodedata
+from fractions import Fraction
 
 MAX_ALIGN_SECONDS = 180.0
 # Proven sequential scheduling (parent diagnostics v4/v6): an estimated
@@ -76,15 +77,23 @@ _ABBREVIATIONS = frozenset(
 _TIME_TOLERANCE_SECONDS = 0.005
 
 
-def get_aligner_language_name(value):
+def get_aligner_language_name(value, available_languages=None):
     """Map an EPUB language tag or name to an aligner language name."""
     if isinstance(value, str) and value.strip():
         cleaned = value.strip().replace("_", "-").split("-")[0].lower()
+        canonical = None
         for name in SUPPORTED_ALIGNER_LANGUAGES:
             if cleaned == name.lower():
-                return name
-        if cleaned in _LANGUAGE_NAMES:
-            return _LANGUAGE_NAMES[cleaned]
+                canonical = name
+                break
+        if canonical is None:
+            canonical = _LANGUAGE_NAMES.get(cleaned)
+        if canonical is not None:
+            if available_languages is not None and (
+                    not isinstance(available_languages, (list, tuple))
+                    or canonical not in available_languages):
+                raise ValueError("The selected Qwen model does not list support for %s." % canonical)
+            return canonical
     reported = value[:128] + "..." if isinstance(value, str) and len(value) > 128 else value
     raise ValueError(
         "Qwen3-ForcedAligner does not support language %r. Supported: %s"
@@ -170,6 +179,8 @@ def _is_abbreviation(text, dot_index):
     if not word:
         return False
     if word in _ABBREVIATIONS:
+        return True
+    if re.fullmatch(r"(?:[A-Za-z]\.)+[A-Za-z]", raw):
         return True
     if len(raw) == 1 and raw.isalpha() and raw.isupper():
         return True
@@ -370,6 +381,17 @@ def require_exact_coverage(text, tokens):
             raise ValueError("Alignment token order does not follow the text.")
         previous_start = start
     return spans
+
+
+def get_absolute_token_time(start_frame, sample_rate, relative_time):
+    """Add a frame offset to a reported decimal time, rounding only once.
+
+    Model timestamps are decimal seconds (80 ms bins). Intermediate
+    binary multiplication/addition can put a touching boundary one ulp
+    past the next frame cursor. Exact rational addition preserves those
+    reported times without clamping or relaxing the overlap check.
+    """
+    return float(Fraction(start_frame, sample_rate) + Fraction(str(relative_time)))
 
 
 def get_validated_aligner_tokens(tokens, duration_sec, *, enforce_slice_limit=True):
@@ -701,8 +723,8 @@ def validate_sequential_windows(text, planned_windows, windows, merged_tokens,
             raise ValueError("Alignment window %d frame bounds are invalid." % position)
         if end_frame - start_frame > max_slice_frames + 1:
             raise ValueError("Alignment window %d exceeds the aligner limit." % position)
-        offset = start_frame * frame_seconds
-        slice_duration = (end_frame - start_frame) * frame_seconds
+        offset = start_frame / float(sample_rate)
+        slice_duration = (end_frame - start_frame) / float(sample_rate)
         for key, expected in (("offset_sec", offset),
                               ("slice_duration_sec", slice_duration)):
             value = window.get(key)
@@ -726,10 +748,10 @@ def validate_sequential_windows(text, planned_windows, windows, merged_tokens,
         for token in validated:
             rebuilt.append({
                 "text": token["text"],
-                "start_time": offset + token["start_time"],
-                "end_time": offset + token["end_time"],
+                "start_time": get_absolute_token_time(start_frame, sample_rate, token["start_time"]),
+                "end_time": get_absolute_token_time(start_frame, sample_rate, token["end_time"]),
             })
-        previous_cursor_sec = offset + validated[-1]["end_time"]
+        previous_cursor_sec = rebuilt[-1]["end_time"]
     if total_calls > len(planned_windows) * MAX_SEQUENTIAL_CALLS_PER_WINDOW:
         raise ValueError("Alignment worker exceeded its sequential call bound.")
     if len(rebuilt) != len(merged_tokens):

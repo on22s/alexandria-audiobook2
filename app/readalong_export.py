@@ -408,6 +408,8 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
     export pattern (``ensure_publication_transaction`` + ``admit()`` per
     mutation); publication keeps the book/owner through rollback.
     """
+    from direct_path_admission import is_plain_path
+
     outputs = {source: report for source, _target, report in pairs}
     backup_dir = Path(staging_path) / "old"
     backup_dir.mkdir(exist_ok=True)
@@ -416,8 +418,11 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
     def publish(source, target):
         index = len(touched)
         backup = str(backup_dir / f"{index}-{Path(target).name}")
+        if not is_plain_path(target):
+            raise ValueError("Read-along publication target must not use file or directory aliases.")
         existed = os.path.lexists(target)
         if existed:
+            get_export_file_version(target)
             os.replace(target, backup)
         touched.append((target, backup, existed))
         os.replace(source, target)
@@ -569,7 +574,7 @@ def _assemble_with_store(manager, source_snapshot, cancel_check, staging_path, s
         fresh_mp3, quality_plan,
         quality_reports[-1] if quality_reports else None, cancel_check)
     ensure_export_stage_current(fresh_mp3, quality_report, cancel_check)
-    fresh_sha256, fresh_bytes = get_audio_file_sha256(fresh_mp3)
+    fresh_sha256, fresh_bytes = get_audio_file_sha256(fresh_mp3, cancel_check=cancel_check)
     if quality_report.get("sha256") != fresh_sha256:
         raise ValueError("Fresh MP3 identity disagrees with quality admission; refusing to publish.")
     timeline_data = {"timeline": timeline, "orig_tokens": orig_tokens, "bounds": bounds,
@@ -744,8 +749,39 @@ def _validate_worker_provider(provider, capability):
                 "Qwen alignment worker provider %s report is missing." % key)
 
 
+def _require_qwen_provider_current(timing_runtime, capability, timing, cancel_check):
+    """Recheck captured runtime/model/code before launch and publication."""
+    from qwen_runtime import (get_qwen_provider_digest,
+                              get_qwen_runtime_digest,
+                              get_qwen_runtime_identity)
+    try:
+        fresh_runtime = get_qwen_runtime_identity(
+            timing_runtime["python"], cancel_check=cancel_check)
+        if (get_qwen_runtime_digest(fresh_runtime)
+                != timing_runtime.get("runtime_digest")):
+            raise ValueError(
+                "Qwen runtime changed during the build (interpreter "
+                "or package replaced); refusing to publish.")
+        current_digest = get_qwen_provider_digest(
+            capability["model_dir"], runtime_identity={
+                "qwen_asr_version": timing.get("qwen_asr_version"),
+                "torch_version": timing.get("torch_version"),
+                "device": timing.get("device"),
+                "dtype": timing.get("dtype"),
+                "identity": fresh_runtime},
+            cancel_check=cancel_check)
+    except ValueError as error:
+        if cancel_check() and "cancelled" in str(error).lower():
+            raise ExportCancelled("Export cancelled") from error
+        raise ValueError(str(error)) from error
+    if current_digest != timing.get("provider_digest"):
+        raise ValueError(
+            "Qwen provider changed during the build (model or "
+            "interpreter replaced); refusing to publish.")
+
+
 def collect_aligned_rows(data, language_name, capability, cancel_check, staging_path,
-                         task_lease_fd=None, prepared_texts=None):
+                         task_lease_fd=None, prepared_texts=None, before_worker=None):
     """Run real Qwen alignment against the captured assembled PCM.
 
     Audio comes from ``data["pcm_path"]`` at the exact promoted
@@ -800,7 +836,10 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
         row_duration = total_frames / float(layout[1])
         units = [{"start": s, "end": e, "words": count_units(prepared[s:e])}
                  for s, e in sentences]
-        windows = get_aligner_windows(row_duration, units, text=prepared)
+        try:
+            windows = get_aligner_windows(row_duration, units, text=prepared)
+        except ValueError as error:
+            raise ValueError("Qwen alignment row %d could not be planned: %s" % (position, str(error)[:512])) from error
         total_windows += len(windows)
         total_chars += len(prepared)
         # The actual job payload carries each row's text once plus
@@ -855,6 +894,8 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
     if len(job_bytes) > MAX_JOB_BYTES:
         raise ValueError("Qwen alignment job exceeds its size limit.")
     job_path.write_bytes(job_bytes)
+    if before_worker is not None:
+        before_worker()
     tokens_by_id, windows_by_id, provider = run_qwen_alignment_full(
         get_qwen_worker_command(capability["python"]), job_path, result_path,
         cancel_check, task_lease_fd=task_lease_fd)
@@ -869,11 +910,14 @@ def collect_aligned_rows(data, language_name, capability, cancel_check, staging_
     window_total = 0
     for row in rows:
         row_id = "r%d" % row["position"]
-        row_tokens = validate_sequential_windows(
-            row["text"], row["windows"], windows_by_id.get(row_id),
-            tokens_by_id.get(row_id),
-            sample_rate=int(layout[1]), total_frames=int(row["total_frames"]),
-            row_duration_sec=row["duration"])
+        try:
+            row_tokens = validate_sequential_windows(
+                row["text"], row["windows"], windows_by_id.get(row_id),
+                tokens_by_id.get(row_id),
+                sample_rate=int(layout[1]), total_frames=int(row["total_frames"]),
+                row_duration_sec=row["duration"])
+        except ValueError as error:
+            raise ValueError("Qwen alignment row %d failed validation: %s" % (row['position'], str(error)[:512])) from error
         aligned_rows.append({"tokens": row_tokens})
         window_total += len(row["windows"])
     report = {"rows": len(aligned_rows), "windows": window_total,
@@ -1038,8 +1082,8 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
                 continue
             try:
                 info = entry.stat(follow_symlinks=False)
-            except OSError:
-                continue
+            except OSError as error:
+                raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
             if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_RETAINED_EPUB_BYTES:
                 continue
             size = info.st_size
@@ -1053,8 +1097,8 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
                     matches.append(entry.path)
             except ExportCancelled:
                 raise
-            except (OSError, ValueError):
-                continue
+            except (OSError, ValueError) as error:
+                raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
@@ -1093,8 +1137,12 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
     if hashlib.sha256(retained_bytes).hexdigest() not in {row["origin"]["sha256"] for row in origins}:
         raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
     # Script text staleness: extracted TXT must still hash to the binding.
-    txt_bytes = Path(source_txt).read_bytes() if os.path.isfile(source_txt) else b""
-    if hashlib.sha256(txt_bytes).hexdigest() != captured["document"]["binding"]["sha256"]:
+    from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
+    source_path = Path(source_txt)
+    source_facts, _ = capture_scope_file(
+        source_path.parent.resolve(), source_path.name,
+        limit=MAX_SCRIPT_BYTES, cancel_check=cancel_check)
+    if not source_facts['exists'] or source_facts['sha256'] != captured["document"]["binding"]["sha256"]:
         raise ValueError("Source text changed since upload; mappings would be stale.")
     return retained_bytes, source_txt
 
@@ -1137,15 +1185,15 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
             from io import BytesIO
             from epub_readaloud import get_epub_language_from_path
             from qwen_align import get_aligner_language_name
+            capability = timing.get("capability") or {}
             language = timing.get("language")
             if not language:
                 tag = get_epub_language_from_path(BytesIO(retained_bytes))
                 if tag in ("", "und"):
                     raise ValueError("Qwen alignment needs a language: the EPUB has no dc:language. Choose one in the EPUB settings and rebuild.")
-                language = get_aligner_language_name(tag)
+                language = get_aligner_language_name(tag, capability.get("languages"))
             else:
-                language = get_aligner_language_name(language)
-            capability = timing.get("capability") or {}
+                language = get_aligner_language_name(language, capability.get("languages"))
             timing_runtime = (timing.get("runtime") or capability.get("runtime_identity")
                               or capability.get("runtime"))
             if not isinstance(timing_runtime, dict) or not isinstance(timing_runtime.get("python"), str):
@@ -1185,7 +1233,9 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                     aligned_rows, alignment = collect_aligned_rows(
                         data, language, capability, cancel_check, staging.path,
                         task_lease_fd=timing.get("task_lease_fd"),
-                        prepared_texts=[entry["prepared_text"] for entry in script_entries])
+                        prepared_texts=[entry["prepared_text"] for entry in script_entries],
+                        before_worker=lambda: _require_qwen_provider_current(
+                            timing_runtime, capability, timing, cancel_check))
                 except ValueError as error:
                     if cancel_check() and "cancelled" in str(error).lower():
                         raise ExportCancelled("Export cancelled") from error
@@ -1225,33 +1275,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
             if fresh["sha256"] != hashlib.sha256(fresh_bytes).hexdigest():
                 raise ValueError("Fresh MP3 changed during EPUB build; refusing to publish.")
             if timing_summary.get("mode") == "qwen":
-                from qwen_runtime import (get_qwen_provider_digest,
-                                          get_qwen_runtime_digest,
-                                          get_qwen_runtime_identity)
-                try:
-                    fresh_runtime = get_qwen_runtime_identity(
-                        timing_runtime["python"], cancel_check=cancel_check)
-                    if (get_qwen_runtime_digest(fresh_runtime)
-                            != timing_runtime.get("runtime_digest")):
-                        raise ValueError(
-                            "Qwen runtime changed during the build (interpreter "
-                            "or package replaced); refusing to publish.")
-                    current_digest = get_qwen_provider_digest(
-                        capability["model_dir"], runtime_identity={
-                            "qwen_asr_version": timing.get("qwen_asr_version"),
-                            "torch_version": timing.get("torch_version"),
-                            "device": timing.get("device"),
-                            "dtype": timing.get("dtype"),
-                            "identity": fresh_runtime},
-                        cancel_check=cancel_check)
-                except ValueError as error:
-                    if cancel_check() and "cancelled" in str(error).lower():
-                        raise ExportCancelled("Export cancelled") from error
-                    raise ValueError(str(error)) from error
-                if current_digest != timing.get("provider_digest"):
-                    raise ValueError(
-                        "Qwen provider changed during the build (model or "
-                        "interpreter replaced); refusing to publish.")
+                _require_qwen_provider_current(timing_runtime, capability, timing, cancel_check)
                 require_timing_preference_unchanged(
                     timing.get("preference"), manager.root_dir)
             receipt_doc = {**app_receipt,

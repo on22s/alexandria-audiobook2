@@ -4,11 +4,14 @@ Sentence fragments land inside the mapped element; the packager's
 source preservation, URI rules, rebuild behavior and validator are the
 production ones under test (via build_epub_readaloud with aligned_rows).
 """
+import builtins
 import io
 import zipfile
 import unittest
 import xml.etree.ElementTree as ET
+from unittest.mock import patch
 
+import epub_readaloud
 from epub_readaloud import (build_epub_readaloud, validate_epub_readaloud)
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
@@ -62,6 +65,51 @@ def _aligned_tokens():
 
 
 class SentenceSpanTests(unittest.TestCase):
+    def test_spoken_range_membership_work_is_linear(self):
+        # Count semantic integer comparisons, not elapsed time. Each pass
+        # receives fresh equal-valued indexes, so a list membership scan
+        # exposes its quadratic comparisons while a set stays linear.
+        for count in (64, 128):
+            with self.subTest(sentences=count):
+                comparisons = [0]
+
+                class CountedIndex(int):
+                    __hash__ = int.__hash__
+
+                    def __eq__(self, other):
+                        comparisons[0] += 1
+                        return int.__eq__(self, other)
+
+                def counted_enumerate(values, start=0):
+                    for index, value in builtins.enumerate(values, start):
+                        yield CountedIndex(index), value
+
+                text = "Echo\u3002" * count
+                element = ET.fromstring('<p xmlns="%s">%s</p>' %
+                                        (XHTML[1:-1], text))
+                entry = {"prepared_text": text, "start_frame": 0,
+                         "end_frame": count * 10, "sample_rate": 1000}
+                tokens = [{"text": "Echo", "start_time": index / 100,
+                           "end_time": (index + 1) / 100}
+                          for index in range(count)]
+                row = {"segment_index": 0, "chunk_indexes": [0],
+                       "start_frame": 0, "end_frame": count * 10}
+                identifiers = iter("sentence-%d" % index
+                                   for index in range(count))
+                with patch.object(epub_readaloud, "enumerate",
+                                  counted_enumerate, create=True):
+                    rows, _charged_bytes = epub_readaloud._sentence_rows_for_segment(
+                        {"element": element, "text": text}, row, [entry],
+                        [{"tokens": tokens}], 1000,
+                        lambda: next(identifiers), set())
+                self.assertEqual(count, len(rows))
+                self.assertEqual(text, "".join(element.itertext()))
+                self.assertEqual([(index * 10, (index + 1) * 10)
+                                  for index in range(count)],
+                                 [(item["start_frame"], item["end_frame"])
+                                  for item in rows])
+                self.assertLessEqual(comparisons[0], 4 * count)
+
     def test_sentence_pars_inside_mapped_element(self):
         source = _source_epub('<h1>Chapter One</h1>'
                               '<p id="keep-me">Hello synthetic world. Second sentence here.</p>')

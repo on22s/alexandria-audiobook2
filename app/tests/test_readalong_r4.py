@@ -341,6 +341,127 @@ class R4FrameTruthTests(unittest.TestCase):
 
 
 class R4PublicationTests(unittest.TestCase):
+    def test_directory_first_target_preserves_directory_and_stage(self):
+        import readalong_export
+        from export_publication import ExportSourceSnapshot
+        from export_quality import get_export_file_identity
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+            root = Path(tmp)
+            self.assertTrue(root.resolve().is_relative_to(Path(__file__).resolve().parent))
+            (root / "chunks.json").write_text("[]", encoding="utf-8")
+            manager = ProjectManager(tmp)
+            snapshot = ExportSourceSnapshot(manager)
+            stage = root / "private-stage"
+            stage.mkdir()
+            source = stage / "readaloud.epub"
+            source.write_bytes(b"new staged EPUB")
+            target = root / "readaloud.epub"
+            target.mkdir()
+            sentinel = target / "keep.txt"
+            sentinel.write_bytes(b"user-owned sentinel")
+            retain = [False]
+            with self.assertRaisesRegex(ValueError, "regular|alias"):
+                readalong_export._publish_pair_transaction(
+                    snapshot, [(str(source), str(target), get_export_file_identity(source))],
+                    lambda: False, stage, retain)
+            self.assertTrue(target.is_dir())
+            self.assertEqual(b"user-owned sentinel", sentinel.read_bytes())
+            self.assertEqual(b"new staged EPUB", source.read_bytes())
+            self.assertEqual([], list((stage / "old").iterdir()))
+            self.assertFalse(retain[0])
+
+    def test_directory_later_target_rolls_back_earlier_regular_file(self):
+        import readalong_export
+        from export_publication import ExportSourceSnapshot
+        from export_quality import get_export_file_identity
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+            root = Path(tmp)
+            self.assertTrue(root.resolve().is_relative_to(Path(__file__).resolve().parent))
+            (root / "chunks.json").write_text("[]", encoding="utf-8")
+            manager = ProjectManager(tmp)
+            snapshot = ExportSourceSnapshot(manager)
+            stage = root / "private-stage"
+            stage.mkdir()
+            first_source = stage / "audio.mp3"
+            first_source.write_bytes(b"new staged audio")
+            first_target = root / "audio.mp3"
+            first_target.write_bytes(b"prior published audio")
+            source = stage / "readaloud.epub"
+            source.write_bytes(b"new staged EPUB")
+            target = root / "readaloud.epub"
+            target.mkdir()
+            sentinel = target / "keep.txt"
+            sentinel.write_bytes(b"user-owned sentinel")
+            pairs = [(str(first_source), str(first_target), get_export_file_identity(first_source)),
+                     (str(source), str(target), get_export_file_identity(source))]
+            retain = [False]
+            with self.assertRaisesRegex(ValueError, "regular|alias"):
+                readalong_export._publish_pair_transaction(
+                    snapshot, pairs, lambda: False, stage, retain)
+            self.assertEqual(b"prior published audio", first_target.read_bytes())
+            self.assertTrue(target.is_dir())
+            self.assertEqual(b"user-owned sentinel", sentinel.read_bytes())
+            self.assertEqual(b"new staged EPUB", source.read_bytes())
+            self.assertEqual([], list((stage / "old").iterdir()))
+            self.assertFalse(retain[0])
+
+    def test_shared_alias_refusal_precedes_target_replacement(self):
+        import direct_path_admission
+        import readalong_export
+        from export_publication import ExportSourceSnapshot
+        from export_quality import get_export_file_identity
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+            root = Path(tmp)
+            self.assertTrue(root.resolve().is_relative_to(Path(__file__).resolve().parent))
+            (root / "chunks.json").write_text("[]", encoding="utf-8")
+            manager = ProjectManager(tmp)
+            snapshot = ExportSourceSnapshot(manager)
+            stage = root / "private-stage"
+            stage.mkdir()
+            source = stage / "readaloud.epub"
+            source.write_bytes(b"new staged EPUB")
+            report = get_export_file_identity(source)
+            target = root / "readaloud.epub"
+            target.write_bytes(b"prior published EPUB")
+            plain_path = direct_path_admission.is_plain_path
+
+            def refuse_target(path):
+                return False if Path(path) == target else plain_path(path)
+
+            with patch("direct_path_admission.is_plain_path", side_effect=refuse_target), \
+                    self.assertRaisesRegex(ValueError, "alias"):
+                readalong_export._publish_pair_transaction(
+                    snapshot, [(str(source), str(target), report)],
+                    lambda: False, stage, [False])
+            self.assertEqual(b"prior published EPUB", target.read_bytes())
+            self.assertEqual(b"new staged EPUB", source.read_bytes())
+            self.assertEqual([], list((stage / "old").iterdir()))
+
+    def test_regular_hardlink_target_preserves_other_link(self):
+        import os
+        import readalong_export
+        from export_publication import ExportSourceSnapshot
+        from export_quality import get_export_file_identity
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+            root = Path(tmp)
+            self.assertTrue(root.resolve().is_relative_to(Path(__file__).resolve().parent))
+            (root / "chunks.json").write_text("[]", encoding="utf-8")
+            manager = ProjectManager(tmp)
+            snapshot = ExportSourceSnapshot(manager)
+            stage = root / "private-stage"
+            stage.mkdir()
+            source = stage / "readaloud.epub"
+            source.write_bytes(b"new staged EPUB")
+            other = root / "other.epub"
+            other.write_bytes(b"prior linked EPUB")
+            target = root / "readaloud.epub"
+            os.link(other, target)
+            readalong_export._publish_pair_transaction(
+                snapshot, [(str(source), str(target), get_export_file_identity(source))],
+                lambda: False, stage, [False])
+            self.assertEqual(b"new staged EPUB", target.read_bytes())
+            self.assertEqual(b"prior linked EPUB", other.read_bytes())
+
     def _fail_once_on_target(self, target_suffix):
         import readalong_export
         orig_replace = readalong_export.os.replace

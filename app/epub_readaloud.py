@@ -696,10 +696,13 @@ def get_epub_language_from_path(retained_path):
     never materialized. Returns the language tag or ''.
     """
     import zipfile as _zf
-    with _zf.ZipFile(retained_path) as archive:
-        _preflight_retained_members(archive.infolist())
-        opf_path, package = get_epub_package(
-            archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
+    try:
+        with _zf.ZipFile(retained_path) as archive:
+            _preflight_retained_members(archive.infolist())
+            opf_path, package = get_epub_package(
+                archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
+    except _zf.BadZipFile as error:
+        raise ValueError("Retained EPUB archive is malformed.") from error
     namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
     metadata = package.find(namespace + 'metadata')
     return _get_validated_epub_language(metadata) or ""
@@ -1093,17 +1096,20 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         raise ValueError(
             "Sentence spans are unsupported inside a coarsened "
             "container with nested blocks; refusing to guess.")
+    spoken_range_ids = set(spoken_ranges)
     for i, (s, e) in enumerate(ranges):
-        if i in spoken_ranges:
+        _ensure_not_cancelled(cancel_check)
+        if i in spoken_range_ids:
             continue
-        prev_idx = max((j for j in spoken_ranges if j < i), default=None)
-        next_idx = min((j for j in spoken_ranges if j > i), default=None)
+        neighbor = _bisect_probe.bisect_left(spoken_ranges, i)
+        prev_idx = spoken_ranges[neighbor - 1] if neighbor else None
+        next_idx = spoken_ranges[neighbor] if neighbor < len(spoken_ranges) else None
         target = prev_idx if prev_idx is not None else next_idx
         if target < i:
             ranges[target][1] = max(ranges[target][1], e)
         else:
             ranges[target][0] = min(ranges[target][0], s)
-    ranges = [tuple(r) for i, r in enumerate(ranges) if i in spoken_ranges]
+    ranges = [tuple(ranges[i]) for i in spoken_ranges]
 
     # Merge the rows' tokens into segment-normalized token spans.
     segment_stream, flat_indices = _stream_probe, _idx_probe

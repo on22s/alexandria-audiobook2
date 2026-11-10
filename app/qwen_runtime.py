@@ -336,7 +336,8 @@ _MAX_CODE_FILE_BYTES = 4 * 1024**2
 def _get_qwen_code_inventory(code_paths=None):
     if code_paths is None:
         here = Path(__file__).resolve().parent
-        code_paths = [here / "qwen_align_worker.py", here / "qwen_score_decoder.py"]
+        code_paths = [here / "qwen_align_worker.py", here / "qwen_score_decoder.py",
+                      here / "qwen_align.py"]
     paths = [Path(path) for path in code_paths]
     for path in paths:
         try:
