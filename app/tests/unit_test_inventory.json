@@ -1812,6 +1812,11 @@
     "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_crash_after_workspace_removal_before_journal_unlink_recovers",
     "tests.test_book_state_1660_prepublication_crash.PrepublicationCrashTests.test_unreadable_byte_original_keeps_previous_cleanup"
   ],
+  "test_book_state_1660_publish_loop": [
+    "tests.test_book_state_1660_publish_loop.PublishLoopParentRecheckTests.test_earlier_row_parent_swapped_later_is_caught_before_commit",
+    "tests.test_book_state_1660_publish_loop.PublishLoopParentRecheckTests.test_no_parent_walk_starts_after_cancellation_before_the_first_move",
+    "tests.test_book_state_1660_publish_loop.PublishLoopParentRecheckTests.test_parent_rechecks_grow_linearly_with_the_target_count"
+  ],
   "test_book_state_streaming": [
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_anchors_relative_root_before_finalization",
     "tests.test_book_state_streaming.BookStateStreamingTests.test_adapter_bundle_checks_cancellation_after_final_lstat",

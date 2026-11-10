@@ -37,45 +37,69 @@ class PublishLoopParentRecheckTests(unittest.TestCase):
             return calls[0]
 
     def test_parent_rechecks_grow_linearly_with_the_target_count(self):
-        # Each row: its own chain before and after its move; then every chain
-        # once before commit. Rechecking all chains per row is quadratic.
-        self.assertEqual(3 * 4, self.parent_walks(8) - self.parent_walks(4))
+        # Every chain once before the first move; each row its own chain
+        # before and after its move; every chain once before commit: 4N.
+        # Rechecking all chains per row is quadratic.
+        self.assertEqual(4 * 4, self.parent_walks(8) - self.parent_walks(4))
 
-    def test_no_parent_walk_starts_after_cancellation(self):
-        # Once cancel is requested, the publish loop raises before starting
-        # another parent walk. Walks made by the rollback after the raise are
-        # the compensation's own safety checks and are not counted.
+    def test_no_parent_walk_starts_after_cancellation_before_the_first_move(self):
+        # Cancel during the last pre-publication staged check. No target has
+        # moved, so the failure takes the clean pre-publication path, which
+        # walks no parent chain: every walk counted here is the publish loop
+        # ignoring the cancel (the old loop walked all chains at row 0).
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             replacements = self.book(root, 4)
-            move, walk = books._move, books._require_target_parent_identities
-            check = books._check_stream_cancellation
-            cancelled, raised, before_raise = [False], [False], [0]
-            def move_then_cancel(*args, **kwargs):
-                result = move(*args, **kwargs)
-                cancelled[0] = True   # cancel once the first target has moved
+            staged, walk = books._validate_staged_replacement, books._require_target_parent_identities
+            cancelled, checked, after_cancel = [False], [0], [0]
+            def check_then_cancel(*args, **kwargs):
+                result = staged(*args, **kwargs)
+                checked[0] += 1
+                if checked[0] == len(replacements):   # the last pre-loop check
+                    cancelled[0] = True
                 return result
             def counting(*args, **kwargs):
-                if cancelled[0] and not raised[0]:
-                    before_raise[0] += 1
+                if cancelled[0]:
+                    after_cancel[0] += 1
                 return walk(*args, **kwargs)
-            def recording_check(cancel_check):
-                try:
-                    return check(cancel_check)
-                except AudioGenerationCancelled:
-                    raised[0] = True
-                    raise
-            with patch.object(books, '_move', side_effect=move_then_cancel), \
+            with patch.object(books, '_validate_staged_replacement', side_effect=check_then_cancel), \
                     patch.object(books, '_require_target_parent_identities', side_effect=counting), \
-                    patch.object(books, '_check_stream_cancellation', side_effect=recording_check), \
                     self.assertRaises(AudioGenerationCancelled):
                 with books.ensure_book_state(root):
                     books.apply_book_state_locked(root, replacements, [],
                                                   cancel_check=lambda: cancelled[0])
-            self.assertTrue(raised[0])
-            self.assertEqual(0, before_raise[0])
-            for index in range(4):   # rolled back
+            self.assertEqual(0, after_cancel[0])
+            self.assertFalse((root / books.JOURNAL).exists())   # clean abort
+            for index in range(4):   # nothing moved
                 self.assertEqual(b'old', (root / f'part{index}/state.json').read_bytes())
+
+    def test_earlier_row_parent_swapped_later_is_caught_before_commit(self):
+        # Rows check only their own chain, so a swap of an earlier row's parent
+        # after its own checks is caught by the final all-chains pass: the
+        # journal never becomes "committed" and recovery refuses.
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            replacements = self.book(root, 4)
+            move, save, moves, phases = books._move, books._save_journal, [0], []
+            def move_then_swap(*args, **kwargs):
+                result = move(*args, **kwargs)
+                moves[0] += 1
+                if moves[0] == 4:   # row 1 published; row 0's checks are done
+                    os.rename(root / 'part0', root / 'part0-away')
+                    (root / 'part0').mkdir()
+                return result
+            def recording(directory, document, **kwargs):
+                phases.append(document['phase'])
+                return save(directory, document, **kwargs)
+            with patch.object(books, '_move', side_effect=move_then_swap), \
+                    patch.object(books, '_save_journal', side_effect=recording), \
+                    self.assertRaisesRegex(ValueError, 'parent changed'):
+                with books.ensure_book_state(root):
+                    books.apply_book_state_locked(root, replacements, [])
+            self.assertNotIn('committed', phases)
+            journal = json.loads((root / books.JOURNAL).read_text(encoding='utf-8'))
+            self.assertEqual('publishing', journal['phase'])
 
 
 if __name__ == '__main__':
