@@ -407,7 +407,36 @@ def get_word_alignment_score(source_words, script_words):
     return difflib.SequenceMatcher(None, source_words, script_words, autojunk=False).ratio()
 
 
-def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=None, require_full_coverage=False):
+def _get_span_group(spine_segments, first, script_words, cursor):
+    """Smallest segment run from ``first`` ending on a chunk boundary.
+
+    Returns ([(segment_index, word_start, word_end)], end_chunk) or
+    (None, cursor) when the words disagree or no boundary is reached
+    inside this spine document (a span across files stays refused).
+    """
+    chunk_words = []
+    end = cursor
+    members = []
+    offset = 0
+    for index in range(first, len(spine_segments)):
+        words = get_normalized_words(spine_segments[index]["text"])
+        if not words:
+            continue
+        need = offset + len(words)
+        while len(chunk_words) < need and end < len(script_words):
+            chunk_words.extend(script_words[end])
+            end += 1
+        if chunk_words[offset:need] != words:
+            return None, cursor
+        members.append((index, offset, need))
+        offset = need
+        if offset == len(chunk_words):
+            return (members, end) if len(members) > 1 else (None, cursor)
+    return None, cursor
+
+
+def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=None, require_full_coverage=False,
+                        allow_span=False):
     """Map each spine segment to a contiguous chunk range or fail closed.
 
     script_entries: [{index, prepared_text, start_frame, end_frame}]
@@ -423,7 +452,14 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     Many chunks may form one segment (split). One chunk spanning
     multiple segments has no exact segment boundary and is refused
     explicitly with a spanning error — inventing sub-paragraph timing
-    would fabricate positions.
+    would fabricate positions. With ``allow_span`` (#1844) the smallest
+    run of segments whose combined words end exactly on a chunk
+    boundary becomes one span group instead: every member row carries
+    the group's chunk range and frames plus ``span_group`` (the group's
+    first chunk) and ``span_words`` (its [start, end) word offsets in
+    the group's concatenated chunk words). No frame inside the group is
+    invented here; callers either time members from aligned tokens or
+    highlight the whole group as one block.
 
     Returns (mapping, end_cursor), retaining each row's original segment_index.
     """
@@ -436,7 +472,10 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     script_words = [get_normalized_words(entry["prepared_text"]) for entry in script_entries]
     mapping = []
     cursor = start
-    for segment_index, segment in enumerate(spine_segments):
+    segment_index = -1
+    while segment_index + 1 < len(spine_segments):
+        segment_index += 1
+        segment = spine_segments[segment_index]
         source_words = get_normalized_words(segment["text"])
         if not source_words:
             continue
@@ -458,6 +497,21 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
             # longer than this segment and starts with it exactly.
             nxt = script_words[cursor] if cursor < len(script_words) else []
             if len(nxt) > len(source_words) and nxt[:len(source_words)] == source_words:
+                members, group_end = (_get_span_group(spine_segments, segment_index, script_words, cursor)
+                                      if allow_span else (None, cursor))
+                if members:
+                    for member_index, word_start, word_end in members:
+                        member = spine_segments[member_index]
+                        mapping.append({"fragment": member["fragment"], "text": member["text"],
+                                        "segment_index": member_index,
+                                        "chunk_indexes": list(range(cursor, group_end)),
+                                        "start_frame": script_entries[cursor]["start_frame"],
+                                        "end_frame": script_entries[group_end - 1]["end_frame"],
+                                        "span_group": cursor,
+                                        "span_words": (word_start, word_end)})
+                    segment_index = members[-1][0]
+                    cursor = group_end
+                    continue
                 raise ValueError(
                     f"One script chunk spans multiple spine segments "
                     f"(first spine text {segment['text'][:80]!r} continues beyond one segment); "
@@ -1077,6 +1131,61 @@ def _validated_aligned_row(aligned_rows, index):
     return aligned["tokens"]
 
 
+_SPAN_WRAP_REFUSED_TAGS = {'li', 'dt', 'dd', 'tr', 'td', 'th', 'caption', 'thead', 'tbody',
+                           'tfoot', 'figcaption', 'summary', 'legend', 'option'}
+
+
+def _apply_span_group_wrappers(root, segments, mapping, assigned):
+    """Collapse each chunk span group into one row on a new wrapper div.
+
+    CPU (chunk-timed) mode only (#1844): the group's blocks are
+    highlighted together for the group's real chunk frames; nothing
+    inside the group is timed. Mutates ``root`` (wrapper insertion) and
+    reserves the wrapper id in ``assigned``. Blocks that are not
+    consecutive siblings, or that cannot legally sit in a div, refuse.
+    """
+    parents = {child: parent for parent in root.iter() for child in parent}
+    out = []
+    index = 0
+    while index < len(mapping):
+        row = mapping[index]
+        if row.get("span_group") is None:
+            out.append(row)
+            index += 1
+            continue
+        group = [row]
+        while index + len(group) < len(mapping) and                 mapping[index + len(group)].get("span_group") == row["span_group"]:
+            group.append(mapping[index + len(group)])
+        index += len(group)
+        elements = [segments[member["segment_index"]]["element"] for member in group]
+        parent = parents.get(elements[0])
+        children = list(parent) if parent is not None else []
+        positions = [children.index(el) if el in children else -1 for el in elements]
+        if (parent is None or -1 in positions
+                or positions != sorted(positions)
+                or any(_local(el.tag) in _SPAN_WRAP_REFUSED_TAGS for el in elements)):
+            raise ValueError(
+                f"One script chunk spans multiple spine segments that are not sibling blocks "
+                f"(first spine text {row['text'][:80]!r}); re-split the chunk or use Qwen mode.")
+        n = 1
+        while f"aa2-g-{n:04d}" in assigned:
+            n += 1
+        wrapper_id = f"aa2-g-{n:04d}"
+        assigned.add(wrapper_id)
+        wrapper = ET.Element(f"{{{XHTML_NS}}}div", {"id": wrapper_id})
+        first, last = positions[0], positions[-1]
+        for child in children[first:last + 1]:
+            parent.remove(child)
+            wrapper.append(child)
+        parent.insert(first, wrapper)
+        out.append({"fragment": wrapper_id, "text": " ".join(member["text"] for member in group),
+                     "segment_index": row["segment_index"],
+                     "chunk_indexes": list(row["chunk_indexes"]),
+                     "start_frame": row["start_frame"], "end_frame": row["end_frame"],
+                     "span_group": row["span_group"]})
+    return out
+
+
 def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
                                sample_rate, next_id, emitted_ids,
                                cancel_check=None, clone_budget=None):
@@ -1160,6 +1269,26 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
             stream_spans.append((token, stream_offset + norm_start,
                                  stream_offset + norm_end, frame_start, frame_end))
         stream_offset += len(row_stream)
+
+    if row.get("span_words") is not None:
+        # #1844: this segment is one member of a chunk span group; keep
+        # only the aligned tokens inside its word window. A token that
+        # straddles the window edge has no honest owner and refuses.
+        group_words = [w for i in row["chunk_indexes"]
+                       for w in get_normalized_words(script_entries[i]["prepared_text"])]
+        word_start, word_end = row["span_words"]
+        window_start = sum(len(w) for w in group_words[:word_start])
+        window_end = window_start + sum(len(w) for w in group_words[word_start:word_end])
+        sliced = []
+        for token, norm_start, norm_end, frame_start, frame_end in stream_spans:
+            if norm_end <= window_start or norm_start >= window_end:
+                continue
+            if norm_start < window_start or norm_end > window_end:
+                raise ValueError("An aligned token crosses a block boundary inside one chunk; "
+                                 "refusing to split it.")
+            sliced.append((token, norm_start - window_start, norm_end - window_start,
+                           frame_start, frame_end))
+        stream_spans = sliced
 
     # The segment's source stream must equal the spoken stream exactly.
     spoken = "".join(get_token_key(t.get("text")) for t, _, _, _, _ in stream_spans)
@@ -1729,7 +1858,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             # Image-only / empty XHTML (cover, title page): no narration
             # required and no chunks consumed; real visible text still maps.
             continue
-        mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor)
+        mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor, allow_span=True)
         xml_local = '{http://www.w3.org/XML/1998/namespace}id'
         existing_ids = set()
         for el in root.iter():
@@ -1782,7 +1911,10 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                     segment["element"].set('id', cand)
                     row["fragment"] = cand
         else:
+            mapping = _apply_span_group_wrappers(root, segments, mapping, assigned)
             for position, row in enumerate(mapping, 1):
+                if row.get("fragment") is not None and row.get("span_group") is not None:
+                    continue
                 segment = segments[row["segment_index"]]
                 frag = segment["fragment"]
                 if frag is None:
