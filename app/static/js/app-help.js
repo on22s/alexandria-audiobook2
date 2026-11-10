@@ -236,6 +236,9 @@
             'chapter-changed-only': {what: 'Export only chapters whose audio changed since their last export. Turn off for a complete set.'},
             'chapter-require-ready': {what: 'Refuse to export until every speaker is marked ready.'},
             'readalong-include-text': {what: 'Include the script text in the downloadable sidecar. Unchecked sidecars contain timings only.'},
+            'readaloud-timing-mode': {what: 'Choose EPUB timing. Auto uses Qwen3 when its isolated runtime and model are ready; otherwise it uses CPU chunk timing. Qwen estimates sentence times. Chunk uses editor chunk bounds and needs no extra model. See docs/readalong.md for installation.'},
+            'readaloud-timing-device': {what: 'Choose where Qwen alignment runs. Auto uses an eligible GPU or CPU. A GPU build reserves the shared GPU lock; wait for other GPU work to finish. Chunk timing always uses CPU.'},
+            'readaloud-timing-language': {what: 'Speech language for Qwen alignment. EPUB language reads the retained book metadata. Choose an override when metadata is wrong or unavailable; unsupported languages are refused. Chunk timing has no aligner-language limit.'},
 
             // Advanced tabs and shared dialogs
             'manual-llm-reply': {what: 'Paste only the answer to the current manual request. Submit checks it against that request before the waiting task continues.'},
@@ -656,9 +659,6 @@
             'readalong-include-text': 'Include the script text in the downloadable sidecar. Unchecked sidecars contain timings only.',
             'readalong-cancel-btn': 'Request cancellation of the read-along sidecar build.',
             'readaloud-cancel-btn': 'Request cancellation of the EPUB read-aloud build.',
-            'readaloud-timing-mode': 'EPUB alignment timing. Auto uses Qwen3 when this machine has the ready isolated environment, otherwise chunk timing on CPU. Qwen requires the install described in docs/readalong.md; it never downloads weights by itself. Chunk timing always works without heavy dependencies.',
-            'readaloud-timing-device': 'Where Qwen runs. Auto uses an eligible GPU in the Qwen environment, else CPU. A GPU build reserves the shared GPU lock. If TTS or training is busy, wait for it to finish and try the build again.',
-            'readaloud-timing-language': 'Speech language for Qwen alignment. Leave as EPUB language unless it is wrong; only the 11 aligner languages are supported. Chunk timing has no language limit.',
             'btn-cancel-merge': 'Request cancellation of the audio merge.',
             'clone-import-submit': 'Validate the transcript and permission confirmation, then import this reference recording.',
             'clone-cleanup-prepare': 'Prepare and verify a separate full-length candidate using the selected gain and DC options. This does not import it or change the selected voice.',
