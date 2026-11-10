@@ -232,6 +232,54 @@ def assert_book_journal_fenced(case, root, *, content_check=None, expected_messa
     return frozen
 
 
+def get_book_publication_target(source, destination):
+    """-> the target a book publication primitive is replacing, else None.
+
+    v3 replaces an existing target with two renames:
+    _move(target, workspace/old-i), then _move(workspace/new-i, target).
+    v4 (#1660) replaces it with one primitive:
+    _exchange(target, workspace/new-i).
+    Both protocols stage a row as new-<index> inside a .book-switch-*
+    workspace, so the direction of the call names the same target; tests
+    must intercept that primitive, not one rename of a protocol.
+    """
+    source, destination = Path(source), Path(destination)
+    if (destination.name.startswith('new-')
+            and destination.parent.name.startswith('.book-switch-')):
+        return source            # v4 forward exchange: first name is the target
+    if (source.name.startswith('new-')
+            and source.parent.name.startswith('.book-switch-')):
+        return destination       # v3 publication move: second name is the target
+    return None
+
+
+@contextmanager
+def intercept_book_publications(module, before=None, after=None):
+    """Intercept each row publication on whichever protocol is in use.
+
+    before(target) runs before that row can change (raise to inject a failed
+    publication); after(target) runs once the target holds the staged bytes
+    (the v3 publish move returned, or the v4 exchange swapped). Targets are
+    Paths. Callbacks that must fire once should guard themselves: the v4
+    companion exchange that a rollback makes has the same direction, so after
+    a deliberate abort the same target can be seen again.
+    """
+    original_move, original_exchange = module._move, module._exchange
+    def wrap(original):
+        def publication(source, destination, **kwargs):
+            target = get_book_publication_target(source, destination)
+            if target is not None and before is not None:
+                before(target)
+            result = original(source, destination, **kwargs)
+            if target is not None and after is not None:
+                after(target)
+            return result
+        return publication
+    with patch.object(module, '_move', side_effect=wrap(original_move)), \
+            patch.object(module, '_exchange', side_effect=wrap(original_exchange)):
+        yield
+
+
 def create_test_api_server(app):
     """Create an embedded ASGI server without closing other tests' log handlers."""
     import uvicorn

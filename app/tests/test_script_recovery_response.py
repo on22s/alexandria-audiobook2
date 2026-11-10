@@ -141,17 +141,15 @@ ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.str
             self.assertEqual(original, checkpoint.read_bytes())
 
     def test_optional_reader_waits_for_complete_native_publication(self):
+        from tests.test_support import intercept_book_publications
         with transactions.ScriptRecoveryTransactionTests().fixture() as (_root, path):
             entered, release, read = threading.Event(), threading.Event(), threading.Event()
             errors, responses = [], []
-            actual_move = transactions.books._move
-            def move(source, destination, **kwargs):
-                result = actual_move(source, destination, **kwargs)
-                if str(destination) == script.three_pass_checkpoint_path(path):
+            def published(target):
+                if str(target) == script.three_pass_checkpoint_path(path):
                     entered.set()
                     if not release.wait(5):
                         raise AssertionError('publication not released')
-                return result
             def publish():
                 try:
                     script.apply_manual_recovery(transactions.ScriptRecoveryTransactionTests.entries(), 'manual')
@@ -164,7 +162,7 @@ ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.str
                 except BaseException as error:
                     errors.append(error)
             api = FastAPI(); api.include_router(script.router)
-            with TestClient(api) as client, patch.object(transactions.books, '_move', side_effect=move):
+            with TestClient(api) as client, intercept_book_publications(transactions.books, after=published):
                 writer = threading.Thread(target=publish); reader = threading.Thread(target=observe, args=(client,))
                 writer.start()
                 try:

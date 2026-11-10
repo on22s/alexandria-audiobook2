@@ -8,11 +8,11 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI
 import book_state_transaction as transaction
 import update_api_contract_snapshots as snapshots
+from tests.test_support import intercept_book_publications
 
 
 def application(title):
@@ -27,13 +27,15 @@ class ContractSnapshotPairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);old=application('old');new=application('new')
             paths=snapshots.write_snapshots(old,root);original=[p.read_bytes() for p in paths]
-            move=transaction._move
-            def fail(source,target, **kwargs):
-                if Path(target).name=='routes.json' and Path(source).name=='new-1':
+            routes=root/'routes.json';failed=[]
+            def fail_second_replacement(target):
+                if target==routes and not failed:
+                    failed.append(target)
                     raise OSError('fixture second replacement failed')
-                return move(source,target, **kwargs)
-            with patch.object(transaction,'_move',side_effect=fail),self.assertRaisesRegex(OSError,'second replacement'):
+            with intercept_book_publications(transaction,before=fail_second_replacement), \
+                    self.assertRaisesRegex(OSError,'second replacement'):
                 snapshots.write_snapshots(new,root)
+            self.assertEqual([routes],failed)
             self.assertEqual(original,[p.read_bytes() for p in paths])
             self.assertEqual([],snapshots.check_snapshots(old,root))
             self.assertFalse((root/transaction.JOURNAL).exists())
@@ -54,18 +56,17 @@ from pathlib import Path
 from fastapi import FastAPI
 import book_state_transaction as transaction
 import update_api_contract_snapshots as snapshots
+from tests.test_support import intercept_book_publications
 root=Path(os.environ['FIXTURE_ROOT'])
 app=FastAPI(title='new')
 @app.get('/new')
 def endpoint():return {'title':'new'}
-move=transaction._move
-def interrupted(source,target, **kwargs):
- move(source,target, **kwargs)
- if Path(target).name=='openapi.json' and Path(source).name=='new-0':
+def interrupted(target):
+ if Path(target).name=='openapi.json':
   (root/'fixture_ready').write_text('first published')
   while True:time.sleep(.1)
-transaction._move=interrupted
-snapshots.write_snapshots(app,root)
+with intercept_book_publications(transaction,after=interrupted):
+ snapshots.write_snapshots(app,root)
 '''
             child=subprocess.Popen([sys.executable,'-c',code],env=dict(os.environ,FIXTURE_ROOT=tmp),
                                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -91,15 +92,14 @@ snapshots.write_snapshots(app,root)
     def test_reader_waits_for_pair_publication_and_observes_complete_generation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);snapshots.write_snapshots(application('old'),root);new=application('new')
-            entered=threading.Event();release=threading.Event();reader_started=threading.Event();move=transaction._move
-            def pause(source,target, **kwargs):
-                move(source,target, **kwargs)
-                if Path(target).name=='openapi.json' and Path(source).name=='new-0':
+            entered=threading.Event();release=threading.Event();reader_started=threading.Event()
+            def pause(target):
+                if Path(target).name=='openapi.json':
                     entered.set()
                     if not release.wait(3):raise RuntimeError('fixture release timed out')
             def check():
                 reader_started.set();return snapshots.check_snapshots(new,root)
-            with patch.object(transaction,'_move',side_effect=pause),ThreadPoolExecutor(max_workers=2) as pool:
+            with intercept_book_publications(transaction,after=pause),ThreadPoolExecutor(max_workers=2) as pool:
                 writer=pool.submit(snapshots.write_snapshots,new,root)
                 try:
                     self.assertTrue(entered.wait(2));reader=pool.submit(check)

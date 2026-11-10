@@ -8,6 +8,7 @@ from unittest.mock import patch
 import three_pass_generate as tp
 from generate_script import LLMGenParams
 from tests.test_three_pass_generate import _client_returning
+from tests.test_support import intercept_book_publications
 
 
 class DeliveryFallbackTests(unittest.TestCase):
@@ -468,16 +469,14 @@ class DeliveryReviewApiTests(unittest.TestCase):
                 uid="prior", status="done", audio_path="prior.wav")])
             snapshot = ensure_delivery_review_snapshot(tmp)
             before = {path.name: path.read_bytes() for path in root.glob('*.json')}
-            original_move = transaction._move
             failures = []
 
-            def fail_one_publish(source, destination, **kwargs):
-                if Path(destination) == manifest and Path(source).name.startswith('new-') and not failures:
+            def fail_one_publish(target):
+                if Path(target) == manifest and not failures:
                     failures.append('injected manifest publish failure')
                     raise OSError(failures[-1])
-                return original_move(source, destination, **kwargs)
 
-            with patch.object(transaction, '_move', side_effect=fail_one_publish):
+            with intercept_book_publications(transaction, before=fail_one_publish):
                 with self.assertRaisesRegex(OSError, 'manifest publish failure'):
                     apply_delivery_retry(tmp, snapshot, [dict(rows[0], instruct='Quiet.')])
             self.assertEqual(['injected manifest publish failure'], failures)

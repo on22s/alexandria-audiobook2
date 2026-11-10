@@ -18,6 +18,7 @@ from sound_design_assets import SoundDesignAssetStore
 from sound_design_registry import ACTIVE_CUES,get_sound_design_registry
 from routers import sound_design as api
 from tests import test_sound_design_context as fixtures
+from tests.test_support import intercept_book_publications
 
 BASE = '/api/sound_design/cues'
 
@@ -317,15 +318,14 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
         saved=await self.client.post(BASE+'/revise',json=await self.request());self.assertEqual(200,saved.status_code,saved.text)
         original=(self.root/ACTIVE_CUES).read_bytes();payload=await self.request()
         payload['parent_version']=saved.json()['version'];payload['parameters']['mix']['gain_db']=-24
-        move=books._move;failed=False
-        def fail_install(source,destination, **kwargs):
-            nonlocal failed
-            if not failed and Path(source).name.startswith('new-') and Path(destination).name==ACTIVE_CUES:
-                failed=True;raise OSError('synthetic install failure')
-            return move(source,destination, **kwargs)
-        with patch.object(books,'_move',side_effect=fail_install):
+        target=self.root/ACTIVE_CUES;failed=[]
+        def fail_install(publication_target):
+            if target==publication_target and not failed:
+                failed.append(publication_target)
+                raise OSError('synthetic install failure')
+        with intercept_book_publications(books,before=fail_install):
             response=await self.client.post(BASE+'/revise',json=payload)
-        self.assertEqual(409,response.status_code,response.text);self.assertTrue(failed)
+        self.assertEqual(409,response.status_code,response.text);self.assertEqual([target],failed)
         self.assertEqual(original,(self.root/ACTIVE_CUES).read_bytes())
 
     async def test_cancelled_async_request_waits_for_blocked_book_worker_and_keeps_loop_responsive(self):

@@ -19,6 +19,7 @@ from generation_checkpoint_deltas import GenerationCheckpointDeltas
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from routers import script
 from tests.test_script_recovery import _write_failed_run, SOURCE
+from tests.test_support import intercept_book_publications
 from pass_quality import split_outer_quote_regions
 
 
@@ -134,16 +135,21 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
             self.assertEqual(get_generation_checkpoint_artifacts(checkpoint_path),[checkpoint_path])
 
     def test_each_publication_failure_restores_exact_pair(self):
-        for point in range(1,5):
-            with self.subTest(move=point),self.fixture() as (_,path):
-                before=self.pair(path);move=books._move;count=0
-                def fail(source,destination, **kwargs):
-                    nonlocal count
-                    count+=1
-                    if count==point:raise OSError('recovery disk failure')
-                    return move(source,destination, **kwargs)
-                with patch.object(books,'_move',side_effect=fail),self.assertRaisesRegex(OSError,'recovery disk failure'):
+        # v4 publishes each row with one exchange (#1660); v3 publishes it with
+        # a publish move after a separate backup move. Failing the publication
+        # itself exercises the promise on either protocol: for v4 the exchange
+        # is backup and publication at once, for v3 its publish move fails.
+        for label, target_of in (('checkpoint', script.three_pass_checkpoint_path),
+                                 ('manifest', script.three_pass_manifest_path)):
+            with self.subTest(publication=label),self.fixture() as (_,path):
+                before=self.pair(path);failed=[]
+                def fail(target):
+                    if str(target)==target_of(path) and not failed:
+                        failed.append(target)
+                        raise OSError('recovery disk failure')
+                with intercept_book_publications(books,before=fail),self.assertRaisesRegex(OSError,'recovery disk failure'):
                     script.apply_manual_recovery(self.entries(),'manual')
+                self.assertEqual([target_of(path)],[str(target) for target in failed])
                 self.assertEqual(before,self.pair(path))
                 self.assertTrue(script.apply_manual_recovery(self.entries(),'manual')['accepted'])
 
@@ -151,13 +157,10 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
         with self.fixture() as (_,path):
             app=FastAPI();app.include_router(script.router)
             entered=threading.Event();release=threading.Event();read=threading.Event();errors=[];responses=[]
-            move=books._move
-            def paused(source,destination, **kwargs):
-                result=move(source,destination, **kwargs)
-                if str(destination)==script.three_pass_checkpoint_path(path):
+            def paused(target):
+                if str(target)==script.three_pass_checkpoint_path(path):
                     entered.set()
                     if not release.wait(5):raise AssertionError('publication not released')
-                return result
             def publish():
                 try:script.apply_manual_recovery(self.entries(),'manual')
                 except BaseException as error:errors.append(error)
@@ -165,7 +168,7 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
                 try:responses.append(client.get('/api/generate_script/recovery'));read.set()
                 except BaseException as error:errors.append(error)
             worker=threading.Thread(target=publish)
-            with TestClient(app) as client,patch.object(books,'_move',side_effect=paused):
+            with TestClient(app) as client,intercept_book_publications(books,after=paused):
                 observer=threading.Thread(target=reader,args=(client,));worker.start()
                 try:
                     self.assertTrue(entered.wait(2));observer.start()
@@ -208,17 +211,24 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
 import asyncio,os,sys
 import book_state_transaction as books
 from routers import script
+from tests.test_support import intercept_book_publications
 script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2];script.process_state['script']['running']=False
 boundary=sys.argv[3];point=int(sys.argv[4]);count=0
-original=books._move if boundary=='move' else books._save_journal
 def stop(*args,**kwargs):
  global count
- result=original(*args,**kwargs);count+=1
+ result=native(*args,**kwargs);count+=1
  if count==point:os._exit(77)
  return result
-if boundary=='move':books._move=stop
-else:books._save_journal=stop
-asyncio.run(script.generate_script_skip(script.SkipChunkRequest(chunk=2)))
+def published(target):
+ global count
+ count+=1
+ if count==point:os._exit(77)
+def run():
+ asyncio.run(script.generate_script_skip(script.SkipChunkRequest(chunk=2)))
+if boundary=='journal':
+ native=books._save_journal;books._save_journal=stop;run()
+else:
+ with intercept_book_publications(books,after=published):run()
 '''
         recovery='''
 import asyncio,json,sys
@@ -226,7 +236,10 @@ from routers import script
 script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2]
 print(json.dumps(asyncio.run(script.generate_script_recovery())))
 '''
-        for boundary,point in [('move',n) for n in range(1,5)]+[('journal',1),('journal',2)]:
+        # Each row is one publication on both protocols: a v4 exchange is
+        # backup and publication together, a v3 row publishes after its
+        # separate backup move. Journal publication stays the same.
+        for boundary,point in [('publish',n) for n in (1,2)]+[('journal',1),('journal',2)]:
             with self.subTest(boundary=boundary,point=point),self.fixture() as (root,path):
                 before=self.pair(path)
                 result=subprocess.run([sys.executable,'-c',worker,str(root),path,boundary,str(point)],capture_output=True,text=True,timeout=15)
@@ -253,12 +266,11 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
             book_state = json.loads((root/'state.json').read_text())
             book_state['script_generation_selection'] = captured
             script.atomic_json_write(book_state, root/'state.json')
-            before=self.pair(path);move=books._move
-            def leave_pending(src,destination, **kwargs):
-                result=move(src,destination, **kwargs)
-                if str(destination)==script.three_pass_checkpoint_path(path):raise SystemExit('interrupted recovery')
-                return result
-            with patch.object(books,'_move',side_effect=leave_pending),patch.object(books,'recover_book_state_locked'),self.assertRaises(SystemExit):
+            before=self.pair(path)
+            def leave_pending(target):
+                if str(target)==script.three_pass_checkpoint_path(path):
+                    raise SystemExit('interrupted recovery')
+            with intercept_book_publications(books,after=leave_pending),patch.object(books,'recover_book_state_locked'),self.assertRaises(SystemExit):
                 script.apply_manual_recovery(self.entries(),'manual')
             self.assertTrue((root/books.JOURNAL).exists())
             app=FastAPI();app.add_middleware(core.TaskClaimMiddleware);app.include_router(script.router)
