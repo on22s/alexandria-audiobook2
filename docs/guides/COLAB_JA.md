@@ -1,4 +1,4 @@
-[English](COLAB.md) | [中文](COLAB_CN.md) | 日本語
+[English](COLAB.md) | [中文](COLAB_CN.md) | 日本語 | [Español](COLAB_ES.md)
 
 # Google Colab
 

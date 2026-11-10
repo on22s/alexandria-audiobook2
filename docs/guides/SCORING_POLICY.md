@@ -1,4 +1,4 @@
-[English](SCORING_POLICY.md) | [中文](SCORING_POLICY_CN.md) | [日本語](SCORING_POLICY_JA.md)
+[English](SCORING_POLICY.md) | [中文](SCORING_POLICY_CN.md) | [日本語](SCORING_POLICY_JA.md) | [Español](SCORING_POLICY_ES.md)
 
 # Attribution scoring policy
 

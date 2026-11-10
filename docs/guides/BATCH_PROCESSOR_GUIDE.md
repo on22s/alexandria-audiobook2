@@ -1,4 +1,4 @@
-[English](BATCH_PROCESSOR_GUIDE.md) | [中文](BATCH_PROCESSOR_GUIDE_CN.md) | [日本語](BATCH_PROCESSOR_GUIDE_JA.md)
+[English](BATCH_PROCESSOR_GUIDE.md) | [中文](BATCH_PROCESSOR_GUIDE_CN.md) | [日本語](BATCH_PROCESSOR_GUIDE_JA.md) | [Español](BATCH_PROCESSOR_GUIDE_ES.md)
 
 # Alexandria Batch Processor Guide
 

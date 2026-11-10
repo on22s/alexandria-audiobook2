@@ -1,4 +1,4 @@
-[English](COMPARE_GUIDE.md) | [中文](COMPARE_GUIDE_CN.md) | [日本語](COMPARE_GUIDE_JA.md)
+[English](COMPARE_GUIDE.md) | [中文](COMPARE_GUIDE_CN.md) | [日本語](COMPARE_GUIDE_JA.md) | [Español](COMPARE_GUIDE_ES.md)
 
 # Alexandria 对比指南
 
