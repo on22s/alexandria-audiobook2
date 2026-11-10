@@ -681,5 +681,13 @@ class BookStateV4ReplacementTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertFalse((self.root / books.JOURNAL).exists())
 
+    def test_a_target_deleted_after_its_swap_is_restored_from_its_proven_original(self):
+        # R8, as on v2/v3: the original is proven in our slot, so it goes back
+        # with a no-overwrite move and the switch rolls back completely.
+        originals = self._prepare()
+        self._crash_after_exchanges(1)   # row 0 published, its original in new-0
+        (self.root / 'part-0.json').rename(self.root / 'removed-by-someone')
+        self._assert_recovered({**originals, 'removed-by-someone': b'replacement-0'})
+
 if __name__ == '__main__':
     unittest.main()
