@@ -1,4 +1,6 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+import functools
+import json
 import os
 from pathlib import Path
 import shutil
@@ -278,6 +280,92 @@ def intercept_book_publications(module, before=None, after=None):
     with patch.object(module, '_move', side_effect=wrap(original_move)), \
             patch.object(module, '_exchange', side_effect=wrap(original_exchange)):
         yield
+
+
+@functools.lru_cache(maxsize=1)
+def exchange_protocol_available():
+    """-> whether this host and its temp filesystem can run protocol v4.
+
+    Windows has no exchange at all. Elsewhere the real capability probe over
+    a private temp directory answers for the temp trees the tests build; an
+    unsupported filesystem leaves only the legacy protocol to exercise.
+    """
+    import source_upload_publication as publication
+    if os.name == 'nt' or os.open not in os.supports_dir_fd:
+        return False
+    with tempfile.TemporaryDirectory() as temporary:
+        descriptor = os.open(temporary, os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+        try:
+            return publication.probe_exchange_support(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+@contextmanager
+def legacy_book_publication_protocol():
+    """Pin the capability probe off so a replacement-only transaction is v3."""
+    import source_upload_publication as publication
+    with patch.object(publication, 'probe_exchange_support', return_value=False):
+        yield
+
+
+def book_protocol_cases(v3_only=False):
+    """-> (name, context) for each protocol this host can run.
+
+    Every behavioural promise runs under the legacy protocol and, where the
+    exchange exists, under v4 as well. v3_only is for tests that assert a
+    mechanism v4 deliberately does not have (old-N slots, the v3 move
+    sequence, v3 journal fields).
+    """
+    yield 'v3', legacy_book_publication_protocol()
+    if not v3_only and exchange_protocol_available():
+        yield 'v4', nullcontext()
+
+
+class BookProtocolCases:
+    """Run each behavioural test under both book publication protocols.
+
+    Behavioural promises (an abort restores exact bytes, a reader never sees
+    a half switch, a parent/root swap is refused with evidence, foreign data
+    survives, recovery is idempotent) must hold on both. A test that asserts
+    a v3 mechanism names itself in v3_only_tests with the reason; only those
+    pin the probe off, so the pin the reviewer complained about is now the
+    documented exception rather than the default.
+    """
+
+    # test name -> why this test can only run on the v3 `_move` protocol
+    v3_only_tests = {}
+
+    def _callTestMethod(self, method):
+        name = getattr(method, '__name__', '')
+        for protocol, context in book_protocol_cases(name in self.v3_only_tests):
+            self._book_protocol = protocol
+            with self.subTest(protocol=protocol), context:
+                super()._callTestMethod(method)
+
+
+def prepare_book_worker(protocol):
+    """Pin a worker script to the protocol its parent test selected."""
+    import source_upload_publication as publication
+    if protocol == 'v3':
+        publication.probe_exchange_support = lambda _fd: False
+
+
+def get_book_original_slot(root, index=0):
+    """-> the workspace path holding the replaced original of a pending journal.
+
+    v3 saves it as old-<index>; v4's exchange leaves it in new-<index>.
+    """
+    import book_state_transaction as books
+    document = json.loads((Path(root) / books.JOURNAL).read_text(encoding='utf-8'))
+    slot = f'new-{index}' if document.get('version') == 4 else f'old-{index}'
+    return Path(root) / document['workspace'] / slot
+
+
+def get_book_journal_version(root):
+    """-> the pending journal's protocol version (4 is one exchange per row)."""
+    import book_state_transaction as books
+    return json.loads((Path(root) / books.JOURNAL).read_text(encoding='utf-8'))['version']
 
 
 def create_test_api_server(app):

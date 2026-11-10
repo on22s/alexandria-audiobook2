@@ -15,25 +15,36 @@ from unittest.mock import patch
 
 import book_state_transaction as books
 from audio_generation_owner import AudioGenerationCancelled
+from tests.test_support import (BookProtocolCases, get_book_journal_version,
+                                get_book_original_slot, intercept_book_publications,
+                                prepare_book_worker)
 
 
 def stream(data):
     return books.BookStateStream(io.BytesIO(data), len(data), hashlib.sha256(data).hexdigest())
 
 
-class BookStateStreamingTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # These are the v2/v3 stream protocol contract tests. Protocol v4
-        # (one verified exchange per replacement) has its own module; pin the
-        # capability probe off so replacement-only transactions keep
-        # exercising the legacy path this class was written against (#1660).
-        import source_upload_publication as publication
-        cls._legacy_protocol_probe = patch.object(
-            publication, 'probe_exchange_support', return_value=False)
-        cls._legacy_protocol_probe.start()
-        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
+class BookStateStreamingTests(BookProtocolCases, unittest.TestCase):
+    v3_only_tests = {
+        # Downgrading a stream journal to version 1 and substituting old-0 are
+        # v3 journal fields and slots; v4 journals have no old-N backup.
+        'test_stream_journal_downgrade_and_original_substitution_preserve_evidence':
+            'asserts v3 stream journal version 2 and its old-0 backup',
+        # This drives the v3 _move primitive itself to count descriptors.
+        'test_deep_anchored_move_uses_bounded_descriptors':
+            'drives the v3 anchored _move primitive directly',
+        # These assert the v3 recovery move sequence into discard-0; v4
+        # recovers a row with one undo exchange and has no discard slot.
+        'test_process_death_after_publishing_recovers_previous_book':
+            'asserts the v3 recovery move into discard-0',
+        'test_edit_at_rollback_move_is_preserved_for_inspection':
+            'asserts the v3 rollback move into discard-0',
+        # v4 R9 finishes a fully published row whose workspace slot no longer
+        # proves the journaled original (the changed object is quarantined);
+        # the v3 refusal path is the mechanism this test names.
+        'test_original_mode_change_before_recovery_is_preserved':
+            'v3 refuses a changed old-0; v4 R9 commits the published row',
+    }
     @unittest.skipIf(os.name == 'nt', 'POSIX descriptor-relative cleanup')
     def test_stream_cleanup_refuses_root_swap_after_open(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -555,8 +566,6 @@ class BookStateStreamingTests(unittest.TestCase):
 import resource,sys
 from pathlib import Path
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
 _,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE,(32,hard))
 b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[1]))
@@ -601,22 +610,32 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
             root, outside = Path(temporary), Path(outside_dir)
             parent = root / 'sub'; parent.mkdir()
             target = parent / 'file'; target.write_bytes(b'original')
-            move, swapped = books._move, []
-            def swap_after_publish(source, destination, **kwargs):
-                result = move(source, destination, **kwargs)
-                if Path(destination) == target and not swapped:
-                    parent.rename(root / 'retained')
-                    (root / 'retained' / 'file').rename(outside / 'file')
-                    parent.symlink_to(outside, target_is_directory=True)
-                    swapped.append(True)
-                return result
-            with patch.object(books, '_move', side_effect=swap_after_publish):
+            swapped = []
+            def swap_parent():
+                parent.rename(root / 'retained')
+                (root / 'retained' / 'file').rename(outside / 'file')
+                parent.symlink_to(outside, target_is_directory=True)
+                swapped.append(True)
+            if self._book_protocol == 'v4':
+                def after(published_target):
+                    if published_target == target and not swapped:
+                        swap_parent()
+                context = intercept_book_publications(books, after=after)
+            else:
+                move = books._move
+                def swap_after_publish(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if Path(destination) == target and not swapped:
+                        swap_parent()
+                    return result
+                context = patch.object(books, '_move', side_effect=swap_after_publish)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'sub/file': stream(b'generated')}, [],
                                                   stream_byte_limit=100)
             self.assertTrue(swapped)
             self.assertEqual(b'generated', (outside / 'file').read_bytes())
-            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+            self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
             self.assertTrue((root / books.JOURNAL).exists())
 
     @unittest.skipIf(os.name == 'nt', 'hardlink fixture requires POSIX link semantics')
@@ -645,28 +664,36 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
-root=Path(sys.argv[1]); move=b._move; count=[0]
-def stop(source,destination,**kwargs):
- move(source,destination,**kwargs); count[0]+=1
- if count[0]==2: os._exit(87)
-b._move=stop
+from tests.test_support import intercept_book_publications, prepare_book_worker
+prepare_book_worker(sys.argv[2])
+root=Path(sys.argv[1]); count=[0]
+def stop(target):
+ count[0]+=1
+ if count[0]==1: os._exit(87)
 data=b'new audio'; value=b.BookStateStream(io.BytesIO(data),len(data),hashlib.sha256(data).hexdigest())
-with b.ensure_book_state(root):
- b.apply_book_state_locked(root,{'audio.wav':value},[],stream_byte_limit=100)
+with intercept_book_publications(b, after=stop):
+ with b.ensure_book_state(root):
+  b.apply_book_state_locked(root,{'audio.wav':value},[],stream_byte_limit=100)
 '''
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'audio.wav').write_bytes(b'old audio')
-            result = subprocess.run([sys.executable, '-c', worker, tmp], capture_output=True, timeout=20)
+            result = subprocess.run([sys.executable, '-c', worker, tmp, self._book_protocol],
+                                    capture_output=True, timeout=20)
             self.assertEqual(87, result.returncode, result.stderr.decode(errors='replace'))
-            moved, cancel = books._move, [False]
-            def restore_then_cancel(source, destination, **kwargs):
-                moved(source, destination, **kwargs)
-                if Path(source).name == 'old-0':
+            cancel = [False]
+            if self._book_protocol == 'v4':
+                def restore_then_cancel(published_target):
                     cancel[0] = True
-            with patch.object(books, '_move', side_effect=restore_then_cancel):
+                context = intercept_book_publications(books, after=restore_then_cancel)
+            else:
+                moved = books._move
+                def restore_then_cancel(source, destination, **kwargs):
+                    moved(source, destination, **kwargs)
+                    if Path(source).name == 'old-0':
+                        cancel[0] = True
+                context = patch.object(books, '_move', side_effect=restore_then_cancel)
+            with context:
                 with self.assertRaises(AudioGenerationCancelled):
                     with books.ensure_book_state(root, cancel_check=lambda: cancel[0]):
                         self.fail('Cancelled recovery was admitted')
@@ -681,7 +708,12 @@ with b.ensure_book_state(root):
             with patch.object(books, '_finish_transaction', side_effect=observe_cleanup), \
                  books.ensure_book_state(root, cancel_check=deferred_cancel):
                 pass
-            self.assertEqual([None], cleanup_checks)
+            if self._book_protocol == 'v4':
+                # v4's completion passes the (deferred, false) cancel check
+                # through to cleanup; the promise is that it is not surfaced.
+                self.assertEqual(1, len(cleanup_checks))
+            else:
+                self.assertEqual([None], cleanup_checks)
             self.assertFalse((root / books.JOURNAL).exists())
             self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
 
@@ -1017,8 +1049,6 @@ with b.ensure_book_state(root):
             code = '''
 import resource,sys
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
 import book_recovery_archive
 soft,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE,(32,hard))
@@ -1202,9 +1232,10 @@ print(len(result['entries']))
             foreign = root / receipt['workspace']['name'] / 'foreign'
             self.assertEqual(b'user data', get_quarantined_path(self, root, foreign).read_bytes())
             workspace = quarantine / books.QUARANTINE_WORKSPACE
-            self.assertEqual(b'old audio', (workspace / 'old-0').read_bytes())
-            self.assertEqual('committed',
-                             json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())['phase'])
+            qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
+            slot = 'new-0' if qjournal['version'] == 4 else 'old-0'
+            self.assertEqual(b'old audio', (workspace / slot).read_bytes())
+            self.assertEqual('committed', qjournal['phase'])
             self.assertEqual(b'new audio', (root / 'audio.wav').read_bytes())
             with books.ensure_book_state(root):
                 pass
@@ -1840,13 +1871,12 @@ print(len(result['entries']))
             root = Path(tmp)
             (root / 'audio.wav').write_bytes(b'old audio')
             (root / 'state.json').write_bytes(b'old state')
-            move, cancelled, count = books._move, [False], [0]
-            def move_and_cancel(source, destination, **kwargs):
-                move(source, destination, **kwargs)
+            cancelled, count = [False], [0]
+            def move_and_cancel(published_target):
                 count[0] += 1
                 if count[0] == 2:
                     cancelled[0] = True
-            with patch.object(books, '_move', side_effect=move_and_cancel):
+            with intercept_book_publications(books, after=move_and_cancel):
                 with books.ensure_book_state(root), self.assertRaises(AudioGenerationCancelled):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new'),
                         'state.json': b'new state'}, [], stream_byte_limit=100,
@@ -1861,40 +1891,64 @@ print(len(result['entries']))
             (root / 'audio.wav').write_bytes(b'old audio')
             state = root / 'state.json'
             state.write_bytes(b'old state')
-            move, count = books._move, [0]
-            def move_then_edit(source, destination, **kwargs):
-                move(source, destination, **kwargs)
+            count = [0]
+            def move_then_edit(published_target):
                 count[0] += 1
                 if count[0] == 2:
                     state.write_bytes(b'concurrent edit')
-            with patch.object(books, '_move', side_effect=move_then_edit):
+            with intercept_book_publications(books, after=move_then_edit):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new'),
                         'state.json': b'new state'}, [], stream_byte_limit=100)
-            self.assertEqual(b'concurrent edit', state.read_bytes())
-            journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual(b'old audio', (root / journal['workspace'] / 'old-0').read_bytes())
-            self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
+            if (root / books.JOURNAL).exists():
+                self.assertEqual(b'concurrent edit', state.read_bytes())
+                self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
+                self.assertEqual(b'new', (root / 'audio.wav').read_bytes())
+            else:
+                # v4 rolled the published rows back with complementary
+                # exchanges and quarantined the workspace, so the writer's
+                # edit survives in quarantine rather than at its target.
+                from tests.test_support import get_quarantined_path
+                self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
+                self.assertEqual(b'old state', state.read_bytes())
+                [quarantine] = [entry for entry in root.iterdir()
+                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
+                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
+                preserved = get_quarantined_path(
+                    self, root, root / qjournal['workspace'] / 'new-1')
+                self.assertEqual(b'concurrent edit', preserved.read_bytes())
 
     def test_edit_at_move_boundary_is_preserved_in_recovery_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / 'audio.wav'
             target.write_bytes(b'old audio')
-            move = books._move
             changed = [False]
-            def edit_before_move(source, destination, **kwargs):
-                if Path(source) == target and not changed[0]:
+            def edit_before_publication(published_target):
+                if published_target == target and not changed[0]:
                     target.write_bytes(b'concurrent edit')
                     changed[0] = True
-                move(source, destination, **kwargs)
-            with patch.object(books, '_move', side_effect=edit_before_move):
+            if self._book_protocol == 'v4':
+                context = intercept_book_publications(books, before=edit_before_publication)
+            else:
+                move = books._move
+                def edit_before_move(source, destination, **kwargs):
+                    if Path(source) == target and not changed[0]:
+                        target.write_bytes(b'concurrent edit')
+                        changed[0] = True
+                    move(source, destination, **kwargs)
+                context = patch.object(books, '_move', side_effect=edit_before_move)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100)
             self.assertEqual(b'concurrent edit', target.read_bytes())
-            journal = json.loads((root / books.JOURNAL).read_text())
-            backup = root / journal['workspace'] / 'old-0'
-            self.assertFalse(backup.exists())
+            if (root / books.JOURNAL).exists():
+                journal = json.loads((root / books.JOURNAL).read_text())
+                backup = root / journal['workspace'] / 'old-0'
+                self.assertFalse(backup.exists())
+            else:
+                # v4 refused before the exchange and retired our workspace.
+                self.assertEqual([], list(root.glob('.book-switch-*')))
 
     @unittest.skipIf(os.name == 'nt', 'Anchored book moves are not yet supported on Windows')
     def test_symlink_swapped_at_rename_does_not_write_outside_project(self):
@@ -1970,26 +2024,40 @@ print(len(result['entries']))
             root = Path(tmp)
             target = root / 'audio.wav'
             target.write_bytes(b'old audio')
-            move = books._move
-            def edit_after_publish(source, destination, **kwargs):
-                move(source, destination, **kwargs)
-                if Path(source).name == 'new-0':
+            edited = []
+            def edit_after_publish(published_target):
+                if published_target == target and not edited:
                     target.write_bytes(b'concurrent edit')
-            with patch.object(books, '_move', side_effect=edit_after_publish):
+                    edited.append(True)
+            with intercept_book_publications(books, after=edit_after_publish):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [], stream_byte_limit=100)
-            self.assertEqual(b'concurrent edit', target.read_bytes())
-            journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual('publishing', journal['phase'])
-            self.assertEqual(b'old audio', (root / journal['workspace'] / 'old-0').read_bytes())
+            if (root / books.JOURNAL).exists():
+                self.assertEqual(b'concurrent edit', target.read_bytes())
+                journal = json.loads((root / books.JOURNAL).read_text())
+                self.assertEqual('publishing', journal['phase'])
+                self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
+            else:
+                # v4 undid the swap with the observed edited object and
+                # quarantined the workspace: the original is back at the
+                # target and the writer's edit is preserved, not deleted.
+                from tests.test_support import get_quarantined_path
+                self.assertEqual(b'old audio', target.read_bytes())
+                [quarantine] = [entry for entry in root.iterdir()
+                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
+                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
+                slot = 'new-0' if qjournal['version'] == 4 else 'old-0'
+                preserved = get_quarantined_path(
+                    self, root, root / qjournal['workspace'] / slot)
+                self.assertEqual(b'concurrent edit', preserved.read_bytes())
 
     def test_committed_recovery_preserves_backup_if_output_changed_or_missing(self):
         worker = '''
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
+from tests.test_support import prepare_book_worker
+prepare_book_worker(sys.argv[2])
 root=Path(sys.argv[1]); save=b._save_journal
 def stop(directory,document,**kwargs):
  result=save(directory,document,**kwargs)
@@ -2005,7 +2073,8 @@ with b.ensure_book_state(root):
                 root = Path(tmp)
                 target = root / 'audio.wav'
                 target.write_bytes(b'old audio')
-                child = subprocess.run([sys.executable, '-c', worker, tmp], capture_output=True, timeout=20)
+                child = subprocess.run([sys.executable, '-c', worker, tmp, self._book_protocol],
+                                       capture_output=True, timeout=20)
                 self.assertEqual(90, child.returncode, child.stderr.decode(errors='replace'))
                 journal = json.loads((root / books.JOURNAL).read_text())
                 if change == 'modified':
@@ -2016,7 +2085,7 @@ with b.ensure_book_state(root):
                     with books.ensure_book_state(root):
                         self.fail('Changed committed output was accepted')
                 self.assertTrue((root / books.JOURNAL).exists())
-                self.assertEqual(b'old audio', (root / journal['workspace'] / 'old-0').read_bytes())
+                self.assertEqual(b'old audio', get_book_original_slot(root).read_bytes())
                 if change == 'modified':
                     self.assertEqual(b'user edit', target.read_bytes())
 
@@ -2145,24 +2214,24 @@ with b.ensure_book_state(root):
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
-root=Path(sys.argv[1]); old=b._move; count=[0]
-def stop(source,destination,**kwargs):
- old(source,destination,**kwargs);count[0]+=1
- if count[0]==2:os._exit(87)
-b._move=stop
+from tests.test_support import intercept_book_publications, prepare_book_worker
+prepare_book_worker(sys.argv[2])
+root=Path(sys.argv[1]); count=[0]
+def stop(target):
+ count[0]+=1
+ if count[0]==1: os._exit(87)
 data=b'new';value=b.BookStateStream(io.BytesIO(data),len(data),hashlib.sha256(data).hexdigest())
-with b.ensure_book_state(root):b.apply_book_state_locked(root,{'audio.wav':value},[],stream_byte_limit=100)
+with intercept_book_publications(b, after=stop):
+ with b.ensure_book_state(root):b.apply_book_state_locked(root,{'audio.wav':value},[],stream_byte_limit=100)
 '''
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / 'audio.wav'
             target.write_bytes(b'old audio'); target.chmod(0o600)
-            child = subprocess.run([sys.executable, '-c', worker, tmp], capture_output=True, timeout=20)
+            child = subprocess.run([sys.executable, '-c', worker, tmp, self._book_protocol],
+                                   capture_output=True, timeout=20)
             self.assertEqual(87, child.returncode, child.stderr.decode(errors='replace'))
-            journal = json.loads((root / books.JOURNAL).read_text())
-            backup = root / journal['workspace'] / 'old-0'
+            backup = get_book_original_slot(root)
             backup.chmod(0o640)
             with self.assertRaisesRegex(ValueError, 'original artifact.*changed'):
                 with books.ensure_book_state(root):
@@ -2215,8 +2284,6 @@ with b.ensure_book_state(root):
 import hashlib,io,os,sys
 from pathlib import Path
 import book_state_transaction as b
-import source_upload_publication as _publication
-_publication.probe_exchange_support=lambda _fd: False
 class Die(io.BytesIO):
  calls=0
  def read(self,n=-1):

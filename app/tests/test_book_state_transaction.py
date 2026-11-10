@@ -11,24 +11,40 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import book_state_transaction as books
+from tests.test_support import (BookProtocolCases, get_book_original_slot,
+                                intercept_book_publications)
 
 
-class BookStateTransactionTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # These are the v2/v3 protocol contract tests. Protocol v4 (one
-        # verified exchange per replacement) has its own module; pin the
-        # capability probe off so a replacement-only transaction still
-        # exercises the legacy path this class was written against (#1660).
-        import source_upload_publication as publication
-        cls._legacy_protocol_probe = patch.object(
-            publication, 'probe_exchange_support', return_value=False)
-        cls._legacy_protocol_probe.start()
-        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
+class BookStateTransactionTests(BookProtocolCases, unittest.TestCase):
+    v3_only_tests = {
+        # These read or build the v3 journal's generation fields, which v4
+        # does not write; the values name objects in the v3 move sequence.
+        'test_changed_generation_refuses_backup_and_replacement_recovery':
+            'asserts v3 old/new_file_generation journal fields',
+        'test_changed_generation_after_original_move_preserves_evidence':
+            'asserts the v3 old_file_generation captured before old-0',
+        'test_journal_without_generation_keeps_stat_identity_recovery':
+            'builds a v3 journal to prove the identity fallback',
+        'test_invalid_journal_generation_is_refused_without_mutation':
+            'validates v3 generation journal schema',
+        # A v3 backup slot is the object audited here; v4 leaves the original
+        # in the rotated new-0 slot and has no separate old-N backup.
+        'test_byte_recovery_preserves_same_content_foreign_original_backup':
+            'replaces the v3 old-0 backup audit object',
+        # v3 removes the target to old-N before publishing new-N, so a writer
+        # can create that absent name; v4 never leaves a target absent and
+        # covers substitution in test_book_state_1660_v4_replacements.
+        'test_byte_transaction_preserves_target_created_during_publication':
+            'depends on the target being absent between v3 backup and publish',
+        'test_byte_recovery_preserves_new_target_even_if_bytes_match_staged_output':
+            'depends on the target being absent between v3 backup and publish',
+        'test_byte_recovery_preserves_same_content_foreign_target_after_publication':
+            'asserts the interrupted v3 publish and journal version 3',
+    }
     @unittest.skipIf(os.name == 'nt', 'POSIX pinned-parent relocation control')
     def test_relocated_move_parent_preserves_entries_and_fences_byte_and_stream_recovery(self):
         import source_upload_publication as publication
+        exchange = self._book_protocol == 'v4'
         for streaming in (False, True):
             for replacement in (False, True):
                 with self.subTest(streaming=streaming, replacement=replacement), \
@@ -37,23 +53,35 @@ class BookStateTransactionTests(unittest.TestCase):
                     target = root / 'artifact'
                     target.write_bytes(b'owned original')
                     retained = root / 'retained-workspace'
-                    move = publication.move_source_upload_exclusively
+                    original_slot = 'new-0' if exchange else 'old-0'
                     relocated = []
-                    def relocate_after_move(source, destination, **kwargs):
-                        move(source, destination, **kwargs)
-                        if str(source) == 'artifact' and str(destination) == 'old-0' and not relocated:
-                            workspace = next(root.glob('.book-switch-*'))
-                            if replacement:
-                                (workspace / 'old-0').rename(workspace / 'owned-retained')
-                                (workspace / 'old-0').write_bytes(b'foreign replacement')
-                            workspace.rename(retained)
-                            workspace.mkdir(mode=0o700)
-                            relocated.append(True)
+                    def relocate_workspace():
+                        workspace = next(root.glob('.book-switch-*'))
+                        if replacement:
+                            (workspace / original_slot).rename(workspace / 'owned-retained')
+                            (workspace / original_slot).write_bytes(b'foreign replacement')
+                        workspace.rename(retained)
+                        workspace.mkdir(mode=0o700)
+                        relocated.append(True)
+                    if exchange:
+                        def after(published_target):
+                            if published_target == target and not relocated:
+                                relocate_workspace()
+                        context = intercept_book_publications(books, after=after)
+                    else:
+                        move = publication.move_source_upload_exclusively
+                        def relocate_after_move(source, destination, **kwargs):
+                            move(source, destination, **kwargs)
+                            if (str(source) == 'artifact' and str(destination) == 'old-0'
+                                    and not relocated):
+                                relocate_workspace()
+                        context = patch.object(publication, 'move_source_upload_exclusively',
+                                               relocate_after_move)
                     generated = b'generated'
                     value = (books.BookStateStream(io.BytesIO(generated), len(generated),
                              hashlib.sha256(generated).hexdigest()) if streaming else generated)
                     options = {'stream_byte_limit':100} if streaming else {}
-                    with patch.object(publication, 'move_source_upload_exclusively', relocate_after_move):
+                    with context:
                         with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                             books.apply_book_state_locked(root, {'artifact':value}, [], **options)
                     self.assertEqual([True], relocated)
@@ -62,18 +90,27 @@ class BookStateTransactionTests(unittest.TestCase):
                     # still matches. The entry stays in the retained workspace
                     # and recovery fences on the preserved journal in both
                     # the plain and foreign-replacement cases.
-                    self.assertFalse(target.exists())
-                    original = retained / ('owned-retained' if replacement else 'old-0')
+                    original = retained / ('owned-retained' if replacement else original_slot)
                     self.assertEqual(b'owned original', original.read_bytes())
                     if replacement:
-                        self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
-                    self.assertEqual(generated, (retained / 'new-0').read_bytes())
+                        self.assertEqual(b'foreign replacement', (retained / original_slot).read_bytes())
+                    if exchange:
+                        # The exchange had already published the row, so the
+                        # replacement is at the target, not a stage.
+                        self.assertEqual(generated, target.read_bytes())
+                    else:
+                        self.assertFalse(target.exists())
+                        self.assertEqual(generated, (retained / 'new-0').read_bytes())
                     def check():
                         self.assertEqual(b'owned original', original.read_bytes())
-                        self.assertEqual(generated, (retained / 'new-0').read_bytes())
-                        self.assertFalse(target.exists())
+                        if exchange:
+                            self.assertEqual(generated, target.read_bytes())
+                        else:
+                            self.assertEqual(generated, (retained / 'new-0').read_bytes())
+                        if not exchange:
+                            self.assertFalse(target.exists())
                         if replacement:
-                            self.assertEqual(b'foreign replacement', (retained / 'old-0').read_bytes())
+                            self.assertEqual(b'foreign replacement', (retained / original_slot).read_bytes())
                     from tests.test_support import WORKSPACE_CHANGED_MESSAGE, assert_book_journal_fenced
                     assert_book_journal_fenced(self, root, content_check=check,
                         expected_message=WORKSPACE_CHANGED_MESSAGE)
@@ -158,7 +195,7 @@ class BookStateTransactionTests(unittest.TestCase):
             self.assertTrue((root / books.JOURNAL).exists())
             workspaces = list(root.glob('.book-switch-*'))
             self.assertEqual(1, len(workspaces))
-            self.assertEqual(b'original', (workspaces[0] / 'old-0').read_bytes())
+            self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
             self.assertEqual(b'new', target.read_bytes())
 
     def test_edited_phase_update_preserves_journal_and_backup(self):
@@ -184,9 +221,9 @@ class BookStateTransactionTests(unittest.TestCase):
                     books.apply_book_state_locked(root, {'script.json': b'new'}, [])
             self.assertEqual([True], changed)
             self.assertTrue((root / books.JOURNAL).read_bytes().startswith(b'!'))
-            workspaces = list(root.glob('.book-switch-*'))
-            self.assertEqual(1, len(workspaces))
-            self.assertEqual(b'original', (workspaces[0] / 'old-0').read_bytes())
+            [workspace] = list(root.glob('.book-switch-*'))
+            original = workspace / ('old-0' if (workspace / 'old-0').exists() else 'new-0')
+            self.assertEqual(b'original', original.read_bytes())
             self.assertEqual(b'new', target.read_bytes())
 
     def test_same_size_journal_edit_after_publication_is_preserved(self):
@@ -481,10 +518,23 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
             self.assertTrue(changed)
-            self.assertEqual(b'writer edit', target.read_bytes())
-            journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual('publishing', journal['phase'])
-            self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+            if (root / books.JOURNAL).exists():
+                journal = json.loads((root / books.JOURNAL).read_text())
+                self.assertEqual('publishing', journal['phase'])
+                self.assertEqual(b'writer edit', target.read_bytes())
+                self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
+            else:
+                # v4 restored the original and quarantined the writer's edit
+                # after the committed journal was written; nothing was deleted.
+                from tests.test_support import get_quarantined_path
+                self.assertEqual(b'original', target.read_bytes())
+                [quarantine] = [entry for entry in root.iterdir()
+                                if entry.name.startswith(books.QUARANTINE_PREFIX)]
+                qjournal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
+                slot = 'new-0' if qjournal['version'] == 4 else 'old-0'
+                backup = get_quarantined_path(
+                    self, root, root / qjournal['workspace'] / slot)
+                self.assertEqual(b'writer edit', backup.read_bytes())
 
     def test_phase_update_refuses_journal_replaced_before_write(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -507,7 +557,9 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertTrue(replaced)
             self.assertEqual(foreign, (root / books.JOURNAL).read_bytes())
             self.assertEqual(b'generated', target.read_bytes())
-            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+            [workspace] = list(root.glob('.book-switch-*'))
+            original = workspace / ('old-0' if (workspace / 'old-0').exists() else 'new-0')
+            self.assertEqual(b'original', original.read_bytes())
 
     @unittest.skipIf(os.name == 'nt', 'Windows junction qualification requires a native test')
     def test_byte_publication_refuses_parent_symlink_swap(self):
@@ -536,22 +588,31 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             root, outside = Path(temporary), Path(outside_dir)
             parent = root / 'sub'; parent.mkdir()
             target = parent / 'file'; target.write_bytes(b'original')
-            move = books._move
             swapped = []
-            def swap_after_publish(source, destination, **kwargs):
-                result = move(source, destination, **kwargs)
-                if Path(destination) == target and not swapped:
-                    parent.rename(root / 'retained')
-                    (root / 'retained' / 'file').rename(outside / 'file')
-                    parent.symlink_to(outside, target_is_directory=True)
-                    swapped.append(True)
-                return result
-            with patch.object(books, '_move', side_effect=swap_after_publish):
+            def swap_parent():
+                parent.rename(root / 'retained')
+                (root / 'retained' / 'file').rename(outside / 'file')
+                parent.symlink_to(outside, target_is_directory=True)
+                swapped.append(True)
+            if self._book_protocol == 'v4':
+                def after(published_target):
+                    if published_target == target and not swapped:
+                        swap_parent()
+                context = intercept_book_publications(books, after=after)
+            else:
+                move = books._move
+                def swap_after_publish(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if Path(destination) == target and not swapped:
+                        swap_parent()
+                    return result
+                context = patch.object(books, '_move', side_effect=swap_after_publish)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'sub/file': b'generated'}, [])
             self.assertTrue(swapped)
             self.assertEqual(b'generated', (outside / 'file').read_bytes())
-            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+            self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
             self.assertTrue((root / books.JOURNAL).exists())
             document = json.loads((root / books.JOURNAL).read_text())
             self.assertEqual(2, len(document['target_parent_identities'][0]))
@@ -559,38 +620,64 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with books.ensure_book_state(root):
                     self.fail('Recovery followed a substituted target parent')
             self.assertEqual(b'generated', (outside / 'file').read_bytes())
-            self.assertEqual(b'original', next(root.glob('.book-switch-*/old-0')).read_bytes())
+            self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
     def test_byte_transaction_preserves_edit_made_during_original_move(self):
         # A conflict can leave recovery fenced; it must not silently delete the
         # writer's changed backup while publishing the generated replacement.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); target = root / 'script.json'
             target.write_bytes(b'original')
-            move = books._move; injected = []
-            def edit_before_backup(source, destination, **kwargs):
-                if Path(source) == target and not injected:
+            injected = []
+            def edit_before_publication(published_target):
+                if published_target == target and not injected:
                     target.write_bytes(b'writer edit'); injected.append(True)
-                return move(source, destination, **kwargs)
-            with patch.object(books, '_move', side_effect=edit_before_backup):
+            if self._book_protocol == 'v4':
+                context = intercept_book_publications(books, before=edit_before_publication)
+            else:
+                move = books._move
+                def edit_before_backup(source, destination, **kwargs):
+                    if Path(source) == target and not injected:
+                        target.write_bytes(b'writer edit'); injected.append(True)
+                    return move(source, destination, **kwargs)
+                context = patch.object(books, '_move', side_effect=edit_before_backup)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
-            journal = json.loads((root / books.JOURNAL).read_text())
-            backup = root / journal['workspace'] / 'old-0'
             self.assertEqual(b'writer edit', target.read_bytes())
-            self.assertFalse(backup.exists())
+            if (root / books.JOURNAL).exists():
+                journal = json.loads((root / books.JOURNAL).read_text())
+                if journal['version'] == 4:
+                    # Nothing was exchanged, so the writer's file is the target
+                    # and our staged replacement stays in new-0.
+                    self.assertEqual(b'generated',
+                                     (root / journal['workspace'] / 'new-0').read_bytes())
+                else:
+                    self.assertFalse((root / journal['workspace'] / 'old-0').exists())
+            else:
+                # v4 refused before the swap; recovery retired our workspace
+                # and the writer's file at the target is the book.
+                self.assertEqual([], list(root.glob('.book-switch-*')))
 
     @unittest.skipIf(os.name == 'nt', 'POSIX mode semantics required')
     def test_byte_transaction_preserves_mode_change_during_original_move(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); target = root / 'script.json'
             target.write_bytes(b'original'); target.chmod(0o600)
-            move = books._move; injected = []
-            def chmod_before_backup(source, destination, **kwargs):
-                if Path(source) == target and not injected:
+            injected = []
+            def chmod_before_publication(published_target):
+                if published_target == target and not injected:
                     target.chmod(0o640); injected.append(True)
-                return move(source, destination, **kwargs)
-            with patch.object(books, '_move', side_effect=chmod_before_backup):
+            if self._book_protocol == 'v4':
+                context = intercept_book_publications(books, before=chmod_before_publication)
+            else:
+                move = books._move
+                def chmod_before_backup(source, destination, **kwargs):
+                    if Path(source) == target and not injected:
+                        target.chmod(0o640); injected.append(True)
+                    return move(source, destination, **kwargs)
+                context = patch.object(books, '_move', side_effect=chmod_before_backup)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertEqual(0o640, target.stat().st_mode & 0o777)
@@ -602,21 +689,26 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); target = root / 'script.json'
             target.write_bytes(b'original')
-            move = books._move; injected = []
+            injected = []
             with target.open('r+b') as writer:
-                def edit_after_publish(source, destination, **kwargs):
-                    result = move(source, destination, **kwargs)
-                    if Path(destination) == target and Path(source).name == 'new-0' and not injected:
+                def edit_after_publication(published_target):
+                    if published_target == target and not injected:
                         writer.seek(0); writer.write(b'writer edit'); writer.truncate(); writer.flush()
                         injected.append(True)
-                    return result
-                with patch.object(books, '_move', side_effect=edit_after_publish):
+                with intercept_book_publications(books, after=edit_after_publication):
                     with books.ensure_book_state(root), self.assertRaises((OSError, ValueError)):
                         books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
-            journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual(b'writer edit', (root / journal['workspace'] / 'old-0').read_bytes())
-            self.assertEqual(b'generated', target.read_bytes())
+            # The open descriptor names the original object, which the
+            # protocol moved to its backup slot (v3 old-0, v4 new-0).
+            if (root / books.JOURNAL).exists():
+                self.assertEqual(b'writer edit', get_book_original_slot(root).read_bytes())
+                self.assertEqual(b'generated', target.read_bytes())
+            else:
+                # v4 undid the swap with the observed edited object and retired
+                # the workspace: the writer's edit is the book at the target.
+                self.assertEqual(b'writer edit', target.read_bytes())
+                self.assertEqual([], list(root.glob('.book-switch-*')))
 
     @unittest.skipIf(os.name == 'nt', 'Windows may deny moving an open file')
     def test_committed_byte_recovery_preserves_backup_modified_after_commit(self):
@@ -641,7 +733,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                             if entry.name.startswith(books.QUARANTINE_PREFIX)]
             journal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
             self.assertEqual('committed', journal['phase'])
-            backup = get_quarantined_path(self, root, root / journal['workspace'] / 'old-0')
+            slot = 'new-0' if journal['version'] == 4 else 'old-0'
+            backup = get_quarantined_path(self, root, root / journal['workspace'] / slot)
             self.assertEqual(b'writer edit', backup.read_bytes())
             self.assertEqual(b'generated', target.read_bytes())
 
@@ -694,15 +787,18 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             root = Path(tmp)
             target = root / 'script.json'
             target.write_bytes(b'original')
-            validate = books._validate_committed_byte_backups
+            validate = books._validate_byte_cleanup_targets
             planted = []
-            def add_after_validation(workspace, rows, targets, cancel_check=None):
-                result = validate(workspace, rows, targets, cancel_check=cancel_check)
-                foreign = Path(workspace) / 'foreign'
-                foreign.write_bytes(b'user data')
-                planted.append(foreign)
+            def add_after_validation(rows, targets, phase, cancel_check=None, index=None):
+                result = validate(rows, targets, phase, cancel_check=cancel_check, index=index)
+                if phase == 'committed' and not planted:
+                    workspace = root / json.loads(
+                        (root / books.JOURNAL).read_text())['workspace']
+                    foreign = Path(workspace) / 'foreign'
+                    foreign.write_bytes(b'user data')
+                    planted.append(foreign)
                 return result
-            with patch.object(books, '_validate_committed_byte_backups',
+            with patch.object(books, '_validate_byte_cleanup_targets',
                               side_effect=add_after_validation):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
@@ -873,9 +969,9 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                                                   stream_byte_limit=1024)
             self.assertTrue(changed)
             self.assertEqual(b'writer edit', target.read_bytes())
-            backups = list(root.glob('.book-switch-*/old-0'))
-            self.assertEqual(1, len(backups))
-            self.assertEqual(b'original', backups[0].read_bytes())
+            backup = get_book_original_slot(root)
+            self.assertTrue(backup.exists())
+            self.assertEqual(b'original', backup.read_bytes())
             self.assertTrue((root / books.JOURNAL).exists())
 
     def test_byte_prejournal_failure_preserves_unowned_workspace_entry(self):
@@ -1114,8 +1210,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with patch.object(books, '_save_journal', side_effect=change_target):
                     with books.ensure_book_state(root), self.assertRaises(ValueError):
                         books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
-                journal = json.loads((root / books.JOURNAL).read_text())
-                self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
+                self.assertEqual(b'original',
+                                 get_book_original_slot(root).read_bytes())
                 if remove:
                     self.assertFalse(target.exists())
                 else:
@@ -1744,16 +1840,7 @@ class SavedBookProposalRetentionTests(unittest.TestCase):
                 self.assertFalse((root / books.JOURNAL).exists())
 
 
-class BookPersonaBindingTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # The v2/v3 protocol contract; v4 is covered by its own module.
-        import source_upload_publication as publication
-        cls._legacy_protocol_probe = patch.object(
-            publication, 'probe_exchange_support', return_value=False)
-        cls._legacy_protocol_probe.start()
-        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
+class BookPersonaBindingTests(BookProtocolCases, unittest.TestCase):
     def test_reselecting_same_source_returns_distinct_committed_tokens(self):
         with tempfile.TemporaryDirectory() as tmp:
             first = books.apply_book_input_selection(tmp, 'same.txt', 'same')
@@ -1846,7 +1933,14 @@ class BookPersonaBindingTests(unittest.TestCase):
             def die(source,destination, **kwargs):
                 move(source,destination, **kwargs)
                 if destination.name=='script.json':raise SystemExit('fixture interruption')
-            with books.ensure_book_state(tmp),patch.object(books,'_move',side_effect=die),patch.object(books,'recover_book_state_locked'):
+            if self._book_protocol == 'v4':
+                def after(published_target):
+                    if published_target.name == 'script.json':
+                        raise SystemExit('fixture interruption')
+                context = intercept_book_publications(books, after=after)
+            else:
+                context = patch.object(books,'_move',side_effect=die)
+            with books.ensure_book_state(tmp),context,patch.object(books,'recover_book_state_locked'):
                 with self.assertRaises(SystemExit):books.apply_book_state_locked(tmp,{'script.json':b'new script','state.json':b'new identity'},[])
             self.assertEqual(b'new script',(root/'script.json').read_bytes())
             def reset():

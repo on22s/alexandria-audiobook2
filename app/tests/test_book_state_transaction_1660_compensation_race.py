@@ -11,7 +11,10 @@ import book_state_transaction as books
 import source_upload_publication as publication
 from tests.test_support import (MOVE_PARENT_CHANGED_MESSAGE, ORIGINAL_MISSING_MESSAGE,
                                 PARENT_CHANGED_MESSAGE, ROOT_ADMISSION_MESSAGE,
-                                ROOT_CHANGED_MESSAGE, assert_book_journal_fenced)
+                                ROOT_CHANGED_MESSAGE, BookProtocolCases,
+                                assert_book_journal_fenced, get_book_journal_version,
+                                get_book_original_slot,
+                                intercept_book_publications)
 
 OWNED = b'owned original'
 GENERATED = b'generated'
@@ -23,26 +26,58 @@ def _stream(data):
 
 
 @unittest.skipIf(os.name == 'nt', 'POSIX anchored _move required')
-class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # These are the anchored _move fence tests (#1660). v4's exchange path
-        # has its own module; pin the probe off so replacement-only
-        # transactions keep exercising the legacy _move path this class tests.
-        cls._legacy_protocol_probe = patch.object(
-            publication, 'probe_exchange_support', return_value=False)
-        cls._legacy_protocol_probe.start()
-        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
+class BookStateTransaction1660CompensationRaceTests(BookProtocolCases, unittest.TestCase):
     """Permanent regression for the #1660 residual compensation race.
 
-    On post-move source- or destination-parent authority loss, _move must
-    retain files and the journal and raise, never reverse a name that may
-    now be foreign. Every case asserts the primary move and parent change
-    really happened, that no reverse move was attempted, exact preserved
-    names/bytes, an unchanged substitute directory, journal phase, and
-    repeated recovery refusal -- a disappearing hook alone cannot pass.
+    On post-move source- or destination-parent authority loss, publication
+    must retain files and the journal and raise, never reverse a name that
+    may now be foreign. Every case asserts the primary publication and parent
+    change really happened, that no reverse publication was attempted, exact
+    preserved names/bytes, an unchanged substitute directory, journal phase,
+    and repeated recovery refusal -- a disappearing hook alone cannot pass.
+
+    The same behavioural cases run under v3 and v4; the v4 exchange rotates
+    the original into new-N instead of v3's old-N backup slot.
     """
+
+    v3_only_tests = {
+        # v3 publishes a target by moving it to old-N and then staging new-N
+        # into place; these assertions name that sequence directly.
+        'test_ancestor_chain_swap_after_primary_move_is_refused':
+            'drives the v3 publish move (target -> old-0) directly',
+        'test_direct_move_expectation_requires_anchor':
+            'calls the v3 _move primitive with no transaction',
+        'test_generation_oserror_is_normalized_before_move':
+            'asserts the v3 _move generation precondition',
+        'test_anchor_identity_mismatch_both_replacement_root':
+            'asserts the v3 _move root-identity argument',
+        'test_recovery_root_change_during_reverse_move':
+            'asserts the v3 reverse _move of old-0',
+        'test_recovery_post_move_source_substitution_is_fenced':
+            'builds a v3 journal whose backup slot is old-0',
+        'test_sync_oserror_preserves_parent_error_as_primary_with_sync_cause':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_error_retains_original_root_disappearance_cause':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_error_without_original_cause_has_no_context_cycle':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_second_oserror_becomes_explicit_cause':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_both_oserror_first_remains_explicit_cause':
+            'asserts the v3 _move directory fsync sequence',
+        'test_successful_move_attempts_both_parent_syncs_after_first_oserror':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_keyboard_interrupt_is_not_converted_to_value_error':
+            'asserts the v3 _move directory fsync sequence',
+        'test_sync_oserror_apply_journal_fence_integration':
+            'asserts the v3 _move directory fsync sequence in a transaction',
+        # Directory removals are not replacement-only, so v4 never exchanges
+        # them; the v3 removal rows and old-N slots are the mechanism under test.
+        'test_nested_direct_directory_move_preserves_on_source_parent_change':
+            'directory removals stay on the v3 path by design',
+        'test_direct_directory_move_preserves_on_destination_parent_change':
+            'directory removals stay on the v3 path by design',
+    }
 
     def test_destination_parent_swap_before_and_after_byte_and_stream(self):
         for streaming in (False, True):
@@ -356,6 +391,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             self.assertEqual(FOREIGN, (foreign / 'marker').read_bytes())
 
     def test_root_relocation_after_primary_move_byte_and_stream(self):
+        exchange = self._book_protocol == 'v4'
         for streaming in (False, True):
             with self.subTest(streaming=streaming), tempfile.TemporaryDirectory() as temporary:
                 base = Path(temporary).resolve()
@@ -364,34 +400,54 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                 target = root / 'artifact'
                 target.write_bytes(OWNED)
                 retained_root = base / 'retained-book'
-                real_move = publication.move_source_upload_exclusively
                 calls, state = [], {'relocated': False}
-                def hooked(source, destination, **kwargs):
-                    pair = (str(source), str(destination))
-                    calls.append(pair)
-                    result = real_move(source, destination, **kwargs)
-                    if pair == ('artifact', 'old-0') and not state['relocated']:
-                        root.rename(retained_root)
-                        root.mkdir(mode=0o700)
-                        (root / 'foreign').write_bytes(FOREIGN)
-                        state['relocated'] = True
-                    return result
+                def relocate():
+                    root.rename(retained_root)
+                    root.mkdir(mode=0o700)
+                    (root / 'foreign').write_bytes(FOREIGN)
+                    state['relocated'] = True
+                if exchange:
+                    def after(published_target):
+                        if published_target == target and not state['relocated']:
+                            relocate()
+                    context = intercept_book_publications(books, after=after)
+                else:
+                    real_move = publication.move_source_upload_exclusively
+                    def hooked(source, destination, **kwargs):
+                        pair = (str(source), str(destination))
+                        calls.append(pair)
+                        result = real_move(source, destination, **kwargs)
+                        if pair == ('artifact', 'old-0') and not state['relocated']:
+                            relocate()
+                        return result
+                    context = patch.object(publication, 'move_source_upload_exclusively', hooked)
                 value = _stream(GENERATED) if streaming else GENERATED
                 options = {'stream_byte_limit': 100} if streaming else {}
-                with patch.object(publication, 'move_source_upload_exclusively', hooked):
+                with context:
                     with books.ensure_book_state(root), self.assertRaises(ValueError) as raised:
                         books.apply_book_state_locked(root, {'artifact': value}, [], **options)
                 self.assertEqual(ROOT_ADMISSION_MESSAGE, str(raised.exception))
-                self.assertIsInstance(raised.exception.__cause__, ValueError)
-                self.assertEqual(ROOT_CHANGED_MESSAGE, str(raised.exception.__cause__))
+                if exchange:
+                    # The exchange already published this row, so the moved
+                    # workspace is gone and the slot recheck reports the loss;
+                    # admission still refuses the swapped root.
+                    self.assertEqual(FileNotFoundError, type(raised.exception.__cause__))
+                else:
+                    self.assertIsInstance(raised.exception.__cause__, ValueError)
+                    self.assertEqual(ROOT_CHANGED_MESSAGE, str(raised.exception.__cause__))
                 self.assertTrue(state['relocated'])
-                self.assertIn(('artifact', 'old-0'), calls)
-                self.assertNotIn(('old-0', 'artifact'), calls)
+                if not exchange:
+                    self.assertIn(('artifact', 'old-0'), calls)
+                    self.assertNotIn(('old-0', 'artifact'), calls)
                 self.assertEqual(FOREIGN, (root / 'foreign').read_bytes())
-                self.assertFalse((retained_root / 'artifact').exists())
                 workspace = next(retained_root.glob('.book-switch-*'))
-                self.assertEqual(OWNED, (workspace / 'old-0').read_bytes())
-                self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                original_slot = 'new-0' if exchange else 'old-0'
+                self.assertEqual(OWNED, (workspace / original_slot).read_bytes())
+                if exchange:
+                    self.assertEqual(GENERATED, (retained_root / 'artifact').read_bytes())
+                else:
+                    self.assertFalse((retained_root / 'artifact').exists())
+                    self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
                 journal = retained_root / books.JOURNAL
                 self.assertTrue(journal.exists())
                 with journal.open('r', encoding='utf-8') as handle:
@@ -399,6 +455,7 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                     self.assertEqual('publishing', json.load(handle)['phase'])
 
     def test_root_disappearance_after_primary_move_byte(self):
+        exchange = self._book_protocol == 'v4'
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
             root = base / 'book'
@@ -406,34 +463,52 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             target = root / 'artifact'
             target.write_bytes(OWNED)
             retained_root = base / 'retained-book'
-            real_move = publication.move_source_upload_exclusively
             calls, state = [], {'relocated': False}
-            def hooked(source, destination, **kwargs):
-                pair = (str(source), str(destination))
-                calls.append(pair)
-                result = real_move(source, destination, **kwargs)
-                if pair == ('artifact', 'old-0') and not state['relocated']:
-                    root.rename(retained_root)
-                    state['relocated'] = True
-                return result
-            with patch.object(publication, 'move_source_upload_exclusively', hooked):
+            def relocate():
+                root.rename(retained_root)
+                state['relocated'] = True
+            if exchange:
+                def after(published_target):
+                    if published_target == target and not state['relocated']:
+                        relocate()
+                context = intercept_book_publications(books, after=after)
+            else:
+                real_move = publication.move_source_upload_exclusively
+                def hooked(source, destination, **kwargs):
+                    pair = (str(source), str(destination))
+                    calls.append(pair)
+                    result = real_move(source, destination, **kwargs)
+                    if pair == ('artifact', 'old-0') and not state['relocated']:
+                        relocate()
+                    return result
+                context = patch.object(publication, 'move_source_upload_exclusively', hooked)
+            with context:
                 with books.ensure_book_state(root), self.assertRaises(FileNotFoundError) as raised:
                     books.apply_book_state_locked(root, {'artifact': GENERATED}, [])
             self.assertTrue(state['relocated'])
-            self.assertIn(('artifact', 'old-0'), calls)
-            self.assertNotIn(('old-0', 'artifact'), calls)
+            if not exchange:
+                self.assertIn(('artifact', 'old-0'), calls)
+                self.assertNotIn(('old-0', 'artifact'), calls)
             self.assertFalse(root.exists())
             workspace = next(retained_root.glob('.book-switch-*'))
-            self.assertEqual(OWNED, (workspace / 'old-0').read_bytes())
-            self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+            original_slot = 'new-0' if exchange else 'old-0'
+            self.assertEqual(OWNED, (workspace / original_slot).read_bytes())
+            if not exchange:
+                self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
             journal = retained_root / books.JOURNAL
             self.assertTrue(journal.exists())
             with journal.open('r', encoding='utf-8') as handle:
                 import json
                 self.assertEqual('publishing', json.load(handle)['phase'])
-            self.assertIsInstance(raised.exception.__cause__, ValueError)
-            self.assertEqual(ROOT_CHANGED_MESSAGE, str(raised.exception.__cause__))
-            self.assertIsInstance(raised.exception.__cause__.__cause__, FileNotFoundError)
+            if exchange:
+                # v4 had already exchanged the row; the slot recheck found the
+                # gone workspace instead of the v3 move's root check.
+                self.assertEqual(FileNotFoundError, type(raised.exception.__cause__))
+            else:
+                self.assertIsInstance(raised.exception.__cause__, ValueError)
+                self.assertEqual(ROOT_CHANGED_MESSAGE, str(raised.exception.__cause__))
+                self.assertIsInstance(raised.exception.__cause__.__cause__, FileNotFoundError)
+
 
     def test_recovery_source_substitution_is_fenced_byte_and_stream(self):
         for streaming in (False, True):
@@ -593,17 +668,28 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                  patch.object(admission, '_stat_directory', side_effect=stat_directory):
                 with books.ensure_book_state(data_dir):
                     rebound = []
-                    real_move = publication.move_source_upload_exclusively
-                    def rebound_after_move(source, destination, **kwargs):
-                        result = real_move(source, destination, **kwargs)
-                        if str(source) == 'artifact' and str(destination) == 'old-0' and not rebound:
-                            target_dir.rename(fixture / 'retained-target')
-                            target_dir.mkdir(mode=0o755)
-                            (target_dir / 'book').mkdir(mode=0o755)
-                            (target_dir / 'book' / 'foreign').write_bytes(FOREIGN)
-                            rebound.append(True)
-                        return result
-                    with patch.object(publication, 'move_source_upload_exclusively', rebound_after_move):
+                    if self._book_protocol == 'v4':
+                        def after(published_target):
+                            if published_target == book / 'artifact' and not rebound:
+                                target_dir.rename(fixture / 'retained-target')
+                                target_dir.mkdir(mode=0o755)
+                                (target_dir / 'book').mkdir(mode=0o755)
+                                (target_dir / 'book' / 'foreign').write_bytes(FOREIGN)
+                                rebound.append(True)
+                        context = intercept_book_publications(books, after=after)
+                    else:
+                        real_move = publication.move_source_upload_exclusively
+                        def rebound_after_move(source, destination, **kwargs):
+                            result = real_move(source, destination, **kwargs)
+                            if str(source) == 'artifact' and str(destination) == 'old-0' and not rebound:
+                                target_dir.rename(fixture / 'retained-target')
+                                target_dir.mkdir(mode=0o755)
+                                (target_dir / 'book').mkdir(mode=0o755)
+                                (target_dir / 'book' / 'foreign').write_bytes(FOREIGN)
+                                rebound.append(True)
+                            return result
+                        context = patch.object(publication, 'move_source_upload_exclusively', rebound_after_move)
+                    with context:
                         with self.assertRaisesRegex(ValueError, 'Book root changed during admission'):
                             books.apply_book_state_locked(data_dir, {'artifact': GENERATED}, [])
                     self.assertEqual([True], rebound)
@@ -933,106 +1019,143 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                 self.assertEqual([], list(root.glob('.book-switch-*')))
 
     def _parent_case(self, parent, streaming, timing):
+        exchange = self._book_protocol == 'v4'
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             if parent == 'destination':
                 target = root / 'artifact'
                 retained = root / 'retained-workspace'
-                primary, reverse = ('artifact', 'old-0'), ('old-0', 'artifact')
             else:
                 sub = root / 'sub'
                 sub.mkdir()
                 target = sub / 'file.json'
                 retained = root / 'retained-sub'
-                primary, reverse = ('file.json', 'old-0'), ('old-0', 'file.json')
             target.write_bytes(OWNED)
+            # The protocol names the replaced original differently: v3's
+            # backup move makes old-0, v4's exchange rotates it into new-0.
+            original_slot = 'new-0' if exchange else 'old-0'
+            primary, state = [], {'relocated': False}
+            def relocate():
+                if parent == 'destination':
+                    workspace = next(root.glob('.book-switch-*'))
+                    workspace.rename(retained)
+                    workspace.mkdir(mode=0o700)
+                    state['workspace'] = workspace
+                else:
+                    sub.rename(retained)
+                    sub.mkdir(mode=0o700)
+                    state['workspace'] = next(root.glob('.book-switch-*'))
+                state['relocated'] = True
+            def substitute():
+                workspace = state['workspace']
+                if parent == 'destination':
+                    if timing == 'before':
+                        (retained / original_slot).rename(retained / 'owned-retained')
+                        (retained / original_slot).write_bytes(FOREIGN)
+                    elif timing == 'after':
+                        (retained / 'foreign-stage').write_bytes(FOREIGN)
+                    else:
+                        (root / 'artifact').write_bytes(FOREIGN)
+                else:
+                    if timing == 'before':
+                        (workspace / original_slot).rename(workspace / 'owned-retained')
+                        (workspace / original_slot).write_bytes(FOREIGN)
+                    elif timing == 'after':
+                        (workspace / 'foreign-stage').write_bytes(FOREIGN)
+                    else:
+                        (retained / 'file.json').write_bytes(FOREIGN)
+            def after_publication(published_target):
+                # v4: the exchange is the backup and the publication at once,
+                # so the parent/workspace substitution happens here.
+                if published_target == target and not state['relocated']:
+                    primary.append(published_target)
+                    relocate()
+                    substitute()
             real_move = publication.move_source_upload_exclusively
-            calls, state = [], {'relocated': False}
+            calls = []
             def hooked(source, destination, **kwargs):
                 pair = (str(source), str(destination))
                 calls.append(pair)
-                if pair == primary and not state['relocated']:
+                if pair == (target.name, original_slot) and not state['relocated']:
                     result = real_move(source, destination, **kwargs)
-                    if parent == 'destination':
-                        workspace = next(root.glob('.book-switch-*'))
-                        workspace.rename(retained)
-                        workspace.mkdir(mode=0o700)
-                        state['workspace'] = workspace
-                        if timing == 'before':
-                            (retained / 'old-0').rename(retained / 'owned-retained')
-                            (retained / 'old-0').write_bytes(FOREIGN)
-                        elif timing == 'after':
-                            (retained / 'foreign-stage').write_bytes(FOREIGN)
-                        elif timing == 'occupied':
-                            (root / 'artifact').write_bytes(FOREIGN)
-                    else:
-                        sub.rename(retained)
-                        sub.mkdir(mode=0o700)
-                        workspace = next(root.glob('.book-switch-*'))
-                        state['workspace'] = workspace
-                        if timing == 'before':
-                            (workspace / 'old-0').rename(workspace / 'owned-retained')
-                            (workspace / 'old-0').write_bytes(FOREIGN)
-                        elif timing == 'after':
-                            (workspace / 'foreign-stage').write_bytes(FOREIGN)
-                        elif timing == 'occupied':
-                            (retained / 'file.json').write_bytes(FOREIGN)
-                    state['relocated'] = True
+                    primary.append(target)
+                    relocate()
+                    substitute()
                     return result
-                if pair == reverse and timing == 'after':
+                if pair == (original_slot, target.name) and timing == 'after':
                     # Attempts the post-observation swap before the real
                     # rename; fail-closed code must never reach here.
                     base = retained if parent == 'destination' else state['workspace']
-                    (base / 'old-0').rename(base / 'owned-retained')
-                    (base / 'foreign-stage').rename(base / 'old-0')
+                    (base / original_slot).rename(base / 'owned-retained')
+                    (base / 'foreign-stage').rename(base / original_slot)
                 return real_move(source, destination, **kwargs)
             value = _stream(GENERATED) if streaming else GENERATED
             options = {'stream_byte_limit': 100} if streaming else {}
             replacements = {'artifact': value} if parent == 'destination' else {'sub/file.json': value}
-            with patch.object(publication, 'move_source_upload_exclusively', hooked):
+            context = (intercept_book_publications(books, after=after_publication)
+                       if exchange else
+                       patch.object(publication, 'move_source_upload_exclusively', hooked))
+            with context:
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, replacements, [], **options)
             self.assertTrue(state['relocated'])
-            self.assertIn(primary, calls)
-            self.assertNotIn(reverse, calls)
+            self.assertEqual([target], primary)
+            if not exchange:
+                self.assertNotIn((original_slot, target.name), calls)
             workspace = state['workspace']
             self.assertTrue(workspace.is_dir())
             if parent == 'destination':
-                dest_old, dest_owned = retained / 'old-0', retained / 'owned-retained'
+                dest_old, dest_owned = retained / original_slot, retained / 'owned-retained'
                 dest_stage = retained / 'foreign-stage'
                 def check():
                     self.assertEqual([], list(workspace.iterdir()))
-                    self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
+                    if exchange:
+                        # The exchange published before the workspace moved,
+                        # so the replacement is at the target (unless a writer
+                        # occupied it) and new-0 is the rotated original.
+                        if timing == 'occupied':
+                            self.assertEqual(FOREIGN, target.read_bytes())
+                        else:
+                            self.assertEqual(GENERATED, target.read_bytes())
+                    else:
+                        self.assertEqual(GENERATED, (retained / 'new-0').read_bytes())
+                        if timing == 'occupied':
+                            self.assertEqual(FOREIGN, target.read_bytes())
+                        else:
+                            self.assertFalse(target.exists())
                     if timing == 'before':
                         self.assertEqual(OWNED, dest_owned.read_bytes())
                         self.assertEqual(FOREIGN, dest_old.read_bytes())
-                        self.assertFalse(target.exists())
                     elif timing == 'after':
                         self.assertEqual(OWNED, dest_old.read_bytes())
                         self.assertEqual(FOREIGN, dest_stage.read_bytes())
-                        self.assertFalse(target.exists())
                     else:
                         self.assertEqual(OWNED, dest_old.read_bytes())
-                        self.assertEqual(FOREIGN, (root / 'artifact').read_bytes())
             else:
-                dest_old, dest_owned = workspace / 'old-0', workspace / 'owned-retained'
+                dest_old, dest_owned = workspace / original_slot, workspace / 'owned-retained'
                 dest_stage = workspace / 'foreign-stage'
                 def check():
                     self.assertEqual([], list((root / 'sub').iterdir()))
-                    self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                    self.assertFalse(target.exists())
+                    if exchange:
+                        if timing == 'occupied':
+                            self.assertEqual(FOREIGN, (retained / 'file.json').read_bytes())
+                        else:
+                            self.assertEqual(GENERATED, (retained / 'file.json').read_bytes())
+                    else:
+                        self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                        if timing == 'occupied':
+                            self.assertEqual(FOREIGN, (retained / 'file.json').read_bytes())
+                        else:
+                            self.assertFalse((retained / 'file.json').exists())
                     if timing == 'before':
                         self.assertEqual(OWNED, dest_owned.read_bytes())
                         self.assertEqual(FOREIGN, dest_old.read_bytes())
-                        self.assertFalse(target.exists())
-                        self.assertFalse((retained / 'file.json').exists())
                     elif timing == 'after':
                         self.assertEqual(OWNED, dest_old.read_bytes())
                         self.assertEqual(FOREIGN, dest_stage.read_bytes())
-                        self.assertFalse(target.exists())
-                        self.assertFalse((retained / 'file.json').exists())
                     else:
                         self.assertEqual(OWNED, dest_old.read_bytes())
-                        self.assertEqual(FOREIGN, (retained / 'file.json').read_bytes())
             assert_book_journal_fenced(self, root, content_check=check,
                 expected_message=(PARENT_CHANGED_MESSAGE if parent == 'source'
                                  else 'Book transaction workspace changed; recovery evidence was preserved'))
@@ -1136,20 +1259,13 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
                 expected_message=PARENT_CHANGED_MESSAGE)
 
 
-class BookStateTransaction1660RecoveryCauseTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # The legacy protocol's explicit cause chaining contract; v4 is
-        # covered by test_book_state_1660_v4_replacements.
-        cls._legacy_protocol_probe = patch.object(
-            publication, 'probe_exchange_support', return_value=False)
-        cls._legacy_protocol_probe.start()
-        cls.addClassCleanup(cls._legacy_protocol_probe.stop)
+class BookStateTransaction1660RecoveryCauseTests(BookProtocolCases, unittest.TestCase):
     """Recovery failure stays primary, original trigger is explicit cause.
 
     Runs on all platforms: it needs no parent relocation, only a real
-    apply transaction inside an already-admitted ensure_book_state.
+    apply transaction inside an already-admitted ensure_book_state. Under v4
+    the failed exchange is undone with a companion exchange, so the target
+    holds the owned original again instead of being absent.
     """
 
     def test_recovery_failure_explicitly_chains_original_byte_and_stream(self):
@@ -1178,18 +1294,24 @@ class BookStateTransaction1660RecoveryCauseTests(unittest.TestCase):
                 self.assertIn('fixture recovery failure', str(raised.exception))
                 self.assertIsInstance(raised.exception.__cause__, ValueError)
                 self.assertIn('fixture original failure', str(raised.exception.__cause__))
-                # _validate_moved_*_original fails after target->old-0 but
-                # before new-0->target publishes, so target is absent and
-                # both owned and generated bytes are retained in workspace.
-                self.assertFalse(target.exists())
                 journal = root / books.JOURNAL
                 self.assertTrue(journal.exists())
                 with journal.open('r', encoding='utf-8') as handle:
                     import json
                     self.assertEqual('publishing', json.load(handle)['phase'])
                 workspace = next(root.glob('.book-switch-*'))
-                self.assertEqual(OWNED, (workspace / 'old-0').read_bytes())
-                self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                if get_book_journal_version(root) == 4:
+                    # The failed validation's companion exchange restored the
+                    # original; the staged replacement sits in the rotated slot.
+                    self.assertEqual(OWNED, target.read_bytes())
+                    self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
+                else:
+                    # v3 failed after target->old-0 and before new-0->target,
+                    # so target is absent and both owned and generated bytes
+                    # are retained in the workspace.
+                    self.assertFalse(target.exists())
+                    self.assertEqual(OWNED, (workspace / 'old-0').read_bytes())
+                    self.assertEqual(GENERATED, (workspace / 'new-0').read_bytes())
 
 
 class BookStateTransaction1660MoveExpectationTests(unittest.TestCase):
