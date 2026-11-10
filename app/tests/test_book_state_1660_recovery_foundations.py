@@ -36,14 +36,57 @@ class RecoveryFoundationTests(unittest.TestCase):
                                                     None if path.is_dir() else path.read_bytes())
                 for path in sorted(self.root.rglob('*'))}
 
-    def test_operator_lock_yields_the_admitted_root(self):
+    def test_operator_lock_holds_the_lock_without_admitting_the_book(self):
         with books.book_operator_locked(self.root) as (root, identity):
             self.assertEqual(books._direct_book_root(self.root), (root, identity))
+            self.assertFalse(books.is_book_state_admitted(self.root))
+            with self.assertRaises(TimeoutError):
+                with books.book_operator_locked(self.root, timeout=0.2):
+                    pass
+        with books.book_operator_locked(self.root, timeout=0.2):
+            pass   # released on exit
 
     def test_inspect_reports_nothing_pending_for_a_clean_book(self):
+        before = self.snapshot()
+        root_before = self.root.stat().st_mtime_ns
         report = books.inspect_book_recovery_state(self.root)
+        self.assertEqual((before, root_before), (self.snapshot(), self.root.stat().st_mtime_ns))
         self.assertEqual({'present': False}, report['journal'])
+        self.assertEqual(([], [], 'complete'),
+                         (report['entries'], report['retained'], report['retained_status']))
+
+    def write_journal(self, **fields):
+        data = {'version': 3, 'phase': 'committed', 'workspace': '.book-switch-' + 'a' * 32,
+                'entries': [{'path': 'state.json', 'existed': False,
+                             'old_sha256': None, 'new_sha256': None}]}
+        data.update(fields)
+        (self.root / books.JOURNAL).write_text(json.dumps(data), encoding='utf-8')
+
+    def test_inspect_reports_hostile_shapes_instead_of_raising(self):
+        for fields in ({'workspace': '.book-switch-' + chr(0) + 'x'}, {'entries': 'nope'},
+                       {'entries': [1, {'path': '../escape'}, {'path': 'a' + chr(0) + 'b'}, {'path': 7}]}):
+            with self.subTest(fields=fields):
+                self.write_journal(**fields)
+                report = books.inspect_book_recovery_state(self.root)
+                self.assertTrue(report['journal']['present'])
+
+    def test_inspect_refuses_more_rows_than_recovery_accepts(self):
+        from book_recovery_archive import MAX_FILES
+        self.write_journal(entries=[{'path': f'f{i}'} for i in range(MAX_FILES + 1)])
+        report = books.inspect_book_recovery_state(self.root)
+        self.assertIn('recoverable', report['journal']['error'])
         self.assertEqual([], report['entries'])
+
+    def test_inspect_rejects_an_invalid_entry_limit(self):
+        for limit in (None, 'x', 0, -1, 2.5, True, books.MAX_LEGACY_CLEANUP_ENTRIES + 1):
+            with self.subTest(limit=limit), self.assertRaises(ValueError):
+                books.inspect_book_recovery_state(self.root, entry_limit=limit)
+
+    def test_inspect_says_when_the_retained_listing_is_truncated(self):
+        for index in range(3):
+            (self.root / f'{books.MIGRATION_PREFIX}m{index}').mkdir()
+        report = books.inspect_book_recovery_state(self.root, entry_limit=2)
+        self.assertEqual('truncated', report['retained_status'])
 
     def test_inspect_reports_an_interrupted_switch_without_changing_anything(self):
         self.interrupted_switch()
@@ -71,7 +114,9 @@ class RecoveryFoundationTests(unittest.TestCase):
         self.assertIn('Invalid active-book transaction', report['journal']['error'])
 
     def test_a_journal_never_points_recovery_at_retained_evidence(self):
-        for prefix in (books.QUARANTINE_PREFIX, books.MIGRATION_PREFIX):
+        # Case variants too: Windows and macOS open the same directory.
+        for prefix in (books.QUARANTINE_PREFIX, books.MIGRATION_PREFIX,
+                       '.book-switch-Quarantine-', '.BOOK-SWITCH-MIGRATION-'):
             with self.subTest(prefix=prefix):
                 evidence = self.root / (prefix + 'deadbeef-00112233')
                 evidence.mkdir()

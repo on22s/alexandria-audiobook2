@@ -2482,7 +2482,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
         raise ValueError('Invalid active-book transaction')
     name = data.get('workspace')
     if (not isinstance(name, str) or not name.startswith('.book-switch-') or Path(name).name != name
-            or name.startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))):
+            or _is_retained_evidence_name(name)):
         # A journal must never point recovery at retained evidence (#1660).
         raise ValueError('Invalid active-book workspace')
     workspace = _get_path(root, name)
@@ -2790,6 +2790,13 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
     return True
 
 
+def _is_retained_evidence_name(name):
+    """Whether a root name is reserved for quarantine/migration evidence.
+
+    Case-folded: Windows and macOS open the same directory for any casing."""
+    return name.casefold().startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))
+
+
 @contextlib.contextmanager
 def book_operator_locked(data_dir, timeout=10):
     """Hold the book-operation lock on the admitted root -> (root, identity).
@@ -2838,17 +2845,21 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES)
     For operators and the recovery command: the journal (version, phase,
     workspace, digest of its exact bytes), each entry's expected identity
     beside what the name holds now, the workspace listing, and any retained
-    quarantine/migration evidence. Nothing is written, moved or hashed, and a
-    malformed journal is reported rather than raised. The caller decides
-    whether to hold book_operator_locked while inspecting.
+    quarantine/migration evidence. Nothing is written or moved, no book
+    artifact is hashed, and a malformed journal is reported rather than
+    raised. Pass the admitted root; hold book_operator_locked for a snapshot
+    consistent with the recovery that follows.
     """
+    from book_recovery_archive import MAX_FILES
+    if type(entry_limit) is not int or not 1 <= entry_limit <= MAX_LEGACY_CLEANUP_ENTRIES:
+        raise ValueError('Invalid inspect entry limit')
     root = Path(root)
     def observe(path):
         try:
             info = os.lstat(path)
         except FileNotFoundError:
             return {'exists': False}
-        except OSError as error:
+        except (OSError, ValueError) as error:
             return {'exists': None, 'error': f'{type(error).__name__}: {error}'}
         kind = ('directory' if stat.S_ISDIR(info.st_mode) else 'file' if stat.S_ISREG(info.st_mode)
                 else 'link' if stat.S_ISLNK(info.st_mode) else 'other')
@@ -2865,9 +2876,13 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES)
         except OSError as error:
             return {'status': 'unreadable', 'error': f'{type(error).__name__}: {error}'}
         return {'status': 'truncated' if truncated else 'complete', 'names': sorted(names)}
+    root_listing = listing(root)
     report = {'root': str(root), 'journal': {'present': False}, 'entries': [],
-              'retained': [name for name in listing(root).get('names', [])
-                           if name.startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))]}
+              'retained': [name for name in root_listing.get('names', [])
+                           if _is_retained_evidence_name(name)],
+              'retained_status': root_listing['status']}
+    if 'error' in root_listing:
+        report['retained_error'] = root_listing['error']
     journal = root / JOURNAL
     if not os.path.lexists(journal):
         return report
@@ -2893,6 +2908,10 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES)
             summary['workspace_listing'] = listing(workspace)
     report['journal'] = summary
     rows = data.get('entries')
+    if isinstance(rows, list) and len(rows) > MAX_FILES:
+        # Recovery refuses this many rows; never walk a 32 MB journal's worth.
+        summary['error'] = f'Journal has {len(rows)} entries; at most {MAX_FILES} are recoverable'
+        return report
     for row in rows if isinstance(rows, list) else []:
         if not isinstance(row, dict):
             report['entries'].append({'error': 'Entry is not an object'})
