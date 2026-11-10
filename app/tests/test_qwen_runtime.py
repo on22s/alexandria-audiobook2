@@ -85,10 +85,16 @@ class CapabilityTests(unittest.TestCase):
         self.assertIn("model", capability["reason"].lower())
 
     def test_probe_error_not_ready(self):
+        from tests.test_qwen_repairs import _complete_model
+        model = _complete_model(self.root)
         bad = [sys.executable, "-c", "raise SystemExit(3)"]
-        capability = qr.get_qwen_capability(str(self.root), probe_command=bad)
+        with unittest.mock.patch.dict(os.environ, {"ALEXANDRIA_QWEN_MODEL": str(model), "ALEXANDRIA_QWEN_PYTHON": sys.executable}), \
+                unittest.mock.patch.object(qr, "run_owned_capture", wraps=qr.run_owned_capture) as launch:
+            capability = qr.get_qwen_capability(str(self.root), probe_command=bad)
+        launch.assert_called_once()
+        self.assertEqual(bad, launch.call_args.args[0])
         self.assertFalse(capability["available"])
-        self.assertTrue(capability["reason"])
+        self.assertIn("exit code 3", capability["reason"])
 
     def test_probe_compile(self):
         # The default production probe must at least compile.
