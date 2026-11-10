@@ -100,6 +100,52 @@ def windows_named_file_identity(path):
         handle.close()
 
 
+def _filetime_ns(value):
+    """FILETIME (100 ns since 1601) -> ns since the Unix epoch, as os.stat reports it."""
+    return (((value.high << 32) | value.low) - 116444736000000000) * 100
+
+
+def windows_rename_verified(source, destination, expected=None):
+    """Rename exactly the object a handle verified, never whatever the name now holds.
+
+    #1660: a path rename re-resolves `source` after any identity check, so a
+    writer that substitutes the name in between gets its object moved. Here
+    one handle is opened (DELETE access, read-only sharing, reparse points
+    not followed), its identity and version are compared with `expected`
+    ([dev, ino] or [dev, ino, size, mtime_ns, mode, nlink] as os.lstat gives
+    them), and the rename is applied to that handle. A substituted name is
+    left untouched, and while the handle is held no other writer or rename
+    can change the object. The destination is a full path and is never
+    replaced (an existing one raises FileExistsError). Any failure raises;
+    there is no fallback to a path rename.
+    """
+    api = _api()
+    handle = _Handle(api, source, delete=True)
+    try:
+        if expected is not None:
+            info = handle.information()
+            observed = [*_identity(info)]
+            if len(expected) == 6:
+                observed += [(info.size_high << 32) | info.size_low, _filetime_ns(info.written),
+                             expected[4], info.links]
+            if observed != list(expected):
+                raise StageDirectoryChanged('Book artifact changed during its move')
+        name = str(Path(destination).absolute())
+
+        class _RenameInformation(ctypes.Structure):
+            _fields_ = [('flags', ctypes.c_uint32), ('root', ctypes.c_void_p),
+                        ('length', ctypes.c_uint32),
+                        ('name', ctypes.c_wchar * (len(name) + 1))]
+
+        request = _RenameInformation(0, None, len(name) * ctypes.sizeof(ctypes.c_wchar), name)
+        # FileRenameInfo = 3; flags 0 = ReplaceIfExists FALSE.
+        if not api.SetFileInformationByHandle(handle.handle, 3, ctypes.byref(request),
+                                              ctypes.sizeof(request)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        handle.close()
+
+
 def _open_rename_guard(api, directory, *, required):
     """Deny directory renames through sharing where the app controls the tree.
 

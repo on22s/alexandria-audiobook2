@@ -931,7 +931,68 @@ class NativeWindowsUploadRenameRetryTests(unittest.TestCase):
 
 
 
-NATIVE_TEST_COUNT = 34
+class NativeWindowsHandleRenameTests(unittest.TestCase):
+    """#1660: a book move renames exactly the object it verified (FileRenameInfo
+    on the verified handle), never whatever the source name holds by then."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        self.source = self.root / 'state.json'
+        self.source.write_bytes(b'verified')
+        (self.root / 'stage').mkdir()
+        self.destination = self.root / 'stage' / 'old-0'
+        info = self.source.lstat()
+        self.identity = [info.st_dev, info.st_ino]
+
+    def move(self):
+        books._move(self.source, self.destination, exclusive=True, anchor=self.root,
+                    expected_source_identity=self.identity)
+
+    def test_name_substituted_after_the_path_check_is_never_moved(self):
+        import pathlib
+        lstat, swapped = pathlib.Path.lstat, []
+        def lstat_then_substitute(path, *args, **kwargs):
+            result = lstat(path, *args, **kwargs)
+            if path == self.source and not swapped:
+                swapped.append(True)
+                os.rename(self.source, self.root / 'moved-away')
+                self.source.write_bytes(b'foreign')
+            return result
+        with patch.object(pathlib.Path, 'lstat', lstat_then_substitute),                 self.assertRaisesRegex(ValueError, 'changed during its move'):
+            self.move()
+        self.assertEqual([True], swapped)
+        self.assertEqual(b'foreign', self.source.read_bytes())   # never moved
+        self.assertFalse(self.destination.exists())
+        self.assertEqual(b'verified', (self.root / 'moved-away').read_bytes())
+
+    def test_verified_object_cannot_be_substituted_before_its_rename(self):
+        information, attempts = windows._Handle.information, []
+        def information_then_try_substitution(handle):
+            result = information(handle)
+            if not result.attributes & 0x10 and not attempts:   # the source file, not a parent guard
+                try:
+                    os.rename(self.source, self.root / 'moved-away')
+                    attempts.append('renamed')
+                except PermissionError:
+                    attempts.append('denied')
+            return result
+        with patch.object(windows._Handle, 'information', information_then_try_substitution):
+            self.move()
+        self.assertEqual(['denied'], attempts)
+        self.assertEqual(b'verified', self.destination.read_bytes())
+        self.assertFalse(self.source.exists())
+
+    def test_existing_destination_is_never_replaced(self):
+        self.destination.write_bytes(b'occupied')
+        with self.assertRaises(FileExistsError):
+            self.move()
+        self.assertEqual(b'verified', self.source.read_bytes())
+        self.assertEqual(b'occupied', self.destination.read_bytes())
+
+
+NATIVE_TEST_COUNT = 37
 
 
 def main():
@@ -945,7 +1006,8 @@ def main():
         unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
             NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests,
-            NativeWindowsBookRootSharingTests, NativeWindowsUploadRenameRetryTests))
+            NativeWindowsBookRootSharingTests, NativeWindowsUploadRenameRetryTests,
+            NativeWindowsHandleRenameTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1
