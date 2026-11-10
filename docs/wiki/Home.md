@@ -20,6 +20,7 @@ and how; the user-guide pages say how to use the app.
   reproduction steps and development workflow. None is a prerequisite for making a book.
 
 - **日本語：**[日本語 Wiki](Home-JA.md)と[インストール・最初のオーディオブック](../../README_JA.md#インストール)。
+- **Español:** [Wiki en español](Home-ES.md) e [instalación y primer audiolibro](../../README_ES.md#instalación).
 
 ## Using the app
 
