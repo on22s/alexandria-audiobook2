@@ -40,7 +40,7 @@ lines per training example  vs  lines the serving prompt asks for
 | `michel2` | 登場人物一覧とマークした箇所 | |
 | **`michel2_full`** | **マークした箇所＋前後 2,000 文字** | **製品のプロンプト** |
 | `michel2_shot` | `michel2` に例示を 1 つ追加 | |
-| `michel2_spoken` | 会話行だけをマークし、地の文は文脈としてコードが NARRATOR で補う | 最新。アダプターなしの Qwen3-14B で `michel2_full` より +6.5 ポイント、第 2 段階の時間は約 3 倍短い（#1171） |
+| `michel2_spoken` | 会話行だけをマークし、地の文は文脈としてコードが NARRATOR で補う | 最新。アダプターなしの Qwen3-14B で `michel2_full` より +6.5 ポイント、第 2 段階の時間は約 1/3（#1171） |
 
 `michel2_full` だけが地の文の行を `[n]` でマークします。これは重要です。#616 で `MICHEL2_SYSTEM` の文言を変えると、`michel2_full` は **+5.2**（Qwen3-8B、p<0.001）と **+3.0**（Qwen3.5-9B、p=0.025）動き、どちらのモデルでも `michel2` と `michel2_shot` には測定できる差がなく、Muse にもまったく影響しませんでした（768 行のうち 695 行は変更前後で同じ）。
 

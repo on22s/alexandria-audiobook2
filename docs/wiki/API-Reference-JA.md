@@ -1,9 +1,13 @@
 # API ガイド
 
-**音声保存 API の移行:** `/api/save_voice_config` の未バインドのリクエストは
-409 になります。編集前に `/api/voice_config/snapshot` を取得し、その
-`revision` と `book_token` をクエリパラメータとして明示してください。
-現在の UI と同じ `/api/voice_config/save` の利用を推奨します。
+**声の保存 API の移行：** これまでガードなしで `/api/save_voice_config` を呼んでいたクライアントは移行が必要です。
+編集の前に `GET /api/voice_config/snapshot` を取得し、
+`{"revision": snapshot.revision, "book_token": snapshot.book_token, "voices": 変更内容}` を
+`POST /api/voice_config/save` の本文として送ってください（現在の UI と同じ方法です）。
+下の旧形式（声の設定を直接渡す）の例では、取得したスナップショットの `revision` と `book_token` を
+クエリパラメータとして明示する必要があります。ガードがない場合や本の識別情報が古い場合は 409 になります。
+その場合は現在の本を読み込み直して確認してから再試行してください。以前の本のために作ったデータを送る目的だけで、
+新しいガードを取り直してはいけません。
 詳細は [English migration notice](API-Reference.md) を参照してください。
 
 [日本語ホーム](Home-JA.md) · [English](API-Reference.md)
@@ -60,12 +64,12 @@ curl http://127.0.0.1:4200/api/annotated_script
 
 ```bash
 curl http://127.0.0.1:4200/api/voices
-curl -X POST http://127.0.0.1:4200/api/save_voice_config \
+curl -X POST "http://127.0.0.1:4200/api/save_voice_config?revision=${REVISION:?Set originating revision}&book_token=${BOOK_TOKEN:?Set originating book token}" \
   -H "Content-Type: application/json" \
   -d '{"NARRATOR": {"type": "custom", "voice": "Ryan", "character_style": "calm, measured narration"}}'
 ```
 
-これはナレーターだけを示す形式例です。本全体の実行では、取得した話者一覧を確認し、必要な各話者の設定を用意してください。`type` は `custom`、`builtin_lora`、`clone`、`lora`、`design`、`ensemble` です。[全フィールドと例（英語）](API-Reference.md#voice-settings-fields)を参照してください。
+保存の前に `/api/voice_config/snapshot` を読み、その `revision` と `book_token` をシェル変数 `REVISION` と `BOOK_TOKEN` に設定してください。保存に成功すると revision が変わるので、次の編集の前に新しいスナップショットを確認します。古い編集をそのまま再送するために取り直してはいけません。これはナレーターだけを示す形式例です。本全体の実行では、取得した話者一覧を確認し、必要な各話者の設定を用意してください。`type` は `custom`、`builtin_lora`、`clone`、`lora`、`design`、`ensemble` です。[全フィールドと例（英語）](API-Reference.md#voice-settings-fields)を参照してください。
 
 ペルソナの状態指定には `speaker`、`state_version`、現在の `book_token` などが必要です。年齢 override と状態指定は組み合わせません。[状態ペルソナの API（英語）](API-Reference.md#personas)と[声の種類](Voice-Types-JA.md#人物の状態別ペルソナ)を確認してください。
 
@@ -116,7 +120,7 @@ curl http://127.0.0.1:4200/api/book/recovery
 
 構成 API で `tts.speech_verification: {"enabled": true}` を保存すると、以降に生成するテイクを検査できます。既定は無効です。最初の対象は English のモノラル音声で、Linux の CPU で動くキャッシュ済みの whisper.cpp Small.en と、強い確認用の別の Large-v3 チェックポイントを使います。自動では何もダウンロードしません。リソースの不足、未対応の入力、有限の根拠の制限は、明示的な unavailable の結果になります。検査は CPU 時間と RAM を追加し、ASR と短い行の音響的な根拠には引き続き聴いての確認が必要です。
 
-検査は完成したテイクを、合成 API で観測した正確な文章と比較します。確認された実質的な欠落や余分な箇所があると、新しい試行を拒否して以前に選択したテイクを保持し、その他の差異はレビューの根拠として残ります。`GET /api/chunks` と `/api/chunks/status` は、入力・UID・本・選択中のテイクが一致している間だけ `speech_verification` のメタデータを返します。`speech_verification_failure` と `speech_verification_recheck` は、拒否された試行と再検査を選択中のテイクと分けて示し、`/api/chunks/quality` は発話レビューの区分を返します。保存した 1 つのテイクの再検査は `POST /api/chunks/{index}/speech_verification` に `expected_book_token`、`expected_uid`、`expected_audio_revision` を付けて送ります。取り消しは `POST /api/speech_verification/cancel`、タスクの状態は `GET /api/status/speech_verification` です。
+検査は完成したテイクを、合成 API で観測した正確な文章と比較します。確認された実質的な欠落や余分な箇所があると、新しい試行を拒否して以前に選択したテイクを保持し、その他の差異はレビューの証拠として残ります。`GET /api/chunks` と `/api/chunks/status` は、入力・UID・本・選択中のテイクが一致している間だけ `speech_verification` のメタデータを返します。`speech_verification_failure` と `speech_verification_recheck` は、拒否された試行と再検査を選択中のテイクと分けて示し、`/api/chunks/quality` は発話レビューの区分を返します。保存した 1 つのテイクの再検査は `POST /api/chunks/{index}/speech_verification` に `expected_book_token`、`expected_uid`、`expected_audio_revision` を付けて送ります。取り消しは `POST /api/speech_verification/cancel`、タスクの状態は `GET /api/status/speech_verification` です。
 
 詳細は[生成音声の検証（英語）](API-Reference.md#optional-generated-speech-verification)を参照してください。
 

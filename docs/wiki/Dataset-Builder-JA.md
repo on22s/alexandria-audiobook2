@@ -31,7 +31,7 @@ Dataset は LoRA 学習用の音声を 1 サンプルずつ作り、保存前に
 
 ## 5：学習データとして保存する
 
-代表的で明瞭な **reference sample** を選びます。通常は長めの平静な文章が向き、学習時の話者埋め込みに使う `ref.wav` になります。**Save as Training Dataset** で `lora_datasets/` へコピーし、Training に表示します。
+代表的で明瞭な**参照サンプル**を選びます。通常は長めの平静な文章が向き、学習時の話者埋め込みに使う `ref.wav` になります。**Save as Training Dataset** で `lora_datasets/` へコピーし、Training に表示します。
 
 保存はコピーなので、作業中のプロジェクトも残ります。**Import / Export JSON** で行の定義を別のマシンへ移せます。
 
