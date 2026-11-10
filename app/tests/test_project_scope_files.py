@@ -82,6 +82,35 @@ class ScopeFileTests(unittest.TestCase):
                 files.capture_scope_file(self.root, 'source.txt', cancel_check=lambda: True)
         self.assertEqual(b'synthetic', path.read_bytes())
 
+    def test_cancellation_is_observed_during_a_large_raw_read(self):
+        # #1660: a multi-MiB include_bytes read checks cancellation per block,
+        # not only before opening and after the whole file was read.
+        path = self.root/'manifest.json'; path.write_bytes(b'x' * (3 * 1024 * 1024))
+        opened, read = files._open_regular, [0]
+        class Counting:
+            def __init__(self, stream): self.stream = stream
+            def __enter__(self): return self
+            def __exit__(self, *exc): return self.stream.__exit__(*exc)
+            def fileno(self): return self.stream.fileno()
+            def read(self, size=-1):
+                block = self.stream.read(size); read[0] += len(block); return block
+        def counting_open(*args, **kwargs):
+            stream, before = opened(*args, **kwargs)
+            return Counting(stream), before
+        calls = [0]
+        def cancel_after_first_block():
+            calls[0] += 1
+            return read[0] > 0   # cancel as soon as any bytes were read
+        with patch.object(files, '_open_regular', side_effect=counting_open), \
+                self.assertRaises(AudioGenerationCancelled):
+            files.capture_scope_file(self.root, 'manifest.json', limit=4 * 1024 * 1024,
+                                     include_bytes=True, cancel_check=cancel_after_first_block)
+        self.assertEqual(1024 * 1024, read[0])   # stopped after the first block
+        proof, raw = files.capture_scope_file(self.root, 'manifest.json', limit=4 * 1024 * 1024,
+                                              include_bytes=True)
+        self.assertEqual(3 * 1024 * 1024, proof['size'])
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), proof['sha256'])
+
     def test_tiny_metadata_read_does_not_allocate_the_whole_file_limit(self):
         (self.root/'state.json').write_bytes(b'{}')
         tracemalloc.start()

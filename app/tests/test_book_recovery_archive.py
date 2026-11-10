@@ -689,17 +689,28 @@ finally: os.close(fd)
         with self.fixture() as (root,token):
             receipt=archive.create_recovery_archive(root,['state.json'],book_token=token,quota_bytes=100000)
             capture=project_scope_files.capture_scope_file
-            completed,cancelled=[],[False]
-            def reading(directory,relative_path,**kwargs):
-                result=capture(directory,relative_path,**kwargs)
-                completed.append(relative_path)
-                cancelled[0]=True   # cancel as soon as the first read finishes
-                return result
-            with patch.object(project_scope_files,'capture_scope_file',side_effect=reading), \
-                    self.assertRaises(AudioGenerationCancelled):
-                archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
-                                                quota_bytes=100000,cancel_check=lambda:cancelled[0])
-            self.assertEqual(['prepared-'+receipt['id']],completed)
+            prepared,marker='prepared-'+receipt['id'],receipt['id']
+            # Cancel just before each read in turn: each case fails if exactly
+            # that read stops honoring cancel_check.
+            for target,expected in ((prepared,[]),(marker,[prepared]),
+                                    (receipt['stage']+'/manifest.json',[prepared,marker])):
+                with self.subTest(target=target):
+                    completed,cancelled=[],[False]
+                    def reading(directory,relative_path,**kwargs):
+                        if relative_path==target:
+                            cancelled[0]=True
+                        result=capture(directory,relative_path,**kwargs)
+                        completed.append(relative_path)
+                        return result
+                    with patch.object(project_scope_files,'capture_scope_file',side_effect=reading), \
+                            self.assertRaises(AudioGenerationCancelled):
+                        archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
+                                                        quota_bytes=100000,cancel_check=lambda:cancelled[0])
+                    self.assertEqual(expected,completed)
+            # A cancelled verification changes nothing: a clean one still passes.
+            verified=archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
+                                                     quota_bytes=100000)
+            self.assertEqual(receipt['manifest_sha256'],verified['manifest_sha256'])
 
     def test_substituted_stage_is_never_deleted_on_failure(self):
         with self.fixture() as (root,token):

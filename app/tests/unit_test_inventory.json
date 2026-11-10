@@ -1733,6 +1733,7 @@
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_unexpected_bundle_root_and_storage_quota_are_checked",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_unsafe_observation_requires_path_proofs",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_untrusted_manifest_paths_duplicates_and_extra_payloads_are_rejected",
+    "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_verification_honors_cancel_while_reading_receipt_marker_and_manifest",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_verifier_rechecks_earlier_payloads_after_later_reads",
     "tests.test_book_recovery_archive.BookRecoveryArchiveTests.test_verifier_rechecks_payload_after_receipt_read"
   ],
@@ -9383,6 +9384,7 @@
     "tests.test_project_scope_failures.ScopeFailureTests.test_staged_write_and_partial_replace_failures_restore_exact_originals"
   ],
   "test_project_scope_files": [
+    "tests.test_project_scope_files.ScopeFileTests.test_cancellation_is_observed_during_a_large_raw_read",
     "tests.test_project_scope_files.ScopeFileTests.test_cancellation_precedes_open_and_leaves_bytes_intact",
     "tests.test_project_scope_files.ScopeFileTests.test_missing_and_empty_are_distinct_and_do_not_initialize_anything",
     "tests.test_project_scope_files.ScopeFileTests.test_missing_root_and_in_place_changes_are_refused",
