@@ -681,6 +681,37 @@ finally: os.close(fd)
                                                 quota_bytes=100000,cancel_check=cancel_while_walking)
             self.assertEqual(3,checks)
 
+    def test_verification_honors_cancel_while_reading_receipt_marker_and_manifest(self):
+        # #1660: the receipt, marker and manifest reads (manifest up to
+        # MAX_MANIFEST_BYTES) honor cancellation like the payload reads do.
+        import project_scope_files
+        from audio_generation_owner import AudioGenerationCancelled
+        with self.fixture() as (root,token):
+            receipt=archive.create_recovery_archive(root,['state.json'],book_token=token,quota_bytes=100000)
+            capture=project_scope_files.capture_scope_file
+            prepared,marker='prepared-'+receipt['id'],receipt['id']
+            # Cancel just before each read in turn: each case fails if exactly
+            # that read stops honoring cancel_check.
+            for target,expected in ((prepared,[]),(marker,[prepared]),
+                                    (receipt['stage']+'/manifest.json',[prepared,marker])):
+                with self.subTest(target=target):
+                    completed,cancelled=[],[False]
+                    def reading(directory,relative_path,**kwargs):
+                        if relative_path==target:
+                            cancelled[0]=True
+                        result=capture(directory,relative_path,**kwargs)
+                        completed.append(relative_path)
+                        return result
+                    with patch.object(project_scope_files,'capture_scope_file',side_effect=reading), \
+                            self.assertRaises(AudioGenerationCancelled):
+                        archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
+                                                        quota_bytes=100000,cancel_check=lambda:cancelled[0])
+                    self.assertEqual(expected,completed)
+            # A cancelled verification changes nothing: a clean one still passes.
+            verified=archive.verify_recovery_archive(root,receipt['id'],expected_manifest_sha256=receipt['manifest_sha256'],
+                                                     quota_bytes=100000)
+            self.assertEqual(receipt['manifest_sha256'],verified['manifest_sha256'])
+
     def test_substituted_stage_is_never_deleted_on_failure(self):
         with self.fixture() as (root,token):
             def substitute(_root,_name,destination,*_args,**_kwargs):

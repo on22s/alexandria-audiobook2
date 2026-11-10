@@ -35,8 +35,20 @@ def capture_scope_file(root, relative_path, *, limit=MAX_SCOPE_METADATA_BYTES,
     stream, before = _open_regular(path, root, limit, allow_empty=True)
     with stream:
         if include_bytes:
-            raw = stream.read(before.st_size + 1)
-            digest, size = hashlib.sha256(raw).hexdigest(), len(raw)
+            # Read in 1 MiB blocks so cancellation is observed during a large
+            # read (#1660), like the streaming path; one byte past the admitted
+            # size still detects growth.
+            hasher, blocks, remaining = hashlib.sha256(), [], before.st_size + 1
+            while remaining > 0:
+                _check_cancelled(cancel_check)
+                block = stream.read(min(remaining, 1024 * 1024))
+                if not block:
+                    break
+                hasher.update(block)
+                blocks.append(block)
+                remaining -= len(block)
+            raw = b''.join(blocks)
+            digest, size = hasher.hexdigest(), len(raw)
         else:
             digest, size = _hash(stream, limit, cancel_check=cancel_check)
             raw = None
