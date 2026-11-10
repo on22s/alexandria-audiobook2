@@ -2852,6 +2852,11 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 before_version = _book_target_version(target) if existed else None
             if existed:
                 if stat.S_ISDIR(before_version[5]):
+                    # Retirability preflight; the rows are not needed, the
+                    # refusals are (#1660). The digest below accepts hard links
+                    # and symlinks, which this one rule refuses (plus depth,
+                    # entry count and Windows reparse points). Keep one rule
+                    # rather than a second copy inside the shared digest.
                     _cleanup_tree_inventory(target, cancel_check=cancel_check)
                 elif not stat.S_ISREG(before_version[5]) or before_version[6] != 1:
                     raise ValueError('Book artifact cannot be safely retired')
