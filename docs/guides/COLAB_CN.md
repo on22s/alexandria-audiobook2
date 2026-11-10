@@ -2,7 +2,7 @@
 
 # Google Colab
 
-想用一次临时的 GPU 会话，请用[主分支的笔记本](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)。GPU 是否有货、会话能活多久都会变；断开之前先把工作存好。常规的 Web UI 启动会开一个公开的 ngrok 隧道。分享访问权限之前请先看[认证说明](../../README.md#authentication-optional)，并保管好 token 和 API 密钥。
+想用一次临时的 GPU 会话，请用[主分支的笔记本](https://colab.research.google.com/github/on22s/alexandria-audiobook2/blob/main/alexandria_colab.ipynb)。GPU 是否可用、会话能维持多久都会变化；断开之前先把工作存好。常规的 Web UI 启动会开一个公开的 ngrok 隧道。分享访问权限之前请先看[认证说明](../../README.md#authentication-optional)，并保管好 token 和 API 密钥。
 
 ## 开始一次会话
 
@@ -20,7 +20,7 @@ Ollama 和本地 TTS 抢同一份显存。先把脚本生成、审阅、人设�
 
 配置单元格会拒绝已有监听占用它的端口。它不会接管或杀掉一个不相关的 Ollama 服务。所有权信息缺失、启动失败和清理失败都会抛错。如果所有权无法恢复，请在替换运行时之前把工作下载下来；不要用按进程名大面积 kill 的命令。
 
-把上下文和输出上限保持在推理服务器的实际容量之内。改大应用里的设置并不会扩大 Ollama 已加载的上下文。请保持应用的 GPU/显存余量保护和 worker 逐级降档重试处于启用状态。如果你之后又回来做 LLM 工作，先把 TTS 做完，并在加载另一个模型之前检查可用显存。
+把上下文和输出上限保持在推理服务器的实际容量之内。改大应用里的设置并不会扩大 Ollama 已加载的上下文。请保持应用的 GPU/显存余量保护和 worker 逐级降级重试处于启用状态。如果你之后又回来做 LLM 工作，先把 TTS 做完，并在加载另一个模型之前检查可用显存。
 
 ## 诊断安装或启动失败
 

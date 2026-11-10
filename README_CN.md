@@ -34,7 +34,7 @@
 | **AMD 独显** | Linux | 完整支持 | ROCm；每天在 RX 9070 XT（RDNA4，ROCm 7.0）上测。安装时按你的 `gfx` 目标用 HIP 编译 llama-cpp-python 和 whisper.cpp |
 | **AMD APU / 核显** | Linux | 完整支持，较慢 | TTS 以 fp32 加载（660M/680M/780M 这一类的 bf16 有问题）；其余相同 |
 | **AMD** | Windows | 仅 CPU | Windows 没有 ROCm；要用 GPU 请用 Linux |
-| **Apple Silicon** | macOS | 仅 CPU | Qwen3-TTS 不支持 MPS；whisper.cpp 以 Metal 编译 |
+| **Apple Silicon** | macOS | 仅 CPU | `auto` 设备使用 CPU；可以手动选择 MPS，但在 M4 上更慢、更不准（#1650）；whisper.cpp 以 Metal 编译 |
 | **Intel** | macOS | 仅 CPU | |
 
 > **文档：**上游的 [Wiki](https://github.com/Finrandojin/alexandria-audiobook/wiki) 对声音类型、LoRA 训练、批量生成的说明仍然适用；本分支不同之处以本 README 和 `RECIPES.md` 为准。
@@ -105,7 +105,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 - `logs/api/<task>-latest.log`——每个后台任务的完整日志。
 - `logs/llm_responses.log` 和 `logs/review_responses.log`——脚本生成和审阅的每一次 LLM 回复，含结束原因、token 数和耗时。旁边的 `*.requests.log` 记录了产生每条回复的完整请求，用 `request=` 编号对应，可以原样重放出错的回复。
 - 运行中的任务：`GET /api/status/eta` 和 `GET /api/status/<task>`。
-- **Reports** 页：带产物的运行历史、审阅存档点。
+- **Reports** 页：带产物的运行历史、审阅检查点。
 
 ## 新手指南：你的第一本有声书
 
@@ -123,7 +123,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 1. 选择 **LLM Location**（Local 或 Remote），填写 **Base URL**、**API Key**、**Model Name**；刷新按钮可列出模型。
 2. 思考型模型将 **Reasoning effort** 设为 *low*，点击 **Test Connection**。
 3. TTS 保持 `local` / `auto`；**Auto-Configure** 可填写适合显卡的批处理设置。
-4. **Prompt Settings** 保持默认 `michel2_full`；模型间的例外见研究结果。点击 **Save Configuration**。在 Qwen3-14B（不加适配器）上，只询问对话行的 `michel2_spoken` 准确率更高，第 2 步也快约 3 倍（[详情（英文）](docs/features/spoken-only-attribution.md)）。把鼠标停在每个设置旁的 ⓘ 上，可以看到它的作用，以及有测量依据时的推荐值。
+4. **Prompt Settings** 保持默认 `michel2_full`；模型间的例外见研究结果。点击 **Save Configuration**。在 Qwen3-14B（不加适配器）上，只询问对话行的 `michel2_spoken` 准确率更高，第 2 步也快约 3 倍（[详情（英文）](docs/features/spoken-only-attribution.md)）。把鼠标悬停在设置或它的标签上（或用键盘聚焦）半秒，就能看到它的作用，以及有测量依据时的推荐值和理由；按 Esc 关闭提示。
 
 ### 第 2 步——Script
 
@@ -132,7 +132,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 1. 上传短文本，或选择以前的上传。第一人称小说需填写叙述角色的准确名字。
 2. 先点击 **Test this book with the LLM** 检查样本；通过并不保证后面每个请求都成功。再点击 **Generate Annotated Script**。活动行依次显示切分、说话人归属、演绎指令，以及重试和预计剩余时间。
 3. 完成后检查文本和角色。可选 **Review Script**、**Contextual Review (+/- N)**、**Find Nicknames** 和 **Edit aliases**；用 **Save Current** 保存。
-4. 需要中断时可用 **Pause**、**Save snapshot**、**Start over** 或 **Resume failed run**；Windows 不支持 Pause。
+4. 需要中断时可用 **Pause**、**Save snapshot**、**Start over** 或 **Resume failed run**；Windows 上 Pause 按钮是灰的，不能用。
 
 ### 第 3 步——Voices
 
@@ -165,7 +165,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 
 ### 谁在说话——说话人归属准确率
 
-“四本书产品测试集”是四部日译轻小说中 768 条带说话人标注的对话行，通过应用自身的三遍流水线在 temperature 0、JSON schema 下打分。提示词的形态是本项目发现的最大单一杠杆；`michel2_full` 变体（在每个请求周围附上 2,000 字符的上下文，沿用 Michel 等人的表述）在所有测过的基座模型上都胜出。以下为基座模型、无适配器、reasoning low（RECIPES §"Prompt variants × bases"，2026-09-18）：
+“四本书产品测试集”是四部日译轻小说中 768 条带说话人标注的对话行，通过应用自身的三遍流水线在 temperature 0、JSON schema 下打分。提示词的形态是本项目发现的最大单一杠杆；`michel2_full` 变体（在每个请求周围附上 2,000 字符的上下文，方法沿用 Michel 等人）在所有测过的基座模型上都胜出。以下为基座模型、无适配器、reasoning low（RECIPES §"Prompt variants × bases"，2026-09-18）：
 
 | 基座模型 | 文件 | 默认提示词 | `michel2_full` | 说明 |
 |---|---:|---:|---:|---|
@@ -174,9 +174,9 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 | Qwen3.6-35B-A3B UD-Q4_K_XL | 22.4 GB | — | **89.6** | IQ3_XXS（13.2 GB）/ IQ2_XXS（10.8 GB）在九部 PDNC 小说上为 91.6 / 90.5 |
 | Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 81.5 | **90.5** | 产品自带的基座；`michel2` 86.6；关闭推理 72.1 |
 | Qwen3-14B Q4_K_M | 9.0 GB | 66.1 | **82.0** | 仅靠提示词 +16，所有基座里增益最大 |
-| Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | 71.9 / 71.7 | 在最难的一本书上都崩了 |
+| Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 62.6 / 60.8 | **74.9 / 77.0** | #616 之后的提示词；两者在最难的那本书上都崩了 |
 
-**本地 vs 云端**（目标 4.2，每本书最好的本地成绩对 DeepSeek 最好成绩）：97.3% / 97.5% / 94.5% / 92.9%。两本书落在目标要求的 5% 区间之外；下面的适配器就是为此做的。
+**本地 vs 云端**（目标 4.2，每本书最好的本地成绩对 DeepSeek 最好成绩）：97.3% / 97.5% / 94.5% / 92.9%。两本书落在目标要求的 5% 区间之外。在全部 28 部 PDNC 小说上，最好的本地模型 Qwen3.8-27B UD-Q3_K_XL 有 **20 部**在 5% 以内；没达标的几部正在按每本 40 个窗口重新测量。
 
 ### 适配器——只用版权干净的数据训练
 
@@ -214,17 +214,17 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 
 按你会遇到的顺序：
 
-- **三遍脚本生成**——切分、归属、指令——每一遍的请求文本量、每请求行数、周围上下文都在 Setup 页可调，按遍存档点，可续跑、可暂停。
+- **三遍脚本生成**——切分、归属、指令——每一遍的请求文本量、每请求行数、周围上下文都在 Setup 页可调，按遍检查点，可续跑、可暂停。
 - **可选择的归属提示词变体**（`default`、`michel`、`michel2`、`michel2_full`、`michel2_shot`、`michel2_spoken`），每一个都在同一金标上测过；你看到、编辑、保存为预设的就是实际发送的提示词文本。
 - **推理模型是一等公民**：推理强度设置到达每一次 LLM 调用，请求带 JSON schema，服务器不报告推理 token 时从 trace 里估算，重试上限跟随配置的 token 预算。不再需要把 `<think>` 加进禁用 token。
 - **LLM 配置档**：本地和远程两套，各有 URL、密钥（或 `env:NAME`）、模型、超时、重试/退避策略、自定义请求头和请求体；一套放弃时切换到另一套；“LLM 是否在本机 GPU 上”的开关，让托管模型标注时本机可以同时渲染音频；**手动传输**模式——你就是模型：应用把每个请求写进文件，等你粘贴回复。
 - **第一遍对话检测**：自动 / 仅引号 / 仅模型。
-- **Script 页遥测**：活动行显示运行正在等什么，重试按尝试次数显示，剩余时间由流水线自己估算；Start over；把已完成部分保存为快照；Windows 上 Pause 置灰而不是每次点击都报错。
+- **Script 页的进度显示**：活动行显示运行正在等什么，重试按尝试次数显示，剩余时间由流水线自己估算；Start over；把已完成部分保存为快照；Windows 上 Pause 置灰而不是每次点击都报错。
 - **Voices**：只为*还没有声音的角色*生成人设或推荐 LoRA 声音，并先把现有声音存进库；每角色**身份锚点**，演绎指令改不了音色，并支持**变化点**（“从这一行起这个角色变老了”）；系列角色表与声音库；昵称发现；克隆参考导入需登记权利（文字稿、来源、权利依据）。
 - **Editor**：渲染音频偏离说话人声音的片段会被标记；拼接时裁掉空白音。
 - **导出**：128 kbps MP3、带文件名模板的分章导出、Audacity 工程包、带章节的 M4B。
 - **Voice Lab**：一本有声书进去，一个命名好的 LoRA 声音出来——Preparer（对齐 + 可选 LLM 富化）→ 去重 → 批量 LoRA 训练 → 画像 → 命名，每个阶段都在应用自己的环境里运行。
-- **Reports 页**：运行历史、审阅存档点、基准测试（环境 · LLM · TTS · 训练）。
+- **Reports 页**：运行历史、审阅检查点、基准测试（环境 · LLM · TTS · 训练）。
 - **归属适配器**通过 `llama-server --lora` 提供，只用版权干净的数据训练，在 Hub 上发布，模型卡写明测了什么、没测什么。
 - **测量纪律**：`GOALS.md`、`RECIPES.md`、只重建不合并的结果索引、每个产物带来源信息、发布校验器，以及 3,348 个单元测试。
 
@@ -242,8 +242,8 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 - **三遍标注**——第一遍把文本切成旁白和对话行（引号切分器或模型），第二遍根据已建立的角色表和周围上下文给每行分配说话人，第三遍为每行写演绎指令。每一遍有自己的温度和请求大小。
 - **测过的提示词变体**——在 Setup 页选择归属提示词；下拉项名称与 RECIPES 一致，文本可编辑。
 - **审阅遍**——第二次 LLM 处理，去掉对话里的归属标签、拆分错归的旁白、合并过度切分的旁白、校验 instruct 字段；带 ±N 上下文的审阅；跨系列批量审阅，可先发现昵称，可正反两遍。
-- **身份稳定**——合并重复角色名、记住角色回应过的每个称呼的别名、第一人称叙述者处理、译者前言剥离、乱码来源修复。
-- **恢复**——按遍存档点、断电后续跑、API 重试耗尽时暂停而不是让分块失败、已完成前缀快照、不动设置的重新开始。
+- **身份稳定**——合并重复角色名、记住角色被叫过的每一个别名、第一人称叙述者处理、译者前言剥离、乱码来源修复。
+- **恢复**——按遍检查点、断电后续跑、API 重试耗尽时暂停而不是让分块失败、已完成前缀快照、不动设置的重新开始。
 
 ### 语音生成
 - **内置 Qwen3-TTS**——无需外部服务器；也支持外部 Gradio 服务器池。
@@ -263,7 +263,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 - **Preparer**——有声书 + EPUB/TXT → 对齐好的（音频，文本）样本对，可选 LLM 富化（说话人、叙述风格、情绪基调）。
 - **Dataset Builder** 与 **LoRA Training** 页处理单个声音；整库的批量训练、去重、画像、命名。
 - 适配器**盲评**——对比、晋升、带回执回滚。
-- **Reports**——运行历史、审阅存档点、基准测试清单。
+- **Reports**——运行历史、审阅检查点、基准测试清单。
 
 ## 界面说明
 
@@ -334,7 +334,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 | DeepSeek v4-pro（托管 API） | — | 无需 | `michel2_full`，思考 low 8k | **95.4** | 上限；一本测试集大小的书约 $0.50–0.75 |
 | Qwen3.8-27B UD-Q4_K_M | 16.5 GB | 24 GB | `michel2` | **90.9** | 本地最佳；带示例的 `michel2_shot` 在最难的书上最高（94.4） |
 | Qwen3.6-35B-A3B UD-Q4_K_XL / IQ3_XXS / IQ2_XXS | 22.4 / 13.2 / 10.8 GB | 24 / 16 / 16 GB | `michel2_full` | 四本书 89.6；九本书 IQ3 / IQ2 为 91.6 / 90.5 | 用 `--n-cpu-moe` 卸载部分专家后能塞进 16 GB 显卡的 MoE，IQ2 也只比 Q4 差一分；量化阶梯正测到 IQ1_M |
-| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2` | 86.6 | 强，但必须开推理并用 deepseek 推理格式，绝不能 `--skip-chat-parsing` |
+| Muse-Glimmer-30B UD-Q3_K_XL | 13.4 GB | 16 GB | `michel2_full` | **90.5** | 强，但必须开推理并用 deepseek 推理格式，绝不能 `--skip-chat-parsing` |
 | Qwen3-14B Q4_K_M | 9.0 GB | 12 GB | `michel2_full` | 82.0 | 提示词带来 +16；rights-clean 适配器在 `default` 提示词下再 +8.6 |
 | Qwen3.5-9B / Qwen3-8B Q4_K_M | 5–6 GB | 8 GB | `michel2_full` | 约 72 | 8 GB 显卡的选择；两者在最难的书上都崩（47 / 62） |
 

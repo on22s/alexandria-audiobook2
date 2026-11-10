@@ -7,7 +7,7 @@
 ## 怎么读这些表
 
 - **准确率**把未回答或无效的行计为错误。
-- **base → adapter** 在同一测试集上比较同一个被服务的模型，分别关闭适配器（scale 0）和开启。
+- **base → adapter** 在同一测试集上比较同一推理端点上的同一个模型，分别关闭适配器（scale 0）和开启。
 - **两个结果只有**在测试集、提示词变体、解码设置和输出格式全部一致时才可比较。提示词总是显示，因为适配器针对特定提示词。
 - **默认设置**，除非某行另有说明：
   - temperature 0；
@@ -16,7 +16,7 @@
   - 每本书 40 个均匀分布的窗口。
 - **推理：**"off" 表示不推理；"low" 表示提供方的 low 设置，有记录的地方服务器预算为 1,024 token。不包含高推理的结果。
 
-> **2026-09-28 重评分。** PDNC 列出了一些从不出场的名字——例如《四签名》中 Wooden-Legged Man 旁边的 "Small"，其别名是 Jonathan Small。回答 SMALL 的模型指出了正确的人，却被判错。五个已审阅的名字对现在计为正确，下面的成对表使用该评分。十个先前的判定发生了变化；RECIPES.md §"Rescored 2026-09-28" 列出了它们。
+> **2026-09-28 重新评分。** PDNC 列出了一些从不出场的名字——例如《四签名》中 Wooden-Legged Man 旁边的 "Small"，其别名是 Jonathan Small。回答 SMALL 的模型指出了正确的人，却被判错。五个已审阅的名字对现在计为正确，下面的成对表使用该评分。十个先前的判定发生了变化；RECIPES.md §"Rescored 2026-09-28" 列出了它们。
 
 ## 成对适配器结果——九部 PDNC 小说
 
@@ -78,7 +78,7 @@
 
 API 结果是纯基座的。不要把它们与适配器变化当作同一个实验来比较。
 
-- **DeepSeek v4-pro**（关闭思考），九部小说：重评分后 **98.0%**（之前 96.7%），回答了每一行。
+- **DeepSeek v4-pro**（关闭思考），九部小说：重新评分后 **98.0%**（之前 96.7%），回答了每一行。
 - **Nemotron 3 Ultra 550B A55B** 通过付费 OpenRouter，按书。这些是独立的单本书基线：不要把它们合并成一个分数。OpenRouter 报告了被请求的模型，但提供方和硬件未被观测。
 
 | 书 | 行数 | 正确 | 准确率 | 原始产物 |
@@ -89,7 +89,7 @@ API 结果是纯基座的。不要把它们与适配器变化当作同一个实�
 | 《四签名》 | 353 | 301 | **85.3%** | [原始结果](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-thesignofthefour-michel2full-b8-low-20260922.json) |
 | 《太阳照常升起》 | 1,759 | 1,536 | **87.3%** | [原始结果](../../ab_test_runtime/experiments/lora_serving_eval__nemotron3-ultra-paid-clean-thesunalsorises-michel2full-b8-low-20260922.json) |
 
-Nemotron 设置：temperature 0，low reasoning，1,024 token 预算，batch size 8，最多 4,096 个输出 token，`michel2_full`，关闭结构化输出。这些分数早于重评分；一旦把 SMALL 计为正确，《四签名》从 85.3% 升到 96.6%。见[评估配方](Evaluation-Recipes-CN.md)。
+Nemotron 设置：temperature 0，low reasoning，1,024 token 预算，batch size 8，最多 4,096 个输出 token，`michel2_full`，关闭结构化输出。这些分数早于重新评分；一旦把 SMALL 计为正确，《四签名》从 85.3% 升到 96.6%。见[评估配方](Evaluation-Recipes-CN.md)。
 
 ## 来源信息
 

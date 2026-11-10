@@ -173,7 +173,7 @@ python alexandria_batch_processor.py \
 
 ### 运行中暂停（比如要打游戏或腾出显卡）
 
-任何时候按 **Ctrl+C** 都能停下批处理器。当前文件的存档点在 `dataset_temp/` 里，会自动保留。准备好继续时，原样重跑同一条命令即可——不需要额外参数：
+任何时候按 **Ctrl+C** 都能停下批处理器。当前文件的检查点在 `dataset_temp/` 里，会自动保留。准备好继续时，原样重跑同一条命令即可——不需要额外参数：
 
 ```bash
 # Stopped mid-run with Ctrl+C — just rerun the same command to resume
@@ -182,7 +182,7 @@ python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model
 
 批处理器会：
 - **跳过**输出 zip 已存在的文件（已完成的文件）
-- **续跑**被中断的文件，从它最后的存档点继续（不重复工作）
+- **续跑**被中断的文件，从它最后的检查点继续（不重复工作）
 - **全新处理**还没开始的文件
 
 ## 可续跑能力
@@ -191,7 +191,7 @@ python alexandria_batch_processor.py book1.wav book2.wav book3.wav --model model
 
 **1. 文件级跳过**——输出 zip（`alexandria_dataset_<name>.zip`）已存在的文件，在后续运行中会被跳过。
 
-**2. 文件内续跑**——如果某个文件在标注中途被中断（Ctrl+C 或崩溃），批处理器会自动给 Preparer 传 `--resume`。Preparer 读取自己的存档点，从最后一个完成的片段继续。
+**2. 文件内续跑**——如果某个文件在标注中途被中断（Ctrl+C 或崩溃），批处理器会自动给 Preparer 传 `--resume`。Preparer 读取自己的检查点，从最后一个完成的片段继续。
 
 Preparer 在 `dataset_temp/` 里的 `.source` 标记保证我们绝不会误续到另一个文件的部分工作上——如果标记与当前音频文件不符，`dataset_temp/` 会被清空并从头处理。
 
@@ -374,7 +374,7 @@ Output: alexandria_dataset_audiobook2.zip
 
 - **GPU 利用率**：通过 rocm-smi 显示实际的 GPU 负载百分比
   - 帮助确认 GPU 确实在被使用
-  - 能识别"声称在用其实没用"的假象
+  - 能识别"声称在用、实际没用"的误报
   - 示例：`Utilization: 45.3%`
 
 ### 进度跟踪

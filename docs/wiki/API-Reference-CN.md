@@ -399,17 +399,17 @@ if (!mergeResponse.ok) { throw new Error('Merge refused; check the current snaps
 
 ### 可选的生成语音校验
 
-通过配置 API 保存 `tts.speech_verification: {"enabled": true}`，以检查之后的生成 take。它默认关闭。初始覆盖范围是英语单声道音频，使用缓存的 Linux CPU whisper.cpp Small.en 运行时，以及一个独立的 Large-v3 检查点做更强的确认。不会自动下载任何东西。缺少资源、不支持的输入和有限的证据上限会产生明确的不可用结果。检查会增加 CPU 时间和内存；ASR 和短行的声学证据仍然需要试听审阅。
+通过配置 API 保存 `tts.speech_verification: {"enabled": true}`，以检查之后的生成录音。它默认关闭。初始覆盖范围是英语单声道音频，使用缓存的 Linux CPU whisper.cpp Small.en 运行时，以及一个独立的 Large-v3 检查点做更强的确认。不会自动下载任何东西。缺少资源、不支持的输入和有限的证据上限会产生明确的不可用结果。检查会增加 CPU 时间和内存；ASR 和短行的声学证据仍然需要试听审阅。
 
-该检查把完成编码的 take 与合成 API 观察到确切文本比对，包括发音替换。确认存在实质性的缺失或多余段落时，会拒绝这次新尝试，同时保留之前选中的 take。其他差异保留为审阅证据。脚本里有意重复的内容以及有歧义的数值/发音区域会保留。
+该检查把完成编码的录音与合成 API 观察到确切文本比对，包括发音替换。确认存在实质性的缺失或多余段落时，会拒绝这次新尝试，同时保留之前选中的录音。其他差异保留为审阅证据。脚本里有意重复的内容以及有歧义的数值/发音区域会保留。
 
-只有当输入、UID、书和选中的 take 仍然匹配时，`GET /api/chunks` 和 `/api/chunks/status` 才会暴露有界的 `speech_verification` 元数据。一次快速的文件版本检查会隐藏被替换或缺失的音频，而无需对整本书做哈希/解码。`speech_verification_failure` 把被拒绝的尝试与选中的 take 分开描述。`/api/chunks/quality` 暴露语音审阅类别。不完整或不可用的复查会记录在 `speech_verification_recheck` 中，不会抹掉未变的选中 take 已完成的证据。这些读取不会启动检查。Editor 检查器显示确切的输入、计数、诊断摘录、开销、校验器身份以及任何缩写。
+只有当输入、UID、书和选中的录音仍然匹配时，`GET /api/chunks` 和 `/api/chunks/status` 才会暴露有界的 `speech_verification` 元数据。一次快速的文件版本检查会隐藏被替换或缺失的音频，而无需对整本书做哈希/解码。`speech_verification_failure` 把被拒绝的尝试与选中的录音分开描述。`/api/chunks/quality` 暴露语音审阅类别。不完整或不可用的复查会记录在 `speech_verification_recheck` 中，不会抹掉未变的选中录音已完成的证据。这些读取不会启动检查。Editor 检查器显示确切的输入、计数、诊断摘录、开销、校验器身份以及任何缩写。
 
-要复查某一次已保存的 take，用当前分块快照里的 `expected_book_token`、`expected_uid` 和 `expected_audio_revision` 向 `POST /api/chunks/{index}/speech_verification` 发送请求。该 take 必须有当前记录的合成输入和完成音频哈希；更旧或未经证明的 take 需要在开启检查的情况下重新生成。CPU 任务会对选中的音频做哈希，运行一次新的有界校验，并且只在书、行、输入、take 和字节都未改变时条件性地保存结果。它返回一个精简的 `receipt` 和一份有界的新 `report`。即使发现内容缺陷，复查也会保留选中的音频。不会创建单独的历史报告缓存。
+要复查某一次已保存的录音，用当前分块快照里的 `expected_book_token`、`expected_uid` 和 `expected_audio_revision` 向 `POST /api/chunks/{index}/speech_verification` 发送请求。该录音必须有当前记录的合成输入和完成音频哈希；更旧或未经证明的录音需要在开启检查的情况下重新生成。CPU 任务会对选中的音频做哈希，运行一次新的有界校验，并且只在书、行、输入、录音和字节都未改变时条件性地保存结果。它返回一个精简的 `receipt` 和一份有界的新 `report`。即使发现内容缺陷，复查也会保留选中的音频。不会创建单独的历史报告缓存。
 
 用 `POST /api/speech_verification/cancel` 请求取消，用 `GET /api/status/speech_verification` 查看任务状态。在提供方的子进程和私有临时文件清理完毕之前，占用权会一直保留，包括发起请求的 HTTP 连接断开之后。CPU ASR 与词级时间共享一个由 close 持有的私有租约，所以提供方繁忙时会报告不可用。
 
-Editor 的撤销使用 `DELETE /api/chunks/{index}` 返回的 `undo_token`。在 60 秒内把该 token、返回的 `deleted` 对象作为 `chunk`，以及原始的 `at_index` 发送到 `POST /api/chunks/restore`。一个回执只能在同一活动书籍代次中恢复它原本的那次删除，且只能一次；过期、被修改或重复的请求返回 409。
+Editor 的撤销使用 `DELETE /api/chunks/{index}` 返回的 `undo_token`。在 60 秒内把该 token、返回的 `deleted` 对象作为 `chunk`，以及原始的 `at_index` 发送到 `POST /api/chunks/restore`。一个回执只能在同一活动书籍版本中恢复它原本的那次删除，且只能一次；过期、被修改或重复的请求返回 409。
 
 批量上传的调用方可以用 `POST /api/upload?select_active=false` 保存来源而不改变当前书。普通上传默认会选中它。
 

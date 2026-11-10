@@ -96,7 +96,7 @@ pip install ebooklib beautifulsoup4
 
 ## 你在 Preparer 里用过 `--source` 吗？
 
-如果这个 JSONL 是用 `alexandria_preparer_rocm_compatible.py --source ...` 生成的，角色名的 ASR 误转写和方言拼写已经在准备阶段修正过了——分块文本用的是源文的拼写，而不是 ASR 转写出来的那个。这种情况下，对比复核多半只是语律上的抽查：扫一遍看起来不对的 `*emphasis*` 和 `...` 停顿标记，用 `[e]dit` 修几个离群的，就完了。
+如果这个 JSONL 是用 `alexandria_preparer_rocm_compatible.py --source ...` 生成的，角色名的 ASR 误转写和方言拼写已经在准备阶段修正过了——分块文本用的是源文的拼写，而不是 ASR 转写出来的那个。这种情况下，对比复核多半只是韵律上的抽查：扫一遍看起来不对的 `*emphasis*` 和 `...` 停顿标记，用 `[e]dit` 修几个离群的，就完了。
 
 如果生成 JSONL 时没有用 `--source`，每个分块的文本都是 ASR 的原始输出，你就得靠对比复核去修姓名、方言，以及 Preparer 不知道该丢掉的纯音频内容。这才是这个脚本最初设计的经典流程。
 
@@ -158,7 +158,7 @@ Loading source  : /path/to/book.epub
   29 recurring proper nouns (gifted, godou, grotesqueries, hana, kanoko, kaya, keiko, kiyoka +21 more)
 ```
 
-专有名词那一行是个快速抽查，确认脚本从源文里认出了正确的角色名。它会扫描在句子中间多次出现的、首字母大写的词——角色名、地名，以及像 `Grotesqueries` 或 `Spirit Sight` 这种故事特有的词。对齐时用它们来放宽边界接受标准：当某个被 ASR 弄坏的分块词（`coodo`、`youth`、`caia`）在源文里紧挨着这些名字之一时。如果样例看起来不对（缺主要角色，全是常用词），对齐仍然能工作，但在专有名词边界上可能需要更多手工 `[e]dit`。
+专有名词那一行是个快速抽查，确认脚本从源文里认出了正确的角色名。它会扫描在句子中间多次出现的、首字母大写的词——角色名、地名，以及像 `Grotesqueries` 或 `Spirit Sight` 这种故事特有的词。当某个被 ASR 弄坏的分块词（`coodo`、`youth`、`caia`）在源文里紧挨着这些名字之一时，对齐会放宽边界的接受标准。如果样例看起来不对（缺主要角色，全是常用词），对齐仍然能工作，但在专有名词边界上可能需要更多手工 `[e]dit`。
 
 脚本在加载源文时还会自动清理两类反复出现的 EPUB 抽取伪影：
 - **字母-数字-字母的错乱**（`thos1e` → `those`，`Kars1a` → `Karsa`），由 OCR 在字母之间插入杂散数字造成。
@@ -208,7 +208,7 @@ app/env/bin/python alexandria_compare.py \
 
 位于锚点之前的 JSONL 条目没有对应的源文。默认会原样自动保留（因为它们通常是音频独有的开场内容，你不会想覆盖掉）。用 `--review-preanchor` 可以改为逐条复核。
 
-注意：自动锚定只在**第一次**运行时执行。从存档点续跑时，会直接使用保存下来的游标位置——你之前的对齐决定会被保留。
+注意：自动锚定只在**第一次**运行时执行。从检查点续跑时，会直接使用保存下来的游标位置——你之前的对齐决定会被保留。
 
 ## 中途重新对齐
 
@@ -255,7 +255,7 @@ ORIGINAL  :  He walked slowly across the room, pausing to look
 
 | 键 | 会发生什么 |
 |---|---|
-| `a` | 用纯源文替换 JSONL 文本。**会剥掉所有语律标记。** |
+| `a` | 用纯源文替换 JSONL 文本。**会剥掉所有韵律标记。** |
 | `m` | **合并**——用源文的词，但保留 LLM 的 `*emphasis*` 和 `...` 停顿。只有当标注里有值得保留的标记时才显示。 |
 | `k` | 原样保留当前的标注文本 |
 | `e` | 输入自定义替换内容（你写的会原封不动进入 JSONL） |
@@ -264,11 +264,11 @@ ORIGINAL  :  He walked slowly across the room, pausing to look
 
 ## 别让声音变平：优先用 `[m]erge`
 
-Preparer 的 LLM 会给 JSONL 加上语律标记：
+Preparer 的 LLM 会给 JSONL 加上韵律标记：
 - `*word*`——重读词上的**强调**
 - `...`——自然停顿，`....`——更长的停顿
 
-正是这些标记让训练出的 TTS 声音有表现力。如果你对很多条目都用 `[a]ccept original`，你就用纯源文的词替换了标注文本——**剥掉了所有语律提示**，把声音推向平板/单调的输出。
+正是这些标记让训练出的 TTS 声音有表现力。如果你对很多条目都用 `[a]ccept original`，你就用纯源文的词替换了标注文本——**剥掉了所有韵律提示**，把声音推向平板/单调的输出。
 
 `[m]erge` 选项会修正词，同时保留标记：
 
@@ -282,7 +282,7 @@ MERGED    :  He *walked* slowly ... across the room,
 合并会自动处理几种棘手的形态：
 - **多词强调**——`*Trull Sengar*` 在对齐之前会展开为 `*Trull* *Sengar*`，这样两个名字都带着标记进入源文拼写。
 - **用点连起来的词链**——像 `YOU...*WALKED*...HOME` 这样的分块（LLM 用 `...` 而不是空白当词分隔符）会被正确拆分，让每个 `*word*` 都能在合并中存活。
-- **被 ASR 揉成一团的名字**——单个分块词 `*Tralesengar*` 覆盖两词语的源文短语 `Trull Sengar` 时，会通过拼接模糊匹配把强调广播到两个源文词上。
+- **被 ASR 揉成一团的名字**——单个分块词 `*Tralesengar*` 覆盖由两个词组成的源文短语 `Trull Sengar` 时，会通过拼接模糊匹配把强调广播到两个源文词上。
 
 当 ASR 误转写严重到逐词模糊比和拼接模糊比都过不了阈值时，强调仍然可能丢失——这些情况会出现在复核里，你可以用 `[e]dit` 修。无论哪种情况，词与词之间的停顿都会保留。
 
@@ -290,7 +290,7 @@ MERGED    :  He *walked* slowly ... across the room,
 
 ## 暂停与续跑
 
-在任何复核提示处按 `q` 即可停止。存档点文件会自动保存在你的 JSONL 旁边：
+在任何复核提示处按 `q` 即可停止。检查点文件会自动保存在你的 JSONL 旁边：
 
 ```
 .metadata_compare_progress.json
