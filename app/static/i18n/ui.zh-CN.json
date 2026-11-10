@@ -8,7 +8,7 @@
       "safety": "not-reviewed"
     }
   },
-  "error.book.busy_preview": "书状态正忙；请稍后重试预览。",
+  "error.book.busy_preview": "这本书正忙；请稍后重试预览。",
   "error.book.owned_by_batch_review": "这本已保存的书正被批量审阅占用。请等待其完成或取消它。",
   "error.book.owned_or_saving": "这本已保存的书正被批量审阅或另一次保存占用。请等待其完成或取消它。",
   "error.book.snapshot_busy": "书或已保存的快照正忙；请稍后重试。",
