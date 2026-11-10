@@ -1822,8 +1822,7 @@
     "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_an_undo_that_cannot_be_proven_parks_without_touching_more",
     "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_directories_exchange_across_parents_with_a_recorded_chain",
     "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_one_name_twice_or_one_object_twice_is_refused",
-    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_unsupported_exchange_moves_nothing",
-    "tests.test_book_state_1660_anchored_exchange.WindowsExchangeTests.test_windows_never_exchanges"
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_unsupported_exchange_moves_nothing"
   ],
   "test_book_state_1660_auto_quarantine": [
     "tests.test_book_state_1660_auto_quarantine.AutoQuarantineTests.test_a_changed_target_is_never_quarantined",

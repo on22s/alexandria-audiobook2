@@ -60,7 +60,9 @@ class AnchoredExchangeTests(unittest.TestCase):
 
     def test_a_name_that_no_longer_holds_its_object_is_refused_before_anything_moves(self):
         expect = holds(self.target)
-        self.target.unlink()
+        # Keep the original's inode alive: a deleted file's inode number can be
+        # reused at once, which would make the new file look like the old one.
+        self.target.rename(self.root / 'aside')
         self.target.write_bytes(b'foreign')
         with self.assertRaisesRegex(ValueError, 'Book exchange refused'):
             self.exchange(expect_source=expect)
@@ -270,20 +272,6 @@ class AnchoredExchangeTests(unittest.TestCase):
             books._exchange(chapter, staged, anchor=self.root, anchor_identity=self.identity,
                             source_parent_identity=wrong,
                             expect_source=holds(chapter), expect_destination=holds(staged))
-
-class WindowsExchangeTests(unittest.TestCase):
-    @unittest.skipUnless(os.name == 'nt', 'Windows only')
-    def test_windows_never_exchanges(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            (root / 'a').write_bytes(b'a')
-            (root / 'b').write_bytes(b'b')
-            with self.assertRaises(OSError) as raised:
-                books._exchange(root / 'a', root / 'b', anchor=root,
-                                expect_source=lambda *a: True, expect_destination=lambda *a: True)
-            self.assertEqual(errno.ENOTSUP, raised.exception.errno)
-            self.assertEqual((b'a', b'b'), ((root / 'a').read_bytes(), (root / 'b').read_bytes()))
-
 
 if __name__ == '__main__':
     unittest.main()
