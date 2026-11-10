@@ -1175,11 +1175,13 @@ def _verify_recovery_archive_guarded(directory, recovery_id, *, expected_manifes
                                      root_guard=None):
     from project_scope_files import capture_scope_file
     prepared_proof, prepared_raw = capture_scope_file(directory, 'prepared-' + recovery_id,
-                                                      limit=1024, include_bytes=True)
+                                                      limit=1024, include_bytes=True,
+                                                      cancel_check=cancel_check)
     if prepared_raw is None:
         raise ValueError('Recovery preparation receipt is unavailable')
     prepared = _parse_commit_record(prepared_raw, recovery_id)
-    marker_proof, marker_raw = capture_scope_file(directory, recovery_id, limit=1024, include_bytes=True)
+    marker_proof, marker_raw = capture_scope_file(directory, recovery_id, limit=1024, include_bytes=True,
+                                                  cancel_check=cancel_check)
     if marker_raw is None:
         raise ValueError('Recovery commit marker is unavailable')
     marker = _parse_commit_record(marker_raw, recovery_id)
@@ -1210,7 +1212,8 @@ def _verify_recovery_bundle_guarded(directory, recovery_id, *, expected_manifest
     from project_scope_files import capture_scope_file
     bundle = _ensure_plain_path(directory / stage_name, directory)
     name = stage_name + '/manifest.json'
-    proof, raw = capture_scope_file(directory, name, limit=MAX_MANIFEST_BYTES, include_bytes=True)
+    proof, raw = capture_scope_file(directory, name, limit=MAX_MANIFEST_BYTES, include_bytes=True,
+                                    cancel_check=cancel_check)
     if raw is None:
         raise ValueError('Recovery manifest is unavailable')
     if hashlib.sha256(raw).hexdigest() != expected_manifest_sha256:
