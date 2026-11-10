@@ -8,7 +8,7 @@ LLM は本を、話者と演技指示を持つ行の一覧に変換します。
 
 1. Script で `.txt`、`.md`、`.epub` をアップロードします。EPUB はプレーンテキストに変換されます。
 2. **Generate Annotated Script** は 3 段階で処理します。
-   - **Split**：地の文と会話に分割。Setup の **Step 1: dialogue detection** で **Auto**（明確に分割でき検査を通るときは引用符、そうでなければモデル）、**Quote marks only**（モデル不使用）、**Quote-aware**（地の文中の引用語を地の文のまま扱う）、**Model only**（常にモデル）を選べます。
+   - **Split**：地の文と会話に分割。Setup の **Step 1: dialogue detection** で **Auto**（推奨。明確に分割でき検査を通るときは引用符、そうでなければモデル。公開した結果はすべてこの設定です）、**Quote marks only**（モデル不使用）、**Quote-aware**（地の文中の引用語を地の文のまま扱う）、**Model only**（常にモデル）を選べます。
    - **Attribute**：登場人物一覧と前後の文章を使い、会話の話者を決定。
    - **Instruct**：各行に演技指示を追加。
 3. 必要に応じて **Review** で間違いを修正します。

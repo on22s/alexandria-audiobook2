@@ -29,7 +29,7 @@ Alexandria Audiobook2 は、本を登場人物ごとに異なる声で読み上�
 - **音声合成用 GPU**：VRAM は最低 8 GB、推奨 16 GB。TTS の重みはモデルごとに約 3.4 GB で、バッチ処理にも追加のメモリーが必要です。
 - **RAM**：16 GB 推奨。**ディスク**：環境と TTS の重みに約 20 GB、さらに LLM のファイルと音声用の容量。
 
-LLM にも独自のメモリーが必要です。16 GB の GPU に 9–13 GB の LLM を載せながら音声合成も実行できるとは限りません。アプリの GPU ロックは競合する処理の同時実行を防ぎます。LLM を別のマシンで動かす場合は、Setup でそのことを指定します。
+LLM にも独自のメモリーが必要です。16 GB の GPU では、9–13 GB の LLM を載せるか音声を生成するかのどちらか一方です。両方を同時には実行できません。アプリの GPU ロックは競合する処理の同時実行を防ぎます。LLM を別のマシンで動かす場合は、Setup でそのことを指定します。
 
 ### GPU と OS
 
@@ -39,7 +39,7 @@ LLM にも独自のメモリーが必要です。16 GB の GPU に 9–13 GB の
 | AMD 単体 GPU | Linux | 対応 | ROCm。RX 9070 XT（RDNA4、ROCm 7.0）で継続的に検証。インストール時に `gfx` ターゲットに合わせて llama-cpp-python と whisper.cpp を HIP でビルド |
 | AMD APU / 内蔵 GPU | Linux | 対応、低速 | 660M/680M/780M 系の bf16 の問題を避け、TTS は fp32 を使用 |
 | AMD | Windows | CPU のみ | このアプリの ROCm 経路は Linux 用。GPU を使う場合は Linux を使用 |
-| Apple Silicon | macOS | CPU のみ | Qwen3-TTS は MPS に非対応。whisper.cpp は Metal でビルド |
+| Apple Silicon | macOS | CPU のみ | `auto` では CPU を使います。MPS も明示的に選べますが、M4 では遅く精度も落ちました（#1650）。whisper.cpp は Metal でビルド |
 | Intel | macOS | CPU のみ | 音声生成は CPU で実行 |
 
 ## インストール
@@ -206,7 +206,7 @@ Muse を推論ありで使う場合は DeepSeek の reasoning format を使用�
 
 英語版はミドルレンジ GPU で実時間の約 3–6 倍のバッチ生成速度を報告しています。これは測定条件での値で、文章、声の種類、ハードウェア、設定によって変わります。上流の 24 GB GPU の設定を 16 GB の GPU にそのまま使わないでください。[バッチ生成](docs/wiki/Batch-Generation-JA.md)を参照してください。
 
-ROCm の調整はアプリが適用し、AMD APU は fp32 を使います。インストーラーが作った HIP 版に PyPI の `llama-cpp-python` wheel を上書きしないでください。CPU 版に置き換わる可能性があります。
+ROCm の調整はアプリが適用し、AMD APU は fp32 を使います。インストーラーが作った HIP 版に PyPI の `llama-cpp-python` wheel を上書きしないでください。CPU 版に黙って置き換わり、GPU ビルドが失われます。
 
 ## 台本の形式
 

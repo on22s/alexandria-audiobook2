@@ -67,7 +67,7 @@
 | **共鳴（Resonance）** | Booming（轟くような）, Chesty（胸に響く）, Full-bodied（厚みのある）, Deep（低い）, Sonorous（響き渡る）, Thundering（雷鳴のような）, Rumbling（ゴロゴロと響く）, Hollow（空洞の）, Echoing（反響する）, Cavernous（洞窟のような）, Round（丸みのある）, Heavy（重い）, Grounded（地に足のついた）, Bassy（低音の強い）, Resonant（よく響く）, Bell-like（鐘のような） |
 | **軽い／高い（Light/High）** | Airy（空気感のある）, Breathy（息混じりの）, Feathery（羽のような）, Thin（細い）, Reedy（葦のような）, Tinny（ブリキのような）, Piercing（突き刺さるような）, Shrill（甲高い）, Piping（笛のような）, Wispy（かすかな）, Fluting（フルートのような）, Chirpy（小鳥のような）, Squeaky（キーキーいう）, Falsetto（裏声）, Head-voice（頭声）, Boyish（少年っぽい）, Girlish（少女っぽい）, Metallic（金属的な）, Brittle（硬く割れやすい） |
 | **鼻にかかる／鋭い（Nasal/Sharp）** | Nasal（鼻にかかる）, Twangy（鼻音の強い）, Whiny（泣き言のような）, Pinched（つまんだような）, Brass（金管のような）, Strident（耳に障る）, Cutting（切り込むような）, Piercing（突き刺さるような）, Biting（辛辣な）, Sharp（鋭い）, Acidic（酸っぱく辛辣な）, Astringent（収斂性のある）, Clamorous（騒がしい）, Ear-splitting（耳をつんざく）, Harsh（耳ざわりな）, Jarring（不快に響く）, Penetrating（貫くような）, Stingy（ちくちく刺す） |
-| **声の欠陥（Vocal Defects）** | Fry (Vocal Fry)（声帯のフライ）, Sibilant (whistling 'S')（歯擦音、S が笛のように鳴る）, Plosive (popping 'P')（破裂音、P がポップする）, Tremulous (shaking)（震える）, Wobbling（揺らぐ）, Quavering（震え声）, Warbling（こぶしのような揺れ）, Slurred（崩れた発音）, Mumbled（もごもごした）, Incoherent（不明瞭な）, Thick（重くこもった） |
+| **声の欠陥（Vocal Defects）** | Fry (Vocal Fry)（ヴォーカルフライ）, Sibilant (whistling 'S')（歯擦音、S が笛のように鳴る）, Plosive (popping 'P')（破裂音、P がポップする）, Tremulous (shaking)（震える）, Wobbling（揺らぐ）, Quavering（震え声）, Warbling（こぶしのような揺れ）, Slurred（崩れた発音）, Mumbled（もごもごした）, Incoherent（不明瞭な）, Thick（重くこもった） |
 
 ## II. 感情、態度、トーン（「サブテキスト」）
 
@@ -79,7 +79,7 @@
 | **悲しい／落ち込んだ（Sad/Depressed）** | Bereft（打ちひしがれた）, Bleak（荒涼とした）, Broken（打ちのめされた）, Crestfallen（意気消沈した）, Dejected（落胆した）, Desolate（荒れ果てた）, Despondent（絶望的な）, Disheartened（気落ちした）, Dismal（陰鬱な）, Doleful（哀れな）, Dour（陰気な）, Forlorn（見捨てられた）, Gloomy（陰気な）, Grief-stricken（悲嘆に暮れた）, Heartbroken（失意の）, Heavy-hearted（心痛む）, Hollow（空虚な）, Hopeless（絶望した）, Lachrymose（涙もろい）, Melancholy（憂鬱な）, Miserable（惨めな）, Morose（不機嫌で陰鬱な）, Mournful（悲しげな）, Pathetic（哀れな）, Pessimistic（悲観的な）, Plaintive（哀調を帯びた）, Regretful（後悔に満ちた）, Remorseful（悔恨の）, Resigned（諦めた）, Somber（もの悲しい）, Sorrowful（悲しみに満ちた）, Tearful（涙ぐんだ）, Tragic（悲劇的な）, Weepy（涙もろい）, Wistful（物思いにふける）, Woe-begone（悲しみに沈んだ） |
 | **幸せ／前向き（Happy/Positive）** | Blissful（至福の）, Buoyant（快活な）, Celebratory（祝祭的な）, Cheerful（陽気な）, Chipper（元気な）, Contented（満足した）, Delightful（楽しい）, Ebullient（沸き立つような）, Ecstatic（有頂天の）, Elated（意気揚々たる）, Encouraging（励みになる）, Energetic（精力的な）, Enthusiastic（熱意のある）, Euphoric（陶酔した）, Exhilarated（爽快な）, Exuberant（あふれる活力の）, Festive（お祭り気分の）, Genial（和やかな）, Giddy（浮かれた）, Gleeful（喜びに満ちた）, Gratified（満ち足りた）, Hearty（快活な）, Hopeful（希望に満ちた）, Jaunty（軽快な）, Jolly（陽気な）, Jovial（快活な）, Joyous（歓喜の）, Jubilant（歓喜に沸く）, Lighthearted（気楽な）, Merry（楽しげな）, Optimistic（楽観的な）, Overjoyed（大喜びの）, Peppy（元気はつらつとした）, Radiant（輝くような）, Rapturous（熱狂的な）, Reassured（安心した）, Sunny（明るい）, Upbeat（前向きな）, Vibrant（活気のある）, Vivacious（生き生きとした）, Zestful（熱意にあふれた） |
 | **恐れ／不安（Fearful/Anxious）** | Agitated（動揺した）, Alarmed（驚いた）, Apprehensive（不安げな）, Cautious（慎重な）, Concerned（気遣う）, Cowardly（臆病な）, Distressed（苦悩した）, Edgy（神経質な）, Faint（かすかな）, Frightened（怖がった）, Guarded（警戒した）, Hesitant（ためらいがちな）, Hysterical（ヒステリックな）, Insecure（不安定な）, Jittery（そわそわした）, Nervous（神経質な）, Panic-stricken（パニックに陥った）, Paralyzed（凍りついた）, Paranoid（疑心暗鬼の）, Petrified（すくみ上がった）, Quaking（震え上がった）, Restless（落ち着かない）, Scared（恐れた）, Shaky（震える）, Skittish（驚きやすい）, Spooked（びっくりした）, Startled（驚いた）, Tense（緊張した）, Terrified（恐怖に駆られた）, Timid（臆病な）, Trembling（震える）, Uneasy（不安な）, Unsettled（落ち着かない）, Wary（用心深い）, Worried（心配した） |
-| **穏やか／中立（Calm/Neutral）** | Ambivalent（両義的な）, Apathetic（無関心な）, Balanced（バランスの取れた）, Bland（平板な）, Blas&eacute;（斜に構えた）, Bored（退屈した）, Casual（何気ない）, Collected（落ち着いた）, Composed（沈着な）, Cool（冷静な）, Detached（距離を置いた）, Dispassionate（冷静な）, Dull（鈍い）, Easygoing（気さくな）, Equable（穏やかな）, Even-tempered（気の穏やかな）, Flat（平板な）, Imperturbable（動じない）, Indifferent（無関心な）, Laid-back（くつろいだ）, Listless（無気力な）, Matter-of-fact（事務的な）, Measured（節度のある）, Mediocre（平凡な）, Mild（穏やかな）, Moderate（適度な）, Monotone（単調な）, Nonchalant（平然とした）, Objective（客観的な）, Pacifistic（平和主義的な）, Passive（受動的な）, Peaceful（平和な）, Phlegmatic（冷淡な）, Placid（穏やかな）, Relaxed（くつろいだ）, Serene（安らかな）, Steady（安定した）, Stoic（ストイックな）, Tranquil（静かな）, Unemotional（感情のない）, Unflappable（動じない） |
+| **穏やか／中立（Calm/Neutral）** | Ambivalent（両義的な）, Apathetic（無関心な）, Balanced（バランスの取れた）, Bland（平板な）, Blas&eacute;（斜に構えた）, Bored（退屈した）, Casual（何気ない）, Collected（落ち着いた）, Composed（沈着な）, Cool（冷静な）, Detached（距離を置いた）, Dispassionate（冷静な）, Dull（鈍い）, Easygoing（気さくな）, Equable（穏やかな）, Even-tempered（気の穏やかな）, Flat（平板な）, Imperturbable（動じない）, Indifferent（無関心な）, Laid-back（くつろいだ）, Listless（無気力な）, Matter-of-fact（事務的な）, Measured（節度のある）, Mediocre（平凡な）, Mild（穏やかな）, Moderate（適度な）, Monotone（単調な）, Nonchalant（平然とした）, Objective（客観的な）, Pacifistic（平和主義的な）, Passive（受動的な）, Peaceful（平和な）, Phlegmatic（冷静で鈍重な）, Placid（穏やかな）, Relaxed（くつろいだ）, Serene（安らかな）, Steady（安定した）, Stoic（ストイックな）, Tranquil（静かな）, Unemotional（感情のない）, Unflappable（動じない） |
 | **情愛／親密（Affectionate/Intimate）** | Adoring（愛情深い）, Amorous（色っぽい）, Caring（思いやりのある）, Cherishing（慈しむ）, Comforting（慰めるような）, Compassionate（思いやりのある）, Coquettish（なまめかしい）, Cuddly（抱きしめたくなる）, Doting（甘やかす）, Endearing（愛らしい）, Fond（好意的な）, Gentle（優しい）, Intimate（親密な）, Loving（愛情に満ちた）, Maternal（母性的な）, Nurturing（育むような）, Paternal（父性的な）, Protective（守るような）, Romantic（ロマンチックな）, Seductive（誘惑的な）, Sensual（官能的な）, Soft（柔らかな）, Sultry（色っぽく低い）, Sweet（甘い）, Sympathetic（同情的な）, Tender（優しい）, Touching（胸を打つ）, Warm（温かな）, Yearning（切望する） |
 | **知的／上から目線（Intellectual/Superior）** | Analytical（分析的な）, Arrogant（傲慢な）, Authoritative（権威ある）, Condescending（見下すような）, Critical（批判的な）, Cynical（皮肉な）, Didactic（説教くさい）, Dignified（威厳のある）, Dry（乾いた）, Educated（教養のある）, Erudite（博学な）, Haughty（高慢な）, Informative（情報的な）, Inquisitive（詮索好きな）, Instructional（指導的な）, Knowledgeable（知識豊富な）, Lofty（高踏的な）, Logical（論理的な）, Patronizing（恩着せがましい）, Pedantic（学者ぶった）, Philosophical（哲学的な）, Pompous（尊大な）, Practical（実用的な）, Pragmatic（現実的な）, Precise（正確な）, Pretentious（気取った）, Professional（プロ的な）, Rational（理性的な）, Sagacious（賢明な）, Sarcastic（皮肉な）, Sardonic（冷笑的な）, Satirical（風刺的な）, Scholarly（学者然とした）, Skeptical（懐疑的な）, Smart（利発な）, Snobbish（俗物ぶった）, Sophisticated（洗練された）, Supercilious（横柄な）, Superior（高慢な）, Thoughtful（思慮深い）, Wise（賢明な）, Wry（苦笑いの） |
 | **遊び心／風変わり（Playful/Quirky）** | Bantering（からかいの）, Cheeky（生意気な）, Childish（子どもっぽい）, Clownish（道化じみた）, Droll（おかしみのある）, Eccentric（風変わりな）, Facetious（冗談めかした）, Fanciful（空想的な）, Flippant（軽薄な）, Flirty（色っぽくからかう）, Foolish（愚かな）, Goofy（おどけた）, Humorous（ユーモラスな）, Impish（いたずらな）, Ironic（アイロニカルな）, Irreverent（不敬な）, Jocular（おどけた）, Kooky（変わり者の）, Mischievous（いたずら好きな）, Mocking（あざけるような）, Offbeat（型破りな）, Playful（遊び心のある）, Prankish（いたずらな）, Quirky（風変わりな）, Rascally（いたずらな）, Ridiculous（ばかげた）, Sassy（生意気な）, Saucy（生意気で大胆な）, Silly（おどけた）, Snarky（辛辣な）, Teasing（からかうような）, Tongue-in-cheek（冗談めかした）, Whimsical（気まぐれな）, Witty（機知に富んだ）, Zany（奇想天外な） |
@@ -114,7 +114,7 @@
 | **Girl/Guy Next Door（隣の女の子／男の子）** | 親しみやすい、友好的、中流、信頼できる、普通の、安心できる |
 | **Trusted Advisor（信頼できる助言者）** | 医師、弁護士、親、ファイナンシャルプランナー、知識豊富、穏やか |
 | **Cool Parent（クールな親）** | 現代的、流行に敏感、厳しくない、理解がある、「Disney Mom/Dad」 |
-| **The Millennial/Gen Z（ミレニアル／Z 世代）** | 声のフライ、上がり調子、くだけた、皮肉的、技術に詳しい、速い、アイロニー |
+| **The Millennial/Gen Z（ミレニアル／Z 世代）** | ヴォーカルフライ、上がり調子、くだけた、皮肉的、技術に詳しい、速い、アイロニー |
 | **Promo Voice（予告編の声）** | ざらついた、低い、唸る、強烈、ささやく、大げさ、映画の予告編 |
 | **Corporate/Industrial（企業／産業向け）** | 明瞭、歯切れよい、プロ的、中立的、情報的、自信がある |
 | **Hard Sell（ハードセル）** | 大きな音量、高いエネルギー、切迫、叫ぶ、「Car Dealer」、攻撃的 |
@@ -138,7 +138,7 @@
 | **Eat the Mic（マイクに食いつく）** | 近接効果のためにマイクに非常に近づく（深く親密な低音） |
 | **Guide Track（ガイドトラック）** | 録音済みの音声や映像の参照のタイミングに合わせる |
 | **Lay Out（休ませる）** | ある区間で話すのをやめる、間を置く |
-| **Lead-in（助走）** | 最初の行の前に、役に入るため無言で言う文 |
+| **Lead-in（助走）** | 最初の行の前に、役に入るために声に出さずに言う文 |
 | **Level（レベル合わせ）** | マイクのゲインを決めるために本番の音量で読む |
 | **Lift（リフト）** | 明るく、または音程を少し上げる。しばしば広告の末尾で |
 | **Pick-up（追加録り）** | 特定の 1 文やフレーズだけを録音する |
@@ -152,7 +152,7 @@
 | **Throw Away（流す）** | 行を強調しない。重要でない、あるいは何気なく聞こえるようにする |
 | **Time（尺合わせ）** | 厳密な長さ（たとえばちょうど 29.5 秒）に合わせて速めたり遅めたりする |
 | **Wild Line（ワイルドライン）** | 台本の流れから離れて別に録る行（叫び、笑い、うなり） |
-| **Walla（ワラ）** | 一群で演じる背景の群衆のざわめき |
+| **Walla（ウォーラ、ガヤ）** | 一群で演じる背景の群衆のざわめき |
 
 ## VI. 拡張された次元のリファレンス
 
@@ -166,7 +166,7 @@
 | **質感（Texture）** | Silky（絹のような）, Velvety（ビロードのような）, Honeyed（蜂蜜のような）, Mellifluous（甘く流麗な）, Buttery（バターのような）, Creamy（クリーミーな）, Lush（豊潤な）, Liquid（流れるような）, Orotund（朗々とした）, Resonant（よく響く） |
 | **ざらつき（Grit）** | Gravelly（ざらついた）, Raspy（かすれて耳障りな）, Smoky（煙をまとったような）, Husky（ハスキーな）, Guttural（喉の奥から出る）, Scratchy（ひっかくような）, Coarse（粗い）, Croaking（カエルの鳴き声のような）, Grating（耳をこするような）, Dry（乾いた）, Cracked（ひび割れた）, Sandpaper（紙やすりのような）, Whiskey-soaked（酒に焼かれた）, Growling（唸るような）, Gruff（ぶっきらぼうな）, Hoarse（しわがれた）, Ragged（ぼろ切れのような）, Raw（生々しい）, Rusty（錆びついた）, Strained（張り詰めた）, Throaty（喉に響く） |
 | **明るさ／重さ（Brightness/Weight）** | Airy（空気感のある）, Breathy（息混じりの）, Feathery（羽のような）, Thin（細い）, Reedy（葦のような）, Tinny（ブリキのような）, Piercing（突き刺さるような）, Shrill（甲高い）, Piping（笛のような）, Wispy（かすかな）, Fluting（フルートのような）, Chirpy（小鳥のような）, Squeaky（キーキーいう）, Metallic（金属的な）, Brittle（硬く割れやすい） |
-| **温度（Temperature）** | Warm（温かな）, Sunny（明るい）, Nurturing（育むような）, Genial（和やかな）, Toast-like（焼きたてのような）, Cool（冷静な）, Detached（距離を置いた）, Clinical（臨床的な）, Crisp（歯切れのよい）, Distant（遠い）, Icy（氷のような）, Steel（鋼のような） |
+| **温度（Temperature）** | Warm（温かな）, Sunny（明るい）, Nurturing（育むような）, Genial（和やかな）, Toast-like（トーストのような、温かみのある）, Cool（冷静な）, Detached（距離を置いた）, Clinical（臨床的な）, Crisp（歯切れのよい）, Distant（遠い）, Icy（氷のような）, Steel（鋼のような） |
 
 ### 感情（心理的な意図）
 
@@ -185,7 +185,7 @@
 |--------|-------|
 | **音域（Range）** | Bass-heavy（低音の強い）, Mid-range（中音域）, High-frequency（高周波）, Falsetto（裏声）, Head-voice（頭声）, Chest-voice（胸声） |
 | **音の動き（Movement）** | Uptalk（上昇調：音程が上がり、不確かさを示す）, Down-talk（下降調：音程が下がり、終結や権威を示す）, Singsong（歌うように：童謡のような上下）, Flat/Monotone（平板／単調：変化なし）, Modulated（変調：制御された音程の変化） |
-| **発声区（Register）** | Vocal Fry（声帯のフライ、ぎしぎしした声）, Nasal（鼻にかかる）, Twangy（鼻音の強い）, Resonance（共鳴）, Vibrato（ビブラート）, Tremolo（トレモロ） |
+| **発声区（Register）** | Vocal Fry（ヴォーカルフライ、ぎしぎしした声）, Nasal（鼻にかかる）, Twangy（鼻音の強い）, Resonance（共鳴）, Vibrato（ビブラート）, Tremolo（トレモロ） |
 
 ### 演技と仕組み（テンポと明瞭さ）
 
@@ -236,7 +236,7 @@ VoiceDesign のモデルが声の説明のプロンプトをどう解釈する�
 
 | 方針 | 一貫性 | 主な観察 |
 |----------|------------|-----------------|
-| **Anatomy** | 最良（男性）、不良（女性） | 物理的な説明はモデルに具体的な音響の目標を与える。女性の "light soprano, airy" は高すぎ、細すぎになった。 |
+| **Anatomy** | 良好（男性）、不良（女性） | 物理的な説明はモデルに具体的な音響の目標を与える。女性の "light soprano, airy" は高すぎ、細すぎになった。 |
 | **Persona** | 可変 | 類型が声の種類を強く示す場合（若い記者 → 速く甲高い）は効く。曖昧な場合（祖父 → 性別が入れ替わる）は失敗する。 |
 | **Technical** | 低〜中 | モデルは音声工学の用語を部分的に理解するが、確実ではない。 |
 | **Emotion** | 低 | 抽象的すぎる。「calm」や「warm」がどう響くかの物理的な手がかりがない。 |
