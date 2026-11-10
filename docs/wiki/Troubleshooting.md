@@ -16,6 +16,37 @@ Start with the logs. They almost always name the problem:
 The README's [Troubleshooting](../../README.md#troubleshooting) section covers the launcher (Pinokio
 not reaching "Open Web UI"). This page covers the rest.
 
+## Books and saves
+
+### A saved book will not open after a crash
+
+Loading or saving a book replaces several files at once, so the app journals the switch.
+An interrupted switch is finished or rolled back the next time the book is opened. If the
+files no longer match the journal, the app refuses to open the book rather than guess, and
+the Home page names the commands to try. In a terminal in the Alexandria folder, with the
+app's Python:
+
+```bash
+python app/book_state_recovery.py inspect --hash
+python app/book_state_recovery.py finish
+python app/book_state_recovery.py quarantine --accept-current-files
+```
+
+- `inspect` is read-only: the pending journal, each file's expected and current state, the
+  working folder, every set-aside folder, and any crash leftovers. It reports names and
+  sizes; it reclaims nothing.
+- `finish` runs the same recovery the app runs before it opens a book.
+- `quarantine --accept-current-files` is the last resort. It keeps the book's files exactly
+  as they are now and moves the journal and working folder into a
+  `.book-switch-quarantine-*` folder. Nothing is deleted.
+- A journal written by an older version of the app needs
+  `migrate-legacy --trust-journal-hashes`.
+
+Leave `.book-switch-*` folders alone until you are sure no switch is running; a folder that
+a crash left before its journal exists is never reclaimed automatically. See [Interrupted
+book saves and switches](../../docs/guides/BOOK_SWITCH_RECOVERY.md) for each crash state,
+the recovery summary, and exit codes.
+
 ## Script generation
 
 ### Generation fails or produces garbage

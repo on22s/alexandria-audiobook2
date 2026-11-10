@@ -104,6 +104,14 @@ curl http://127.0.0.1:4200/api/lora/models
 
 [プロジェクト、行の定義、個別・一括生成、学習データへの保存の API（英語）](API-Reference.md#dataset-builder)を参照してください。メタデータ変更と行更新は既存の生成状態・音声を保持します。`ref_index` で学習用の参照を選びます。Emotion は音声生成のプロンプトで、学習ラベルではありません。
 
+## 本の復旧
+
+```bash
+curl http://127.0.0.1:4200/api/book/recovery
+```
+
+読み取り専用です。`status`（`clean` / `pending` / `migration_required` / `unreadable`）、ジャーナルの段階、他の処理が本のロックを保持しているか、退避フォルダーとその受領書の状態、クラッシュの残骸の件数とバイト数、試す順序のコマンドを返します。何も変更しません。各状態の意味は[中断した本の保存と切り替え](../../docs/guides/BOOK_SWITCH_RECOVERY_JA.md)を参照してください。
+
 ## 追加の例
 
 [保存した台本](API-Reference.md#saved-scripts)、[Designer](API-Reference.md#voice-designer)、[Python](API-Reference.md#a-whole-book-from-python)、[JavaScript](API-Reference.md#the-same-from-javascript)の例は英語の正本にあります。新しい機能の正確なリクエスト契約は実行中の `/docs` と `/openapi.json` でも確認してください。

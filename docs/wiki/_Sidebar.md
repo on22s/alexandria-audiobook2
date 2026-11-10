@@ -50,3 +50,7 @@
 - [LoRA 学習](Training-Guide-JA.md)
 - [トラブルシューティング](Troubleshooting-JA.md)
 - [API ガイド](API-Reference-JA.md)
+
+**中文**
+
+- [故障排查](Troubleshooting-CN.md)

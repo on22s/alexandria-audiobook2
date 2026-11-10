@@ -203,7 +203,17 @@ curl -X POST http://127.0.0.1:4200/api/scripts/save \
 
 curl -X POST http://127.0.0.1:4200/api/scripts/load \
   -H "Content-Type: application/json" -d '{"name": "my-novel"}'
+
+# read-only: an interrupted save or switch, set-aside evidence, and the
+# recovery commands (the app shows the same summary on its Home page)
+curl http://127.0.0.1:4200/api/book/recovery
 ```
+
+`GET /api/book/recovery` changes nothing. It reports `status` (`clean`, `pending`,
+`migration_required` or `unreadable`), the journal phase, whether another operation holds
+the book lock, the set-aside folders and their receipt state, crash leftovers as counts and
+bytes, and the commands to run in order. See [Interrupted book saves and
+switches](../../docs/guides/BOOK_SWITCH_RECOVERY.md).
 
 ## Voice Designer
 

@@ -1,3 +1,5 @@
+[English](BOOK_SWITCH_RECOVERY.md) | [中文](BOOK_SWITCH_RECOVERY_CN.md) | [日本語](BOOK_SWITCH_RECOVERY_JA.md)
+
 # Interrupted book saves and switches
 
 Loading a saved book, or saving the active one, replaces several files at once:

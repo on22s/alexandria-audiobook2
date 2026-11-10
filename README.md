@@ -1076,6 +1076,29 @@ Source repair on upload fixes common encoding problems. For a book that still sh
 run the repair preview from Saved Scripts. Pictographic kana and other unspeakable
 characters are deliberately removed before the TTS (goal 5.1).
 
+### A saved book will not open after a crash
+
+Loading or saving a book replaces several files at once, so the app journals the switch.
+An interrupted switch is finished or rolled back the next time the book is opened. If the
+files no longer match the journal, the app refuses to open the book rather than guess, and
+the Home page names the commands to try. In a terminal in the Alexandria folder, with the
+app's Python:
+
+```bash
+python app/book_state_recovery.py inspect --hash
+python app/book_state_recovery.py finish
+python app/book_state_recovery.py quarantine --accept-current-files
+```
+
+`inspect` is read-only and reports the pending journal, each file's expected and current
+state, the working folder, and any crash leftovers. `finish` runs the same recovery the app
+runs. `quarantine --accept-current-files` is the last resort: it keeps the book's files
+exactly as they are now and moves the journal and working folder into a
+`.book-switch-quarantine-*` folder. Nothing is deleted. A journal written by an older
+version of the app needs `migrate-legacy --trust-journal-hashes`. See [Interrupted book
+saves and switches](docs/guides/BOOK_SWITCH_RECOVERY.md) for every crash state and exit
+code.
+
 ## API reference
 
 <details>
@@ -1259,6 +1282,7 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `GET` | `/api/scripts/{name}/repair/content/preview` | preview content repair |
 | `POST` | `/api/scripts/{name}/repair/content/apply` | apply content repair |
 | `DELETE` | `/api/scripts/{name}` | Delete a saved script |
+| `GET` | `/api/book/recovery` | Read-only: an interrupted book switch, set-aside evidence, and the commands that help (#1660) |
 
 #### Voices, personas, aliases (`app/routers/voices.py`)
 

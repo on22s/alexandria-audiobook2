@@ -1980,12 +1980,15 @@ def _exchange(source, destination, *, anchor, anchor_identity=None,
         raise diverged
 
 
-# --- #1660 protocol v4: one exchange per replaced file ---------------------
-# A v4 journal is written only when every row replaces an existing target.
-# The forward swap turns T=O, W/new-i=N into T=N, W/new-i=O: the backup and
-# the publication are one syscall, so an uncommitted row is one exchange away
-# from the book's previous state. After publication the slot roles rotate, so
-# recovery identifies objects by identity, never by slot name.
+# --- #1660 protocol v4: one exchange per published file -------------------
+# On a filesystem that supports the exchange, a v4 journal is written when any
+# row replaces, removes or creates a target; only a transaction that moves
+# nothing stays v3 (see apply_book_state_locked). A replacement turns
+# T=O, W/new-i=N into T=N, W/new-i=O. A removal and a creation exchange the
+# target with a same-type placeholder, so the backup and the publication are
+# one syscall and an uncommitted row is one exchange away from the book's
+# previous state. After publication the slot roles rotate, so recovery
+# identifies objects by identity, never by slot name.
 _EXCHANGE_JOURNAL_VERSION = 4
 
 
