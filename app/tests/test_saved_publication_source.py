@@ -18,6 +18,7 @@ from routers import scripts_library as routes
 from tests import test_saved_book_publication as fixtures
 from tests.test_upload_publication_source import epub, TEXT
 from tests.test_m4b_cover_admission import image_bytes
+from tests.test_support import intercept_book_publications
 from book_state_transaction import apply_book_input_selection, get_book_operation_token
 from script_selection_binding import BINDING_NAME, capture_generation_selection, publish_generated_script
 
@@ -146,17 +147,15 @@ class SavedPublicationSourceTests(unittest.TestCase):
             before = {p:p.read_bytes() for p in (saved, binding, voice, registry, publication)}
             kwargs = {'voice_config_path':str(voice), 'voice_mapping':{'Alias':'Canonical'},
                       'remap_voice_config':_remapped_voice_config, 'registry_staging':stage}
-            move = books._move; failed = False
-            def fail_voice(src, dst, **kwargs):
-                nonlocal failed
-                if not failed and Path(dst) == voice and 'new-' in str(src):
-                    failed = True
+            failed = []
+            def fail_voice(target):
+                if target == voice and not failed:
+                    failed.append(target)
                     raise OSError('injected saved review failure')
-                return move(src, dst, **kwargs)
-            with patch.object(books, '_move', side_effect=fail_voice):
+            with intercept_book_publications(books, before=fail_voice):
                 with self.assertRaisesRegex(OSError, 'injected'):
                     publish_saved_script_edit(str(root), str(root/'scripts'), str(saved), original, edited, **kwargs)
-            self.assertTrue(failed)
+            self.assertEqual([voice], failed)
             self.assertEqual(before, {p:p.read_bytes() for p in before})
             self.assertEqual(1, publish_saved_script_edit(str(root), str(root/'scripts'), str(saved), original, edited, **kwargs))
             self.assertEqual({'Canonical':{'voice':'a'}}, json.loads(voice.read_text()))
@@ -252,13 +251,12 @@ class SavedPublicationSourceTests(unittest.TestCase):
 from pathlib import Path
 import book_state_transaction as books
 from script_selection_binding import publish_saved_script_edit
-root=Path(sys.argv[1]);saved=root/'scripts/book.json';old=saved.read_bytes();move=books._move
-def die(src,dst, **kwargs):
- result=move(src,dst, **kwargs)
- if Path(dst)==saved: os._exit(77)
- return result
-books._move=die
-publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"speaker":"Old","text":"Edited book."}]')
+from tests.test_support import intercept_book_publications
+root=Path(sys.argv[1]);saved=root/'scripts/book.json';old=saved.read_bytes()
+def die(target):
+ if Path(target)==saved: os._exit(77)
+with intercept_book_publications(books,after=die):
+ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"speaker":"Old","text":"Edited book."}]')
 '''
         with self.fixture() as (root, client):
             saved=root/'scripts/book.json'; Path(get_publication_source_path(str(saved))).unlink()
@@ -633,19 +631,19 @@ publish_saved_script_edit(str(root),str(root/'scripts'),str(saved),old,b'[{"spea
 from pathlib import Path
 import core,book_state_transaction as books
 from routers import scripts_library as routes
+from tests.test_support import intercept_book_publications
 root=Path(sys.argv[1])
 for module in (routes,core):
  module.DATA_DIR=str(root);module.SCRIPTS_DIR=str(root/'scripts')
  module.SCRIPT_PATH=str(root/'annotated_script.json');module.VOICE_CONFIG_PATH=str(root/'voice_config.json')
  module.CHUNKS_PATH=str(root/'chunks.json');module.AUDIOBOOK_PATH=str(root/'book.mp3');module.M4B_PATH=str(root/'book.m4b')
-move=books._move;count=0
-def die(source,destination, **kwargs):
+count=0
+def die(target):
  global count
- result=move(source,destination, **kwargs);count+=1
+ count+=1
  if count==3:os._exit(77)
- return result
-books._move=die
-routes._save_script_sync(routes.ScriptSaveRequest(name='bound'))
+with intercept_book_publications(books,after=die):
+ routes._save_script_sync(routes.ScriptSaveRequest(name='bound'))
 '''
         with self.fixture() as (root, client):
             source = root / 'uploads/source.txt'
