@@ -1355,23 +1355,39 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertTrue((root / books.JOURNAL).exists())
 
     def test_recovery_preserves_recreated_directory_backup(self):
+        v4 = self._book_protocol == 'v4'
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / 'old-directory'
             target.mkdir()
-            move = books._move
-            def interrupt_after_backup(source, destination, **kwargs):
-                result = move(source, destination, **kwargs)
-                if Path(destination).name == 'old-0':
-                    raise OSError('fixture backup interruption')
-                return result
-            with books.ensure_book_state(root), \
-                 patch.object(books, '_move', side_effect=interrupt_after_backup), \
-                 patch.object(books, 'recover_book_state_locked', side_effect=SystemExit('fixture process exit')), \
-                 self.assertRaises(SystemExit):
-                books.apply_book_state_locked(root, {}, ['old-directory'])
+            if v4:
+                # v4 has no separate backup move: the removal's exchange with
+                # its workspace placeholder is the backup, so crash right after
+                # it. The original directory then sits in the removal's slot.
+                def interrupt_after_exchange(published):
+                    raise SystemExit('fixture process exit')
+                with books.ensure_book_state(root), \
+                     intercept_book_publications(books, after=interrupt_after_exchange), \
+                     patch.object(books, 'recover_book_state_locked',
+                                  side_effect=SystemExit('fixture process exit')), \
+                     self.assertRaises(SystemExit):
+                    books.apply_book_state_locked(root, {}, ['old-directory'])
+            else:
+                move = books._move
+                def interrupt_after_backup(source, destination, **kwargs):
+                    result = move(source, destination, **kwargs)
+                    if Path(destination).name == 'old-0':
+                        raise OSError('fixture backup interruption')
+                    return result
+                with books.ensure_book_state(root), \
+                     patch.object(books, '_move', side_effect=interrupt_after_backup), \
+                     patch.object(books, 'recover_book_state_locked',
+                                  side_effect=SystemExit('fixture process exit')), \
+                     self.assertRaises(SystemExit):
+                    books.apply_book_state_locked(root, {}, ['old-directory'])
             journal = json.loads((root / books.JOURNAL).read_text())
-            backup = root / journal['workspace'] / 'old-0'
+            backup = get_book_original_slot(root)
+            self.assertEqual(root / journal['workspace'] / backup.name, backup)
             previous = backup.stat()
             shutil.rmtree(backup)
             backup.mkdir()
@@ -1542,41 +1558,86 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             self.assertEqual({'script.json':b'new script','voice.json':b'new voices','state.json':b'new identity','new.json':b'new only'},self.snapshot(root))
 
     def test_move_failure_restores_exact_previous_book_exports_and_checkpoint(self):
-        for failure_at in range(1,11):
-            with self.subTest(move=failure_at),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);originals=self.prepare(root);move=books._move;counter=0
-                def fail_once(source,destination, **kwargs):
-                    nonlocal counter
-                    counter+=1
-                    if counter==failure_at:raise OSError('fixture publication disk full')
-                    return move(source,destination, **kwargs)
-                with patch.object(books,'_move',side_effect=fail_once):
-                    with self.assertRaisesRegex(OSError,'publication disk full'):self.switch(root)
-                self.assertEqual(originals,self.snapshot(root))
+        # Fail every mutation the publication makes, in turn, and require the
+        # exact previous book back. v3 moves an existing row aside and then
+        # publishes it (2 moves per replacement) and creates a file with one:
+        # 10 move points. v4 publishes each row with one exchange, plus a
+        # target-placeholder create for the creation and one delete per
+        # removal: 7 + 1 + 3 = 11 points (#1660 step 4). The count is pinned so
+        # a changed protocol fails here instead of silently testing less.
+        from contextlib import ExitStack
+        v4 = self._book_protocol == 'v4'
+        seams = (('_exchange', '_create_book_placeholder_at',
+                  '_delete_book_placeholder_at') if v4 else ('_move',))
+        points = 11 if v4 else 10
+
+        def run(root, failure_at):
+            counter = {'count': 0}
+            def wrap(original):
+                def call(*args, **kwargs):
+                    counter['count'] += 1
+                    if counter['count'] == failure_at:
+                        raise OSError('fixture publication disk full')
+                    return original(*args, **kwargs)
+                return call
+            with ExitStack() as stack:
+                for name in seams:
+                    stack.enter_context(patch.object(
+                        books, name, side_effect=wrap(getattr(books, name))))
+                if failure_at is None:
+                    self.switch(root)
+                else:
+                    with self.assertRaisesRegex(OSError, 'publication disk full'):
+                        self.switch(root)
+            return counter['count']
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.prepare(root)
+            self.assertEqual(points, run(root, None))
+        for failure_at in range(1, points + 1):
+            with self.subTest(publication=failure_at), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                originals = self.prepare(root)
+                run(root, failure_at)
+                self.assertEqual(originals, self.snapshot(root))
 
     def test_process_death_recovers_idempotently_in_fresh_process(self):
-        worker='''
+        worker = '''
 import os,sys
 from pathlib import Path
 import book_state_transaction as books
-root=Path(sys.argv[1]);boundary=sys.argv[2];point=int(sys.argv[3]);count=0
-original=books._move if boundary=='move' else books._save_journal
-def exit_after(*args,**kwargs):
- global count
- result=original(*args,**kwargs);count+=1
- if count==point:os._exit(77)
- return result
-if boundary=='move':books._move=exit_after
-else:books._save_journal=exit_after
-with books.ensure_book_state(str(root)):
- books.apply_book_state_locked(str(root),{'script.json':b'new script','voice.json':b'new voices','state.json':b'new identity','new.json':b'new only'},['chapters','export.mp3','checkpoint.json'])
+import source_upload_publication as publication
+root=Path(sys.argv[1]);boundary=sys.argv[2];point=int(sys.argv[3]);protocol=sys.argv[4];count=0
+if protocol=='v3':
+ publication.probe_exchange_support=lambda _fd:False
+def make(native):
+ def exit_after(*args,**kwargs):
+  global count
+  result=native(*args,**kwargs);count+=1
+  if count==point:os._exit(77)
+  return result
+ return exit_after
+def run():
+ with books.ensure_book_state(str(root)):
+  books.apply_book_state_locked(str(root),{'script.json':b'new script','voice.json':b'new voices','state.json':b'new identity','new.json':b'new only'},['chapters','export.mp3','checkpoint.json'])
+if boundary=='journal':
+ books._save_journal=make(books._save_journal);run()
+else:
+ # v4 publishes each row with one exchange and a removal through a
+ # target-placeholder create/delete; v3 publishes it with moves.
+ seams=['_exchange','_create_book_placeholder_at','_delete_book_placeholder_at'] if protocol=='v4' else ['_move']
+ for name in seams:setattr(books,name,make(getattr(books,name)))
+ run()
 '''
         recovery="import sys;from book_state_transaction import ensure_book_state;\nwith ensure_book_state(sys.argv[1]):pass"
-        cases=[('move',n) for n in range(1,11)]+[('journal',1),('journal',2)]
+        v4 = self._book_protocol == 'v4'
+        cases = ([('move', n) for n in range(1, 12)] if v4
+                 else [('move', n) for n in range(1, 11)]) + [('journal', 1), ('journal', 2)]
         for boundary,point in cases:
             with self.subTest(boundary=boundary,point=point),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);originals=self.prepare(root)
-                result=subprocess.run([sys.executable,'-c',worker,tmp,boundary,str(point)],capture_output=True,text=True,timeout=15)
+                result=subprocess.run([sys.executable,'-c',worker,tmp,boundary,str(point),self._book_protocol],capture_output=True,text=True,timeout=15)
                 self.assertEqual(77,result.returncode,result.stderr)
                 for repeat in range(2):
                     result=subprocess.run([sys.executable,'-c',recovery,tmp],capture_output=True,text=True,timeout=15)
@@ -1585,17 +1646,31 @@ with books.ensure_book_state(str(root)):
                 self.assertEqual(expected,self.snapshot(root))
 
     def test_corrupt_original_fails_before_restoring_any_artifact(self):
+        v4 = self._book_protocol == 'v4'
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);self.prepare(root);move=books._move;counter=0
-            def leave_pending(source,destination, **kwargs):
-                nonlocal counter
-                move(source,destination, **kwargs);counter+=1
-                if counter==3:raise SystemExit('fixture stop')
-            with patch.object(books,'_move',side_effect=leave_pending),patch.object(books,'recover_book_state_locked'):
-                with self.assertRaises(SystemExit):self.switch(root)
-            data=json.loads((root/books.JOURNAL).read_text());original=root/data['workspace']/'old-0';original.write_bytes(b'corrupt snapshot')
+            root=Path(tmp);self.prepare(root)
+            def stop(target):
+                raise SystemExit('fixture stop')
+            if v4:
+                with intercept_book_publications(books,after=stop),patch.object(books,'recover_book_state_locked'):
+                    with self.assertRaises(SystemExit):self.switch(root)
+            else:
+                move=books._move;counter=0
+                def leave_pending(source,destination, **kwargs):
+                    nonlocal counter
+                    move(source,destination, **kwargs);counter+=1
+                    if counter==3:raise SystemExit('fixture stop')
+                with patch.object(books,'_move',side_effect=leave_pending),patch.object(books,'recover_book_state_locked'):
+                    with self.assertRaises(SystemExit):self.switch(root)
+            original=get_book_original_slot(root,0)
+            original.write_bytes(b'corrupt snapshot')
             before=self.snapshot(root)
-            with self.assertRaisesRegex(ValueError,'missing or changed'):
+            # v4 classifies the slot as unowned (the target proves the
+            # replacement, its original is gone) and refuses a mixed finish;
+            # v3 reaches the backup validator first. Both refuse before
+            # restoring anything, which is the promise.
+            expected=('cannot be completed consistently' if v4 else 'missing or changed')
+            with self.assertRaisesRegex(ValueError,expected):
                 with books.ensure_book_state(tmp):pass
             self.assertEqual(before,self.snapshot(root))
 
@@ -1617,16 +1692,29 @@ with books.ensure_book_state(str(root)):
 
 
     def test_changed_replacement_refuses_recovery_before_deleting_any_artifact(self):
+        v4 = self._book_protocol == 'v4'
         worker = """
 import os,sys
 from pathlib import Path
 import book_state_transaction as books
-root=Path(sys.argv[1]);move=books._move;count=0
-def crash_after_publish(source,destination, **kwargs):
- global count
- move(source,destination, **kwargs);count+=1
- if count==10:os._exit(77)
-books._move=crash_after_publish
+import source_upload_publication as publication
+root=Path(sys.argv[1]);protocol=sys.argv[2];count=0
+if protocol=='v3':
+ publication.probe_exchange_support=lambda _fd:False
+if protocol=='v4':
+ native=books._exchange
+ def stop_after(*args,**kwargs):
+  global count
+  native(*args,**kwargs);count+=1
+  if count==2:os._exit(77)
+ books._exchange=stop_after
+else:
+ native=books._move
+ def stop_after(*args,**kwargs):
+  global count
+  native(*args,**kwargs);count+=1
+  if count==10:os._exit(77)
+ books._move=stop_after
 with books.ensure_book_state(str(root)):
  books.apply_book_state_locked(str(root),{'script.json':b'new script','voice.json':b'new voices','state.json':b'new identity','new.json':b'new only'},['chapters','export.mp3','checkpoint.json'])
 """
@@ -1635,20 +1723,31 @@ with books.ensure_book_state(str(root)):
             with self.subTest(edited=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 self.prepare(root)
-                result = subprocess.run([sys.executable, '-c', worker, tmp],
+                result = subprocess.run([sys.executable, '-c', worker, tmp, self._book_protocol],
                                         capture_output=True, text=True, timeout=15)
                 self.assertEqual(77, result.returncode, result.stderr)
                 journal = json.loads((root / books.JOURNAL).read_bytes())
                 self.assertEqual('publishing', journal['phase'])
-                workspace = root / journal['workspace']
-                self.assertEqual(b'old script', (workspace / 'old-0').read_bytes())
+                # v3 crashed after its last publication move; v4 after row 1's
+                # exchange. Both leave row 0's original in its proven slot and
+                # the rows up to the crash published.
+                self.assertEqual(b'old script', get_book_original_slot(root, 0).read_bytes())
                 self.assertEqual(b'new script', (root / 'script.json').read_bytes())
-                self.assertEqual(b'new voices' if name == 'voice.json' else b'new only',
-                                 (root / name).read_bytes())
+                if v4:
+                    self.assertEqual(b'new voices', (root / 'voice.json').read_bytes())
+                    self.assertFalse((root / 'new.json').exists())
+                else:
+                    self.assertEqual(b'new voices' if name == 'voice.json' else b'new only',
+                                     (root / name).read_bytes())
                 (root / name).write_bytes(b'human edit after the crash')
                 before = self.snapshot(root)
                 for retry in range(2):
-                    with self.assertRaisesRegex(ValueError, 'Active-book replacement changed; refusing destructive recovery'):
+                    # v3's validator names the changed replacement; v4's
+                    # classification refuses the same file as not ours before
+                    # any target moves. Both are exact, non-weakened promises.
+                    expected = ('A book file changed during the switch' if v4 else
+                                'Active-book replacement changed; refusing destructive recovery')
+                    with self.assertRaisesRegex(ValueError, expected):
                         with books.ensure_book_state(tmp):
                             self.fail('Recovery admitted a book with an edited replacement')
                     # Refusal must preserve all current files, every old backup,
@@ -1692,13 +1791,16 @@ class SavedBookTransactionHttpTests(unittest.TestCase):
                         stack.enter_context(patch.object(lib,name,value))
                     stack.enter_context(patch.object(lib,'_get_saved_book_id',return_value='new-book'))
                     if mode=='move_failure':
-                        move=books._move;count=0
-                        def fail_once(source,destination, **kwargs):
-                            nonlocal count
-                            count+=1
-                            if count==4:raise OSError('fixture load disk full')
-                            return move(source,destination, **kwargs)
-                        stack.enter_context(patch.object(books,'_move',side_effect=fail_once))
+                        # Fail the second row publication on whichever protocol
+                        # publishes it (#1660): after one row changed, so the
+                        # rollback has real work, on every host.
+                        publications = {'count': 0}
+                        def fail_publication(target):
+                            publications['count'] += 1
+                            if publications['count'] == 2:
+                                raise OSError('fixture load disk full')
+                        stack.enter_context(intercept_book_publications(
+                            books, before=fail_publication))
                     client=stack.enter_context(TestClient(app,raise_server_exceptions=False))
                     response=client.post('/api/scripts/load',json={'name':'new'})
                 if mode=='success':
@@ -1952,10 +2054,9 @@ class BookReaderAdmissionTests(unittest.TestCase):
             (saved/'new.voice_config.json').write_bytes(b'{"NEW":{"type":"custom","voice":"Aiden"}}')
             app=FastAPI();app.include_router(lib.router);app.include_router(voices.router)
             paused=threading.Event();release=threading.Event();reader_entered=threading.Event()
-            move=books._move;read=voices._ensure_voice_listing
-            def pause_mid_switch(source,destination, **kwargs):
-                move(source,destination, **kwargs)
-                if destination==active:
+            read=voices._ensure_voice_listing
+            def pause_mid_switch(published):
+                if published==active:
                     paused.set()
                     if not release.wait(5):raise TimeoutError('fixture did not release switch')
             def guarded_read():
@@ -1965,7 +2066,7 @@ class BookReaderAdmissionTests(unittest.TestCase):
                 for module,values in ((lib,{'SCRIPT_PATH':str(active),'VOICE_CONFIG_PATH':str(voice),'DATA_DIR':tmp,'SCRIPTS_DIR':str(saved),'CHUNKS_PATH':str(root/'chunks.json'),'AUDIOBOOK_PATH':str(root/'audiobook.mp3'),'M4B_PATH':str(root/'audiobook.m4b'),'process_state':{}}),(voices,{'SCRIPT_PATH':str(active),'VOICE_CONFIG_PATH':str(voice)})):
                     for name,value in values.items():stack.enter_context(patch.object(module,name,value))
                 stack.enter_context(patch.object(lib,'_get_saved_book_id',return_value='new'))
-                stack.enter_context(patch.object(books,'_move',side_effect=pause_mid_switch))
+                stack.enter_context(intercept_book_publications(books, after=pause_mid_switch))
                 stack.enter_context(patch.object(voices,'_ensure_voice_listing',side_effect=guarded_read))
                 first=stack.enter_context(TestClient(app));second=stack.enter_context(TestClient(app))
                 with ThreadPoolExecutor(max_workers=2) as pool:

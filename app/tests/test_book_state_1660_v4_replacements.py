@@ -191,28 +191,28 @@ class BookStateV4ReplacementTests(unittest.TestCase):
                           for index, name in enumerate(originals)},
                          _snapshot(self.root))
 
-    def test_mixed_transaction_stays_on_v3_and_never_exchanges(self):
+    def test_mixed_transaction_is_v4_and_exchanges_every_row(self):
+        # #1660 step 4 deleted the temporary rule that kept a transaction with
+        # a creation or removal row on v3: every POSIX transaction on an
+        # exchange-capable root is v4, and a removal publishes through a
+        # same-type workspace placeholder.
         originals = self._prepare()
         records, recorder = self._capture_journals()
-        def refuse_exchange(*args, **kwargs):
-            raise AssertionError('a mixed transaction must not exchange')
-        with recorder, patch.object(publication, 'exchange_source_upload_names',
-                                    side_effect=refuse_exchange):
+        with recorder:
             self._apply({'part-0.json': b'new-0'},
                         removals=['part-1.json'])
-        self.assertEqual({3, 3}, {record['version'] for record in records})
+        self.assertEqual([4, 4], [record['version'] for record in records])
         self.assertEqual(b'new-0', (self.root / 'part-0.json').read_bytes())
         self.assertFalse((self.root / 'part-1.json').exists())
 
-    def test_creation_row_keeps_v3_even_when_other_rows_are_replacements(self):
+    def test_creation_row_publishes_through_the_exchange(self):
         self._prepare()
         records, recorder = self._capture_journals()
-        def refuse_exchange(*args, **kwargs):
-            raise AssertionError('a transaction with a creation must not exchange')
-        with recorder, patch.object(publication, 'exchange_source_upload_names',
-                                    side_effect=refuse_exchange):
+        with recorder:
             self._apply({'part-0.json': b'new-0', 'brand-new.json': b'created'})
-        self.assertEqual({3, 3}, {record['version'] for record in records})
+        self.assertEqual({4}, {record['version'] for record in records})
+        self.assertEqual(b'new-0', (self.root / 'part-0.json').read_bytes())
+        self.assertEqual(b'created', (self.root / 'brand-new.json').read_bytes())
 
     def test_unsupported_filesystem_stays_on_v3(self):
         self._prepare()

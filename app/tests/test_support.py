@@ -234,24 +234,28 @@ def assert_book_journal_fenced(case, root, *, content_check=None, expected_messa
     return frozen
 
 
-def get_book_publication_target(source, destination):
+def get_book_publication_target(source, destination, *, exchange=False):
     """-> the target a book publication primitive is replacing, else None.
 
     v3 replaces an existing target with two renames:
     _move(target, workspace/old-i), then _move(workspace/new-i, target).
-    v4 (#1660) replaces it with one primitive:
-    _exchange(target, workspace/new-i).
-    Both protocols stage a row as new-<index> inside a .book-switch-*
-    workspace, so the direction of the call names the same target; tests
-    must intercept that primitive, not one rename of a protocol.
+    v4 (#1660) replaces it with one primitive: _exchange(target,
+    workspace/new-i) for a replacement, _exchange(slot, target) for a
+    creation, and _exchange(target, workspace/old-i) for a removal. Both
+    protocols stage a row as new-<index> inside a .book-switch-* workspace,
+    so the direction of the call names the same target; tests must intercept
+    that primitive, not one rename of a protocol. A v3 backup move
+    (target -> old-i) is not a publication, so only an exchange counts the
+    old-i direction.
     """
     source, destination = Path(source), Path(destination)
-    if (destination.name.startswith('new-')
-            and destination.parent.name.startswith('.book-switch-')):
-        return source            # v4 forward exchange: first name is the target
-    if (source.name.startswith('new-')
-            and source.parent.name.startswith('.book-switch-')):
-        return destination       # v3 publication move: second name is the target
+    in_workspace = lambda path: path.parent.name.startswith('.book-switch-')
+    if destination.name.startswith('new-') and in_workspace(destination):
+        return source            # v4 replacement exchange: first name is the target
+    if source.name.startswith('new-') and in_workspace(source):
+        return destination       # v3 publication move or v4 creation exchange
+    if exchange and destination.name.startswith('old-') and in_workspace(destination):
+        return source            # v4 removal exchange: first name is the target
     return None
 
 
@@ -267,9 +271,9 @@ def intercept_book_publications(module, before=None, after=None):
     a deliberate abort the same target can be seen again.
     """
     original_move, original_exchange = module._move, module._exchange
-    def wrap(original):
+    def wrap(original, exchange):
         def publication(source, destination, **kwargs):
-            target = get_book_publication_target(source, destination)
+            target = get_book_publication_target(source, destination, exchange=exchange)
             if target is not None and before is not None:
                 before(target)
             result = original(source, destination, **kwargs)
@@ -277,8 +281,8 @@ def intercept_book_publications(module, before=None, after=None):
                 after(target)
             return result
         return publication
-    with patch.object(module, '_move', side_effect=wrap(original_move)), \
-            patch.object(module, '_exchange', side_effect=wrap(original_exchange)):
+    with patch.object(module, '_move', side_effect=wrap(original_move, False)), \
+            patch.object(module, '_exchange', side_effect=wrap(original_exchange, True)):
         yield
 
 
@@ -352,13 +356,19 @@ def prepare_book_worker(protocol):
 
 
 def get_book_original_slot(root, index=0):
-    """-> the workspace path holding the replaced original of a pending journal.
+    """-> the workspace path holding a pending journal row's original.
 
-    v3 saves it as old-<index>; v4's exchange leaves it in new-<index>.
+    v3 saves it as old-<index>. v4 rotates the slots: a replacement's or
+    creation's exchange leaves the original at new-<index>, a removal's at
+    old-<index> (#1660 step 4).
     """
     import book_state_transaction as books
     document = json.loads((Path(root) / books.JOURNAL).read_text(encoding='utf-8'))
-    slot = f'new-{index}' if document.get('version') == 4 else f'old-{index}'
+    row = document['entries'][index]
+    if document.get('version') == 4 and row.get('new_sha256') is not None:
+        slot = f'new-{index}'
+    else:
+        slot = f'old-{index}'
     return Path(root) / document['workspace'] / slot
 
 

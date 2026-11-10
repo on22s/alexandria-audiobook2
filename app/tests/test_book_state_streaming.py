@@ -1937,14 +1937,16 @@ print(len(result['entries']))
             folder = root / 'sub'
             folder.mkdir()
             target = folder / 'new.wav'
-            move, swapped = books._move, [False]
-            def swap_parent(source, destination, **kwargs):
-                if Path(destination) == target and not swapped[0]:
+            swapped = [False]
+            def swap_parent(published):
+                # Runs immediately before the row publication on either
+                # protocol, after the pre-checks: the pinned parent descriptor
+                # must keep the write inside the real directory (#1660).
+                if published == target and not swapped[0]:
                     folder.rename(root / 'original-sub')
                     folder.symlink_to(other, target_is_directory=True)
                     swapped[0] = True
-                move(source, destination, **kwargs)
-            with patch.object(books, '_move', side_effect=swap_parent):
+            with intercept_book_publications(books, before=swap_parent):
                 with books.ensure_book_state(root), self.assertRaises((ValueError, OSError)):
                     books.apply_book_state_locked(root, {'sub/new.wav': stream(b'private')}, [],
                                                   stream_byte_limit=100)
@@ -1959,23 +1961,33 @@ print(len(result['entries']))
             root, other = Path(tmp), Path(outside)
             folder = root / 'sub'
             folder.mkdir()
-            original_move, swapped = upload.move_source_upload_exclusively, [False]
+            # v3 publishes with the raw exclusive move; v4 with the raw
+            # exchange. Relocate the parent in between the anchored open and
+            # the syscall on whichever one this protocol uses (#1660).
+            if self._book_protocol == 'v4':
+                seam, original_call = 'exchange_source_upload_names', upload.exchange_source_upload_names
+            else:
+                seam, original_call = ('move_source_upload_exclusively',
+                                       upload.move_source_upload_exclusively)
+            swapped = [False]
             def relocate_after_open(source, destination, **kwargs):
                 if destination == 'new.wav' and not swapped[0]:
                     folder.rename(other / 'relocated')
                     folder.symlink_to(other / 'relocated', target_is_directory=True)
                     swapped[0] = True
-                original_move(source, destination, **kwargs)
-            with patch.object(upload, 'move_source_upload_exclusively', side_effect=relocate_after_open):
+                original_call(source, destination, **kwargs)
+            with patch.object(upload, seam, side_effect=relocate_after_open):
                 with books.ensure_book_state(root), self.assertRaises((ValueError, OSError)):
                     books.apply_book_state_locked(root, {'sub/new.wav': stream(b'private')}, [],
                                                   stream_byte_limit=100)
             self.assertTrue(swapped[0])
             # Fail-closed: the destination parent was relocated before the
-            # move, so no reverse move may return new.wav to new-0. It stays
-            # in the fd-pinned relocated directory and the journal fences.
+            # syscall, so the pinned descriptor carried it into the relocated
+            # directory and no reverse move returns it. It stays there and the
+            # journal fences.
             self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
-            self.assertFalse(list(root.glob('.book-switch-*/new-0')))
+            self.assertEqual([], [path for path in root.glob('.book-switch-*/*')
+                                  if path.is_file() and path.read_bytes() == b'private'])
             def check():
                 self.assertEqual(b'private', (other / 'relocated/new.wav').read_bytes())
             from tests.test_support import PARENT_CHANGED_MESSAGE, assert_book_journal_fenced
@@ -1987,12 +1999,10 @@ print(len(result['entries']))
             with self.subTest(external=external), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 target = root / 'audio.wav'
-                move = books._move
-                def create_before_move(source, destination, **kwargs):
-                    if Path(destination) == target:
+                def create_before_publication(published):
+                    if published == target:
                         target.write_bytes(external)
-                    move(source, destination, **kwargs)
-                with patch.object(books, '_move', side_effect=create_before_move):
+                with intercept_book_publications(books, before=create_before_publication):
                     with books.ensure_book_state(root), self.assertRaises(ValueError):
                         books.apply_book_state_locked(root, {'audio.wav': stream(b'new')}, [],
                                                       stream_byte_limit=100)

@@ -19,6 +19,7 @@ from pathlib import Path
 from utils import file_lock
 from adapter_publication import (get_adapter_bundle_sha256, sync_adapter_directory,
                                  save_adapter_publication_bytes)
+from book_placeholder import PLACEHOLDER_SIZE, get_book_placeholder_bytes
 
 JOURNAL = '.active_book_transaction.json'
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
@@ -1917,8 +1918,248 @@ def _get_book_stable_identity(info):
 
 
 def _get_exchange_slot_names(index):
-    """Every workspace slot a v4 row may occupy, whichever direction moved it."""
-    return (f'old-{index}', f'new-{index}', f'discard-{index}')
+    """Every workspace slot a v4 row may occupy, whichever direction moved it.
+
+    A replacement is staged at new-<index> and the exchange leaves the original
+    there; a removal stages its placeholder at old-<index> and the exchange
+    leaves the original there. discard-<index> belongs to the legacy protocol
+    only, so v4 cleanup must never accept that name (#1660 follow-up)."""
+    return (f'old-{index}', f'new-{index}')
+
+
+# --- placeholders: a target that does not exist on one side of the swap ------
+# A removal (existed, no replacement) and a creation (no target, replacement)
+# both need a second object for the exchange. Each gets a same-type
+# placeholder: a 64-byte nonce file, or an empty mode-0700 directory.
+# book_placeholder is the one definition of the bytes (Rule 15); the nonce,
+# kind, identity and generation in the journal are the proof that it is ours.
+_PLACEHOLDER_KINDS = ('file', 'directory')
+_PLACEHOLDER_MODE = {'file': 0o600, 'directory': 0o700}
+_PLACEHOLDER_NONCE = re.compile(r'[0-9a-f]{32}')
+
+
+def _get_book_placeholder_kind(mode):
+    """-> the placeholder kind matching an existing target's mode."""
+    return 'directory' if stat.S_ISDIR(mode) else 'file'
+
+
+def _get_book_placeholder_nonce():
+    """-> 32 lowercase hex: the one value that proves a placeholder ours."""
+    return uuid.uuid4().hex
+
+
+def _get_book_placeholder_evidence(kind, nonce, *, identity=None, generation=None):
+    """-> one journaled placeholder record (exactly the keys recovery reads)."""
+    return {'kind': kind, 'nonce': nonce if kind == 'file' else None,
+            'identity': None if identity is None else list(identity),
+            'generation': generation}
+
+
+def _get_book_row_placeholder(row):
+    """-> a row's placeholder record, or None. A row never has both."""
+    for key in ('placeholder', 'target_placeholder'):
+        value = row.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _valid_book_placeholder_evidence(value, *, created):
+    """Whether a journaled placeholder record is exactly recoverable.
+
+    created=True is a target_placeholder, journaled before the create: no
+    identity or generation can exist yet, so both must be null. A removal's
+    placeholder is staged first, so its identity is required and its
+    generation is optional evidence."""
+    if (not isinstance(value, dict)
+            or set(value) != {'kind', 'nonce', 'identity', 'generation'}):
+        return False
+    kind, nonce, identity, generation = (
+        value['kind'], value['nonce'], value['identity'], value['generation'])
+    if kind not in _PLACEHOLDER_KINDS:
+        return False
+    if kind == 'file':
+        if not isinstance(nonce, str) or _PLACEHOLDER_NONCE.fullmatch(nonce) is None:
+            return False
+    elif nonce is not None:
+        return False
+    if created:
+        return identity is None and generation is None
+    return (isinstance(identity, list) and len(identity) == 2
+            and all(type(item) is int and item >= 0 for item in identity)
+            and (generation is None or _valid_book_file_generation(generation)))
+
+
+def _stat_book_placeholder(path, dir_fd, name):
+    if path is not None:
+        return path.lstat()
+    return os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+
+
+def _open_book_placeholder(path, dir_fd, name, flags):
+    if path is not None:
+        return os.open(path, flags)
+    return os.open(name, flags, dir_fd=dir_fd)
+
+
+def _read_book_placeholder(evidence, *, path=None, dir_fd=None, name=None):
+    """-> the lstat info when the name is provably our placeholder, else None.
+
+    Proves the kind, exact mode, size and link count, the journaled identity
+    and generation when recorded, and the exact nonce bytes for a file. A
+    directory placeholder is proven by being an empty, mode-0700 directory:
+    rmdir itself refuses to destroy content, so emptiness is rechecked there.
+    A target placeholder is journaled before it exists, so its identity is
+    deliberately unknown and the nonce alone proves it (#1660)."""
+    if not isinstance(evidence, dict) or evidence.get('kind') not in _PLACEHOLDER_KINDS:
+        return None
+    kind, nonce, expected = evidence['kind'], evidence.get('nonce'), evidence.get('identity')
+    if kind == 'file':
+        if not isinstance(nonce, str) or _PLACEHOLDER_NONCE.fullmatch(nonce) is None:
+            return None
+        try:
+            expected_bytes = get_book_placeholder_bytes(nonce)
+        except ValueError:
+            return None
+    elif nonce is not None:
+        return None
+    try:
+        info = _stat_book_placeholder(path, dir_fd, name)
+    except OSError:
+        return None
+    if stat.S_ISLNK(info.st_mode) or stat.S_IMODE(info.st_mode) != _PLACEHOLDER_MODE[kind]:
+        return None
+    if expected is not None and [info.st_dev, info.st_ino] != list(expected):
+        return None
+    if evidence.get('generation') is not None:
+        try:
+            generation = get_book_file_generation(
+                str(path) if path is not None else name, dir_fd=None if path is not None else dir_fd)
+        except OSError:
+            return None
+        if generation != evidence['generation']:
+            return None
+    if kind == 'directory':
+        if not stat.S_ISDIR(info.st_mode):
+            return None
+        flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, 'O_NOFOLLOW', 0)
+        try:
+            descriptor = _open_book_placeholder(path, dir_fd, name, flags)
+        except OSError:
+            return None
+        try:
+            with os.scandir(descriptor) as entries:
+                if next(entries, None) is not None:
+                    return None
+        finally:
+            os.close(descriptor)
+        return info
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+            or info.st_size != PLACEHOLDER_SIZE):
+        return None
+    flags = (os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+             | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0))
+    try:
+        descriptor = _open_book_placeholder(path, dir_fd, name, flags)
+    except OSError:
+        return None
+    try:
+        opened = os.fstat(descriptor)
+        if ((opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)
+                or not stat.S_ISREG(opened.st_mode)
+                or opened.st_size != PLACEHOLDER_SIZE):
+            return None
+        raw = os.read(descriptor, PLACEHOLDER_SIZE + 1)
+    finally:
+        os.close(descriptor)
+    return info if raw == expected_bytes else None
+
+
+def _create_book_placeholder(directory_fd, name, kind, nonce):
+    """Create the placeholder as ours alone -> [dev, ino].
+
+    O_EXCL (file) / mkdir (directory) is the no-overwrite promise a creation
+    needs: a writer who created the name first makes this raise before any
+    book artifact has been mutated (#1660)."""
+    if kind == 'directory':
+        os.mkdir(name, _PLACEHOLDER_MODE[kind], dir_fd=directory_fd)
+        info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    else:
+        descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                             | getattr(os, 'O_NOFOLLOW', 0),
+                             _PLACEHOLDER_MODE[kind], dir_fd=directory_fd)
+        try:
+            os.write(descriptor, get_book_placeholder_bytes(nonce))
+            os.fsync(descriptor)
+            info = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+    os.fsync(directory_fd)
+    return [info.st_dev, info.st_ino]
+
+
+def _delete_book_placeholder(evidence, *, path=None, dir_fd=None, name=None):
+    """Delete only a proven placeholder; -> whether one was deleted.
+
+    The name is proven again immediately before the removal. POSIX has no
+    conditional unlink, so a writer could still substitute a 64-byte copy of
+    our nonce in the last microsecond; nothing with real content can be
+    destroyed by this path (#1660)."""
+    if _read_book_placeholder(evidence, path=path, dir_fd=dir_fd, name=name) is None:
+        return False
+    if evidence['kind'] == 'directory':
+        if path is not None:
+            os.rmdir(path)
+        else:
+            os.rmdir(name, dir_fd=dir_fd)
+    else:
+        if path is not None:
+            os.unlink(path)
+        else:
+            os.unlink(name, dir_fd=dir_fd)
+    if dir_fd is not None:
+        os.fsync(dir_fd)
+    elif path is not None:
+        sync_adapter_directory(str(path.parent))
+    return True
+
+
+def _expect_book_placeholder(row, key):
+    """An _exchange predicate proving a name holds the row's placeholder."""
+    evidence = row.get(key)
+
+    def matches(dir_fd, name):
+        return _read_book_placeholder(evidence, dir_fd=dir_fd, name=name) is not None
+    return matches
+
+
+def _create_book_placeholder_at(root, target, slot, kind, nonce, *, anchor_identity,
+                                target_parent_identity):
+    """Create a placeholder at a target name through its proven parent."""
+    with _anchored_mutation(
+            root, target, slot, anchor_identity=anchor_identity,
+            source_parent_identity=target_parent_identity) as pair:
+        pair.require_named_parents()
+        pair.require_expected_parents()
+        identity = _create_book_placeholder(pair.source_fd, pair.source_name, kind, nonce)
+        pair.sync_parents()
+        return identity
+
+
+def _delete_book_placeholder_at(root, target, slot, evidence, *, anchor_identity,
+                                target_parent_identity):
+    """Delete a target's placeholder through its proven parent, or refuse."""
+    with _anchored_mutation(
+            root, target, slot, anchor_identity=anchor_identity,
+            source_parent_identity=target_parent_identity) as pair:
+        pair.require_named_parents()
+        pair.require_expected_parents()
+        if not _delete_book_placeholder(evidence, dir_fd=pair.source_fd,
+                                        name=pair.source_name):
+            raise ValueError(
+                'A book target is not the placeholder this switch wrote; '
+                'recovery evidence was preserved')
+        pair.sync_parents()
 
 
 def _matches_book_original(row, info, *, name=None, dir_fd=None):
@@ -1974,11 +2215,6 @@ def _expect_book_replacement(row):
     return matches
 
 
-def _accepts_existing_book_name(dir_fd, name):
-    """Accept whatever a writer left at a substituted target (R5 rollback)."""
-    return True
-
-
 def _expect_observed_book_object(version):
     """An _exchange predicate for a just-observed stable identity.
 
@@ -1998,7 +2234,7 @@ def _expect_observed_book_object(version):
 
 
 def _get_book_name_kind(row, path):
-    """-> 'original' | 'replacement' | 'foreign' | 'absent' for a name."""
+    """-> 'original' | 'replacement' | 'placeholder' | 'foreign' | 'absent'."""
     try:
         info = path.lstat()
     except FileNotFoundError:
@@ -2011,15 +2247,18 @@ def _get_book_name_kind(row, path):
         return 'original'
     if _matches_book_replacement(row, info):
         return 'replacement'
+    if _read_book_placeholder(_get_book_row_placeholder(row), path=path) is not None:
+        return 'placeholder'
     return 'foreign'
 
 
 def _get_book_workspace_slots(workspace, index, row):
-    """-> (original slot, replacement slot, foreign slot), each a name or None.
+    """-> (original slot, replacement slot, placeholder slot, foreign slot).
 
     Identity decides which slot holds which object; the file names are only
     where that object currently lives (rotated after a v4 publication)."""
-    original = replacement = foreign = None
+    original = replacement = placeholder = foreign = None
+    placeholder_evidence = _get_book_row_placeholder(row)
     for name in _get_exchange_slot_names(index):
         path = workspace / name
         try:
@@ -2042,32 +2281,49 @@ def _get_book_workspace_slots(workspace, index, row):
                     'Book replacement appears in multiple workspace slots; '
                     'recovery evidence was preserved')
             replacement = name
+        elif (placeholder_evidence is not None
+              and _read_book_placeholder(placeholder_evidence, path=path) is not None):
+            if placeholder is not None:
+                raise ValueError(
+                    'Book placeholder appears in multiple workspace slots; '
+                    'recovery evidence was preserved')
+            placeholder = name
         elif foreign is None:
             foreign = name
-    return original, replacement, foreign
+    return original, replacement, placeholder, foreign
 
 
 def _undo_book_exchange(root, root_identity, row, target, slot, *,
                         target_parent_identity, workspace_identity,
-                        target_holds_replacement, slot_expectation=None):
-    """Reverse our own replacement exchange with complementary expectations.
+                        target_kind='replacement', slot_kind='original',
+                        slot_expectation=None):
+    """Reverse our own exchange with complementary expectations.
 
     This is the one rollback for v4 (#1660): it is never a rename over a
-    possibly-foreign name. target_holds_replacement=True is the normal R3
-    rollback (T=N, slot=O). False is R5: a writer replaced T after our swap,
-    so T holds an unproven object; the same exchange still puts O back at T
-    and leaves that object in our workspace slot, where it is never deleted.
-    slot_expectation overrides the journal's original predicate for the
-    in-line undo of an exchange whose original was edited in place.
-    """
+    possibly-foreign name. target_kind / slot_kind say which object each name
+    must hold before the swap ('original', 'replacement' or 'placeholder'):
+    a replacement row rolls back replacement<->original, a removal
+    placeholder<->original, and a creation replacement<->placeholder. A
+    writer's object at the target is never accepted here; classification
+    refuses it before this runs. slot_expectation overrides the journal's
+    original predicate for the in-line undo of an exchange whose original was
+    edited in place."""
+    predicates = {
+        'replacement': _expect_book_replacement(row),
+        'placeholder': _expect_book_placeholder(row, 'placeholder'),
+        'target_placeholder': _expect_book_placeholder(row, 'target_placeholder'),
+    }
+    expect_source = (predicates[target_kind] if target_kind in predicates
+                     else _expect_book_original(row))
+    expect_destination = (slot_expectation if slot_expectation is not None
+                          else predicates[slot_kind] if slot_kind in predicates
+                          else _expect_book_original(row))
     return _exchange(
         target, slot, anchor=root, anchor_identity=root_identity,
         source_parent_identity=target_parent_identity,
         destination_parent_identity=workspace_identity,
-        expect_source=(_expect_book_replacement(row) if target_holds_replacement
-                       else _accepts_existing_book_name),
-        expect_destination=(slot_expectation if slot_expectation is not None
-                            else _expect_book_original(row)))
+        expect_source=expect_source, expect_destination=expect_destination)
+
 
 
 def _capture_cleanup_tree(path, cancel_check=None):
@@ -2167,6 +2423,44 @@ def _cleanup_tree_inventory(path, cancel_check=None):
             else _capture_cleanup_tree(path, cancel_check=cancel_check))
 
 
+def _get_book_backup_slot(row, index, exchange):
+    """-> the workspace name holding a row's original in this phase.
+
+    A v4 removal's original sits at old-<index> after its exchange (the
+    replacement protocol's sits at new-<index>); v3 always uses old-<index>."""
+    if exchange and row['new_sha256'] is not None:
+        return f'new-{index}'
+    return f'old-{index}'
+
+
+def _get_book_cleanup_slots(row, index, phase, exchange):
+    """-> {workspace name: kind} a row may own in one cleanup phase.
+
+    v4 rotates the slots: after a publication the original sits at new-<index>
+    for a replacement, at old-<index> for a removal, and a creation's
+    placeholder is left at new-<index>. discard-<index> is the legacy
+    protocol's name only (#1660 follow-up)."""
+    result = {}
+    if not exchange:
+        if phase == 'committed' and row['existed']:
+            result[f'old-{index}'] = 'original'
+        if phase in ('publishing', 'recovered') and row['new_sha256'] is not None:
+            result[f'new-{index}'] = 'replacement'
+        if phase == 'recovered' and row['new_sha256'] is not None:
+            result[f'discard-{index}'] = 'replacement'
+        return result
+    if phase == 'committed':
+        if row['existed'] and row['new_sha256'] is None:
+            result[f'old-{index}'] = 'original'
+        elif row['existed']:
+            result[f'new-{index}'] = 'original'
+        elif row['new_sha256'] is not None:
+            result[f'new-{index}'] = 'placeholder'
+    elif row['new_sha256'] is not None:
+        result[f'new-{index}'] = 'replacement'
+    return result
+
+
 @_refuse_book_io('Book transaction workspace could not be read; cleanup was refused')
 def _validate_stream_workspace_for_cleanup(workspace, data, cancel_check=None):
     """Refuse cleanup if the workspace contains anything not proven owned."""
@@ -2180,22 +2474,8 @@ def _validate_stream_workspace_for_cleanup(workspace, data, cancel_check=None):
     exchange = data.get('version') == _EXCHANGE_JOURNAL_VERSION
     allowed = {}
     for index, row in enumerate(rows):
-        slots = (_get_exchange_slot_names(index) if exchange
-                 else (f'old-{index}', f'new-{index}', f'discard-{index}'))
-        if phase == 'committed' and row['existed']:
-            if exchange:
-                for name in slots:
-                    allowed[name] = ('original', row)
-            else:
-                allowed[f'old-{index}'] = ('original', row)
-        if phase in ('publishing', 'recovered') and row['new_sha256'] is not None:
-            if exchange:
-                for name in slots:
-                    allowed[name] = ('replacement', row)
-            else:
-                allowed[f'new-{index}'] = ('replacement', row)
-        if not exchange and phase == 'recovered' and row['new_sha256'] is not None:
-            allowed[f'discard-{index}'] = ('replacement', row)
+        for name, kind in _get_book_cleanup_slots(row, index, phase, exchange).items():
+            allowed[name] = (kind, row)
     seen = set()
     with os.scandir(workspace) as entries:
         for entry in entries:
@@ -2203,9 +2483,10 @@ def _validate_stream_workspace_for_cleanup(workspace, data, cancel_check=None):
             if entry.name not in allowed or entry.name in seen:
                 raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
             seen.add(entry.name)
-    for index in range(len(rows)):
-        if f'new-{index}' in seen and f'discard-{index}' in seen:
-            raise ValueError('Book transaction replacement has multiple owners; cleanup was refused')
+    if not exchange:
+        for index in range(len(rows)):
+            if f'new-{index}' in seen and f'discard-{index}' in seen:
+                raise ValueError('Book transaction replacement has multiple owners; cleanup was refused')
     original_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
     replacement_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
     validated = {}
@@ -2214,6 +2495,12 @@ def _validate_stream_workspace_for_cleanup(workspace, data, cancel_check=None):
         version = _book_target_version(workspace / name)
         if kind == 'original':
             _validate_stream_original(row, workspace / name, original_budget)
+        elif kind == 'placeholder':
+            if _read_book_placeholder(
+                    row.get('target_placeholder' if row['existed'] is False else 'placeholder'),
+                    path=workspace / name) is None:
+                raise ValueError(
+                    'Book transaction placeholder changed; cleanup was refused')
         else:
             _validate_stream_replacement(row, workspace / name, replacement_budget)
         if _book_target_version(workspace / name) != version:
@@ -2343,6 +2630,57 @@ def _unlink_owned_staging_file(workspace, name, directory_fd):
         os.unlink(workspace / name)
 
 
+def _delete_unpublished_book_placeholders(workspace, workspace_identity, evidence_by_name,
+                                          *, parent_fd=None):
+    """Delete only proven placeholders before the pre-publication cleanup.
+
+    A crash or failure before the first exchange leaves the removals' staged
+    placeholders in the workspace; the pre-journal cleanup removes only staged
+    regular files, so they are proven and deleted here first. A name that is
+    present but not provably ours is a refusal, never a delete (#1660)."""
+    if not evidence_by_name:
+        return
+    anchored = (os.name != 'nt' and os.open in os.supports_dir_fd
+                and os.stat in os.supports_dir_fd and os.unlink in os.supports_dir_fd
+                and os.rmdir in os.supports_dir_fd
+                and hasattr(os, 'O_DIRECTORY') and hasattr(os, 'O_NOFOLLOW'))
+    with contextlib.ExitStack() as stack:
+        directory_fd = None
+        if anchored:
+            flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            owned_parent_fd = (os.dup(parent_fd) if parent_fd is not None
+                               else os.open(workspace.parent, flags))
+            stack.callback(os.close, owned_parent_fd)
+            try:
+                directory_fd = os.open(workspace.name, flags, dir_fd=owned_parent_fd)
+            except FileNotFoundError:
+                return
+            stack.callback(os.close, directory_fd)
+            info = os.fstat(directory_fd)
+        else:
+            if not os.path.lexists(workspace):
+                return
+            info = workspace.lstat()
+        if (not stat.S_ISDIR(info.st_mode)
+                or (info.st_dev, info.st_ino) != workspace_identity):
+            raise ValueError('Book staging workspace changed; cleanup was refused')
+        for name, evidence in evidence_by_name.items():
+            try:
+                if directory_fd is not None:
+                    os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                else:
+                    (workspace / name).lstat()
+            except FileNotFoundError:
+                continue
+            deleted = _delete_book_placeholder(
+                evidence, dir_fd=directory_fd,
+                name=name if directory_fd is not None else None,
+                path=None if directory_fd is not None else workspace / name)
+            if not deleted:
+                raise ValueError(
+                    'Book staging workspace placeholder changed; cleanup was refused')
+
+
 def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None, index=None):
     """Recheck the byte cleanup targets: all rows, or only row `index` (#1660)."""
     if index is not None:
@@ -2365,32 +2703,15 @@ def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None, inde
 
 @_refuse_book_io('Book transaction workspace could not be read; cleanup was refused')
 def _validate_byte_workspace_for_cleanup(workspace, data, cancel_check=None):
-    """Return exact regular-file identities a legacy cleanup may remove."""
+    """Return exact regular-file identities a cleanup may remove."""
     phase, rows = data['phase'], data['entries']
     if phase not in ('committed', 'recovered'):
         raise ValueError('Book transaction is not ready for cleanup')
     exchange = data.get('version') == _EXCHANGE_JOURNAL_VERSION
     allowed = {}
     for index, row in enumerate(rows):
-        slots = (_get_exchange_slot_names(index) if exchange
-                 else (f'old-{index}', f'new-{index}', f'discard-{index}'))
-        if phase == 'committed' and row['existed']:
-            evidence = (row['old_sha256'], row.get('old_file_identity'),
-                        row, 'old_file_generation')
-            if exchange:
-                for name in slots:
-                    allowed[name] = evidence
-            else:
-                allowed[f'old-{index}'] = evidence
-        elif phase == 'recovered' and row['new_sha256'] is not None:
-            evidence = (row['new_sha256'], row.get('new_file_identity'),
-                        row, 'new_file_generation')
-            if exchange:
-                for name in slots:
-                    allowed[name] = evidence
-            else:
-                allowed[f'discard-{index}'] = evidence
-                allowed[f'new-{index}'] = evidence
+        for name, kind in _get_book_cleanup_slots(row, index, phase, exchange).items():
+            allowed[name] = (kind, row)
     if not _is_book_workspace_present(workspace):
         return {}
     info = workspace.lstat()
@@ -2403,30 +2724,45 @@ def _validate_byte_workspace_for_cleanup(workspace, data, cancel_check=None):
             if entry.name not in allowed or entry.name in seen:
                 raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
             version = _book_target_version(workspace / entry.name)
-            expected_digest, expected_identity, row, generation_key = allowed[entry.name]
-            if expected_identity is not None:
-                observed_identity = ([version[0], version[1]] if len(expected_identity) == 2
-                                     else [version[index] for index in (0, 1, 2, 3, 5, 6)])
-                if observed_identity != expected_identity:
+            kind, row = allowed[entry.name]
+            path = workspace / entry.name
+            if kind == 'placeholder':
+                if _read_book_placeholder(
+                        row.get('target_placeholder' if row['existed'] is False else 'placeholder'),
+                        path=path) is None:
+                    raise ValueError(
+                        'Book transaction placeholder changed; cleanup was refused')
+            else:
+                if kind == 'original':
+                    expected_digest, expected_identity, generation_key = (
+                        row['old_sha256'], row.get('old_file_identity'), 'old_file_generation')
+                else:
+                    expected_digest, expected_identity, generation_key = (
+                        row['new_sha256'], row.get('new_file_identity'), 'new_file_generation')
+                if expected_identity is not None:
+                    observed_identity = ([version[0], version[1]] if len(expected_identity) == 2
+                                         else [version[index] for index in (0, 1, 2, 3, 5, 6)])
+                    if observed_identity != expected_identity:
+                        raise ValueError('Book transaction workspace ownership changed; cleanup was refused')
+                if (stat.S_ISREG(version[5]) and version[6] != 1
+                        or not stat.S_ISREG(version[5]) and not stat.S_ISDIR(version[5])):
+                    raise ValueError('Book transaction workspace contains an unsafe artifact')
+                if _get_digest(path, cancel_check=cancel_check) != expected_digest:
+                    raise ValueError('Book transaction workspace changed; cleanup was refused')
+                if not _is_book_file_generation_current(row, generation_key, path):
                     raise ValueError('Book transaction workspace ownership changed; cleanup was refused')
-            if (stat.S_ISREG(version[5]) and version[6] != 1
-                    or not stat.S_ISREG(version[5]) and not stat.S_ISDIR(version[5])):
-                raise ValueError('Book transaction workspace contains an unsafe artifact')
-            if _get_digest(workspace / entry.name, cancel_check=cancel_check) != expected_digest:
-                raise ValueError('Book transaction workspace changed; cleanup was refused')
-            if not _is_book_file_generation_current(row, generation_key, workspace / entry.name):
-                raise ValueError('Book transaction workspace ownership changed; cleanup was refused')
-            if _book_target_version(workspace / entry.name) != version:
+            if _book_target_version(path) != version:
                 raise ValueError('Book transaction workspace changed; cleanup was refused')
             seen[entry.name] = {
                 'version': version,
                 'tree': _cleanup_tree_inventory(
-                    workspace / entry.name, cancel_check=cancel_check)
+                    path, cancel_check=cancel_check)
                         if stat.S_ISDIR(version[5]) else None,
             }
-    for index in range(len(rows)):
-        if f'new-{index}' in seen and f'discard-{index}' in seen:
-            raise ValueError('Book transaction replacement has multiple owners; cleanup was refused')
+    if not exchange:
+        for index in range(len(rows)):
+            if f'new-{index}' in seen and f'discard-{index}' in seen:
+                raise ValueError('Book transaction replacement has multiple owners; cleanup was refused')
     return seen
 
 
@@ -2946,9 +3282,11 @@ def _validate_recovery_journal_shape(root, journal, data):
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book stream entry')
     if data['version'] == 4:
-        # This PR writes only replacement rows: a v4 row is a v3 byte/stream
-        # row with existed=True and new_sha256, and nothing else. Step 4 adds
-        # the placeholder keys for removals and creations.
+        # A v4 row is a v3 byte/stream row plus exactly one placeholder record
+        # for a removal (staged in the workspace, identity journaled) or a
+        # creation (at the target, journaled before the create, so its identity
+        # is deliberately absent). A no-op row (nothing existed, nothing
+        # written) carries only the base keys (#1660 step 4).
         if 'stream_limits' in data:
             if (not isinstance(limits, dict) or set(limits) != {'bytes', 'entries'}
                     or type(limits['bytes']) is not int or not 1 <= limits['bytes'] < 2**63
@@ -2958,20 +3296,33 @@ def _validate_recovery_journal_shape(root, journal, data):
         for row in rows:
             existed, old, new = row.get('existed'), row.get('old_sha256'), row.get('new_sha256')
             expected_keys = {'path', 'existed', 'old_sha256', 'new_sha256'}
-            if type(existed) is not bool or existed is not True or new is None:
+            if type(existed) is not bool:
                 raise ValueError('Invalid active-book exchange entry')
-            expected_keys.add('old_file_identity')
-            identity = row.get('old_file_identity')
-            if (not _valid_book_digest(old) or not isinstance(identity, list) or len(identity) != 6
-                    or any(type(value) is not int for value in identity)
-                    or any(identity[index] < 0 for index in (0, 1, 2, 4, 5))):
+            if existed:
+                expected_keys.add('old_file_identity')
+                identity = row.get('old_file_identity')
+                if (not _valid_book_digest(old) or not isinstance(identity, list) or len(identity) != 6
+                        or any(type(value) is not int for value in identity)
+                        or any(identity[index] < 0 for index in (0, 1, 2, 4, 5))):
+                    raise ValueError('Invalid active-book exchange original identity')
+            elif old is not None:
                 raise ValueError('Invalid active-book exchange original identity')
-            expected_keys.add('new_file_identity')
-            identity = row.get('new_file_identity')
-            if (not _valid_book_digest(new) or not isinstance(identity, list) or len(identity) != 2
-                    or any(type(value) is not int or value < 0 for value in identity)):
-                raise ValueError('Invalid active-book exchange replacement identity')
+            if new is not None:
+                expected_keys.add('new_file_identity')
+                identity = row.get('new_file_identity')
+                if (not _valid_book_digest(new) or not isinstance(identity, list) or len(identity) != 2
+                        or any(type(value) is not int or value < 0 for value in identity)):
+                    raise ValueError('Invalid active-book exchange replacement identity')
             expected_keys |= _get_book_file_generation_keys(row, existed, new)
+            if existed and new is None:
+                expected_keys.add('placeholder')
+                if not _valid_book_placeholder_evidence(row.get('placeholder'), created=False):
+                    raise ValueError('Invalid active-book removal placeholder')
+            elif not existed and new is not None:
+                expected_keys.add('target_placeholder')
+                if not _valid_book_placeholder_evidence(
+                        row.get('target_placeholder'), created=True):
+                    raise ValueError('Invalid active-book creation placeholder')
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book exchange entry')
     return workspace, persisted_workspace_identity, rows, names, limits, parent_identities
@@ -3044,19 +3395,72 @@ def _validate_exchange_target(row, target, *, limits, budget, cancel_check,
             _validate_byte_replacement(row, target, cancel_check=cancel_check)
 
 
+def _validate_book_final_target(row, target, *, limits, budget, cancel_check):
+    """Prove a target holds what the journal's committed phase promises.
+
+    A removal is final when the target is absent; a replacement or creation is
+    final when the target proves the staged replacement (#1660)."""
+    if row.get('new_sha256') is None:
+        if os.path.lexists(target):
+            raise ValueError(
+                'Committed book removal changed; recovery evidence was preserved')
+        return
+    _validate_exchange_target(row, target, limits=limits, budget=budget,
+                              cancel_check=cancel_check, expected='replacement')
+
+
+def _require_book_slot_original(row, slot, *, limits, cancel_check):
+    """Prove a slot still holds the row's original before restoring it.
+
+    Identity alone cannot prove it: an in-place edit in our workspace keeps
+    the inode. Restoring a changed original would put a writer's edit (or a
+    torn copy) back at the target, so a slot that no longer proves the journal
+    refuses untouched, as v2/v3's pre-restore validation does (#1660)."""
+    try:
+        _validate_exchange_target(
+            row, slot, limits=limits,
+            budget=_get_exchange_recovery_budget(limits, cancel_check),
+            cancel_check=cancel_check, expected='original')
+    except ValueError as error:
+        raise ValueError('A book file changed during the switch; '
+                         'recovery evidence was preserved') from error
+
+
+def _undo_book_exchange_restoring(root, root_identity, row, target, slot, *,
+                                  target_parent_identity, workspace_identity,
+                                  target_kind, slot_kind='original'):
+    """_undo_book_exchange, naming the operator's way out if exchange is lost."""
+    try:
+        return _undo_book_exchange(
+            root, root_identity, row, target, slot,
+            target_parent_identity=target_parent_identity,
+            workspace_identity=workspace_identity, target_kind=target_kind,
+            slot_kind=slot_kind)
+    except OSError as error:
+        from source_upload_publication import _EXCHANGE_UNSUPPORTED
+        if error.errno not in _EXCHANGE_UNSUPPORTED:
+            raise
+        raise OSError(error.errno, (
+            'Book recovery needs name exchange, which this filesystem no '
+            'longer supports; the v4 journal and every file were preserved. '
+            'Run book_state_recovery.py inspect, then quarantine '
+            '--accept-current-files to keep the current files.')) from error
+
+
 def _recover_book_exchange_journal(root, root_identity, journal, data, journal_version,
                                    workspace, persisted_workspace_identity, rows, names,
                                    limits, parent_identities, targets, cancel_check):
-    """Restore or finish a v4 replacement-only journal (#1660).
+    """Restore or finish a v4 journal: replacements, removals and creations.
 
     Every uncommitted row is T<->W/<slot>: the forward exchange is backup and
     publication at once, so one complementary exchange restores the original.
-    Recovery chooses its action from identities, never from slot names, and
-    deletes only an object proven to be our staged replacement. It never
-    probes exchange support; if the exchange is unavailable it refuses with
-    the journal and both objects intact (design 4.4's alternative to the
-    degraded rename path, which reintroduces the #1816 window).
-    """
+    A removal's target is a same-type placeholder after the swap (deleted only
+    by its nonce), and a creation's placeholder is at its target before the
+    swap. Recovery chooses its action from identities and nonces, never from
+    slot names, and deletes only an object proven to be ours. It never probes
+    exchange support; if the exchange is unavailable it refuses with the
+    journal and both objects intact (design 4.4's alternative to the degraded
+    rename path, which reintroduces the #1816 window)."""
     _MISSING_WORKSPACE = object()
     workspace_identity = _MISSING_WORKSPACE
     try:
@@ -3098,8 +3502,8 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         budget = _get_exchange_recovery_budget(limits, cancel_check)
         for row, target in zip(rows, targets):
             _check_stream_cancellation(cancel_check)
-            _validate_exchange_target(row, target, limits=limits, budget=budget,
-                                      cancel_check=cancel_check, expected='replacement')
+            _validate_book_final_target(row, target, limits=limits, budget=budget,
+                                        cancel_check=cancel_check)
         if parent_identities is not None:
             _require_transaction_parent_identities(
                 root, names, parent_identities, cancel_check=cancel_check)
@@ -3113,13 +3517,16 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
 
     # Classify every row before mutating anything. Identity alone cannot
     # prove a target: an in-place edit keeps the inode. A target counts as
-    # ours only after its digest (and generation) are proven too.
+    # ours only after its digest (and generation) are proven too, or -- for a
+    # placeholder -- after its exact nonce is read back.
     plans = []
     proof_budget = _get_exchange_recovery_budget(limits, cancel_check)
     for index, (row, target) in enumerate(zip(rows, targets)):
         _check_stream_cancellation(cancel_check)
-        original, replacement, foreign = _get_book_workspace_slots(workspace, index, row)
-        if original is not None and replacement is not None:
+        original, replacement, placeholder, foreign = _get_book_workspace_slots(
+            workspace, index, row)
+        if sum(owner is not None
+               for owner in (original, replacement, placeholder)) > 1:
             raise ValueError(
                 'Book transaction has two workspace owners for one target; '
                 'recovery evidence was preserved')
@@ -3132,21 +3539,27 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
                 kind = 'foreign'
         plans.append({'index': index, 'row': row, 'target': target, 'kind': kind,
                       'original': original, 'replacement': replacement,
-                      'foreign': foreign})
+                      'placeholder': placeholder, 'foreign': foreign})
     if any(plan['kind'] == 'foreign' for plan in plans):
         # A writer's object at a target -- an edit in place or a new file --
         # is the live book and the operator's decision, as on v2/v3 (#1660):
         # nothing is swapped over it, retired or auto-quarantined.
         raise ValueError(
             'A book file changed during the switch; recovery evidence was preserved')
-    needs_commit = any(plan['kind'] == 'replacement' and plan['original'] is None
-                       for plan in plans)
+    # R9: only a row whose target positively proves the replacement *and* whose
+    # staged slot is already gone is finished by writing 'committed'. A
+    # removal's final state is an absent target, which cannot prove that *our*
+    # delete produced it (a writer may have removed the file), so a removal row
+    # always rolls back here and is finished only from a durable 'committed'
+    # phase (#1660).
+    needs_commit = bool(plans) and all(
+        plan['kind'] == 'replacement' and plan['original'] is None
+        and plan['replacement'] is None and plan['placeholder'] is None
+        for plan in plans)
     if needs_commit:
-        # R9: the staged slot is already gone and the target proves the new
-        # object. Only a wholly published transaction may be finished here;
-        # mixing a published row with unpublished ones would give a mixed book.
-        if (data['phase'] != 'publishing'
-                or any(plan['kind'] != 'replacement' for plan in plans)):
+        # Only a wholly published transaction may be finished here; mixing a
+        # published row with unpublished ones would give a mixed book.
+        if data['phase'] != 'publishing':
             raise ValueError(
                 'Book transaction cannot be completed consistently; '
                 'recovery evidence was preserved')
@@ -3156,9 +3569,9 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
         budget = _get_exchange_recovery_budget(limits, cancel_check)
         for plan in plans:
             _check_stream_cancellation(cancel_check)
-            _validate_exchange_target(
+            _validate_book_final_target(
                 plan['row'], plan['target'], limits=limits, budget=budget,
-                cancel_check=cancel_check, expected='replacement')
+                cancel_check=cancel_check)
         if parent_identities is not None:
             _require_transaction_parent_identities(
                 root, names, parent_identities, cancel_check=cancel_check)
@@ -3172,17 +3585,93 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
             cancel_check=cancel_check)
         return True
 
+    # A target that proves the replacement with no slot left cannot be rolled
+    # back; beside any row that is not in the same final state the switch
+    # cannot be finished consistently, so refuse rather than give a mixed book
+    # (#1660, as on v2/v3).
+    if any(plan['kind'] == 'replacement' and plan['original'] is None
+           and plan['replacement'] is None and plan['placeholder'] is None
+           for plan in plans):
+        raise ValueError(
+            'Book transaction cannot be completed consistently; '
+            'recovery evidence was preserved')
+
     # Roll back every row that can be restored. A writer's object at a target
-    # is never renamed over, adopted, or deleted.
+    # is never renamed over, adopted, or deleted, and a placeholder is only
+    # deleted when its own nonce proves it.
     for plan in plans:
         _check_stream_cancellation(cancel_check)
         row, target = plan['row'], plan['target']
         target_parent = (parent_identities[plan['index']]
                          if parent_identities is not None else None)
-        if plan['kind'] == 'replacement' and plan['original'] is not None:
-            # Prove this target again right before its own undo: an edit in
-            # place since classification keeps the inode, so the exchange's
-            # identity predicate alone would swap it out (#1660 re-review).
+        if plan['kind'] in ('original', 'absent'):
+            # Nothing of ours is at the target. A placeholder still in our
+            # workspace (D1, C4) is proven ours and deleted so the workspace
+            # can retire; anything unproven stays and refuses cleanup.
+            if plan['placeholder'] is not None:
+                if not _delete_book_placeholder(
+                        _get_book_row_placeholder(row),
+                        path=workspace / plan['placeholder']):
+                    raise ValueError(
+                        'Book transaction placeholder changed; '
+                        'recovery evidence was preserved')
+            if plan['kind'] == 'absent' and plan['original'] is not None:
+                # R8 and D3: the target is gone but the original is proven in
+                # our slot. A no-overwrite move to a proven-absent name
+                # restores it without exchanging, and a writer who recreated
+                # the target first makes it fail with EEXIST, leaving the
+                # original untouched (#1660).
+                _require_book_slot_original(
+                    row, workspace / plan['original'], limits=limits,
+                    cancel_check=cancel_check)
+                _move(workspace / plan['original'], target, exclusive=True, anchor=root,
+                      anchor_identity=root_identity,
+                      source_parent_identity=workspace_identity,
+                      destination_parent_identity=target_parent,
+                      expected_source_identity=row.get('old_file_identity'),
+                      expected_source_generation=row.get('old_file_generation'))
+            continue
+        if plan['kind'] == 'placeholder':
+            # A creation whose placeholder is still at the target, before its
+            # exchange (C1): the target returns to absent and the staged
+            # replacement is cleanup's to delete.
+            if row['new_sha256'] is not None:
+                if not _delete_book_placeholder(row['target_placeholder'], path=target):
+                    raise ValueError(
+                        'Book placeholder changed; recovery evidence was preserved')
+                continue
+            # A removal (D2): re-prove the placeholder and the original, then
+            # one complementary exchange puts the original back and our
+            # placeholder in the slot. With no provable original slot only our
+            # nonce can be removed here, and the unresolved check refuses.
+            if plan['original'] is None:
+                if not _delete_book_placeholder(row['placeholder'], path=target):
+                    raise ValueError(
+                        'Book placeholder changed; recovery evidence was preserved')
+                continue
+            if _read_book_placeholder(row['placeholder'], path=target) is None:
+                raise ValueError('A book file changed during the switch; '
+                                 'recovery evidence was preserved')
+            _require_book_slot_original(
+                row, workspace / plan['original'], limits=limits,
+                cancel_check=cancel_check)
+            _undo_book_exchange_restoring(
+                root, root_identity, row, target, workspace / plan['original'],
+                target_parent_identity=target_parent,
+                workspace_identity=workspace_identity,
+                target_kind='placeholder')
+            if not _delete_book_placeholder(
+                    row['placeholder'], path=workspace / plan['original']):
+                raise ValueError(
+                    'Book transaction placeholder changed; '
+                    'recovery evidence was preserved')
+            continue
+        if plan['original'] is None:
+            # A creation whose exchange happened (C2): T=N, slot=P. Prove the
+            # target, undo our own swap, then delete the placeholder that is
+            # now at the target; the staged replacement stays for cleanup.
+            if plan['placeholder'] is None:
+                continue   # unprovable; the unresolved/mixed check decides
             try:
                 _validate_exchange_target(
                     row, target, limits=limits,
@@ -3191,42 +3680,47 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
             except ValueError as error:
                 raise ValueError('A book file changed during the switch; '
                                  'recovery evidence was preserved') from error
-            try:
-                _undo_book_exchange(
-                    root, root_identity, row, target, workspace / plan['original'],
-                    target_parent_identity=target_parent,
-                    workspace_identity=workspace_identity,
-                    target_holds_replacement=True)
-            except OSError as error:
-                from source_upload_publication import _EXCHANGE_UNSUPPORTED
-                if error.errno not in _EXCHANGE_UNSUPPORTED:
-                    raise
-                raise OSError(error.errno, (
-                    'Book recovery needs name exchange, which this filesystem no '
-                    'longer supports; the v4 journal and every file were preserved. '
-                    'Run book_state_recovery.py inspect, then quarantine '
-                    '--accept-current-files to keep the current files.')) from error
-        elif plan['kind'] == 'absent' and plan['original'] is not None:
-            # R8: the target is gone but the original is proven in our slot.
-            # A no-overwrite move to an absent name restores it without
-            # exchanging (an exchange needs both names to exist).
-            _move(workspace / plan['original'], target, exclusive=True, anchor=root,
-                  anchor_identity=root_identity,
-                  source_parent_identity=workspace_identity,
-                  destination_parent_identity=target_parent,
-                  expected_source_identity=row.get('old_file_identity'),
-                  expected_source_generation=row.get('old_file_generation'))
-    # Retire only when every target proves its original: a target still
-    # holding our replacement (a mixed book), one that is missing with no
-    # original to restore, or a writer's object we could not swap back out
-    # keeps the journal and the workspace as evidence (#1660). A writer's
+            _undo_book_exchange_restoring(
+                root, root_identity, row, target, workspace / plan['placeholder'],
+                target_parent_identity=target_parent,
+                workspace_identity=workspace_identity,
+                target_kind='replacement', slot_kind='target_placeholder')
+            if not _delete_book_placeholder(row['target_placeholder'], path=target):
+                raise ValueError(
+                    'Book placeholder changed; recovery evidence was preserved')
+            continue
+        # A published replacement row (R3): prove the target again right
+        # before its own undo: an edit in place since classification keeps the
+        # inode, so the exchange's identity predicate alone would swap it out.
+        try:
+            _validate_exchange_target(
+                row, target, limits=limits,
+                budget=_get_exchange_recovery_budget(limits, cancel_check),
+                cancel_check=cancel_check, expected='replacement')
+        except ValueError as error:
+            raise ValueError('A book file changed during the switch; '
+                             'recovery evidence was preserved') from error
+        _require_book_slot_original(
+            row, workspace / plan['original'], limits=limits,
+            cancel_check=cancel_check)
+        _undo_book_exchange_restoring(
+            root, root_identity, row, target, workspace / plan['original'],
+            target_parent_identity=target_parent,
+            workspace_identity=workspace_identity,
+            target_kind='replacement')
+    # Retire only when every target proves its rollback state: the original
+    # for an existing target, absence for one this switch was creating. A
+    # target still holding our replacement (a mixed book), one that is missing
+    # with no original to restore, or a writer's object we could not swap back
+    # out keeps the journal and the workspace as evidence (#1660). A writer's
     # object swapped into our slot is never deleted: cleanup refuses unowned
     # workspace data, and auto-quarantine keeps it.
     unresolved = []
     for plan in plans:
         _check_stream_cancellation(cancel_check)
         kind = _get_book_name_kind(plan['row'], plan['target'])
-        if kind != 'original':
+        expected = 'original' if plan['row']['existed'] else 'absent'
+        if kind != expected:
             unresolved.append((plan, kind))
     if unresolved:
         # A writer's object at a target (or a missing one) is the operator's
@@ -3995,13 +4489,21 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
             continue
         path = row.get('path')
         entry = {'path': path, 'expected': {key: row.get(key) for key in (
-            'existed', 'old_sha256', 'new_sha256', 'old_file_identity', 'new_file_identity')}}
+            'existed', 'old_sha256', 'new_sha256', 'old_file_identity', 'new_file_identity',
+            'placeholder', 'target_placeholder')}}
         try:
             current = _get_path(root, path)
             entry['current'] = observe(current)
         except (OSError, ValueError, TypeError) as error:
             entry['current'] = {'exists': None, 'error': f'{type(error).__name__}: {error}'}
             current = None
+        if (current is not None and entry['current'].get('exists')
+                and _get_book_row_placeholder(row) is not None):
+            # A switch's own 64-byte placeholder is not content and is never
+            # adopted; say so, so the operator sees which name it is (#1660).
+            entry['current']['placeholder'] = (
+                _read_book_placeholder(_get_book_row_placeholder(row), path=current)
+                is not None)
         if include_hashes and current is not None and entry['current'].get('exists'):
             try:
                 digest = _get_digest(current)
@@ -4131,6 +4633,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         raise
     staged_identities = {}
     staged_versions = {}
+    staged_placeholders = {}
     parent_identities = None
     rows, target_versions = [], []
     journal_publication_attempted = []
@@ -4140,14 +4643,23 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     use_exchange = False
     try:
         # Decide exchange capability once, before staging or touching a
-        # target (#1660). A probe failure that is not a capability statement
-        # propagates; an unsupported filesystem keeps today's v3 path.
-        wants_exchange = (root_fd is not None and all(
-            value is not None and os.path.lexists(target)
+        # target (#1660). The probe runs inside our private workspace, so a
+        # killed process can never leave `.exchange-probe-*` in the book root.
+        # A probe failure that is not a capability statement propagates; an
+        # unsupported filesystem keeps today's v3 path.
+        wants_exchange = (workspace_fd is not None and any(
+            value is not None or os.path.lexists(target)
             for (_name, value), target in zip(operations, targets)))
         if wants_exchange:
             from source_upload_publication import probe_exchange_support
-            exchange_supported = probe_exchange_support(root_fd)
+            try:
+                workspace_device = os.fstat(workspace_fd).st_dev
+                same_filesystem = all(
+                    os.stat(target.parent, follow_symlinks=False).st_dev == workspace_device
+                    for target in targets)
+            except OSError:
+                same_filesystem = False
+            exchange_supported = same_filesystem and probe_exchange_support(workspace_fd)
         if root_fd is not None:
             parent_identities = [
                 _capture_target_parent_identities(root_fd, name) for name in names]
@@ -4189,6 +4701,29 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             if existed and after_version != before_version:
                 raise ValueError('Book artifact changed during staging')
             target_versions.append(before_version)
+            if not existed and value is not None and exchange_supported:
+                # A creation's target is absent; the journal is written before
+                # the O_EXCL create, so only the intent (kind + nonce) can be
+                # recorded here (#1660 step 4).
+                row['target_placeholder'] = _get_book_placeholder_evidence(
+                    'file', _get_book_placeholder_nonce())
+            if existed and value is None and exchange_supported:
+                # A removal stages a same-type placeholder in our workspace
+                # before the journal: the exchange needs a second object, and
+                # recovery deletes it only by this nonce/identity.
+                kind = _get_book_placeholder_kind(before_version[5])
+                nonce = _get_book_placeholder_nonce()
+                evidence = _get_book_placeholder_evidence(kind, nonce)
+                staged_name = f'old-{index}'
+                evidence['identity'] = _create_book_placeholder(
+                    workspace_fd, staged_name, kind, nonce)
+                if not streams:
+                    with _refuse_book_io(_STAGING_READ_ERROR):
+                        generation = get_book_file_generation(staged_name, dir_fd=workspace_fd)
+                    if generation is not None:
+                        evidence['generation'] = generation
+                row['placeholder'] = evidence
+                staged_placeholders[staged_name] = evidence
             if value is not None:
                 with _refuse_book_io(_STAGING_READ_ERROR):
                     mode = stat.S_IMODE(target.stat().st_mode) if existed else 0o600
@@ -4266,10 +4801,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             for row, target, old_version in zip(rows, targets, target_versions):
                 _check_stream_cancellation(cancel_check)
                 _validate_stream_target(row, target, old_version, verification_budget)
-        # v4 is replacement-only in this PR: any creation or removal row stays
-        # on today's v3/v2 path (temporary rule; step 4 removes it).
-        use_exchange = (exchange_supported and bool(rows) and all(
-            row['existed'] is True and row['new_sha256'] is not None for row in rows))
+        # Every POSIX transaction that exchanges anything is v4: a replacement,
+        # a removal or a creation all publish through _exchange. Only a
+        # transaction that moves nothing (all rows absent, nothing written)
+        # stays v3, as design 2.1 says (#1660 step 4).
+        use_exchange = (exchange_supported and bool(rows) and any(
+            row['existed'] or row['new_sha256'] is not None for row in rows))
         data = {'version':(_EXCHANGE_JOURNAL_VERSION if use_exchange
                            else 2 if streams else 3),
                 'phase':'publishing',
@@ -4324,38 +4861,112 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check) if streams else None,
                 cancel_check=cancel_check)
             if use_exchange:
-                # One exchange is the backup and the publication for this row:
-                # T=O, new-i=N -> T=N, new-i=O. The target is never absent.
                 publication_started = True
-                slot = workspace / f'new-{index}'
-                _exchange(target, slot, anchor=root, anchor_identity=root_identity,
-                          source_parent_identity=(parent_identities[index]
-                                                  if parent_identities is not None else None),
-                          destination_parent_identity=workspace_identity,
-                          expect_source=_expect_book_original(row),
-                          expect_destination=_expect_book_replacement(row))
-                slot_version = _book_target_version(slot)
-                try:
-                    if streams:
-                        _validate_moved_stream_original(
-                            row, slot, target_versions[index], moved_budget)
-                    else:
-                        _validate_moved_byte_original(
-                            row, slot, target_versions[index], cancel_check=cancel_check)
-                except BaseException:
-                    # The swap succeeded but the original no longer matches
-                    # (an edit through an open descriptor). Undo our own swap
-                    # with the observation just taken, then let the abort path
-                    # handle the restored object; never continue as committed.
-                    with contextlib.suppress(BaseException):
-                        _undo_book_exchange(
-                            root, root_identity, row, target, slot,
-                            target_parent_identity=(parent_identities[index]
-                                                    if parent_identities is not None else None),
-                            workspace_identity=workspace_identity,
-                            target_holds_replacement=True,
-                            slot_expectation=_expect_observed_book_object(slot_version))
-                    raise
+                target_parent = (parent_identities[index]
+                                 if parent_identities is not None else None)
+                if row['existed'] and row['new_sha256'] is None:
+                    # Removal: T=O, old-i=P -> T=P, old-i=O. The workspace
+                    # placeholder (same type as the target) is the second
+                    # object the exchange needs; then only our proven nonce at
+                    # T is deleted, and the name settles as absent.
+                    slot = workspace / f'old-{index}'
+                    _exchange(target, slot, anchor=root, anchor_identity=root_identity,
+                              source_parent_identity=target_parent,
+                              destination_parent_identity=workspace_identity,
+                              expect_source=_expect_book_original(row),
+                              expect_destination=_expect_book_placeholder(row, 'placeholder'))
+                    slot_version = _book_target_version(slot)
+                    try:
+                        if streams:
+                            _validate_moved_stream_original(
+                                row, slot, target_versions[index], moved_budget)
+                        else:
+                            _validate_moved_byte_original(
+                                row, slot, target_versions[index], cancel_check=cancel_check)
+                    except BaseException:
+                        # The swap succeeded but the original moved out of the
+                        # target no longer matches (an edit through an open
+                        # descriptor). Undo our own swap, then abort.
+                        with contextlib.suppress(BaseException):
+                            _undo_book_exchange(
+                                root, root_identity, row, target, slot,
+                                target_parent_identity=target_parent,
+                                workspace_identity=workspace_identity,
+                                target_kind='placeholder')
+                        raise
+                    _delete_book_placeholder_at(
+                        root, target, slot, row['placeholder'],
+                        anchor_identity=root_identity,
+                        target_parent_identity=target_parent)
+                    if os.path.lexists(target):
+                        raise ValueError(
+                            'Book removal did not settle at an absent target')
+                elif not row['existed'] and row['new_sha256'] is not None:
+                    # Creation: the intent (kind + nonce) is already in the
+                    # journal, so the O_EXCL create at T is recoverable by
+                    # nonce alone. A writer who created T first makes the
+                    # create fail before any mutation.
+                    slot = workspace / f'new-{index}'
+                    evidence = row['target_placeholder']
+                    _create_book_placeholder_at(
+                        root, target, slot, evidence['kind'], evidence['nonce'],
+                        anchor_identity=root_identity,
+                        target_parent_identity=target_parent)
+                    _exchange(slot, target, anchor=root, anchor_identity=root_identity,
+                              source_parent_identity=workspace_identity,
+                              destination_parent_identity=target_parent,
+                              expect_source=_expect_book_replacement(row),
+                              expect_destination=_expect_book_placeholder(
+                                  row, 'target_placeholder'))
+                    try:
+                        _validate_exchange_target(
+                            row, target, limits=data.get('stream_limits'),
+                            budget=(moved_budget if streams else None),
+                            cancel_check=cancel_check, expected='replacement')
+                        if _read_book_placeholder(evidence, path=slot) is None:
+                            raise ValueError(
+                                'Book placeholder changed during publication; '
+                                'recovery evidence was preserved')
+                    except BaseException:
+                        with contextlib.suppress(BaseException):
+                            _undo_book_exchange(
+                                root, root_identity, row, target, slot,
+                                target_parent_identity=target_parent,
+                                workspace_identity=workspace_identity,
+                                target_kind='replacement',
+                                slot_kind='target_placeholder')
+                        raise
+                elif row['new_sha256'] is not None:
+                    # One exchange is the backup and the publication for this
+                    # row: T=O, new-i=N -> T=N, new-i=O. The target is never
+                    # absent.
+                    slot = workspace / f'new-{index}'
+                    _exchange(target, slot, anchor=root, anchor_identity=root_identity,
+                              source_parent_identity=target_parent,
+                              destination_parent_identity=workspace_identity,
+                              expect_source=_expect_book_original(row),
+                              expect_destination=_expect_book_replacement(row))
+                    slot_version = _book_target_version(slot)
+                    try:
+                        if streams:
+                            _validate_moved_stream_original(
+                                row, slot, target_versions[index], moved_budget)
+                        else:
+                            _validate_moved_byte_original(
+                                row, slot, target_versions[index], cancel_check=cancel_check)
+                    except BaseException:
+                        # The swap succeeded but the original no longer matches
+                        # (an edit through an open descriptor). Undo our own swap
+                        # with the observation just taken, then let the abort path
+                        # handle the restored object; never continue as committed.
+                        with contextlib.suppress(BaseException):
+                            _undo_book_exchange(
+                                root, root_identity, row, target, slot,
+                                target_parent_identity=target_parent,
+                                workspace_identity=workspace_identity,
+                                target_kind='replacement',
+                                slot_expectation=_expect_observed_book_object(slot_version))
+                        raise
                 if parent_identities is not None:
                     _require_transaction_parent_identities(
                         root, [names[index]], [parent_identities[index]], root_fd=root_fd,
@@ -4416,7 +5027,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             for index, row in enumerate(rows):
                 _check_stream_cancellation(cancel_check)
                 if row['existed']:
-                    backup = workspace / (f'new-{index}' if use_exchange else f'old-{index}')
+                    backup = workspace / _get_book_backup_slot(row, index, use_exchange)
                     _validate_moved_stream_original(row, backup,
                                                     target_versions[index], backup_budget)
         else:
@@ -4425,7 +5036,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             # a non-cooperating writer after the final check.
             for index, row in enumerate(rows):
                 if row['existed']:
-                    backup = workspace / (f'new-{index}' if use_exchange else f'old-{index}')
+                    backup = workspace / _get_book_backup_slot(row, index, use_exchange)
                     _validate_moved_byte_original(
                         row, backup, target_versions[index],
                         cancel_check=cancel_check)
@@ -4471,6 +5082,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     # the published journal even when the triggering cancellation
                     # is sticky; aborting this cleanup leaves stale recovery state.
                     try:
+                        _delete_unpublished_book_placeholders(
+                            workspace, workspace_identity,
+                            {f'old-{index}': row['placeholder']
+                             for index, row in enumerate(data['entries'])
+                             if row.get('placeholder') is not None},
+                            parent_fd=root_fd)
                         journal_version = _retire_unpublished_journal(
                             root, data, journal_version, root_fd)
                         _finish_transaction(root, workspace, journal_version=journal_version,
@@ -4482,6 +5099,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                         raise cleanup_error from original_error
                 else:
                     try:
+                        _delete_unpublished_book_placeholders(
+                            workspace, workspace_identity,
+                            {f'old-{index}': row['placeholder']
+                             for index, row in enumerate(data['entries'])
+                             if row.get('placeholder') is not None},
+                            parent_fd=root_fd)
                         journal_version = _retire_unpublished_journal(
                             root, data, journal_version, root_fd, targets)
                         _cleanup_unpublished_stream_workspace(
@@ -4508,6 +5131,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     raise recovery_error from original_error
         elif not journal_publication_attempted and (root_fd is not None or os.path.lexists(workspace)):
             try:
+                _delete_unpublished_book_placeholders(
+                    workspace, workspace_identity, staged_placeholders, parent_fd=root_fd)
                 _cleanup_unpublished_stream_workspace(
                     workspace, workspace_identity, staged_identities,
                     parent_fd=root_fd, staged_versions=staged_versions,

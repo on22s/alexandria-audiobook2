@@ -72,15 +72,13 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
             writer.save_checkpoint(state)
             before={str(p):p.read_bytes() for p in root.rglob('*')
                     if p.is_file() and not p.name.endswith('.lock')}
-            move=books._move
             failed_once=False
-            def fail(source,destination, **kwargs):
+            def fail(target):
                 nonlocal failed_once
-                if str(destination)==checkpoint_path and not failed_once:
+                if str(target)==checkpoint_path and not failed_once:
                     failed_once=True
                     raise OSError('delta recovery publication failed')
-                return move(source,destination, **kwargs)
-            with patch.object(books,'_move',side_effect=fail),self.assertRaises(OSError):
+            with intercept_book_publications(books,before=fail),self.assertRaises(OSError):
                 script.apply_manual_recovery(self.entries(),'manual')
             after={str(p):p.read_bytes() for p in root.rglob('*')
                    if p.is_file() and not p.name.endswith('.lock')}
@@ -150,6 +148,26 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
                 with intercept_book_publications(books,before=fail),self.assertRaisesRegex(OSError,'recovery disk failure'):
                     script.apply_manual_recovery(self.entries(),'manual')
                 self.assertEqual([target_of(path)],[str(target) for target in failed])
+                self.assertEqual(before,self.pair(path))
+                self.assertTrue(script.apply_manual_recovery(self.entries(),'manual')['accepted'])
+
+    def test_each_v3_backup_and_publication_failure_restores_exact_pair(self):
+        # #1880 dropped the v3 backup-move failure points when publication
+        # moved onto the shared seam. They still exist on the protocol that
+        # has them: v3 moves each existing target aside and then publishes it,
+        # so two rows give four move points (#1660 step 4 follow-up).
+        from tests.test_support import legacy_book_publication_protocol
+        for point in range(1, 5):
+            with self.subTest(move=point),self.fixture() as (_,path):
+                before=self.pair(path);move=books._move;count=[0]
+                def fail(source,destination, **kwargs):
+                    count[0]+=1
+                    if count[0]==point:raise OSError('recovery disk failure')
+                    return move(source,destination, **kwargs)
+                with legacy_book_publication_protocol(), \
+                        patch.object(books,'_move',side_effect=fail), \
+                        self.assertRaisesRegex(OSError,'recovery disk failure'):
+                    script.apply_manual_recovery(self.entries(),'manual')
                 self.assertEqual(before,self.pair(path))
                 self.assertTrue(script.apply_manual_recovery(self.entries(),'manual')['accepted'])
 
