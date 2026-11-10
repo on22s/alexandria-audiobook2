@@ -124,6 +124,14 @@ function t(key, english, values = {}, locale = getUiLocale()) {
     if (typeof english !== 'string' || !english.trim()) {
         throw new Error('Missing English text for UI message: ' + key);
     }
+    return translateUiMessage(key, english, values, locale);
+}
+
+// The translation core. Authored call sites use t(), whose literal English the
+// source harvest can see; server refusals arrive with runtime text and use this
+// entry point instead, because their English is harvested from the AppError
+// message rather than from a t() argument.
+function translateUiMessage(key, english, values = {}, locale = getUiLocale()) {
     if (locale === UI_LOCALE_PSEUDO) {
         return formatUiMessage(english, expandPseudoUiMessage(english), values);
     }

@@ -104,7 +104,7 @@
             const html = `
                 <div id="${id}" class="toast align-items-center ${lightBackground ? 'text-dark fw-medium' : 'text-white'} ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
                     <div class="d-flex">
-                        <div class="toast-body">${escapeHtml(message)}</div>
+                        <div class="toast-body">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
                         <button type="button" class="btn-close${lightBackground ? '' : ' btn-close-white'} me-2 m-auto" ${lightBackground ? 'style="filter: none;"' : ''} data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
                     </div>
                 </div>`;
@@ -141,12 +141,59 @@
                 // snapshot change, so no save outcome is claimed here.
                 return 'The Voices display refresh was superseded by a newer local change. Check current Voices before repeating the action.';
             }
-            const detail = error?.message || String(error);
-            const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(detail);
+            const english = error?.message || String(error);
+            const detail = describeApiError(error);
+            const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(english);
             const guidance = unreachable
                 ? `Could not reach Alexandria. Check that the app is running and the connection is available. Review the current status before retrying; a request may have completed even if its reply was lost. ${recovery}`
                 : recovery;
             return `${action}. ${guidance} Details: ${detail}`;
+        }
+
+        // Server refusals carry message_key beside the byte-identical English
+        // detail. detail is a RENDERED sentence, so a translation's
+        // placeholders are checked against message_values (the server's
+        // canonical placeholder set), not against the rendered text. A missing
+        // or mismatched translation falls back to the English detail, never to
+        // a raw key. Safety messages keep the English sentence beneath the
+        // translation; every other refusal shows the translation alone, with
+        // the English still on error.message/error.detail.
+        function formatServerValues(key, english, values, locale = getUiLocale()) {
+            if (locale === UI_LOCALE_PSEUDO) {
+                return formatUiMessage(english, expandPseudoUiMessage(english), values);
+            }
+            const catalog = uiCatalogs.get(locale);
+            const translated = catalog && Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : null;
+            if (typeof translated !== 'string') {
+                return english;
+            }
+            const expected = Object.keys(values).sort().map(name => `{${name}}`).join(',');
+            if (uiPlaceholderSet(translated) !== expected) {
+                reportUiCatalogMiss(key, locale);
+                return english;
+            }
+            return formatUiMessage(translated, translated, values);
+        }
+
+        // The one decision about which text a server refusal shows (Rule 15).
+        function describeApiError(error) {
+            const english = error?.message || String(error);
+            const key = error?.messageKey;
+            if (typeof key !== 'string' || !key) {
+                return english;
+            }
+            const values = error?.messageValues && typeof error.messageValues === 'object'
+                ? error.messageValues : {};
+            const hasValues = Object.keys(values).length > 0;
+            if (key.startsWith('safety') && !hasValues) {
+                const {primary, secondary} = tSafety(key, english);
+                return secondary === null ? primary : primary + '\n' + secondary;
+            }
+            const translated = hasValues ? formatServerValues(key, english, values) : translateUiMessage(key, english);
+            if (!key.startsWith('safety') || translated === english) {
+                return translated;
+            }
+            return translated + '\n' + english;
         }
 
         function showConfirm(message, {title = 'Confirm action', actionLabel = 'Continue', danger = false} = {}) {
@@ -995,13 +1042,18 @@
             _handleError: async (res) => {
                 if (res.ok) { return; }
                 let detail = res.statusText || `HTTP ${res.status}`;
+                let body = null;
                 try {
-                    const body = await res.json();
+                    body = await res.json();
                     if (body && body.detail) { detail = body.detail; }
                 } catch (e) { /* non-JSON error body; fall back to statusText */ }
                 const err = new Error(typeof detail === 'string' ? detail : (detail.message || JSON.stringify(detail)));
                 err.status = res.status;
                 err.detail = detail; // structured 422 bodies (e.g. gate findings) stay readable
+                if (body && typeof body.message_key === 'string') { err.messageKey = body.message_key; }
+                if (body && body.message_values && typeof body.message_values === 'object') {
+                    err.messageValues = body.message_values;
+                }
                 throw err;
             },
             get: async (url, {timeoutMs = null, timeoutMessage = 'The request timed out. Check the selected book and try again.'} = {}) => {

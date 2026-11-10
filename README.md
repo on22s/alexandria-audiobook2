@@ -220,17 +220,25 @@ The Setup sidebar has a **Setup UI language (partial coverage)** selector above
 the setting finder. The finder's text, including its search feedback, the **Preview changes**
 action, preview title, **Close preview** action, default-count summary and
 **Saved**/**Would save** column headings use the English message catalog. Counts
-are preserved. The optional **Pseudo-English** mode expands those messages for layout testing; it is
-not a reviewed translation. Setting names, comparison values, default markers,
-contextual help and safety warnings
-remain English. The preference is browser-local, synchronizes between same-origin
-tabs when storage is available, and never changes book, TTS or transcription
-language, configuration values or submitted technical identifiers. Unsupported
-locales (including RTL language codes) fall back to English without changing layout direction.
-Uncatalogued markup retains its authored English text or placeholder instead of displaying a message key.
-No RTL locale or full-interface translation is claimed. The bounded catalog foundation
-requested by #1732 is complete; reviewed translations and additional workflows are future work.
-See [the acceptance record](docs/setup-ui-catalog.md) for the exact scope, tests and limits.
+are preserved. Thirty of the most visible server refusals (voice saves, book
+busy/switch, uploads and generation admission) also arrive with a message key
+and are translated; safety refusals from that set show the English sentence
+beneath the translation, so a mistranslation cannot remove the original. Setting
+names, comparison values, default markers, contextual help and the remaining
+server sentences stay English. The optional **Pseudo-English** mode expands
+those messages for layout testing; it is not a reviewed translation. The
+preference is browser-local, synchronizes between same-origin tabs when storage
+is available, and never changes book, TTS or transcription language,
+configuration values or submitted technical identifiers. Unsupported locales
+(including RTL language codes) fall back to English without changing layout
+direction. Uncatalogued markup retains its authored English text or placeholder
+instead of displaying a message key. **Task logs and subprocess output stay
+English in every locale**: they are a debugging transcript that one stored run
+may need to serve under two browser locales, and `logs/api/*.log` must stay
+greppable. No RTL locale or full-interface translation is claimed. The bounded
+catalog foundation requested by #1732 is complete; reviewed translations and
+additional workflows are future work. See
+[the acceptance record](docs/setup-ui-catalog.md) for the exact scope, tests and limits.
 
 For troubleshooting, **Setup > Speech engine > Refresh report** shows the exact
 local support-report JSON before download. Nothing uploads automatically. See

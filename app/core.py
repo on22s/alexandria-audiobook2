@@ -25,6 +25,7 @@ from typing import List, Optional, Tuple
 
 import aiofiles
 from fastapi import HTTPException, UploadFile
+from fastapi.responses import JSONResponse
 
 from character_evidence import aliases_for
 from speaker_identity import is_speaker_merge_allowed
@@ -45,6 +46,28 @@ from task_ownership import (acquire_task_lease, ensure_startup_recovery, get_tas
 
 
 logger = logging.getLogger("AlexandriaUI")
+
+
+class AppError(HTTPException):
+    """A refusal whose English ``detail`` is byte-identical to the legacy text.
+
+    ``message_key`` (and optional ``message_values``) travel beside ``detail`` so
+    the browser can translate the sentence without changing what tests, logs and
+    non-browser clients still read. Plain ``HTTPException`` keeps FastAPI's
+    default handler, so unconverted raise sites behave exactly as before.
+    """
+
+    def __init__(self, status_code, message, *, key, values=None, headers=None):
+        super().__init__(status_code=status_code, detail=message, headers=headers)
+        self.message_key = key
+        self.message_values = values or {}
+
+
+async def handle_app_error(_request, exc: AppError):
+    body = {"detail": exc.detail, "message_key": exc.message_key}
+    if exc.message_values:
+        body["message_values"] = exc.message_values
+    return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
 
 def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> None:
@@ -686,16 +709,10 @@ def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
     check_text_loss's return-a-value convention.
     """
     if is_task_running(new_task_name):
-        raise HTTPException(
-            status_code=400,
-            detail=f"{new_task_name.replace('_', ' ').capitalize()} is already running."
-        )
+        raise AppError(400, f"{new_task_name.replace('_', ' ').capitalize()} is already running.", key='error.task.already_running', values={'task': new_task_name.replace('_', ' ').capitalize()})
     for task_name in gpu_lock_conflicts(new_task_name, cpu_only=cpu_only):
         if is_task_running(task_name):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM."
-            )
+            raise AppError(400, f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM.", key='error.task.gpu_busy', values={'task': new_task_name.replace('_', ' '), 'running': task_name.replace('_', ' ')})
 
 _gpu_lock = threading.Lock()
 _gpu_leases = {}
@@ -723,17 +740,14 @@ def ensure_saved_book_destination_available(path):
                     os.path.dirname(path), f"{secure_filename(task['name'])}.json"))
                     for task in state["tasks"] if task.get("name")) or None
             if destinations is None or destination in destinations:
-                raise HTTPException(status_code=409, detail=(
-                    "This saved book is owned by batch review. Wait for it to finish or cancel it."))
+                raise AppError(409, 'This saved book is owned by batch review. Wait for it to finish or cancel it.', key='error.book.owned_by_batch_review')
         _saved_book_publications[destination] = _saved_book_publications.get(destination, 0) + 1
     try:
         try:
             with ensure_task_resources_available(DATA_DIR, ('batch_review',), (destination,), mutation_timeout=10):
                 yield
         except TaskOwnershipBusy as error:
-            raise HTTPException(status_code=409, detail=(
-                "This saved book is owned by batch review or another save. "
-                "Wait for it to finish or cancel it.")) from error
+            raise AppError(409, 'This saved book is owned by batch review or another save. Wait for it to finish or cancel it.', key='error.book.owned_or_saving') from error
     finally:
         with _gpu_lock:
             remaining = _saved_book_publications[destination] - 1
@@ -752,12 +766,9 @@ def ensure_book_switch_allowed(*, operation="switch books", hold_task_mutex=True
             idle = admission.enter_context(ensure_startup_recovery(DATA_DIR, timeout=0))
             busy = [name for name in process_state if is_task_running(name)]
             if busy:
-                raise HTTPException(status_code=409, detail=(
-                    f"Cannot {operation} while tasks are running: " + ", ".join(busy)
-                    + ". Wait for them to finish or cancel them."))
+                raise AppError(409, f"Cannot {operation} while tasks are running: {', '.join(busy)}. Wait for them to finish or cancel them.", key='error.book.switch_tasks_running', values={'operation': operation, 'tasks': ', '.join(busy)})
             if not idle:
-                raise HTTPException(status_code=409, detail=(
-                    f"Cannot {operation} while another process owns a task. Wait for it to finish or cancel it."))
+                raise AppError(409, f"Cannot {operation} while another process owns a task. Wait for it to finish or cancel it.", key='error.book.switch_other_process', values={'operation': operation})
             # Short existing book switches retain their waiting task behavior.
             # Long scope scans release only this mutex: the kernel admission
             # barrier still excludes every task claim through the entire yield.
@@ -765,8 +776,7 @@ def ensure_book_switch_allowed(*, operation="switch books", hold_task_mutex=True
                 task_mutex.close()
             yield
     except TimeoutError as exc:
-        raise HTTPException(status_code=409, detail=(
-            f"Could not complete or confirm {operation}; check the current state before retrying.")) from exc
+        raise AppError(409, f"Could not complete or confirm {operation}; check the current state before retrying.", key='safety.book.switch_unconfirmed', values={'operation': operation}) from exc
 
 
 def _reap_gpu_leases():

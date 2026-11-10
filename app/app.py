@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from adapter_static import AdapterStaticFiles
 
 from core import (
+    AppError, handle_app_error,
     TaskClaimMiddleware, release_pending_task_claims,
     BUILTIN_LORA_DIR,
     DATA_DIR,
@@ -81,6 +82,7 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Alexandria Audiobook", lifespan=lifespan)
+app.add_exception_handler(AppError, handle_app_error)
 app.add_middleware(TaskClaimMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

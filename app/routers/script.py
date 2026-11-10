@@ -89,6 +89,7 @@ from publication_source import (PublicationSourceLimit, get_upload_publication_u
     get_new_upload_publication_bytes)
 
 from core import (
+    AppError,
     _saved_book_meta_path,
     is_task_running,
     get_active_book_id,
@@ -1335,7 +1336,7 @@ def _get_single_narrator_source_preview():
         state = load_book_state()
         source_path = state.get("input_file_path")
         if not isinstance(source_path, str) or not source_path:
-            raise HTTPException(status_code=400, detail="No input file selected for the active book.")
+            raise AppError(400, 'No input file selected for the active book.', key='error.upload.no_input_active')
         # Resolve exactly like the shared generation/source capture
         # resolver (_capture_raw_source): relative spellings resolve
         # against the process CWD, never silently against DATA_DIR, so
@@ -1423,9 +1424,9 @@ def _get_single_narrator_source_preview():
             source_sha256 = proof["sha256"]
         # One size/empty/source_name policy for both branches (#1724 C062).
         if len(raw) > MAX_SCRIPT_UPLOAD_BYTES:
-            raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+            raise AppError(400, 'Source exceeds the upload storage limit.', key='error.upload.source_too_large')
         if not raw:
-            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+            raise AppError(400, 'Active source is empty; import a non-empty book first.', key='error.upload.source_empty')
         source_name = Path(source_abs).name
         # Reuse the shared decoder policy; programmer errors (e.g. a
         # non-bytes raw from an internal defect) propagate instead of being
@@ -1448,7 +1449,7 @@ def _get_single_narrator_source_preview():
         # leading and whitespace-only previews honestly without certifying
         # whole-book emptiness; decoder/BOM/NUL/counts above are unchanged.
         if not text:
-            raise HTTPException(status_code=400, detail="Active source is empty; import a non-empty book first.")
+            raise AppError(400, 'Active source is empty; import a non-empty book first.', key='error.upload.source_empty')
         _excerpt = text[:SINGLE_NARRATOR_PREVIEW_CHARS]
         if not _excerpt.strip():
             raise HTTPException(status_code=400, detail=(
@@ -1475,14 +1476,14 @@ def _get_single_narrator_source_preview():
         # bind this excerpt to a different book than the one returned.
         state_after = load_book_state()
         if state_after.get("input_file_path") != source_path:
-            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+            raise AppError(409, 'Active book changed while reading the preview.', key='safety.book.changed_while_preview')
         try:
             token_after = get_book_operation_token(DATA_DIR, state=state_after)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=(
                 "Active book could not be verified while reading the preview.")) from exc
         if token_after != book_token:
-            raise HTTPException(status_code=409, detail="Active book changed while reading the preview.")
+            raise AppError(409, 'Active book changed while reading the preview.', key='safety.book.changed_while_preview')
         return {"book_token": book_token, "source_name": source_name,
                 "imported_source_name": imported_source_name,
                 "source_sha256": source_sha256, "encoding": encoding,
@@ -1495,7 +1496,7 @@ async def get_single_narrator_source_preview():
     try:
         return await asyncio.to_thread(_get_single_narrator_source_preview)
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Book state is busy; retry the preview shortly.") from None
+        raise AppError(503, 'Book state is busy; retry the preview shortly.', key='error.book.busy_preview') from None
     except (ValueError, OSError) as exc:
         # Admission/recovery failures (root swap, invalid/legacy journal,
         # lock-file OSError) from ensure_book_state and token derivation
@@ -1556,7 +1557,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
     safe_name = _require_safe_filename(file.filename or "", "Invalid or empty filename")
     is_docx = safe_name.lower().endswith('.docx')
     if os.path.splitext(safe_name)[1].lower() not in BATCH_SOURCE_EXTENSIONS | {'.docx'}:
-        raise HTTPException(status_code=400, detail="Supported source formats are TXT, Markdown, EPUB and confirmed single-book DOCX.")
+        raise AppError(400, 'Supported source formats are TXT, Markdown, EPUB and confirmed single-book DOCX.', key='error.upload.unsupported_format')
     if is_docx:
         if select_active or (not docx_preview and (not docx_confirmed
                 or not re.fullmatch('[0-9a-f]{64}', docx_preview_digest or ''))):
@@ -1572,7 +1573,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
     try:
         _, cancelled = await await_upload_operation(asyncio.to_thread(storage_lock.__enter__))
     except TimeoutError as error:
-        raise HTTPException(status_code=503, detail="Upload storage is busy; retry shortly.") from error
+        raise AppError(503, 'Upload storage is busy; retry shortly.', key='error.upload.storage_busy') from error
     if cancelled is not None:
         storage_lock.__exit__(None, None, None)
         raise cancelled
@@ -1595,7 +1596,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
     try:
         available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
         if available <= 0:
-            raise HTTPException(status_code=413, detail="Source upload storage limit reached.")
+            raise AppError(413, 'Source upload storage limit reached.', key='error.upload.storage_limit')
         capture_limit = min(MAX_SCRIPT_UPLOAD_BYTES, available, MAX_DOCX_ARCHIVE if is_docx else MAX_SCRIPT_UPLOAD_BYTES)
         file_path, cancelled = await await_upload_operation(
             asyncio.to_thread(create_source_upload_stage, UPLOADS_DIR,
@@ -1621,11 +1622,11 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             except (OSError, MemoryError) as error:
                 raise HTTPException(status_code=503, detail='DOCX processing is temporarily unavailable.') from error
             if len(preview['text'].encode('utf-8')) > MAX_SCRIPT_UPLOAD_BYTES:
-                raise HTTPException(status_code=413, detail='Extracted DOCX text exceeds source upload limits.')
+                raise AppError(413, 'Extracted DOCX text exceeds source upload limits.', key='error.upload.docx_text_too_large')
             if docx_preview:
                 return {'status': 'preview', **preview}
             if preview['preview_digest'] != docx_preview_digest:
-                raise HTTPException(status_code=409, detail='DOCX preview changed; preview and accept this exact file again.')
+                raise AppError(409, 'DOCX preview changed; preview and accept this exact file again.', key='safety.upload.docx_preview_changed')
             remaining = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
             try:
                 result, cancelled = await await_upload_operation(asyncio.to_thread(
@@ -1686,7 +1687,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             if cancelled is not None:
                 raise cancelled
             if text_bytes is None:
-                raise HTTPException(status_code=400, detail="No readable text content found in EPUB.")
+                raise AppError(400, 'No readable text content found in EPUB.', key='error.upload.epub_empty')
             # Archive bytes are retained for read-aloud (#1779). Windows admits
             # one rename guard per directory, so the capture stage is closed
             # here and a fresh retained stage is published later from memory
@@ -1698,7 +1699,7 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             file_path = None
             available = MAX_UPLOAD_STORAGE_BYTES - await asyncio.to_thread(get_upload_storage_bytes)
             if len(text_bytes) > min(MAX_SCRIPT_UPLOAD_BYTES, available):
-                raise HTTPException(status_code=413, detail="Extracted EPUB text exceeds source upload storage limits.")
+                raise AppError(413, 'Extracted EPUB text exceeds source upload storage limits.', key='error.upload.epub_text_too_large')
             def capture_publication():
                 options = dict(filename=file.filename or safe_name,
                                text_sha256=hashlib.sha256(text_bytes).hexdigest())
@@ -2390,7 +2391,7 @@ def start_book_preflight(background_tasks, request):
                     raise ValueError("Source changed while preparing preflight.")
                 signature = [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
             if len(source_bytes) > MAX_SCRIPT_UPLOAD_BYTES:
-                raise HTTPException(status_code=400, detail="Source exceeds the upload storage limit.")
+                raise AppError(400, 'Source exceeds the upload storage limit.', key='error.upload.source_too_large')
             source_copy = os.path.join(private.name, "source" + Path(source_path).suffix)
             Path(source_copy).write_bytes(source_bytes)
             config = load_app_config(CONFIG_PATH)
@@ -2613,7 +2614,7 @@ async def snapshot_script(request: SnapshotRequest):
     try:
         return await asyncio.to_thread(_snapshot_script_sync, request)
     except TimeoutError as error:
-        raise HTTPException(status_code=409, detail='Book or saved snapshot is busy; retry shortly.') from error
+        raise AppError(409, 'Book or saved snapshot is busy; retry shortly.', key='error.book.snapshot_busy') from error
 
 
 def _snapshot_script_sync(request):
@@ -2719,9 +2720,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
     if require_recovery and ensure_script_recovery_manifest() is None:
-        raise HTTPException(
-            status_code=409,
-            detail="No failed or incomplete three-pass generation is available to resume.")
+        raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.', key='error.generation.no_recovery')
     check_global_gpu_lock("script")
     try:
         options = {
@@ -2780,9 +2779,9 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
             require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
-                raise HTTPException(status_code=409, detail="Selected source changed before generation started.")
+                raise AppError(409, 'Selected source changed before generation started.', key='safety.generation.source_changed_before_start')
             if require_recovery and get_script_recovery_manifest() is None:
-                raise HTTPException(status_code=409, detail="Recovery checkpoint changed before start.")
+                raise AppError(409, 'Recovery checkpoint changed before start.', key='safety.generation.recovery_changed')
             from script_selection_binding import capture_generation_selection
             try:
                 captured = capture_generation_selection(DATA_DIR, input_file)
@@ -2878,7 +2877,7 @@ async def generate_script(background_tasks: BackgroundTasks,
     # Get input file from state.json
     state_path = os.path.join(DATA_DIR, "state.json")
     if not os.path.exists(state_path):
-        raise HTTPException(status_code=400, detail="No input file selected")
+        raise AppError(400, 'No input file selected', key='error.generation.no_input')
 
     state = safe_load_json(state_path, default={})
     input_file = state.get("input_file_path")
@@ -3506,7 +3505,7 @@ def get_current_cast_list_target():
     state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
     input_file = state.get("input_file_path") if isinstance(state, dict) else None
     if not input_file or not os.path.isfile(input_file):
-        raise HTTPException(status_code=400, detail="No input file selected")
+        raise AppError(400, 'No input file selected', key='error.generation.no_input')
     return input_file, get_cast_list_path(input_file, DATA_DIR)
 
 
