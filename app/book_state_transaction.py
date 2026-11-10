@@ -2861,9 +2861,14 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             _validate_staged_replacement(
                 row, workspace / f'new-{index}', staged_budget, cancel_check=cancel_check)
         for index, (row, target) in enumerate(zip(rows, targets)):
+            # Recheck only this row's own chain around its move (#1660): names
+            # are validated so no target is an ancestor of another, so moving
+            # one target cannot change another's chain; every chain is
+            # rechecked once more before the commit point below.
             if parent_identities is not None:
                 _require_transaction_parent_identities(
-                    root, names, parent_identities, root_fd=root_fd)
+                    root, [names[index]], [parent_identities[index]], root_fd=root_fd,
+                    cancel_check=cancel_check)
             if streams:
                 _check_stream_cancellation(cancel_check)
                 _validate_stream_target(row, target, target_versions[index], move_budget)
@@ -2920,7 +2925,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                           expected_source_generation=row.get('new_file_generation'))
             if parent_identities is not None:
                 _require_transaction_parent_identities(
-                    root, names, parent_identities, root_fd=root_fd)
+                    root, [names[index]], [parent_identities[index]], root_fd=root_fd,
+                    cancel_check=cancel_check)
         if streams:
             _verify_committed_stream_targets(rows, targets,
                 _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check))
@@ -2943,7 +2949,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 rows, targets, 'committed', cancel_check=cancel_check)
         if parent_identities is not None:
             _require_transaction_parent_identities(
-                root, names, parent_identities, root_fd=root_fd)
+                root, names, parent_identities, root_fd=root_fd, cancel_check=cancel_check)
         data['phase'] = 'committed'
         if root_guard is not None:
             root_guard.check()
