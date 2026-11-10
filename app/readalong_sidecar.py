@@ -26,13 +26,17 @@ _FORBIDDEN_KEYS = {"audio_path", "api_key", "password", "token", "voice", "voice
 _STATUSES = {"aligned-estimated", "chunk-estimated", "missing", "ambiguous"}
 
 
-def get_audio_file_sha256(path, limit=2 * 1024**3):
+def get_audio_file_sha256(path, limit=2 * 1024**3, *, cancel_check=None):
     """Bounded SHA-256 of the exported file; never loads it whole if huge."""
+    if type(limit) is not int or limit < 1:
+        raise ValueError("File binding limit must be a positive integer.")
     digest = hashlib.sha256()
     size = 0
     with open(path, "rb") as stream:
         while True:
-            block = stream.read(1024 * 1024)
+            if cancel_check is not None:
+                ensure_audio_export_active(cancel_check)
+            block = stream.read(min(1024 * 1024, limit - size + 1))
             if not block:
                 break
             size += len(block)

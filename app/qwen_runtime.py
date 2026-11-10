@@ -36,8 +36,10 @@ def _isolated_worker_env(base_env=None):
     live outside the environment values themselves.
     """
     source = os.environ if base_env is None else base_env
-    return {key: value for key, value in source.items()
-            if key not in _LOADER_ENV_VARS}
+    env = {key: value for key, value in source.items()
+           if key not in _LOADER_ENV_VARS}
+    env.update(HF_HUB_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1", TRANSFORMERS_OFFLINE="1")
+    return env
 DEFAULT_PROBE_TIMEOUT_SECONDS = 120
 DEFAULT_RUN_TIMEOUT_SECONDS = 7200
 MAX_RESULT_BYTES = 16 * 1024 * 1024
@@ -243,48 +245,46 @@ def _inventory_model_files(model_dir, cancel_check=None):
         raise ValueError("Qwen model directory is unavailable; refusing to identify it.")
     root = Path(model_dir)
 
-    def _walk_error(error):
-        raise ValueError("Qwen model directory is unreadable; refusing to identify it.")
-
     files = []
     total = 0
-    for dirpath, dirnames, filenames in os.walk(root, onerror=_walk_error):
+    visited = 0
+    pending = [root]
+    while pending:
         if cancel_check is not None and cancel_check():
             raise ValueError("Provider identity capture cancelled.")
-        # Inspect a copy of dirnames (never mutate the walk's list):
-        # a symlinked subdirectory is neither descended into nor
-        # hashed, yet the loader follows it, so refuse it outright.
-        for dirname in list(dirnames):
-            try:
-                dir_info = os.lstat(Path(dirpath) / dirname)
-            except OSError as error:
-                raise ValueError(
-                    "Qwen model directory is unreadable; refusing to identify it.") from error
-            if stat.S_ISLNK(dir_info.st_mode):
-                raise ValueError("Qwen model directory contains a symlink; refusing to identify it.")
-        rel_dir = os.path.relpath(dirpath, root)
-        for name in filenames:
-            if name.startswith((".", "_")):
-                continue
-            full = Path(dirpath) / name
-            try:
-                info = os.lstat(full)
-            except OSError as error:
-                raise ValueError("Qwen model directory is unreadable; refusing to identify it.") from error
-            if stat.S_ISLNK(info.st_mode):
-                raise ValueError("Qwen model directory contains a symlink; refusing to identify it.")
-            if not stat.S_ISREG(info.st_mode):
-                raise ValueError("Qwen model directory contains a non-regular file; refusing to identify it.")
-            rel = os.path.join(rel_dir, name) if rel_dir != "." else name
-            size = int(info.st_size)
-            if size < _MIN_MODEL_FILE_BYTES or size > _MAX_MODEL_FILE_BYTES:
-                raise ValueError("Qwen model file %s exceeds its bounds." % rel)
-            total += size
-            if total > _MAX_MODEL_TOTAL_BYTES:
-                raise ValueError("Qwen model directory exceeds its digest bound.")
-            files.append((rel.replace(os.sep, "/"), size))
-            if len(files) > _MAX_MODEL_FILES:
-                raise ValueError("Qwen model directory has too many files.")
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    if cancel_check is not None and cancel_check():
+                        raise ValueError("Provider identity capture cancelled.")
+                    visited += 1
+                    if visited > _MAX_MODEL_FILES:
+                        raise ValueError("Qwen model directory has too many entries.")
+                    full = Path(entry.path)
+                    info = os.lstat(full)
+                    if stat.S_ISLNK(info.st_mode):
+                        raise ValueError("Qwen model directory contains a symlink; refusing to identify it.")
+                    rel = full.relative_to(root).as_posix()
+                    if stat.S_ISDIR(info.st_mode):
+                        # HF local-dir bookkeeping is not loaded by the model.
+                        # Other hidden directories remain content-bound.
+                        if os.path.normcase(rel) != os.path.normcase(".cache/huggingface"):
+                            pending.append(full)
+                        continue
+                    if not stat.S_ISREG(info.st_mode):
+                        raise ValueError("Qwen model directory contains a non-regular file; refusing to identify it.")
+                    if entry.name.startswith((".", "_")):
+                        continue
+                    size = int(info.st_size)
+                    if size < _MIN_MODEL_FILE_BYTES or size > _MAX_MODEL_FILE_BYTES:
+                        raise ValueError("Qwen model file %s is empty or exceeds its size bound." % rel)
+                    total += size
+                    if total > _MAX_MODEL_TOTAL_BYTES:
+                        raise ValueError("Qwen model directory exceeds its digest bound.")
+                    files.append((rel, size))
+        except OSError as error:
+            raise ValueError("Qwen model directory is unreadable; refusing to identify it.") from error
     if not files:
         raise ValueError("Qwen model directory holds no files.")
     files.sort()
@@ -304,9 +304,10 @@ def get_qwen_model_file_digest(model_dir, cancel_check=None):
     for rel, size in files:
         if cancel_check is not None and cancel_check():
             raise ValueError("Provider identity capture cancelled.")
-        digest.update(rel.encode("utf-8"))
-        digest.update(str(size).encode("ascii"))
-        digest.update(b"\x00")
+        name_bytes = rel.encode("utf-8")
+        digest.update(len(name_bytes).to_bytes(8, "big"))
+        digest.update(name_bytes)
+        digest.update(size.to_bytes(8, "big"))
         remaining = size
         stream, opened_size = _open_regular_file(
             root / rel, max_bytes=_MAX_MODEL_FILE_BYTES, what="model file")
@@ -332,6 +333,23 @@ def get_qwen_model_file_digest(model_dir, cancel_check=None):
 _MAX_CODE_FILE_BYTES = 4 * 1024**2
 
 
+def _get_qwen_code_inventory(code_paths=None):
+    if code_paths is None:
+        here = Path(__file__).resolve().parent
+        code_paths = [here / "qwen_align_worker.py", here / "qwen_score_decoder.py"]
+    paths = [Path(path) for path in code_paths]
+    for path in paths:
+        try:
+            info = os.lstat(path)
+        except OSError as error:
+            raise ValueError("Qwen worker code is unavailable.") from error
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+            raise ValueError("Qwen worker code is not a regular file.")
+        if not 0 < info.st_size <= _MAX_CODE_FILE_BYTES:
+            raise ValueError("Qwen worker code is empty or exceeds its size bound.")
+    return paths
+
+
 def get_qwen_code_digest(code_paths=None):
     """Digest of the actual local worker/decoder code bytes.
 
@@ -341,23 +359,11 @@ def get_qwen_code_digest(code_paths=None):
     afterwards. Hashes file contents (bounded reads); mtime plays no
     role and no hard-coded version string is trusted.
     """
-    if code_paths is None:
-        here = Path(__file__).resolve().parent
-        code_paths = [here / "qwen_align_worker.py",
-                      here / "qwen_score_decoder.py"]
+    code_paths = _get_qwen_code_inventory(code_paths)
     digest = hashlib.sha256()
     for path in code_paths:
         digest.update(str(Path(path).name).encode("utf-8"))
         digest.update(b"\x00")
-        # Portable no-follow predicate: lstat must show a regular
-        # file (a symlink is refused even where O_NOFOLLOW is
-        # unavailable, e.g. Windows).
-        try:
-            path_info = os.lstat(path)
-        except OSError as error:
-            raise ValueError("Qwen worker code is unavailable.") from error
-        if stat.S_ISLNK(path_info.st_mode) or not stat.S_ISREG(path_info.st_mode):
-            raise ValueError("Qwen worker code is not a regular file.")
         # No-follow regular-file open (same predicate as model files):
         # a symlinked worker/decoder path is refused, and the bound is
         # inclusive — exactly 4 MiB is accepted, one byte more is not.
@@ -428,6 +434,20 @@ def get_qwen_provider_digest(model_dir, runtime_identity=None, cancel_check=None
     return outer.hexdigest()
 
 
+def _get_model_json(path):
+    stream, size = _open_regular_file(path, max_bytes=_MAX_CONFIG_BYTES, what="model metadata")
+    try:
+        raw = stream.read(_MAX_CONFIG_BYTES + 1)
+    finally:
+        stream.close()
+    if len(raw) != size or len(raw) > _MAX_CONFIG_BYTES:
+        raise ValueError("Qwen model metadata changed or exceeds its bound.")
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (ValueError, RecursionError) as error:
+        raise ValueError("Qwen model metadata is unreadable.") from error
+
+
 def get_model_issues(model_dir):
     """Completeness issues for a local model directory (R1 gate)."""
     if not isinstance(model_dir, str) or not os.path.isdir(model_dir):
@@ -438,8 +458,9 @@ def get_model_issues(model_dir):
     # status-only readiness can never advertise an install the full
     # provider digest will deterministically refuse. Semantic
     # required/config/weights checks below are kept on top of it.
+    inventory = None
     try:
-        _inventory_model_files(model_dir)
+        inventory = dict(_inventory_model_files(model_dir))
     except ValueError as error:
         issues.append(str(error))
     for name in _REQUIRED_MODEL_FILES:
@@ -451,31 +472,26 @@ def get_model_issues(model_dir):
             continue
         if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
             issues.append("missing model file: %s" % name)
-    try:
-        weights = []
-        for p in root.glob("model*.safetensors"):
+    if issues:
+        if inventory is not None and not {"model.safetensors", "model.safetensors.index.json"}.intersection(inventory):
+            issues.append("missing model weights (model.safetensors or its shard index)")
+        return issues, None
+    if "model.safetensors" not in inventory:
+        if "model.safetensors.index.json" not in inventory:
+            issues.append("missing model weights (model.safetensors or its shard index)")
+        else:
             try:
-                info = os.lstat(p)
-            except OSError:
-                continue
-            if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
-                continue
-            weights.append(p)
-    except OSError:
-        weights = []
-    if not weights:
-        issues.append("missing model weights (model.safetensors)")
+                index = _get_model_json(root / "model.safetensors.index.json")
+                weight_map = index.get("weight_map") if isinstance(index, dict) else None
+                if not isinstance(weight_map, dict) or not weight_map:
+                    raise ValueError("model shard index has no weight map")
+                for shard in weight_map.values():
+                    if not isinstance(shard, str) or shard not in inventory:
+                        raise ValueError("model shard index references a missing or unsafe file")
+            except (OSError, ValueError) as error:
+                issues.append(str(error))
     try:
-        stream, _size = _open_regular_file(
-            root / "config.json", max_bytes=_MAX_CONFIG_BYTES,
-            what="model config file")
-        try:
-            raw = stream.read(_MAX_CONFIG_BYTES + 1)
-        finally:
-            stream.close()
-        if len(raw) > _MAX_CONFIG_BYTES:
-            raise ValueError("Qwen model config file exceeds its bounds.")
-        config = json.loads(raw.decode("utf-8"))
+        config = _get_model_json(root / "config.json")
     except (OSError, ValueError):
         config = None
         issues.append("model config.json is unreadable.")
@@ -485,8 +501,11 @@ def get_model_issues(model_dir):
         return issues, None
     if config.get("model_type") != EXPECTED_MODEL_TYPE:
         issues.append("model config model_type is not %r." % EXPECTED_MODEL_TYPE)
+    thinker = config.get("thinker_config")
+    if not isinstance(thinker, dict) or thinker.get("model_type") != "qwen3_forced_aligner":
+        issues.append("model config is not a Qwen3 forced-aligner configuration.")
     languages = config.get("support_languages")
-    if not isinstance(languages, list) or not languages:
+    if not isinstance(languages, list) or not languages or any(not isinstance(lang, str) for lang in languages):
         issues.append("model config lists no support languages.")
     else:
         from qwen_align import SUPPORTED_ALIGNER_LANGUAGES
@@ -525,7 +544,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
         return _not_ready("Qwen model is not provisioned locally. Download it once "
                           "with the hf CLI (see docs/readalong.md) or set "
                           "ALEXANDRIA_QWEN_MODEL.", pythons[0], None)
-    python, model_dir = pythons[0], models[0]
+    python, model_dir = os.path.abspath(pythons[0]), os.path.abspath(models[0])
     try:
         issues, languages = get_model_issues(model_dir)
     except (OSError, ValueError) as error:
@@ -536,6 +555,10 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
                           "model once with the hf CLI (see docs/readalong.md); "
                           "config-only directories are not a model."
                           % "; ".join(issues[:6]), python, model_dir)
+    try:
+        _get_qwen_code_inventory()
+    except (OSError, ValueError) as error:
+        return _not_ready(str(error), python, model_dir)
     command = probe_command if probe_command is not None else [python, "-c", _PROBE_SOURCE]
     try:
         completed = run_owned_capture(command, timeout=timeout,
@@ -687,6 +710,12 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
     exe = Path(canonical)
     if not exe.is_file():
         raise ValueError("Qwen interpreter is unavailable; refusing to identify it.")
+    def file_version(info):
+        # Windows pathname stat synthesizes executable permission bits;
+        # descriptor stat does not. Compare file type, not those bits.
+        return (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode), info.st_size,
+                info.st_mtime_ns, info.st_ctime_ns)
+    before_file = os.lstat(exe)
     try:
         completed = run_owned_capture(
             [selected, "-c", _IDENTITY_SOURCE], timeout=timeout,
@@ -714,6 +743,8 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
     # no arbitrary cap is invented here).
     stream, _size = _open_regular_file(exe, what="interpreter executable")
     try:
+        if file_version(os.fstat(stream.fileno())) != file_version(before_file):
+            raise ValueError("Qwen interpreter changed during identity capture.")
         remaining = _size
         while remaining:
             if cancel_check is not None and cancel_check():
@@ -726,6 +757,9 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
             remaining -= len(block)
         if stream.read(1):
             raise ValueError("Qwen interpreter grew during identity capture.")
+        if file_version(os.fstat(stream.fileno())) != file_version(before_file) \
+                or str(Path(selected).resolve()) != canonical:
+            raise ValueError("Qwen interpreter changed during identity capture.")
     finally:
         stream.close()
     if total <= 0:
@@ -761,7 +795,7 @@ def get_qwen_runtime_digest(identity):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def get_qwen_device_selection(devices):
+def get_qwen_device_selection(devices, *, require_free_vram=True):
     """Choose (device, dtype) from normalized probe devices.
 
     Donor policy (ReadAloudMaker, adapted): a device needs 2.5 GB of
@@ -793,8 +827,10 @@ def get_qwen_device_selection(devices):
                or entry[key] < 0 for key in ("free_bytes", "total_bytes")):
             continue
         candidates.append(entry)
-    usable = [c for c in candidates
-              if c.get("free_bytes", 0) and c["free_bytes"] >= MIN_FREE_VRAM_BYTES]
+    # Downloads validate the identity of an existing artifact, not a new
+    # inference admission. Keep transient free-VRAM checks for builds only.
+    memory_key = "free_bytes" if require_free_vram else "total_bytes"
+    usable = [c for c in candidates if c[memory_key] >= MIN_FREE_VRAM_BYTES]
     if not usable:
         return "cpu", "float32"
     best = max(usable, key=lambda c: (c["capability"][0], c["capability"][1],
@@ -803,7 +839,7 @@ def get_qwen_device_selection(devices):
     return best["device"], dtype
 
 
-def get_qwen_device_policy(mode, device, capability):
+def get_qwen_device_policy(mode, device, capability, *, require_free_vram=True):
     """Single dispatch for timing mode + device (Rule 15).
 
     Pure: never probes, never loads a model. The caller pins the result
@@ -821,16 +857,16 @@ def get_qwen_device_policy(mode, device, capability):
         if mode == "auto":
             return {"timing_mode": "chunk", "device": "cpu", "cpu_only": True,
                     "reason": "Qwen not ready (%s); using chunk timing."
-                              % ((capability or {}).get("reason") or "unknown reason")}
+                              % (capability.get("reason") if isinstance(capability, dict) else "unknown reason")}
         raise ValueError(
             "Qwen alignment is not ready: %s Install the isolated qwen-env and "
             "provision the model per docs/readalong.md, or choose chunk timing."
-            % ((capability or {}).get("reason") or "unknown reason"))
+            % (capability.get("reason") if isinstance(capability, dict) else "unknown reason"))
     devices = capability.get("devices") or []
     device_names = [d.get("device") or "" for d in devices
                     if isinstance(d, dict)]
-    if mode == "auto":
-        chosen, dtype = get_qwen_device_selection(devices)
+    if device == "auto":
+        chosen, dtype = get_qwen_device_selection(devices, require_free_vram=require_free_vram)
         return {"timing_mode": "qwen", "device": chosen, "dtype": dtype,
                 "cpu_only": chosen == "cpu",
                 "reason": ("Qwen ready; using %s (%s)." % (chosen, dtype))}
@@ -840,18 +876,19 @@ def get_qwen_device_policy(mode, device, capability):
         return {"timing_mode": "qwen", "device": "cpu", "dtype": "float32",
                 "cpu_only": True, "reason": "Qwen CPU selected."}
     if device == "auto":
-        chosen, dtype = get_qwen_device_selection(devices)
+        chosen, dtype = get_qwen_device_selection(devices, require_free_vram=require_free_vram)
         return {"timing_mode": "qwen", "device": chosen, "dtype": dtype,
                 "cpu_only": chosen == "cpu",
                 "reason": "Qwen ready; using %s (%s)." % (chosen, dtype)}
     if device in device_names:
         chosen, dtype = get_qwen_device_selection(
-            [d for d in devices if isinstance(d, dict) and d.get("device") == device])
+            [d for d in devices if isinstance(d, dict) and d.get("device") == device],
+            require_free_vram=require_free_vram)
         if chosen != device:
             raise ValueError(
-                "Device %r does not report enough free VRAM (%d GB free required). "
+                "Device %r does not report enough free VRAM (%.1f GiB free required). "
                 "Free memory or choose CPU."
-                % (device, MIN_FREE_VRAM_BYTES // 1024**3))
+                % (device, MIN_FREE_VRAM_BYTES / 1024**3))
         return {"timing_mode": "qwen", "device": device, "dtype": dtype,
                 "cpu_only": False, "reason": "Qwen GPU selected."}
     raise ValueError(
@@ -911,7 +948,7 @@ def run_qwen_alignment_full(command, job_path, result_path, cancel_check,
     env = _isolated_worker_env()
     if worker_env:
         safe_env = {key: value for key, value in worker_env.items()
-                    if key not in ("HF_HUB_OFFLINE", "HF_HUB_DISABLE_TELEMETRY",
+                    if key not in ("HF_HUB_OFFLINE", "HF_HUB_DISABLE_TELEMETRY", "TRANSFORMERS_OFFLINE",
                                    "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD",
                                    "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
                                    "DYLD_FALLBACK_LIBRARY_PATH",
@@ -997,11 +1034,6 @@ def _read_worker_result(result_path, max_result_bytes):
     if not isinstance(provider, dict):
         raise ValueError("Qwen alignment result provider is malformed.")
     return tokens, windows, provider
-
-
-def _read_worker_tokens(result_path, max_result_bytes):
-    tokens, _windows, _provider = _read_worker_result(result_path, max_result_bytes)
-    return tokens
 
 
 def _read_worker_error(result_path):

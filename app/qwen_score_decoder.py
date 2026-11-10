@@ -89,15 +89,8 @@ def _shape_of(scores):
     raise ValueError("timestamp scores must have shape [timestamp_tokens, timestamp_bins].")
 
 
-def decode_timestamp_bins(scores):
-    """Decode ``scores`` ([timestamp_tokens, timestamp_bins]) to bins.
-
-    Returns a list of ints with one bin per timestamp token (start/end
-    pairs). Raises ValueError on odd counts, wrong shape, non-finite
-    scores, oversize inputs, or when no strictly-positive monotonic
-    path exists within the bin bounds. Bounds are enforced from shape
-    metadata before any conversion to a NumPy array.
-    """
+def get_timestamp_score_shape(scores):
+    """Validate shape bounds before worker dtype/device copies or decoding."""
     token_count, bin_count = _shape_of(scores)
     if token_count == 0:
         raise ValueError("timestamp scores are empty.")
@@ -108,13 +101,28 @@ def decode_timestamp_bins(scores):
     if token_count > MAX_TIMESTAMP_TOKENS or bin_count > MAX_TIMESTAMP_BINS \
             or token_count * bin_count > MAX_SCORE_CELLS:
         raise ValueError("timestamp scores exceed decoder bounds.")
+    if bin_count < token_count // 2 + 1:
+        raise ValueError("no strictly-positive monotonic timestamp path exists.")
+    return token_count, bin_count
+
+
+def decode_timestamp_bins(scores):
+    """Decode ``scores`` ([timestamp_tokens, timestamp_bins]) to bins.
+
+    Returns a list of ints with one bin per timestamp token (start/end
+    pairs). Raises ValueError on odd counts, wrong shape, non-finite
+    scores, oversize inputs, or when no strictly-positive monotonic
+    path exists within the bin bounds. Bounds are enforced from shape
+    metadata before any conversion to a NumPy array.
+    """
+    token_count, bin_count = get_timestamp_score_shape(scores)
     try:
         if isinstance(scores, np.ndarray):
             array = scores.astype(np.float64, copy=False) \
                 if scores.dtype != np.float64 else scores
         else:
             array = np.asarray(scores, dtype=np.float64)
-    except (ValueError, TypeError) as error:
+    except (ValueError, TypeError, OverflowError) as error:
         raise ValueError("timestamp scores are malformed.") from error
     if array.shape != (token_count, bin_count):
         raise ValueError("timestamp scores shape changed during conversion.")
@@ -137,9 +145,8 @@ def decode_timestamp_bins(scores):
         # and repeat each winning index over its segment. Ties keep
         # the earliest index (first-argmax), identical to the
         # `previous[b] > previous[best]` scan.
-        _cum = np.maximum.accumulate(previous)
         _new_max = np.flatnonzero(
-            np.concatenate(([True], previous[1:] > _cum[:-1])))
+            np.concatenate(([True], previous[1:] > prefix_scores[:-1])))
         _bounds = np.append(_new_max, bin_count)
         prefix_indices = np.repeat(
             _new_max.astype(np.int32), np.diff(_bounds))

@@ -605,10 +605,10 @@ class FollowupResourceBoundTests(unittest.TestCase):
                 return self
 
             def float(self):
-                return self
+                raise AssertionError("oversize scores were cast before shape validation")
 
             def cpu(self):
-                return self
+                raise AssertionError("oversize scores were copied before shape validation")
 
             def tolist(self):
                 raise AssertionError("oversize scores were listified")
@@ -775,6 +775,18 @@ class SliceCopyGeometryTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     worker._write_slice_wav(str(source), str(root / "s.wav"),
                                             start, end)
+
+    def test_over_cap_legacy_window_refused_before_scratch_copy(self):
+        import qwen_align_worker as worker
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, _data = self._source_wav(
+                root, channels=1, width=2, rate=1000, frames=181000)
+            row = {"text": "One sentence.", "wav_path": str(source), "duration_sec": 181.0}
+            with patch.object(worker, "_write_slice_wav", side_effect=AssertionError("must not copy")) as copy:
+                with self.assertRaisesRegex(ValueError, "aligner limit"):
+                    worker._align_row(object(), row, "English", None, root)
+            copy.assert_not_called()
 
     def test_bad_emitted_geometry_rejected_before_inference(self):
         import qwen_align_worker as worker

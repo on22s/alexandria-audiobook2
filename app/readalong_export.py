@@ -3,7 +3,8 @@
 Both run inside the existing export ownership pattern: integrity admission,
 ExportSourceSnapshot capture, frame-exact PCM timeline, fresh encode through
 the ordinary encoder/quality/admission path, verify_sources(), short set
-publication. CPU-only; no inference, no billable calls.
+publication. Sidecar/chunk export is CPU-only. Optional Qwen inference
+runs only in the owned isolated subprocess; no billable calls.
 
 Audio authority: every build fresh-encodes the MP3 from the current PCM
 timeline (export_pcm_mp3 + export-quality admission) and binds the sidecar
@@ -116,6 +117,11 @@ def get_readaloud_timing_preference(data_dir):
         raise ValueError(
             "Persisted timing preference is corrupt (unreadable JSON); "
             "restore a valid preference and rebuild.") from error
+    return get_validated_readaloud_timing_preference(raw)
+
+
+def get_validated_readaloud_timing_preference(raw):
+    """Validate the same bounded scalar contract before reads and writes."""
     if not isinstance(raw, dict):
         raise ValueError(
             "Persisted timing preference is corrupt (not an object); "
@@ -131,7 +137,7 @@ def get_readaloud_timing_preference(data_dir):
         raise ValueError(
             "Persisted timing preference is corrupt (invalid mode); "
             "restore a valid preference and rebuild.")
-    if not isinstance(device, str) or not _PREFERENCE_DEVICE_RE.match(device):
+    if not isinstance(device, str) or len(device) > 32 or not _PREFERENCE_DEVICE_RE.match(device):
         raise ValueError(
             "Persisted timing preference is corrupt (invalid device); "
             "restore a valid preference and rebuild.")
@@ -148,8 +154,9 @@ def get_readaloud_timing_preference(data_dir):
 def save_readaloud_timing_preference(preference, data_dir):
     """Persist the user's timing choice; caller holds book state."""
     from utils import atomic_json_write
+    preference = get_validated_readaloud_timing_preference(preference)
     return atomic_json_write(preference, os.path.join(data_dir, "readalong_timing.json"),
-                             return_written_bytes=True)
+                             return_written_bytes=True, allow_nonatomic_fallback=False)
 
 
 def require_timing_preference_unchanged(expected, root_dir):
@@ -948,14 +955,21 @@ def build_sidecar_export(manager, cancel_check, progress_callback=None, *,
             pass
 
 
-def get_current_retained_epub_path(source_txt, cancel_check=None, *, origin_hashes=None):
-    """Resolve renamed retained sources by current provenance, streaming hashes.
+def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes=None):
+    """Locate a candidate; callers verify the actual bytes they consume.
 
-    A builder may provide its already captured origin hashes; downloads
-    observe the current publication capture. Ambiguous fallbacks refuse.
+    Canonical paths keep legacy download semantics. A renamed fallback
+    requires current provenance and exhaustive, bounded ambiguity checks.
     """
+    import stat
+    from archive_utils import MAX_ARCHIVE_MEMBERS, MAX_ARCHIVE_BYTES
     from publication_source import get_publication_source_capture
     from source_upload_publication import get_retained_epub_path
+    if cancel_check is not None:
+        ensure_audio_export_active(cancel_check)
+    retained_path = get_retained_epub_path(source_txt)
+    if os.path.isfile(retained_path):
+        return retained_path
     if origin_hashes is None:
         captured = get_publication_source_capture(source_txt)
         if captured is None or captured.get("binding_status") != "current":
@@ -964,35 +978,42 @@ def get_current_retained_epub_path(source_txt, cancel_check=None, *, origin_hash
     wants = frozenset(origin_hashes)
     if not wants:
         raise ValueError("This book has no retained EPUB provenance.")
-    retained_path = get_retained_epub_path(source_txt)
-    if not os.path.isfile(retained_path):
-        # Fallback scan by exact origin hash (renamed books). Deterministic:
-        # sorted names; more than one distinct retained file with the same
-        # origin hash is ambiguity and must surface, never pick a first.
-        uploads_dir = os.path.dirname(retained_path)
-        matches = []
-        for name in sorted(os.listdir(uploads_dir)):
-            if not name.endswith(".source.epub"):
+    matches = []
+    scanned = 0
+    scanned_bytes = 0
+    with os.scandir(os.path.dirname(retained_path)) as candidates:
+        for entry in candidates:
+            if cancel_check is not None:
+                ensure_audio_export_active(cancel_check)
+            scanned += 1
+            if scanned > MAX_ARCHIVE_MEMBERS:
+                raise ValueError("Retained-source search exceeds its entry budget; restore the source filename or re-upload.")
+            if not entry.name.endswith(".source.epub"):
                 continue
-            candidate = os.path.join(uploads_dir, name)
             try:
-                if get_audio_file_sha256(candidate)[0] in wants:
-                    matches.append(candidate)
+                info = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= 2 * 1024**3:
+                continue
+            size = info.st_size
+            scanned_bytes += size
+            if scanned_bytes > MAX_ARCHIVE_BYTES:
+                raise ValueError("Retained-source search exceeds its byte budget; restore the source filename or re-upload.")
+            try:
+                # Exact initial-size cap: growth cannot escape the cumulative
+                # budget, and cancellation is polled between bounded reads.
+                if get_audio_file_sha256(entry.path, limit=size, cancel_check=cancel_check)[0] in wants:
+                    matches.append(entry.path)
+            except ExportCancelled:
+                raise
             except (OSError, ValueError):
                 continue
-        if len(matches) == 1:
-            retained_path = matches[0]
-        elif len(matches) > 1:
-            raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
-        else:
-            raise ValueError("Retained EPUB bytes are missing for this book; re-upload the EPUB to enable read-aloud export.")
-    if cancel_check is not None:
-        ensure_audio_export_active(cancel_check)
-    if get_audio_file_sha256(retained_path)[0] not in wants:
-        raise ValueError("Retained EPUB bytes do not match the source provenance.")
-    if cancel_check is not None:
-        ensure_audio_export_active(cancel_check)
-    return retained_path
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
+    raise ValueError("Retained EPUB bytes are missing for this book; re-upload the EPUB to enable read-aloud export.")
 
 
 def _locate_retained_epub(manager, cancel_check, source_txt=None):
@@ -1019,7 +1040,7 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
     origins = captured["document"].get("candidates", [])
     if not origins:
         raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")
-    retained_path = get_current_retained_epub_path(
+    retained_path = get_retained_epub_candidate_path(
         source_txt, cancel_check,
         origin_hashes={row["origin"]["sha256"] for row in origins})
     retained_bytes = Path(retained_path).read_bytes()
@@ -1065,6 +1086,24 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
         if located_source != captured_source:
             raise ValueError("Retained EPUB source disagrees with the captured snapshot; refusing to export.")
         retained_sha256 = hashlib.sha256(retained_bytes).hexdigest()
+        language = None
+        timing_runtime = None
+        if timing is not None and timing.get("timing_mode") == "qwen":
+            from io import BytesIO
+            from epub_readaloud import get_epub_language_from_path
+            from qwen_align import get_aligner_language_name
+            language = timing.get("language")
+            if not language:
+                tag = get_epub_language_from_path(BytesIO(retained_bytes))
+                if tag in ("", "und"):
+                    raise ValueError("Qwen alignment needs a language: the EPUB has no dc:language. Choose one in the EPUB settings and rebuild.")
+                language = get_aligner_language_name(tag)
+            else:
+                language = get_aligner_language_name(language)
+            timing_runtime = timing.get("runtime") or (timing.get("capability") or {}).get("runtime")
+            if not isinstance(timing_runtime, dict) or not isinstance(timing_runtime.get("python"), str):
+                raise ValueError("Qwen runtime identity is unavailable; admit a new build with the current runtime.")
+
         with PCMSourceStore(manager.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             data, fresh = _assemble_with_store(
                 manager, source_snapshot, cancel_check, staging.path, sources)
@@ -1096,15 +1135,6 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                 capability = dict(timing.get("capability") or {})
                 capability["device"] = timing.get("device") or "cpu"
                 capability["dtype"] = timing.get("dtype") or capability.get("dtype")
-                language = timing.get("language")
-                if not language:
-                    _opf_path, _package, _ns, _manifest, _spine, meta = get_spine_documents(retained_bytes)
-                    tag = meta.get("language") or ""
-                    if tag in ("", "und"):
-                        raise ValueError(
-                            "Qwen alignment needs a language: the EPUB has no "
-                            "dc:language. Choose one in the EPUB settings and rebuild.")
-                    language = get_aligner_language_name(tag)
                 try:
                     aligned_rows, alignment = collect_aligned_rows(
                         data, language, capability, cancel_check, staging.path,
@@ -1154,9 +1184,9 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                                           get_qwen_runtime_identity)
                 try:
                     fresh_runtime = get_qwen_runtime_identity(
-                        timing["runtime"]["python"], cancel_check=cancel_check)
+                        timing_runtime["python"], cancel_check=cancel_check)
                     if (get_qwen_runtime_digest(fresh_runtime)
-                            != timing["runtime"].get("runtime_digest")):
+                            != timing_runtime.get("runtime_digest")):
                         raise ValueError(
                             "Qwen runtime changed during the build (interpreter "
                             "or package replaced); refusing to publish.")

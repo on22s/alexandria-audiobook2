@@ -74,7 +74,8 @@
     }),
   };
 
-  var timingDirty = { mode: false, device: false, language: false };
+  // Zero means acknowledged; counters distinguish edits made during a start.
+  var timingDirty = { mode: 0, device: 0, language: 0 };
 
   function deviceName(device) {
     // Only dict probe entries carry eligibility metadata; legacy
@@ -95,9 +96,23 @@
     var modeEl = document.getElementById('readaloud-timing-mode');
     var deviceEl = document.getElementById('readaloud-timing-device');
     var languageEl = document.getElementById('readaloud-timing-language');
-    if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode = true; }); }
-    if (deviceEl) { deviceEl.addEventListener('change', function () { timingDirty.device = true; }); }
-    if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language = true; }); }
+    if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode += 1; }); }
+    if (deviceEl) { deviceEl.addEventListener('change', function () { timingDirty.device += 1; }); }
+    if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language += 1; }); }
+  }
+
+  function applyTimingPreference(preference) {
+    if (!preference) { return; }
+    var modeEl = document.getElementById('readaloud-timing-mode');
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    var languageEl = document.getElementById('readaloud-timing-language');
+    if (modeEl && !timingDirty.mode) { modeEl.value = preference.timing_mode || 'auto'; }
+    if (deviceEl && !timingDirty.device) { deviceEl.value = preference.timing_device || 'auto'; }
+    if (languageEl && !timingDirty.language) { languageEl.value = preference.timing_language || ''; }
+  }
+
+  function renderTimingUnknown(el) {
+    el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
   }
 
   function refreshTimingStatus() {
@@ -106,15 +121,20 @@
     if (!el) { return; }
     var generation = ++timingGeneration;
     el.textContent = 'Timing: checking what this machine can run…';
-    API.get('/api/readaloud_epub/capability').then(function (info) {
+    var request;
+    try {
+      request = API.get('/api/readaloud_epub/capability');
+    } catch (error) {
+      renderTimingUnknown(el);
+      return;
+    }
+    Promise.resolve(request).then(function (info) {
       if (generation !== timingGeneration) { return; }
       if (!info || !info.policy) {
-        el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
+        renderTimingUnknown(el);
         return;
       }
-      var modeEl = document.getElementById('readaloud-timing-mode');
       var deviceEl = document.getElementById('readaloud-timing-device');
-      var languageEl = document.getElementById('readaloud-timing-language');
       var devices = (info.capability && info.capability.devices) || [];
       var deviceNames = [];
       devices.forEach(function (device) {
@@ -122,28 +142,30 @@
         if (name) { deviceNames.push(name); }
       });
       if (deviceEl) {
-        // Add real eligible options BEFORE applying the persisted
-        // value, so a persisted cuda:N can actually be selected.
+        var desired = deviceEl.value;
+        if (info.preference && !timingDirty.device) { desired = info.preference.timing_device || 'auto'; }
+        // Rebuild dynamic options so a disappeared GPU cannot look eligible.
+        for (var i = deviceEl.options.length - 1; i >= 0; i--) {
+          if (!['auto', 'cpu'].includes(deviceEl.options[i].value)) { deviceEl.remove(i); }
+        }
         deviceNames.forEach(function (name) {
-          var present = false;
-          for (var i = 0; i < deviceEl.options.length; i++) {
-            if (deviceEl.options[i].value === name) { present = true; }
-          }
-          if (!present) {
-            var option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            deviceEl.appendChild(option);
-          }
+          if (['auto', 'cpu'].includes(name)) { return; }
+          var option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          deviceEl.appendChild(option);
         });
+        if (desired && !deviceNames.includes(desired)) {
+          var unavailable = document.createElement('option');
+          unavailable.value = desired;
+          unavailable.textContent = desired + ' (unavailable)';
+          unavailable.disabled = true;
+          deviceEl.appendChild(unavailable);
+        }
+        deviceEl.value = desired;
       }
-      // Never overwrite a choice the user already made while the
-      // fetch was pending; untouched controls follow the preference.
-      if (info.preference) {
-        if (modeEl && !timingDirty.mode) { modeEl.value = info.preference.timing_mode || 'auto'; }
-        if (deviceEl && !timingDirty.device) { deviceEl.value = info.preference.timing_device || 'auto'; }
-        if (languageEl && !timingDirty.language) { languageEl.value = info.preference.timing_language || ''; }
-      }
+      // Untouched controls follow this book's actual saved preference.
+      applyTimingPreference(info.preference);
       if (info.capability && info.capability.available && info.policy.available !== false) {
         // Truthful readiness: name the effective pinned policy
         // device, not every probed device string.
@@ -154,7 +176,7 @@
       }
     }).catch(function () {
       if (generation !== timingGeneration) { return; }
-      el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
+      renderTimingUnknown(el);
     });
   }
 
@@ -278,6 +300,7 @@
       }
       el.textContent = 'Starting build...';
       var body = { integrity_confirmation: confirmation };
+      var submittedEdits = Object.assign({}, timingDirty);
       Object.assign(body, channel.startBody());
       return API.post(channel.startUrl, body).then(function (res) {
         if (!isCurrent(channel, taskId)) { return; }
@@ -286,6 +309,12 @@
           setBusy(channel, false);
           el.textContent = 'The build was not confirmed as started. Check the Result status before starting again.';
           return;
+        }
+        if (channel === channels.epub) {
+          Object.keys(timingDirty).forEach(function (name) {
+            if (timingDirty[name] === submittedEdits[name]) { timingDirty[name] = 0; }
+          });
+          applyTimingPreference(res.preference);
         }
         channel.claimId = res.claim_id;
         channel.bookToken = res.book_token;
@@ -315,9 +344,10 @@
   // Book/reset invalidation: bump every taskId, stop timers, and
   // restore the idle view. Late start/poll/cancel promises from the old
   // book then no-op instead of touching the new view. Timing selects
-  // keep the persisted preference; no probing happens here.
+  // refresh this book's saved choices with a metadata-only status request.
   function resetReadalongViews() {
     timingGeneration += 1;
+    timingDirty = { mode: 0, device: 0, language: 0 };
     refreshTimingStatus();
     Object.values(channels).forEach(function (channel) {
       channel.taskId += 1;

@@ -28,7 +28,8 @@ the private model instance in this process only:
 * Sequential measured-cursor windows: per row, slices start at the
   measured previous token end (frame-rounded, no overlapping prior
   speech), grow in 3-second steps up to the 180-second cap while the
-  last token ends within 3 seconds of the slice end, and advance only
+  last token ends within 3 seconds of the slice end (until the row end
+  or hard call cap is reached), and advance only
   by actual PCM frames (a final sub-500ms remainder grows if at least
   one frame advances). Every loop is bounded (calls per window, total
   windows, slice duration) and strict forward progress is required.
@@ -230,6 +231,8 @@ def _check_predicted_scores(model, piece, language, slice_seconds, step, predict
     # the slice audio can never be a frame-honest token time, so the
     # decoder search is bounded to bins inside this slice.
     feasible_bins = int(math.floor((slice_seconds + 1e-9) / step)) + 1
+    if feasible_bins < predicted_tokens // 2 + 1:
+        raise ValueError("slice has too few timestamp bins for a positive word")
     if predicted_tokens > MAX_TIMESTAMP_TOKENS \
             or predicted_tokens * max(feasible_bins, 0) > MAX_SCORE_CELLS:
         raise ValueError("predicted timestamp scores exceed decoder bounds")
@@ -253,9 +256,17 @@ def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None,
     captured = {}
 
     def hook(_module, _args, kwargs, output):
+        from qwen_score_decoder import get_timestamp_score_shape
+        if "scores" in captured:
+            raise ValueError("alignment produced multiple timestamp score forwards")
         scores = output.logits[0][kwargs["input_ids"][0] == model.timestamp_token_id]
-        # Keep the tensor: bounds are checked from its shape metadata
-        # before any list/dtype conversion (see qwen_score_decoder).
+        shape = getattr(scores, "shape", None)
+        if isinstance(shape, tuple) and len(shape) == 2 \
+                and isinstance(shape[1], int) and feasible_bins < shape[1]:
+            scores = scores[:, :feasible_bins]
+        # Crop on the original device and enforce the decoder's shared
+        # shape bound BEFORE a float/device copy can allocate the matrix.
+        get_timestamp_score_shape(scores)
         captured["scores"] = scores.detach().float().cpu()
 
     thinker = model.model.thinker
@@ -272,10 +283,6 @@ def _align_slice(model, slice_path, piece, language, decode, slice_seconds=None,
     if not texts:
         raise ValueError("alignment returned no tokens")
     scores = captured["scores"]
-    shape = getattr(scores, "shape", None)
-    if isinstance(shape, tuple) and len(shape) == 2 \
-            and isinstance(shape[1], int) and feasible_bins < shape[1]:
-        scores = scores[:, :feasible_bins]
     bins = decode(scores)
     if len(bins) != 2 * len(texts):
         raise ValueError("timestamp score count does not match token count")
@@ -351,6 +358,8 @@ def _align_row(model, row, language, decode, work_dir):
             if calls >= MAX_CALLS_PER_WINDOW:
                 raise ValueError("sequential call bound exhausted")
             calls += 1
+            if (end_frame - cursor_frame) / float(rate) > MAX_ALIGN_SECONDS + 1e-9:
+                raise ValueError("alignment slice exceeds the aligner limit")
             slice_seconds = _write_slice_wav(
                 row["wav_path"], slice_path, cursor_frame, end_frame)
             if slice_seconds > MAX_ALIGN_SECONDS + 1e-9:
@@ -363,10 +372,14 @@ def _align_row(model, row, language, decode, work_dir):
             tokens = _align_slice(model, slice_path, piece, language, decode,
                                   slice_seconds, get_window_token_count)
             last_end = _check_slice_tokens(tokens, slice_seconds)
+            cap_frame = cursor_frame + int(round(MAX_ALIGN_SECONDS * rate))
+            # Tail headroom schedules retries; it cannot demand a call
+            # beyond the hard cap. At the row or call boundary, accept
+            # only the same fully validated real tokens/PCM bounds.
             if end_frame >= total_frames \
+                    or end_frame == cap_frame \
                     or last_end <= slice_seconds - WINDOW_TAIL_SECONDS + 1e-9:
                 break
-            cap_frame = cursor_frame + int(round(MAX_ALIGN_SECONDS * rate))
             wider = min(total_frames,
                         end_frame + int(round(WINDOW_GROWTH_SECONDS * rate)),
                         cap_frame)
@@ -496,13 +509,13 @@ def main(argv):
             model_dir, dtype=dtype, device_map=device, local_files_only=True)
     except Exception as error:
         _write_result(result_path, _worker_error(
-            "could not load the local model (%s)." % type(error).__name__))
+            "could not load the local model (%s): %s" % (type(error).__name__, str(error)[:400])))
         return 1
     try:
         adapter = _apply_encoder_mask_adapter(model)
-    except ValueError as error:
+    except Exception as error:
         _write_result(result_path, _worker_error(
-            "encoder mask adapter refused: %s" % error))
+            "encoder mask adapter refused (%s): %s" % (type(error).__name__, str(error)[:400])))
         return 1
 
     version = "unknown"
@@ -524,11 +537,18 @@ def main(argv):
     # orphan qwen-slices-* in OS temp: the parent's staging
     # cleanup reclaims them even though this child died.
     _slice_dir = job.get("slice_dir") if isinstance(job, dict) else None
-    if isinstance(_slice_dir, str) and _slice_dir:
-        work_dir = Path(_slice_dir)
-        work_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        work_dir = Path(tempfile.mkdtemp(prefix="qwen-slices-"))
+    try:
+        if isinstance(_slice_dir, str) and _slice_dir:
+            parent_dir = Path(_slice_dir)
+            parent_dir.mkdir(parents=True, exist_ok=True)
+            work_dir = Path(tempfile.mkdtemp(prefix="qwen-slices-", dir=str(parent_dir)))
+        else:
+            work_dir = Path(tempfile.mkdtemp(prefix="qwen-slices-"))
+    except OSError as error:
+        _write_result(result_path, _worker_error(
+            "could not create alignment scratch (%s): %s" % (type(error).__name__, str(error)[:400])))
+        return 1
+
     try:
         for row in rows:
             try:

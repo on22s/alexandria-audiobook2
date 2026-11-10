@@ -491,14 +491,16 @@ def _partition_long_sentence(text, sentence, rate):
             "One sentence needs more than the %d-second aligner limit "
             "and has no word boundary to partition at; split the "
             "editor row first." % MAX_ALIGN_SECONDS)
+    unit_prefix = [0]
+    for match in matches:
+        unit_prefix.append(unit_prefix[-1] + count_units(match.group()))
     pieces = []
     piece_start = start
     index = 0
     while index < len(matches):
         stop = index
         while stop < len(matches):
-            cand_end = start + matches[stop].end()
-            if stop > index and count_units(text[piece_start:cand_end]) * rate \
+            if stop > index and (unit_prefix[stop + 1] - unit_prefix[index]) * rate \
                     > DEFAULT_WINDOW_TARGET_SECONDS:
                 break
             stop += 1
@@ -508,7 +510,7 @@ def _partition_long_sentence(text, sentence, rate):
             piece_end = start + matches[stop].start()
         else:
             piece_end = end
-        piece_words = count_units(text[piece_start:piece_end])
+        piece_words = unit_prefix[stop] - unit_prefix[index]
         if piece_words * rate > MAX_ALIGN_SECONDS:
             raise ValueError(
                 "One sentence needs %.1fs of narration, more than the "

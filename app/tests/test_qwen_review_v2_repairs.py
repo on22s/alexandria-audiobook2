@@ -106,6 +106,69 @@ class CodeDigestTests(unittest.TestCase):
 
 
 class RouteRepairTests(_FixtureMixin):
+    def test_state_change_while_reserving_releases_claim_without_persisting(self):
+        import core
+        from fastapi import HTTPException
+        from routers.editor import ReadaloudEpubRequest
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        preference = Path(tmp) / "readalong_timing.json"
+        before = preference.read_bytes() if preference.exists() else None
+        real = editor.reserve_background_task
+        def reserve(*args, **kwargs):
+            claim = real(*args, **kwargs)
+            with editor.ensure_book_state(tmp):
+                path = Path(tmp) / "chunks.json"
+                rows = json.loads(path.read_text(encoding="utf-8"))
+                rows[0]["text"] = "Changed while GPU reservation was outside the book lock."
+                path.write_text(json.dumps(rows), encoding="utf-8")
+            return claim
+        tasks = _CaptureTasks()
+        with patch.object(editor, "reserve_background_task", side_effect=reserve):
+            with self.assertRaises(HTTPException) as caught:
+                editor._start_readaloud_epub(tasks, ReadaloudEpubRequest(timing_mode="chunk"))
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertEqual([], tasks.registered)
+        self.assertNotIn("readaloud_epub", core._task_claims)
+        self.assertEqual(before, preference.read_bytes() if preference.exists() else None)
+
+    def test_task_reservation_does_not_hold_book_lock(self):
+        import contextlib
+        import core
+        import qwen_runtime as qr
+        from routers.editor import ReadaloudEpubRequest
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        capability = self._ready_capability(tmp)
+        capability["devices"] = [dict(device="cuda:0", capability=[8, 6],
+            free_bytes=8 * 1024**3, total_bytes=8 * 1024**3)]
+        held = 0
+        real_lock = editor.ensure_book_state
+        real_reserve = editor.reserve_background_task
+        reservations = []
+        @contextlib.contextmanager
+        def book_lock(*args, **kwargs):
+            nonlocal held
+            with real_lock(*args, **kwargs) as value:
+                held += 1
+                try:
+                    yield value
+                finally:
+                    held -= 1
+        def reserve(*args, **kwargs):
+            self.assertEqual(0, held, "GPU admission/model release must run outside the book lock")
+            reservations.append(kwargs["cpu_only"])
+            return real_reserve(*args, **kwargs)
+        with patch.object(editor, "ensure_book_state", book_lock), \
+                patch.object(editor, "reserve_background_task", side_effect=reserve), \
+                patch.object(qr, "get_qwen_capability", return_value=capability), \
+                patch.object(core.project_manager, "ensure_idle_local_models_released", return_value=True):
+            result = editor._start_readaloud_epub(_CaptureTasks(),
+                ReadaloudEpubRequest(timing_mode="qwen", timing_language="English"))
+        self.assertEqual("started", result["status"])
+        self.assertEqual([False], reservations)
+        core.release_gpu_task_claim("readaloud_epub", result["claim_id"], pending_only=True)
+
     def test_auto_falls_back_to_chunk_with_unsupported_persisted_language(self):
         tmp = self._mkdtmp()
         editor, _manager = self._fixture(tmp)
@@ -248,6 +311,80 @@ class RouteRepairTests(_FixtureMixin):
 
 
 class DownloadCurrencyTests(_FixtureMixin):
+    def test_explicit_chunk_choice_refuses_qwen_receipt_without_probe(self):
+        from fastapi import HTTPException
+        import qwen_runtime as qr
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        self._set_pref(tmp, "chunk")
+        with patch.object(qr, "get_qwen_capability", side_effect=AssertionError("must not probe")):
+            with self.assertRaises(HTTPException) as caught:
+                editor._require_readaloud_timing_current({"timing_mode": "qwen"})
+        self.assertEqual(409, caught.exception.status_code)
+
+    def test_retained_lookup_outside_lock_and_changed_provenance_refused(self):
+        from contextlib import contextmanager
+        from fastapi import HTTPException
+        from routers.editor import ReadaloudEpubRequest
+        import publication_source
+        import readalong_export
+        editor, _manager = self._fixture(self._mkdtmp())
+        tasks = _CaptureTasks()
+        editor._start_readaloud_epub(tasks, ReadaloudEpubRequest(timing_mode="chunk"))
+        function, args, kwargs = tasks.registered[0]
+        function(*args, **kwargs)
+        self.assertEqual("done", editor.process_state["readaloud_epub"]["result"]["status"])
+        held = []
+        capture = publication_source.get_publication_source_capture
+        locate = readalong_export.get_retained_epub_candidate_path
+        lock = editor.ensure_book_state
+        changed = []
+        @contextmanager
+        def observed_lock(*a, **k):
+            with lock(*a, **k):
+                held.append(True)
+                try:
+                    yield
+                finally:
+                    held.pop()
+        def observed_lookup(*a, **k):
+            self.assertFalse(held, "large retained-source scan must not hold book lock")
+            path = locate(*a, **k)
+            changed.append(True)
+            return path
+        def changed_capture(*a, **k):
+            value = capture(*a, **k)
+            return {"changed_publication": value} if changed else value
+        with patch.object(editor, "ensure_book_state", observed_lock), \
+                patch.object(readalong_export, "get_retained_epub_candidate_path", observed_lookup), \
+                patch.object(publication_source, "get_publication_source_capture", changed_capture):
+            with self.assertRaises(HTTPException) as caught:
+                editor._validated_epub_bytes()
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertIn("provenance changed", caught.exception.detail)
+        self.assertTrue(changed)
+
+    def test_explicit_gpu_receipt_download_does_not_require_free_vram(self):
+        import qwen_runtime as qr
+        from readalong_export import save_readaloud_timing_preference
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        cap = self._ready_capability(tmp)
+        cap["runtime_identity"] = cap["runtime"]
+        cap["model_digest"] = qr.get_qwen_model_file_digest(cap["model_dir"])
+        cap["devices"] = [dict(device="cuda:0", capability=[8, 6], free_bytes=0, total_bytes=8 * 1024**3)]
+        provider = qr.get_qwen_provider_digest(cap["model_dir"], runtime_identity=dict(
+            qwen_asr_version="0.0.6", torch_version=cap["torch_version"],
+            device="cuda:0", dtype="bfloat16", identity=cap["runtime"]))
+        receipt = dict(timing_mode="qwen", timing_device="cuda:0", timing_dtype="bfloat16",
+                       timing_language="English", timing_provider=provider)
+        save_readaloud_timing_preference(dict(timing_mode="qwen", timing_device="cuda:0", timing_language="English"), tmp)
+        with patch.object(qr, "get_qwen_capability", return_value=cap), \
+                patch.object(qr, "get_qwen_model_candidates", return_value=[cap["model_dir"]]):
+            editor._require_readaloud_timing_current(receipt)
+        with self.assertRaises(ValueError):
+            qr.get_qwen_device_policy("qwen", "cuda:0", cap)
+
     def test_book_change_during_timing_check_refuses_download(self):
         from fastapi import HTTPException
         from routers.editor import ReadaloudEpubRequest
@@ -333,11 +470,27 @@ class DownloadCurrencyTests(_FixtureMixin):
 
 
 class ModelIdentityTests(unittest.TestCase):
+    def test_interpreter_replaced_during_query_is_not_bound_as_the_old_runtime(self):
+        import types
+        import qwen_runtime as qr
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp) / "interpreter.exe"
+            executable.write_bytes(b"old-interpreter")
+            def query(*args, **kwargs):
+                replacement = Path(tmp) / "replacement.exe"
+                replacement.write_bytes(b"new-interpreter")
+                os.replace(replacement, executable)
+                return types.SimpleNamespace(returncode=0, stdout=json.dumps(dict(
+                    python_version="3.12.13", prefix=tmp, packages={})).encode())
+            with patch.object(qr, "run_owned_capture", side_effect=query):
+                with self.assertRaisesRegex(ValueError, "changed"):
+                    qr.get_qwen_runtime_identity(str(executable))
+
     def _model(self, tmp):
         model = Path(tmp) / "model"
         model.mkdir()
         (model / "config.json").write_text(json.dumps(
-            {"model_type": "qwen3_asr", "support_languages": ["English"]}),
+            {"model_type": "qwen3_asr", "thinker_config": {"model_type": "qwen3_forced_aligner"}, "support_languages": ["English"]}),
             encoding="utf-8")
         (model / "model.safetensors").write_bytes(b"12345678")
         for name in ("tokenizer.json", "vocab.json", "merges.txt",
@@ -379,7 +532,7 @@ class MockSymlinkTests(unittest.TestCase):
         model = Path(tmp) / "model"
         model.mkdir()
         (model / "config.json").write_text(json.dumps(
-            {"model_type": "qwen3_asr", "support_languages": ["English"]}),
+            {"model_type": "qwen3_asr", "thinker_config": {"model_type": "qwen3_forced_aligner"}, "support_languages": ["English"]}),
             encoding="utf-8")
         (model / "model.safetensors").write_bytes(b"12345678")
         for name in ("tokenizer.json", "vocab.json", "merges.txt",
@@ -435,6 +588,88 @@ class MockSymlinkTests(unittest.TestCase):
 
 
 class ArchiveBoundTests(unittest.TestCase):
+    def test_validator_checks_id_and_xml_id_as_one_namespace(self):
+        import xml.etree.ElementTree as ET
+        import epub_readaloud as er
+        from tests.test_epub_readaloud_sentences import _source_epub
+        output = self._build_auxiliary(_source_epub('<p id="source">Hello world.<span id="mark"/></p>'))
+        for xml_id in ("mark", "source"):
+            with self.subTest(xml_id=xml_id):
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(io.BytesIO(output)) as src, zipfile.ZipFile(buffer, "w") as dst:
+                    for info in src.infolist():
+                        data = src.read(info.filename)
+                        if info.filename == "OEBPS/ch1.xhtml":
+                            root = ET.fromstring(data)
+                            node = next(n for n in root.iter() if n.get("id") == "mark")
+                            node.set("{http://www.w3.org/XML/1998/namespace}id", xml_id)
+                            data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                        dst.writestr(info, data)
+                if xml_id == "source":
+                    with self.assertRaisesRegex(ValueError, "duplicate id"):
+                        er.validate_epub_readaloud(buffer.getvalue())
+                else:
+                    er.validate_epub_readaloud(buffer.getvalue())
+
+    def _source_with_auxiliary(self, count=1, padding=0, large_nav=False):
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="source">Hello world.</p>')
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(source)) as src, zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as dst:
+            for info in src.infolist():
+                data = src.read(info.filename)
+                if info.filename.endswith(".opf"):
+                    items = ''.join('<item id="aux-%d" href="aux%d.xhtml" media-type="application/xhtml+xml"/>' % (i, i) for i in range(count))
+                    data = data.replace(b'</manifest>', items.encode() + b'</manifest>')
+                if large_nav and info.filename == "OEBPS/nav.xhtml":
+                    data = data.replace(b'</body>', b' ' * (9 * 1024**2) + b'</body>')
+                dst.writestr(info, data)
+            for i in range(count):
+                dst.writestr("OEBPS/aux%d.xhtml" % i,
+                    b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Appendix</title></head><body><p>'
+                    + b' ' * padding + b'An appendix.</p></body></html>')
+        return buffer.getvalue()
+
+    def _build_auxiliary(self, source):
+        from epub_readaloud import build_epub_readaloud
+        return build_epub_readaloud(retained_epub_bytes=source,
+            audio_bytes=b"\xff\xfbmp3", audio_filename="narration.mp3",
+            script_entries=[dict(index=0, prepared_text="Hello world.",
+                start_frame=0, end_frame=24000, sample_rate=24000)])[0]
+
+    def test_large_unmodified_xhtml_and_navigation_keep_previous_acceptance(self):
+        from epub_readaloud import validate_epub_readaloud, _ensure_html5_doctype
+        for padding, large_nav in [(9 * 1024**2, False), (0, True)]:
+            with self.subTest(padding=padding, large_nav=large_nav):
+                source = self._source_with_auxiliary(padding=padding, large_nav=large_nav)
+                output = self._build_auxiliary(source)
+                validate_epub_readaloud(output)
+                with zipfile.ZipFile(io.BytesIO(source)) as original, zipfile.ZipFile(io.BytesIO(output)) as built:
+                    self.assertEqual(_ensure_html5_doctype(original.read("OEBPS/aux0.xhtml")), built.read("OEBPS/aux0.xhtml"))
+
+    def test_large_ncx_and_missing_optional_ncx_keep_previous_behavior(self):
+        from epub_readaloud import get_ncx_points, NCX_MEDIA_TYPE
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("OEBPS/toc.ncx", b'<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">'
+                + b' ' * (3 * 1024**2)
+                + b'<navMap><navPoint id="one"><navLabel><text>One</text></navLabel><content src="ch1.xhtml#source"/></navPoint></navMap></ncx>')
+        manifest = {"ncx": dict(media_type=NCX_MEDIA_TYPE, path="OEBPS/toc.ncx")}
+        self.assertEqual("One", get_ncx_points(buffer.getvalue(), manifest, "OEBPS/content.opf")[0]["label"])
+        manifest["ncx"]["path"] = "OEBPS/missing.ncx"
+        self.assertEqual([], get_ncx_points(buffer.getvalue(), manifest, "OEBPS/content.opf"))
+
+    def test_many_auxiliary_documents_do_not_rescan_directory_per_member(self):
+        source = self._source_with_auxiliary(count=100)
+        real = zipfile.ZipFile.infolist
+        calls = []
+        def directory(archive):
+            calls.append(1)
+            return real(archive)
+        with patch.object(zipfile.ZipFile, "infolist", directory):
+            self._build_auxiliary(source)
+        self.assertLess(len(calls), 80, "Repeated directory scans grow quadratically with auxiliary XHTML count")
+
     def _epub_with_member(self, name, data):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
@@ -489,8 +724,12 @@ class ArchiveBoundTests(unittest.TestCase):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("OEBPS/toc.ncx", b"<ncx>" + b"x" * (3 * 1024 * 1024) + b"</ncx>")
-        with self.assertRaises(ValueError):
-            er.get_ncx_points(buffer.getvalue(), manifest, "OEBPS/content.opf")
+        # The retained NCX uses the archive budget, not the unrelated
+        # package/container cap. Scale the real guard rather than allocate20GiB.
+        import archive_utils
+        with patch.object(archive_utils, "MAX_ARCHIVE_BYTES", 2 * 1024**2):
+            with self.assertRaises(ValueError):
+                er.get_ncx_points(buffer.getvalue(), manifest, "OEBPS/content.opf")
 
     def test_retained_copy_rejects_traversal_member(self):
         import epub_readaloud as er
@@ -504,6 +743,27 @@ class ArchiveBoundTests(unittest.TestCase):
 
 
 class PreferenceBoundTests(unittest.TestCase):
+    def test_oversized_device_refused_before_persistence(self):
+        from pydantic import ValidationError
+        from routers.editor import ReadaloudEpubRequest
+        with self.assertRaises(ValidationError):
+            ReadaloudEpubRequest(timing_mode="chunk", timing_device="cuda:" + "9" * 17000)
+
+    def test_save_validates_before_replacing_previous_settings(self):
+        from readalong_export import save_readaloud_timing_preference, get_readaloud_timing_preference
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "readalong_timing.json"
+            previous = b'{"timing_mode":"chunk","timing_device":"cpu","timing_language":null}'
+            path.write_bytes(previous)
+            invalid = dict(timing_mode="chunk", timing_device="cuda:" + "9" * 17000, timing_language=None)
+            with self.assertRaises(ValueError):
+                save_readaloud_timing_preference(invalid, tmp)
+            self.assertEqual(previous, path.read_bytes())
+            invalid["timing_device"] = "cuda:" + "9" * 4000
+            path.write_text(json.dumps(invalid), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                get_readaloud_timing_preference(tmp)
+
     def test_oversize_preference_refused(self):
         from readalong_export import get_readaloud_timing_preference
         with tempfile.TemporaryDirectory() as tmp:
@@ -808,6 +1068,86 @@ class AC8MetadataTests(_FixtureMixin):
 
 
 class ModelInventoryTests(unittest.TestCase):
+    def test_asr_model_role_is_not_advertised_as_a_forced_aligner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model = self._complete_model(tmp)
+            config = json.loads((model / "config.json").read_text(encoding="utf-8"))
+            config["thinker_config"] = {"model_type": "qwen3_asr_thinker"}
+            (model / "config.json").write_text(json.dumps(config), encoding="utf-8")
+            self.assertFalse(self._status(tmp, model)["available"])
+
+    def test_sharded_weights_require_every_indexed_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model = self._complete_model(tmp)
+            (model / "model.safetensors").unlink()
+            (model / "model-00001-of-00002.safetensors").write_bytes(b"first shard")
+            index = model / "model.safetensors.index.json"
+            index.write_text(json.dumps({"weight_map": {"one": "model-00001-of-00002.safetensors",
+                "two": "model-00002-of-00002.safetensors"}}), encoding="utf-8")
+            self.assertFalse(self._status(tmp, model)["available"])
+            (model / "model-00002-of-00002.safetensors").write_bytes(b"second shard")
+            self.assertTrue(self._status(tmp, model)["available"])
+            index.write_text('{"weight_map":{"unsafe":"../outside.safetensors"}}', encoding="utf-8")
+            self.assertFalse(self._status(tmp, model)["available"])
+
+    def test_status_refuses_missing_worker_before_runtime_probe(self):
+        import qwen_runtime as qr
+        with tempfile.TemporaryDirectory() as tmp:
+            model = self._complete_model(tmp)
+            real = qr.os.lstat
+            def missing(path, *args, **kwargs):
+                if Path(path).name == "qwen_align_worker.py":
+                    raise FileNotFoundError("missing worker")
+                return real(path, *args, **kwargs)
+            with patch.object(qr.os, "lstat", side_effect=missing):
+                self.assertFalse(self._status(tmp, model)["available"])
+
+    def test_hf_local_download_bookkeeping_is_not_model_content(self):
+        import qwen_runtime as qr
+        with tempfile.TemporaryDirectory() as tmp:
+            model = self._complete_model(tmp)
+            before = qr.get_qwen_model_file_digest(str(model))
+            metadata = model / (".CACHE" if os.name == "nt" else ".cache") / "huggingface" / "download"
+            metadata.mkdir(parents=True)
+            (metadata / "config.json.lock").write_bytes(b"")
+            (metadata / "config.json.metadata").write_text("download bookkeeping", encoding="utf-8")
+            self.assertTrue(self._status(tmp, model)["available"])
+            self.assertEqual(before, qr.get_qwen_model_file_digest(str(model)))
+            (model / ".cache" / "actual-model-data.bin").write_bytes(b"model content")
+            self.assertNotEqual(before, qr.get_qwen_model_file_digest(str(model)))
+
+    def test_model_digest_frames_names_and_sizes_unambiguously(self):
+        import qwen_runtime as qr
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            first, second = self._complete_model(a), self._complete_model(b)
+            (first / "a1").write_bytes(b"ABC")
+            (first / "b").write_bytes(b"1234567")
+            (second / "a").write_bytes(b"ABCb7\0" + b"1234567")
+            self.assertNotEqual(qr.get_qwen_model_file_digest(str(first)),
+                                qr.get_qwen_model_file_digest(str(second)))
+
+    def test_invalid_model_config_fails_closed_without_probe(self):
+        import qwen_runtime as qr
+        invalid = [b'{"model_type":"qwen3_asr","thinker_config":{"model_type":"qwen3_forced_aligner"},"support_languages":[{},"English"]}',
+                   b'{"deep":' + b'[' * 2000 + b'0' + b']' * 2000 + b'}']
+        for data in invalid:
+            with self.subTest(data=data[:50]), tempfile.TemporaryDirectory() as tmp:
+                model = self._complete_model(tmp)
+                (model / "config.json").write_bytes(data)
+                spy = patch.object(qr, "run_owned_capture", side_effect=AssertionError("invalid metadata must not probe"))
+                self.assertFalse(self._status(tmp, model, run_cap=spy)["available"])
+
+    def test_skipped_names_still_obey_inventory_entry_budget(self):
+        import qwen_runtime as qr
+        with tempfile.TemporaryDirectory() as tmp:
+            model = self._complete_model(tmp)
+            for i in range(20):
+                (model / (".ignored-%d" % i)).write_bytes(b"bookkeeping")
+            with patch.object(qr, "_MAX_MODEL_FILES", 16):
+                self.assertFalse(self._status(tmp, model)["available"])
+                with self.assertRaises(ValueError):
+                    qr.get_qwen_model_file_digest(str(model))
+
     """Status and full digest must agree on one bounded inventory.
 
     The COMPLETE fixture is asserted ready before each defect is
@@ -887,13 +1227,7 @@ class ModelInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             model = self._complete_model(tmp)
             self.assertTrue(self._status(tmp, model)["available"])
-            real_walk = os.walk
-            def fake_walk(top, *a, **k):
-                onerror = k.get("onerror")
-                if onerror is not None:
-                    onerror(OSError("unreadable"))
-                return iter([])
-            with patch.object(qr.os, "walk", fake_walk):
+            with patch.object(qr.os, "scandir", side_effect=OSError("unreadable")):
                 cap = self._status(tmp, model)
                 self.assertFalse(cap["available"])
                 with self.assertRaises(ValueError):
@@ -931,6 +1265,18 @@ class ModelInventoryTests(unittest.TestCase):
 
 
 class StaleRollbackTests(_FixtureMixin):
+    def test_rollback_does_not_claim_an_existing_fixed_temporary_file(self):
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        path = Path(tmp) / "readalong_timing.json"
+        collision = Path(tmp) / ".readalong_timing.restore.tmp"
+        collision.write_bytes(b"unrelated existing file")
+        previous = b'{"timing_mode":"chunk","timing_device":"cpu","timing_language":null}'
+        path.write_bytes(b"new preference")
+        editor._restore_readaloud_timing_preference_bytes(str(path), previous)
+        self.assertEqual(previous, path.read_bytes())
+        self.assertEqual(b"unrelated existing file", collision.read_bytes())
+
     def _old_start(self, editor, tmp, case):
         from routers.editor import ReadaloudEpubRequest
         import core
@@ -1394,8 +1740,46 @@ class PubPhaseTests(_FixtureMixin):
 
 
 class RetainedSourceResolutionTests(_FixtureMixin):
+    def test_fallback_budgets_and_cancellation_do_not_return_partial_matches(self):
+        import archive_utils
+        import readalong_export as rexp
+        from tts import ExportCancelled
+        tmp = self._mkdtmp()
+        self._fixture(tmp)
+        source = str(Path(tmp) / "book.txt")
+        retained = Path(tmp) / "book.source.epub"
+        retained.rename(retained.with_name("renamed.source.epub"))
+        with patch.object(archive_utils, "MAX_ARCHIVE_MEMBERS", 1):
+            with self.assertRaisesRegex(ValueError, "entry budget"):
+                rexp.get_retained_epub_candidate_path(source)
+        with patch.object(archive_utils, "MAX_ARCHIVE_BYTES", 1):
+            with self.assertRaisesRegex(ValueError, "byte budget"):
+                rexp.get_retained_epub_candidate_path(source)
+        real = rexp.get_audio_file_sha256
+        inside = False
+        polls = 0
+        def cancel():
+            nonlocal polls
+            if inside:
+                polls += 1
+                return polls >= 2
+            return False
+        def hashing(*args, **kwargs):
+            nonlocal inside
+            inside = True
+            try:
+                return real(*args, **kwargs)
+            finally:
+                inside = False
+        with patch.object(rexp, "get_audio_file_sha256", side_effect=hashing):
+            with self.assertRaises(ExportCancelled):
+                rexp.get_retained_epub_candidate_path(source, cancel_check=cancel)
+        self.assertEqual(2, polls, "Cancellation must reach the actual streamed hash")
+        with self.assertRaises(ValueError):
+            real(str(Path(tmp) / "absent"), limit=-1)
+
     def test_renamed_fallback_matches_builder_and_ambiguous_refuses(self):
-        from readalong_export import get_current_retained_epub_path, _locate_retained_epub
+        from readalong_export import get_retained_epub_candidate_path, _locate_retained_epub
         tmp = self._mkdtmp()
         _editor, manager = self._fixture(tmp)
         source = str(Path(tmp) / "book.txt")
@@ -1403,11 +1787,11 @@ class RetainedSourceResolutionTests(_FixtureMixin):
         expected = retained.read_bytes()
         renamed = retained.with_name("renamed.source.epub")
         retained.rename(renamed)
-        self.assertEqual(str(renamed), get_current_retained_epub_path(source))
+        self.assertEqual(str(renamed), get_retained_epub_candidate_path(source))
         self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
         renamed.with_name("duplicate.source.epub").write_bytes(expected)
         with self.assertRaisesRegex(ValueError, "Multiple retained"):
-            get_current_retained_epub_path(source)
+            get_retained_epub_candidate_path(source)
         with self.assertRaisesRegex(ValueError, "Multiple retained"):
             _locate_retained_epub(manager, lambda: False)
 
@@ -1528,6 +1912,21 @@ class SvgFirstTests(unittest.TestCase):
         visible = "".join(doc.itertext())
         self.assertIn("! ? Hello world. We read.", visible, repr(visible))
         self.assertEqual(1, visible.count("Hello world. We read."))
+
+
+class DevicePolicyContractTests(unittest.TestCase):
+    def test_automatic_mode_respects_an_explicit_device(self):
+        import qwen_runtime as qr
+        devices = [dict(device="cuda:0", capability=[8, 6], free_bytes=6 * 1024**3, total_bytes=8 * 1024**3),
+                   dict(device="cuda:1", capability=[7, 5], free_bytes=4 * 1024**3, total_bytes=6 * 1024**3)]
+        cap = dict(available=True, cpu_fallback=True, devices=devices)
+        self.assertEqual("cpu", qr.get_qwen_device_policy("auto", "cpu", cap)["device"])
+        self.assertEqual("cuda:1", qr.get_qwen_device_policy("auto", "cuda:1", cap)["device"])
+        with self.assertRaises(ValueError):
+            qr.get_qwen_device_policy("auto", "cuda:9", cap)
+        self.assertEqual("chunk", qr.get_qwen_device_policy("auto", "auto", ["malformed"])["timing_mode"])
+        with self.assertRaises(ValueError):
+            qr.get_qwen_device_policy("qwen", "auto", ["malformed"])
 
 
 class NvmlProbeTests(unittest.TestCase):
@@ -1673,6 +2072,14 @@ function _mkEl(id, tag) {
   var el = { id: id, tag: tag || 'div', children: [], options: [], style: {},
              value: '', textContent: '', disabled: false, _listeners: {} };
   el.addEventListener = function(n, fn) { el._listeners[n] = fn; };
+  if (tag === 'select') {
+    var selected = null;
+    Object.defineProperty(el, 'value', {
+      get: function() { return selected === null ? (el.options.length ? el.options[0].value : '') : selected; },
+      set: function(value) { selected = el.options.some(function(o) { return o.value === value; }) ? value : ''; }
+    });
+    el.remove = function(index) { var removed = el.options.splice(index, 1)[0]; if (removed && removed.value === selected) { selected = null; } };
+  }
   el.appendChild = function(c) { el.children.push(c); if (c.value !== undefined && c.value !== '') { el.options.push(c); } return c; };
   return el;
 }
@@ -1704,6 +2111,69 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
             os.unlink(path)
         self.assertEqual(0, result.returncode, result.stderr + result.stdout)
         self.assertIn(marker, result.stdout)
+
+    def test_reset_discards_old_book_dirty_choices(self):
+        self._run_js(r"""
+(async function() {
+  _mode.value = 'chunk'; _mode._listeners.change();
+  window.resetReadalongViews();
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cpu',timing_language:'English'},
+    capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cpu',available:true,reason:'ready'}});
+  await flush(); await flush();
+  ok(_mode.value === 'qwen', 'new book preference must replace historical dirty mode');
+  console.log('reset-dirty-ok');
+})();
+""", "reset-dirty-ok")
+
+    def test_missing_persisted_device_remains_visible_as_unavailable(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cuda:9',timing_language:'English'},
+    capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cuda:9',available:false,reason:'unavailable'}});
+  await flush(); await flush();
+  ok(_device.value === 'cuda:9', 'absent saved device must not silently become a blank selection');
+  ok(_device.options.some(function(o) { return o.value === 'cuda:9' && o.disabled && o.textContent.indexOf('unavailable') >= 0; }), 'missing device labeled unavailable');
+  window.resetReadalongViews();
+  _capabilityDeferred.resolve({preference:{timing_mode:'chunk',timing_device:'cpu'},capability:{available:false,devices:[]},policy:{timing_mode:'chunk',device:'cpu',reason:'chunk'}});
+  await flush(); await flush();
+  ok(!_device.options.some(function(o) { return o.value === 'cuda:9'; }), 'old dynamic options must be removed');
+  console.log('unavailable-device-ok');
+})();
+""", "unavailable-device-ok")
+
+    def test_synchronous_capability_failure_does_not_break_reset(self):
+        self._run_js(r"""
+API.get = function() { throw new Error('synchronous transport fault'); };
+window.resetReadalongViews();
+ok(_status.textContent.indexOf('unknown') >= 0, 'transport failure must render unknown');
+ok(typeof window.buildReadaloudEpub === 'function', 'handlers must remain installed');
+console.log('sync-fault-ok');
+""", "sync-fault-ok")
+
+    def test_accepted_start_acknowledges_only_submitted_edits(self):
+        for late in (False, True):
+            with self.subTest(late=late):
+                scenario = r"""
+(async function() {
+  _els['readaloud-status'] = _mkEl('readaloud-status');
+  window.ensureReadalongIntegrityApproval = function() { return Promise.resolve('a'.repeat(64)); };
+  var posted = [], first = _deferred();
+  var started = {status:'started',claim_id:'c'.repeat(32),book_token:'b'.repeat(64),preference:{timing_mode:'chunk',timing_device:'auto',timing_language:null}};
+  API.post = function(url, body) { posted.push(body); return posted.length === 1 ? first.promise : Promise.resolve(started); };
+  API.get = function() { return Promise.resolve({running:false,result:{status:'failed',message:'controlled terminal fixture'}}); };
+  _mode.value = 'chunk'; _mode._listeners.change();
+  window.buildReadaloudEpub(); await flush();
+  LATE_EDIT
+  first.resolve(started); await flush(); await flush();
+  window.buildReadaloudEpub(); await flush(); await flush();
+  ok(posted.length === 2, 'both real start handlers must post');
+  EXPECTATION
+  console.log('acknowledged-edits-ok');
+})();
+"""
+                scenario = scenario.replace('LATE_EDIT', "_mode.value = 'qwen'; _mode._listeners.change();" if late else '')
+                scenario = scenario.replace('EXPECTATION', "ok(posted[1].timing_mode === 'qwen', 'late edits must remain pending');" if late else "ok(!Object.prototype.hasOwnProperty.call(posted[1], 'timing_mode'), 'already accepted choice must not be resent as a new edit');")
+                self._run_js(scenario, "acknowledged-edits-ok")
 
     def test_listeners_bound_before_fetch_and_persisted_gpu_applied(self):
         scenario = r"""
@@ -1855,6 +2325,50 @@ class CommittedPreferenceBytesTests(_FixtureMixin):
 
 
 class ResultBudgetTests(unittest.TestCase):
+    def test_impossible_score_geometry_refuses_before_conversion(self):
+        from qwen_score_decoder import decode_timestamp_bins
+        class Impossible:
+            shape = (8192, 1953)
+            def __array__(self, *args, **kwargs):
+                raise AssertionError("impossible geometry must not allocate an array")
+        with self.assertRaises(ValueError):
+            decode_timestamp_bins(Impossible())
+        with self.assertRaises(ValueError):
+            decode_timestamp_bins([[10**1000, 0], [0, 1]])
+
+    def test_valid_sentence_at_call_cap_does_not_require_unavailable_tail(self):
+        import wave
+        import qwen_align as qa
+        import qwen_align_worker as worker
+        text = " ".join(["word"] * 179) + ". Last word."
+        spans = qa.cover_ranges(text, qa.split_sentences(text))
+        plans = qa.get_aligner_windows(181, [dict(start=a, end=b,
+            words=qa.count_units(text[a:b])) for a, b in spans], text=text)
+        self.assertEqual(180, plans[0]["end_sec"])
+        windows = [dict(char_start=p["char_start"], char_end=p["char_end"],
+            est_start_sec=p["start_sec"], est_end_sec=p["end_sec"]) for p in plans]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "row.wav"
+            with wave.open(str(path), "wb") as out:
+                out.setnchannels(1)
+                out.setsampwidth(2)
+                out.setframerate(1000)
+                out.writeframes(b"\x00\x00" * 181000)
+            def measured(_model, _path, piece, _language, _decode, *args):
+                words = piece.split()
+                return [dict(text=w, start_time=float(i), end_time=float(i + 1))
+                        for i, w in enumerate(words)]
+            with patch.object(worker, "_align_slice", side_effect=measured) as align:
+                tokens, accepted = worker._align_row(object(), dict(text=text,
+                    wav_path=str(path), duration_sec=181, windows=windows), "English", None, root)
+        self.assertEqual(2, align.call_count)
+        self.assertEqual(181, len(tokens))
+        self.assertEqual(179, tokens[178]["end_time"])
+        self.assertEqual(179000, accepted[1]["start_frame"])
+        self.assertEqual(181, tokens[-1]["end_time"])
+        self.assertTrue(all(w["slice_duration_sec"] <= 180 for w in accepted))
+
     def test_row_byte_accounting_matches_complete_json(self):
         import qwen_align_worker as worker
         import itertools
@@ -1890,33 +2404,51 @@ class ResultBudgetTests(unittest.TestCase):
             rows = [{"id": "r%d" % i, "text": "Hello.", "wav_path": str(wav),
                      "duration_sec": 1.0, "windows": [{"char_start": 0, "char_end": 6,
                          "est_start_sec": 0.0, "est_end_sec": 1.0}]} for i in range(3)]
+            scratch = root / "slices"
+            sentinel = scratch / "parent-owned.txt"
+            real_mkdtemp = tempfile.mkdtemp
             job = root / "job.json"
             job.write_text(json.dumps({"model_dir": str(model), "device": "cpu",
                 "dtype": "float32", "language": "English", "qwen_asr_version": "0.0.6",
-                "rows": rows}), encoding="utf-8")
+                "rows": rows, "slice_dir": str(scratch)}), encoding="utf-8")
             result = root / "result.json"
             torch = types.SimpleNamespace(float32="float32", float16="float16", bfloat16="bfloat16")
             qwen = types.SimpleNamespace(Qwen3ForcedAligner=types.SimpleNamespace(
                 from_pretrained=lambda *a, **kw: object()))
-            for text, limit, expected_exit, expected_calls in [
-                    ("x" * 2000, 512, 1, 1), ("Hello", 4096, 0, 3), (None, 4096, 1, 1)]:
-                tokens = [{"text": text, "start_time": 0.1, "end_time": 0.8}]
-                windows = [{"tokens": tokens, "char_start": 0, "char_end": 6,
-                    "start_frame": 0, "end_frame": 16000, "offset_sec": 0.0,
-                    "slice_duration_sec": 1.0, "calls": 1}]
-                with patch.dict(sys.modules, {"torch": torch, "qwen_asr": qwen}), \
-                        patch.object(importlib.metadata, "version", return_value="0.0.6"), \
-                        patch.object(worker, "_apply_encoder_mask_adapter", return_value="sdpa"), \
-                        patch.object(worker, "_align_row", return_value=(tokens, windows),
-                            side_effect=ValueError("precise decoder cause") if text is None else None) as align, \
-                        patch.object(worker, "MAX_RESULT_BYTES", limit):
-                    code = worker.main(["worker", str(job), str(result)])
-                self.assertEqual(expected_exit, code, result.read_text())
-                self.assertEqual(expected_calls, align.call_count)
-                self.assertLessEqual(result.stat().st_size, limit)
-                self.assertEqual(expected_exit == 0, json.loads(result.read_text())["ok"])
-                if text is None:
-                    self.assertIn("precise decoder cause", json.loads(result.read_text())["error"])
+            for case, text, limit, expected_exit, expected_calls in [
+                    ("budget", "x" * 2000, 512, 1, 1), ("success", "Hello", 4096, 0, 3),
+                    ("row-error", None, 4096, 1, 1), ("adapter-error", "Hello", 4096, 1, 0),
+                    ("scratch-error", "Hello", 4096, 1, 0)]:
+                with self.subTest(case=case):
+                    scratch.mkdir(exist_ok=True)
+                    sentinel.write_text("owned-by-parent", encoding="utf-8")
+                    tokens = [{"text": text, "start_time": 0.1, "end_time": 0.8}]
+                    windows = [{"tokens": tokens, "char_start": 0, "char_end": 6,
+                        "start_frame": 0, "end_frame": 16000, "offset_sec": 0.0,
+                        "slice_duration_sec": 1.0, "calls": 1}]
+                    with patch.dict(sys.modules, {"torch": torch, "qwen_asr": qwen}), \
+                            patch.object(importlib.metadata, "version", return_value="0.0.6"), \
+                            patch.object(worker, "_apply_encoder_mask_adapter", return_value="sdpa",
+                                side_effect=TypeError("precise adapter cause") if case == "adapter-error" else None), \
+                            patch.object(worker.tempfile, "mkdtemp", wraps=real_mkdtemp,
+                                side_effect=OSError("precise scratch cause") if case == "scratch-error" else None), \
+                            patch.object(worker, "_align_row", return_value=(tokens, windows),
+                                side_effect=ValueError("precise decoder cause") if text is None else None) as align, \
+                            patch.object(worker, "MAX_RESULT_BYTES", limit):
+                        code = worker.main(["worker", str(job), str(result)])
+                    self.assertEqual("owned-by-parent", sentinel.read_text(encoding="utf-8"))
+                    for call in align.call_args_list:
+                        self.assertEqual(scratch, call.args[-1].parent)
+                        self.assertFalse(call.args[-1].exists(), "Only the worker-created scratch child is reclaimed")
+                    self.assertEqual(expected_exit, code, result.read_text())
+                    self.assertEqual(expected_calls, align.call_count)
+                    self.assertLessEqual(result.stat().st_size, limit)
+                    self.assertEqual(expected_exit == 0, json.loads(result.read_text())["ok"])
+                    if text is None:
+                        self.assertIn("precise decoder cause", json.loads(result.read_text())["error"])
+
+                    if case in ("adapter-error", "scratch-error"):
+                        self.assertIn("precise " + case.split("-")[0] + " cause", json.loads(result.read_text())["error"])
 
     def test_result_writer_keeps_the_existing_byte_cap(self):
         import qwen_align_worker as worker

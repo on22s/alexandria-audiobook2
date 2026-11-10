@@ -25,7 +25,7 @@ def _model(tmp):
     model = Path(tmp) / "model"
     model.mkdir()
     (model / "config.json").write_text(json.dumps(
-        {"model_type": "qwen3_asr", "support_languages": ["English"]}),
+        {"model_type": "qwen3_asr", "thinker_config": {"model_type": "qwen3_forced_aligner"}, "support_languages": ["English"]}),
         encoding="utf-8")
     (model / "model.safetensors").write_bytes(b"12345678")
     for name in _qr._REQUIRED_MODEL_FILES:

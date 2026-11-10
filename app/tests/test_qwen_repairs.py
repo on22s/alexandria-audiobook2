@@ -25,7 +25,7 @@ def _complete_model(root, weights=b"w" * 4096, model_type="qwen3_asr"):
     model = Path(root) / "m"
     model.mkdir(parents=True, exist_ok=True)
     (model / "config.json").write_text(json.dumps(
-        {"model_type": model_type,
+        {"model_type": model_type, "thinker_config": {"model_type": "qwen3_forced_aligner"},
          "support_languages": ["Chinese", "English", "Cantonese", "German",
                                "Spanish", "French", "Italian", "Portuguese",
                                "Russian", "Korean", "Japanese"]}), encoding="utf-8")
@@ -45,7 +45,7 @@ def _docs_only_model(root):
     model = Path(root) / "docs-only"
     model.mkdir(parents=True, exist_ok=True)
     (model / "config.json").write_text(json.dumps(
-        {"model_type": "qwen3_asr",
+        {"model_type": "qwen3_asr", "thinker_config": {"model_type": "qwen3_forced_aligner"},
          "support_languages": ["English"]}), encoding="utf-8")
     (model / "preprocessor_config.json").write_text("{}", encoding="utf-8")
     (model / "README.md").write_text("https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B",

@@ -180,6 +180,7 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
     if not isinstance(archive_bytes, bytes) or not archive_bytes:
         raise ValueError("Retained EPUB bytes are missing.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        member_index = _get_archive_member_index(archive.infolist())
         opf_path, package = get_epub_package(
             archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
         namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
@@ -236,10 +237,12 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
         toc = []
         for item in manifest.values():
             if 'nav' in item['properties'].split():
+                if item['path'] not in member_index:
+                    continue
                 try:
                     root = ET.fromstring(_read_archive_member_bounded(
-                        archive, item['path'], max_xml_bytes))
-                except (KeyError, ET.ParseError):
+                        archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
+                except ET.ParseError:
                     continue
                 for nav in root.iter():
                     if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -331,10 +334,10 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
     if path.startswith("../") or "\\" in path:
         raise ValueError("Spine path escapes the archive.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        try:
-            raw = _read_archive_member_bounded(archive, path, max_xml_bytes)
-        except KeyError as error:
-            raise ValueError(f"Spine document is missing: {path}") from error
+        member_index = _get_archive_member_index(archive.infolist())
+        if path not in member_index:
+            raise ValueError(f"Spine document is missing: {path}")
+        raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
         root = ET.fromstring(raw)
     except ET.ParseError as error:
@@ -630,7 +633,23 @@ def _clone_atom(source, emitted_ids):
     return clone
 
 
-def _read_archive_member_bounded(archive, name, max_bytes):
+def _get_retained_xml_limit():
+    # Auxiliary XHTML/nav/NCX had no independent per-member limit on main.
+    # Keep them bounded by the existing archive budget, without imposing
+    # the mapped-spine or package/container limit on untouched resources.
+    from archive_utils import MAX_ARCHIVE_BYTES
+    return MAX_ARCHIVE_BYTES
+
+
+def _get_archive_member_index(infos):
+    """Index one immutable directory, preserving duplicate refusal."""
+    members = {}
+    for info in infos:
+        members[info.filename] = info if info.filename not in members else None
+    return members
+
+
+def _read_archive_member_bounded(archive, name, max_bytes, *, member_index=None):
     """Read one archive member bounded BEFORE materialization.
 
     Strict EPub name/unique/encrypted checks wrap the shared
@@ -643,10 +662,12 @@ def _read_archive_member_bounded(archive, name, max_bytes):
     from archive_utils import read_zip_member_bounded
     if not isinstance(name, str) or not name:
         raise ValueError("Invalid EPUB archive member.")
-    infos = [info for info in archive.infolist() if info.filename == name]
-    if len(infos) != 1:
-        raise ValueError("EPUB archive member is missing or ambiguous: %s" % name)
-    info = infos[0]
+    members = member_index if member_index is not None else _get_archive_member_index(archive.infolist())
+    if name not in members:
+        raise ValueError("EPUB archive member is missing: %s" % name)
+    info = members[name]
+    if info is None:
+        raise ValueError("EPUB archive member is ambiguous: %s" % name)
     path = PurePosixPath(name)
     if ("\\" in name or "\0" in name or path.is_absolute()
             or PureWindowsPath(name).drive or ".." in path.parts
@@ -1172,6 +1193,7 @@ def validate_epub_readaloud(archive_bytes):
     if not isinstance(archive_bytes, bytes) or not archive_bytes:
         raise ValueError("Built EPUB is empty.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        member_index = _get_archive_member_index(archive.infolist())
         names = archive.namelist()
         if not names or names[0] != 'mimetype':
             raise ValueError("Built EPUB mimetype must be first.")
@@ -1253,15 +1275,17 @@ def validate_epub_readaloud(archive_bytes):
         for path, media, _props, _o, _h in manifest.values():
             if media == XHTML_MEDIA_TYPE and path:
                 raw = _read_archive_member_bounded(
-                    archive, path, MAX_EPUB_READALOUD_XML_BYTES)
+                    archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
                     root = ET.fromstring(raw)
                 except ET.ParseError as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
                 for el in root.iter():
-                    el_id = el.get('id')
-                    if el_id:
+                    # Equal aliases on one element are fine; clashes across
+                    # elements make overlay fragments ambiguous in XML.
+                    element_ids = {el.get('id'), el.get('{http://www.w3.org/XML/1998/namespace}id')}
+                    for el_id in element_ids - {None, ""}:
                         if el_id in ids:
                             raise ValueError("Built EPUB XHTML has a duplicate id.")
                         ids.add(el_id)
@@ -1327,7 +1351,7 @@ def validate_epub_readaloud(archive_bytes):
         for smil_id, xhtml_path in smil_id_to_path.items():
             smil_path = manifest[smil_id][0]
             raw = _read_archive_member_bounded(
-                archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES)
+                archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
                 smil_root = ET.fromstring(raw)
             except ET.ParseError as error:
@@ -1484,11 +1508,11 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
     if ncx_path is None:
         return []
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        try:
-            raw = _read_archive_member_bounded(
-                archive, ncx_path, MAX_PUBLICATION_XML_BYTES)
-        except KeyError:
+        member_index = _get_archive_member_index(archive.infolist())
+        if ncx_path not in member_index:
             return []
+        raw = _read_archive_member_bounded(
+            archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
         root = ET.fromstring(raw)
     except ET.ParseError:
@@ -1917,7 +1941,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     retained_stream = []
     with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
         infos = source.infolist()
-        _preflight_retained_members(infos)
+        member_index = _get_archive_member_index(infos)
         xhtml_paths = {item["path"] for item in manifest.values()
                        if item.get('media_type') == XHTML_MEDIA_TYPE}
         for info in infos:
@@ -1929,10 +1953,11 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             if info.is_dir():
                 continue
             if info.filename in xhtml_paths:
-                # XML retained members keep the existing numerical bound
-                # and are needed in memory for the doctype step below.
+                # Preserve the previous auxiliary-XHTML acceptance. The
+                # mapped-spine limit is separate; these copies remain under
+                # the archive-wide declared/decompressed byte budget.
                 output_members[info.filename] = _read_archive_member_bounded(
-                    source, info.filename, MAX_EPUB_READALOUD_XML_BYTES)
+                    source, info.filename, _get_retained_xml_limit(), member_index=member_index)
             else:
                 # Non-XML assets are streamed at write time below, so a
                 # large member is never materialized in memory. No new

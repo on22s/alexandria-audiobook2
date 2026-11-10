@@ -329,6 +329,9 @@ fake, or word-count timing exists in the production path.
   steps up to the 180s per-call cap while speech reaches the slice
   end, and advances only by actual frames — including a final
   sub-500ms remainder, which grows if at least one frame advances.
+  The 3s tail is a scheduling target: at the actual row end or hard
+  call cap, fully validated tokens may use the remaining headroom.
+  The cap never permits an inference call longer than 180s.
   Word-rate estimates only schedule inference; clips come from actual
   model tokens. A single sentence up to the 180s cap gets its own
   window (no 20s refusal); a sentence needing more is partitioned at
@@ -408,6 +411,11 @@ fake, or word-count timing exists in the production path.
   `ALEXANDRIA_QWEN_PYTHON` to an explicit interpreter). Capability comes
   from `GET /api/readaloud_epub/capability` (import/device presence
   only, no inference); unknown is never shown as ready.
+  The documented HF local download creates `.cache/huggingface`
+  bookkeeping; this subtree is excluded from model identity. Actual model
+  data stays bounded and content-hashed, and referenced shards must exist.
+  Directory traversal counts skipped names too and refuses links in model
+  data. Model names and sizes are length-framed in the content digest.
 - **GPU metadata without an inference context.** The isolated requirements
   include NVIDIA's `cuda-bindings` (except on macOS) and `nvidia-ml-py`.
   CUDA driver metadata supplies logical ordinals and UUIDs, respecting its

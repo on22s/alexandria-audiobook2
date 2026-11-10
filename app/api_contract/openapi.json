@@ -4543,6 +4543,7 @@
           "timing_device": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "pattern": "^(auto|cpu|cuda:[0-9]+)$",
                 "type": "string"
               },
