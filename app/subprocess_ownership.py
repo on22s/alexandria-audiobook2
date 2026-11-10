@@ -146,8 +146,10 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
             process.wait(timeout=timeout)
 
 
-def run_owned_capture(command, *, timeout, **kwargs):
+def run_owned_capture(command, *, timeout, cancel_check=None, **kwargs):
     """Capture a bounded command, stopping and reaping its owned descendants."""
+    if cancel_check is not None and cancel_check():
+        raise ValueError("Owned capture cancelled")
     process = start_owned_subprocess(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         start_new_session=(os.name == 'posix'),
@@ -155,7 +157,23 @@ def run_owned_capture(command, *, timeout, **kwargs):
         termination_grace=1, **kwargs)
     try:
         try:
-            stdout, stderr = process.communicate(timeout=timeout)
+            if cancel_check is None:
+                stdout, stderr = process.communicate(timeout=timeout)
+            else:
+                deadline = None if timeout is None else time.monotonic() + timeout
+                while True:
+                    if cancel_check():
+                        raise ValueError("Owned capture cancelled")
+                    remaining = None if deadline is None else deadline - time.monotonic()
+                    try:
+                        stdout, stderr = process.communicate(
+                            timeout=.1 if remaining is None else max(0, min(.1, remaining)))
+                        break
+                    except subprocess.TimeoutExpired as error:
+                        if deadline is not None and time.monotonic() >= deadline:
+                            raise subprocess.TimeoutExpired(
+                                error.cmd, timeout, output=error.output,
+                                stderr=error.stderr) from error
         except BaseException:
             stop_owned_subprocess(process, timeout=1)
             raise

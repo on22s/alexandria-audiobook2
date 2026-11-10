@@ -18,8 +18,10 @@ Integration is inside the Result/export workflow, not a disconnected CLI.
      SMIL Media Overlays from a fresh MP3 encode, using the retained
      original EPUB. No Merge All is needed first. Fails closed with
      editor text when no synchronization can be justified.
-3. Both builds are owned CPU background tasks (`readalong_sidecar`,
-   `readaloud_epub`) in `process_state` with owner-fenced cancel,
+3. Both builds are owned background tasks (`readalong_sidecar`,
+   `readaloud_epub`) in `process_state`. Sidecar and chunk timing use CPU;
+   Qwen timing uses the admitted CPU or GPU device, with GPU builds
+   reserving the shared GPU lock. Both builds have owner-fenced cancel,
    shared integrity approval (`ensureMergeIntegrityApproval`, same
    snapshot semantics), `admitted_snapshot` comparison in the worker,
    `verify_sources()` and `ensure_publication_transaction` publication
@@ -217,8 +219,10 @@ snapshot separately guards the original TXT identity.
   no inference or billable calls. Word timing reuses cached spans
   only. Retention counts toward the existing upload quota
   (`MAX_UPLOAD_STORAGE_BYTES`); the inventory is metadata-only.
-- CPU-only tasks under the GPU exclusion set; ordinary merge/M4B/
-  chapter paths unchanged.
+- Sidecar and chunk timing use CPU. Qwen GPU timing reserves the shared
+  GPU lock and is refused while conflicting GPU work is active;
+  wait for that work to finish and start the build again. Ordinary
+  merge/M4B/chapter paths are unchanged.
 - EPUB `readaloud.receipt.json` is the R2 seam described above; it
   adds one small JSON beside the EPUB in the same transaction. EPUBs
   built before this slice have no receipt and are refused with 409
@@ -280,3 +284,178 @@ renames still needs a rebuild).
 
 See `docs/readalong-acceptance.md` (filled after freeze with measured
 counts, size/timing costs, SHA256 manifest).
+
+## Qwen3 sentence timing (#1844)
+
+Qwen3-ForcedAligner-0.6B refines segment timing to sentence granularity.
+AA2's content policy is unchanged: the build still runs `iter_timeline`
+frame truth first, still fails closed when mapping is inexact, and the
+Qwen result never approves content that mapping refused. Alignment is
+real model inference behind this build's admission — no proportional,
+fake, or word-count timing exists in the production path.
+
+Sentence boundaries use text heuristics rather than semantic sentence
+recognition. A terminal acronym can merge with the following sentence:
+`He lives in the U.S. He works there.` may produce one sentence span and
+one clip envelope. Dotted acronyms within a sentence remain intact, but
+sentence-level timing does not guarantee one span per semantic sentence.
+
+- **Placement.** Inference never runs in the export task's thread. The
+  export exact-PCMs (`combined.pcm` at the promoted bounds) are sliced
+  per editor row and aligned in an owned subprocess worker
+  (`app/qwen_align_worker.py`) in the isolated `qwen-env` interpreter,
+  with the same owned-process cancel/timeout/reap behaviour as
+  `word_timing.run_timing_command`. The parent enforces `HF_HUB_OFFLINE=1`
+  and `local_files_only=True`; the worker loads a provisioned local
+  model directory through the official
+  `Qwen3ForcedAligner.from_pretrained(..., dtype, device_map,
+  local_files_only=True)` + `align(audio=path, text, language)` API
+  (QwenLM/Qwen3-ASR commit 7c6daf77a2421100f5fb066495372c00129d39ff;
+  HF model `Qwen/Qwen3-ForcedAligner-0.6B`, pin c7cbfc2048c462b0d63a45797104fc9db3ad62b7).
+- **Admission.** `readaloud_epub` was promoted out of `NON_GPU_TASKS`:
+  chunk timing claims `cpu_only=True` (unchanged behaviour), Qwen on a
+  GPU claims through the shared GPU lock. The effective device is
+  resolved exactly once, before `reserve_background_task`, and pinned
+  for the worker; a worker cannot auto-upgrade after admission. Cancel,
+  book switching and owner fencing are the existing mechanisms.
+- **Chunk vs Qwen labels.** Chunk timing is `chunk-estimated` (chunk
+  bounds only). Qwen clips are labelled as Qwen timing and never claim
+  measured accuracy or frame certification; token times are model
+  estimates and MP3 priming stays unclaimed.
+- **180s per-call bound (AA2's, not upstream's).** The standalone
+  upstream `align()` itself enforces no input-length limit:
+  `MAX_FORCE_ALIGN_INPUT_SECONDS = 180` lives in the SDK's
+  `inference/utils.py` and is used by the ASR *transcribe* wrapper
+  (`qwen3_asr.py`), not by the forced aligner. AA2 nevertheless caps
+  every real inference slice at 180s as a conservative bound. A whole
+  editor row may exceed 180s: it is aligned as bounded sequential
+  slices (below) and validated as a row, never as one inference call.
+- **Sequential measured-cursor scheduling.** Rows are scheduled from
+  the row's estimated speech rate with a 20s text target, a 3s audio
+  tail, and 3s incremental growth. The worker (model loaded once)
+  slices each row sequentially: every slice starts at the measured
+  previous token end (rounded up to the next actual PCM frame, so a
+  slice never starts before the preceding word's end), grows by 3s
+  steps up to the 180s per-call cap while speech reaches the slice
+  end, and advances only by actual frames — including a final
+  sub-500ms remainder, which grows if at least one frame advances.
+  The 3s tail is a scheduling target: at the actual row end or hard
+  call cap, fully validated tokens may use the remaining headroom.
+  The cap never permits an inference call longer than 180s.
+  Word-rate estimates only schedule inference; clips come from actual
+  model tokens. A single sentence up to the 180s cap gets its own
+  window (no 20s refusal); a sentence needing more is partitioned at
+  word boundaries, with final sentence envelopes derived from actual
+  tokens. Parent validation of worker-reported windows is structural
+  consistency (frame bounds, text scopes, call bound, cursor
+  continuity) plus preserved provenance — it does not prove acoustic
+  correspondence, and no all-language or device accuracy is claimed.
+- **Encoder attention adapter.** The bundled non-FA2 audio encoder
+  computes `cu_seqlens` but omits its block-diagonal attention mask
+  (upstream QwenLM/Qwen3-ASR issue 213 / PR 103). The worker wraps
+  each encoder layer on its private model instance so a missing mask
+  is filled via the tower's own `_prepare_attention_mask`; Flash
+  Attention 2 keeps its native semantics. Unexpected backends or a
+  repeated install fail closed; site-packages is never patched.
+- **Bounded maximum-score decoder.** Official token texts are kept,
+  but times come from `app/qwen_score_decoder.py` (worker-only): a
+  bounded maximum-score monotonic path with strictly positive word
+  bins computed from real model timestamp scores (borrowed invariant
+  from hangry-labs/Qwen3-ASR-STT @97ad227, Apache-2.0; see
+  `THIRD_PARTY_NOTICES.md`). An already-valid argmax path is kept
+  verbatim; otherwise the score search runs. NaN/Inf, odd counts,
+  oversize or impossible paths fail closed. Predicted score size is
+  checked before inference via the SDK's own
+  `aligner_processor.encode_timestamp`, and actual tensor shape is
+  checked before any conversion. This decoder deliberately differs
+  from the donor's LIS fast path, and the parent diagnostics that
+  used the donor's exact function are not proof of this code.
+- **Provider-code identity.** The provider digest also hashes the
+  actual bytes of `qwen_align_worker.py`, `qwen_score_decoder.py` and
+  `qwen_align.py`, so changing the encoder adapter, decoder or shared
+  alignment logic changes identity and a
+  stale artifact cannot download as fresh.
+- **Staging PCM formats.** Row staging supports the core PCM contract
+  widths 1/2/4 (see `get_pcm_source_shape`); the official Qwen decode
+  path (soundfile/librosa into mono float32) has no 16-bit
+  requirement. Signed 16/32-bit little-endian PCM is written
+  byte-exact; signed 8-bit internal PCM is biased to unsigned 8-bit
+  WAV bytes (bias 128, the same rule as the existing audio export
+  paths). Rate, channels, exact frame range and waveform are
+  preserved; staging is a copy and never modifies source PCM/MP3.
+- **Fail closed.** Non-finite, reversed, overlapping, saturating
+  (identical endpoints), out-of-bounds, text-mismatched, partial or
+  empty results refuse the whole build before publication. No
+  monotonic repair, no linear stretch, no proportional timings.
+  (Note: upstream `Qwen3ForceAlignProcessor.fix_timestamp` already
+  repairs out-of-order timestamp sequences internally; timings here
+  are AA2-validated *model* times, never claimed as raw unrepaired
+  model output or as ground truth. All AA2-side clamp/stretch is
+  absent by design.)
+- **Structure.** Sentence spans wrap sentence ranges inside mapped
+  block elements; inline markup/tails and every character are kept
+  exactly once and original ids stay. Coarsened containers with nested
+  blocks, and any structure the span wrapper cannot redistribute
+  faithfully, refuse explicitly as unsupported.
+- **Receipt v2/v3.** Qwen artifacts carry `{timing_mode, timing_device,
+  timing_dtype, timing_language, timing_provider}` (on-disk model/interpreter digest)
+  alongside the 7-key identity; new Qwen builds (v3) additionally carry
+  human-readable `{timing_model, timing_qwen_asr_version}` (AC8: the
+  supported `Qwen3-ForcedAligner-0.6B` engine identifier plus the
+  validated qwen-asr version — provenance labels, never a measured
+  acoustic-accuracy claim or proof of an owner-provided weights'
+  origin; the provider digest remains the actual identity).
+  Pre-publication revalidation compares the live digest. Download
+  recomputes timing identity from the persisted preference
+  (`readalong_timing.json`) plus the model digest: a provider
+  replacement or a timing-choice change since the build returns 409.
+  Legacy 7-key and v2 receipts keep existing semantics; arbitrary
+  extra receipt keys are rejected.
+- **Install (isolated, explicit).** The main app keeps its pins
+  (transformers 4.57.3); nothing downloads during a build. To enable
+  Qwen: create a Python 3.12 venv (`qwen-env/`), install per-platform
+  torch, then `pip install -r app/requirements-qwen.txt`, then
+  download the model ONCE with the hf CLI:
+  `pip install -U "huggingface_hub[cli]"` +
+  `hf download Qwen/Qwen3-ForcedAligner-0.6B --local-dir models/Qwen3-ForcedAligner-0.6B`,
+  or set `ALEXANDRIA_QWEN_MODEL` to a local directory (and
+  `ALEXANDRIA_QWEN_PYTHON` to an explicit interpreter). Capability comes
+  from `GET /api/readaloud_epub/capability` (import/device presence
+  only, no inference); unknown is never shown as ready.
+  The documented HF local download creates `.cache/huggingface`
+  bookkeeping; this subtree is excluded from model identity. Actual model
+  data stays bounded and content-hashed, and referenced shards must exist.
+  Directory traversal counts skipped names too and refuses links in model
+  data. Model names and sizes are length-framed in the content digest.
+- **GPU metadata without an inference context.** The isolated requirements
+  include NVIDIA's `cuda-bindings` (except on macOS) and `nvidia-ml-py`.
+  CUDA driver metadata supplies logical ordinals and UUIDs, respecting its
+  visibility/order settings; NVML supplies the matching device's compute
+  capability and current memory. The probe creates no CUDA context. Missing
+  or unknown GPU metadata excludes that device; a working CPU runtime can
+  still be offered, and an explicitly unavailable GPU choice refuses.
+  A CPU-only Torch installation does not advertise a physical CUDA GPU.
+- **Bounded output.** The worker checks actual encoded result bytes as rows
+  finish and stops before aligning further rows if the existing 16 MiB
+  result limit is exceeded. The independent 64 MiB job limit also remains.
+  These are resource limits, not a promise that every book fits. An oversized
+  job or result refuses publication and leaves the prior export intact;
+  chunk timing remains the alternative. No timestamps are guessed to fit.
+- **Bounded sentence reconstruction.** Each mapped source segment is limited
+  to 200,000 raw characters before provenance normalization. Inline indexing
+  allows at most 1,048,576 events and accumulated stack references. Per XHTML
+  document, reconstructed sentence content has an 8 MiB charged-byte budget,
+  including escaped text, attributes and namespace/element overhead. These
+  conservative work budgets refuse before further cloning; they do not measure
+  peak RAM or acoustic quality. Chunk timing remains the alternative for an
+  EPUB outside these sentence-mode bounds. Retained EPUB reads also enforce the
+  existing 2 GiB retained-read bound on the opened regular file, poll cancellation,
+  and reject a file that changes during the read.
+- **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
+  not dependencies of this app; no parallel packager exists. The
+  sentence idea and parts of the tokenizer/window logic adapt
+  ReadAloudMaker (MIT, commit `8ba70a83383e8a5bddd8b859016ffbbcefccba18`)
+  under attribution in
+  `THIRD_PARTY_NOTICES.md`; its standalone server, build, and
+  packager/validator choices are not transplanted. This sentence-timing
+  donor revision is distinct from the earlier packaging reference above.

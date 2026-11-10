@@ -1,0 +1,275 @@
+"""Qwen alignment pure core (#1844) — fail-first contract before production.
+
+Covers sentence splitting (donor algorithm port incl. CJK), exact
+normalized token coverage, fragment time derivation without invention,
+and the 180s subwindow planner. All fixtures are synthetic sentences.
+"""
+import unittest
+
+import qwen_align as qa
+
+
+class SentenceSplitTests(unittest.TestCase):
+    def test_plain_sentences(self):
+        self.assertEqual([(0, 12), (12, 25), (25, 38)],
+                         qa.split_sentences("Hello world. Hello again. Hello world!"))
+        full = qa.cover_ranges("Hello world. Hello again. Hello world!",
+                               qa.split_sentences("Hello world. Hello again. Hello world!"))
+        self.assertEqual([(0, 12), (12, 25), (25, 38)], full)
+
+    def test_abbreviations_do_not_split(self):
+        ranges = qa.split_sentences("Dr. Smith went home. He slept.")
+        self.assertEqual([(0, 20), (20, 30)], ranges)
+
+    def test_ellipsis_and_quotes_stay_together(self):
+        ranges = qa.split_sentences('Wait... He said "stop." Then left.')
+        self.assertEqual([(0, 7), (7, 23), (23, 34)], ranges)
+
+    def test_decimal_does_not_split(self):
+        ranges = qa.split_sentences("Price was 3.50 euros. Cheap.")
+        self.assertEqual([(0, 21), (21, 28)], ranges)
+
+    def test_cjk_terminators(self):
+        ranges = qa.split_sentences("你好，世界。 再见，世界！ 今天天气晴？")
+        # Ranges cover the stripped segments starting at each character.
+        self.assertEqual(3, len(ranges))
+        self.assertEqual(0, ranges[0][0])
+
+    def test_empty_text(self):
+        self.assertEqual([], qa.split_sentences(""))
+        self.assertEqual([], qa.split_sentences("   "))
+        self.assertEqual([], qa.cover_ranges("", []))
+
+    def test_cover_ranges_cover_every_character(self):
+        text = "One. Two! Three? "
+        ranges = qa.cover_ranges(text, qa.split_sentences(text))
+        joined = "".join(text[s:e] for s, e in ranges)
+        self.assertEqual(text, joined)
+        self.assertEqual(0, ranges[0][0])
+        self.assertEqual(len(text), ranges[-1][1])
+
+
+class AlignerLanguageTests(unittest.TestCase):
+    def test_supported_names_roundtrip(self):
+        for code, name in (("en", "English"), ("eng", "English"),
+                           ("English", "English"), ("zh", "Chinese"),
+                           ("zho", "Chinese"), ("ja", "Japanese"),
+                           ("de", "German"), ("fr", "French"),
+                           ("es", "Spanish"), ("it", "Italian"),
+                           ("pt", "Portuguese"), ("ru", "Russian"),
+                           ("ko", "Korean"), ("yue", "Cantonese")):
+            self.assertEqual(name, qa.get_aligner_language_name(code))
+
+    def test_unsupported_and_empty_fail(self):
+        for bad in ("ar", "Arabic", "hi", "", None, 42):
+            with self.assertRaises(ValueError):
+                qa.get_aligner_language_name(bad)
+
+    def test_supported_set_is_exactly_the_forced_aligner_eleven(self):
+        self.assertEqual(
+            {"Chinese", "English", "Cantonese", "French", "German",
+             "Italian", "Japanese", "Korean", "Portuguese", "Russian",
+             "Spanish"},
+            set(qa.SUPPORTED_ALIGNER_LANGUAGES))
+
+    def test_is_supported(self):
+        self.assertTrue(qa.is_aligner_language_supported("en"))
+        self.assertFalse(qa.is_aligner_language_supported("Arabic"))
+
+
+class TokenValidationTests(unittest.TestCase):
+    @staticmethod
+    def tokens(words, step=0.5, start=0.0):
+        return [{"text": w, "start_time": start + i * step,
+                 "end_time": start + (i + 1) * step}
+                for i, w in enumerate(words)]
+
+    def test_exact_coverage_passes(self):
+        text = "Hello Synthetic World."
+        tokens = self.tokens(["Hello", "Synthetic", "World"], step=0.4)
+        spans, unmatched = qa.map_tokens_to_text(text, tokens)
+        self.assertEqual([], unmatched)
+        self.assertEqual(3, len(spans))
+        validated = qa.get_validated_aligner_tokens(tokens, 2.0)
+        self.assertEqual(3, len(validated))
+
+    def test_coverage_mismatch_fails(self):
+        # Aligner returns fabricated/extra words: exact correspondence fails.
+        text = "Hello Synthetic World."
+        tokens = self.tokens(["Hello", "Synthetic", "World", "Extra"], step=0.4)
+        spans, unmatched = qa.map_tokens_to_text(text, tokens)
+        self.assertEqual(["Extra"], [t["text"] for t in unmatched])
+        with self.assertRaises(ValueError):
+            qa.require_exact_coverage(text, tokens)
+
+    def test_missing_token_fails(self):
+        text = "Hello Synthetic World."
+        tokens = self.tokens(["Hello", "Synthetic"], step=0.4)
+        with self.assertRaises(ValueError):
+            qa.require_exact_coverage(text, tokens)
+
+    def test_punctuation_and_case_insensitive(self):
+        text = "Hello, SYNTHETIC world!"
+        tokens = self.tokens(["hello", "synthetic", "world"], step=0.4)
+        spans, unmatched = qa.map_tokens_to_text(text, tokens)
+        self.assertEqual([], unmatched)
+        qa.require_exact_coverage(text, tokens)
+
+    def test_cjk_char_granularity(self):
+        text = "你好世界，测试音频。"
+        # Aligner emits one token per Chinese character.
+        words = ["你", "好", "世", "界", "测", "试", "音", "频"]
+        tokens = self.tokens(words, step=0.3)
+        spans, unmatched = qa.map_tokens_to_text(text, tokens)
+        self.assertEqual([], unmatched)
+        qa.require_exact_coverage(text, tokens)
+
+    def test_normalized_stream_agrees_with_aa2(self):
+        # Char stream of the aligner core must match AA2 get_normalized_words.
+        from epub_readaloud import get_normalized_words
+        for text in ("Hello Synthetic World.", "Dr. Smith's 3.50 euros!",
+                     "你好世界。", "Café — naïve test"):
+            self.assertEqual(
+                "".join(get_normalized_words(text)),
+                qa.get_normalized_stream(text)[0])
+
+    def test_nonfinite_rejected(self):
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            tokens = [{"text": "Hello", "start_time": 0.0, "end_time": bad}]
+            with self.assertRaises(ValueError):
+                qa.get_validated_aligner_tokens(tokens, 2.0)
+
+    def test_reversed_and_zero_length_rejected(self):
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": 1.0, "end_time": 0.5}], 2.0)
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": 0.5, "end_time": 0.5}], 2.0)
+
+    def test_out_of_bounds_rejected(self):
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": -0.1, "end_time": 0.5}], 2.0)
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": 1.5, "end_time": 2.5}], 2.0)
+
+    def test_bool_and_string_times_rejected(self):
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": True, "end_time": 1.0}], 2.0)
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": "0.0", "end_time": 1.0}], 2.0)
+
+    def test_overlap_and_saturation_rejected(self):
+        # Overlap: second token starts before previous ends.
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": 0.0, "end_time": 1.0},
+                 {"text": "B", "start_time": 0.5, "end_time": 1.5}], 2.0)
+        # Saturation: two tokens with identical (start, end) — a failed
+        # instrument, never a success.
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(
+                [{"text": "A", "start_time": 0.0, "end_time": 1.0},
+                 {"text": "B", "start_time": 0.0, "end_time": 1.0}], 2.0)
+
+    def test_no_monotonic_clamping(self):
+        """A non-monotonic token sequence must raise, never be repaired."""
+        tokens = [{"text": "A", "start_time": 1.0, "end_time": 2.0},
+                  {"text": "B", "start_time": 0.2, "end_time": 0.8}]
+        with self.assertRaises(ValueError):
+            qa.get_validated_aligner_tokens(tokens, 3.0)
+
+    def test_cap_enforced_for_slice_duration(self):
+        self.assertEqual(180.0, qa.MAX_ALIGN_SECONDS)
+        with self.assertRaises(ValueError):
+            qa.require_slice_within_limit(181.0)
+
+
+class FragmentTimeTests(unittest.TestCase):
+    """Fragment clips come from actual tokens; missing tokens never invented."""
+
+    TEXT = "Hello synthetic world. Second sentence here."
+
+    @staticmethod
+    def tokens():
+        words = ["Hello", "synthetic", "world", "Second", "sentence", "here"]
+        return [{"text": w, "start_time": i * 0.5,
+                 "end_time": (i + 1) * 0.5} for i, w in enumerate(words)]
+
+    def test_fragment_times_are_min_start_max_end(self):
+        fragments = qa.cover_ranges(self.TEXT, qa.split_sentences(self.TEXT))
+        self.assertEqual(2, len(fragments))
+        spans, _ = qa.map_tokens_to_text(self.TEXT, self.tokens())
+        times = qa.derive_fragment_times(fragments, spans)
+        self.assertEqual((0.0, 1.5), times[0])
+        self.assertEqual((1.5, 3.0), times[1])
+
+    def test_fragment_without_tokens_fails_closed(self):
+        # Punctuation-only fragment has no tokens: fail, do not invent.
+        fragments = [(0, 5), (5, 9)]
+        spans, _ = qa.map_tokens_to_text("Hello.***", [
+            {"text": "Hello", "start_time": 0.0, "end_time": 0.5}])
+        with self.assertRaises(ValueError):
+            qa.derive_fragment_times(fragments, spans)
+
+
+class WindowPlannerTests(unittest.TestCase):
+    """Subwindows schedule inference only; clips must come from tokens."""
+
+    @staticmethod
+    def sentences(count, words_per=10):
+        out = []
+        cursor = 0
+        text = ""
+        for _ in range(count):
+            piece = "word " * (words_per - 1) + "word."
+            out.append({"start": cursor, "end": cursor + len(piece),
+                        "words": words_per})
+            cursor += len(piece) + 1
+            text += piece + " "
+        return out, text
+
+    def test_short_row_is_one_window(self):
+        sentences, _ = self.sentences(3)
+        windows = qa.get_aligner_windows(10.0, sentences)
+        self.assertEqual(1, len(windows))
+        self.assertEqual(0.0, windows[0]["start_sec"])
+        self.assertEqual(10.0, windows[0]["end_sec"])
+        self.assertEqual(0, windows[0]["char_start"])
+        self.assertEqual(sentences[-1]["end"], windows[0]["char_end"])
+
+    def test_long_row_windows_stay_within_limit(self):
+        # ~0.5s/word: 4 sentences of 40 words =~ 80s each -> two windows.
+        sentences, _ = self.sentences(4, words_per=40)
+        windows = qa.get_aligner_windows(320.0, sentences)
+        self.assertGreater(len(windows), 1)
+        for window in windows:
+            self.assertLessEqual(window["end_sec"] - window["start_sec"], 180.0)
+        # Sentences are never split across windows.
+        covered = [(w["char_start"], w["char_end"]) for w in windows]
+        for sentence in sentences:
+            owners = [1 for s, e in covered
+                      if not (e <= sentence["start"] or s >= sentence["end"])]
+            self.assertEqual(1, len(owners))
+
+    def test_oversized_single_sentence_refused(self):
+        # One sentence needing >180s of narration: no partial alignment.
+        sentences = [{"start": 0, "end": 10, "words": 1000}]
+        with self.assertRaises(ValueError):
+            qa.get_aligner_windows(600.0, sentences)
+
+    def test_zero_word_text_refused(self):
+        with self.assertRaises(ValueError):
+            qa.get_aligner_windows(5.0, [])
+
+    def test_bool_duration_rejected(self):
+        with self.assertRaises(ValueError):
+            qa.get_aligner_windows(True, [{"start": 0, "end": 2, "words": 2}])
+
+
+if __name__ == "__main__":
+    unittest.main()

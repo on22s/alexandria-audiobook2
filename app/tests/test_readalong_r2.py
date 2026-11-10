@@ -758,6 +758,10 @@ function _el(id) {
     classList: { toggle: function(){}, add: function(){}, remove: function(){} },
     setAttribute: function(){}, appendChild: function (c) { this.children.push(c); },
     addEventListener: function(){}, querySelectorAll: function () { return []; } };
+  if (id === 'readaloud-timing-device') {
+    el.options = [{value:'auto'}, {value:'cpu'}];
+    el.value = 'auto';
+  }
   _els[id] = el;
   return el;
 }

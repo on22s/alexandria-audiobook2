@@ -1,0 +1,26 @@
+# Isolated Qwen alignment environment (#1844) — NOT part of app/requirements.txt.
+#
+# The main app pins transformers==4.57.3 and installs torch per-platform via
+# torch.js. The Qwen stack needs transformers 4.57.6 (pulled by qwen-asr),
+# so it lives in its own interpreter and is never installed into the app env:
+#
+#   py -3.12 -m venv qwen-env
+#   qwen-env\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   qwen-env\Scripts\python -m pip install -r app/requirements-qwen.txt
+#
+# Pick the PyTorch wheel for your platform (CUDA/ROCm/MPS builds differ).
+# Then download the model ONCE with the hf CLI (not deprecated huggingface-cli):
+#
+#   qwen-env\Scripts\python -m pip install -U "huggingface_hub[cli]"
+#   qwen-env\Scripts\hf download Qwen/Qwen3-ForcedAligner-0.6B --local-dir models/Qwen3-ForcedAligner-0.6B
+#
+# Or pass ALEXANDRIA_QWEN_PYTHON / ALEXANDRIA_QWEN_MODEL to the server.
+# A build never downloads: the parent enforces HF_HUB_OFFLINE=1 and the
+# worker loads with local_files_only=True.
+qwen-asr==0.0.6
+# Official NVIDIA NVML Python bindings: context-free CUDA device
+# enumeration (name/capability/free memory) for the capability
+# probe, so status/admission never initializes a CUDA context.
+nvidia-ml-py==13.615.71
+# Driver UUID queries honor CUDA visibility/order without creating a context.
+cuda-bindings==13.4.4; platform_system != "Darwin"

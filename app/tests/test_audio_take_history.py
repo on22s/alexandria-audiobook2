@@ -18,6 +18,14 @@ from tests.test_speech_verification_receipt import get_report
 
 
 class AudioTakeHistoryTests(unittest.TestCase):
+    def test_source_hardlinks_refuse_without_symlink_privilege(self):
+        alias = self.root / 'hardlink.wav'
+        os.link(self.source, alias)
+        with self.assertRaisesRegex(ValueError, 'hard links'):
+            self.history.capture(alias, self.book, self.uid, self.captured)
+        self.assertEqual(self.before, self.source.read_bytes())
+        self.assertEqual([], self.history.list()['records'])
+
     def test_candidate_speech_evidence_binds_archived_bytes_inputs_and_identity(self):
         import copy
         import hashlib

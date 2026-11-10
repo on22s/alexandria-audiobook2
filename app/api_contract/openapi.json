@@ -4539,6 +4539,44 @@
               }
             ],
             "title": "Integrity Confirmation"
+          },
+          "timing_device": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^(auto|cpu|cuda:[0-9]+)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timing Device"
+          },
+          "timing_language": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]*$|^$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timing Language"
+          },
+          "timing_mode": {
+            "anyOf": [
+              {
+                "pattern": "^(auto|qwen|chunk)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timing Mode"
           }
         },
         "title": "ReadaloudEpubRequest",
@@ -13743,6 +13781,23 @@
           }
         },
         "summary": "Cancel Readaloud Epub"
+      }
+    },
+    "/api/readaloud_epub/capability": {
+      "get": {
+        "description": "Bounded, non-inference timing capability + effective policy.",
+        "operationId": "get_readaloud_epub_capability_api_readaloud_epub_capability_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Readaloud Epub Capability"
       }
     },
     "/api/reports": {

@@ -614,8 +614,11 @@ process_state = {
 # inference, so it must respect the GPU lock to avoid OOM alongside TTS/review.
 # "drift_check" scores audio with ECAPA under the sibling interpreter, which
 # pins CPU on purpose (see voice_reference.py) - it never touches the GPU.
+# "readaloud_epub" is NOT exempt: chunk timing claims cpu_only=True while
+# Qwen GPU inference claims through the GPU lock; the device is pinned at
+# admission so a worker can never auto-upgrade after admission (#1844).
 NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "outlier_check", "chapter_export",
-                 "readalong_sidecar", "readaloud_epub"}
+                 "readalong_sidecar"}
 GPU_TASKS = set(process_state.keys()) - NON_GPU_TASKS
 # Tasks whose only accelerator use is the LLM endpoint. When the active LLM
 # profile is not on this machine's GPU (hosted API, a CPU-served model, a

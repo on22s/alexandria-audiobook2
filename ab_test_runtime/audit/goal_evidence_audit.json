@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T14:16:30",
+  "written": "2026-11-10T00:39:11",
   "host": "RealMitch",
   "git": {
-   "commit": "19dce7954933a6296457f07e9b8903bd7ad1a2df",
-   "branch": "fix/1808-readalong-reset-busy",
+   "commit": "501055f4e829e501ba329753062aee00c138e1c9",
+   "branch": "codex/1844-final-ui",
    "dirty": true,
-   "source_state": "dirty:fa9061b21458",
+   "source_state": "dirty:57f201e85bbe",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/static/js/app-readalong.js",
-    " M app/tests/test_readalong_r2.py"
+    "M  app/static/js/app-help.js",
+    "M  app/tests/test_readalong_defects.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

@@ -268,7 +268,7 @@ def safe_load_json(path, default=None):
 
 
 def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
-                      newline=None, allow_nonatomic_fallback=True):
+                      newline=None, allow_nonatomic_fallback=True, return_written_bytes=False):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
@@ -281,6 +281,8 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     newline is passed to the text stream: None (the default) keeps each
     platform's native line ending; newline="\\n" writes the LF bytes a
     byte-pinned artifact was committed with regardless of platform.
+    return_written_bytes captures the actual staged bytes before publication,
+    so callers can bind the write without rereading a mutable destination.
     """
     if not isinstance(max_retries, int) or max_retries < 1:
         raise ValueError("max_retries must be a positive integer")
@@ -289,13 +291,17 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
         raise ValueError("newline must be None or a valid text-stream line ending")
     directory = os.path.dirname(target_path) or "."
     fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=directory)
+    written_bytes = None
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as f:
+        with os.fdopen(fd, "w+" if return_written_bytes else "w", encoding="utf-8", newline=newline) as f:
             json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=sort_keys)
             if trailing_newline:
                 f.write("\n")
             f.flush()
             os.fsync(f.fileno())
+            if return_written_bytes:
+                f.seek(0)
+                written_bytes = f.buffer.read()
 
         for attempt in range(max_retries):
             try:
@@ -311,7 +317,7 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                         os.close(dir_fd)
                 except (OSError, AttributeError):
                     pass
-                return
+                return written_bytes
             except OSError as e:
                 if e.errno == errno.EXDEV:
                     if not allow_nonatomic_fallback:
@@ -332,7 +338,7 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                         ) from e
                     try:
                         shutil.move(tmp_path, target_path)
-                        return
+                        return written_bytes
                     except OSError as move_err:
                         # Let the same retry/backoff check below apply to a
                         # transient failure during the fallback copy too

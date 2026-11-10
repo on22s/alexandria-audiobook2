@@ -453,12 +453,35 @@ console.log('player-gate-ok');
         asyncio.run(run())
 
     def test_E_locate_is_deterministic(self):
+        from contextlib import nullcontext
+        from unittest.mock import patch
+        from project import ProjectManager
+        import readalong_export
         from readalong_export import _locate_retained_epub
+        from tests.test_readalong_r4 import _setup_epub_book
         # Two retained files with identical hashes: directory-order guessing must
         # surface ambiguity instead of silently picking the first.
-        import inspect
-        src = inspect.getsource(_locate_retained_epub)
-        self.assertIn("sorted(", src)
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = _setup_epub_book(tmp, ["Hello synthetic world."])
+            manager = ProjectManager(tmp)
+            source = str(Path(tmp) / "book.txt")
+            first = Path(tmp) / "a.source.epub"
+            (Path(tmp) / "book.source.epub").rename(first)
+            self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
+            second = Path(tmp) / "z.source.epub"
+            second.write_bytes(expected)
+            with os.scandir(tmp) as scan:
+                entries = [entry for entry in scan if entry.name.endswith(".source.epub")]
+            self.assertEqual(2, len(entries))
+            for reverse in (False, True):
+                with self.subTest(reverse=reverse), patch.object(
+                        readalong_export.os, "scandir",
+                        side_effect=lambda _path: nullcontext(iter(sorted(
+                            entries, key=lambda entry: entry.name, reverse=reverse)))):
+                    with self.assertRaisesRegex(ValueError, "Multiple retained EPUB"):
+                        _locate_retained_epub(manager, lambda: False)
+            second.unlink()
+            self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
 
     # ---- F: mapping exactness ----
     def test_F_repeat_split_merge_text(self):

@@ -11,8 +11,10 @@
 (function () {
   'use strict';
   var POLL_INTERVAL_MS = 1000;
+  var SLOW_POLL_INTERVAL_MS = 5000;
+  var FAST_POLLS = 300;       // after five minutes, follow long Qwen builds slowly
   var ERROR_BUDGET = 8;       // consecutive poll failures before giving up
-  var MAX_POLLS = 1800;       // ~30 minutes of polling, then a clear stop
+  var MAX_POLLS = 1800;       // finite requests covering ~130 minutes with slow polls
 
   function createChannel(config) {
     return {
@@ -31,6 +33,7 @@
       bookToken: null,
       timer: null,
       busy: false,
+      pollingPaused: false,
     };
   }
 
@@ -49,7 +52,24 @@
       taskName: 'readaloud_epub', statusId: 'readaloud-status',
       cancelId: 'readaloud-cancel-btn', buildBtnId: 'readaloud-build-btn',
       startUrl: '/api/readaloud_epub', startBody: function () {
-        return {};
+        // Only user-touched controls are sent: an untouched select must
+        // never overwrite the persisted preference with HTML defaults.
+        // An explicit EPUB-language choice (empty value) sends "" to
+        // clear a previously persisted language.
+        var body = {};
+        if (timingDirty.mode) {
+          var mode = document.getElementById('readaloud-timing-mode')?.value;
+          if (mode) { body.timing_mode = mode; }
+        }
+        if (timingDirty.device) {
+          var device = document.getElementById('readaloud-timing-device')?.value;
+          if (device) { body.timing_device = device; }
+        }
+        if (timingDirty.language) {
+          var language = document.getElementById('readaloud-timing-language')?.value;
+          body.timing_language = (language === undefined || language === null) ? '' : language;
+        }
+        return body;
       },
       cancelUrl: '/api/readaloud_epub/cancel',
       downloadUrl: '/api/readaloud_epub', downloadName: 'readaloud.epub',
@@ -57,12 +77,167 @@
     }),
   };
 
+  // Zero means acknowledged; counters distinguish edits made during a start.
+  var timingDirty = { mode: 0, device: 0, language: 0 };
+
+  function deviceName(device) {
+    // Only dict probe entries carry eligibility metadata; legacy
+    // string entries are unknown data and must never be advertised
+    // as ready devices (the policy selector drops them).
+    if (device && typeof device === 'object' && typeof device.device === 'string') { return device.device; }
+    return null;
+  }
+
+  var timingGeneration = 0;
+  var timingListenersBound = false;
+  var timingStatusPending = false;
+  var timingStatusQueued = false;
+
+  function bindTimingListeners() {
+    // Bound exactly once, independently of any capability fetch, so
+    // a failed or pending fetch can never silently ignore choices.
+    if (timingListenersBound) { return; }
+    timingListenersBound = true;
+    var modeEl = document.getElementById('readaloud-timing-mode');
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    var languageEl = document.getElementById('readaloud-timing-language');
+    if (modeEl) { modeEl.addEventListener('change', function () { timingDirty.mode += 1; }); }
+    if (deviceEl) { deviceEl.addEventListener('change', function () { timingDirty.device += 1; }); }
+    if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language += 1; }); }
+  }
+
+  function setTimingSelectValue(el, value, missingLabel) {
+    if (el.options) {
+      for (var i = el.options.length - 1; i >= 0; i--) {
+        if (el.options[i]._aa2MissingTimingChoice && el.options[i].value !== value) { el.remove(i); }
+      }
+      var found = false;
+      for (var j = 0; j < el.options.length; j++) {
+        if (el.options[j].value === value) { found = true; break; }
+      }
+      if (!found && value) {
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value + ' (' + missingLabel + ')';
+        option.disabled = true;
+        option._aa2MissingTimingChoice = true;
+        el.appendChild(option);
+      }
+    }
+    el.value = value;
+  }
+
+  function applyTimingPreference(preference) {
+    if (!preference) { return; }
+    var modeEl = document.getElementById('readaloud-timing-mode');
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    var languageEl = document.getElementById('readaloud-timing-language');
+    if (modeEl && !timingDirty.mode) { modeEl.value = preference.timing_mode || 'auto'; }
+    if (deviceEl && !timingDirty.device) { setTimingSelectValue(deviceEl, preference.timing_device || 'auto', 'unavailable'); }
+    if (languageEl && !timingDirty.language) { setTimingSelectValue(languageEl, preference.timing_language || '', 'saved choice'); }
+  }
+
+  function markTimingDevicesUnknown() {
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    if (!deviceEl) { return; }
+    for (var i = 0; i < deviceEl.options.length; i++) {
+      var option = deviceEl.options[i];
+      if (!['auto', 'cpu'].includes(option.value)) {
+        option.disabled = true;
+        option.textContent = option.value + ' (availability unknown)';
+      }
+    }
+  }
+
+  function renderTimingUnknown(el, error) {
+    markTimingDevicesUnknown();
+    var detail = error && typeof error.message === 'string' ? ' ' + error.message.slice(0, 512) : '';
+    el.textContent = 'Timing: capability unknown.' + detail + ' Chunk timing uses CPU; Qwen needs the isolated environment (see help).';
+  }
+
+  function finishTimingStatus() {
+    timingStatusPending = false;
+    if (timingStatusQueued) {
+      timingStatusQueued = false;
+      refreshTimingStatus();
+    }
+  }
+
+  function refreshTimingStatus() {
+    bindTimingListeners();
+    var el = document.getElementById('readaloud-timing-status');
+    if (!el) { return; }
+    var generation = ++timingGeneration;
+    el.textContent = 'Timing: checking what this machine can run…';
+    markTimingDevicesUnknown();
+    if (timingStatusPending) {
+      timingStatusQueued = true;
+      return;
+    }
+    timingStatusPending = true;
+    var request;
+    try {
+      request = API.get('/api/readaloud_epub/capability', {
+        timeoutMs: 150000,
+        timeoutMessage: 'The capability check timed out. Qwen readiness is unknown; chunk timing remains available.',
+      });
+    } catch (error) {
+      renderTimingUnknown(el, error);
+      finishTimingStatus();
+      return;
+    }
+    Promise.resolve(request).then(function (info) {
+      if (generation !== timingGeneration) { return; }
+      if (!info || !info.policy) {
+        renderTimingUnknown(el);
+        return;
+      }
+      var deviceEl = document.getElementById('readaloud-timing-device');
+      var devices = (info.capability && info.capability.devices) || [];
+      var deviceNames = [];
+      devices.forEach(function (device) {
+        var name = deviceName(device);
+        if (name) { deviceNames.push(name); }
+      });
+      if (deviceEl) {
+        var desired = deviceEl.value;
+        if (info.preference && !timingDirty.device) { desired = info.preference.timing_device || 'auto'; }
+        // Rebuild dynamic options so a disappeared GPU cannot look eligible.
+        for (var i = deviceEl.options.length - 1; i >= 0; i--) {
+          if (!['auto', 'cpu'].includes(deviceEl.options[i].value)) { deviceEl.remove(i); }
+        }
+        deviceNames.forEach(function (name) {
+          if (['auto', 'cpu'].includes(name)) { return; }
+          var option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          deviceEl.appendChild(option);
+        });
+        setTimingSelectValue(deviceEl, desired, 'unavailable');
+      }
+      // Untouched controls follow this book's actual saved preference.
+      applyTimingPreference(info.preference);
+      if (info.capability && info.capability.available && info.policy.available !== false) {
+        // Truthful readiness: name the effective pinned policy
+        // device, not every probed device string.
+        var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');
+        el.textContent = 'Timing: Qwen3 ready (' + pinned + '). ' + info.policy.reason;
+      } else {
+        el.textContent = 'Timing: Qwen3 not ready (' + (info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : 'unknown')) + '). Chunk timing uses CPU; see help for the isolated Qwen install.';
+      }
+    }).catch(function (error) {
+      if (generation !== timingGeneration) { return; }
+      renderTimingUnknown(el, error);
+    }).finally(finishTimingStatus);
+  }
+
   function statusEl(channel) {
     return document.getElementById(channel.statusId);
   }
 
   function setBusy(channel, busy) {
     channel.busy = busy;
+    if (!busy) { channel.pollingPaused = false; }
     var buildBtn = channel.buildBtnId ? document.getElementById(channel.buildBtnId) : null;
     if (buildBtn) { buildBtn.disabled = busy; }
     var cancelBtn = channel.cancelId ? document.getElementById(channel.cancelId) : null;
@@ -85,9 +260,8 @@
       return;
     }
     if (pollCount >= MAX_POLLS) {
-      setBusy(channel, false);
-      channel.claimId = null;
-      statusEl(channel).textContent = 'Stopped waiting for this build. Check the Result status, then try again — the export is not confirmed.';
+      channel.pollingPaused = true;
+      statusEl(channel).textContent = 'Stopped checking this build after the status request limit. The export is not confirmed. Cancel remains available and resumes status checks.';
       return;
     }
     API.get('/api/status/' + channel.taskName).then(function (status) {
@@ -132,7 +306,8 @@
       }
       if (status.running) {
         statusEl(channel).textContent = last || 'Working...';
-        channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); }, POLL_INTERVAL_MS);
+        channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); },
+          pollCount < FAST_POLLS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
         return;
       }
       // Not running and no typed result: the build produced no usable
@@ -177,6 +352,7 @@
       }
       el.textContent = 'Starting build...';
       var body = { integrity_confirmation: confirmation };
+      var submittedEdits = Object.assign({}, timingDirty);
       Object.assign(body, channel.startBody());
       return API.post(channel.startUrl, body).then(function (res) {
         if (!isCurrent(channel, taskId)) { return; }
@@ -185,6 +361,12 @@
           setBusy(channel, false);
           el.textContent = 'The build was not confirmed as started. Check the Result status before starting again.';
           return;
+        }
+        if (channel === channels.epub) {
+          Object.keys(timingDirty).forEach(function (name) {
+            if (timingDirty[name] === submittedEdits[name]) { timingDirty[name] = 0; }
+          });
+          applyTimingPreference(res.preference);
         }
         channel.claimId = res.claim_id;
         channel.bookToken = res.book_token;
@@ -205,16 +387,28 @@
     API.post(channel.cancelUrl, body).then(function () {
       if (!isCurrent(channel, taskId)) { return; }
       statusEl(channel).textContent = 'Cancel requested. Waiting for the build to stop...';
+      if (channel.pollingPaused) {
+        channel.pollingPaused = false;
+        poll(channel, taskId, 0, 0);
+      }
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) { return; }
       statusEl(channel).textContent = 'Cancel was not accepted: ' + (e && e.message ? e.message : 'unknown error');
+      if (channel.pollingPaused) {
+        channel.pollingPaused = false;
+        poll(channel, taskId, 0, 0);
+      }
     });
   }
 
   // Book/reset invalidation: bump every taskId, stop timers, and
   // restore the idle view. Late start/poll/cancel promises from the old
-  // book then no-op instead of touching the new view.
+  // book then no-op instead of touching the new view. Timing selects
+  // refresh this book's saved choices with a metadata-only status request.
   function resetReadalongViews() {
+    timingGeneration += 1;
+    timingDirty = { mode: 0, device: 0, language: 0 };
+    refreshTimingStatus();
     Object.values(channels).forEach(function (channel) {
       channel.taskId += 1;
       stopTimer(channel);
@@ -233,6 +427,8 @@
       setBusy(channel, false);
     });
   }
+
+  refreshTimingStatus();
 
   window.buildReadalongSidecar = function () { startBuild(channels.sidecar, 'Build read-along sidecar'); };
   window.cancelReadalongSidecar = function () { cancelBuild(channels.sidecar); };

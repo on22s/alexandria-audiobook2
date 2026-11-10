@@ -32,6 +32,31 @@ def _entries():
 
 
 class ReadalongSidecarTests(unittest.TestCase):
+    def test_audio_hash_rejects_directory_without_opening_it(self):
+        from readalong_sidecar import get_audio_file_sha256
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                get_audio_file_sha256(tmp)
+
+    def test_audio_hash_checks_open_descriptor_version(self):
+        import readalong_sidecar as sidecar
+        from unittest.mock import patch
+        import builtins
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'audio.mp3'
+            path.write_bytes(b'original audio')
+            original = builtins.open
+            mutated = []
+            def mutate(stream, limit, check_active=None):
+                with original(path, 'wb') as writer:
+                    writer.write(b'changed audio with a different size')
+                mutated.append(True)
+                return 'a' * 64, 13
+            with patch('audio_source_io.read_bounded_audio_hash', side_effect=mutate):
+                with self.assertRaisesRegex(ValueError, 'changed'):
+                    sidecar.get_audio_file_sha256(path)
+            self.assertEqual([True], mutated)
+
     def test_roundtrip_without_text(self):
         doc, raw = build_readalong_sidecar(entries=_entries(), binding=_binding(),
                                            includes_text=False)

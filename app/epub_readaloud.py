@@ -50,10 +50,17 @@ import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from epub_package import get_epub_package
+from qwen_align import (get_normalized_stream,
+                        get_token_key, get_validated_aligner_tokens,
+                        require_exact_coverage, split_sentences,
+                        cover_ranges)
 
 MAX_PUBLICATION_XML_BYTES = 2 * 1024**2
 
 MAX_EPUB_READALOUD_XML_BYTES = 8 * 1024 * 1024
+MAX_INLINE_STACK_CELLS = 1024 * 1024
+MAX_SENTENCE_CLONE_BYTES = MAX_EPUB_READALOUD_XML_BYTES
+MAX_SENTENCE_SOURCE_CHARS = 200000
 XHTML_NS = "http://www.w3.org/1999/xhtml"
 OPS_NS = "http://www.idpf.org/2007/ops"
 SMIL_NS = "http://www.w3.org/ns/SMIL"
@@ -176,6 +183,7 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
     if not isinstance(archive_bytes, bytes) or not archive_bytes:
         raise ValueError("Retained EPUB bytes are missing.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        member_index = _get_archive_member_index(archive.infolist())
         opf_path, package = get_epub_package(
             archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
         namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
@@ -223,18 +231,18 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
             DC = '{http://purl.org/dc/elements/1.1/}'
             titles = metadata.findall(DC + 'title')
             creators = metadata.findall(DC + 'creator')
-            langs = metadata.findall(DC + 'language')
             title = "".join(titles[0].itertext()).strip() if titles else None
             author = "".join(creators[0].itertext()).strip() if creators else None
-            language = "".join(langs[0].itertext()).strip() if langs else None
-            if language is not None and not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]+)*", language):
-                raise ValueError("Retained EPUB language tag is invalid.")
+            language = _get_validated_epub_language(metadata)
         toc = []
         for item in manifest.values():
             if 'nav' in item['properties'].split():
+                if item['path'] not in member_index:
+                    continue
                 try:
-                    root = ET.fromstring(archive.read(item['path']))
-                except (KeyError, ET.ParseError):
+                    root = ET.fromstring(_read_archive_member_bounded(
+                        archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
+                except ET.ParseError:
                     continue
                 for nav in root.iter():
                     if nav.tag.rsplit('}', 1)[-1] != 'nav':
@@ -326,12 +334,10 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
     if path.startswith("../") or "\\" in path:
         raise ValueError("Spine path escapes the archive.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        try:
-            raw = archive.read(path)
-        except KeyError as error:
-            raise ValueError(f"Spine document is missing: {path}") from error
-    if len(raw) > max_xml_bytes:
-        raise ValueError("Spine document exceeds the read-aloud limit.")
+        member_index = _get_archive_member_index(archive.infolist())
+        if path not in member_index:
+            raise ValueError(f"Spine document is missing: {path}")
+        raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
         root = ET.fromstring(raw)
     except ET.ParseError as error:
@@ -340,8 +346,9 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
     seen_ids = set()
     for element in root.iter():
-        element_id = element.get('id')
-        if element_id:
+        element_ids = {element.get('id'),
+                       element.get('{http://www.w3.org/XML/1998/namespace}id')}
+        for element_id in element_ids - {None, ""}:
             if element_id in seen_ids:
                 # Duplicate stable ids would make SMIL references ambiguous.
                 raise ValueError(f"Duplicate element id in spine document: {element_id}")
@@ -586,6 +593,658 @@ def build_smil_document(mapping, audio_filename, sample_rate, *, existing_ids,
     return ET.tostring(root, encoding="unicode")
 
 
+# --- Sentence-level fragments (#1844) ------------------------------------
+# When aligned_rows is supplied, each mapped segment's source text is
+# split into sentences and each sentence gets its own fragment id inside
+# the mapped element. Element ids, inline markup and tails are
+# preserved; every source character appears exactly once. The sentence
+# splitter and span redistribution adapt ReadAloudMaker (MIT), with AA2
+# remaining the authority for segment mapping and clip validation.
+_INLINE_SKIP = {"script", "style"}
+
+
+def _is_textless_element(node):
+    if node.text:
+        return False
+    for child in node:
+        if child.tail:
+            return False
+        if not _is_textless_element(child):
+            return False
+    return True
+
+
+def _clone_atom(source, emitted_ids):
+    clone = copy.deepcopy(source)
+    clone.tail = None
+    xml_id = "{http://www.w3.org/XML/1998/namespace}id"
+    # Clone-local semantics (mirrors _inline_copy_attributes): id and
+    # xml:id with the same value on one element are both kept; the
+    # clone's ids are merged into emitted_ids only after the element.
+    for element in clone.iter():
+        clone_ids = set()
+        for key in list(element.attrib.keys()):
+            if key == "id" or key == xml_id:
+                value = element.attrib[key]
+                if value in emitted_ids:
+                    del element.attrib[key]
+                else:
+                    clone_ids.add(value)
+        emitted_ids.update(clone_ids)
+    return clone
+
+
+def _get_retained_xml_limit():
+    # Auxiliary XHTML/nav/NCX had no independent per-member limit on main.
+    # Keep them bounded by the existing archive budget, without imposing
+    # the mapped-spine or package/container limit on untouched resources.
+    from archive_utils import MAX_ARCHIVE_BYTES
+    return MAX_ARCHIVE_BYTES
+
+
+def _get_archive_member_index(infos):
+    """Index one immutable directory, preserving duplicate refusal."""
+    members = {}
+    for info in infos:
+        members[info.filename] = info if info.filename not in members else None
+    return members
+
+
+def _read_archive_member_bounded(archive, name, max_bytes, *, member_index=None):
+    """Read one archive member bounded BEFORE materialization.
+
+    Strict EPub name/unique/encrypted checks wrap the shared
+    ``archive_utils.read_zip_member_bounded`` loop so XML and
+    retained-asset reads cannot drift apart. Oversize members are
+    refused without ever holding more than ``max_bytes + 1``
+    decompressed bytes.
+    """
+    from pathlib import PureWindowsPath
+    from archive_utils import read_zip_member_bounded
+    if not isinstance(name, str) or not name:
+        raise ValueError("Invalid EPUB archive member.")
+    members = member_index if member_index is not None else _get_archive_member_index(archive.infolist())
+    if name not in members:
+        raise ValueError("EPUB archive member is missing: %s" % name)
+    info = members[name]
+    if info is None:
+        raise ValueError("EPUB archive member is ambiguous: %s" % name)
+    path = PurePosixPath(name)
+    if ("\\" in name or "\0" in name or path.is_absolute()
+            or PureWindowsPath(name).drive or ".." in path.parts
+            or name != path.as_posix()):
+        raise ValueError("Unsafe EPUB archive member: %s" % name)
+    if info.is_dir() or (info.flag_bits & 0x1):
+        raise ValueError("EPUB archive member is unsafe or encrypted: %s" % name)
+    raw = read_zip_member_bounded(archive, name, max_bytes)
+    if len(raw) != info.file_size:
+        raise ValueError("EPUB archive member disagrees with its declared size: %s" % name)
+    return raw
+
+
+def _get_validated_epub_language(metadata):
+    if metadata is None:
+        return None
+    languages = metadata.findall('{http://purl.org/dc/elements/1.1/}language')
+    language = "".join(languages[0].itertext()).strip() if languages else None
+    if language is not None and not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]+)*", language):
+        raise ValueError("Retained EPUB language tag is invalid.")
+    return language
+
+
+def get_epub_language_from_path(retained_path):
+    """Read dc:language from a retained EPUB path, bounded.
+
+    Streams container.xml and the OPF through the same bounded
+    member reader used for spine documents; the whole archive is
+    never materialized. Returns the language tag or ''.
+    """
+    import zipfile as _zf
+    import os as _os
+    from contextlib import nullcontext
+    if isinstance(retained_path, (str, _os.PathLike)):
+        # Lazy import keeps the in-memory builder API free of an import cycle.
+        from readalong_export import _open_retained_epub
+        source_context = _open_retained_epub(retained_path)
+    else:
+        source_context = nullcontext(retained_path)
+    try:
+        with source_context as source, _zf.ZipFile(source) as archive:
+            _preflight_retained_members(archive.infolist())
+            opf_path, package = get_epub_package(
+                archive, max_xml_bytes=MAX_PUBLICATION_XML_BYTES, require_unique=True)
+        namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
+        metadata = package.find(namespace + 'metadata')
+        return _get_validated_epub_language(metadata) or ""
+    except (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError) as error:
+        raise ValueError("Retained EPUB archive or publication metadata is malformed.") from error
+    except RuntimeError as error:  # Includes NotImplementedError from ZIP codecs/features.
+        raise ValueError("Retained EPUB ZIP reading is unsupported or unavailable: %s"
+                         % str(error)[:256]) from error
+
+
+def _svg_has_text(stream, cancel_check=None):
+    """Streaming SVG text probe with a custom no-tree XML target.
+
+    Uses stdlib ``XMLParser`` with a lightweight target (never a
+    DOM/tree): text and tail characters are inspected as events
+    arrive, elements are not retained, and the stream is consumed
+    in 64 KiB chunks under the caller's archive-wide budget. A
+    ``<text>`` element (including nested ``tspan``/CDATA, which
+    surface as text data) with non-whitespace content returns
+    True; CDATA and entity text are delivered as data by the
+    parser. Malformed XML raises ET.ParseError to the caller.
+    The target retains no tree or text. Expat may still buffer a
+    single large XML token; chunked input is not a constant-memory
+    guarantee for arbitrary attributes or markup.
+    """
+    class _Target:
+        def __init__(self):
+            self.found = False
+            self.text_depth = 0
+
+        def start(self, tag, attrs):
+            if tag.rsplit("}", 1)[-1] == "text":
+                self.text_depth += 1
+
+        def end(self, tag):
+            if tag.rsplit("}", 1)[-1] == "text":
+                self.text_depth -= 1
+
+        def data(self, data):
+            if self.text_depth and data and data.strip():
+                self.found = True
+
+        def close(self):
+            return None
+
+        def comment(self, text):
+            pass
+
+        def pi(self, target, text):
+            pass
+
+        def start_ns(self, prefix, uri):
+            pass
+
+        def end_ns(self, uri):
+            pass
+
+    target = _Target()
+    parser = ET.XMLParser(target=target)
+    # Feed the FULL document before close: an early-found text
+    # element must not turn close() into an incomplete-document
+    # ParseError (which callers treat as malformed/tolerated).
+    while True:
+        if cancel_check is not None and cancel_check():
+            raise ValueError("EPUB read-aloud cancelled.")
+        chunk = stream.read(64 * 1024)
+        if not chunk:
+            break
+        parser.feed(chunk)
+    parser.close()
+    return target.found
+
+
+def _stream_retained_member(source_archive, out_archive, name, cancel_check=None):
+    """Stream one retained asset with a known-size ZipInfo.
+
+    Supplying the declared ``file_size`` lets zipfile choose ZIP64
+    headers correctly for large members (the supported known-size
+    API); unknown-size streaming would fail above ZIP64_LIMIT.
+    Payload is copied in 1 MiB chunks with cancellation polls —
+    never a whole-asset RAM copy.
+    """
+    info = source_archive.getinfo(name)
+    zinfo = zipfile.ZipInfo(name, date_time=info.date_time)
+    zinfo.compress_type = zipfile.ZIP_DEFLATED
+    zinfo.file_size = info.file_size
+    zinfo.compress_size = 0
+    zinfo.header_offset = 0
+    zinfo.internal_attr = info.internal_attr
+    zinfo.external_attr = info.external_attr
+    zinfo.create_system = info.create_system
+    with source_archive.open(info) as src, out_archive.open(
+            zinfo, 'w', force_zip64=info.file_size > zipfile.ZIP64_LIMIT) as dst:
+        copied = 0
+        while True:
+            if cancel_check is not None and cancel_check():
+                raise ValueError("EPUB read-aloud cancelled.")
+            block = src.read(1024 * 1024)
+            if not block:
+                break
+            copied += len(block)
+            dst.write(block)
+        if copied != info.file_size:
+            raise ValueError("EPUB archive member disagrees with its declared size: %s" % name)
+
+
+def _validate_retained_member_name(name):
+    """Safe-member preflight for retained (non-XML) EPUB assets.
+
+    Preserves legitimate nested and URI-encoded (percent-encoded)
+    member names byte-identically; refuses only traversal, absolute,
+    drive/backslash, duplicate, encrypted or symlink members.
+    """
+    from pathlib import PureWindowsPath
+    if not isinstance(name, str) or not name:
+        raise ValueError("Invalid EPUB archive member.")
+    path = PurePosixPath(name)
+    if (not path.parts or "\\" in name or "\0" in name or path.is_absolute()
+            or PureWindowsPath(name).drive or ".." in path.parts
+            or name not in (path.as_posix(), path.as_posix() + "/")):
+        raise ValueError("Unsafe EPUB archive member: %s" % name)
+
+
+def _preflight_retained_members(infos):
+    """Validate every retained member before any decompression/copy.
+
+    Archive-wide declared budgets reuse the established
+    ``archive_utils`` limits (member count and total declared
+    bytes) BEFORE processing; no new per-asset cap is invented.
+    """
+    from archive_utils import MAX_ARCHIVE_BYTES, MAX_ARCHIVE_MEMBERS
+    if len(infos) > MAX_ARCHIVE_MEMBERS:
+        raise ValueError("Retained EPUB has too many members.")
+    if sum(info.file_size for info in infos) > MAX_ARCHIVE_BYTES:
+        raise ValueError("Retained EPUB expands beyond the archive limit.")
+    seen = set()
+    for info in infos:
+        if info.filename in seen:
+            raise ValueError("Retained EPUB has duplicate members.")
+        seen.add(info.filename)
+        _validate_retained_member_name(info.filename)
+        if info.flag_bits & 0x1:
+            raise ValueError("Retained EPUB member is encrypted.")
+        unix_mode = (info.external_attr >> 16) & 0o170000
+        if unix_mode == 0o120000:
+            raise ValueError("Retained EPUB member is a symlink.")
+        if unix_mode not in (0, 0o100000, 0o040000):
+            raise ValueError("Retained EPUB member is not a regular file or directory.")
+
+
+def _inline_events(element):
+    """Flatten one segment element into text/open/close/atom events.
+
+    Block or container descendants make the structure ambiguous for
+    sentence spans; those refuse explicitly instead of risking a
+    malformed book. Textless inline elements (img/br, empty <em>, and
+    script/style) surface as atoms so they survive redistribution
+    exactly once; their tails remain separate text events.
+    """
+    events = []
+
+    def walk(node):
+        if node.text:
+            events.append(("text", node.text))
+        for child in node:
+            tag = _local(child.tag)
+            if tag in _BLOCK or tag in _CONTAINER:
+                raise ValueError(
+                    "Sentence spans are unsupported inside a coarsened "
+                    "container with nested blocks; refusing to guess.")
+            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
+                    or _is_textless_element(child):
+                events.append(("atom", child))
+            else:
+                events.append(("open", child))
+                walk(child)
+                events.append(("close", child))
+            if child.tail:
+                events.append(("text", child.tail))
+
+    walk(element)
+    return events
+
+
+def _inline_copy_attributes(source, destination, emitted_ids):
+    """Copy element attributes into a clone.
+
+    First clone wins per id value so redistribution never duplicates
+    an id. Within one clone, id+lines with the same value (id="x"
+    and xml:id="x" on one element) are both kept, so `emitted_ids`
+    records clone-local values and merges them afterwards.
+    """
+    clone_ids = set()
+    for key, value in source.attrib.items():
+        id_like = (key == "id"
+                   or key == "{http://www.w3.org/XML/1998/namespace}id")
+        if id_like and value in emitted_ids:
+            continue
+        if id_like:
+            clone_ids.add(value)
+        destination.set(key, value)
+    emitted_ids.update(clone_ids)
+
+
+def _event_index(events):
+    """Index events by text cursor with inline-stack snapshots (bisect)."""
+    if len(events) > MAX_INLINE_STACK_CELLS:
+        raise ValueError("Sentence inline event count exceeds its stack work budget.")
+    infos = []
+    cursor = 0
+    stack = []
+    positions = []
+    stack_cells = 0
+    for kind, value in events:
+        stack_cells += len(stack)
+        if stack_cells > MAX_INLINE_STACK_CELLS:
+            raise ValueError("Sentence inline stack exceeds its work budget.")
+        if kind == "text":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor + len(value), "stack": tuple(stack)})
+            positions.append(cursor)
+            cursor += len(value)
+        elif kind == "open":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+            stack.append(value)
+        elif kind == "close":
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+            if stack and stack[-1] is value:
+                stack.pop()
+        else:
+            infos.append({"kind": kind, "value": value, "pos": cursor,
+                          "end": cursor, "stack": tuple(stack)})
+            positions.append(cursor)
+    return infos, cursor, positions
+
+
+def _emit_sentence_span(element, events, start, end, span_id, emitted_ids,
+                        indexed=None, clone_budget=None):
+    from xml.sax.saxutils import escape
+    if clone_budget is None:
+        clone_budget = MAX_SENTENCE_CLONE_BYTES
+    clone_bytes = 0
+    def charge(size):
+        nonlocal clone_bytes
+        if clone_bytes + size > clone_budget:
+            raise ValueError("Sentence inline clone expansion exceeds its byte budget.")
+        clone_bytes += size
+
+    charge(128 + len(span_id.encode("utf-8")))
+    span = ET.Element(f"{{{XHTML_NS}}}span")
+    span.set("id", span_id)
+    emitted_ids.add(span_id)
+
+    if indexed is None:
+        indexed = _event_index(events)
+    infos, flat_len, positions = indexed
+
+    import bisect as _bisect
+    first = _bisect.bisect_left(positions, start)
+    if first > 0:
+        prev = infos[first - 1]
+        if prev["kind"] == "text" and prev["end"] > start and prev["pos"] < end:
+            first -= 1
+    last = None
+    probe = first
+    while probe < len(infos):
+        info = infos[probe]
+        if info["kind"] == "text":
+            if info["end"] > start and info["pos"] < end:
+                last = probe
+            elif info["pos"] >= end:
+                break
+        else:
+            if start <= info["pos"] < end:
+                last = probe
+            elif info["pos"] == flat_len and end == flat_len and start <= info["pos"]:
+                last = probe
+            elif info["pos"] >= end:
+                break
+        probe += 1
+    if last is None:
+        return None, clone_bytes
+
+    source_stack = list(infos[first]["stack"])
+    output_stack = []
+    cursor = infos[first]["pos"]
+    emitted = False
+
+    def container():
+        return output_stack[-1][1] if output_stack else span
+
+    def append_text(value):
+        charge(len(escape(value).encode("utf-8")))
+        node = container()
+        if len(node):
+            node[-1].tail = (node[-1].tail or "") + value
+        else:
+            node.text = (node.text or "") + value
+
+    def sync():
+        common = 0
+        while (common < len(output_stack) and common < len(source_stack)
+               and output_stack[common][0] is source_stack[common]):
+            common += 1
+        del output_stack[common:]
+        for source in source_stack[common:]:
+            # Charge before cloning. A standalone empty-node serialization
+            # includes all escaped attributes and namespace overhead; extra
+            # room covers the closing tag once the node contains children.
+            empty = ET.Element(source.tag, source.attrib)
+            charge(len(ET.tostring(empty, encoding="utf-8"))
+                   + len(str(source.tag).encode("utf-8")) + 128)
+            created = ET.SubElement(container(), source.tag)
+            _inline_copy_attributes(source, created, emitted_ids)
+            output_stack.append((source, created))
+
+    for probe in range(first, last + 1):
+        info = infos[probe]
+        kind, value = info["kind"], info["value"]
+        if kind == "text":
+            seg_start = cursor
+            seg_end = cursor + len(value)
+            # A straddling text event may start before `first`'s pos only
+            # when first was backed up; cursor therefore tracks original
+            # positions, not slice-relative ones.
+            if seg_end > start and seg_start < end:
+                sync()
+                first_off = max(start, seg_start) - seg_start
+                last_off = min(end, seg_end) - seg_start
+                append_text(value[first_off:last_off])
+                emitted = True
+            cursor = seg_end
+        elif kind == "open":
+            source_stack.append(value)
+        elif kind == "close":
+            if output_stack and output_stack[-1][0] is value:
+                output_stack.pop()
+            if source_stack and source_stack[-1] is value:
+                source_stack.pop()
+        elif kind == "atom":
+            sync()
+            charge(len(ET.tostring(value, encoding="utf-8")) + 128)
+            clone = _clone_atom(value, emitted_ids)
+            container().append(clone)
+            output_stack.append((value, clone))
+            output_stack.pop()
+            emitted = True
+
+    return (span if emitted else None), clone_bytes
+
+
+def _validated_aligned_row(aligned_rows, index):
+    if aligned_rows is None or index >= len(aligned_rows):
+        raise ValueError("Qwen alignment is incomplete; refusing to mix timings.")
+    aligned = aligned_rows[index]
+    if not isinstance(aligned, dict) or not isinstance(aligned.get("tokens"), list):
+        raise ValueError("Qwen alignment is incomplete; refusing to mix timings.")
+    return aligned["tokens"]
+
+
+def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
+                               sample_rate, next_id, emitted_ids,
+                               cancel_check=None, clone_budget=None):
+    """Split one segment into sentence rows using actual aligned tokens."""
+    element = segment["element"]
+    try:
+        events = _inline_events(element)
+        flat = "".join(value for kind, value in events if kind == "text")
+    except ValueError:
+        # Coarsened container with nested blocks: only a single
+        # spoken sentence can be targeted at the existing mapped
+        # element (I3); multi-sentence redistribution stays refused.
+        events = None
+        flat = segment["text"]
+    if len(flat) > MAX_SENTENCE_SOURCE_CHARS:
+        raise ValueError("Sentence source segment exceeds its character work budget.")
+    ranges = cover_ranges(flat, split_sentences(flat))
+    if not ranges:
+        raise ValueError("Sentence split found no sentences in a spoken segment.")
+    # Fold punctuation-only ranges (empty normalized span, no
+    # aligned tokens possible) into the adjacent spoken range so
+    # every character is preserved exactly once without inventing
+    # timestamps. An all-punctuation segment still refuses below.
+    ranges = [list(r) for r in ranges]
+    _stream_probe, _idx_probe = get_normalized_stream(flat)
+    import bisect as _bisect_probe
+    spoken_ranges = []
+    for i, (s, e) in enumerate(ranges):
+        ns = _bisect_probe.bisect_left(_idx_probe, s)
+        ne = _bisect_probe.bisect_right(_idx_probe, e - 1) if e > s else ns
+        if ne > ns:
+            spoken_ranges.append(i)
+    if not spoken_ranges:
+        raise ValueError("Segment has no alignable characters; refusing to guess timings.")
+    if events is None and len(spoken_ranges) != 1:
+        raise ValueError(
+            "Sentence spans are unsupported inside a coarsened "
+            "container with nested blocks; refusing to guess.")
+    spoken_range_ids = set(spoken_ranges)
+    for i, (s, e) in enumerate(ranges):
+        _ensure_not_cancelled(cancel_check)
+        if i in spoken_range_ids:
+            continue
+        neighbor = _bisect_probe.bisect_left(spoken_ranges, i)
+        prev_idx = spoken_ranges[neighbor - 1] if neighbor else None
+        next_idx = spoken_ranges[neighbor] if neighbor < len(spoken_ranges) else None
+        target = prev_idx if prev_idx is not None else next_idx
+        if target < i:
+            ranges[target][1] = max(ranges[target][1], e)
+        else:
+            ranges[target][0] = min(ranges[target][0], s)
+    ranges = [tuple(ranges[i]) for i in spoken_ranges]
+
+    # Merge the rows' tokens into segment-normalized token spans.
+    segment_stream, flat_indices = _stream_probe, _idx_probe
+    stream_spans = []  # (token, norm_start, norm_end, frame_start, frame_end)
+    stream_offset = 0
+    for chunk_index in row["chunk_indexes"]:
+        _ensure_not_cancelled(cancel_check)
+        entry = script_entries[chunk_index]
+        tokens = _validated_aligned_row(aligned_rows, chunk_index)
+        row_text = entry["prepared_text"]
+        row_duration = (entry["end_frame"] - entry["start_frame"]) / float(sample_rate)
+        validated = get_validated_aligner_tokens(
+            tokens, row_duration, enforce_slice_limit=False)
+        row_spans = require_exact_coverage(row_text, validated)
+        row_stream, row_indices = get_normalized_stream(row_text)
+        if len(row_stream) == 0:
+            raise ValueError("Spoken row has no alignable characters.")
+        import bisect as _bisect
+        for token, char_start, char_end in row_spans:
+            _ensure_not_cancelled(cancel_check)
+            norm_start = _bisect.bisect_left(row_indices, char_start)
+            norm_end = _bisect.bisect_right(row_indices, char_end - 1)
+            if norm_start >= norm_end or norm_start >= len(row_indices):
+                raise ValueError("Aligned token cannot be located in the spoken text.")
+            frame_start = entry["start_frame"] + int(round(token["start_time"] * sample_rate))
+            frame_end = entry["start_frame"] + int(round(token["end_time"] * sample_rate))
+            if frame_end > entry["end_frame"] or frame_start < entry["start_frame"]:
+                raise ValueError("Aligned token escapes its spoken row's frame bounds.")
+            stream_spans.append((token, stream_offset + norm_start,
+                                 stream_offset + norm_end, frame_start, frame_end))
+        stream_offset += len(row_stream)
+
+    # The segment's source stream must equal the spoken stream exactly.
+    spoken = "".join(get_token_key(t.get("text")) for t, _, _, _, _ in stream_spans)
+    if spoken != segment_stream:
+        raise ValueError(
+            "Aligned tokens do not correspond to the segment text; the "
+            "source and spoken streams disagree.")
+
+    # Map sentence char ranges (original flat coords) to stream coords,
+    # then derive frame bounds in one linear walk so single- and
+    # multi-sentence clips both come from actual token frames.
+    import bisect
+    fragments = []
+    for start, end in ranges:
+        if start >= len(flat) or end - 1 >= len(flat):
+            raise ValueError("Sentence range escapes the segment text.")
+        norm_start = bisect.bisect_left(flat_indices, start)
+        norm_end = bisect.bisect_right(flat_indices, end - 1)
+        fragments.append((norm_start, norm_end))
+
+    spans_out = []
+    span_index = 0
+    span_count = len(stream_spans)
+    previous_frame_end = None
+    for (start, end), (span_start, span_end) in zip(ranges, fragments):
+        _ensure_not_cancelled(cancel_check)
+        while span_index < span_count and stream_spans[span_index][2] <= span_start:
+            span_index += 1
+        frame_start = None
+        frame_end = None
+        probe = span_index
+        while probe < span_count and stream_spans[probe][1] < span_end:
+            _t, _s, _e, fs, fe = stream_spans[probe]
+            if _e > span_start:
+                frame_start = fs if frame_start is None else min(frame_start, fs)
+                frame_end = fe if frame_end is None else max(frame_end, fe)
+            probe += 1
+        if frame_start is None:
+            raise ValueError("Sentence has no aligned tokens.")
+        if frame_end <= frame_start:
+            raise ValueError("Aligned sentence has no positive duration.")
+        if previous_frame_end is not None and frame_start < previous_frame_end:
+            raise ValueError("Aligned sentence times go backwards; refusing to repair them.")
+        if frame_start < row["start_frame"] or frame_end > row["end_frame"]:
+            raise ValueError("Sentence clip escapes the segment frame bounds.")
+        spans_out.append((start, end, frame_start, frame_end))
+        previous_frame_end = frame_end
+
+    if len(ranges) == 1:
+        _start, _end, frame_start, frame_end = spans_out[0]
+        return [{"fragment": None, "text": segment["text"],
+                 "segment_index": row["segment_index"],
+                 "chunk_indexes": list(row["chunk_indexes"]),
+                 "start_frame": frame_start,
+                 "end_frame": frame_end}], 0
+
+    if events is None:
+        raise ValueError(
+            "Sentence spans are unsupported inside a coarsened "
+            "container with nested blocks; refusing to guess.")
+    indexed = _event_index(events)
+    element.text = None
+    for child in list(element):
+        element.remove(child)
+    rows = []
+    if clone_budget is None:
+        clone_budget = MAX_SENTENCE_CLONE_BYTES
+    clone_bytes = 0
+    for start, end, frame_start, frame_end in spans_out:
+        span_id = next_id()
+        emitted_ids.add(span_id)
+        span, used_bytes = _emit_sentence_span(
+            element, events, start, end, span_id, emitted_ids,
+            indexed=indexed, clone_budget=clone_budget - clone_bytes)
+        clone_bytes += used_bytes
+        if span is None:
+            raise ValueError("Sentence span could not be emitted; refusing to guess.")
+        element.append(span)
+        rows.append({"fragment": span_id, "text": segment["text"],
+                     "segment_index": row["segment_index"],
+                     "chunk_indexes": list(row["chunk_indexes"]),
+                     "start_frame": frame_start, "end_frame": frame_end})
+    return rows, clone_bytes
+
+
 def validate_epub_readaloud(archive_bytes):
     """Re-parse a built EPUB and validate SMIL/manifest/XHTML bindings.
 
@@ -599,6 +1258,7 @@ def validate_epub_readaloud(archive_bytes):
     if not isinstance(archive_bytes, bytes) or not archive_bytes:
         raise ValueError("Built EPUB is empty.")
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        member_index = _get_archive_member_index(archive.infolist())
         names = archive.namelist()
         if not names or names[0] != 'mimetype':
             raise ValueError("Built EPUB mimetype must be first.")
@@ -673,21 +1333,25 @@ def validate_epub_readaloud(archive_bytes):
             if media == SMIL_MEDIA_TYPE and item_id not in associated:
                 raise ValueError("Built EPUB SMIL is not associated with any XHTML.")
         for member in names:
+            _validate_retained_member_name(member)
             if member.endswith('.smil') and member not in smil_paths:
                 raise ValueError(f"Built EPUB contains an undeclared SMIL file: {member}")
         xhtml_ids = {}
         xhtml_roots = {}
         for path, media, _props, _o, _h in manifest.values():
             if media == XHTML_MEDIA_TYPE and path:
-                raw = archive.read(path)
+                raw = _read_archive_member_bounded(
+                    archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
                     root = ET.fromstring(raw)
                 except ET.ParseError as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
                 for el in root.iter():
-                    el_id = el.get('id')
-                    if el_id:
+                    # Equal aliases on one element are fine; clashes across
+                    # elements make overlay fragments ambiguous in XML.
+                    element_ids = {el.get('id'), el.get('{http://www.w3.org/XML/1998/namespace}id')}
+                    for el_id in element_ids - {None, ""}:
                         if el_id in ids:
                             raise ValueError("Built EPUB XHTML has a duplicate id.")
                         ids.add(el_id)
@@ -752,7 +1416,8 @@ def validate_epub_readaloud(archive_bytes):
         per_smil_ms = {}
         for smil_id, xhtml_path in smil_id_to_path.items():
             smil_path = manifest[smil_id][0]
-            raw = archive.read(smil_path)
+            raw = _read_archive_member_bounded(
+                archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
                 smil_root = ET.fromstring(raw)
             except ET.ParseError as error:
@@ -909,10 +1574,11 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
     if ncx_path is None:
         return []
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
-        try:
-            raw = archive.read(ncx_path)
-        except KeyError:
+        member_index = _get_archive_member_index(archive.infolist())
+        if ncx_path not in member_index:
             return []
+        raw = _read_archive_member_bounded(
+            archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
         root = ET.fromstring(raw)
     except ET.ParseError:
@@ -971,17 +1637,28 @@ def _nav_links_href(full, fragment, nav_dir):
     return f"{encoded}#{_encode_uri_fragment(fragment)}" if fragment else encoded
 
 
+def _ensure_not_cancelled(cancel_check):
+    if cancel_check is not None and cancel_check():
+        raise ValueError("EPUB read-aloud cancelled.")
+
+
 def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, script_entries,
-                         cancel_check=None):
+                         cancel_check=None, aligned_rows=None):
     """Build a source-preserving EPUB 3 read-aloud archive.
 
     retained_epub_bytes: exact bytes from the upload retention.
     audio_bytes: exported MP3 bytes bound to the sidecar timeline.
     script_entries: [{index, prepared_text, start_frame, end_frame}]
+    aligned_rows: optional (Qwen mode) list parallel to script_entries;
+        each entry is {"tokens": [{text, start_time, end_time}]} with
+        row-relative seconds. When given, every row must carry tokens
+        and sentence-level fragments are built from them; None keeps the
+        chunk-bound behavior unchanged.
     Returns (epub_bytes, report).
     """
     if not script_entries:
         raise ValueError("There are no script entries with audio to synchronize.")
+    _ensure_not_cancelled(cancel_check)
     for entry in script_entries:
         if not isinstance(entry.get("prepared_text"), str) or not entry["prepared_text"].strip():
             raise ValueError(f"Script entry {entry.get('index')} has no spoken text to synchronize.")
@@ -996,6 +1673,11 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         rate = entry.get("sample_rate")
         if rate is not None and rate != sample_rate:
             raise ValueError("Script entries must share one PCM sample rate.")
+    # Archive-wide preflight BEFORE any spine decompression/probe:
+    # count/byte/name/duplicate/encrypted/symlink bounds refuse
+    # here, so an oversized/unsafe archive is never scanned first.
+    with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as _pre:
+        _preflight_retained_members(_pre.infolist())
     (opf_path, package, namespace, manifest, spine, meta) = get_spine_documents(retained_epub_bytes)
     if not spine:
         raise ValueError("Retained EPUB has no spine documents.")
@@ -1009,6 +1691,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', XHTML_NS)
     ET.register_namespace('epub', OPS_NS)
     for spine_item in spine:
+        _ensure_not_cancelled(cancel_check)
         if spine_item.get("linear") is False:
             continue
         mtype = spine_item["media_type"] or ''
@@ -1016,15 +1699,25 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         if 'nav' in (manifest_item.get("properties") or '').split():
             continue
         if mtype == 'image/svg+xml':
+            # Streaming text probe (no whole-document materialization,
+            # no tree): text-free SVGs of any size under the archive-
+            # wide declared budget are tolerated as before; any
+            # <text> content still refuses. Malformed XML keeps the
+            # original tolerant skip; missing members likewise.
             with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as _src:
                 try:
-                    _svg = ET.fromstring(_src.read(spine_item["path"]))
+                    _info = _src.getinfo(spine_item["path"])
+                except KeyError:
+                    continue
+                if _info.is_dir() or (_info.flag_bits & 0x1):
+                    continue
+                try:
+                    with _src.open(_info) as _stream:
+                        if _svg_has_text(_stream, cancel_check=cancel_check):
+                            raise ValueError(
+                                "SVG spine documents with text are unsupported; failing closed.")
                 except (KeyError, ET.ParseError):
                     continue
-            if any(_local(el.tag) == 'text' and (el.text or '').strip()
-                   for el in _svg.iter()):
-                raise ValueError(
-                    "SVG spine documents with text are unsupported; failing closed.")
             continue
         if mtype != XHTML_MEDIA_TYPE and 'html' not in mtype:
             if not mtype:
@@ -1037,22 +1730,72 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             # required and no chunks consumed; real visible text still maps.
             continue
         mapping, cursor = map_spine_to_chunks(segments, script_entries, start=cursor)
-        existing_ids = {el.get('id') for el in root.iter() if el.get('id')}
+        xml_local = '{http://www.w3.org/XML/1998/namespace}id'
+        existing_ids = set()
+        for el in root.iter():
+            if el.get('id'):
+                existing_ids.add(el.get('id'))
+            if el.get(xml_local):
+                existing_ids.add(el.get(xml_local))
         assigned = set(existing_ids)
-        for position, row in enumerate(mapping, 1):
-            segment = segments[row["segment_index"]]
-            frag = segment["fragment"]
-            if frag is None:
-                n = position
+        if aligned_rows is not None:
+            if len(aligned_rows) != len(script_entries):
+                raise ValueError("Qwen alignment does not cover every script entry.")
+            counter = [0]
+
+            def next_id():
+                counter[0] += 1
                 while True:
-                    cand = f"aa2-p-{n:04d}"
+                    _ensure_not_cancelled(cancel_check)
+                    cand = f"aa2-p-{counter[0]:04d}"
                     if cand not in assigned:
-                        frag = cand
-                        break
-                    n += 1
-                segment["element"].set('id', frag)
-            assigned.add(frag)
-            row["fragment"] = frag
+                        assigned.add(cand)
+                        return cand
+                    counter[0] += 1
+
+            # `assigned` is reserved for collision avoidance only; original
+            # ids are NOT considered emitted, so inline clones preserve
+            # them exactly once (#1844 P7). Emitted ids track what the
+            # reconstruction actually wrote.
+            emitted_ids = set()
+            expanded = []
+            clone_bytes = 0
+            for index, row in enumerate(mapping):
+                _ensure_not_cancelled(cancel_check)
+                segment = segments[row["segment_index"]]
+                sentence_rows, used_bytes = _sentence_rows_for_segment(
+                    segment, row, script_entries, aligned_rows, sample_rate,
+                    next_id, emitted_ids, cancel_check=cancel_check,
+                    clone_budget=MAX_SENTENCE_CLONE_BYTES - clone_bytes)
+                clone_bytes += used_bytes
+                expanded.extend(sentence_rows)
+            mapping = expanded
+            for row in mapping:
+                _ensure_not_cancelled(cancel_check)
+                if row["fragment"] is None:
+                    segment = segments[row["segment_index"]]
+                    existing_frag = segment["fragment"]
+                    if existing_frag is not None:
+                        row["fragment"] = existing_frag
+                        continue
+                    cand = next_id()
+                    segment["element"].set('id', cand)
+                    row["fragment"] = cand
+        else:
+            for position, row in enumerate(mapping, 1):
+                segment = segments[row["segment_index"]]
+                frag = segment["fragment"]
+                if frag is None:
+                    n = position
+                    while True:
+                        cand = f"aa2-p-{n:04d}"
+                        if cand not in assigned:
+                            frag = cand
+                            break
+                        n += 1
+                    segment["element"].set('id', frag)
+                assigned.add(frag)
+                row["fragment"] = frag
         xml_body = ET.tostring(root, encoding="unicode")
         xhtml_bytes = ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n' + xml_body).encode("utf-8")
         modified_xhtml[spine_item["path"]] = xhtml_bytes
@@ -1088,6 +1831,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', SMIL_NS)
     ET.register_namespace('epub', OPS_NS)
     for record in smil_records:
+        _ensure_not_cancelled(cancel_check)
         smil_dir = str(PurePosixPath(record["smil_path"]).parent)
         audio_src = (posixpath.relpath(audio_path_in_epub, smil_dir)
                      if smil_dir != "." else audio_path_in_epub)
@@ -1242,8 +1986,9 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     # Container: ensure the EPUB 3 rootfile media type.
     with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
         try:
-            container_raw = source.read('META-INF/container.xml')
-        except KeyError as error:
+            container_raw = _read_archive_member_bounded(
+                source, 'META-INF/container.xml', MAX_PUBLICATION_XML_BYTES)
+        except ValueError as error:
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
         container = ET.fromstring(container_raw)
@@ -1257,15 +2002,33 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
     ET.register_namespace('', CONTAINER_NS)
     output_members['META-INF/container.xml'] = ET.tostring(
         container, encoding="utf-8", xml_declaration=True)
+    # Retained-member preflight BEFORE any decompression: unsafe,
+    # duplicate, encrypted or symlink members refuse the whole build.
+    retained_stream = []
     with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
-        for info in source.infolist():
-            if info.filename in output_members or info.filename == opf_path:
+        infos = source.infolist()
+        member_index = _get_archive_member_index(infos)
+        xhtml_paths = {item["path"] for item in manifest.values()
+                       if item.get('media_type') == XHTML_MEDIA_TYPE}
+        for info in infos:
+            if info.filename == "mimetype" or info.filename in output_members \
+                    or info.filename == opf_path:
                 continue
             if info.filename in old_smil_paths:
                 continue
             if info.is_dir():
                 continue
-            output_members[info.filename] = source.read(info.filename)
+            if info.filename in xhtml_paths:
+                # Preserve the previous auxiliary-XHTML acceptance. The
+                # mapped-spine limit is separate; these copies remain under
+                # the archive-wide declared/decompressed byte budget.
+                output_members[info.filename] = _read_archive_member_bounded(
+                    source, info.filename, _get_retained_xml_limit(), member_index=member_index)
+            else:
+                # Non-XML assets are streamed at write time below, so a
+                # large member is never materialized in memory. No new
+                # asset-size cap is invented; bytes are preserved.
+                retained_stream.append(info.filename)
     for item in manifest.values():
         if item.get('media_type') == XHTML_MEDIA_TYPE \
                 and item["path"] in output_members \
@@ -1278,6 +2041,18 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             if name == 'mimetype':
                 continue
             out.writestr(name, data)
+        if retained_stream:
+            # Streamed copy with cancellation polls: a cancelled
+            # build aborts here and the in-memory buffer is discarded
+            # before any publication. No force_zip64: small entries
+            # keep ordinary local headers (payload parity is the
+            # guarantee; ZIP container metadata may differ from a
+            # buffered writestr in data-descriptor framing only).
+            with zipfile.ZipFile(io.BytesIO(retained_epub_bytes)) as source:
+                for name in retained_stream:
+                    _ensure_not_cancelled(cancel_check)
+                    _stream_retained_member(
+                        source, out, name, cancel_check=cancel_check)
     epub_bytes = buffer.getvalue()
     validation = validate_epub_readaloud(epub_bytes)
     toc_entries = generated_toc_count if generated_toc_count is not None else len(meta["toc"])

@@ -80,11 +80,16 @@ def _ensure_plain_path(path, root):
     return path
 
 
-def _open_regular(path, root, limit, *, allow_empty=False, opener=None):
+def _open_regular(path, root, limit, *, allow_empty=False, opener=None,
+                  allow_hardlinks=False, file_description=None):
     path = _ensure_plain_path(path, root)
     before = path.lstat()
-    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or not (0 if allow_empty else 1) <= before.st_size <= limit:
-        raise ValueError('Take history needs a nonempty, bounded regular file without hard links.')
+    if (not stat.S_ISREG(before.st_mode) or before.st_nlink < 1
+            or (not allow_hardlinks and before.st_nlink != 1)
+            or not (0 if allow_empty else 1) <= before.st_size <= limit):
+        raise ValueError((file_description or 'Take history')
+                         + ' needs a nonempty, bounded regular file'
+                         + ('.' if allow_hardlinks else ' without hard links.'))
     if opener is None:
         fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
         try:
@@ -97,7 +102,7 @@ def _open_regular(path, root, limit, *, allow_empty=False, opener=None):
     try:
         fd = stream.fileno()
         if _version(os.fstat(fd)) != _version(before):
-            raise ValueError('Take file changed while opening.')
+            raise ValueError((file_description or 'Take') + ' file changed while opening.')
         return stream, before
     except BaseException:
         stream.close()

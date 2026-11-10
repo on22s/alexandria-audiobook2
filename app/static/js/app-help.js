@@ -236,6 +236,9 @@
             'chapter-changed-only': {what: 'Export only chapters whose audio changed since their last export. Turn off for a complete set.'},
             'chapter-require-ready': {what: 'Refuse to export until every speaker is marked ready.'},
             'readalong-include-text': {what: 'Include the script text in the downloadable sidecar. Unchecked sidecars contain timings only.'},
+            'readaloud-timing-mode': {what: 'Choose EPUB timing. Auto uses Qwen3 when its isolated runtime and model are ready; otherwise it uses CPU chunk timing. Qwen estimates sentence times. Chunk uses editor chunk bounds and needs no extra model. See docs/readalong.md for installation.'},
+            'readaloud-timing-device': {what: 'Choose where Qwen alignment runs. Auto uses an eligible GPU or CPU. A GPU build reserves the shared GPU lock; wait for other GPU work to finish. Chunk timing always uses CPU.'},
+            'readaloud-timing-language': {what: 'Speech language for Qwen alignment. EPUB language reads the retained book metadata. Choose an override when metadata is wrong or unavailable; unsupported languages are refused. Chunk timing has no aligner-language limit.'},
 
             // Advanced tabs and shared dialogs
             'manual-llm-reply': {what: 'Paste only the answer to the current manual request. Submit checks it against that request before the waiting task continues.'},
