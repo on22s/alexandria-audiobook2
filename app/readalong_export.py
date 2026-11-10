@@ -55,6 +55,32 @@ from speech_text import get_speech_preparation
 from tts import ExportCancelled, ensure_audio_export_active, iter_timeline, get_trim_bounds_ms
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
+MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
+
+
+def get_retained_epub_bytes(path, cancel_check=None):
+    """Read one bounded, regular retained upload once, checking its version."""
+    import io
+    from audio_take_history import _open_regular, _version
+    ensure_audio_export_active(cancel_check)
+    try:
+        stream, before = _open_regular(path, Path(path).parent, MAX_RETAINED_EPUB_BYTES)
+        with stream, io.BytesIO() as content:
+            size = 0
+            while True:
+                ensure_audio_export_active(cancel_check)
+                block = stream.read(min(1024**2, MAX_RETAINED_EPUB_BYTES - size + 1))
+                if not block:
+                    break
+                size += len(block)
+                if size > MAX_RETAINED_EPUB_BYTES:
+                    raise ValueError("retained upload grew beyond its bound")
+                content.write(block)
+            if _version(os.fstat(stream.fileno())) != _version(before):
+                raise ValueError("retained upload changed during read")
+            return content.getvalue()
+    except (ValueError, OSError) as error:
+        raise ValueError("Retained EPUB is unavailable or outside its regular-file bound: %s" % error) from error
 
 MP3_BITRATE = "128k"
 
@@ -113,7 +139,7 @@ def get_readaloud_timing_preference(data_dir):
         finally:
             os.close(descriptor)
         raw = _json.loads(data.decode("utf-8"))
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, RecursionError) as error:
         raise ValueError(
             "Persisted timing preference is corrupt (unreadable JSON); "
             "restore a valid preference and rebuild.") from error
@@ -225,7 +251,7 @@ def get_validated_epub_receipt(raw):
         raise ValueError("EPUB read-aloud receipt is empty or oversized.")
     try:
         doc = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError("EPUB read-aloud receipt is malformed.") from error
     if not isinstance(doc, dict):
         raise ValueError("EPUB read-aloud receipt is malformed.")
@@ -1043,11 +1069,10 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
     retained_path = get_retained_epub_candidate_path(
         source_txt, cancel_check,
         origin_hashes={row["origin"]["sha256"] for row in origins})
-    retained_bytes = Path(retained_path).read_bytes()
+    retained_bytes = get_retained_epub_bytes(retained_path, cancel_check)
     if hashlib.sha256(retained_bytes).hexdigest() not in {row["origin"]["sha256"] for row in origins}:
         raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
     # Script text staleness: extracted TXT must still hash to the binding.
-    from publication_source import get_publication_source_capture as _capture
     txt_bytes = Path(source_txt).read_bytes() if os.path.isfile(source_txt) else b""
     if hashlib.sha256(txt_bytes).hexdigest() != captured["document"]["binding"]["sha256"]:
         raise ValueError("Source text changed since upload; mappings would be stale.")
@@ -1116,8 +1141,7 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                 script_entries.append({"index": position, "prepared_text": prepared,
                                        "start_frame": start_frame, "end_frame": end_frame,
                                        "sample_rate": int(layout[1])})
-            from epub_readaloud import build_epub_readaloud, get_spine_documents
-            from qwen_align import get_aligner_language_name
+            from epub_readaloud import build_epub_readaloud
             fresh_bytes = Path(fresh["path"]).read_bytes()
             aligned_rows = None
             timing_summary = {"mode": "chunk", "label": "chunk-estimated"}

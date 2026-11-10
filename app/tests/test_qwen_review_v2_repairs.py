@@ -64,7 +64,7 @@ class TextlessTailTests(unittest.TestCase):
         def next_id():
             counter[0] += 1
             return "aa2-p-%04d" % counter[0]
-        rows = er._sentence_rows_for_segment(
+        rows, _clone_bytes = er._sentence_rows_for_segment(
             segment, row, entries, aligned, RATE, next_id, set())
         self.assertEqual(1, len(rows))
         self.assertEqual(0, rows[0]["start_frame"])
@@ -78,6 +78,137 @@ class TextlessTailTests(unittest.TestCase):
         clone = er._clone_atom(el, emitted)
         self.assertEqual("both", clone.get("id"))
         self.assertEqual("both", clone.get("{http://www.w3.org/XML/1998/namespace}id"))
+
+
+class SentenceResourceTests(unittest.TestCase):
+    def test_source_segment_budget_precedes_normalization(self):
+        import epub_readaloud as er
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead">One. Two.</p>')
+        entries = [dict(index=0, prepared_text="One. Two.",
+                        start_frame=0, end_frame=RATE, sample_rate=RATE)]
+        tokens = [dict(text="One", start_time=0.0, end_time=.4),
+                  dict(text="Two", start_time=.5, end_time=.9)]
+        with patch.object(er, "MAX_SENTENCE_SOURCE_CHARS", 4, create=True), \
+                patch.object(er, "get_normalized_stream", side_effect=AssertionError("must not normalize")) as normalize:
+            with self.assertRaisesRegex(ValueError, "segment.*budget"):
+                er.build_epub_readaloud(retained_epub_bytes=source,
+                    audio_bytes=b"\xff\xfbmp3", audio_filename="audiobook.mp3",
+                    script_entries=entries, aligned_rows=[dict(tokens=tokens)])
+        normalize.assert_not_called()
+
+    def test_stack_snapshots_refuse_before_exceeding_budget(self):
+        import xml.etree.ElementTree as ET
+        import epub_readaloud as er
+        nodes = [ET.Element("em") for _ in range(16)]
+        events = [("open", node) for node in nodes] + [("text", "One.")]
+        events += [("close", node) for node in reversed(nodes)]
+        with patch.object(er, "MAX_INLINE_STACK_CELLS", 64, create=True):
+            with self.assertRaisesRegex(ValueError, "stack.*budget"):
+                er._event_index(events)
+
+    def test_repeated_inline_attributes_refuse_before_clone_budget(self):
+        import epub_readaloud as er
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead"><strong data-pad="' + 'a' * 512 + '">One. Two. Three.</strong></p>')
+        entries = [dict(index=0, prepared_text="One. Two. Three.",
+                        start_frame=0, end_frame=RATE * 2, sample_rate=RATE)]
+        tokens = [dict(text=word, start_time=i * .5, end_time=i * .5 + .4)
+                  for i, word in enumerate(("One", "Two", "Three"))]
+        with patch.object(er, "MAX_SENTENCE_CLONE_BYTES", 1024, create=True):
+            with self.assertRaisesRegex(ValueError, "clone.*budget"):
+                er.build_epub_readaloud(retained_epub_bytes=source,
+                    audio_bytes=b"\xff\xfbmp3", audio_filename="audiobook.mp3",
+                    script_entries=entries, aligned_rows=[dict(tokens=tokens)])
+
+    def test_alias_archive_names_are_refused(self):
+        import epub_readaloud as er
+        for name in ("EPUB/./x.bin", "EPUB//x.bin", "EPUB//"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                er._preflight_retained_members([zipfile.ZipInfo(name)])
+
+    def test_special_archive_members_are_refused(self):
+        import stat
+        import epub_readaloud as er
+        for kind in (stat.S_IFIFO, stat.S_IFCHR, stat.S_IFBLK, stat.S_IFSOCK):
+            info = zipfile.ZipInfo("EPUB/extra.bin")
+            info.external_attr = (kind | 0o600) << 16
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                er._preflight_retained_members([info])
+
+
+class DeepMetadataTests(unittest.TestCase):
+    def test_early_language_checks_archive_budget_before_xml(self):
+        import epub_readaloud as er
+        import archive_utils
+        from tests.test_epub_readaloud_sentences import _source_epub
+        source = _source_epub('<p id="lead">One sentence.</p>')
+        with patch.object(archive_utils, 'MAX_ARCHIVE_MEMBERS', 0), \
+                patch.object(er, 'get_epub_package', side_effect=AssertionError('must not parse XML')) as parse:
+            with self.assertRaisesRegex(ValueError, 'too many members'):
+                er.get_epub_language_from_path(io.BytesIO(source))
+        parse.assert_not_called()
+
+    def test_unsupported_language_error_is_bounded(self):
+        from qwen_align import get_aligner_language_name
+        with self.assertRaises(ValueError) as caught:
+            get_aligner_language_name('zz-' + 'a' * 1024)
+        self.assertLess(len(str(caught.exception)), 512)
+
+    def test_early_language_reader_uses_spine_validation(self):
+        import epub_readaloud as er
+        from tests.test_epub_readaloud_sentences import _source_epub
+        original = _source_epub('<p id="lead">One sentence.</p>')
+        output = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(original)) as source, zipfile.ZipFile(output, 'w') as target:
+            for info in source.infolist():
+                raw = source.read(info)
+                if info.filename.endswith('.opf'):
+                    raw = raw.replace(b'<dc:language>en</dc:language>', b'<dc:language>en-@</dc:language>')
+                target.writestr(info, raw)
+        bad = output.getvalue()
+        with self.assertRaisesRegex(ValueError, 'language tag'):
+            er.get_epub_language_from_path(io.BytesIO(bad))
+        with self.assertRaisesRegex(ValueError, 'language tag'):
+            er.get_spine_documents(bad)
+
+    def test_deep_preference_is_explicit_corruption(self):
+        from readalong_export import get_readaloud_timing_preference
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "readalong_timing.json").write_text("[" * 2000 + "0" + "]" * 2000)
+            with self.assertRaisesRegex(ValueError, "corrupt"):
+                get_readaloud_timing_preference(tmp)
+
+    def test_deep_receipt_is_explicit_invalidity(self):
+        from readalong_export import get_validated_epub_receipt
+        with self.assertRaises(ValueError):
+            get_validated_epub_receipt(b"[" * 2000 + b"0" + b"]" * 2000)
+
+    def test_deep_probe_is_unknown_not_ready(self):
+        from types import SimpleNamespace
+        import qwen_runtime as qr
+        from tests.test_qwen_review_v2_native_symlinks import _model
+        with tempfile.TemporaryDirectory() as tmp:
+            model = _model(tmp)
+            output = SimpleNamespace(returncode=0, stdout=b"[" * 2000 + b"0" + b"]" * 2000)
+            with patch.object(qr, "get_qwen_python_candidates", return_value=[sys.executable]), \
+                    patch.object(qr, "get_qwen_model_candidates", return_value=[str(model)]), \
+                    patch.object(qr, "run_owned_capture", return_value=output):
+                result = qr.get_qwen_capability(tmp, status_only=True)
+            self.assertFalse(result["available"])
+            self.assertIn("malformed", result["reason"])
+
+
+class RetainedReadResourceTests(_FixtureMixin):
+    def test_canonical_source_obeys_upload_bound_without_second_read(self):
+        import readalong_export as rexp
+        tmp = self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        original, _source = rexp._locate_retained_epub(manager, lambda: False)
+        self.assertGreater(len(original), 64)
+        with patch.object(rexp, "MAX_RETAINED_EPUB_BYTES", 64, create=True):
+            with self.assertRaisesRegex(ValueError, "Retained EPUB.*bound"):
+                rexp._locate_retained_epub(manager, lambda: False)
 
 
 class CodeDigestTests(unittest.TestCase):

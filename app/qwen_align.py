@@ -85,9 +85,10 @@ def get_aligner_language_name(value):
                 return name
         if cleaned in _LANGUAGE_NAMES:
             return _LANGUAGE_NAMES[cleaned]
+    reported = value[:128] + "..." if isinstance(value, str) and len(value) > 128 else value
     raise ValueError(
         "Qwen3-ForcedAligner does not support language %r. Supported: %s"
-        % (value, ", ".join(SUPPORTED_ALIGNER_LANGUAGES)))
+        % (reported, ", ".join(SUPPORTED_ALIGNER_LANGUAGES)))
 
 
 def is_aligner_language_supported(value):

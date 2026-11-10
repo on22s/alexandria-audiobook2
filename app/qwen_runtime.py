@@ -572,7 +572,7 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
                           % completed.returncode, python, model_dir)
     try:
         payload = json.loads(completed.stdout.decode("utf-8", "replace"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
         return _not_ready("Qwen capability probe returned malformed output.", python, model_dir)
     if not isinstance(payload, dict) or payload.get("ready") is not True:
         reason = payload.get("reason") if isinstance(payload, dict) else None
@@ -875,11 +875,6 @@ def get_qwen_device_policy(mode, device, capability, *, require_free_vram=True):
             raise ValueError("Qwen CPU fallback is unavailable in this runtime.")
         return {"timing_mode": "qwen", "device": "cpu", "dtype": "float32",
                 "cpu_only": True, "reason": "Qwen CPU selected."}
-    if device == "auto":
-        chosen, dtype = get_qwen_device_selection(devices, require_free_vram=require_free_vram)
-        return {"timing_mode": "qwen", "device": chosen, "dtype": dtype,
-                "cpu_only": chosen == "cpu",
-                "reason": "Qwen ready; using %s (%s)." % (chosen, dtype)}
     if device in device_names:
         chosen, dtype = get_qwen_device_selection(
             [d for d in devices if isinstance(d, dict) and d.get("device") == device],

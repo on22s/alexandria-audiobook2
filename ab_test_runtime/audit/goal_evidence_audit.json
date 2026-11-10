@@ -1050,15 +1050,24 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T18:58:54",
+  "written": "2026-11-09T19:36:19",
   "host": "RealMitch",
   "git": {
-   "commit": "1b12d3dbdc1716b6973de05342f1e5114e45f821",
-   "branch": "feat/1844-qwen-readalong",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "752ed05663260f482991f7eb73ef0944ceff25fa",
+   "branch": "codex/1844-memory-guards",
+   "dirty": true,
+   "source_state": "dirty:901270bac426",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    " M GOALS.md",
+    "M  app/epub_readaloud.py",
+    "M  app/qwen_align.py",
+    "M  app/qwen_runtime.py",
+    "M  app/readalong_export.py",
+    "M  app/tests/test_qwen_review_v2_repairs.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/readalong.md"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"

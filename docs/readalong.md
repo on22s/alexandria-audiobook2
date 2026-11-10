@@ -430,6 +430,16 @@ fake, or word-count timing exists in the production path.
   These are resource limits, not a promise that every book fits. An oversized
   job or result refuses publication and leaves the prior export intact;
   chunk timing remains the alternative. No timestamps are guessed to fit.
+- **Bounded sentence reconstruction.** Each mapped source segment is limited
+  to 200,000 raw characters before provenance normalization. Inline indexing
+  allows at most 1,048,576 events and accumulated stack references. Per XHTML
+  document, reconstructed sentence content has an 8 MiB charged-byte budget,
+  including escaped text, attributes and namespace/element overhead. These
+  conservative work budgets refuse before further cloning; they do not measure
+  peak RAM or acoustic quality. Chunk timing remains the alternative for an
+  EPUB outside these sentence-mode bounds. Retained EPUB reads also enforce the
+  existing 2 GiB upload bound on the opened regular file, poll cancellation,
+  and reject a file that changes during the read.
 - **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
   not dependencies of this app; no parallel packager exists. The
   sentence idea and parts of the tokenizer/window logic adapt
