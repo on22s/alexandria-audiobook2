@@ -1640,6 +1640,21 @@
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_audio_and_extra_files",
     "tests.test_blinded_listening.BlindedListeningTests.test_validation_rejects_changed_source_manifest"
   ],
+  "test_book_exchange_primitive": [
+    "tests.test_book_exchange_primitive.ExchangeMarshallingTests.test_anchored_names_are_validated",
+    "tests.test_book_exchange_primitive.ExchangeMarshallingTests.test_exclusive_move_keeps_its_flags_through_the_shared_call",
+    "tests.test_book_exchange_primitive.ExchangeMarshallingTests.test_native_exchange_signatures",
+    "tests.test_book_exchange_primitive.ExchangeMarshallingTests.test_native_failure_carries_errno",
+    "tests.test_book_exchange_primitive.ExchangeMarshallingTests.test_no_exchange_where_unavailable_and_never_a_plain_rename",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_files_and_directories_swap_and_nothing_is_overwritten",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_missing_side_is_refused_without_moving_anything",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_half_success_is_unsupported_and_cleaned_up",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_never_reports_tampering_as_unsupported",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_propagates_resource_errors",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_rejects_an_exchange_that_reports_success_without_swapping",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_reports_an_unsupported_filesystem_and_cleans_up",
+    "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_reports_support_and_leaves_nothing_behind"
+  ],
   "test_book_preflight": [
     "tests.test_book_preflight.BookPreflightTests.test_cli_records_full_and_sample_plans",
     "tests.test_book_preflight.BookPreflightTests.test_exhaustion_keeps_native_failure_codes",
