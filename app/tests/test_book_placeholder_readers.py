@@ -179,17 +179,24 @@ class PlaceholderReaderTests(unittest.TestCase):
         manager = ProjectManager(str(self.root))
         (self.root / 'annotated_script.json').write_text(json.dumps([{'speaker': 'A', 'text': 'Hi.'}]))
         chunks = self.root / 'chunks.json'
-        chunks.write_bytes(b'{corrupt')
         parse = ProjectManager._parse_chunks_snapshot
-        def lands(raw):
-            chunks.unlink()
-            chunks.write_bytes(PLACEHOLDER)   # the switch, after our one read
-            return parse(raw)
-        with patch.object(ProjectManager, '_parse_chunks_snapshot', side_effect=lands), \
-                self.assertRaisesRegex(ValueError, 'changed while it was being read'):
-            manager.load_chunks()
-        self.assertEqual(PLACEHOLDER, chunks.read_bytes())
-        self.assertEqual([], [p.name for p in self.root.iterdir() if '.corrupt' in p.name])
+        for landed, refusal in ((PLACEHOLDER, 'book switch is in progress'),
+                                (b'{other writer', 'changed while it was being read')):
+            with self.subTest(landed=landed[:12]):
+                chunks.write_bytes(b'{corrupt')
+                def lands(raw):
+                    # Something replaces the name after our one read. Keep the
+                    # read file alive, as a switch's workspace does, so its
+                    # inode number cannot be reused for the newcomer.
+                    chunks.rename(self.root / 'read-object')
+                    chunks.write_bytes(landed)
+                    return parse(raw)
+                with patch.object(ProjectManager, '_parse_chunks_snapshot', side_effect=lands), \
+                        self.assertRaisesRegex(ValueError, refusal):
+                    manager.load_chunks()
+                self.assertEqual(landed, chunks.read_bytes())
+                self.assertEqual([], [p.name for p in self.root.iterdir() if '.corrupt' in p.name])
+                (self.root / 'read-object').unlink()
         chunks.write_bytes(b'{corrupt')   # an ordinary corrupt file is still backed up
         manager.load_chunks()
         self.assertTrue((self.root / 'chunks.json.corrupt').exists())

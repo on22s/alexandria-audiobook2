@@ -1214,7 +1214,11 @@ class ProjectManager:
                 now = os.lstat(self.chunks_path)
             except OSError:
                 now = None
+            if is_book_placeholder(self.chunks_path):
+                raise ValueError(switching)
             if now is None or (now.st_dev, now.st_ino) != read_identity:
+                # Identity alone can be fooled by a reused inode number; the
+                # placeholder check above does not depend on it.
                 raise ValueError("chunks.json changed while it was being read; "
                                  "nothing was renamed. Retry.")
             backup = self.chunks_path + ".corrupt"
