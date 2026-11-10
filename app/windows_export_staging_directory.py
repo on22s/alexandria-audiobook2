@@ -105,6 +105,31 @@ def _filetime_ns(value):
     return (((value.high << 32) | value.low) - 116444736000000000) * 100
 
 
+class _RenameInformation(ctypes.Structure):
+    """FILE_RENAME_INFO header; FileName starts at the `name` offset."""
+    _fields_ = [('flags', ctypes.c_uint32), ('root', ctypes.c_void_p),
+                ('length', ctypes.c_uint32), ('name', ctypes.c_wchar * 1)]
+
+
+def _get_rename_request(name):
+    """-> a FILE_RENAME_INFO buffer for `name`: ReplaceIfExists FALSE, no root.
+
+    The name is stored as its exact UTF-16 code units plus a NUL terminator,
+    and FileNameLength counts those bytes without the terminator. Sizing by
+    Python code points is wrong for characters outside the BMP (one code point,
+    two UTF-16 units): the terminator was dropped and the kernel read past the
+    buffer into a garbage name (#1660 review).
+    """
+    encoded = name.encode('utf-16-le')
+    offset = _RenameInformation.name.offset
+    request = ctypes.create_string_buffer(
+        max(ctypes.sizeof(_RenameInformation), offset + len(encoded) + 2))
+    header = _RenameInformation.from_buffer(request)
+    header.flags, header.root, header.length = 0, None, len(encoded)
+    ctypes.memmove(ctypes.addressof(request) + offset, encoded + b'\0\0', len(encoded) + 2)
+    return request
+
+
 def windows_rename_verified(source, destination, expected=None):
     """Rename exactly the object a handle verified, never whatever the name now holds.
 
@@ -130,17 +155,9 @@ def windows_rename_verified(source, destination, expected=None):
                              expected[4], info.links]
             if observed != list(expected):
                 raise StageDirectoryChanged('Book artifact changed during its move')
-        name = str(Path(destination).absolute())
-
-        class _RenameInformation(ctypes.Structure):
-            _fields_ = [('flags', ctypes.c_uint32), ('root', ctypes.c_void_p),
-                        ('length', ctypes.c_uint32),
-                        ('name', ctypes.c_wchar * (len(name) + 1))]
-
-        request = _RenameInformation(0, None, len(name) * ctypes.sizeof(ctypes.c_wchar), name)
-        # FileRenameInfo = 3; flags 0 = ReplaceIfExists FALSE.
-        if not api.SetFileInformationByHandle(handle.handle, 3, ctypes.byref(request),
-                                              ctypes.sizeof(request)):
+        request = _get_rename_request(str(Path(destination).absolute()))
+        # FileRenameInfo = 3.
+        if not api.SetFileInformationByHandle(handle.handle, 3, request, ctypes.sizeof(request)):
             raise ctypes.WinError(ctypes.get_last_error())
     finally:
         handle.close()

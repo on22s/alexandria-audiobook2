@@ -991,8 +991,27 @@ class NativeWindowsHandleRenameTests(unittest.TestCase):
         self.assertEqual(b'verified', self.source.read_bytes())
         self.assertEqual(b'occupied', self.destination.read_bytes())
 
+    def test_names_outside_the_bmp_are_created_exactly(self):
+        # FILE_RENAME_INFO is sized in UTF-16 units: an emoji is two. Sizing by
+        # code points dropped the terminator, so the kernel read past the name.
+        # Uses the full six-field version, so that comparison is exercised too.
+        for book, leaf in (('Book\U0001F600\U0001F4DA', 'old-0'), ('Book\U0001F600', 'old-0'),
+                           ('plain', 'abc\U0001F600xyz.bin')):
+            for pad in range(4):   # every path length mod 4
+                with self.subTest(book=book, leaf=leaf, pad=pad), tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp) / (book + 'p' * pad)
+                    (root / 'stage').mkdir(parents=True)
+                    source = root / 'state.json'
+                    source.write_bytes(b'verified')
+                    info = source.lstat()
+                    books._move(source, root / 'stage' / leaf, exclusive=True, anchor=root,
+                                expected_source_identity=[info.st_dev, info.st_ino, info.st_size,
+                                                          info.st_mtime_ns, info.st_mode, info.st_nlink])
+                    self.assertEqual([leaf], [path.name for path in (root / 'stage').iterdir()])
+                    self.assertEqual(b'verified', (root / 'stage' / leaf).read_bytes())
 
-NATIVE_TEST_COUNT = 37
+
+NATIVE_TEST_COUNT = 38
 
 
 def main():
