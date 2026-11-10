@@ -4,7 +4,7 @@
 
 Alexandria Audiobook2 は本を登場人物ごとに異なる声で読み上げ、MP3 や章付き M4B に書き出すアプリです。LLM が台本の話者と演技指示を付け、Qwen3-TTS が音声を生成します。
 
-この Wiki の日本語ページは、現在のアプリの利用ガイドです。研究成果と実験条件は英語の正本にリンクしています。研究中の目標や特定のテストでの結果は、任意の本の品質を保証しません。
+この Wiki の日本語ページは、アプリの利用ガイドと研究ページの日本語版です。研究成果と実験条件の正本は英語の文書にリンクしています。研究中の目標や特定のテストでの結果は、任意の本の品質を保証しません。
 
 ## ここから始める
 
@@ -30,9 +30,16 @@ Alexandria Audiobook2 は本を登場人物ごとに異なる声で読み上げ�
 - [API ガイド](API-Reference-JA.md)：curl の例、状態確認、認証、正本への案内。
 - [文書一覧（英語）](../README.md)：追加の利用・運用ガイド。
 
-## 研究と開発の正本（英語）
+## 研究と開発
 
-[モデル選び](Which-Model-For-Your-Card.md)、[結果](Results.md)、[プロンプトとアダプター](Prompts-and-Adapters.md)、[評価手順](Evaluation-Recipes.md)、[Thunder 運用](Thunder-Operations.md)、[Hugging Face リリース](Hugging-Face-Releases.md)を参照してください。[GOALS](../../GOALS.md)、[RECIPES](../../RECIPES.md)、[実験索引](../../RESULTS_INDEX.md)は、目標、再現手順、個別の成果物を記録します。
+- [モデル選び（GPU 別）](Which-Model-For-Your-Card-JA.md)：GPU メモリー別の推奨モデルと速度。
+- [結果](Results-JA.md)：モデル、量子化、プロンプト、アダプターの結果を 1 か所に。
+- [プロンプトとアダプター](Prompts-and-Adapters-JA.md)：アダプターが従うルールと、効く条件・コストになる条件。
+- [評価手順](Evaluation-Recipes-JA.md)：アダプター評価の実施方法。
+- [Thunder 運用](Thunder-Operations-JA.md)：リモート GPU でのジョブ運用。
+- [Hugging Face リリース](Hugging-Face-Releases-JA.md)：公開リリースに含めるもの。
+
+[GOALS](../../GOALS.md)、[RECIPES](../../RECIPES.md)、[実験索引](../../RESULTS_INDEX.md)は、目標、再現手順、個別の成果物を記録します。
 
 アダプターは学習したプロンプトで評価してください。異なるプロンプトでの結果は、元の条件での結果とは区別する必要があります。
 
