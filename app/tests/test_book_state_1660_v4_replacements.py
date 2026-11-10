@@ -374,7 +374,15 @@ class BookStateV4ReplacementTests(unittest.TestCase):
         # holds its original again (never the new bytes).
         self.assertEqual(b'original-1', (self.root / 'part-1.json').read_bytes())
         self.assertFalse((self.root / books.JOURNAL).exists())
-        self.assertEqual([], list(self.root.glob('.book-switch-*')))
+        # Not retired silently: the abandoned switch is kept, with its reason,
+        # in one quarantine (journal, workspace and staged files included).
+        [quarantine] = list(self.root.glob(books.QUARANTINE_PREFIX + '*'))
+        receipt = json.loads((quarantine / books.QUARANTINE_RECEIPT).read_text())
+        self.assertEqual('completed', receipt['state'])
+        self.assertIn('writer replaced a book file', receipt['refusal'])
+        self.assertEqual(b'replacement-0',
+                         (quarantine / books.QUARANTINE_WORKSPACE / 'new-0').read_bytes())
+        self.assertEqual([quarantine], list(self.root.glob('.book-switch-*')))
         # Idempotent admission: the writer's object is never rewritten.
         with books.ensure_book_state(str(self.root)):
             pass
@@ -537,6 +545,135 @@ class BookStateV4ReplacementTests(unittest.TestCase):
         receipt = json.loads((quarantines[0] / books.QUARANTINE_RECEIPT).read_text())
         self.assertEqual(4, receipt['journal']['version'])
 
+
+    # --- review of #1880: evidence is kept, never retired silently --------
+
+    def _journal(self):
+        return json.loads((self.root / books.JOURNAL).read_text())
+
+    def _workspace(self):
+        return self.root / self._journal()['workspace']
+
+    def _crash_after_exchanges(self, count):
+        original = publication.exchange_source_upload_names
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=self._crash_after(original, count)):
+            self._crash_apply()
+
+    def _assert_refused_with_evidence(self, message):
+        before = self._journal()
+        for _repeat in range(2):
+            with self.assertRaisesRegex(ValueError, message):
+                with books.ensure_book_state(str(self.root)):
+                    pass
+        self.assertEqual(before, self._journal())   # journal kept, phase unchanged
+
+    def test_a_target_deleted_before_any_exchange_is_refused_not_retired(self):
+        self._prepare()
+        original = publication.exchange_source_upload_names
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=self._crash_before(original, 1)):
+            self._crash_apply()
+        staged = self._workspace() / 'new-0'
+        (self.root / 'part-0.json').unlink()   # someone deletes it; its only copy
+        self._assert_refused_with_evidence('could not restore every original')
+        self.assertEqual(b'replacement-0', staged.read_bytes())   # nothing of ours deleted
+        self.assertEqual(b'original-1', (self.root / 'part-1.json').read_bytes())
+
+    def test_a_target_deleted_after_the_workspace_went_keeps_the_journal(self):
+        originals = self._prepare()
+        self._crash_after_exchanges(1)
+        # Recovery rolls back and removes the workspace, then dies before the
+        # journal is unlinked: a 'recovered' journal with no workspace.
+        with patch.object(books, '_unlink_owned_book_journal',
+                          side_effect=_Crash('crash before unlink')), self.assertRaises(_Crash):
+            with books.ensure_book_state(str(self.root)):
+                pass
+        self.assertEqual('recovered', self._journal()['phase'])
+        self.assertFalse(self._workspace().exists())
+        (self.root / 'part-0.json').rename(self.root / 'kept-aside')
+        self._assert_refused_with_evidence('')
+        (self.root / 'kept-aside').rename(self.root / 'part-0.json')
+        self._assert_recovered(originals)   # once intact, it retires as before
+
+    def test_a_failed_commit_proof_leaves_the_journal_publishing(self):
+        self._prepare()
+        self._crash_after_exchanges(2)   # both published; slots hold the originals
+        workspace = self._workspace()
+        for name in ('new-0', 'new-1'):
+            (workspace / name).rename(self.root / f'{name}-kept')
+        (self.root / 'part-0.json').write_bytes(b'edited in place')
+        self._assert_refused_with_evidence('')
+        self.assertEqual('publishing', self._journal()['phase'])
+
+    def test_a_published_row_beside_an_unpublished_one_is_never_committed(self):
+        self._prepare()
+        self._crash_after_exchanges(1)   # row 0 published, row 1 not
+        (self._workspace() / 'new-0').rename(self.root / 'original-0-kept')
+        self._assert_refused_with_evidence('cannot be completed consistently')
+        self.assertEqual(b'replacement-0', (self.root / 'part-0.json').read_bytes())
+        self.assertEqual(b'original-1', (self.root / 'part-1.json').read_bytes())
+
+    def test_a_rollback_that_leaves_a_replacement_in_place_is_refused(self):
+        self._prepare()
+        self._crash_after_exchanges(2)
+        with patch.object(books, '_undo_book_exchange', lambda *a, **k: None):
+            self._assert_refused_with_evidence('could not restore every original')
+        self.assertEqual(b'replacement-0', (self.root / 'part-0.json').read_bytes())
+
+    def test_a_changed_rotated_slot_is_never_deleted(self):
+        self._prepare()
+        with patch.object(books, '_cleanup_validated_byte_workspace',
+                          side_effect=_Crash('crash during cleanup')):
+            self._crash_apply()
+        self.assertEqual('committed', self._journal()['phase'])
+        slot = self._workspace() / 'new-0'   # holds the original after the swap
+        info = slot.stat()
+        slot.write_bytes(b'ORIGINAL-0')   # same size, different bytes
+        os.utime(slot, ns=(info.st_atime_ns, info.st_mtime_ns))   # same identity fields
+        with books.ensure_book_state(str(self.root)):
+            pass   # auto-quarantine keeps the slot it cannot prove
+        kept = [p for p in self.root.rglob('new-0') if p.read_bytes() == b'ORIGINAL-0']
+        self.assertEqual(1, len(kept))
+        self.assertTrue(any(part.startswith(books.QUARANTINE_PREFIX) for part in kept[0].parts))
+
+    def test_a_slot_swapped_before_the_undo_is_never_moved_to_the_target(self):
+        originals = self._prepare()
+        self._crash_after_exchanges(1)
+        slots = books._get_book_workspace_slots
+        def swap_after_classifying(workspace, index, row):
+            result = slots(workspace, index, row)
+            if index == 0 and result[0] is not None:
+                (workspace / result[0]).rename(self.root / 'real-original-0')
+                (workspace / result[0]).write_bytes(b'impostor')
+            return result
+        with patch.object(books, '_get_book_workspace_slots', side_effect=swap_after_classifying):
+            with self.assertRaises(ValueError):
+                with books.ensure_book_state(str(self.root)):
+                    pass
+        self.assertNotEqual(b'impostor', (self.root / 'part-0.json').read_bytes())
+
+    def test_exchange_lost_at_recovery_names_the_way_out(self):
+        self._prepare()
+        self._crash_after_exchanges(1)
+        import errno
+        before = _snapshot(self.root)
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=OSError(errno.ENOTSUP, 'no exchange')):
+            with self.assertRaisesRegex(OSError, 'quarantine --accept-current-files'):
+                with books.ensure_book_state(str(self.root)):
+                    pass
+        self.assertEqual(before, _snapshot(self.root))
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        # The way out works without exchange: the operator keeps the current files.
+        import book_state_recovery
+        with patch.object(publication, 'exchange_source_upload_names',
+                          side_effect=OSError(errno.ENOTSUP, 'no exchange')), \
+                patch('sys.stdout', new_callable=io.StringIO):
+            code = book_state_recovery.main(['--data-dir', str(self.root),
+                                             'quarantine', '--accept-current-files'])
+        self.assertEqual(0, code)
+        self.assertFalse((self.root / books.JOURNAL).exists())
 
 if __name__ == '__main__':
     unittest.main()
