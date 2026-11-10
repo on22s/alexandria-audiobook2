@@ -1099,7 +1099,82 @@ class NativeWindowsParentChainTests(unittest.TestCase):
         self.assertEqual([], list(real.iterdir()))
 
 
-NATIVE_TEST_COUNT = 42
+class NativeWindowsBookQuarantineTests(unittest.TestCase):
+    """#1660: a stuck switch's workspace is quarantined by renaming the same
+    directory through its verified handle, never by copying or deleting."""
+
+    class _Crash(BaseException):
+        pass
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        (self.root / 'state.json').write_bytes(b'old')
+        def crash(*args, **kwargs):
+            raise self._Crash()
+        with patch.object(books, '_validate_staged_replacement', side_effect=crash),                 patch.object(books, '_retire_unpublished_journal', side_effect=crash),                 self.assertRaises(self._Crash):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {'state.json': b'new'}, [])
+        self.workspace = self.root / json.loads((self.root / books.JOURNAL).read_text())['workspace']
+        (self.workspace / 'new-0').write_bytes(b'foreign')
+        (self.workspace / 'nested').mkdir()
+        (self.workspace / 'nested' / 'note').write_bytes(b'user data')
+
+    def quarantines(self):
+        return [entry for entry in self.root.iterdir()
+                if entry.name.startswith(books.QUARANTINE_PREFIX)]
+
+    def test_the_workspace_directory_itself_is_renamed_into_the_quarantine(self):
+        before = os.lstat(self.workspace)
+        with books.ensure_book_state(self.root):
+            pass
+        [quarantine] = self.quarantines()
+        moved = quarantine / books.QUARANTINE_WORKSPACE
+        after = os.lstat(moved)
+        self.assertEqual((before.st_dev, before.st_ino), (after.st_dev, after.st_ino))
+        self.assertEqual(b'user data', (moved / 'nested' / 'note').read_bytes())
+        self.assertEqual(b'foreign', (moved / 'new-0').read_bytes())
+        self.assertEqual('recovered', json.loads(
+            (quarantine / books.QUARANTINE_JOURNAL).read_text())['phase'])
+        self.assertFalse(self.workspace.exists())
+        self.assertEqual(b'old', (self.root / 'state.json').read_bytes())
+
+    def test_a_file_held_open_inside_blocks_the_move_until_it_is_closed(self):
+        held = open(self.workspace / 'nested' / 'note', 'rb')
+        try:
+            # Windows refuses to rename a directory with an open file inside.
+            with self.assertRaises(PermissionError):
+                with books.ensure_book_state(self.root):
+                    pass
+            [pending] = self.quarantines()
+            self.assertEqual('prepared', json.loads(
+                (pending / books.QUARANTINE_RECEIPT).read_text())['state'])
+            self.assertTrue((self.workspace / 'nested' / 'note').exists())
+            self.assertTrue((self.root / books.JOURNAL).exists())
+        finally:
+            held.close()
+        with books.ensure_book_state(self.root):
+            pass
+        [quarantine] = self.quarantines()
+        self.assertEqual(b'user data', (quarantine / books.QUARANTINE_WORKSPACE
+                                        / 'nested' / 'note').read_bytes())
+
+    def test_a_junction_in_place_of_the_workspace_is_never_quarantined(self):
+        real = self.root / 'elsewhere'
+        os.rename(self.workspace, real)
+        subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.workspace), str(real)],
+                       check=True, capture_output=True)
+        self.addCleanup(lambda: os.rmdir(self.workspace) if os.path.lexists(self.workspace) else None)
+        with self.assertRaises(ValueError):
+            with books.ensure_book_state(self.root):
+                pass
+        self.assertEqual([], self.quarantines())
+        self.assertTrue((self.root / books.JOURNAL).exists())
+        self.assertEqual(b'user data', (real / 'nested' / 'note').read_bytes())
+
+
+NATIVE_TEST_COUNT = 45
 
 
 def main():
@@ -1114,7 +1189,8 @@ def main():
             NativeWindowsRecoveryQuotaTests, NativeWindowsBookStateTests, NativeWindowsBookMoveTests, NativeWindowsPublicationCancellationTests,
             NativeWindowsPathAdmissionTests, NativeWindowsUploadStageTests,
             NativeWindowsBookRootSharingTests, NativeWindowsUploadRenameRetryTests,
-            NativeWindowsHandleRenameTests, NativeWindowsParentChainTests))
+            NativeWindowsHandleRenameTests, NativeWindowsParentChainTests,
+            NativeWindowsBookQuarantineTests))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if (result.wasSuccessful() and result.testsRun == NATIVE_TEST_COUNT
                  and not result.skipped) else 1

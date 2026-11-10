@@ -1012,9 +1012,9 @@ print(len(result['entries']))
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual('71', result.stdout.strip())
 
-    def test_interrupted_directory_cleanup_preserves_journal_and_remaining_backup(self):
-        # This documents an unresolved recovery case, not successful cleanup:
-        # a partly deleted committed backup requires inspection on the next run.
+    def test_interrupted_directory_cleanup_quarantines_the_remaining_backup(self):
+        # A partly deleted committed backup cannot be cleaned up, but the
+        # targets are committed, so recovery quarantines what remains (#1660).
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'audio.wav').write_bytes(b'old audio')
@@ -1044,16 +1044,21 @@ print(len(result['entries']))
                 cleanup = patch.object(books, '_remove_owned_tree_at',
                                        side_effect=interrupted)
             with cleanup:
-                with books.ensure_book_state(root), self.assertRaises(ValueError):
+                # Recovery quarantines, so the trigger itself is what remains.
+                with books.ensure_book_state(root), self.assertRaisesRegex(OSError, "simulated interrupted cleanup"):
                     books.apply_book_state_locked(root, {'audio.wav':stream(b'new audio')},
                                                   ['chapters'], stream_byte_limit=100)
-            journal = json.loads((root / books.JOURNAL).read_text())
-            self.assertEqual('committed', journal['phase'])
-            self.assertEqual(b'two', (root / journal['workspace'] / 'old-1' / 'second').read_bytes())
+            from tests.test_support import get_quarantined_path
+            [quarantine] = [entry for entry in root.iterdir()
+                            if entry.name.startswith(books.QUARANTINE_PREFIX)]
+            receipt = json.loads((quarantine / books.QUARANTINE_RECEIPT).read_text())
+            self.assertEqual('committed', receipt['journal']['phase'])
+            backup = root / receipt['workspace']['name'] / 'old-1'
+            self.assertEqual(b'two', get_quarantined_path(self, root, backup / 'second').read_bytes())
+            self.assertFalse(get_quarantined_path(self, root, backup / 'first').exists())
             self.assertEqual(b'new audio', (root / 'audio.wav').read_bytes())
-            with self.assertRaises(ValueError):
-                with books.ensure_book_state(root):
-                    self.fail('Partial backup was silently accepted')
+            with books.ensure_book_state(root):
+                pass
 
     @unittest.skipIf(os.name == 'nt', 'symlink semantics require POSIX qualification')
     def test_stream_cleanup_refuses_workspace_symlink_swap(self):
@@ -1136,9 +1141,9 @@ print(len(result['entries']))
                 with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'unowned data'):
                     books.apply_book_state_locked(root, {'audio.wav':stream(b'new audio')}, [],
                                                   stream_byte_limit=100)
-            self.assertEqual(b'user data', injected[0].read_bytes())
+            from tests.test_support import get_quarantined_path
+            self.assertEqual(b'user data', get_quarantined_path(self, root, injected[0]).read_bytes())
             self.assertEqual(b'new audio', (root / 'audio.wav').read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
 
     @unittest.skipIf(os.name == 'nt', 'Windows does not allow replacing the open staging file')
     def test_replaced_prepublication_staging_file_is_not_deleted(self):
@@ -1158,7 +1163,7 @@ print(len(result['entries']))
             self.assertEqual(b'foreign replacement', (workspace / 'new-0').read_bytes())
             self.assertEqual(b'old audio', (root / 'audio.wav').read_bytes())
 
-    def test_unknown_workspace_file_blocks_cleanup_without_losing_evidence(self):
+    def test_unknown_workspace_file_is_retained_inside_the_quarantine(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'audio.wav').write_bytes(b'old audio')
@@ -1172,20 +1177,19 @@ print(len(result['entries']))
                 with books.ensure_book_state(root), self.assertRaisesRegex(ValueError, 'unowned data'):
                     books.apply_book_state_locked(root, {'audio.wav': stream(b'new audio')}, [],
                                                   stream_byte_limit=100)
-            journal = json.loads((root / books.JOURNAL).read_text())
-            workspace = root / journal['workspace']
-            self.assertEqual('committed', journal['phase'])
-            self.assertEqual(b'user data', (workspace / 'foreign').read_bytes())
+            from tests.test_support import get_quarantined_path
+            [quarantine] = [entry for entry in root.iterdir()
+                            if entry.name.startswith(books.QUARANTINE_PREFIX)]
+            receipt = json.loads((quarantine / books.QUARANTINE_RECEIPT).read_text())
+            foreign = root / receipt['workspace']['name'] / 'foreign'
+            self.assertEqual(b'user data', get_quarantined_path(self, root, foreign).read_bytes())
+            workspace = quarantine / books.QUARANTINE_WORKSPACE
             self.assertEqual(b'old audio', (workspace / 'old-0').read_bytes())
+            self.assertEqual('committed',
+                             json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())['phase'])
             self.assertEqual(b'new audio', (root / 'audio.wav').read_bytes())
-            with self.assertRaisesRegex(ValueError, 'unowned data'):
-                with books.ensure_book_state(root):
-                    self.fail('Unknown data was not preserved')
-            (workspace / 'foreign').unlink()
             with books.ensure_book_state(root):
                 pass
-            self.assertFalse((root / books.JOURNAL).exists())
-            self.assertEqual(b'new audio', (root / 'audio.wav').read_bytes())
 
     def test_bounded_directory_digest_matches_existing_transaction_digest(self):
         from adapter_publication import get_adapter_bundle_sha256

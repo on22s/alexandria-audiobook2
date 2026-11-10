@@ -642,8 +642,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             with patch.object(books, '_save_journal', side_effect=add_unknown):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
-            self.assertEqual(b'user data', injected[0].read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            from tests.test_support import get_quarantined_path
+            self.assertEqual(b'user data', get_quarantined_path(self, root, injected[0]).read_bytes())
 
     def test_legacy_recovered_cleanup_refuses_unowned_workspace_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -690,8 +690,9 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json': b'generated'}, [])
             self.assertEqual(1, len(planted))
-            self.assertEqual(b'user data', planted[0].read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            from tests.test_support import get_quarantined_path
+            self.assertEqual(b'user data', get_quarantined_path(self, root, planted[0]).read_bytes())
+            self.assertEqual(b'generated', target.read_bytes())
 
     def test_cleanup_refuses_to_unlink_replaced_journal(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -778,8 +779,9 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                               side_effect=add_nested):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {}, ['chapters'])
-            self.assertEqual(b'user data', planted[0].read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            from tests.test_support import get_quarantined_path
+            # Cleanup still refuses; recovery then quarantines (#1660).
+            self.assertEqual(b'user data', get_quarantined_path(self, root, planted[0]).read_bytes())
 
     def test_stream_directory_cleanup_refuses_nested_entry_added_after_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -802,8 +804,8 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
                     books.apply_book_state_locked(root, {'script.json': source}, ['chapters'],
                                                   stream_byte_limit=1024)
-            self.assertEqual(b'user data', planted[0].read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            from tests.test_support import get_quarantined_path
+            self.assertEqual(b'user data', get_quarantined_path(self, root, planted[0]).read_bytes())
 
     def test_legacy_v1_cleanup_requires_explicit_inspection(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1167,7 +1169,7 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     journal = json.loads((root / books.JOURNAL).read_text())
                     self.assertEqual(b'original', (root / journal['workspace'] / 'old-0').read_bytes())
 
-    def test_changed_stage_after_journal_preserves_evidence(self):
+    def test_changed_stage_after_journal_is_quarantined_with_its_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / 'script.json'
@@ -1184,11 +1186,16 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             journal = json.loads((root / books.JOURNAL).read_text())
             self.assertEqual(b'original', target.read_bytes())
             self.assertEqual(b'foreign change', (root / journal['workspace'] / 'new-0').read_bytes())
-            with self.assertRaises(ValueError):
-                with books.ensure_book_state(root):
-                    self.fail('Changed stage was admitted')
-            self.assertEqual(b'foreign change', (root / journal['workspace'] / 'new-0').read_bytes())
-            self.assertTrue((root / books.JOURNAL).exists())
+            raw = (root / books.JOURNAL).read_bytes()
+            # The target still holds the original, so recovery quarantines the
+            # changed stage instead of staying stuck (#1660).
+            with books.ensure_book_state(root):
+                pass
+            from tests.test_support import get_quarantined_path
+            moved = get_quarantined_path(self, root, root / journal['workspace'] / 'new-0')
+            self.assertEqual(b'foreign change', moved.read_bytes())
+            self.assertEqual(raw, (moved.parent.parent / books.QUARANTINE_JOURNAL).read_bytes())
+            self.assertEqual(b'original', target.read_bytes())
 
     def test_byte_recovery_preserves_same_content_foreign_target_after_publication(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -237,3 +237,25 @@ def create_test_api_server(app):
     import uvicorn
     return uvicorn.Server(uvicorn.Config(app, loop='asyncio', lifespan='off',
                                         log_level='error', log_config=None))
+
+
+def get_quarantined_path(case, root, path):
+    """-> where auto-quarantine (#1660) moved `path`, a name inside a switch's
+    workspace, after asserting exactly one completed quarantine holds the
+    journal's exact bytes and that neither the journal nor the workspace is
+    left in the book root."""
+    import hashlib
+    import json
+    from pathlib import Path
+    import book_state_transaction as books
+    root, path = Path(root), Path(path)
+    workspace_name, *rest = path.relative_to(root).parts
+    quarantines = [entry for entry in root.iterdir() if entry.name.startswith(books.QUARANTINE_PREFIX)]
+    case.assertEqual(1, len(quarantines), quarantines)
+    receipt = json.loads((quarantines[0] / books.QUARANTINE_RECEIPT).read_text(encoding='utf-8'))
+    case.assertEqual(('completed', workspace_name), (receipt['state'], receipt['workspace']['name']))
+    raw = (quarantines[0] / books.QUARANTINE_JOURNAL).read_bytes()
+    case.assertEqual(receipt['journal']['sha256'], hashlib.sha256(raw).hexdigest())
+    case.assertFalse((root / books.JOURNAL).exists())
+    case.assertFalse((root / workspace_name).exists())
+    return quarantines[0].joinpath(books.QUARANTINE_WORKSPACE, *rest)
