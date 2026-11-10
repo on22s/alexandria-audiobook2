@@ -76,11 +76,14 @@ def exchange_source_upload_names(source, destination, *, source_dir_fd=None, des
                   failed='Book exchange publication failed')
 
 
-# errno meaning "this filesystem, kernel or libc cannot exchange", as opposed
-# to resource errors (EMFILE, ENOMEM, ...) that say nothing about capability.
+# errno meaning "this filesystem, kernel or libc cannot exchange": EINVAL
+# (Linux: flag unsupported), ENOTSUP/EOPNOTSUPP (macOS volume), ENOSYS, EXDEV,
+# EBUSY, and EPERM/EACCES ("does not support renaming of the type requested").
+# Anything else propagates: ENOENT/ENOTDIR/EISDIR mean the probe's own names
+# were tampered with or the code is wrong, and resource errors (EMFILE,
+# ENOMEM) say nothing about capability. Neither may pass as "unsupported".
 _EXCHANGE_UNSUPPORTED = {errno.EINVAL, errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP,
-                         errno.EXDEV, errno.EBUSY, errno.EPERM, errno.ENOENT,
-                         errno.ENOTDIR, errno.EISDIR, getattr(errno, 'ENOLINK', errno.EINVAL)}
+                         errno.EXDEV, errno.EBUSY, errno.EPERM, errno.EACCES}
 
 
 def probe_exchange_support(directory_fd):
@@ -89,12 +92,16 @@ def probe_exchange_support(directory_fd):
     Swaps two private files and two private directories created inside it,
     checks that each side now holds the other's object (and, for the files,
     the other's bytes), and removes them. A capability errno returns False;
-    resource errors propagate. Callers probe a directory on the same
+    any other error propagates. Callers probe a directory on the same
     filesystem as the names they will exchange, before mutating anything.
+    Cleanup is by name: the directory is assumed to be the caller's own, and
+    a killed process can leave `.exchange-probe-*` entries behind.
     """
     import secrets
     if type(directory_fd) is not int or directory_fd < 0:
         raise ValueError('Exchange probe needs a directory descriptor')
+    if os.name == 'nt' or os.open not in os.supports_dir_fd:
+        return False   # no directory-relative calls, so no exchange either
     token = secrets.token_hex(8)
     files = [f'.exchange-probe-{token}-{side}' for side in 'ab']
     folders = [f'.exchange-probe-{token}-dir-{side}' for side in 'ab']
@@ -132,7 +139,8 @@ def probe_exchange_support(directory_fd):
         for name, other in ((files[0], files[1]), (files[1], files[0])):
             descriptor = os.open(name, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0), dir_fd=directory_fd)
             try:
-                if os.read(descriptor, 256) != other.encode():
+                expected = other.encode()
+                if os.read(descriptor, len(expected) + 1) != expected:
                     return False
             finally:
                 os.close(descriptor)

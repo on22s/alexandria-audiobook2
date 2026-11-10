@@ -36,20 +36,30 @@ class ExchangeMarshallingTests(unittest.TestCase):
                 self.call(platform, SimpleNamespace(**{symbol: operation}), 'a', 'b', **kwargs)
                 operation.assert_called_once_with(*arguments)
                 self.assertEqual(ctypes.c_int, operation.restype)
-                self.assertEqual(len(arguments), len(operation.argtypes))
+                self.assertEqual(self.types(arguments), tuple(operation.argtypes))
+
+    @staticmethod
+    def types(arguments):
+        return tuple(ctypes.c_char_p if isinstance(value, bytes)
+                     else ctypes.c_uint if index == len(arguments) - 1 else ctypes.c_int
+                     for index, value in enumerate(arguments))
 
     def test_exclusive_move_keeps_its_flags_through_the_shared_call(self):
-        for platform, symbol, arguments in (
-                ('linux', 'renameat2', (-100, b'a', -100, b'b', 1)),
-                ('darwin', 'renamex_np', (b'a', b'b', 4))):
-            with self.subTest(platform=platform):
+        anchored = {'source_dir_fd': 5, 'destination_dir_fd': 6}
+        for platform, symbol, kwargs, arguments in (
+                ('linux', 'renameat2', {}, (-100, b'a', -100, b'b', 1)),
+                ('linux', 'renameat2', anchored, (5, b'a', 6, b'b', 1)),
+                ('darwin', 'renamex_np', {}, (b'a', b'b', 4)),
+                ('darwin', 'renameatx_np', anchored, (5, b'a', 6, b'b', 4))):
+            with self.subTest(platform=platform, symbol=symbol):
                 operation = Mock(return_value=0)
                 with patch.object(publication, 'os', SimpleNamespace(
                         name='posix', fsencode=os.fsencode, path=os.path)), \
                         patch.object(publication.sys, 'platform', platform), \
                         patch.object(ctypes, 'CDLL', return_value=SimpleNamespace(**{symbol: operation})):
-                    publication.move_source_upload_exclusively('a', 'b')
+                    publication.move_source_upload_exclusively('a', 'b', **kwargs)
                 operation.assert_called_once_with(*arguments)
+                self.assertEqual(self.types(arguments), tuple(operation.argtypes))
 
     def test_native_failure_carries_errno(self):
         operation = Mock(return_value=-1)
@@ -110,11 +120,40 @@ class NativeExchangeTests(unittest.TestCase):
         self.assertEqual([], list(self.root.iterdir()))
 
     def test_probe_reports_an_unsupported_filesystem_and_cleans_up(self):
-        for code in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP, errno.EXDEV):
+        for code in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP, errno.EXDEV, errno.EPERM, errno.EACCES):
             with self.subTest(errno=errno.errorcode[code]), patch.object(
                     publication, 'exchange_source_upload_names',
                     side_effect=OSError(code, 'unsupported')):
                 self.assertFalse(publication.probe_exchange_support(self.fd))
+            self.assertEqual([], list(self.root.iterdir()))
+
+    def test_probe_rejects_an_exchange_that_reports_success_without_swapping(self):
+        # The security-critical check: success is proven by identity and bytes,
+        # never taken from the call's return value.
+        with patch.object(publication, 'exchange_source_upload_names', return_value=None):
+            self.assertFalse(publication.probe_exchange_support(self.fd))
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_probe_half_success_is_unsupported_and_cleaned_up(self):
+        exchange, calls = publication.exchange_source_upload_names, [0]
+        def files_then_reject(*args, **kwargs):
+            calls[0] += 1
+            if calls[0] == 1:
+                return exchange(*args, **kwargs)   # the files really swap
+            raise OSError(errno.EINVAL, 'directories unsupported')
+        with patch.object(publication, 'exchange_source_upload_names', side_effect=files_then_reject):
+            self.assertFalse(publication.probe_exchange_support(self.fd))
+        self.assertEqual(2, calls[0])
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_probe_never_reports_tampering_as_unsupported(self):
+        # Its own names vanishing is not a capability verdict a writer may forge.
+        for code in (errno.ENOENT, errno.ENOTDIR, errno.EISDIR):
+            with self.subTest(errno=errno.errorcode[code]), patch.object(
+                    publication, 'exchange_source_upload_names', side_effect=OSError(code, 'tampered')), \
+                    self.assertRaises(OSError) as caught:
+                publication.probe_exchange_support(self.fd)
+            self.assertEqual(code, caught.exception.errno)
             self.assertEqual([], list(self.root.iterdir()))
 
     def test_probe_propagates_resource_errors(self):
