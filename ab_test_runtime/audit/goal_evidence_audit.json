@@ -1050,25 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-09T23:58:41",
+  "written": "2026-11-09T23:59:55",
   "host": "RealMitch",
   "git": {
-   "commit": "98fa028d307556c65b53ba126a15c4cdc576cb23",
+   "commit": "ec7d520014018d607a9fa8999b102a159c4a8a63",
    "branch": "codex/1844-final-ui",
-   "dirty": true,
-   "source_state": "dirty:843d56b4a5e2",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/epub_readaloud.py",
-    "M  app/qwen_runtime.py",
-    "M  app/readalong_export.py",
-    "M  app/routers/editor.py",
-    "M  app/subprocess_ownership.py",
-    "M  app/tests/test_qwen_final_epub_repairs.py",
-    "M  app/tests/test_qwen_final_runtime_repairs.py",
-    "M  app/tests/test_qwen_final_ui_repairs.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
