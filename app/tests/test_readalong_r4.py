@@ -613,7 +613,8 @@ class R4PublicationTests(unittest.TestCase):
             self.assertEqual(old_side, (Path(tmp) / "readalong.sidecar.json").read_bytes())
 
     def test_rollback_failure_retains_recovery_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        # macOS /var/folders also contains "old"; fail only the actual backup restore.
+        with tempfile.TemporaryDirectory(prefix="folders-") as tmp:
             _setup_book(tmp, [(4800, 24000, 1, 2)] * 2)
             manager = ProjectManager(tmp)
             ok, msg = build_sidecar_export(manager, lambda: False)
@@ -625,24 +626,28 @@ class R4PublicationTests(unittest.TestCase):
             import readalong_export
             orig_replace = readalong_export.os.replace
             second = {"failed": False}
+            restore_attempts = []
 
             def flaky(src, dst, **kwargs):
                 if (not second["failed"] and str(dst).endswith("readalong.sidecar.json")
                         and str(src).endswith("readalong.sidecar.json")):
                     second["failed"] = True
                     raise OSError("injected second-target failure")
-                if "old" in str(src) and str(dst).endswith("cloned_audiobook.mp3"):
+                if Path(src).parent.name == "old" and Path(dst).name == "cloned_audiobook.mp3":
+                    restore_attempts.append(Path(src))
                     raise OSError("injected rollback failure")
                 return orig_replace(src, dst, **kwargs)
 
             with patch.object(readalong_export.os, "replace", side_effect=flaky):
                 ok, msg = build_sidecar_export(manager, lambda: False)
             self.assertFalse(ok)
+            self.assertTrue(second["failed"], "must reach the second-target publication failure")
+            self.assertEqual(1, len(restore_attempts), "must inject failure during backup restoration")
             self.assertIn("rollback failed", msg.lower())
             self.assertIn("recovery files kept at", msg)
             # Old MP3 bytes survive in a retained backup under the staging parent.
             kept = [p for p in Path(tmp).rglob("*") if p.is_file() and p.read_bytes() == old_mp3
-                    and "old" in str(p)]
+                    and p.parent.name == "old"]
             self.assertTrue(kept, "backup with prior MP3 bytes must be retained")
 
 

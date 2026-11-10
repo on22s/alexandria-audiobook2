@@ -5,6 +5,7 @@ its package metadata; no self-comparisons. Where real backends are
 expensive, a local stub interpreter path is used BUT the capture itself
 always runs the real subprocess/helper path with real metadata reads.
 """
+import hashlib
 import json
 import os
 import platform
@@ -40,17 +41,21 @@ class IdentityCaptureTests(unittest.TestCase):
 
     def _alternate_python(self):
         root = Path(self.tmp) / "alternate-runtime"
-        venv.EnvBuilder(with_pip=False, symlinks=False).create(root)
+        venv.EnvBuilder(with_pip=False, symlinks=os.name != "nt").create(root)
         return str(root / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
 
     def test_capture_reports_real_interpreter_facts(self):
         facts = qr.get_qwen_runtime_identity(THIS_PY)
-        self.assertEqual(str(Path(THIS_PY).resolve()), facts["python"])
+        # Execute the selected venv entry; only its executable bytes resolve.
+        self.assertEqual(os.path.abspath(THIS_PY), facts["python"])
         self.assertEqual(platform.python_version(), facts["python_version"])
         self.assertIn("packages", facts)
         self.assertIn("executable_sha256", facts)
         self.assertEqual(64, len(facts["executable_sha256"]))
         self.assertGreater(facts["executable_bytes"], 0)
+        executable = Path(THIS_PY).resolve().read_bytes()
+        self.assertEqual(hashlib.sha256(executable).hexdigest(), facts["executable_sha256"])
+        self.assertEqual(len(executable), facts["executable_bytes"])
 
     def test_metadata_change_changes_identity(self):
         # Fake package metadata lives in an alternate venv's own
@@ -71,6 +76,8 @@ class IdentityCaptureTests(unittest.TestCase):
             "Metadata-Version: 1.0\nName: qwen-asr\nVersion: 0.0.1\n",
             encoding="utf-8")
         first = qr.get_qwen_runtime_identity(alternate)
+        self.assertEqual(os.path.abspath(alternate), first["python"])
+        self.assertEqual(site_root.resolve(), Path(first["python_prefix"]).resolve())
         self.assertEqual("0.0.1", first["packages"].get("qwen-asr"))
         info2 = site / "qwen_asr-0.0.2.dist-info"
         shutil.rmtree(info)
