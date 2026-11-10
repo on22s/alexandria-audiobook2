@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "locale": "es-419",
+    "generated_from": "35e28f19",
+    "reviewers": [],
+    "review_status": {
+      "all": "machine-draft",
+      "safety": "not-reviewed"
+    }
+  },
+  "setup.finder.clear": "Limpiar",
+  "setup.finder.hint": "Busca en los nombres y la ayuda de los ajustes de tus servicios actuales.",
+  "setup.finder.label": "Buscar un ajuste",
+  "setup.finder.limited": "Se muestran los primeros {limit}; refina la búsqueda para obtener resultados más específicos.",
+  "setup.finder.many": "{count} ajustes coincidentes.",
+  "setup.finder.none": "No hay ajustes que coincidan con tus servicios actuales. Prueba con otro nombre o descripción.",
+  "setup.finder.one": "{count} ajuste coincidente.",
+  "setup.finder.opened": "Se muestra el ajuste original. Usa Save Configuration para aplicar los cambios.",
+  "setup.finder.placeholder": "Prueba con contexto, memoria, idioma o reintentos",
+  "setup.locale.storage_notice": "El almacenamiento del navegador no está disponible; esta preferencia de interfaz solo se aplica a esta pestaña hasta que recargues.",
+  "setup.preview.action": "Previsualizar cambios",
+  "setup.preview.close": "Cerrar la vista previa",
+  "setup.preview.defaults": "Se completaron {count} ajustes faltantes con valores predeterminados",
+  "setup.preview.saved": "Guardado",
+  "setup.preview.title": "Vista previa de cambios en la configuración",
+  "setup.preview.would_save": "Se guardaría"
+}

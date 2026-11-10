@@ -310,7 +310,8 @@ class DerivedMetadataTests(unittest.TestCase):
         python=self.fake_interpreter(root/'app/env/bin/python',root)
         for name in ('results_index.csv','LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md','ab_test_runtime/audit/artifact_structural_audit.json',
                      'ab_test_runtime/audit/legacy_attribution_audit.json',
-                     'ab_test_runtime/audit/goal_evidence_audit.json','app/tests/unit_test_inventory.json'):
+                     'ab_test_runtime/audit/goal_evidence_audit.json','app/tests/unit_test_inventory.json',
+                     'app/static/i18n/ui.en.json'):
             p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text('base\n')
         (root/'GOALS.md').write_text('header\n')
         (root/'RESULTS_INDEX.md').write_text('base\n')
@@ -344,7 +345,7 @@ class DerivedMetadataTests(unittest.TestCase):
                     self.assertFalse(marker.exists(),
                                      'the inherited AA2_PYTHON ran as the fixture interpreter')
                     calls=[json.loads(line) for line in calls.read_text().splitlines()]
-                    self.assertEqual(5,len(calls),calls)
+                    self.assertEqual(6,len(calls),calls)
                     self.assertEqual(before,dict(os.environ),
                                      'the fixture run changed the caller environment')
 
@@ -371,7 +372,7 @@ class DerivedMetadataTests(unittest.TestCase):
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
             self.assertEqual([
                 'audit_experiment_artifacts.py', 'audit_legacy_attribution.py',
-                'collect_results.py', 'goal_evidence_audit.py',
+                'collect_results.py', 'goal_evidence_audit.py', 'extract_ui_catalog.py',
                 'update_test_inventory.py', 'verify_release.py'],
                 [Path(args[0]).name for args in calls])
             self.assertFalse(any('--check' in args for args in calls),
@@ -395,7 +396,7 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertFalse((caller/'calls').exists(),'generator ran in caller checkout')
             calls=[json.loads(line) for line in (target/'calls').read_text().splitlines()]
             self.assertEqual(['audit_experiment_artifacts.py','audit_legacy_attribution.py',
-                              'collect_results.py','goal_evidence_audit.py',
+                              'collect_results.py','goal_evidence_audit.py','extract_ui_catalog.py',
                               'update_test_inventory.py'],
                              [Path(args[0]).name for args in calls])
             self.assertEqual('resolved\n',(target/'RESULTS_INDEX.md').read_text())
@@ -417,7 +418,7 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             self.assertEqual(['--metadata',''],(root/'queries').read_text().splitlines())
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
-            self.assertEqual(6,len(calls));self.assertEqual('-',calls[0][0])
+            self.assertEqual(7,len(calls));self.assertEqual('-',calls[0][0])
             self.assertEqual('',git('diff','--name-only','--diff-filter=U').stdout)
             self.assertNotIn('<<<<<<<',(root/'GOALS.md').read_text())
             self.assertIn('met goals begin at line 32',(root/'GOALS.md').read_text())

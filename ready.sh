@@ -80,7 +80,8 @@ echo "== anything regenerated must be staged =="
 # record the date, so regenerating twice in one day produces no diff and this
 # can refuse again.
 unstaged=$(git -C "$REPO" status --porcelain=v1 --untracked-files=all -- \
-    app/tests/unit_test_inventory.json RESULTS_INDEX.md results_index.csv \
+    app/tests/unit_test_inventory.json app/static/i18n/ui.en.json \
+    RESULTS_INDEX.md results_index.csv \
     ab_test_runtime/audit LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md | \
     awk 'substr($0, 2, 1) != " " {print substr($0, 4)}') || {
     echo "NOT READY: cannot inspect derived-file staging state." >&2

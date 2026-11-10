@@ -15,7 +15,7 @@ const form=body.appendChild(new Element('form',{id:'config-form'}));
 const html=fs.readFileSync(process.argv[2],'utf8');
 function parseMarkupAttrs(markup){return Object.fromEntries([...markup.matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map(attr=>[attr[1],attr[2]??'']));}
 for(const match of html.matchAll(/<([a-z0-9]+)\b([^>]*id="setup-preview-[^"]+"[^>]*)>/g)){form.appendChild(new Element(match[1],parseMarkupAttrs(match[2])));}
-for(const match of html.matchAll(/<([a-z0-9]+)\b([^>]*data-setup-message="(preview[^"]+)"[^>]*)>([^<]*)<\/\1>/g)){
+for(const match of html.matchAll(/<([a-z0-9]+)\b([^>]*data-i18n="(setup\.preview\.[^"]+)"[^>]*)>([^<]*)<\/\1>/g)){
  const attrs=parseMarkupAttrs(match[2]);
  const node=document.getElementById(attrs.id)||form.appendChild(new Element(match[1],attrs));
  for(const [key,value] of Object.entries(attrs)){node.setAttribute(key,value);}node.textContent=match[4];
@@ -29,6 +29,7 @@ context.showConfigValidationError=error=>errors.push(error.message);
 context.applySystemStatusText=(id,text)=>{document.getElementById(id).textContent=text;};
 function response(){return {changes:[{path:'tts.parallel_workers',label:'Parallel workers',scope:'Audio generation',before:'2',after:'3',was_default:false}],defaults:[],active_after:'local',baseline:'read',warning_count:0,unmanaged_fields:0,mirror_alignment:false,notice:'Defaults and URL normalization are included.',timing:'Preview does not apply changes.'};}
 context.API={post:async(path,payload)=>{calls.push({path,payload});return response();}};
+vm.runInContext(fs.readFileSync(process.argv[3],'utf8'),context);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish assertions'));
 (async()=>{
@@ -37,7 +38,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));let finished=false;pr
 
 class SettingsPreviewJsTests(unittest.TestCase):
     def run_js(self,code):
-        result=subprocess.run(['node','-e',DOM_FIXTURE+SETUP+code+"\nfinished=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-settings.js'),str(STATIC/'index.html')],capture_output=True,text=True,timeout=15)
+        result=subprocess.run(['node','-e',DOM_FIXTURE+SETUP+code+"\nfinished=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-settings.js'),str(STATIC/'index.html'),str(STATIC/'js/app-i18n.js')],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
     def test_real_payload_builder_captures_active_and_inactive_profiles_without_mutation(self):
@@ -83,7 +84,7 @@ const defaultRow=document.getElementById('setup-preview-defaults').children[0];
 const warnings=['status','notice','timing','unmanaged','active'].map(suffix=>document.getElementById('setup-preview-'+suffix).textContent);
 const before=JSON.stringify(calls[0].payload);input.focus();
 for(const locale of ['qps-ploc','qps-ploc','unavailable','en']){
- context.applySetupUiLocale(locale);
+ context.applyUiLocale(locale);
  assert.strictEqual(document.getElementById('setup-preview-changes').children[0],row);
  assert.strictEqual(document.getElementById('setup-preview-defaults').children[0],defaultRow);
  assert.strictEqual(document.activeElement,input);assert.strictEqual(results.hidden,false);
@@ -100,7 +101,7 @@ for(const locale of ['qps-ploc','qps-ploc','unavailable','en']){
     def test_pending_preview_uses_current_locale_without_reposting(self):
         self.run_js(r'''
 let release;context.API.post=(path,payload)=>{calls.push({path,payload});return new Promise(resolve=>release=resolve);};
-const pending=context.previewSetupChanges();await tick();context.applySetupUiLocale('qps-ploc');release(response());await pending;
+const pending=context.previewSetupChanges();await tick();context.applyUiLocale('qps-ploc');release(response());await pending;
 const row=document.getElementById('setup-preview-changes').children[0];
 assert.strictEqual(row.children[2].children[0].children[0].textContent,'[Saaveed]');
 assert.strictEqual(row.children[2].children[1].children[0].textContent,'[Woouuld saavee]');
@@ -109,8 +110,8 @@ assert.strictEqual(calls.length,1);assert.strictEqual(document.getElementById('s
 
     def test_preview_chrome_localizes_real_markup_and_keeps_actions_and_evidence(self):
         self.run_js(r'''
-const keys=['previewAction','previewTitle','previewClose'];
-const nodes=keys.map(key=>body.querySelectorAll('[data-setup-message]').find(node=>node.getAttribute('data-setup-message')===key));
+const keys=['setup.preview.action','setup.preview.title','setup.preview.close'];
+const nodes=keys.map(key=>body.querySelectorAll('[data-i18n]').find(node=>node.getAttribute('data-i18n')===key));
 assert(nodes.every(Boolean));assert.deepStrictEqual(nodes.map(node=>node.textContent),['Preview changes','Settings change preview','Close preview']);
 assert.strictEqual(nodes[0].hasAttribute('data-config-save-action'),true);
 assert.strictEqual(nodes[1].tagName,'H5');assert.strictEqual(nodes[1].getAttribute('tabindex'),'-1');
@@ -122,7 +123,7 @@ const row=document.getElementById('setup-preview-changes').children[0];
 const summary=document.getElementById('setup-preview-default-summary').textContent;assert(summary.length>0);
 const warning=document.getElementById('setup-preview-status').textContent;assert(warning.includes('No settings were applied'));
 for(const locale of ['qps-ploc','qps-ploc','unsupported','en']){
- context.applySetupUiLocale(locale);
+ context.applyUiLocale(locale);
  assert.deepStrictEqual(nodes.map(node=>node.textContent),locale==='qps-ploc'?['[Preeviieew chaangees]','[Seettiings chaangee preeviieew]','[Cloosee preeviieew]']:['Preview changes','Settings change preview','Close preview']);
  assert.deepStrictEqual(nodes.map(node=>JSON.stringify(node.attrs)),attrs);
  assert.strictEqual(panel.hidden,false);
@@ -141,14 +142,14 @@ assert.strictEqual(document.getElementById('setup-preview-results').hidden,true)
         self.run_js(r'''
 let release;context.API.post=(path,payload)=>{calls.push({path,payload});return new Promise(resolve=>release=resolve);};
 for(const count of [0,1,500]){
- const pending=context.previewSetupChanges();await tick();context.applySetupUiLocale('qps-ploc');
+ const pending=context.previewSetupChanges();await tick();context.applyUiLocale('qps-ploc');
  const data=response();data.defaults=Array.from({length:count},()=>({...data.changes[0],was_default:true}));release(data);await pending;
  const summary=document.getElementById('setup-preview-default-summary');
  assert.strictEqual(summary.textContent,'['+count+' miissiing seettiings fiilleed wiith deefaauults]');
- assert.strictEqual(summary.getAttribute('data-setup-count'),String(count));
+ assert.strictEqual(summary.getAttribute('data-i18n-count'),String(count));
  const row=document.getElementById('setup-preview-defaults').children[0];const payload=JSON.stringify(calls[calls.length-1].payload);const requests=calls.length;
  for(const locale of ['qps-ploc','qps-ploc','unsupported','en']){
-  context.applySetupUiLocale(locale);
+  context.applyUiLocale(locale);
   assert.strictEqual(summary.textContent,locale==='qps-ploc'?'['+count+' miissiing seettiings fiilleed wiith deefaauults]':count+' missing settings filled with defaults');
   assert.strictEqual(document.getElementById('setup-preview-default-details').hidden,!count);
   assert.strictEqual(document.getElementById('setup-preview-defaults').children.length,count);

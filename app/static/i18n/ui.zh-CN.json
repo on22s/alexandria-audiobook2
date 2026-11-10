@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "locale": "zh-CN",
+    "generated_from": "35e28f19",
+    "reviewers": [],
+    "review_status": {
+      "all": "machine-draft",
+      "safety": "not-reviewed"
+    }
+  },
+  "setup.finder.clear": "清除",
+  "setup.finder.hint": "在当前可用的服务中搜索设置名称和说明。",
+  "setup.finder.label": "查找设置",
+  "setup.finder.limited": "仅显示前 {limit} 项；请缩小搜索范围以获得更精确的结果。",
+  "setup.finder.many": "匹配到 {count} 项设置。",
+  "setup.finder.none": "当前服务没有匹配的设置。请换一个名称或描述。",
+  "setup.finder.one": "匹配到 {count} 项设置。",
+  "setup.finder.opened": "已定位到原始设置。如需应用修改，请点击 Save Configuration。",
+  "setup.finder.placeholder": "试试输入上下文、内存、语言或重试次数",
+  "setup.locale.storage_notice": "浏览器存储不可用；此界面偏好在重新加载前仅对当前标签页生效。",
+  "setup.preview.action": "预览更改",
+  "setup.preview.close": "关闭预览",
+  "setup.preview.defaults": "已用默认值补全 {count} 项缺失设置",
+  "setup.preview.saved": "已保存",
+  "setup.preview.title": "设置更改预览",
+  "setup.preview.would_save": "将保存"
+}

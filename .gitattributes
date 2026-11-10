@@ -22,6 +22,7 @@ results_index.csv                               merge=ours
 LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md          merge=ours
 ab_test_runtime/audit/*.json                    merge=ours
 app/tests/unit_test_inventory.json              merge=ours
+app/static/i18n/ui.en.json                      merge=ours
 
 # Pinned vendor hashes require identical bytes even with core.autocrlf=true.
 app/static/vendor/**                            -text
@@ -55,6 +56,7 @@ app/fixtures/**/*.json                          text eol=lf
 ab_test_runtime/audit/**/*.json                 text eol=lf
 app/experiments/**/*.py                         text eol=lf
 app/tests/unit_test_inventory.json              text eol=lf
+app/static/i18n/ui.en.json                      text eol=lf
 RESULTS_INDEX.md                                text eol=lf
 results_index.csv                               text eol=lf
 LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md            text eol=lf

@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "locale": "en",
+    "source": "harvested"
+  },
+  "setup.finder.clear": "Clear",
+  "setup.finder.hint": "Search labels and help for your current services.",
+  "setup.finder.label": "Find a setting",
+  "setup.finder.limited": "Showing the first {limit}; refine your search for more specific results.",
+  "setup.finder.many": "{count} matching settings.",
+  "setup.finder.none": "No matching settings for your current services. Try another label or description.",
+  "setup.finder.one": "{count} matching setting.",
+  "setup.finder.opened": "Showing the original setting. Save Configuration to apply any edits.",
+  "setup.finder.placeholder": "Try context, memory, language or retries",
+  "setup.locale.storage_notice": "Browser storage is unavailable; this UI preference applies only to this tab until reload.",
+  "setup.preview.action": "Preview changes",
+  "setup.preview.close": "Close preview",
+  "setup.preview.defaults": "{count} missing settings filled with defaults",
+  "setup.preview.saved": "Saved",
+  "setup.preview.title": "Settings change preview",
+  "setup.preview.would_save": "Would save"
+}

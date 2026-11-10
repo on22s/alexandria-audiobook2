@@ -41,12 +41,14 @@ const key=field('llm-key','API Key',section);
 const queryAll=document.querySelectorAll.bind(document);
 document.querySelectorAll=selector=>selector==='#config-form [data-settings-section]'?form.querySelectorAll('[data-settings-section]'):selector.startsWith('#config-form ')?form.querySelectorAll('input,select,textarea'):queryAll(selector);
 let revealed=null;context.openConfigField=node=>{revealed=node;details.open=true;node.focus();};
+context.navigator={languages:['en-US']};
 for(const [filename,name] of [[process.argv[3],'setLocalStorageValue'],[process.argv[4],'applySystemStatusText']]){
  const source=fs.readFileSync(filename,'utf8');
  const start=source.indexOf('function '+name+'(');assert(start>=0);
  const end=source.indexOf('\n        }',start);assert(end>start);
  vm.runInContext(source.slice(start,end+10),context);
 }
+vm.runInContext(fs.readFileSync(process.argv[5],'utf8'),context);
 vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);
 '''
 
@@ -58,39 +60,38 @@ class SettingsDiscoveryTests(unittest.TestCase):
                               locale_setup+"vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);")
         result = subprocess.run(['node', '-e', DOM_FIXTURE+setup+script,
                                  str(STATIC/'js/app-help.js'), str(STATIC/'js/app-settings.js'),
-                                 str(STATIC/'js/app-core.js'), str(STATIC/'js/app-workbench.js')],
+                                 str(STATIC/'js/app-core.js'), str(STATIC/'js/app-workbench.js'),
+                                 str(STATIC/'js/app-i18n.js')],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
     def test_message_fallback_placeholders_and_plain_text_values(self):
         self.run_js(r'''
-assert.equal(context.getSetupUiMessage('one',{count:0},'unavailable-locale'),'0 matching setting.');
-assert.equal(context.getSetupUiMessage('missing-key'), 'missing-key');
-assert.equal(context.getSetupUiMessage('toString'), 'toString');
+assert.equal(context.t('setup.finder.one','{count} matching setting.',{count:0},'unavailable-locale'),'0 matching setting.');
+assert.equal(context.t('setup.finder.missing','Authored English fallback'),'Authored English fallback');
+assert.equal(context.t('toString','Authored inherited-key fallback'),'Authored inherited-key fallback');
 assert.equal(context.formatUiMessage('Hello {name}',undefined,{name:'<img onerror=bad()>'}),'Hello <img onerror=bad()>');
 assert.equal(context.formatUiMessage('Hello {name}','Wrong {other}',{name:'Safe'}),'Hello Safe');
 assert.equal(context.formatUiMessage('Hello {name}','',{name:'Safe'}),'Hello Safe');
 assert.equal(context.formatUiMessage('Hello {name}','{name} repeats {name}',{name:'{other}'}),'{other} repeats {other}');
-assert.throws(()=>context.getSetupUiMessage('one',{}),/Missing or invalid/);
-assert.throws(()=>context.getSetupUiMessage('one',{count:NaN}),/Missing or invalid/);
-const pseudo=context.getSetupUiMessage('none',{},'qps-ploc');
-assert(pseudo.startsWith('[')&&pseudo.length>context.getSetupUiMessage('none').length);
-assert.equal(context.getSetupUiMessage('many',{count:12},'qps-ploc'),'[12 maatchiing seettiings.]');
+assert.throws(()=>context.t('setup.finder.one','{count} matching setting.',{}),/Missing or invalid/);
+assert.throws(()=>context.t('setup.finder.one','{count} matching setting.',{count:NaN}),/Missing or invalid/);
+assert.throws(()=>context.t('setup.finder.one'),/Missing English text/);
+const pseudo=context.t('setup.finder.none','No matching settings for your current services. Try another label or description.',{},'qps-ploc');
+assert(pseudo.startsWith('[')&&pseudo.length>context.t('setup.finder.none','No matching settings for your current services. Try another label or description.').length);
+assert.equal(context.t('setup.finder.many','{count} matching settings.',{count:12},'qps-ploc'),'[12 maatchiing seettiings.]');
 ''')
 
     def test_unknown_markup_keeps_english_fallback_and_unsupported_rtl_stays_english(self):
         self.run_js(r'''
-const fallback=overview.appendChild(new Element('div',{'data-setup-message':'future-message'}));
+const fallback=overview.appendChild(new Element('div',{'data-i18n':'setup.finder.future-message'}));
 fallback.textContent='Future English fallback <img onerror=bad()>';
-const placeholder=overview.appendChild(new Element('input',{'data-setup-message':'future-placeholder'}));
-placeholder.placeholder='Future English placeholder';
-const inherited=overview.appendChild(new Element('div',{'data-setup-message':'toString'}));inherited.textContent='English inherited-key fallback';
-const label=overview.appendChild(new Element('label',{'data-setup-message':'label'}));
+const placeholder=overview.appendChild(new Element('input',{'data-i18n-attr':'placeholder:setup.finder.future-placeholder'}));
+placeholder.setAttribute('placeholder','Future English placeholder');
+const inherited=overview.appendChild(new Element('div',{'data-i18n':'toString'}));
+inherited.textContent='English inherited-key fallback';
+const label=overview.appendChild(new Element('label',{'data-i18n':'setup.finder.label'}));label.textContent='Find a setting';
 const selector=overview.appendChild(new Element('select',{id:'setup-ui-locale'}));
-for(const node of [fallback,placeholder,inherited]){
- const text=node.textContent;Object.defineProperty(node,'textContent',{get:()=>text,set:()=>assert.fail('Unknown message must retain authored text')});
-}
-Object.defineProperty(placeholder,'placeholder',{get:()=>'Future English placeholder',set:()=>assert.fail('Unknown message must retain authored placeholder')});
 for(const property of ['innerHTML','outerHTML']){Object.defineProperty(Element.prototype,property,{set:()=>assert.fail('HTML sink is forbidden')});}
 Element.prototype.insertAdjacentHTML=()=>assert.fail('HTML sink is forbidden');
 document.documentElement=new Element('html');
@@ -98,12 +99,17 @@ Object.defineProperty(Element.prototype,'dir',{get(){return this.getAttribute('d
 for(const node of [body,document.documentElement]){Object.defineProperty(node.style,'direction',{get:()=>'',set:()=>assert.fail('Locale must not change direction')});}
 const original=JSON.stringify(form.querySelectorAll('[id]').map(node=>node.attrs));
 for(const locale of ['qps-ploc','ar','he','unsupported',null,'en']){
- context.applySetupUiLocale(locale);
- assert.equal(fallback.textContent,'Future English fallback <img onerror=bad()>');
- assert.equal(placeholder.placeholder,'Future English placeholder');
- assert.equal(inherited.textContent,'English inherited-key fallback');
+ context.applyUiLocale(locale);
+ if(locale==='qps-ploc'){
+  assert(fallback.textContent.startsWith('['));assert(placeholder.getAttribute('placeholder').startsWith('['));assert(inherited.textContent.startsWith('['));
+ }else{
+  assert.equal(fallback.textContent,'Future English fallback <img onerror=bad()>');
+  assert.equal(placeholder.getAttribute('placeholder'),'Future English placeholder');
+  assert.equal(inherited.textContent,'English inherited-key fallback');
+ }
  assert.equal(label.textContent,locale==='qps-ploc'?'[Fiind aa seettiing]':'Find a setting');
  assert.equal(selector.value,locale==='qps-ploc'?'qps-ploc':'en');
+ assert.equal(document.documentElement.getAttribute('lang'),locale==='qps-ploc'?'qps-ploc':'en');
  assert.equal(JSON.stringify(form.querySelectorAll('[id]').map(node=>node.attrs)),original);
  assert.equal(body.getAttribute('dir'),null);
  assert.equal(document.documentElement.getAttribute('dir'),null);
@@ -113,11 +119,11 @@ for(const locale of ['qps-ploc','ar','he','unsupported',null,'en']){
     def test_locale_restoration_storage_events_and_configuration_isolation(self):
         self.run_js(r'''
 assert.equal(selector.value,'qps-ploc');assert(label.textContent.startsWith('['));
-assert(search.placeholder.startsWith('['));
+assert(search.getAttribute('placeholder').startsWith('['));
 search.value='memory';context.renderSetupSettingsSearch();assert(status.textContent.startsWith('[1 '));
 assert.strictEqual(document.getElementById('llm-context-length'),budget);
 const fingerprint=()=>JSON.stringify(form.querySelectorAll('[id]').map(node=>[node.attrs,node.textContent,node.style]));
-const original=fingerprint();context.changeSetupUiLocale('en');
+const original=fingerprint();context.changeUiLocale('en');
 assert.equal(saved.get('alex-ui-locale'),'en');assert.equal(label.textContent,'Find a setting');
 assert.equal(fingerprint(),original);assert.equal(search.value,'memory');
 saved.set('alex-ui-locale','qps-ploc');assert.equal(selector.value,'en');
@@ -128,18 +134,18 @@ storageEvent({key:'alex-ui-locale',newValue:'qps-ploc',storageArea:store});asser
 assert.strictEqual(results.children[0],row);assert.strictEqual(document.activeElement,hit);
 assert(status.textContent.startsWith('[1 '));
 context.openSetupSetting('llm-context-length');assert(results.hidden);assert.equal(results.children.length,0);
-context.changeSetupUiLocale('en');assert(results.hidden);assert.equal(results.children.length,0);
+context.changeUiLocale('en');assert(results.hidden);assert.equal(results.children.length,0);
 assert.equal(status.textContent,'Showing the original setting. Save Configuration to apply any edits.');
 storageEvent({key:'alex-ui-locale',newValue:'unsupported',storageArea:store});assert.equal(selector.value,'en');
-context.changeSetupUiLocale('qps-ploc');
+context.changeUiLocale('qps-ploc');
 storageEvent({key:null,newValue:null,storageArea:store});assert.equal(selector.value,'en');
 assert(results.hidden);assert(status.textContent.includes('Save Configuration'));
-context.clearSetupSettingsSearch();context.changeSetupUiLocale('qps-ploc');assert.equal(status.textContent,'');
+context.clearSetupSettingsSearch();context.changeUiLocale('qps-ploc');assert.equal(status.textContent,'');
 assert.equal(fingerprint(),original);
 ''', r'''
 const selector=overview.appendChild(new Element('select',{id:'setup-ui-locale'}));
-const label=overview.appendChild(new Element('label',{'data-setup-message':'label'}));
-search.setAttribute('data-setup-message','placeholder');
+const label=overview.appendChild(new Element('label',{'data-i18n':'setup.finder.label'}));label.textContent='Find a setting';
+search.setAttribute('data-i18n-attr','placeholder:setup.finder.placeholder');search.setAttribute('placeholder','Try context, memory, language or retries');
 overview.appendChild(new Element('div',{id:'setup-ui-locale-status'}));
 const saved=new Map([['alex-ui-locale','qps-ploc']]);let storageEvent;
 const store={getItem:key=>saved.get(key)||null,setItem:(key,value)=>saved.set(key,value)};context.localStorage=store;
@@ -148,8 +154,10 @@ context.window.addEventListener=(type,callback)=>{assert.equal(type,'storage');s
 
     def test_blocked_locale_storage_is_visible_and_preference_remains_tab_only(self):
         self.run_js(r'''
-assert.equal(selector.value,'en');assert(storageStatus.textContent.includes('only to this tab'));context.changeSetupUiLocale('qps-ploc');
-assert.equal(selector.value,'qps-ploc');assert(storageStatus.textContent.includes('only to this tab'));
+const notice=()=>context.t('setup.locale.storage_notice','Browser storage is unavailable; this UI preference applies only to this tab until reload.');
+assert.equal(selector.value,'en');assert.equal(storageStatus.textContent,notice());
+context.changeUiLocale('qps-ploc');
+assert.equal(selector.value,'qps-ploc');assert.equal(storageStatus.textContent,notice());assert(storageStatus.textContent.startsWith('['));
 search.value='api key';context.renderSetupSettingsSearch();assert(status.textContent.startsWith('[1 '));
 assert.equal(results.children[0].children[0].textContent,'API Key · Language model');
 ''', r'''
@@ -242,6 +250,8 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
         self.assertEqual(len(inventory.ids),len(set(inventory.ids)))
         paths=[s['src'].split('?')[0] for s in inventory.scripts]
         self.assertLess(paths.index('/static/js/app-help.js'),paths.index('/static/js/app-settings.js'))
+        self.assertLess(paths.index('/static/js/app-i18n.js'),paths.index('/static/js/app-settings.js'))
+        self.assertLess(paths.index('/static/js/app-i18n.js'),paths.index('/static/js/app-core.js'))
         self.assertTrue(all(s.get('type')!='module' for s in inventory.scripts))
 
     def test_markup_message_defaults_and_locale_options_match_catalog(self):
@@ -260,15 +270,16 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
                     self.locale = attrs.get('id') == 'setup-ui-locale'
                 if tag == 'option' and self.locale:
                     self.options.append(attrs['value'])
-                if 'data-setup-message' in attrs:
-                    key = attrs['data-setup-message']
-                    if 'data-setup-count' in attrs:
-                        self.values[key] = {'count': int(attrs['data-setup-count'])}
-                    if tag == 'input':
-                        self.messages[key] = attrs['placeholder']
-                    else:
-                        self.current = key
-                        self.messages[key] = ''
+                if 'data-i18n' in attrs:
+                    key = attrs['data-i18n']
+                    if 'data-i18n-count' in attrs:
+                        self.values[key] = {'count': int(attrs['data-i18n-count'])}
+                    self.current = key
+                    self.messages[key] = ''
+                for entry in (attrs.get('data-i18n-attr') or '').split(','):
+                    attribute, _, key = entry.partition(':')
+                    if attribute.strip() and key.strip():
+                        self.messages[key.strip()] = attrs[attribute.strip()]
 
             def handle_data(self, data):
                 if self.current is not None:
@@ -281,12 +292,17 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
 
         markup = Messages()
         markup.feed((STATIC/'index.html').read_text(encoding='utf-8'))
-        self.assertEqual(markup.options, ['en', 'qps-ploc'])
-        self.assertEqual(set(markup.messages), {'label', 'placeholder', 'clear', 'hint',
-                                               'previewAction', 'previewTitle', 'previewClose', 'previewDefaults'})
+        english = json.loads((STATIC/'i18n/ui.en.json').read_text(encoding='utf-8'))
+        english.pop('_meta')
+        self.assertEqual(markup.options, ['en', 'zh-CN', 'ja', 'es-419', 'qps-ploc'])
+        self.assertLessEqual(set(markup.messages), set(english))
+        for key, text in markup.messages.items():
+            self.assertEqual(' '.join(text.split()), english[key], key)
         self.run_js('for(const [key,text] of Object.entries('+json.dumps(markup.messages)+')) {'
-                    'assert.equal(context.getSetupUiMessage(key,('+json.dumps(markup.values)+')[key]||{}),text);'
-                    'assert(!/[{}]/.test(text));}')
+                    'const values=('+json.dumps(markup.values)+')[key]||{};'
+                    'const expected=Object.entries(values).reduce((result,[name,value])=>result.split("{"+name+"}").join(String(value)),text);'
+                    'assert.equal(context.t(key,text,values),expected);'
+                    'assert(!/[{}]/.test(expected));}')
 
 
 def contrast(a,b):
