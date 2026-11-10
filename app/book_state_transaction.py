@@ -80,6 +80,10 @@ def _capture_target_parent_identities(root_fd, relative):
 
 
 WINDOWS_PARENT_SCHEME = 'windows-path'
+# Retained recovery evidence (#1660): never a workspace, never deleted. Both
+# share the reserved .book-switch- prefix, so no book target may use them.
+QUARANTINE_PREFIX = '.book-switch-quarantine-'
+MIGRATION_PREFIX = '.book-switch-migration-'
 
 
 def _capture_target_parent_identities_path(root, relative):
@@ -1392,7 +1396,8 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
 
 
 @_refuse_book_io('Active-book journal could not be read')
-def _read_book_journal(path):
+def _read_book_journal(path, *, include_raw=False):
+    """-> (data, version), or (data, version, raw bytes) with include_raw."""
     before = _book_target_version(path)
     if not stat.S_ISREG(before[5]) or before[6] != 1 or before[2] > MAX_BOOK_JOURNAL_BYTES:
         raise ValueError('Active-book journal must be a bounded regular file')
@@ -1411,11 +1416,11 @@ def _read_book_journal(path):
     if _book_target_version(path) != before:
         raise ValueError('Active-book journal changed while reading')
     try:
-        return (json.loads(raw, object_pairs_hook=_journal_pairs,
-                parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid journal number'))),
-                before)
+        data = json.loads(raw, object_pairs_hook=_journal_pairs,
+                          parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid journal number')))
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid active-book transaction') from error
+    return (data, before, raw) if include_raw else (data, before)
 
 
 def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None,
@@ -2476,7 +2481,9 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
             or data.get('phase') not in ('publishing', 'recovered', 'committed')):
         raise ValueError('Invalid active-book transaction')
     name = data.get('workspace')
-    if not isinstance(name, str) or not name.startswith('.book-switch-') or Path(name).name != name:
+    if (not isinstance(name, str) or not name.startswith('.book-switch-') or Path(name).name != name
+            or _is_retained_evidence_name(name)):
+        # A journal must never point recovery at retained evidence (#1660).
         raise ValueError('Invalid active-book workspace')
     workspace = _get_path(root, name)
     persisted_workspace_identity = data.get('workspace_identity')
@@ -2783,15 +2790,33 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
     return True
 
 
+def _is_retained_evidence_name(name):
+    """Whether a root name is reserved for quarantine/migration evidence.
+
+    Case-folded: Windows and macOS open the same directory for any casing."""
+    return name.casefold().startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))
+
+
 @contextlib.contextmanager
-def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
-    """Serialize book operations and recover pending switches before use."""
+def book_operator_locked(data_dir, timeout=10):
+    """Hold the book-operation lock on the admitted root -> (root, identity).
+
+    The one way to take that lock (#1660): ensure_book_state and the operator
+    recovery command both use it. No recovery and no book admission happen
+    here; a held lock times out with TimeoutError."""
     # Refuse an already-aliased root before opening a lock file through it.
     initial_root, initial_identity = _direct_book_root(data_dir)
     with file_lock(str(initial_root / JOURNAL), timeout=timeout):
         root, identity = _direct_book_root(data_dir)
         if root != initial_root or identity != initial_identity:
             raise ValueError('Book root changed during admission')
+        yield root, identity
+
+
+@contextlib.contextmanager
+def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
+    """Serialize book operations and recover pending switches before use."""
+    with book_operator_locked(data_dir, timeout=timeout) as (root, identity):
         if recover:
             recover_book_state_locked(
                 root, cancel_check=cancel_check, expected_root=root,
@@ -2812,6 +2837,94 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
         finally:
             scope.active = False
             _held_books.reset(token)
+
+
+def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES):
+    """-> a read-only report of a book root's pending transaction (#1660).
+
+    For operators and the recovery command: the journal (version, phase,
+    workspace, digest of its exact bytes), each entry's expected identity
+    beside what the name holds now, the workspace listing, and any retained
+    quarantine/migration evidence. Nothing is written or moved, no book
+    artifact is hashed, and a malformed journal is reported rather than
+    raised. Pass the admitted root; hold book_operator_locked for a snapshot
+    consistent with the recovery that follows.
+    """
+    from book_recovery_archive import MAX_FILES
+    if type(entry_limit) is not int or not 1 <= entry_limit <= MAX_LEGACY_CLEANUP_ENTRIES:
+        raise ValueError('Invalid inspect entry limit')
+    root = Path(root)
+    def observe(path):
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            return {'exists': False}
+        except (OSError, ValueError) as error:
+            return {'exists': None, 'error': f'{type(error).__name__}: {error}'}
+        kind = ('directory' if stat.S_ISDIR(info.st_mode) else 'file' if stat.S_ISREG(info.st_mode)
+                else 'link' if stat.S_ISLNK(info.st_mode) else 'other')
+        return {'exists': True, 'kind': kind, 'identity': list(_book_info_version(info))}
+    def listing(directory):
+        names, truncated = [], False
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    if len(names) >= entry_limit:
+                        truncated = True
+                        break
+                    names.append(entry.name)
+        except OSError as error:
+            return {'status': 'unreadable', 'error': f'{type(error).__name__}: {error}'}
+        return {'status': 'truncated' if truncated else 'complete', 'names': sorted(names)}
+    root_listing = listing(root)
+    report = {'root': str(root), 'journal': {'present': False}, 'entries': [],
+              'retained': [name for name in root_listing.get('names', [])
+                           if _is_retained_evidence_name(name)],
+              'retained_status': root_listing['status']}
+    if 'error' in root_listing:
+        report['retained_error'] = root_listing['error']
+    journal = root / JOURNAL
+    if not os.path.lexists(journal):
+        return report
+    try:
+        data, _version, raw = _read_book_journal(journal, include_raw=True)
+    except (OSError, ValueError) as error:
+        report['journal'] = {'present': True, 'error': f'{type(error).__name__}: {error}'}
+        return report
+    summary = {'present': True, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+    if not isinstance(data, dict):
+        summary['error'] = 'Journal is not an object'
+        report['journal'] = summary
+        return report
+    for key in ('version', 'phase', 'workspace', 'workspace_identity', 'target_parent_identity_scheme'):
+        summary[key] = data.get(key)
+    summary['stream'] = 'stream_limits' in data
+    summary['parent_chains'] = 'target_parent_identities' in data
+    name = data.get('workspace')
+    if isinstance(name, str) and name.startswith('.book-switch-') and Path(name).name == name:
+        workspace = root / name
+        summary['workspace_state'] = observe(workspace)
+        if summary['workspace_state'].get('kind') == 'directory':
+            summary['workspace_listing'] = listing(workspace)
+    report['journal'] = summary
+    rows = data.get('entries')
+    if isinstance(rows, list) and len(rows) > MAX_FILES:
+        # Recovery refuses this many rows; never walk a 32 MB journal's worth.
+        summary['error'] = f'Journal has {len(rows)} entries; at most {MAX_FILES} are recoverable'
+        return report
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            report['entries'].append({'error': 'Entry is not an object'})
+            continue
+        path = row.get('path')
+        entry = {'path': path, 'expected': {key: row.get(key) for key in (
+            'existed', 'old_sha256', 'new_sha256', 'old_file_identity', 'new_file_identity')}}
+        try:
+            entry['current'] = observe(_get_path(root, path))
+        except (OSError, ValueError, TypeError) as error:
+            entry['current'] = {'exists': None, 'error': f'{type(error).__name__}: {error}'}
+        report['entries'].append(entry)
+    return report
 
 
 @contextlib.contextmanager
