@@ -10,6 +10,7 @@ import io
 import json
 from editor_poll_snapshot import get_snapshot_digest
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -960,9 +961,23 @@ def _verify_committed_stream_targets(rows, targets, budget):
             _validate_stream_replacement(row, target, budget)
 
 
+_WORKSPACE_ENTRY_NAME = re.compile(r'(?:old|new|discard)-(0|[1-9][0-9]*)')
+
+
 def _get_workspace_entry_index(name):
-    """-> the row a validated workspace entry (old-N, new-N, discard-N) belongs to."""
-    return int(name.rsplit('-', 1)[1])
+    """-> the row a validated workspace entry (old-N, new-N, discard-N) belongs to.
+
+    Strict: any other form raises, so a future entry kind cannot silently turn
+    the pre-deletion recheck into a check of no row at all."""
+    match = _WORKSPACE_ENTRY_NAME.fullmatch(name)
+    if match is None:
+        raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
+    return int(match.group(1))
+
+
+def _require_cleanup_row_index(index, rows):
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(rows):
+        raise ValueError('Book transaction workspace contains unowned data; cleanup was refused')
 
 
 def _verify_stream_cleanup_targets(root, data, *, cancel_check=None, index=None):
@@ -975,6 +990,7 @@ def _verify_stream_cleanup_targets(root, data, *, cancel_check=None, index=None)
     rows = data['entries']
     parent_identities = data.get('target_parent_identities')
     if index is not None:
+        _require_cleanup_row_index(index, rows)
         rows = rows[index:index + 1]
         if parent_identities is not None:
             parent_identities = parent_identities[index:index + 1]
@@ -1810,6 +1826,7 @@ def _unlink_owned_staging_file(workspace, name, directory_fd):
 def _validate_byte_cleanup_targets(rows, targets, phase, cancel_check=None, index=None):
     """Recheck the byte cleanup targets: all rows, or only row `index` (#1660)."""
     if index is not None:
+        _require_cleanup_row_index(index, rows)
         rows, targets = rows[index:index + 1], targets[index:index + 1]
     for row, target in zip(rows, targets):
         _check_stream_cancellation(cancel_check)

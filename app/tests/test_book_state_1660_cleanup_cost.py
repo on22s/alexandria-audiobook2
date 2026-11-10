@@ -35,6 +35,39 @@ class CleanupRecheckCostTests(unittest.TestCase):
             self.assertEqual([], list(root.glob('.book-switch-*')))
             return calls[0]
 
+    def test_each_entry_is_preceded_by_a_recheck_of_its_own_row(self):
+        # Change row 1's target just before the per-entry recheck of row 1:
+        # cleanup must refuse and keep that row's backup. A wrong entry-to-row
+        # mapping would recheck another row and delete old-1.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for index in range(3):
+                (root / f'f{index}.bin').write_bytes(b'old')
+            validate, changed = books._validate_byte_cleanup_targets, []
+            def change_row_one(rows, targets, phase, cancel_check=None, index=None):
+                if index == 1 and not changed:
+                    (root / 'f1.bin').write_bytes(b'writer edit')
+                    changed.append(True)
+                return validate(rows, targets, phase, cancel_check=cancel_check, index=index)
+            with patch.object(books, '_validate_byte_cleanup_targets', side_effect=change_row_one), \
+                    self.assertRaisesRegex(ValueError, 'changed'):
+                with books.ensure_book_state(root):
+                    books.apply_book_state_locked(
+                        root, {f'f{index}.bin': b'new' for index in range(3)}, [])
+            self.assertEqual([True], changed)
+            self.assertEqual(1, len(list(root.glob('.book-switch-*/old-1'))))
+            self.assertEqual(b'writer edit', (root / 'f1.bin').read_bytes())
+
+    def test_entry_names_and_indexes_are_strict(self):
+        for name in ('old-01', 'old--1', 'OLD-0', 'old-1-2', 'x', 'stage-1'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                books._get_workspace_entry_index(name)
+        self.assertEqual(12, books._get_workspace_entry_index('discard-12'))
+        rows, targets = [{'path': 'a'}], [Path('a')]
+        for index in (1, -1, True):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                books._validate_byte_cleanup_targets(rows, targets, 'committed', index=index)
+
     def test_a_targets_hashing_does_not_grow_with_the_target_count(self):
         for kind in ('byte', 'stream'):
             with self.subTest(kind=kind):

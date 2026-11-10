@@ -459,11 +459,11 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
             target.write_bytes(b'original')
             validate = books._validate_byte_cleanup_targets
             changed = []
-            def change_before_validation(rows, targets, phase, cancel_check=None):
+            def change_before_validation(rows, targets, phase, cancel_check=None, index=None):
                 if phase == 'committed' and not changed:
                     target.write_bytes(b'writer edit')
                     changed.append(True)
-                return validate(rows, targets, phase, cancel_check=cancel_check)
+                return validate(rows, targets, phase, cancel_check=cancel_check, index=index)
             with patch.object(books, '_validate_byte_cleanup_targets',
                               side_effect=change_before_validation):
                 with books.ensure_book_state(root), self.assertRaises(ValueError):
