@@ -31,11 +31,29 @@ class PathParentChainTests(unittest.TestCase):
 
     def test_a_parent_that_is_not_a_plain_directory_is_refused(self):
         (self.root / 'sub').write_bytes(b'a file where a folder belongs')
-        with self.assertRaisesRegex(ValueError, 'parent changed'):
+        with self.assertRaisesRegex(ValueError, 'not a plain directory'):
             books._capture_target_parent_identities_path(self.root, 'sub/file.json')
         for bad in ('/abs/file.json', '../escape.json', ''):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 books._capture_target_parent_identities_path(self.root, bad)
+
+    def test_chains_are_rechecked_only_where_they_were_captured(self):
+        chains = [[[1, 2]]]
+        check = books._validate_parent_identity_scheme
+        posix, windows = {'target_parent_identities': chains}, {
+            'target_parent_identities': chains, 'target_parent_identity_scheme': books.WINDOWS_PARENT_SCHEME}
+        check(posix, platform='posix')
+        check(windows, platform='nt')
+        check({}, platform='nt')
+        check({}, platform='posix')
+        for data, platform in ((windows, 'posix'), (posix, 'nt')):
+            with self.subTest(platform=platform), self.assertRaisesRegex(
+                    ValueError, 'cannot be rechecked on this platform'):
+                check(data, platform=platform)
+        for data in ({'target_parent_identity_scheme': books.WINDOWS_PARENT_SCHEME},
+                     {**posix, 'target_parent_identity_scheme': 'bogus'}):
+            with self.subTest(data=data), self.assertRaisesRegex(ValueError, 'parent identity evidence'):
+                check(data, platform='nt')
 
     def test_an_unknown_parent_identity_scheme_is_refused(self):
         workspace = self.root / ('.book-switch-' + '0' * 32)

@@ -27,7 +27,7 @@ TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBook
                        'NativeWindowsPathAdmissionTests': 2, 'NativeWindowsUploadStageTests': 3,
                        'NativeWindowsBookRootSharingTests': 3, 'NativeWindowsUploadRenameRetryTests': 2,
                        'NativeWindowsHandleRenameTests': 4,
-                       'NativeWindowsParentChainTests': 2}
+                       'NativeWindowsParentChainTests': 4}
 ALIAS_STEP = 'Verify aliased temporary roots are canonical before asset admission'
 NORMAL_STEP = 'Verify descriptor-owned uploads through real decoding and cancellation'
 ALIAS_COMMAND = 'python tests/native_windows_sound_temp_root_checks.py'

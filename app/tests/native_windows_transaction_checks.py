@@ -1067,8 +1067,39 @@ class NativeWindowsParentChainTests(unittest.TestCase):
         self.assertTrue((self.root / books.JOURNAL).exists())
         self.assertEqual(b'original', (self.root / 'sub' / 'file.json').read_bytes())
 
+    def test_intermediate_ancestor_swapped_before_recovery_is_refused(self):
+        # Only the grandparent changes: the leaf parent folder (and the file in
+        # it) keep their identities, so only a full-chain recheck can tell.
+        (self.root / 'a' / 'b').mkdir(parents=True)
+        (self.root / 'a' / 'b' / 'file.json').write_bytes(b'original')
+        save, crash = books._save_journal, lambda *a, **k: (_ for _ in ()).throw(self._Crash())
+        with patch.object(books, '_validate_staged_replacement', side_effect=crash),                 patch.object(books, '_retire_unpublished_journal', side_effect=crash),                 self.assertRaises(self._Crash):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {'a/b/file.json': b'replacement'}, [])
+        os.rename(self.root / 'a', self.root / 'a-away')
+        (self.root / 'a').mkdir()
+        os.rename(self.root / 'a-away' / 'b', self.root / 'a' / 'b')
+        with self.assertRaisesRegex(ValueError, 'parent changed'):
+            with books.ensure_book_state(self.root):
+                pass
+        self.assertTrue((self.root / books.JOURNAL).exists())
 
-NATIVE_TEST_COUNT = 40
+    def test_a_junction_parent_is_refused_when_the_chain_is_recorded(self):
+        # A junction that stays inside the book root passes path admission;
+        # recording its chain must still refuse it rather than trust it.
+        real = self.root / 'real'
+        real.mkdir()
+        subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.root / 'j'), str(real)],
+                       check=True, capture_output=True)
+        self.addCleanup(lambda: os.rmdir(self.root / 'j') if (self.root / 'j').exists() else None)
+        with self.assertRaisesRegex(ValueError, 'not a plain directory'):
+            with books.ensure_book_state(self.root):
+                books.apply_book_state_locked(self.root, {}, ['j/absent.json'])
+        self.assertFalse((self.root / books.JOURNAL).exists())
+        self.assertEqual([], list(real.iterdir()))
+
+
+NATIVE_TEST_COUNT = 42
 
 
 def main():

@@ -89,6 +89,11 @@ def _capture_target_parent_identities_path(root, relative):
     parent component, None from the first missing one. A component that is
     not a plain directory (a file, a symlink, or a reparse point such as a
     junction) is refused rather than recorded.
+
+    Path-based, so this is detection evidence for crash recovery, not a
+    boundary: during a move the rename-denying parent guard is the boundary.
+    The evidence is only as strong as the filesystem's directory file IDs
+    (stable on NTFS; a volume reporting st_ino 0 gives no protection).
     """
     if not isinstance(relative, str):
         raise ValueError('Invalid book artifact path')
@@ -97,10 +102,12 @@ def _capture_target_parent_identities_path(root, relative):
     if (path.is_absolute() or path.anchor or path.drive or not path.parts
             or '..' in path.parts or len(path.parts) > 128):
         raise ValueError('Invalid book artifact path')
+
     def identity(info):
+        reparse = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)
         if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                or getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)):
-            raise ValueError('Book artifact parent changed; recovery evidence was preserved')
+                or getattr(info, 'st_file_attributes', 0) & reparse):
+            raise ValueError('Book artifact parent is not a plain directory')
         return [info.st_dev, info.st_ino]
     current = Path(root)
     identities = [identity(os.lstat(current))]
@@ -118,6 +125,26 @@ def _capture_target_parent_identities_path(root, relative):
             continue
         identities.append(identity(info))
     return identities
+
+
+def _validate_parent_identity_scheme(data, platform=None):
+    """Refuse parent chains this platform cannot recheck (#1660).
+
+    No scheme with chains means POSIX no-follow evidence; "windows-path" means
+    path-captured Windows evidence. Each can only be rechecked where it was
+    captured: a POSIX st_ino never matches a Windows file ID, so checking it
+    would misreport "parent changed"."""
+    platform = os.name if platform is None else platform
+    chains, scheme = data.get('target_parent_identities'), data.get('target_parent_identity_scheme')
+    if scheme not in (None, WINDOWS_PARENT_SCHEME):
+        raise ValueError('Invalid active-book parent identity evidence')
+    if chains is None:
+        if scheme is not None:
+            raise ValueError('Invalid active-book parent identity evidence')
+        return
+    if (scheme == WINDOWS_PARENT_SCHEME) != (platform == 'nt'):
+        raise ValueError('Book artifact parent evidence cannot be rechecked on this platform; '
+                         'recovery evidence was preserved')
 
 
 def _require_target_parent_identities(root_fd, relative, expected):
@@ -166,7 +193,7 @@ def _require_transaction_parent_identities(root, names, evidence, *, root_fd=Non
             _check_stream_cancellation(cancel_check)
             try:
                 current = _capture_target_parent_identities_path(root, name)
-            except OSError as error:
+            except (OSError, ValueError) as error:
                 raise ValueError('Book artifact parent changed; recovery evidence was preserved') from error
             if current != expected:
                 raise ValueError('Book artifact parent changed; recovery evidence was preserved')
@@ -1412,8 +1439,9 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                 if (anchor_identity is not None and
                         (current_root.st_dev, current_root.st_ino) != anchor_identity):
                     raise ValueError('Book move root changed; recovery evidence was preserved')
-                for parent_path, expected in ((Path(source).parent, source_parent_identity),
-                                               (Path(destination).parent, destination_parent_identity)):
+                for moved, expected in ((Path(source), source_parent_identity),
+                                        (Path(destination), destination_parent_identity)):
+                    parent_path = moved.parent
                     if expected is None:
                         continue
                     if not isinstance(expected, (list, tuple)) or not expected:
@@ -1422,6 +1450,15 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                         if any(not isinstance(pair, (list, tuple)) or len(pair) != 2
                                or any(type(value) is not int or value < 0 for value in pair)
                                for pair in expected):
+                            raise ValueError('Book move parent changed; recovery evidence was preserved')
+                        # A full persisted chain: recheck every ancestor, as the
+                        # POSIX branch does, not only the leaf parent (#1660).
+                        try:
+                            current = _capture_target_parent_identities_path(
+                                anchor, moved.relative_to(anchor).as_posix())
+                        except (OSError, ValueError) as error:
+                            raise ValueError('Book move parent changed; recovery evidence was preserved') from error
+                        if current != [list(pair) for pair in expected]:
                             raise ValueError('Book move parent changed; recovery evidence was preserved')
                         chain = expected[-1]
                     else:
@@ -2478,11 +2515,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
            for name in names):
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
-    scheme = data.get('target_parent_identity_scheme')
-    if scheme not in (None, WINDOWS_PARENT_SCHEME) or scheme is not None and (
-            parent_identities is None or os.name != 'nt'):
-        # A path-captured Windows chain can only be rechecked on Windows.
-        raise ValueError('Invalid active-book parent identity evidence')
+    _validate_parent_identity_scheme(data)
     if parent_identities is not None:
         _require_transaction_parent_identities(
             root, names, parent_identities, cancel_check=cancel_check)
