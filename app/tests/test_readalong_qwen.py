@@ -258,6 +258,25 @@ class QwenReceiptTests(unittest.TestCase):
 
 
 class QwenBuildTests(_FixtureMixin):
+    def test_builder_accepts_canonical_capability_runtime_identity(self):
+        tmp = self._mkdtmp()
+        upstream = self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        capability = self._capability(tmp, upstream)
+        capability['runtime_identity'] = capability.pop('runtime')
+        timing = dict(timing_mode='qwen', device='cpu', language=None,
+                      provider_digest=capability['provider_digest'], capability=capability,
+                      qwen_asr_version='0.0.6', torch_version='2.10.0+cpu', dtype='float32')
+        import qwen_runtime
+        from readalong_export import build_epub_export
+        fake = Path(__file__).resolve().parent / 'fixtures' / 'qwen_fake_worker.py'
+        with patch.object(qwen_runtime, 'get_qwen_worker_command', lambda _py: [sys.executable, str(fake)]):
+            success, message = build_epub_export(manager, lambda: False, timing=timing)
+        self.assertTrue(success, message)
+        receipt = json.loads((Path(tmp) / 'readaloud.receipt.json').read_text(encoding='utf-8'))
+        self.assertEqual('qwen', receipt['timing_mode'])
+        self.assertEqual(capability['provider_digest'], receipt['timing_provider'])
+
     def _capability(self, tmp, upstream_tmp):
         model = Path(upstream_tmp) / "model"
         model.mkdir(exist_ok=True)

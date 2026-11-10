@@ -87,6 +87,8 @@
 
   var timingGeneration = 0;
   var timingListenersBound = false;
+  var timingStatusPending = false;
+  var timingStatusQueued = false;
 
   function bindTimingListeners() {
     // Bound exactly once, independently of any capability fetch, so
@@ -101,18 +103,61 @@
     if (languageEl) { languageEl.addEventListener('change', function () { timingDirty.language += 1; }); }
   }
 
+  function setTimingSelectValue(el, value, missingLabel) {
+    if (el.options) {
+      for (var i = el.options.length - 1; i >= 0; i--) {
+        if (el.options[i]._aa2MissingTimingChoice && el.options[i].value !== value) { el.remove(i); }
+      }
+      var found = false;
+      for (var j = 0; j < el.options.length; j++) {
+        if (el.options[j].value === value) { found = true; break; }
+      }
+      if (!found && value) {
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value + ' (' + missingLabel + ')';
+        option.disabled = true;
+        option._aa2MissingTimingChoice = true;
+        el.appendChild(option);
+      }
+    }
+    el.value = value;
+  }
+
   function applyTimingPreference(preference) {
     if (!preference) { return; }
     var modeEl = document.getElementById('readaloud-timing-mode');
     var deviceEl = document.getElementById('readaloud-timing-device');
     var languageEl = document.getElementById('readaloud-timing-language');
     if (modeEl && !timingDirty.mode) { modeEl.value = preference.timing_mode || 'auto'; }
-    if (deviceEl && !timingDirty.device) { deviceEl.value = preference.timing_device || 'auto'; }
-    if (languageEl && !timingDirty.language) { languageEl.value = preference.timing_language || ''; }
+    if (deviceEl && !timingDirty.device) { setTimingSelectValue(deviceEl, preference.timing_device || 'auto', 'unavailable'); }
+    if (languageEl && !timingDirty.language) { setTimingSelectValue(languageEl, preference.timing_language || '', 'saved choice'); }
   }
 
-  function renderTimingUnknown(el) {
-    el.textContent = 'Timing: capability unknown. Chunk timing (CPU) always works; Qwen needs the isolated environment (see help).';
+  function markTimingDevicesUnknown() {
+    var deviceEl = document.getElementById('readaloud-timing-device');
+    if (!deviceEl) { return; }
+    for (var i = 0; i < deviceEl.options.length; i++) {
+      var option = deviceEl.options[i];
+      if (!['auto', 'cpu'].includes(option.value)) {
+        option.disabled = true;
+        option.textContent = option.value + ' (availability unknown)';
+      }
+    }
+  }
+
+  function renderTimingUnknown(el, error) {
+    markTimingDevicesUnknown();
+    var detail = error && typeof error.message === 'string' ? ' ' + error.message.slice(0, 512) : '';
+    el.textContent = 'Timing: capability unknown.' + detail + ' Chunk timing uses CPU; Qwen needs the isolated environment (see help).';
+  }
+
+  function finishTimingStatus() {
+    timingStatusPending = false;
+    if (timingStatusQueued) {
+      timingStatusQueued = false;
+      refreshTimingStatus();
+    }
   }
 
   function refreshTimingStatus() {
@@ -121,11 +166,21 @@
     if (!el) { return; }
     var generation = ++timingGeneration;
     el.textContent = 'Timing: checking what this machine can run…';
+    markTimingDevicesUnknown();
+    if (timingStatusPending) {
+      timingStatusQueued = true;
+      return;
+    }
+    timingStatusPending = true;
     var request;
     try {
-      request = API.get('/api/readaloud_epub/capability');
+      request = API.get('/api/readaloud_epub/capability', {
+        timeoutMs: 150000,
+        timeoutMessage: 'The capability check timed out. Qwen readiness is unknown; chunk timing remains available.',
+      });
     } catch (error) {
-      renderTimingUnknown(el);
+      renderTimingUnknown(el, error);
+      finishTimingStatus();
       return;
     }
     Promise.resolve(request).then(function (info) {
@@ -155,14 +210,7 @@
           option.textContent = name;
           deviceEl.appendChild(option);
         });
-        if (desired && !deviceNames.includes(desired)) {
-          var unavailable = document.createElement('option');
-          unavailable.value = desired;
-          unavailable.textContent = desired + ' (unavailable)';
-          unavailable.disabled = true;
-          deviceEl.appendChild(unavailable);
-        }
-        deviceEl.value = desired;
+        setTimingSelectValue(deviceEl, desired, 'unavailable');
       }
       // Untouched controls follow this book's actual saved preference.
       applyTimingPreference(info.preference);
@@ -172,12 +220,12 @@
         var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');
         el.textContent = 'Timing: Qwen3 ready (' + pinned + '). ' + info.policy.reason;
       } else {
-        el.textContent = 'Timing: Qwen3 not ready (' + (info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : 'unknown')) + '). Chunk timing on CPU always works; see help for the isolated Qwen install.';
+        el.textContent = 'Timing: Qwen3 not ready (' + (info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : 'unknown')) + '). Chunk timing uses CPU; see help for the isolated Qwen install.';
       }
-    }).catch(function () {
+    }).catch(function (error) {
       if (generation !== timingGeneration) { return; }
-      renderTimingUnknown(el);
-    });
+      renderTimingUnknown(el, error);
+    }).finally(finishTimingStatus);
   }
 
   function statusEl(channel) {

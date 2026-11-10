@@ -2691,7 +2691,7 @@ def _validated_epub_bytes():
             "EPUB read-aloud timing settings changed during download; rebuild it."))
     # Resolve/hash outside the book lock; the final identity and provenance
     # fence below rejects concurrent book or source-publication changes.
-    from readalong_export import get_retained_epub_candidate_path
+    from readalong_export import get_retained_epub_candidate_path, get_retained_epub_sha256
     try:
         retained_path = get_retained_epub_candidate_path(input_path)
     except (ValueError, OSError) as error:
@@ -2699,15 +2699,8 @@ def _validated_epub_bytes():
     if not os.path.isfile(retained_path):
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is missing. Re-upload the EPUB and rebuild.")
     try:
-        retained_digest = hashlib.sha256()
-        with open(retained_path, "rb") as retained_handle:
-            while True:
-                block = retained_handle.read(1024 * 1024)
-                if not block:
-                    break
-                retained_digest.update(block)
-        retained_sha = retained_digest.hexdigest()
-    except OSError as error:
+        retained_sha = get_retained_epub_sha256(retained_path)
+    except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable.") from error
     if retained_sha != receipt["retained_epub_sha256"]:
         raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its retained source. Re-upload the EPUB and rebuild.")

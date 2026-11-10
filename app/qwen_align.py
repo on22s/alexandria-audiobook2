@@ -501,7 +501,9 @@ def _partition_long_sentence(text, sentence, rate):
     while index < len(matches):
         stop = index
         while stop < len(matches):
-            if stop > index and (unit_prefix[stop + 1] - unit_prefix[index]) * rate \
+            if stop > index and unit_prefix[stop] > unit_prefix[index] \
+                    and unit_prefix[stop + 1] > unit_prefix[stop] \
+                    and (unit_prefix[stop + 1] - unit_prefix[index]) * rate \
                     > DEFAULT_WINDOW_TARGET_SECONDS:
                 break
             stop += 1
@@ -736,6 +738,8 @@ def validate_sequential_windows(text, planned_windows, windows, merged_tokens,
         if not isinstance(theirs, dict) or theirs.get("text") != mine["text"] \
                 or type(theirs.get("start_time")) not in (int, float) \
                 or type(theirs.get("end_time")) not in (int, float) \
+                or not math.isfinite(theirs["start_time"]) \
+                or not math.isfinite(theirs["end_time"]) \
                 or abs(float(theirs["start_time"]) - mine["start_time"]) > 1e-6 \
                 or abs(float(theirs["end_time"]) - mine["end_time"]) > 1e-6:
             raise ValueError("Alignment merged tokens do not match its windows.")

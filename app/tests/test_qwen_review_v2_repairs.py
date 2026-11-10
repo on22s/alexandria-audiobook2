@@ -81,6 +81,20 @@ class TextlessTailTests(unittest.TestCase):
 
 
 class SentenceResourceTests(unittest.TestCase):
+    def test_long_word_partition_keeps_punctuation_with_spoken_windows(self):
+        import qwen_align as qa
+        for text in ('word word —', '— word word', '— word — word —'):
+            with self.subTest(text=text):
+                windows = qa.get_aligner_windows(300, [dict(start=0, end=len(text), words=2)], text=text)
+                cursor = 0
+                for window in windows:
+                    self.assertEqual(cursor, window['char_start'])
+                    cursor = window['char_end']
+                    self.assertGreater(qa.count_units(text[window['char_start']:cursor]), 0)
+                    self.assertGreater(window['end_sec'], window['start_sec'])
+                    self.assertLessEqual(window['end_sec'] - window['start_sec'], 180)
+                self.assertEqual(len(text), cursor)
+
     def test_source_segment_budget_precedes_normalization(self):
         import epub_readaloud as er
         from tests.test_epub_readaloud_sentences import _source_epub
@@ -200,7 +214,56 @@ class DeepMetadataTests(unittest.TestCase):
 
 
 class RetainedReadResourceTests(_FixtureMixin):
-    def test_canonical_source_obeys_upload_bound_without_second_read(self):
+    def test_readonly_retained_backup_links_preserve_bytes_and_take_policy(self):
+        from audio_take_history import _open_regular
+        from readalong_export import _locate_retained_epub
+        tmp = self._mkdtmp()
+        _editor, manager = self._fixture(tmp)
+        expected, _source = _locate_retained_epub(manager, lambda: False)
+        retained = Path(tmp) / 'book.source.epub'
+        os.link(retained, Path(tmp) / 'retained-backup.epub')
+        self.assertEqual(2, retained.stat().st_nlink)
+        actual, _source = _locate_retained_epub(manager, lambda: False)
+        self.assertEqual(expected, actual)
+        from readalong_export import get_retained_epub_sha256
+        self.assertEqual(hashlib.sha256(expected).hexdigest(), get_retained_epub_sha256(retained))
+        with self.assertRaisesRegex(ValueError, 'hard links'):
+            _open_regular(retained, retained.parent, 2 * 1024**3)
+
+    def test_retained_hash_polls_cancellation(self):
+        from readalong_export import get_retained_epub_sha256
+        from tts import ExportCancelled
+        tmp = self._mkdtmp()
+        self._fixture(tmp)
+        calls = []
+        def cancel():
+            calls.append(True)
+            return len(calls) >= 3
+        with self.assertRaises(ExportCancelled):
+            get_retained_epub_sha256(Path(tmp) / 'book.source.epub', cancel)
+        self.assertGreaterEqual(len(calls), 3)
+
+    def test_retained_hash_refuses_post_read_file_change(self):
+        from readalong_export import get_retained_epub_sha256
+        tmp = self._mkdtmp()
+        self._fixture(tmp)
+        retained = Path(tmp) / 'book.source.epub'
+        before = retained.stat()
+        calls = []
+        def mutate():
+            calls.append(True)
+            if len(calls) == 3:
+                with retained.open('r+b') as handle:
+                    first = handle.read(1)
+                    handle.seek(0)
+                    handle.write(b'X' if first != b'X' else b'Y')
+                os.utime(retained, ns=(before.st_atime_ns, before.st_mtime_ns + 1000000))
+            return False
+        with self.assertRaisesRegex(ValueError, 'changed during read'):
+            get_retained_epub_sha256(retained, mutate)
+        self.assertGreaterEqual(len(calls), 3)
+
+    def test_canonical_source_obeys_retained_read_bound(self):
         import readalong_export as rexp
         tmp = self._mkdtmp()
         _editor, manager = self._fixture(tmp)
@@ -209,6 +272,8 @@ class RetainedReadResourceTests(_FixtureMixin):
         with patch.object(rexp, "MAX_RETAINED_EPUB_BYTES", 64, create=True):
             with self.assertRaisesRegex(ValueError, "Retained EPUB.*bound"):
                 rexp._locate_retained_epub(manager, lambda: False)
+            with self.assertRaisesRegex(ValueError, "Retained EPUB.*bound"):
+                rexp.get_retained_epub_sha256(Path(tmp) / 'book.source.epub')
 
 
 class CodeDigestTests(unittest.TestCase):
@@ -2193,7 +2258,125 @@ class NvmlProbeTests(unittest.TestCase):
 
 
 class JsHarnessTests(unittest.TestCase):
-    def _run_js(self, scenario, marker):
+    def test_unlisted_saved_language_stays_visible_and_clears_on_book_reset(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cpu',timing_language:'Zulu'},capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cpu',reason:'ready'}});
+  await flush(); await flush();
+  ok(_lang.value === 'Zulu', 'saved unlisted language must not silently become derive-from-EPUB');
+  ok(_lang.options.some(function(o) { return o.value === 'Zulu' && o.disabled && o.textContent.indexOf('saved') >= 0; }), 'unlisted saved language must remain identifiable');
+  window.resetReadalongViews();
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cpu',timing_language:'English'},capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cpu',reason:'ready'}});
+  await flush(); await flush();
+  ok(_lang.value === 'English', 'new book language must apply');
+  ok(!_lang.options.some(function(o) { return o.value === 'Zulu'; }), 'old book saved-only option must clear');
+  ok(_device.options.filter(function(o) { return o.value === 'cpu'; }).length === 1, 'valid CPU choice must not grow duplicate unavailable options');
+  console.log('saved-language-visible-ok');
+})();
+""", 'saved-language-visible-ok')
+
+    def test_status_failure_preserves_reason_without_promising_chunk_success(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve(null);
+  await flush(); await flush();
+  API.get = function() { var e = new Error('Persisted timing preference is corrupt; restore it.'); e.status = 409; throw e; };
+  window.resetReadalongViews();
+  ok(_status.textContent.indexOf('corrupt') >= 0, 'actionable settings error must remain visible');
+  ok(_status.textContent.indexOf('always works') < 0, 'corrupt settings must not be advertised as a successful chunk alternative');
+  console.log('capability-error-reason-ok');
+})();
+""", 'capability-error-reason-ok')
+
+    def test_real_request_deadline_aborts_transport_or_body_and_releases_latest_refresh(self):
+        for stage in ('transport', 'body'):
+            with self.subTest(stage=stage):
+                prelude = r"""
+var requests = 0; var firstSignal = null;
+fetch = function(url, options) {
+  requests += 1;
+  if (requests === 1) {
+    firstSignal = options.signal;
+    if (STAGE === 'transport') { return new Promise(function() {}); }
+    return Promise.resolve({ok:true,json:function() { return new Promise(function() {}); }});
+  }
+  return Promise.resolve({ok:true,json:function() { return Promise.resolve({preference:{timing_mode:'chunk',timing_device:'cpu'},capability:{available:false},policy:{timing_mode:'chunk',device:'cpu',reason:'chunk'}}); }});
+};
+var realGet = API.get;
+API.get = function(url, options) {
+  ok(options && options.timeoutMs === 150000, 'production refresh must request its bounded deadline');
+  return realGet(url, {timeoutMs:5,timeoutMessage:options.timeoutMessage});
+};
+""".replace('STAGE', json.dumps(stage))
+                self._run_js(r"""
+(async function() {
+  for (var i = 0; i < 20; i++) { window.resetReadalongViews(); }
+  ok(requests === 1, 'only one stalled request may run');
+  await new Promise(function(resolve) { setTimeout(resolve, 20); });
+  ok(firstSignal.aborted, 'actual shared deadline helper must abort transport/body consumption');
+  ok(requests === 2, 'timeout must release exactly one newest-book refresh');
+  ok(_mode.value === 'chunk' && _device.value === 'cpu', 'fresh result must apply after the timeout');
+  console.log('real-capability-deadline-ok');
+})();
+""", 'real-capability-deadline-ok', actual_api=True, prelude=prelude)
+
+    def test_unknown_refresh_disables_old_gpu_options(self):
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cuda:0'},capability:{available:true,devices:[{device:'cuda:0'}]},policy:{timing_mode:'qwen',device:'cuda:0',reason:'ready'}});
+  await flush(); await flush();
+  ok(_device.options.some(function(o) { return o.value === 'cuda:0' && !o.disabled; }), 'valid initial GPU must be available');
+  API.get = function() { throw new Error('transport fault'); };
+  window.resetReadalongViews();
+  ok(_device.options.some(function(o) { return o.value === 'cuda:0' && o.disabled && o.textContent.indexOf('unknown') >= 0; }), 'unknown capability must not leave an old GPU eligible');
+  ok(_status.textContent.indexOf('unknown') >= 0, 'failure must remain unknown');
+  console.log('unknown-device-options-ok');
+})();
+""", "unknown-device-options-ok")
+
+    def test_rejected_pending_refresh_retries_latest_and_preserves_new_edit(self):
+        self._run_js(r"""
+(async function() {
+  var old = _capabilityDeferred;
+  window.resetReadalongViews();
+  _mode.value = 'chunk'; _mode._listeners.change();
+  old.reject(new Error('old transport fault'));
+  await flush(); await flush();
+  ok(_capabilityDeferred !== old, 'a rejected old request must release the latest queued request');
+  _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cpu'},capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cpu',reason:'ready'}});
+  await flush(); await flush();
+  ok(_mode.value === 'chunk', 'queued response must preserve the newest user edit');
+  ok(_status.textContent.indexOf('ready') >= 0, 'latest request must complete after a prior rejection');
+  console.log('rejected-queued-status-ok');
+})();
+""", "rejected-queued-status-ok")
+
+    def test_status_refreshes_queue_only_latest_book_without_overlapping_requests(self):
+        self._run_js(r"""
+(async function() {
+  var old = _capabilityDeferred;
+  var calls = 0; var get = API.get;
+  API.get = function(url, options) {
+    calls += 1;
+    ok(options && options.timeoutMs === 150000, 'queued probes must use the shared request deadline');
+    return get(url, options);
+  };
+  for (var i = 0; i < 20; i++) { window.resetReadalongViews(); }
+  ok(calls === 0, 'book resets must not multiply pending runtime probes');
+  old.resolve({preference:{timing_device:'cuda:9'},capability:{available:true},policy:{device:'cuda:9'}});
+  await flush(); await flush();
+  ok(calls === 1, 'one fresh request must observe the newest book');
+  ok(_device.value !== 'cuda:9', 'obsolete result must not paint controls');
+  _capabilityDeferred.resolve({preference:{timing_mode:'chunk',timing_device:'cpu'},capability:{available:false},policy:{timing_mode:'chunk',device:'cpu',reason:'chunk'}});
+  await flush(); await flush();
+  ok(_mode.value === 'chunk' && _device.value === 'cpu', 'newest book settings must apply');
+  window.resetReadalongViews();
+  ok(calls === 2, 'completed responses must not become a capability cache');
+  console.log('queued-capability-ok');
+})();
+""", "queued-capability-ok")
+
+    def _run_js(self, scenario, marker, *, actual_api=False, prelude=""):
         import subprocess
         js_path = Path(__file__).resolve().parent.parent / "static" / "js" / "app-readalong.js"
         js = js_path.read_text(encoding="utf-8")
@@ -2226,13 +2409,19 @@ var document = { getElementById: function(id) { return _els[id] || null; },
                  createElement: function(tag) { var e = _mkEl('', tag); e.options = []; return e; } };
 var window = {};
 var _capabilityDeferred = null;
-function _deferred() { var res; var p = new Promise(function(r) { res = r; }); return { promise: p, resolve: res }; }
+function _deferred() { var res, rej; var p = new Promise(function(r, j) { res = r; rej = j; }); return { promise: p, resolve: res, reject: rej }; }
 var API = { get: function(url) { _capabilityDeferred = _deferred(); return _capabilityDeferred.promise; },
             post: function() { return Promise.resolve({}); } };
 function flush() { return new Promise(function(r) { setTimeout(r, 0); }); }
 function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
 """
-        program = stubs + "\n" + js + "\n" + scenario
+        shared_api = ""
+        if actual_api:
+            core = js_path.with_name('app-core.js').read_text(encoding='utf-8')
+            start = core.index('        const API = {')
+            end = core.index('\n        };', start) + len('\n        };')
+            shared_api = core[start:end].replace('const API =', 'API =', 1)
+        program = stubs + "\n" + shared_api + "\n" + prelude + "\n" + js + "\n" + scenario
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
             tmp.write(program)
             path = tmp.name
@@ -2248,6 +2437,8 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
 (async function() {
   _mode.value = 'chunk'; _mode._listeners.change();
   window.resetReadalongViews();
+  _capabilityDeferred.resolve(null);
+  await flush(); await flush();
   _capabilityDeferred.resolve({preference:{timing_mode:'qwen',timing_device:'cpu',timing_language:'English'},
     capability:{available:true,devices:[]},policy:{timing_mode:'qwen',device:'cpu',available:true,reason:'ready'}});
   await flush(); await flush();
@@ -2274,11 +2465,17 @@ function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
 
     def test_synchronous_capability_failure_does_not_break_reset(self):
         self._run_js(r"""
+(async function() {
+_capabilityDeferred.resolve(null);
+await flush(); await flush();
 API.get = function() { throw new Error('synchronous transport fault'); };
 window.resetReadalongViews();
 ok(_status.textContent.indexOf('unknown') >= 0, 'transport failure must render unknown');
 ok(typeof window.buildReadaloudEpub === 'function', 'handlers must remain installed');
+window.resetReadalongViews();
+ok(_status.textContent.indexOf('unknown') >= 0, 'synchronous failure must release pending state');
 console.log('sync-fault-ok');
+})();
 """, "sync-fault-ok")
 
     def test_accepted_start_acknowledges_only_submitted_edits(self):
@@ -2371,6 +2568,8 @@ console.log('sync-fault-ok');
         scenario = r"""
 (async function() {
   window.resetReadalongViews();
+  _capabilityDeferred.resolve(null);
+  await flush(); await flush();
   _capabilityDeferred.resolve({
     preference: { timing_mode: 'qwen', timing_device: 'cuda:0', timing_language: '' },
     capability: { available: true, reason: null, devices: [{ device: 'cuda:0' }] },
@@ -2388,10 +2587,11 @@ console.log('sync-fault-ok');
 (async function() {
   var old = _capabilityDeferred;
   window.resetReadalongViews();
-  var fresh = _capabilityDeferred;
-  ok(fresh !== old, 'reset must issue a fresh status request');
+  ok(_capabilityDeferred === old, 'reset must queue while the old request is pending');
   old.resolve({ preference: {timing_device:'cuda:9'}, capability: {available:true}, policy:{device:'cuda:9'} });
   await flush(); await flush();
+  var fresh = _capabilityDeferred;
+  ok(fresh !== old, 'reset must issue a fresh request after the old one settles');
   ok(_device.value !== 'cuda:9', 'old generation cannot paint');
   fresh.resolve({ preference: {timing_mode:'qwen', timing_device:'cuda:0', timing_language:'English'},
     capability:{available:true, devices:[{device:'cuda:0',capability:[8,6]}]},

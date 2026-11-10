@@ -41,6 +41,7 @@ import hashlib
 import json
 import os
 import re
+from contextlib import contextmanager
 from pathlib import Path
 
 from audio_pcm_producer import PCMSourceStore
@@ -58,29 +59,48 @@ _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
 
 
-def get_retained_epub_bytes(path, cancel_check=None):
-    """Read one bounded, regular retained upload once, checking its version."""
-    import io
+@contextmanager
+def _open_retained_epub(path, cancel_check=None):
+    """Bind a regular source descriptor; read-only backup hardlinks are valid."""
     from audio_take_history import _open_regular, _version
     ensure_audio_export_active(cancel_check)
     try:
-        stream, before = _open_regular(path, Path(path).parent, MAX_RETAINED_EPUB_BYTES)
-        with stream, io.BytesIO() as content:
-            size = 0
-            while True:
-                ensure_audio_export_active(cancel_check)
-                block = stream.read(min(1024**2, MAX_RETAINED_EPUB_BYTES - size + 1))
-                if not block:
-                    break
-                size += len(block)
-                if size > MAX_RETAINED_EPUB_BYTES:
-                    raise ValueError("retained upload grew beyond its bound")
-                content.write(block)
+        stream, before = _open_regular(
+            path, Path(path).parent, MAX_RETAINED_EPUB_BYTES,
+            allow_hardlinks=True, file_description="Retained EPUB")
+        with stream:
+            yield stream
             if _version(os.fstat(stream.fileno())) != _version(before):
                 raise ValueError("retained upload changed during read")
-            return content.getvalue()
     except (ValueError, OSError) as error:
         raise ValueError("Retained EPUB is unavailable or outside its regular-file bound: %s" % error) from error
+
+
+def get_retained_epub_bytes(path, cancel_check=None):
+    """Read one bounded retained upload once, checking its descriptor version."""
+    import io
+    with _open_retained_epub(path, cancel_check) as stream, io.BytesIO() as content:
+        size = 0
+        while True:
+            ensure_audio_export_active(cancel_check)
+            block = stream.read(min(1024**2, MAX_RETAINED_EPUB_BYTES - size + 1))
+            if not block:
+                break
+            size += len(block)
+            if size > MAX_RETAINED_EPUB_BYTES:
+                raise ValueError("Retained EPUB grew beyond its bound.")
+            content.write(block)
+        return content.getvalue()
+
+
+def get_retained_epub_sha256(path, cancel_check=None):
+    """Stream the same bounded, version-checked source contract on download."""
+    from audio_source_io import read_bounded_audio_hash
+    with _open_retained_epub(path, cancel_check) as stream:
+        digest, _size = read_bounded_audio_hash(
+            stream, MAX_RETAINED_EPUB_BYTES,
+            lambda: ensure_audio_export_active(cancel_check))
+        return digest
 
 MP3_BITRATE = "128k"
 
@@ -1020,7 +1040,7 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
                 info = entry.stat(follow_symlinks=False)
             except OSError:
                 continue
-            if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= 2 * 1024**3:
+            if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_RETAINED_EPUB_BYTES:
                 continue
             size = info.st_size
             scanned_bytes += size
@@ -1125,7 +1145,9 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
                 language = get_aligner_language_name(tag)
             else:
                 language = get_aligner_language_name(language)
-            timing_runtime = timing.get("runtime") or (timing.get("capability") or {}).get("runtime")
+            capability = timing.get("capability") or {}
+            timing_runtime = (timing.get("runtime") or capability.get("runtime_identity")
+                              or capability.get("runtime"))
             if not isinstance(timing_runtime, dict) or not isinstance(timing_runtime.get("python"), str):
                 raise ValueError("Qwen runtime identity is unavailable; admit a new build with the current runtime.")
 

@@ -657,7 +657,7 @@
             'readalong-cancel-btn': 'Request cancellation of the read-along sidecar build.',
             'readaloud-cancel-btn': 'Request cancellation of the EPUB read-aloud build.',
             'readaloud-timing-mode': 'EPUB alignment timing. Auto uses Qwen3 when this machine has the ready isolated environment, otherwise chunk timing on CPU. Qwen requires the install described in docs/readalong.md; it never downloads weights by itself. Chunk timing always works without heavy dependencies.',
-            'readaloud-timing-device': 'Where Qwen runs. Auto uses a real GPU when one is present in the Qwen environment, else CPU. Choosing a GPU makes this build take the GPU lock and wait for TTS/training to finish.',
+            'readaloud-timing-device': 'Where Qwen runs. Auto uses an eligible GPU in the Qwen environment, else CPU. A GPU build reserves the shared GPU lock. If TTS or training is busy, wait for it to finish and try the build again.',
             'readaloud-timing-language': 'Speech language for Qwen alignment. Leave as EPUB language unless it is wrong; only the 11 aligner languages are supported. Chunk timing has no language limit.',
             'btn-cancel-merge': 'Request cancellation of the audio merge.',
             'clone-import-submit': 'Validate the transcript and permission confirmation, then import this reference recording.',

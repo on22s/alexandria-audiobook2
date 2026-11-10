@@ -243,6 +243,14 @@ class WorkerWindowValidationTests(unittest.TestCase):
         validated = self._run(windows, merged)
         self.assertEqual(4, len(validated))
 
+    def test_merged_nan_cannot_bypass_window_corroboration(self):
+        for key in ('start_time', 'end_time'):
+            with self.subTest(key=key):
+                windows, merged = self._valid()
+                merged[0][key] = float('nan')
+                with self.assertRaisesRegex(ValueError, 'merged tokens'):
+                    self._run(windows, merged)
+
     def test_wrong_char_scope_fails(self):
         windows, merged = self._valid()
         windows[0]["char_end"] = 20

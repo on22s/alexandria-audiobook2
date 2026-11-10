@@ -438,7 +438,7 @@ fake, or word-count timing exists in the production path.
   conservative work budgets refuse before further cloning; they do not measure
   peak RAM or acoustic quality. Chunk timing remains the alternative for an
   EPUB outside these sentence-mode bounds. Retained EPUB reads also enforce the
-  existing 2 GiB upload bound on the opened regular file, poll cancellation,
+  existing 2 GiB retained-read bound on the opened regular file, poll cancellation,
   and reject a file that changes during the read.
 - **What this project does not use.** Aeneas (AGPLv3) and Syncabook are
   not dependencies of this app; no parallel packager exists. The
