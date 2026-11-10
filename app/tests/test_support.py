@@ -1,5 +1,6 @@
-from contextlib import contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 import functools
+import inspect
 import json
 import os
 from pathlib import Path
@@ -234,42 +235,66 @@ def assert_book_journal_fenced(case, root, *, content_check=None, expected_messa
     return frozen
 
 
-def get_book_publication_target(source, destination):
+def get_book_publication_target(source, destination, *, exchange=False):
     """-> the target a book publication primitive is replacing, else None.
 
     v3 replaces an existing target with two renames:
     _move(target, workspace/old-i), then _move(workspace/new-i, target).
-    v4 (#1660) replaces it with one primitive:
-    _exchange(target, workspace/new-i).
-    Both protocols stage a row as new-<index> inside a .book-switch-*
-    workspace, so the direction of the call names the same target; tests
-    must intercept that primitive, not one rename of a protocol.
+    v4 (#1660) replaces it with one primitive: _exchange(target,
+    workspace/new-i) for a replacement, _exchange(slot, target) for a
+    creation, and _exchange(target, workspace/old-i) for a removal. Both
+    protocols stage a row as new-<index> inside a .book-switch-* workspace,
+    so the direction of the call names the same target; tests must intercept
+    that primitive, not one rename of a protocol. A v3 backup move
+    (target -> old-i) is not a publication, so only an exchange counts the
+    old-i direction.
     """
     source, destination = Path(source), Path(destination)
-    if (destination.name.startswith('new-')
-            and destination.parent.name.startswith('.book-switch-')):
-        return source            # v4 forward exchange: first name is the target
-    if (source.name.startswith('new-')
-            and source.parent.name.startswith('.book-switch-')):
-        return destination       # v3 publication move: second name is the target
+    in_workspace = lambda path: path.parent.name.startswith('.book-switch-')
+    if destination.name.startswith('new-') and in_workspace(destination):
+        return source            # v4 replacement exchange: first name is the target
+    if source.name.startswith('new-') and in_workspace(source):
+        return destination       # v3 publication move or v4 creation exchange
+    if exchange and destination.name.startswith('old-') and in_workspace(destination):
+        return source            # v4 removal exchange: first name is the target
     return None
+
+
+def _require_callback_arity(callback, count, label):
+    """Fail at context entry when a hook cannot take its documented arguments.
+
+    A wrong-arity callback otherwise raises TypeError at the first mutation,
+    which a test that only checks "some exception" can mistake for the error it
+    meant to inject (#1660 review).
+    """
+    if callback is None:
+        return
+    try:
+        inspect.signature(callback).bind(*([None] * count))
+    except (TypeError, ValueError) as error:
+        raise TypeError(
+            f'{label} must accept {count} positional argument(s); '
+            f'got {callback!r}: {error}') from error
 
 
 @contextmanager
 def intercept_book_publications(module, before=None, after=None):
     """Intercept each row publication on whichever protocol is in use.
 
-    before(target) runs before that row can change (raise to inject a failed
-    publication); after(target) runs once the target holds the staged bytes
+    before(target) runs before that row's target changes (raise to inject a
+    failed publication). For a v4 creation the target already holds our
+    64-byte placeholder at that point, not nothing; after(target) runs once the target holds the staged bytes
     (the v3 publish move returned, or the v4 exchange swapped). Targets are
     Paths. Callbacks that must fire once should guard themselves: the v4
     companion exchange that a rollback makes has the same direction, so after
     a deliberate abort the same target can be seen again.
     """
+    _require_callback_arity(before, 1, 'intercept_book_publications before')
+    _require_callback_arity(after, 1, 'intercept_book_publications after')
     original_move, original_exchange = module._move, module._exchange
-    def wrap(original):
+    def wrap(original, exchange):
         def publication(source, destination, **kwargs):
-            target = get_book_publication_target(source, destination)
+            target = get_book_publication_target(source, destination, exchange=exchange)
             if target is not None and before is not None:
                 before(target)
             result = original(source, destination, **kwargs)
@@ -277,9 +302,51 @@ def intercept_book_publications(module, before=None, after=None):
                 after(target)
             return result
         return publication
-    with patch.object(module, '_move', side_effect=wrap(original_move)), \
-            patch.object(module, '_exchange', side_effect=wrap(original_exchange)):
+    with patch.object(module, '_move', side_effect=wrap(original_move, False)), \
+            patch.object(module, '_exchange', side_effect=wrap(original_exchange, True)):
         yield
+
+
+# Every post-journal mutation a book publication makes. A v3 row is a backup
+# move plus a publish move; a v4 row is one exchange, a creation adds one
+# no-overwrite placeholder publish, and a removal adds one proven delete. The
+# placeholder publish calls _move internally, so a creation counts as TWO
+# ordinals here (_create_book_placeholder_at, then its _move) -- count them
+# when asserting an ordinal in a transaction that creates a file. Placeholders are staged in the workspace
+# before the journal, like v3 staging, so their create is not among them.
+BOOK_MUTATION_SEAMS = ('_move', '_exchange', '_create_book_placeholder_at',
+                       '_delete_book_placeholder_at')
+
+
+@contextmanager
+def book_publication_mutations(module, *, before=None, after=None):
+    """Intercept every post-journal name mutation a publication makes.
+
+    before(ordinal, name, args) runs before that mutation (raise to inject a
+    failed mutation at that exact point); after(ordinal, name, args) runs once
+    it is done (raise or exit to emulate process death there). The yielded
+    dict holds the running `count`, so a test can pin how many points the
+    protocol has and sweep them all instead of naming one protocol's ordinals.
+    """
+    _require_callback_arity(before, 3, 'book_publication_mutations before')
+    _require_callback_arity(after, 3, 'book_publication_mutations after')
+    originals = {name: getattr(module, name) for name in BOOK_MUTATION_SEAMS}
+    state = {'count': 0}
+    def wrap(name, original):
+        def call(*args, **kwargs):
+            state['count'] += 1
+            ordinal = state['count']
+            if before is not None:
+                before(ordinal, name, args)
+            result = original(*args, **kwargs)
+            if after is not None:
+                after(ordinal, name, args)
+            return result
+        return call
+    with ExitStack() as stack:
+        for name, original in originals.items():
+            stack.enter_context(patch.object(module, name, side_effect=wrap(name, original)))
+        yield state
 
 
 @functools.lru_cache(maxsize=1)
@@ -352,13 +419,19 @@ def prepare_book_worker(protocol):
 
 
 def get_book_original_slot(root, index=0):
-    """-> the workspace path holding the replaced original of a pending journal.
+    """-> the workspace path holding a pending journal row's original.
 
-    v3 saves it as old-<index>; v4's exchange leaves it in new-<index>.
+    v3 saves it as old-<index>. v4 rotates the slots: a replacement's or
+    creation's exchange leaves the original at new-<index>, a removal's at
+    old-<index> (#1660 step 4).
     """
     import book_state_transaction as books
     document = json.loads((Path(root) / books.JOURNAL).read_text(encoding='utf-8'))
-    slot = f'new-{index}' if document.get('version') == 4 else f'old-{index}'
+    row = document['entries'][index]
+    if document.get('version') == 4 and row.get('new_sha256') is not None:
+        slot = f'new-{index}'
+    else:
+        slot = f'old-{index}'
     return Path(root) / document['workspace'] / slot
 
 

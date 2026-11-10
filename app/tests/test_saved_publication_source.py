@@ -100,17 +100,15 @@ class SavedPublicationSourceTests(unittest.TestCase):
             voice.write_text(json.dumps({'Alias': {'voice': 'a'}, 'Canonical': {'speed': 1.2},
                                          'other': {'voice': 'recent UI edit'}}))
             old_voice, old_binding = voice.read_bytes(), (root / BINDING_NAME).read_bytes()
-            move = books._move
             failed = False
-            def fail_voice_once(src, dest, **kwargs):
+            def fail_voice_once(target):
                 nonlocal failed
-                if not failed and Path(dest) == voice and 'new-' in str(src):
+                if not failed and target == voice:
                     failed = True
                     raise OSError('injected voice publication failure')
-                return move(src, dest, **kwargs)
             args = dict(voice_config_path=str(voice), voice_mapping={'Alias': 'Canonical'},
                         remap_voice_config=_remapped_voice_config)
-            with patch.object(books, '_move', side_effect=fail_voice_once):
+            with intercept_book_publications(books, before=fail_voice_once):
                 with self.assertRaisesRegex(OSError, 'injected'):
                     publish_controlled_script_edit(str(root), original, edited, **args)
             self.assertTrue(failed)
@@ -580,14 +578,13 @@ with intercept_book_publications(books,after=die):
             import book_state_transaction as transaction
             old_saved = (root / 'scripts/bound.json').read_bytes()
             old_binding = (root / BINDING_NAME).read_bytes()
-            move = transaction._move; failed = False
-            def fail_binding_once(src, dest, **kwargs):
+            failed = False
+            def fail_binding_once(target):
                 nonlocal failed
-                if not failed and Path(dest) == root / BINDING_NAME and 'new-' in str(src):
+                if not failed and target == root / BINDING_NAME:
                     failed = True
                     raise OSError('injected binding publication failure')
-                return move(src, dest, **kwargs)
-            with patch.object(transaction, '_move', side_effect=fail_binding_once):
+            with intercept_book_publications(transaction, before=fail_binding_once):
                 self.assertEqual(500, client.post('/api/scripts/save', json={'name':'bound'}).status_code)
             self.assertTrue(failed)
             self.assertEqual(old_saved, (root / 'scripts/bound.json').read_bytes())
@@ -853,18 +850,17 @@ with intercept_book_publications(books,after=die):
                 self.assertEqual(active, (root / 'annotated_script.json').read_bytes())
 
     def test_provenance_publication_failure_rolls_back_entire_saved_family(self):
-        import source_upload_publication
+        import book_state_transaction as transaction
         with self.fixture() as (root, client):
             before = fixtures.SavedBookPublicationTests().artifacts(root)
-            move = source_upload_publication.move_source_upload_exclusively; failed = False
-            def refuse(source, destination, *args, **kwargs):
+            expected = Path(get_publication_source_path(root / 'scripts/book.json'))
+            failed = False
+            def refuse(target):
                 nonlocal failed
-                if (not failed and Path(destination).name == Path(get_publication_source_path(root / 'scripts/book.json')).name
-                        and Path(source).name.startswith('new-')):
+                if not failed and target == expected:
                     failed = True
                     raise OSError('fixture source provenance publication failure')
-                return move(source, destination, *args, **kwargs)
-            with patch.object(source_upload_publication, 'move_source_upload_exclusively', side_effect=refuse):
+            with intercept_book_publications(transaction, before=refuse):
                 self.assertEqual(500, client.post('/api/scripts/save', json={'name': 'book'}).status_code)
             self.assertTrue(failed)
             self.assertEqual(before, fixtures.SavedBookPublicationTests().artifacts(root))

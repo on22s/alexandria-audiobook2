@@ -13,6 +13,7 @@ import core
 import book_state_transaction as book_transaction
 from project import CHAPTER_EXPORT_DIR
 from routers import editor, scripts_library as library
+from tests.test_support import book_publication_mutations, intercept_book_publications
 
 
 class SavedBookExportTests(unittest.TestCase):
@@ -100,11 +101,12 @@ class SavedBookExportTests(unittest.TestCase):
     def test_failed_export_invalidation_restores_exact_book_and_downloads(self):
         before = {str(path.relative_to(self.root)):path.read_bytes()
                   for path in [self.active,*self.exports[:3],self.exports[3]/'chapter.mp3',self.exports[3]/'manifest.json']}
-        move = book_transaction._move
-        def moved(source,target, **kwargs):
-            if Path(source) == self.exports[1]:raise PermissionError("export is open")
-            return move(source,target, **kwargs)
-        with patch.object(book_transaction,"_move",side_effect=moved),self.assertRaises(PermissionError):
+        def fail_export(ordinal,name,args):
+            # The export's own invalidation: a v3 backup move or a v4 removal
+            # exchange both start at the export name (#1660).
+            if args and Path(args[0]) == self.exports[1]:
+                raise PermissionError("export is open")
+        with book_publication_mutations(book_transaction,before=fail_export),self.assertRaisesRegex(PermissionError,'export is open'):
             self.load()
         self.assertEqual(before,{name:(self.root/name).read_bytes() for name in before})
         self.assertFalse((self.root/'state.json').exists())
@@ -122,13 +124,11 @@ class SavedBookExportTests(unittest.TestCase):
             def __exit__(self, *args):
                 mutex.release()
         lock = ObservedLock()
-        move = book_transaction._move
-        def moved(source,target, **kwargs):
+        def pause_before_active(target):
             if Path(target) == self.active:
                 copying.set()
                 if not release_copy.wait(3):
                     raise RuntimeError("test did not release native publication")
-            return move(source,target, **kwargs)
         errors, observations = [], []
         def load():
             try:
@@ -146,7 +146,7 @@ class SavedBookExportTests(unittest.TestCase):
                 errors.append(error)
         with patch.object(core, "_gpu_lock", lock), \
              patch.object(library, "_gpu_lock", lock, create=True), \
-             patch.object(book_transaction, "_move", side_effect=moved):
+             intercept_book_publications(book_transaction, before=pause_before_active):
             loader = threading.Thread(target=load)
             exporter = threading.Thread(target=reserve, name="export-reservation")
             loader.start()

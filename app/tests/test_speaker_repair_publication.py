@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 import book_state_transaction as books
 from routers import scripts_library as routes
 from tests import test_saved_book_publication as saved_book_fixture
+from tests.test_support import book_publication_mutations
 
 
 class SpeakerRepairPublicationTests(unittest.TestCase):
@@ -147,15 +148,16 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
 
     def test_voice_removal_failure_restores_script_voices_checkpoints_and_backup_ownership(self):
         with self.fixture() as (root,api),TestClient(api,raise_server_exceptions=False) as client:
-            from source_upload_publication import move_source_upload_exclusively
             before=self.snapshot(root);failed=False
-            def fail_once(source,destination,**kwargs):
+            voice=root/'scripts/book.voice_config.json'
+            def fail_once(ordinal,name,args):
+                # The voice invalidation itself: a v3 backup move or a v4
+                # removal exchange both start at the voice file (#1660).
                 nonlocal failed
-                if Path(source).name=='book.voice_config.json' and not failed:
+                if not failed and args and Path(args[0])==voice:
                     failed=True;raise OSError('fixture voice invalidation disk full')
-                return move_source_upload_exclusively(source,destination,**kwargs)
             body=self.request(root,[self.select(1,'Alice','NARRATOR')])
-            with patch('source_upload_publication.move_source_upload_exclusively',side_effect=fail_once):
+            with book_publication_mutations(books,before=fail_once):
                 response=client.post('/api/scripts/book/repair/speakers/apply',json=body)
             self.assertTrue(failed);self.assertEqual(500,response.status_code)
             self.assertEqual(before,self.snapshot(root))
@@ -198,16 +200,17 @@ class SpeakerRepairPublicationTests(unittest.TestCase):
 from pathlib import Path
 import book_state_transaction as books
 from routers import scripts_library as routes
+from tests.test_support import book_publication_mutations
 root=Path(sys.argv[1]);routes.SCRIPTS_DIR=str(root/'scripts');routes.process_state={}
-move=books._move;count=0
-def die(source,destination, **kwargs):
- global count
- result=move(source,destination, **kwargs);count+=1
- if count==5:os._exit(77)
- return result
-books._move=die
-request=routes.SpeakerRepairRequest(expected_sha256=hashlib.sha256((root/'scripts/book.json').read_bytes()).hexdigest(),selections=[routes.SpeakerSelection(entry_number=1,expected_speaker='Alice',new_speaker='NARRATOR')])
-routes._apply_speaker_repair_sync('book',request)
+voice=root/'scripts/book.voice_config.json'
+def die(ordinal,name,args):
+ # Exactly after the voice is moved aside: the v3 backup move or the v4
+ # removal exchange both start at the voice file (#1660).
+ if args and Path(args[0])==voice:
+  os._exit(77)
+with book_publication_mutations(books,after=die):
+ request=routes.SpeakerRepairRequest(expected_sha256=hashlib.sha256((root/'scripts/book.json').read_bytes()).hexdigest(),selections=[routes.SpeakerSelection(entry_number=1,expected_speaker='Alice',new_speaker='NARRATOR')])
+ routes._apply_speaker_repair_sync('book',request)
 '''
         with self.fixture() as (root,api),TestClient(api) as client:
             before=self.snapshot(root)

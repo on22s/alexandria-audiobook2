@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import book_state_transaction as books
 from audio_generation_owner import AudioGenerationCancelled
+from tests.test_support import intercept_book_publications
 
 
 @unittest.skipUnless(os.name != 'nt' and os.open in os.supports_dir_fd,
@@ -81,18 +82,18 @@ class PublishLoopParentRecheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             replacements = self.book(root, 4)
-            exchange, save, moves, phases = books._exchange, books._save_journal, [0], []
-            def exchange_then_swap(*args, **kwargs):
-                result = exchange(*args, **kwargs)
+            save, moves, phases = books._save_journal, [0], []
+            def publication_then_swap(target):
+                # Intercept whichever primitive publishes this host's protocol
+                # so the test runs without exchange support too (#1660).
                 moves[0] += 1
                 if moves[0] == 4:   # row 1 published; row 0's checks are done
                     os.rename(root / 'part0', root / 'part0-away')
                     (root / 'part0').mkdir()
-                return result
             def recording(directory, document, **kwargs):
                 phases.append(document['phase'])
                 return save(directory, document, **kwargs)
-            with patch.object(books, '_exchange', side_effect=exchange_then_swap), \
+            with intercept_book_publications(books, after=publication_then_swap), \
                     patch.object(books, '_save_journal', side_effect=recording), \
                     self.assertRaisesRegex(ValueError, 'parent changed'):
                 with books.ensure_book_state(root):

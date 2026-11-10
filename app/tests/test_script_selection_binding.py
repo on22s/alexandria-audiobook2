@@ -10,6 +10,7 @@ from script_selection_binding import (make_script_selection_binding,
                                       check_script_selection_binding, publish_generated_script,
                                       capture_generation_selection, BINDING_NAME)
 from book_state_transaction import ensure_book_state, get_book_operation_token
+from tests.test_support import intercept_book_publications
 
 
 class ScriptSelectionBindingTests(unittest.TestCase):
@@ -266,13 +267,12 @@ class ScriptSelectionBindingTests(unittest.TestCase):
             manifest.write_text('{"status":"publishing"}')
             token = get_book_operation_token(tmp)
             import book_state_transaction as transaction
-            original = transaction._move
-            def fail_on_binding(src, dest, **kwargs):
-                if Path(dest).name == BINDING_NAME and 'new-' in str(src):
+            binding_path = root / BINDING_NAME
+            def fail_on_binding(target):
+                if target == binding_path:
                     raise OSError('injected publication failure')
-                return original(src, dest, **kwargs)
-            with patch.object(transaction, '_move', side_effect=fail_on_binding):
-                with self.assertRaises(OSError):
+            with intercept_book_publications(transaction, before=fail_on_binding):
+                with self.assertRaisesRegex(OSError, 'injected publication failure'):
                     publish_generated_script(tmp, token, str(source),
                         hashlib.sha256(b'source').hexdigest(), self.script, expected_run_id='f' * 32, complete_manifest=True)
             self.assertEqual(b'old script', (root / 'annotated_script.json').read_bytes())

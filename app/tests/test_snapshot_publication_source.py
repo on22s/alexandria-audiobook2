@@ -18,6 +18,7 @@ from script_selection_binding import capture_generation_selection
 from routers import script
 from tests import test_saved_publication_source as fixtures
 from tests import test_saved_book_publication as saved
+from tests.test_support import intercept_book_publications
 
 
 class SnapshotPublicationSourceTests(unittest.TestCase):
@@ -67,14 +68,14 @@ class SnapshotPublicationSourceTests(unittest.TestCase):
 
     def test_provenance_publication_failure_restores_library_without_partial_snapshot(self):
         with self.fixture() as (root, api, states), TestClient(api, raise_server_exceptions=False) as client:
-            before = self.artifacts(root); move = transactions._move; failed = False
-            def refuse(source, destination, *args, **kwargs):
+            before = self.artifacts(root); failed = False
+            provenance = Path(get_publication_source_path(root / 'scripts/snapshot.json'))
+            def refuse(target):
                 nonlocal failed
-                if not failed and str(destination) == get_publication_source_path(root / 'scripts/snapshot.json'):
+                if not failed and target == provenance:
                     failed = True
                     raise OSError('fixture snapshot provenance failure')
-                return move(source, destination, *args, **kwargs)
-            with patch.object(transactions, '_move', side_effect=refuse):
+            with intercept_book_publications(transactions, before=refuse):
                 self.assertEqual(500, client.post('/api/generate_script/snapshot', json={'name': 'snapshot'}).status_code)
             self.assertTrue(failed)
             self.assertEqual(before, self.artifacts(root))
