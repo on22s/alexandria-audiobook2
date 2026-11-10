@@ -1616,6 +1616,53 @@ def _anchored_mutation(anchor, source, destination, *, anchor_identity=None,
 def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None,
           root_guard=None, source_parent_identity=None, destination_parent_identity=None,
           expected_source_identity=None, expected_source_generation=None):
+    """Move one name, optionally proving what it moves (the #1816 rule).
+
+    With exclusive=True this is an atomic no-overwrite rename: an occupied
+    destination fails instead of being replaced. Without it the call is a plain
+    os.replace: the root, parent and source expectations may not be passed at
+    all (the function refuses them), so only "the call returned" holds.
+
+    What a caller may assume, by outcome:
+
+      returns            The entry is at the destination. On POSIX the parent
+                         directories were fsynced; on Windows the pinned
+                         parent guards were rechecked instead. It is the
+                         object the caller's expectations named (identity, or
+                         identity plus generation, and the parent chains) at
+                         the moment of the rename. Nothing is promised about
+                         a later writer, and the destination may already hold
+                         a new object by the time the caller looks.
+
+      raises before the rename
+                         Nothing moved: the source, the destination and the
+                         parents are as the caller left them. This covers the
+                         expectation checks (a changed root, a changed parent,
+                         a changed identity or generation, a malformed
+                         expectation) and a rename that fails outright (for
+                         example EEXIST on an occupied destination).
+
+      raises after the rename
+                         An error is not evidence that nothing moved. On POSIX
+                         the post-rename root/parent recheck raises
+                         'Book move root changed / parent changed; recovery
+                         evidence was preserved'. On Windows the pinned-parent
+                         guard raises StageDirectoryChanged (an OSError) after
+                         the move. In both cases the entry DID move and is
+                         deliberately not moved back: once the named root or a
+                         parent has changed, the caller's authority over
+                         either name is gone and a reverse rename could write
+                         over someone else's entry. The caller must let the
+                         error stand and leave recovery to classify from the
+                         journal; it must not rename either name again.
+                         Preserving the evidence instead of guessing is the
+                         rule #1816 established.
+
+    _move has no diverged or parked outcome. A rename either did not happen or
+    happened once, so there is no "both objects alive but not where we put
+    them" and no "cannot tell whether it moved" state: those exist only for
+    _exchange, whose swap can meet a writer's object (BookExchangeDiverged) or
+    fail to prove itself (BookExchangeParked)."""
     if expected_source_generation is not None and expected_source_identity is None:
         raise ValueError('Book artifact generation requires an identity-bound move; recovery evidence was preserved')
     if (source_parent_identity is not None or destination_parent_identity is not None
@@ -1812,23 +1859,44 @@ def _exchange(source, destination, *, anchor, anchor_identity=None,
     may change its own mtime); content and generation proof belong to the
     predicates.
 
-    Outcomes:
+    Outcomes, and what a caller may assume after each (the #1816 rule):
+
       return                  swapped, proven at both names, parents fsynced.
+                              Each name holds the object the other predicate
+                              accepted. Nothing is promised about a later
+                              writer, or about the parent chain after the last
+                              check: POSIX has no inode-conditional rename, so
+                              the final check and the syscall are two steps.
       ValueError              refused before anything moved: a name failed its
-                              predicate or vanished, the two names are one,
-                              or the root/parents changed.
+                              predicate or vanished, the two names are one
+                              object, or the root/parents changed. Nothing was
+                              swapped, so the caller may roll back freely.
+                              A ValueError raised after a proven swap means
+                              the root or a parent changed between the swap
+                              and the recheck; that swap stands (it is not
+                              undone, per #1816) and the caller must treat the
+                              names as no longer its own.
       OSError                 the exchange syscall itself failed; nothing
                               moved. Its errno is NOT a capability signal
                               (EINVAL is also an invalid exchange): callers
                               decide capability with probe_exchange_support
                               before mutating. Windows raises ENOTSUP.
       BookExchangeDiverged    not the journal's pair; exactly one more
-                              exchange was made (see its docstring).
-      BookExchangeParked      an exchange may have happened and could not be
-                              proven or undone; left for recovery.
-    After a proven swap a root/parent change is reported (ValueError) but
-    never undone, since authority over the names is no longer proven (the
-    #1816 rule); it is checked before the parent fsync, so it wins."""
+                              exchange was made. Both objects still exist,
+                              one at each name, but the names need NOT hold
+                              what they held before the call; classify from
+                              the recorded evidence, never from this
+                              exception's type alone.
+      BookExchangeParked      an exchange may or may not have happened and
+                              could not be proven or undone. Both names are
+                              left where they are: nothing is moved back,
+                              overwritten or deleted, and the caller may not
+                              assume either state from the exception alone:
+                              only recovery, reading the journal, can decide.
+                              It is never an ordinary refusal.
+    A proven swap is checked against the root and parents before the parent
+    fsync, and a failure there is reported without undoing the swap, since
+    authority over the names is no longer proven (the #1816 rule)."""
     from source_upload_publication import exchange_source_upload_names
     if os.name == 'nt':
         raise OSError(errno.ENOTSUP, 'Book exchange publication is unavailable')
