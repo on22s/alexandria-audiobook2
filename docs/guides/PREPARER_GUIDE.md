@@ -1,3 +1,5 @@
+[English](PREPARER_GUIDE.md) | [中文](PREPARER_GUIDE_CN.md) | [日本語](PREPARER_GUIDE_JA.md)
+
 # Alexandria Preparer Guide
 
 Process a single audiobook into an annotated TTS training dataset with one command.

@@ -1,3 +1,5 @@
+[English](THUNDER_COMPUTE.md) | [中文](THUNDER_COMPUTE_CN.md) | [日本語](THUNDER_COMPUTE_JA.md)
+
 # When to use Thunder Compute (and what for)
 
 A decision guide for this project. **Default is local** — Thunder is the

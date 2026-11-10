@@ -1,3 +1,5 @@
+[English](COMPARE_GUIDE.md) | [中文](COMPARE_GUIDE_CN.md) | [日本語](COMPARE_GUIDE_JA.md)
+
 # Alexandria Compare Guide
 
 Diff your `metadata.jsonl` transcriptions against the original EPUB or text file.
