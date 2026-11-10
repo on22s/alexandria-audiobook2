@@ -1,3 +1,5 @@
+[English](SCORING_POLICY.md) | [中文](SCORING_POLICY_CN.md) | [日本語](SCORING_POLICY_JA.md)
+
 # Attribution scoring policy
 
 Frozen before any model comparison, per §28 of `BRIEF_2026-07-26_ATTRIBUTION.md`.

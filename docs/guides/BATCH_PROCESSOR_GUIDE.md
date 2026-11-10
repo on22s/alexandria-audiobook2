@@ -1,3 +1,5 @@
+[English](BATCH_PROCESSOR_GUIDE.md) | [中文](BATCH_PROCESSOR_GUIDE_CN.md) | [日本語](BATCH_PROCESSOR_GUIDE_JA.md)
+
 # Alexandria Batch Processor Guide
 
 Process multiple audiobook files sequentially with a single command.

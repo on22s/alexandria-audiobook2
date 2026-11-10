@@ -1,3 +1,5 @@
+[English](lora.md) | [中文](lora_CN.md) | [日本語](lora_JA.md)
+
 # Qwen3-TTS LoRA Training Guide for Alexandria
 
 ## What Is LoRA? (Plain English)
@@ -42,8 +44,8 @@ In Alexandria's web UI:
 1. Go to the **Training** tab
 2. Select your dataset
 3. Use these settings for your first training:
-   - **Epochs:** 5-8 (for ~60 samples)
-   - **Learning Rate:** 3e-6
+   - **Epochs:** 9-10 (for ~60 samples)
+   - **Learning Rate:** 1e-6 (the app's default)
    - **LoRA Rank:** 64
    - **LoRA Alpha:** 128
    - **Gradient Accumulation:** 4
@@ -73,9 +75,16 @@ The **Loss** is how well the model is learning your voice:
 
 | Dataset Size | Epochs | Learning Rate | LoRA r | LoRA Alpha | Grad Accum | Target Loss |
 |-------------|--------|---------------|--------|------------|------------|-------------|
-| ~30 samples | 10-15 | 5e-6 | 64 | 128 | 4 | 4.1-4.2 |
-| ~60 samples | 5-8 | 3e-6 | 64 | 128 | 4 | 4.1-4.2 |
-| ~120 samples | 3 | 2e-6 | 64 | 128 | 4 | 4.1-4.2 |
+| ~30 samples | not measured at 1e-6 | 1e-6 | 64 | 128 | 4 | 4.1-4.2 |
+| ~60 samples | 9-10 | 1e-6 | 64 | 128 | 4 | 4.1-4.2 |
+| ~120 samples | not measured at 1e-6 | 1e-6 | 64 | 128 | 4 | 4.1-4.2 |
+
+> **Use a learning rate of 1e-6.** Earlier versions of this guide recommended 2e-6 to
+> 5e-6. Adapters trained at 5e-6 never stop talking: they don't produce an end of
+> speech, and the training loss looks normal, so the loss can't warn you (see
+> [RECIPES.md](../../RECIPES.md)). The 9-10 epochs above come from the 61-sample runs
+> at 1e-6 in the table at the end of this guide (male-lora-03 and -05). No other
+> dataset size has been measured at 1e-6, so watch the loss and listen to the result.
 
 **Target loss: 4.1-4.2** — this is the sweet spot for voice identity + instruct following + clean audio. Loss 4.1 is the floor; below this, garbling becomes increasingly likely. Note that identical settings can produce slightly different losses between runs, so aim for 4.15-4.2 for a reliable margin.
 

@@ -1,3 +1,5 @@
+[English](TAKE_HISTORY.md) | [中文](TAKE_HISTORY_CN.md) | [日本語](TAKE_HISTORY_JA.md)
+
 # Take history
 
 In Editor's Inspector, open **Automatic take history**, choose **Refresh setting**,
