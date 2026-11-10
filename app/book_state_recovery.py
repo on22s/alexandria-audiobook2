@@ -72,42 +72,54 @@ MIGRATION_MESSAGE = 'A legacy v1 journal is pending; run migrate-legacy --trust-
 COMMAND = 'python app/book_state_recovery.py'
 
 
+def get_recovery_status(report, journal_status):
+    """The one decision the command and the app share (Rule 15):
+    'clean' | 'pending' | 'migration_required' | 'unreadable'."""
+    if ('retained_error' in report or report['journal'].get('error')
+            or journal_status == 'invalid'):
+        return 'unreadable'
+    return {'absent': 'clean', 'legacy': 'migration_required'}.get(journal_status, 'pending')
+
+
 def get_book_recovery_summary(data_dir, *, wait=0.25):
     """-> what the app shows about a book's recovery state (#1660).
 
     {'status': 'clean' | 'pending' | 'migration_required' | 'unreadable',
      'phase', 'locked', 'retained': [{'name', 'kind', 'state', 'forced'}],
-     'commands': [{'purpose', 'command'}]}. Read-only: inspects under the
-    lock, or without it when another operation holds it ('locked': True).
+     'commands': [{'purpose', 'command'}]}, the commands in the order to try
+    them, run from the repository root. Changes no book state: it inspects
+    under the lock (creating the lock file if absent), or without it when
+    another operation holds it ('locked': True).
 
-    The app runs recovery before every book operation, so a journal still
-    pending here is one recovery refused: the commands are what helps next,
-    run from the repository root. Nothing in this summary is deleted."""
+    The Home page reads the book without recovering it, so a pending
+    journal here may still be one finish can restore: finish comes before
+    keeping the current files."""
     import book_state_transaction as books
     try:
         with books.book_operator_locked(data_dir, timeout=wait) as (root, _identity):
             report = books.inspect_book_recovery_state(root)
-            legacy = books.is_book_journal_migration_required(root)
+            journal_status = books.get_book_journal_status(root)
         locked = False
     except TimeoutError:
         root = books.get_admitted_book_root(data_dir)
         report = books.inspect_book_recovery_state(root)
-        legacy = books.is_book_journal_migration_required(root)
+        journal_status = books.get_book_journal_status(root)
         locked = True
     journal = report['journal']
+    status = get_recovery_status(report, journal_status)
     inspect = {'purpose': 'See what is pending and why', 'command': f'{COMMAND} inspect --hash'}
-    if 'retained_error' in report or journal.get('error'):
-        status, commands = 'unreadable', [inspect]
-    elif not journal.get('present'):
-        status, commands = 'clean', []
-    elif legacy:
-        status, commands = 'migration_required', [inspect, {
+    commands = {
+        'clean': [],
+        'unreadable': [inspect],
+        'migration_required': [inspect, {
             'purpose': 'Set aside a save from an older version once its files are checked',
-            'command': f'{COMMAND} migrate-legacy --trust-journal-hashes'}]
-    else:
-        status, commands = 'pending', [inspect, {
-            'purpose': "Keep the book's files as they are now",
-            'command': f'{COMMAND} quarantine --accept-current-files'}]
+            'command': f'{COMMAND} migrate-legacy --trust-journal-hashes'}],
+        'pending': [inspect, {
+            'purpose': 'Finish or roll back the interrupted save',
+            'command': f'{COMMAND} finish'}, {
+            'purpose': "Only if finish refuses and the current files are the ones you want, keep them",
+            'command': f'{COMMAND} quarantine --accept-current-files'}],
+    }[status]
     retained = [{key: entry.get(key) for key in ('name', 'kind', 'state', 'forced')}
                 for entry in report.get('quarantines', [])]
     return {'status': status, 'phase': journal.get('phase'), 'locked': locked,
@@ -117,19 +129,19 @@ def get_book_recovery_summary(data_dir, *, wait=0.25):
 def _run_inspect(books, data_dir, wait, no_lock, hashes):
     def inspect(root):
         return (books.inspect_book_recovery_state(root, include_hashes=hashes),
-                books.is_book_journal_migration_required(root))
+                books.get_book_journal_status(root))
     if no_lock:
-        report, legacy = inspect(books.get_admitted_book_root(data_dir))
+        report, journal_status = inspect(books.get_admitted_book_root(data_dir))
     else:
         with books.book_operator_locked(data_dir, timeout=wait) as (root, _identity):
-            report, legacy = inspect(root)
-    if 'retained_error' in report or report['journal'].get('error'):
-        return EXIT_REFUSED, 'The book state could not be read fully; see the report.', report
-    if not report['journal'].get('present'):
-        return EXIT_OK, 'No book switch is pending.', report
-    if legacy:
-        return EXIT_MIGRATION, MIGRATION_MESSAGE, report
-    return EXIT_OK, 'A book switch is pending; see the report.', report
+            report, journal_status = inspect(root)
+    return {
+        'unreadable': (EXIT_REFUSED, 'The book state could not be read, or its journal is not '
+                                     'valid; see the report.'),
+        'clean': (EXIT_OK, 'No book switch is pending.'),
+        'migration_required': (EXIT_MIGRATION, MIGRATION_MESSAGE),
+        'pending': (EXIT_OK, 'A book switch is pending; see the report.'),
+    }[get_recovery_status(report, journal_status)] + (report,)
 
 
 def _run_change(books, data_dir, wait, command, seen):
@@ -137,8 +149,12 @@ def _run_change(books, data_dir, wait, command, seen):
         before = seen['report'] = books.inspect_book_recovery_state(root)
         if not before['journal'].get('present'):
             return EXIT_OK, 'No book switch is pending.', before
-        legacy = books.is_book_journal_migration_required(root)
+        journal_status = books.get_book_journal_status(root)
+        legacy = journal_status == 'legacy'
         if command == 'migrate-legacy':
+            if journal_status == 'invalid':
+                return (EXIT_REFUSED, 'The pending journal is not valid, so no command can act on '
+                                      'it safely; run inspect.', before)
             if not legacy:
                 return (EXIT_REFUSED, 'The pending journal is not a legacy v1 journal; run finish.',
                         before)

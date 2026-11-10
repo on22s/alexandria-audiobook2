@@ -3,6 +3,8 @@ import contextlib
 import hashlib
 import io
 import json
+import os
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -131,8 +133,47 @@ class LegacyMigrationTests(unittest.TestCase):
 
     def test_unsafe_v1_target_names_are_refused_not_migrated(self):
         self.legacy('committed', [('../outside.json', b'old', b'new')])
-        self.assertFalse(books.is_book_journal_migration_required(self.root))
+        self.assertEqual('invalid', books.get_book_journal_status(self.root))
+        code, result = self.run_command('migrate-legacy', '--trust-journal-hashes')
+        self.assertEqual(command.EXIT_REFUSED, code)
+        self.assertIn('not valid', result['message'])
+        self.assertEqual(command.EXIT_REFUSED, self.run_command('inspect')[0])
+
+    def test_a_directory_target_and_an_absent_workspace_migrate(self):
+        chapters = self.root / 'chapters'
+        (chapters / 'nested').mkdir(parents=True)
+        (chapters / 'nested' / 'one').write_bytes(b'one')
+        digest = books._get_digest(chapters)
+        (self.root / books.JOURNAL).write_text(json.dumps(
+            {'version': 1, 'phase': 'recovered', 'workspace': self.workspace.name,
+             'entries': [{'path': 'chapters', 'existed': True, 'old_sha256': digest,
+                          'new_sha256': None}]}))
+        self.assertEqual(0, self.run_command('migrate-legacy', '--trust-journal-hashes')[0])
+        [migration] = self.migrations()
+        self.assertFalse((migration / books.QUARANTINE_WORKSPACE).exists())
+        self.assertEqual(b'one', (chapters / 'nested' / 'one').read_bytes())
+        (chapters / 'nested' / 'one').write_bytes(b'two')   # one changed byte
+        (self.root / books.JOURNAL).write_text(json.dumps(
+            {'version': 1, 'phase': 'recovered', 'workspace': self.workspace.name,
+             'entries': [{'path': 'chapters', 'existed': True, 'old_sha256': digest,
+                          'new_sha256': None}]}))
         self.assertEqual(command.EXIT_REFUSED, self.run_command('migrate-legacy', '--trust-journal-hashes')[0])
+
+    def test_a_linked_workspace_is_never_migrated(self):
+        (self.root / 'script.json').write_bytes(b'new script')
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / 'old-0').write_bytes(b'keep me')
+        self.legacy('committed', [('script.json', b'old script', b'new script')])
+        if os.name == 'nt':
+            subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.workspace), outside.name],
+                           check=True, capture_output=True)
+            self.addCleanup(lambda: os.rmdir(self.workspace) if os.path.lexists(self.workspace) else None)
+        else:
+            self.workspace.symlink_to(outside.name, target_is_directory=True)
+        self.assertEqual(command.EXIT_REFUSED, self.run_command('migrate-legacy', '--trust-journal-hashes')[0])
+        self.assertEqual([], self.migrations())
+        self.assertEqual(b'keep me', (Path(outside.name) / 'old-0').read_bytes())
 
     def test_an_interrupted_migration_is_never_finished_automatically_and_resumes(self):
         (self.root / 'script.json').write_bytes(b'new script')
@@ -179,7 +220,8 @@ class RecoverySummaryTests(unittest.TestCase):
         self.pending(foreign_target=True)
         status, commands = self.status()
         self.assertEqual('pending', status)
-        self.assertEqual(['inspect --hash', 'quarantine --accept-current-files'],
+        # finish before keeping the current files: it may still restore them.
+        self.assertEqual(['inspect --hash', 'finish', 'quarantine --accept-current-files'],
                          [item['command'].split('book_state_recovery.py ')[1] for item in commands])
         (self.root / books.JOURNAL).write_text(json.dumps(
             {'version': 1, 'phase': 'committed', 'workspace': '.book-switch-' + 'b' * 32,
@@ -189,6 +231,38 @@ class RecoverySummaryTests(unittest.TestCase):
         self.assertIn('migrate-legacy --trust-journal-hashes', commands[1]['command'])
         (self.root / books.JOURNAL).write_bytes(b'not json')
         self.assertEqual('unreadable', self.status()[0])
+        (self.root / books.JOURNAL).write_text(json.dumps(   # parses, but invalid
+            {'version': 1, 'phase': 'committed', 'workspace': '.book-switch-' + 'b' * 32,
+             'entries': [{'path': '../x', 'existed': False, 'old_sha256': None, 'new_sha256': None}]}))
+        self.assertEqual(('unreadable', ['inspect --hash']),
+                         (self.status()[0], [item['command'].split('book_state_recovery.py ')[1]
+                                             for item in self.status()[1]]))
+
+    def test_the_first_offered_fix_for_a_recoverable_switch_restores_the_originals(self):
+        (self.root / 'a.json').write_bytes(b'old-a')
+        (self.root / 'b.json').write_bytes(b'old-b')
+        validate = books._validate_staged_replacement
+        def die_on_second(*args, **kwargs):
+            published = self.root / 'a.json'
+            if published.exists() and published.read_bytes() == b'new-a':
+                raise _Crash()   # a.json already published, b.json not
+            return validate(*args, **kwargs)
+        def crash(*args, **kwargs):
+            raise _Crash()
+        with patch.object(books, '_validate_staged_replacement', side_effect=die_on_second),                 patch.object(books, '_retire_unpublished_journal', side_effect=crash),                 self.assertRaises(_Crash):
+            with books.ensure_book_state(self.root), \
+                    patch.object(books, 'recover_book_state_locked', side_effect=crash):
+                # Process death: the failure handler's own rollback must not run.
+                books.apply_book_state_locked(self.root, {'a.json': b'new-a', 'b.json': b'new-b'}, [])
+        self.assertEqual(b'new-a', (self.root / 'a.json').read_bytes())   # half switched
+        commands = command.get_book_recovery_summary(self.root)['commands']
+        argv = commands[1]['command'].split('book_state_recovery.py ')[1].split()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, command.main(['--data-dir', str(self.root), *argv]))
+        # Rolled back, not kept half switched.
+        self.assertEqual((b'old-a', b'old-b'),
+                         ((self.root / 'a.json').read_bytes(), (self.root / 'b.json').read_bytes()))
+        self.assertFalse((self.root / books.JOURNAL).exists())
 
     def status(self):
         summary = command.get_book_recovery_summary(self.root)
@@ -221,7 +295,12 @@ class RecoverySummaryTests(unittest.TestCase):
             response = TestClient(app).get('/api/book/recovery')
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual(('pending', 'publishing'), (response.json()['status'], response.json()['phase']))
+        self.assertNotIn(str(self.root), response.text)   # no local paths
         self.assertEqual(journal, (self.root / books.JOURNAL).read_bytes())
+        with patch.object(lib, 'DATA_DIR', str(self.root / 'missing')):
+            response = TestClient(app).get('/api/book/recovery')
+        self.assertEqual(409, response.status_code)
+        self.assertIn('inspect', response.json()['detail'])
 
 
 if __name__ == '__main__':

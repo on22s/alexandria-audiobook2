@@ -8,9 +8,11 @@ interruption, and what to do when the app cannot finish the job by itself.
 
 ## What happens automatically
 
-Before every book operation the app looks for an interrupted switch: a journal
-named `.active_book_transaction.json` in the data folder, with its working
-folder `.book-switch-<id>/` beside it.
+Before every book operation that reads or changes the book, the app looks for
+an interrupted switch: a journal named `.active_book_transaction.json` in the
+data folder, with its working folder `.book-switch-<id>/` beside it. (The Home
+page's status reading is the exception: it does not recover, so it can show a
+switch that `finish` would still complete.)
 
 - **Recovery finishes or rolls back the switch** when every file is where the
   journal says, with the bytes it recorded. This is the usual case, and you see
@@ -25,7 +27,8 @@ folder `.book-switch-<id>/` beside it.
   damaged. The app will not guess which version is right.
 
 When a book cannot open for this reason, the Home page names the commands
-below.
+below, in the order to try them: `inspect`, then `finish`, and only if `finish`
+refuses, `quarantine --accept-current-files`.
 
 ## The recovery command
 
@@ -65,15 +68,19 @@ finish. Without `--wait`, a busy app is reported at once instead of hanging.
 Each `.book-switch-quarantine-*` or `.book-switch-migration-*` folder holds:
 
 - `receipt.json`: `prepared` while the move is under way, `completed` after.
-  It also records the journal's hash, its phase, whether the operator forced
-  it, and the reason recovery refused.
+  It also records the journal's hash and phase and the reason for the move:
+  `forced` is true for an operator quarantine, and a migration adds
+  `kind: legacy-migration` and `trust: journal-digests`.
 - `journal.json`: the journal itself, moved rather than copied, so it is
   byte-identical.
 - `workspace/`: the working folder, moved, when one existed.
 
 The app never deletes these folders. Delete one yourself once you no longer
-need the evidence; `inspect` lists them all. If a move was interrupted (receipt
-still `prepared`), the next recovery or the same command finishes it.
+need the evidence; `inspect` lists them all. If a move was interrupted while
+the journal was still in the data folder, the next recovery (quarantine) or the
+same command (operator quarantine, migration) finishes it. If it stopped after
+the journal moved, the receipt can stay `prepared` although nothing is left to
+do: `inspect` shows `journal_held: true` for such a folder.
 
 ## Trust boundary
 

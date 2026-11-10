@@ -316,7 +316,7 @@ async function refreshBookWorkspace() {
 }
 
 const BOOK_RECOVERY_LEADS = {
-    pending: 'An interrupted book save could not be finished automatically, so the book cannot open yet. Nothing was deleted.',
+    pending: 'An interrupted book save has not been finished, so the book cannot open yet. Nothing was deleted.',
     migration_required: 'An interrupted save from an older version of the app needs a one-time check before the book can open. Nothing was deleted.',
     unreadable: 'The book\'s recovery state could not be read, so the book cannot open yet. Nothing was changed.'
 };

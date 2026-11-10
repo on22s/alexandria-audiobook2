@@ -3022,6 +3022,9 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     Without one: only resume a quarantine a crash interrupted, which must run
     before normal recovery, since recovery would retire a journal whose
     workspace was already moved. -> True when the journal is now retired.
+    legacy (migrate-legacy only): decide by _get_legacy_migration_eligibility
+    instead, into a .book-switch-migration-<sha8>-<nonce8>/ folder whose
+    receipt adds kind 'legacy-migration'; never resumed by ordinary recovery.
 
     <root>/.book-switch-quarantine-<journal sha8>-<nonce8>/ holds receipt.json
     (prepared, then completed), journal.json (the journal itself, moved, so
@@ -3162,7 +3165,8 @@ def migrate_legacy_book_state_locked(root, root_identity):
 
 
 def _inspect_quarantine(directory):
-    """-> one retained quarantine's receipt and what is on disk beside it."""
+    """-> one retained quarantine or migration folder's receipt and what is
+    on disk beside it."""
     entry = {'name': directory.name}
     try:
         info = os.lstat(directory)
@@ -3209,17 +3213,23 @@ def _is_retained_evidence_name(name):
     return name.casefold().startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))
 
 
-def is_book_journal_migration_required(root):
-    """Whether root's pending journal is a well-formed legacy v1 journal."""
+def get_book_journal_status(root):
+    """-> 'absent' | 'valid' | 'legacy' | 'invalid' for root's pending journal.
+
+    Recovery's own shape check decides (#1660): 'legacy' is a well-formed v1
+    journal, which only migrate-legacy may act on; 'invalid' is one that
+    finish, quarantine and migrate-legacy would all refuse."""
     journal = Path(root) / JOURNAL
+    if not os.path.lexists(journal):
+        return 'absent'
     try:
         data, _version = _read_book_journal(journal)
         _validate_recovery_journal_shape(Path(root), journal, data)
     except BookJournalMigrationRequired:
-        return True
+        return 'legacy'
     except (OSError, ValueError, TypeError, KeyError):
-        return False
-    return False
+        return 'invalid'
+    return 'valid'
 
 
 def get_admitted_book_root(data_dir):
