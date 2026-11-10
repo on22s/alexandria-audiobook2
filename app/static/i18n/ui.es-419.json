@@ -8,7 +8,7 @@
       "safety": "not-reviewed"
     }
   },
-  "setup.finder.clear": "Borrar",
+  "setup.finder.clear": "Limpiar",
   "setup.finder.hint": "Busca en los nombres y la ayuda de los ajustes de tus servicios actuales.",
   "setup.finder.label": "Buscar un ajuste",
   "setup.finder.limited": "Se muestran los primeros {limit}; refina la búsqueda para obtener resultados más específicos.",
@@ -20,7 +20,7 @@
   "setup.locale.storage_notice": "El almacenamiento del navegador no está disponible; esta preferencia de interfaz solo se aplica a esta pestaña hasta que recargues.",
   "setup.preview.action": "Previsualizar cambios",
   "setup.preview.close": "Cerrar la vista previa",
-  "setup.preview.defaults": "{count} ajustes faltantes completados con valores predeterminados",
+  "setup.preview.defaults": "Se completaron {count} ajustes faltantes con valores predeterminados",
   "setup.preview.saved": "Guardado",
   "setup.preview.title": "Vista previa de cambios en la configuración",
   "setup.preview.would_save": "Se guardaría"

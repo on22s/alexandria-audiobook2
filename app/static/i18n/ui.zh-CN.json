@@ -23,5 +23,5 @@
   "setup.preview.defaults": "已用默认值补全 {count} 项缺失设置",
   "setup.preview.saved": "已保存",
   "setup.preview.title": "设置更改预览",
-  "setup.preview.would_save": "将保存为"
+  "setup.preview.would_save": "将保存"
 }
