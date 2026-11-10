@@ -196,7 +196,7 @@ Qwen3-TTS の重みは必要になった時点でダウンロードされます�
 
 GPU の容量だけでなく、重み、KV キャッシュ、リクエストと応答のコンテキスト、同じ GPU を使うほかの処理を考慮します。モデルファイルが収まっても、実行時のメモリーが足りるとは限りません。TTS の GPU 要件と LLM の GPU 要件も別です。
 
-現在の英語ガイドは Qwen3.8-27B の量子化版、速度を重視する Qwen3.6-35B-A3B、Muse-Glimmer-30B、小規模な Qwen3-8B / Qwen3-14B、ホスト型 API を比較しています。容量別の量子化・プロンプト・アダプターの組み合わせは、[モデル選択ガイド（英語）](docs/wiki/Which-Model-For-Your-Card.md)を参照してください。これは記載されたテスト条件での比較であり、任意の本や日本語の品質を保証しません。
+現在のガイドは Qwen3.8-27B の量子化版、速度を重視する Qwen3.6-35B-A3B、Muse-Glimmer-30B、小規模な Qwen3-8B / Qwen3-14B、ホスト型 API を比較しています。容量別の量子化・プロンプト・アダプターの組み合わせは、[モデル選択ガイド](docs/wiki/Which-Model-For-Your-Card-JA.md)を参照してください。これは記載されたテスト条件での比較であり、任意の本や日本語の品質を保証しません。
 
 Muse を推論ありで使う場合は DeepSeek の reasoning format を使用し、`--skip-chat-parsing` を使わないでください。初回は既定の `michel2_full`、JSON schema 有効、推論 *low* から始めます。アダプターは学習時のプロンプトに依存します。`attrv1` は `default`、`michel2` 系は `michel2_full` で提供します。[導入手順（英語）](docs/guides/ATTRIBUTION_ADAPTER_SETUP.md)と各モデルカードを確認してください。
 
@@ -310,7 +310,7 @@ export ALEXANDRIA_ALLOWED_ORIGINS=https://audiobooks.example.com
 - [GOALS.md](GOALS.md)：目標の定義と測定状況。
 - [RECIPES.md](RECIPES.md)：学習・推論の設定と対照実験。
 - [RESULTS_INDEX.md](RESULTS_INDEX.md)：個別の成果物の索引。
-- [研究結果の Wiki（英語）](docs/wiki/Results.md)、[評価手順（英語）](docs/wiki/Evaluation-Recipes.md)。
+- [研究結果の Wiki](docs/wiki/Results-JA.md)、[評価手順](docs/wiki/Evaluation-Recipes-JA.md)。
 - [公開アダプター](https://huggingface.co/Om22s/alexandria-qwen3-attribution)と [HF_MODEL_GUIDE.md](HF_MODEL_GUIDE.md)：リリース条件と制約。
 
 ## 貢献
