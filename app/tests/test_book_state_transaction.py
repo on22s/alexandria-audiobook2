@@ -623,9 +623,14 @@ books._save_journal(root, {'version':3,'phase':'publishing'}, create=True,
                     with books.ensure_book_state(root), self.assertRaises(ValueError):
                         books.apply_book_state_locked(root, {'script.json':b'generated'}, [])
             self.assertTrue(injected)
-            journal = json.loads((root / books.JOURNAL).read_text())
+            # The target is committed, so the edited backup is quarantined (#1660).
+            from tests.test_support import get_quarantined_path
+            [quarantine] = [entry for entry in root.iterdir()
+                            if entry.name.startswith(books.QUARANTINE_PREFIX)]
+            journal = json.loads((quarantine / books.QUARANTINE_JOURNAL).read_text())
             self.assertEqual('committed', journal['phase'])
-            self.assertEqual(b'writer edit', (root / journal['workspace'] / 'old-0').read_bytes())
+            backup = get_quarantined_path(self, root, root / journal['workspace'] / 'old-0')
+            self.assertEqual(b'writer edit', backup.read_bytes())
             self.assertEqual(b'generated', target.read_bytes())
 
     def test_committed_byte_cleanup_refuses_unknown_workspace_entry(self):

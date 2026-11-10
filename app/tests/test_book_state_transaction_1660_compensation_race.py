@@ -309,7 +309,9 @@ class BookStateTransaction1660CompensationRaceTests(unittest.TestCase):
             with patch.object(Path, 'lstat', fail_absent_target):
                 with self.assertRaisesRegex(ValueError, 'Recovered book target changed') as raised:
                     books.recover_book_state_locked(root)
-            self.assertEqual([True], observations)
+            # Recovery's read, then auto-quarantine's own target check (#1660),
+            # which hits the same refusal and so leaves the switch refused.
+            self.assertEqual([True, True], observations)
             self.assertIsInstance(raised.exception.__cause__, PermissionError)
             self.assertEqual(GENERATED, (workspace / 'discard-0').read_bytes())
             self.assertTrue((root / books.JOURNAL).exists())

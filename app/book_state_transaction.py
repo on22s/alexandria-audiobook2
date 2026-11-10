@@ -2462,8 +2462,8 @@ def _validate_committed_byte_backups(workspace, rows, targets, cancel_check=None
 
 
 def _validate_recovery_journal_shape(root, journal, data):
-    """-> (workspace, persisted workspace identity, rows, names, targets, limits,
-    parent identities) for a parsed journal, or ValueError (#1660).
+    """-> (workspace, persisted workspace identity, rows, names, limits, parent
+    identities) for a parsed journal, or ValueError (#1660).
 
     Pure: it reads no target or workspace. Recovery and auto-quarantine both
     call it, so the two can never disagree about what a valid journal is."""
@@ -2569,12 +2569,20 @@ def _validate_recovery_journal_shape(root, journal, data):
             expected_keys |= _get_book_file_generation_keys(row, existed, new)
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book stream entry')
+    return workspace, persisted_workspace_identity, rows, names, limits, parent_identities
+
+
+def _get_recovery_targets(root, journal, workspace, rows, limits):
+    """-> each row's target path, refusing unsafe, duplicate or nested ones.
+
+    Resolves paths, so recovery calls it only after the parent chains are
+    rechecked: a swapped parent must be reported as one."""
     targets = [_get_path(root, row['path']) for row in rows]
     if (len(set(targets)) != len(targets)
             or any(target == journal or target.is_relative_to(workspace) for target in targets)
             or limits is None and any(a != b and a.is_relative_to(b) for a in targets for b in targets)):
         raise ValueError('Invalid active-book targets')
-    return workspace, persisted_workspace_identity, rows, names, targets, limits, parent_identities
+    return targets
 
 
 def recover_book_state_locked(data_dir, *, cancel_check=None,
@@ -2614,7 +2622,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
 def _recover_book_journal(root, root_identity, journal, cancel_check):
     """recover_book_state_locked's restore or finish of an admitted journal."""
     data, journal_version = _read_book_journal(journal)
-    (workspace, persisted_workspace_identity, rows, names, targets, limits,
+    (workspace, persisted_workspace_identity, rows, names, limits,
      parent_identities) = _validate_recovery_journal_shape(root, journal, data)
     if parent_identities is not None:
         _require_transaction_parent_identities(
@@ -2622,6 +2630,7 @@ def _recover_book_journal(root, root_identity, journal, cancel_check):
     if limits is not None:
         original_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
         replacement_budget = _BookScanBudget(limits['bytes'], limits['entries'], cancel_check)
+    targets = _get_recovery_targets(root, journal, workspace, rows, limits)
     if data['phase'] == 'committed' and limits is None:
         _validate_committed_byte_backups(
             workspace, rows, targets, cancel_check=cancel_check)
@@ -2835,14 +2844,15 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
     files, never from the refusal's message. An unreadable, non-directory or
     reparse-point workspace stays refused."""
     try:
-        (workspace, _persisted, rows, names, targets, limits,
+        (workspace, _persisted, rows, names, limits,
          parent_identities) = _validate_recovery_journal_shape(root, root / JOURNAL, data)
+        if parent_identities is not None:
+            _require_transaction_parent_identities(
+                root, names, parent_identities, cancel_check=cancel_check)
+        targets = _get_recovery_targets(root, root / JOURNAL, workspace, rows, limits)
         if limits is not None:
             _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check)
         else:
-            if parent_identities is not None:
-                _require_transaction_parent_identities(
-                    root, names, parent_identities, cancel_check=cancel_check)
             _validate_byte_cleanup_targets(
                 rows, targets, 'committed' if data['phase'] == 'committed' else 'recovered',
                 cancel_check=cancel_check)
