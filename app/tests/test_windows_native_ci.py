@@ -26,7 +26,7 @@ TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBook
                        'NativeWindowsBookMoveTests': 5, 'NativeWindowsPublicationCancellationTests': 3,
                        'NativeWindowsPathAdmissionTests': 2, 'NativeWindowsUploadStageTests': 3,
                        'NativeWindowsBookRootSharingTests': 3, 'NativeWindowsUploadRenameRetryTests': 2,
-                       'NativeWindowsHandleRenameTests': 4,
+                       'NativeWindowsHandleRenameTests': 5,
                        'NativeWindowsParentChainTests': 4,
                        'NativeWindowsBookQuarantineTests': 3}
 ALIAS_STEP = 'Verify aliased temporary roots are canonical before asset admission'

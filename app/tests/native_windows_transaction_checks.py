@@ -935,6 +935,18 @@ class NativeWindowsHandleRenameTests(unittest.TestCase):
     """#1660: a book move renames exactly the object it verified (FileRenameInfo
     on the verified handle), never whatever the source name holds by then."""
 
+    def test_the_posix_exchange_never_runs_on_windows(self):
+        import errno
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'a').write_bytes(b'a')
+            (root / 'b').write_bytes(b'b')
+            with self.assertRaises(OSError) as raised:
+                books._exchange(root / 'a', root / 'b', anchor=root,
+                                expect_source=lambda *a: True, expect_destination=lambda *a: True)
+            self.assertEqual(errno.ENOTSUP, raised.exception.errno)
+            self.assertEqual((b'a', b'b'), ((root / 'a').read_bytes(), (root / 'b').read_bytes()))
+
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
@@ -1174,7 +1186,7 @@ class NativeWindowsBookQuarantineTests(unittest.TestCase):
         self.assertEqual(b'user data', (real / 'nested' / 'note').read_bytes())
 
 
-NATIVE_TEST_COUNT = 45
+NATIVE_TEST_COUNT = 46
 
 
 def main():

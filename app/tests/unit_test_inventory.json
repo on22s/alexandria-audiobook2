@@ -1807,6 +1807,23 @@
     "tests.test_book_scope_reuse.BookScopeReuseTests.test_long_work_releases_owner_mutex_and_brief_publication_reacquires_it",
     "tests.test_book_scope_reuse.BookScopeReuseTests.test_only_explicit_reuse_is_reentrant_and_nested_roots_remain_admitted"
   ],
+  "test_book_state_1660_anchored_exchange": [
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_failing_sync_after_the_undo_still_reports_divergence",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_name_changed_before_the_undo_parks_instead_of_swapping_again",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_name_that_no_longer_holds_its_object_is_refused_before_anything_moves",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_name_that_vanishes_before_the_swap_is_a_refusal_not_parked",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_parent_change_after_a_proven_swap_is_reported_but_not_undone",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_predicate_that_raises_counts_as_false",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_proven_pair_is_swapped_in_one_step",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_proven_swap_is_fsynced",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_root_outside_the_anchor_or_swapped_is_refused",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_substitution_after_the_check_is_swapped_back_and_nothing_is_lost",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_a_writer_who_swaps_back_is_caught_even_by_lenient_predicates",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_an_undo_that_cannot_be_proven_parks_without_touching_more",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_directories_exchange_across_parents_with_a_recorded_chain",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_one_name_twice_or_one_object_twice_is_refused",
+    "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_unsupported_exchange_moves_nothing"
+  ],
   "test_book_state_1660_auto_quarantine": [
     "tests.test_book_state_1660_auto_quarantine.AutoQuarantineTests.test_a_changed_target_is_never_quarantined",
     "tests.test_book_state_1660_auto_quarantine.AutoQuarantineTests.test_a_consistent_two_target_switch_is_quarantined",
