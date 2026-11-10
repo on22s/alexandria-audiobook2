@@ -30,14 +30,32 @@ class BookJournalPublicationUncertain(ValueError):
     """Journal replacement may have occurred; preserve transaction evidence."""
 
 
-class BookExchangeDiverged(ValueError):
-    """An exchange swapped a pair that was not the journal's; it was swapped
-    back and both names re-proven (#1660). Nothing was overwritten."""
+class _BookExchangeOutcome:
+    """What an exchange observed, so a caller never re-guesses by stat-ing
+    again: 'before' and 'after' the swap, and 'undone' after the undo, each
+    ((dev, ino) at source, (dev, ino) at destination) or None."""
+
+    def __init__(self, message, *, before=None, after=None, undone=None):
+        super().__init__(message)
+        self.before, self.after, self.undone = before, after, undone
 
 
-class BookExchangeParked(ValueError):
-    """An exchange could be neither proven nor undone. Both names are left
-    as they are for recovery; nothing was overwritten or deleted."""
+class BookExchangeDiverged(_BookExchangeOutcome, ValueError):
+    """An exchange met a pair that was not the journal's and made exactly
+    one more exchange of the same two names (#1660).
+
+    Every object is alive at one of the two names and nothing was
+    overwritten, but the names need NOT hold what they held before the
+    call: a writer racing either syscall can leave the pair swapped, and the
+    workspace name holding the original. Classify from the evidence on the
+    exception (or the journal), never from this exception alone."""
+
+
+class BookExchangeParked(_BookExchangeOutcome, BookJournalPublicationUncertain):
+    """An exchange may have happened and could not be proven or undone. Both
+    names are left as they are; nothing was overwritten or deleted. Like
+    BookJournalPublicationUncertain, it is never an ordinary refusal: the
+    state is for recovery, not for quarantine."""
 
 
 class BookJournalMigrationRequired(ValueError):
@@ -1776,72 +1794,111 @@ def _exchange(source, destination, *, anchor, anchor_identity=None,
 
     expect_source / expect_destination are predicates (dir_fd, name) -> bool
     built from journal evidence, never from what is observed now: they say
-    which object each name must hold before the swap. An exchange never
-    overwrites, so a writer who substitutes either side leaves both objects
-    alive at the two names. Then the swap is undone once, by exchanging the
-    same names again after re-observing them, and BookExchangeDiverged is
-    raised. If that cannot be proven either, BookExchangeParked is raised
-    and nothing else is touched.
+    which object each name must hold before the swap. A predicate should
+    return False, not raise, for a missing or wrong name; one that raises
+    counts as False. Which object a name holds is decided by (dev, ino) on
+    two distinct objects (an exchange updates ctime, and a moved directory
+    may change its own mtime); content and generation proof belong to the
+    predicates.
 
-    Which object a name holds is decided by (dev, ino): an exchange updates
-    ctime, and a moved directory may change its own mtime. Content and
-    generation proof belong to the predicates. After a proven swap a parent
-    or root change is reported but never undone, since authority over the
-    names is no longer proven (the #1816 rule). Unsupported platforms and
-    filesystems raise OSError(ENOTSUP) before anything moves."""
+    Outcomes:
+      return                  swapped, proven at both names, parents fsynced.
+      ValueError              refused before anything moved: a name failed its
+                              predicate or vanished, the two names are one,
+                              or the root/parents changed.
+      OSError                 the exchange syscall itself failed; nothing
+                              moved. Its errno is NOT a capability signal
+                              (EINVAL is also an invalid exchange): callers
+                              decide capability with probe_exchange_support
+                              before mutating. Windows raises ENOTSUP.
+      BookExchangeDiverged    not the journal's pair; exactly one more
+                              exchange was made (see its docstring).
+      BookExchangeParked      an exchange may have happened and could not be
+                              proven or undone; left for recovery.
+    After a proven swap a root/parent change is reported (ValueError) but
+    never undone, since authority over the names is no longer proven (the
+    #1816 rule); it is checked before the parent fsync, so it wins."""
     from source_upload_publication import exchange_source_upload_names
     if os.name == 'nt':
         raise OSError(errno.ENOTSUP, 'Book exchange publication is unavailable')
+    if not callable(expect_source) or not callable(expect_destination):
+        raise TypeError('Book exchange expectations must be predicates')
     refused = 'Book exchange refused: a name no longer holds the journaled object; recovery evidence was preserved'
+    unproven = 'Book exchange could not be proven or undone; recovery evidence was preserved'
     with _anchored_mutation(
             anchor, source, destination, anchor_identity=anchor_identity,
             source_parent_identity=source_parent_identity,
             destination_parent_identity=destination_parent_identity) as pair:
-        def observe(dir_fd, name):
+        def holds(predicate, dir_fd, name):
             try:
+                return predicate(dir_fd, name) is True
+            except Exception:
+                return False
+        def observe():
+            identities = []
+            for dir_fd, name in ((pair.source_fd, pair.source_name),
+                                 (pair.destination_fd, pair.destination_name)):
                 info = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
-            except OSError as error:
-                raise BookExchangeParked(
-                    'Book exchange could not observe its names; recovery evidence was preserved') from error
-            return (info.st_dev, info.st_ino)
+                identities.append((info.st_dev, info.st_ino))
+            return tuple(identities)
         def swap():
             exchange_source_upload_names(pair.source_name, pair.destination_name,
                                          source_dir_fd=pair.source_fd,
                                          destination_dir_fd=pair.destination_fd)
         pair.require_named_parents()
         pair.require_expected_parents()
-        if (not expect_source(pair.source_fd, pair.source_name)
-                or not expect_destination(pair.destination_fd, pair.destination_name)):
+        source_parent, destination_parent = os.fstat(pair.source_fd), os.fstat(pair.destination_fd)
+        if ((source_parent.st_dev, source_parent.st_ino)
+                == (destination_parent.st_dev, destination_parent.st_ino)
+                and pair.source_name == pair.destination_name):
+            raise ValueError('Book exchange needs two different names')
+        if (not holds(expect_source, pair.source_fd, pair.source_name)
+                or not holds(expect_destination, pair.destination_fd, pair.destination_name)):
             raise ValueError(refused)
-        before = (observe(pair.source_fd, pair.source_name),
-                  observe(pair.destination_fd, pair.destination_name))
-        swap()
-        after = (observe(pair.source_fd, pair.source_name),
-                 observe(pair.destination_fd, pair.destination_name))
-        if (after == (before[1], before[0])
-                and expect_source(pair.destination_fd, pair.destination_name)
-                and expect_destination(pair.source_fd, pair.source_name)):
-            pair.sync_parents()
-            pair.require_named_parents()
-            pair.require_expected_parents()
-            return
-        # Not the pair we proved: a writer changed a side. Undo our own swap
-        # once, only if the names still hold what was just observed.
         try:
-            if after != (observe(pair.source_fd, pair.source_name),
-                         observe(pair.destination_fd, pair.destination_name)):
-                raise BookExchangeParked(refused)
-            swap()
+            before = observe()
         except OSError as error:
-            raise BookExchangeParked(refused) from error
-        undone = (observe(pair.source_fd, pair.source_name),
-                  observe(pair.destination_fd, pair.destination_name))
+            raise ValueError(refused) from error   # nothing has moved yet
+        if before[0] == before[1]:
+            raise ValueError('Book exchange needs two different objects')
+        swap()
+        try:
+            after = observe()
+        except OSError as error:
+            raise BookExchangeParked(unproven, before=before) from error
+        if (after == (before[1], before[0])
+                and holds(expect_source, pair.destination_fd, pair.destination_name)
+                and holds(expect_destination, pair.source_fd, pair.source_name)):
+            try:
+                pair.require_named_parents()
+                pair.require_expected_parents()
+            except BaseException:
+                # As in _move: still try to make the proven swap durable, but
+                # the authority loss is the error the caller must see.
+                with contextlib.suppress(OSError):
+                    pair.sync_parents()
+                raise
+            pair.sync_parents()
+            return
+        # Not the pair we proved: a writer changed a side. Make exactly one
+        # more exchange, only if the names still hold what was just observed.
+        try:
+            if observe() != after:
+                raise BookExchangeParked(unproven, before=before, after=after)
+            swap()
+            undone = observe()
+        except OSError as error:
+            raise BookExchangeParked(unproven, before=before, after=after) from error
         if undone != (after[1], after[0]):
-            raise BookExchangeParked(refused)
-        pair.sync_parents()
-        raise BookExchangeDiverged(
-            'Book exchange met an object that was not the journal\'s; the swap was undone '
-            'and recovery evidence was preserved')
+            raise BookExchangeParked(unproven, before=before, after=after, undone=undone)
+        diverged = BookExchangeDiverged(
+            "Book exchange met an object that was not the journal's; one more exchange "
+            'was made and recovery evidence was preserved', before=before, after=after, undone=undone)
+        try:
+            pair.sync_parents()
+        except OSError as sync_error:
+            raise diverged from sync_error
+        raise diverged
 
 
 def _capture_cleanup_tree(path, cancel_check=None):

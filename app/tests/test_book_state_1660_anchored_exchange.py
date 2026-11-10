@@ -96,8 +96,10 @@ class AnchoredExchangeTests(unittest.TestCase):
                 return real(*args, **kwargs)
             raise OSError(errno.EIO, 'undo failed')
         with patch.object(uploads, 'exchange_source_upload_names', side_effect=fail_the_undo), \
-                self.assertRaises(books.BookExchangeParked):
+                self.assertRaises(books.BookExchangeParked) as raised:
             self.exchange()
+        # Never an ordinary refusal: recovery must not quarantine it as one.
+        self.assertIsInstance(raised.exception, books.BookJournalPublicationUncertain)
         self.assertEqual(2, len(calls))
         # The swapped state is left for recovery: nothing overwritten or deleted.
         self.assertEqual((b'replacement', b'foreign', b'original'),
@@ -151,11 +153,123 @@ class AnchoredExchangeTests(unittest.TestCase):
                 def __exit__(self_inner, *exc):
                     return context.__exit__(*exc)
             return Wrapped()
-        with patch.object(books, '_anchored_mutation', side_effect=recording), \
-                self.assertRaisesRegex(ValueError, 'parent changed'):
-            self.exchange()
+        for sync in (None, OSError(errno.EIO, 'sync failed')):
+            with self.subTest(failing_sync=bool(sync)):
+                named.clear()
+                with patch.object(books, '_anchored_mutation', side_effect=recording), \
+                        patch.object(books.os, 'fsync', side_effect=sync or os.fsync), \
+                        self.assertRaisesRegex(ValueError, 'parent changed'):
+                    self.exchange()   # the authority loss wins over a failing sync
+                # Swapped and not undone.
+                self.assertEqual((b'replacement', b'original'),
+                                 (self.target.read_bytes(), self.staged.read_bytes()))
+                self.target.write_bytes(b'original')   # the same inodes, reset
+                self.staged.write_bytes(b'replacement')
+
+
+    def test_a_writer_who_swaps_back_is_caught_even_by_lenient_predicates(self):
+        # Predicates that accept any file leave only the "the two objects
+        # traded names" proof to notice that nothing net happened.
+        def any_file(dir_fd, name):
+            return True
+        real = uploads.exchange_source_upload_names
+        calls = []
+        def writer_swaps_back(*args, **kwargs):
+            calls.append(1)
+            real(*args, **kwargs)
+            if len(calls) == 1:
+                real(*args, **kwargs)   # a writer undoes our swap at once
+        with patch.object(uploads, 'exchange_source_upload_names', side_effect=writer_swaps_back), \
+                self.assertRaises(books.BookExchangeDiverged) as raised:
+            self.exchange(expect_source=any_file, expect_destination=any_file)
+        evidence = raised.exception
+        self.assertEqual(evidence.before, evidence.after)
+        self.assertEqual((evidence.after[1], evidence.after[0]), evidence.undone)
+        # Diverged does not promise the old state: here the pair ends swapped.
         self.assertEqual((b'replacement', b'original'), (self.target.read_bytes(), self.staged.read_bytes()))
 
+    def test_a_proven_swap_is_fsynced(self):
+        synced = []
+        real = books.os.fsync
+        def counting(fd):
+            synced.append(fd)
+            return real(fd)
+        with patch.object(books.os, 'fsync', side_effect=counting):
+            self.exchange()
+        self.assertTrue(synced)
+
+    def test_one_name_twice_or_one_object_twice_is_refused(self):
+        with self.assertRaisesRegex(ValueError, 'two different names'):
+            books._exchange(self.target, self.target, anchor=self.root, anchor_identity=self.identity,
+                            expect_source=holds(self.target), expect_destination=holds(self.target))
+        self.staged.unlink()
+        os.link(self.target, self.staged)
+        with self.assertRaisesRegex(ValueError, 'two different objects'):
+            self.exchange(expect_destination=holds(self.target))
+        self.assertEqual(b'original', self.target.read_bytes())
+
+    def test_a_name_that_vanishes_before_the_swap_is_a_refusal_not_parked(self):
+        expect = holds(self.staged)
+        def vanishes_after_its_proof(dir_fd, name):
+            result = expect(dir_fd, name)
+            self.staged.rename(self.workspace / 'elsewhere')
+            return result
+        with self.assertRaises(ValueError) as raised:
+            self.exchange(expect_destination=vanishes_after_its_proof)
+        self.assertNotIsInstance(raised.exception, books.BookJournalPublicationUncertain)
+        self.assertEqual(b'original', self.target.read_bytes())
+
+    def test_a_predicate_that_raises_counts_as_false(self):
+        def raises(dir_fd, name):
+            raise FileNotFoundError(name)
+        with self.assertRaisesRegex(ValueError, 'Book exchange refused'):
+            self.exchange(expect_source=raises)
+        with self.assertRaises(TypeError):
+            self.exchange(expect_source=None)
+        self.assertEqual((b'original', b'replacement'), (self.target.read_bytes(), self.staged.read_bytes()))
+
+    def test_a_failing_sync_after_the_undo_still_reports_divergence(self):
+        real = uploads.exchange_source_upload_names
+        calls = []
+        def writer_wins(*args, **kwargs):
+            if not calls:
+                os.rename(self.target, self.root / 'aside')
+                (self.root / 'script.json').write_bytes(b'foreign')
+            calls.append(1)
+            return real(*args, **kwargs)
+        with patch.object(uploads, 'exchange_source_upload_names', side_effect=writer_wins), \
+                patch.object(books.os, 'fsync', side_effect=OSError(errno.EIO, 'sync failed')), \
+                self.assertRaises(books.BookExchangeDiverged) as raised:
+            self.exchange()
+        self.assertIsInstance(raised.exception.__cause__, OSError)
+
+    def test_directories_exchange_across_parents_with_a_recorded_chain(self):
+        nested = self.root / 'books' / 'one'
+        nested.mkdir(parents=True)
+        chapter = nested / 'chapters'
+        chapter.mkdir()
+        (chapter / 'a').write_bytes(b'old chapter')
+        staged = self.workspace / 'new-1'
+        staged.mkdir()
+        (staged / 'a').write_bytes(b'new chapter')
+        descriptor = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            chain = books._capture_target_parent_identities(descriptor, 'books/one/chapters')
+        finally:
+            os.close(descriptor)
+        workspace = os.lstat(self.workspace)
+        books._exchange(chapter, staged, anchor=self.root, anchor_identity=self.identity,
+                        source_parent_identity=chain,
+                        destination_parent_identity=[workspace.st_dev, workspace.st_ino],
+                        expect_source=holds(chapter), expect_destination=holds(staged))
+        self.assertEqual((b'new chapter', b'old chapter'),
+                         ((chapter / 'a').read_bytes(), (staged / 'a').read_bytes()))
+        wrong = [list(pair) for pair in chain]
+        wrong[-1][1] += 1
+        with self.assertRaisesRegex(ValueError, 'parent changed'):
+            books._exchange(chapter, staged, anchor=self.root, anchor_identity=self.identity,
+                            source_parent_identity=wrong,
+                            expect_source=holds(chapter), expect_destination=holds(staged))
 
 class WindowsExchangeTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt', 'Windows only')
