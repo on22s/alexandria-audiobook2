@@ -42,26 +42,38 @@ class PublishLoopParentRecheckTests(unittest.TestCase):
         self.assertEqual(3 * 4, self.parent_walks(8) - self.parent_walks(4))
 
     def test_no_parent_walk_starts_after_cancellation(self):
+        # Once cancel is requested, the publish loop raises before starting
+        # another parent walk. Walks made by the rollback after the raise are
+        # the compensation's own safety checks and are not counted.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             replacements = self.book(root, 4)
             move, walk = books._move, books._require_target_parent_identities
-            cancelled, after_cancel = [False], [0]
+            check = books._check_stream_cancellation
+            cancelled, raised, before_raise = [False], [False], [0]
             def move_then_cancel(*args, **kwargs):
                 result = move(*args, **kwargs)
                 cancelled[0] = True   # cancel once the first target has moved
                 return result
             def counting(*args, **kwargs):
-                if cancelled[0]:
-                    after_cancel[0] += 1
+                if cancelled[0] and not raised[0]:
+                    before_raise[0] += 1
                 return walk(*args, **kwargs)
+            def recording_check(cancel_check):
+                try:
+                    return check(cancel_check)
+                except AudioGenerationCancelled:
+                    raised[0] = True
+                    raise
             with patch.object(books, '_move', side_effect=move_then_cancel), \
                     patch.object(books, '_require_target_parent_identities', side_effect=counting), \
+                    patch.object(books, '_check_stream_cancellation', side_effect=recording_check), \
                     self.assertRaises(AudioGenerationCancelled):
                 with books.ensure_book_state(root):
                     books.apply_book_state_locked(root, replacements, [],
                                                   cancel_check=lambda: cancelled[0])
-            self.assertEqual(0, after_cancel[0])
+            self.assertTrue(raised[0])
+            self.assertEqual(0, before_raise[0])
             for index in range(4):   # rolled back
                 self.assertEqual(b'old', (root / f'part{index}/state.json').read_bytes())
 
