@@ -2833,7 +2833,7 @@ def _recover_book_journal(root, root_identity, journal, cancel_check):
     return True
 
 
-def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
+def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None, *, force=False):
     """-> (workspace, workspace identity or None) when a refused switch may be
     quarantined, else None (#1660).
 
@@ -2842,20 +2842,25 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None):
     for publishing/recovered, the replacements for committed. Then the live
     book is consistent and only the workspace is in doubt. Decided from the
     files, never from the refusal's message. An unreadable, non-directory or
-    reparse-point workspace stays refused."""
+    reparse-point workspace stays refused.
+
+    force (the operator's quarantine) skips only the target checks: the
+    operator accepts the book's current files. The journal and workspace
+    checks still apply, since those decide what is moved."""
     try:
         (workspace, persisted_identity, rows, names, limits,
          parent_identities) = _validate_recovery_journal_shape(root, root / JOURNAL, data)
-        if parent_identities is not None:
-            _require_transaction_parent_identities(
-                root, names, parent_identities, cancel_check=cancel_check)
-        targets = _get_recovery_targets(root, root / JOURNAL, workspace, rows, limits)
-        if limits is not None:
-            _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check)
-        else:
-            _validate_byte_cleanup_targets(
-                rows, targets, 'committed' if data['phase'] == 'committed' else 'recovered',
-                cancel_check=cancel_check)
+        if not force:
+            if parent_identities is not None:
+                _require_transaction_parent_identities(
+                    root, names, parent_identities, cancel_check=cancel_check)
+            targets = _get_recovery_targets(root, root / JOURNAL, workspace, rows, limits)
+            if limits is not None:
+                _verify_stream_cleanup_targets(root, data, cancel_check=cancel_check)
+            else:
+                _validate_byte_cleanup_targets(
+                    rows, targets, 'committed' if data['phase'] == 'committed' else 'recovered',
+                    cancel_check=cancel_check)
         try:
             info = os.lstat(workspace)
         except FileNotFoundError:
@@ -2946,7 +2951,8 @@ def _write_quarantine_receipt(directory, receipt):
     sync_adapter_directory(str(directory))
 
 
-def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_check=None):
+def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_check=None,
+                                 force=False):
     """Move a stuck switch's workspace and journal aside; never delete (#1660).
 
     With a refusal: quarantine when _get_quarantine_eligibility allows it.
@@ -2969,7 +2975,9 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     quarantine, receipt = _find_pending_quarantine(root, sha256, data['workspace'])
     if quarantine is None and refusal is None:
         return False
-    eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check)
+    # A resumed operator quarantine keeps the operator's decision.
+    force = force or (receipt is not None and receipt.get('forced') is True)
+    eligible = _get_quarantine_eligibility(root, root_identity, data, cancel_check, force=force)
     if eligible is None:
         if quarantine is not None:
             raise ValueError('An interrupted book quarantine can no longer prove its targets; '
@@ -2978,6 +2986,7 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     workspace, workspace_identity = eligible
     if quarantine is None:
         receipt = {'version': 1, 'state': 'prepared', 'refusal': str(refusal)[:1000],
+                   'forced': bool(force),
                    'journal': {'sha256': sha256, 'bytes': len(raw),
                                'version': data.get('version'), 'phase': data.get('phase')},
                    'workspace': {'name': data['workspace'], 'identity': workspace_identity}}
@@ -3037,11 +3046,60 @@ def _quarantine_book_transaction(root, root_identity, *, refusal=None, cancel_ch
     return True
 
 
+def quarantine_book_state_locked(root, root_identity):
+    """The operator's quarantine (#1660); caller holds book_operator_locked.
+
+    Moves a pending switch's workspace and journal aside like auto-quarantine,
+    but without requiring the targets to match the journal: the operator
+    accepts the book's current files. Nothing is deleted. -> False when no
+    transaction is pending; ValueError when the journal or workspace cannot be
+    quarantined safely (inspect reports why)."""
+    root = Path(root)
+    if not os.path.lexists(root / JOURNAL):
+        return False
+    if not _quarantine_book_transaction(
+            root, root_identity, refusal='Operator quarantine accepted the current book files',
+            force=True):
+        raise ValueError('Book transaction cannot be quarantined: its journal or workspace '
+                         'is not safe to move; run inspect for details')
+    return True
+
+
+def _inspect_quarantine(directory):
+    """-> one retained quarantine's receipt and what is on disk beside it."""
+    entry = {'name': directory.name}
+    try:
+        receipt, _version = _read_book_journal(directory / QUARANTINE_RECEIPT)
+    except (OSError, ValueError) as error:
+        entry['error'] = f'{type(error).__name__}: {error}'
+        return entry
+    if not isinstance(receipt, dict):
+        entry['error'] = 'Receipt is not an object'
+        return entry
+    journal = receipt.get('journal') if isinstance(receipt.get('journal'), dict) else {}
+    workspace = receipt.get('workspace') if isinstance(receipt.get('workspace'), dict) else {}
+    entry.update({'state': receipt.get('state'), 'forced': receipt.get('forced', False),
+                  'refusal': receipt.get('refusal'), 'phase': journal.get('phase'),
+                  'journal_sha256': journal.get('sha256'), 'workspace': workspace.get('name')})
+    try:
+        raw = _read_book_journal(directory / QUARANTINE_JOURNAL, include_raw=True)[2]
+        entry['journal_held'] = hashlib.sha256(raw).hexdigest() == journal.get('sha256')
+    except (OSError, ValueError):
+        entry['journal_held'] = False
+    entry['workspace_held'] = os.path.lexists(directory / QUARANTINE_WORKSPACE)
+    return entry
+
+
 def _is_retained_evidence_name(name):
     """Whether a root name is reserved for quarantine/migration evidence.
 
     Case-folded: Windows and macOS open the same directory for any casing."""
     return name.casefold().startswith((QUARANTINE_PREFIX, MIGRATION_PREFIX))
+
+
+def get_admitted_book_root(data_dir):
+    """-> the admitted book root for data_dir, without taking the lock (#1660)."""
+    return _direct_book_root(data_dir)[0]
 
 
 @contextlib.contextmanager
@@ -3130,6 +3188,8 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES)
               'retained_status': root_listing['status']}
     if 'error' in root_listing:
         report['retained_error'] = root_listing['error']
+    report['quarantines'] = [_inspect_quarantine(root / name) for name in report['retained']
+                             if _QUARANTINE_NAME.fullmatch(name)]
     journal = root / JOURNAL
     if not os.path.lexists(journal):
         return report
