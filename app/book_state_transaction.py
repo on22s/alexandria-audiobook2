@@ -2028,8 +2028,9 @@ def _read_book_placeholder(evidence, *, path=None, dir_fd=None, name=None):
     and generation when recorded, and the exact nonce bytes for a file. A
     directory placeholder is proven by being an empty, mode-0700 directory:
     rmdir itself refuses to destroy content, so emptiness is rechecked there.
-    A target placeholder is journaled before it exists, so its identity is
-    deliberately unknown and the nonce alone proves it (#1660)."""
+    A creation's placeholder is staged complete in the workspace before the
+    journal, so its identity and generation are journaled too and must match
+    along with the nonce (#1660)."""
     if not isinstance(evidence, dict) or evidence.get('kind') not in _PLACEHOLDER_KINDS:
         return None
     kind, nonce, expected = evidence['kind'], evidence.get('nonce'), evidence.get('identity')
@@ -2109,8 +2110,10 @@ def _remove_book_placeholder_by_identity(directory_fd, name, identity, kind):
 
     Used only after a failed create: the object never became a complete,
     nonce-provable placeholder, so generic cleanup must not adopt it. The
-    name is removed only while it still holds the exact object created here;
-    a deletion failure is suppressed so the original write error surfaces."""
+    name is removed only while it still holds the exact object created here
+    (callers keep the object's descriptor open across this call, so its inode
+    cannot be reused by a writer); a deletion failure is suppressed so the
+    original write error surfaces."""
     if identity is None:
         return
     try:
@@ -2157,8 +2160,13 @@ def _create_book_placeholder(directory_fd, name, kind, nonce, *, on_create=None)
             os.fsync(descriptor)
             info = os.fstat(descriptor)
         except BaseException:
-            os.close(descriptor)
-            _remove_book_placeholder_by_identity(directory_fd, name, identity, kind)
+            try:
+                # Remove while our descriptor is still open: it keeps the
+                # inode allocated, so a writer who recreates the name cannot
+                # be given our inode number and match the identity check.
+                _remove_book_placeholder_by_identity(directory_fd, name, identity, kind)
+            finally:
+                os.close(descriptor)
             raise
         os.close(descriptor)
         identity = [info.st_dev, info.st_ino]

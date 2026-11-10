@@ -608,5 +608,38 @@ with books.ensure_book_state(sys.argv[1]):
         self.assertEqual('file', entry['expected']['placeholder']['kind'])
 
 
+    def test_failed_write_cleanup_never_deletes_a_writer_object_reusing_our_inode(self):
+        # After a failed write, cleanup compares the slot name's identity with
+        # the object we created. That is only sound while our descriptor is
+        # open: once closed, the inode can be freed and handed to a writer who
+        # recreates the name (ext4 does this at once), and the check would
+        # match the writer's file. Whether reuse happens depends on the
+        # filesystem, so pin the property that makes it impossible everywhere:
+        # cleanup runs while our descriptor still pins the inode.
+        directory_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        self.addCleanup(os.close, directory_fd)
+        ours, observed = [], []
+        def disk_full(descriptor, data):
+            ours.append(descriptor)
+            raise OSError(errno.ENOSPC, 'No space left on device')
+        remove = books._remove_book_placeholder_by_identity
+        def check_descriptor_still_open(*args, **kwargs):
+            try:
+                os.fstat(ours[0])
+                observed.append('open')
+            except OSError:
+                observed.append('closed')
+            return remove(*args, **kwargs)
+        with patch.object(books, '_write_book_placeholder_bytes', side_effect=disk_full), \
+                patch.object(books, '_remove_book_placeholder_by_identity',
+                             side_effect=check_descriptor_still_open):
+            with self.assertRaises(OSError) as raised:
+                books._create_book_placeholder(directory_fd, 'old-0', 'file', '0' * 32)
+        self.assertEqual(errno.ENOSPC, raised.exception.errno)
+        self.assertEqual(['open'], observed)
+        self.assertFalse((self.root / 'old-0').exists())   # our partial object is gone
+        with self.assertRaises(OSError):
+            os.fstat(ours[0])                              # and the descriptor closed
+
 if __name__ == '__main__':
     unittest.main()

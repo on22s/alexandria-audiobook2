@@ -281,8 +281,9 @@ def _require_callback_arity(callback, count, label):
 def intercept_book_publications(module, before=None, after=None):
     """Intercept each row publication on whichever protocol is in use.
 
-    before(target) runs before that row can change (raise to inject a failed
-    publication); after(target) runs once the target holds the staged bytes
+    before(target) runs before that row's target changes (raise to inject a
+    failed publication). For a v4 creation the target already holds our
+    64-byte placeholder at that point, not nothing; after(target) runs once the target holds the staged bytes
     (the v3 publish move returned, or the v4 exchange swapped). Targets are
     Paths. Callbacks that must fire once should guard themselves: the v4
     companion exchange that a rollback makes has the same direction, so after
@@ -308,8 +309,10 @@ def intercept_book_publications(module, before=None, after=None):
 
 # Every post-journal mutation a book publication makes. A v3 row is a backup
 # move plus a publish move; a v4 row is one exchange, a creation adds one
-# no-overwrite placeholder publish (which is itself an anchored move), and a
-# removal adds one proven delete. Placeholders are staged in the workspace
+# no-overwrite placeholder publish, and a removal adds one proven delete. The
+# placeholder publish calls _move internally, so a creation counts as TWO
+# ordinals here (_create_book_placeholder_at, then its _move) -- count them
+# when asserting an ordinal in a transaction that creates a file. Placeholders are staged in the workspace
 # before the journal, like v3 staging, so their create is not among them.
 BOOK_MUTATION_SEAMS = ('_move', '_exchange', '_create_book_placeholder_at',
                        '_delete_book_placeholder_at')
