@@ -345,7 +345,7 @@ class DerivedMetadataTests(unittest.TestCase):
                     self.assertFalse(marker.exists(),
                                      'the inherited AA2_PYTHON ran as the fixture interpreter')
                     calls=[json.loads(line) for line in calls.read_text().splitlines()]
-                    self.assertEqual(5,len(calls),calls)
+                    self.assertEqual(6,len(calls),calls)
                     self.assertEqual(before,dict(os.environ),
                                      'the fixture run changed the caller environment')
 
@@ -372,7 +372,7 @@ class DerivedMetadataTests(unittest.TestCase):
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
             self.assertEqual([
                 'audit_experiment_artifacts.py', 'audit_legacy_attribution.py',
-                'collect_results.py', 'goal_evidence_audit.py',
+                'collect_results.py', 'goal_evidence_audit.py', 'extract_ui_catalog.py',
                 'update_test_inventory.py', 'verify_release.py'],
                 [Path(args[0]).name for args in calls])
             self.assertFalse(any('--check' in args for args in calls),
@@ -396,7 +396,7 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertFalse((caller/'calls').exists(),'generator ran in caller checkout')
             calls=[json.loads(line) for line in (target/'calls').read_text().splitlines()]
             self.assertEqual(['audit_experiment_artifacts.py','audit_legacy_attribution.py',
-                              'collect_results.py','goal_evidence_audit.py',
+                              'collect_results.py','goal_evidence_audit.py','extract_ui_catalog.py',
                               'update_test_inventory.py'],
                              [Path(args[0]).name for args in calls])
             self.assertEqual('resolved\n',(target/'RESULTS_INDEX.md').read_text())
@@ -418,7 +418,7 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             self.assertEqual(['--metadata',''],(root/'queries').read_text().splitlines())
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
-            self.assertEqual(6,len(calls));self.assertEqual('-',calls[0][0])
+            self.assertEqual(7,len(calls));self.assertEqual('-',calls[0][0])
             self.assertEqual('',git('diff','--name-only','--diff-filter=U').stdout)
             self.assertNotIn('<<<<<<<',(root/'GOALS.md').read_text())
             self.assertIn('met goals begin at line 32',(root/'GOALS.md').read_text())
