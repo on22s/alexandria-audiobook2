@@ -25,7 +25,8 @@ WORKFLOW = ROOT / '.github/workflows/sound-assets.yml'
 TRANSACTION_CLASSES = {'NativeWindowsRecoveryQuotaTests': 11, 'NativeWindowsBookStateTests': 5,
                        'NativeWindowsBookMoveTests': 5, 'NativeWindowsPublicationCancellationTests': 3,
                        'NativeWindowsPathAdmissionTests': 2, 'NativeWindowsUploadStageTests': 3,
-                       'NativeWindowsBookRootSharingTests': 3, 'NativeWindowsUploadRenameRetryTests': 2}
+                       'NativeWindowsBookRootSharingTests': 3, 'NativeWindowsUploadRenameRetryTests': 2,
+                       'NativeWindowsHandleRenameTests': 4}
 ALIAS_STEP = 'Verify aliased temporary roots are canonical before asset admission'
 NORMAL_STEP = 'Verify descriptor-owned uploads through real decoding and cancellation'
 ALIAS_COMMAND = 'python tests/native_windows_sound_temp_root_checks.py'

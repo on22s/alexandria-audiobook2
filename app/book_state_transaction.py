@@ -1314,7 +1314,14 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                                 'Book artifact changed during its move; recovery evidence was preserved') from error
                         if generation != expected_source_generation:
                             raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
-                move_source_upload_exclusively(source, destination)
+                # Rename the object the handle verified, not whatever the source
+                # name holds by now (#1660): a path rename would re-resolve it.
+                from windows_export_staging_directory import StageDirectoryChanged, windows_rename_verified
+                try:
+                    windows_rename_verified(source, destination, expected_source_identity)
+                except StageDirectoryChanged as error:
+                    raise ValueError(
+                        'Book artifact changed during its move; recovery evidence was preserved') from error
             return
         else:
             if (os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd

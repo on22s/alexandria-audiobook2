@@ -100,6 +100,73 @@ def windows_named_file_identity(path):
         handle.close()
 
 
+def _filetime_ns(value):
+    """FILETIME (100 ns since 1601) -> ns since the Unix epoch, as os.stat reports it."""
+    return (((value.high << 32) | value.low) - 116444736000000000) * 100
+
+
+class _RenameInformation(ctypes.Structure):
+    """FILE_RENAME_INFO header; FileName starts at the `name` offset."""
+    _fields_ = [('flags', ctypes.c_uint32), ('root', ctypes.c_void_p),
+                ('length', ctypes.c_uint32), ('name', ctypes.c_wchar * 1)]
+
+
+def _get_rename_request(name):
+    """-> a FILE_RENAME_INFO buffer for `name`: ReplaceIfExists FALSE, no root.
+
+    The name is stored as its exact UTF-16 code units plus a NUL terminator,
+    and FileNameLength counts those bytes without the terminator. Sizing by
+    Python code points is wrong for characters outside the BMP (one code point,
+    two UTF-16 units): the terminator was dropped and the kernel read past the
+    buffer into a garbage name (#1660 review).
+    """
+    if '\0' in name:
+        raise ValueError('Invalid Windows rename destination')   # the kernel would truncate at it
+    # surrogatepass: NTFS allows unpaired surrogates in names, and a path
+    # rename moved them; keep each as its single UTF-16 unit.
+    encoded = name.encode('utf-16-le', 'surrogatepass')
+    offset = _RenameInformation.name.offset
+    request = ctypes.create_string_buffer(
+        max(ctypes.sizeof(_RenameInformation), offset + len(encoded) + 2))
+    header = _RenameInformation.from_buffer(request)
+    header.flags, header.root, header.length = 0, None, len(encoded)
+    ctypes.memmove(ctypes.addressof(request) + offset, encoded + b'\0\0', len(encoded) + 2)
+    return request
+
+
+def windows_rename_verified(source, destination, expected=None):
+    """Rename exactly the object a handle verified, never whatever the name now holds.
+
+    #1660: a path rename re-resolves `source` after any identity check, so a
+    writer that substitutes the name in between gets its object moved. Here
+    one handle is opened (DELETE access, read-only sharing, reparse points
+    not followed), its identity and version are compared with `expected`
+    ([dev, ino] or [dev, ino, size, mtime_ns, mode, nlink] as os.lstat gives
+    them), and the rename is applied to that handle. A substituted name is
+    left untouched, and while the handle is held no other writer or rename
+    can change the object. The destination is a full path and is never
+    replaced (an existing one raises FileExistsError). Any failure raises;
+    there is no fallback to a path rename.
+    """
+    api = _api()
+    handle = _Handle(api, source, delete=True)
+    try:
+        if expected is not None:
+            info = handle.information()
+            observed = [*_identity(info)]
+            if len(expected) == 6:
+                observed += [(info.size_high << 32) | info.size_low, _filetime_ns(info.written),
+                             expected[4], info.links]
+            if observed != list(expected):
+                raise StageDirectoryChanged('Book artifact changed during its move')
+        request = _get_rename_request(str(Path(destination).absolute()))
+        # FileRenameInfo = 3.
+        if not api.SetFileInformationByHandle(handle.handle, 3, request, ctypes.sizeof(request)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        handle.close()
+
+
 def _open_rename_guard(api, directory, *, required):
     """Deny directory renames through sharing where the app controls the tree.
 
