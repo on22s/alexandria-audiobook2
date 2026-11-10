@@ -30,6 +30,28 @@ When a book cannot open for this reason, the Home page names the commands
 below, in the order to try them: `inspect`, then `finish`, and only if `finish`
 refuses, `quarantine --accept-current-files`.
 
+## Leftovers from a crash
+
+A crash can leave two things that no journal claims:
+
+- `.book-switch-<id>/`: the working folder of a switch that died before its
+  journal was published. It can hold a whole staged copy of the book.
+- `.active_book_transaction.json.new-<id>`: a journal publication temporary
+  that was written but never became the journal.
+
+`inspect` lists these as `orphaned_staging` and `journal_temporaries`, with
+their entry count, bytes and newest timestamp. The recovery summary reports
+only the counts and total bytes (`leftovers`), never names or paths, and
+reports `leftovers: null` while the app is busy (the app may be staging right
+now). A name that only looks similar, a link, or the working folder the
+pending journal itself names is never reported as an orphan.
+
+The app never deletes these leftovers: a pre-journal folder carries no proof
+that it is ours, so reclaiming it is your decision. After checking that the
+book opens and the folder is not a live switch, delete it yourself, as you
+would a set-aside folder. `inspect --no-lock` can show an entry that is really
+a live switch's staging; re-run `inspect` under the lock before deleting it.
+
 ## The recovery command
 
 Run it in a terminal from the Alexandria folder, using the app's Python (under
@@ -44,7 +66,7 @@ python app/book_state_recovery.py migrate-legacy --trust-journal-hashes
 
 | Command | What it does |
 |---|---|
-| `inspect` | Read-only report: the pending journal, each file's expected and current state, the working folder, and every set-aside folder with its receipt. Add `--hash` to hash each file and report whether it holds the journal's `old` bytes, its `new` bytes, or `neither`. Timestamps alone can miss a same-size rewrite: FAT/exFAT drives keep 2-second times. `--no-lock` reads while the app is busy, as a best-effort snapshot. |
+| `inspect` | Read-only report: the pending journal, each file's expected and current state, the working folder, every set-aside folder with its receipt, and any crash leftovers (`orphaned_staging`, `journal_temporaries`). Add `--hash` to hash each file and report whether it holds the journal's `old` bytes, its `new` bytes, or `neither`. Timestamps alone can miss a same-size rewrite: FAT/exFAT drives keep 2-second times. `--no-lock` reads while the app is busy, as a best-effort snapshot; an entry it shows may be a live switch's staging. |
 | `finish` | Runs the same recovery the app runs, now. |
 | `quarantine --accept-current-files` | Keeps the book's files exactly as they are now, even though they do not match the journal. The working folder and the journal are moved aside, nothing is deleted, and the book opens. Use it after `inspect` shows the current files are the ones you want. |
 | `migrate-legacy --trust-journal-hashes` | For a journal from an older version of the app (v1), which recorded each file's hash but not its identity. With the flag, a file holding the hash its phase recorded is trusted. When every file matches, the working folder and the old journal are moved into `.book-switch-migration-<hash>-<nonce>/` and the book opens. A save interrupted mid-publish matches neither state: each mismatched file is listed and nothing moves. |
@@ -79,8 +101,11 @@ The app never deletes these folders. Delete one yourself once you no longer
 need the evidence; `inspect` lists them all. If a move was interrupted while
 the journal was still in the data folder, the next recovery (quarantine) or the
 same command (operator quarantine, migration) finishes it. If it stopped after
-the journal moved, the receipt can stay `prepared` although nothing is left to
-do: `inspect` shows `journal_held: true` for such a folder.
+the journal moved, the next book operation (or `finish`) completes the receipt,
+but only after re-checking that `journal.json` still has the receipt's exact
+size and hash and that `workspace/` is still the folder the receipt names. If
+that cannot be proved, the receipt stays `prepared`, nothing is moved, and
+`inspect` shows `journal_held: true` for it.
 
 ## Trust boundary
 

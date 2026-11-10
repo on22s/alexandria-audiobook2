@@ -16,7 +16,8 @@ class _Crash(BaseException):
 
 class PrepublicationCrashTests(unittest.TestCase):
     """A transaction that fails after its journal is published but before any
-    target moves, for stream (v2) and byte (v3) journals, on every platform."""
+    target moves, for stream (v2) and byte (v3, or v4 where the filesystem has
+    no verified exchange) journals, on every platform."""
 
     def fail_before_first_move(self, root, kind, *, tamper=None):
         """Run a stream or byte transaction that fails after publishing its
@@ -126,6 +127,25 @@ class PrepublicationCrashTests(unittest.TestCase):
                     self.assertFalse((root / books.JOURNAL).exists())
                     self.assertEqual([], list(root.glob('.book-switch-*')))
                 self.assertEqual(b'concurrent edit', target.read_bytes())
+
+    def test_retiring_after_a_changed_target_logs_one_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'audio.wav'
+            target.write_bytes(b'old audio')
+            def tamper():
+                target.write_bytes(b'concurrent edit')
+            trigger, run = self.fail_before_first_move(root, 'byte', tamper=tamper)
+            with trigger, self.assertLogs(books.logger, level='WARNING') as logs, \
+                    self.assertRaisesRegex(ValueError, 'changed'):
+                with books.ensure_book_state(root):
+                    run()
+            self.assertEqual(1, len(logs.records))
+            message = logs.records[0].getMessage()
+            self.assertRegex(message, r'Book switch \.book-switch-\S+ '
+                                     r'was retired without recording recovered: .+')
+            self.assertFalse((root / books.JOURNAL).exists())
+            self.assertEqual(b'concurrent edit', target.read_bytes())
 
     def test_unreadable_byte_original_keeps_previous_cleanup(self):
         # An I/O failure while checking an original (deleted or locked

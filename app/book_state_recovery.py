@@ -6,11 +6,14 @@
     python book_state_recovery.py [--data-dir DIR] [--json] [--wait SECONDS] migrate-legacy --trust-journal-hashes
 
 inspect     Read-only report: the pending journal, each file's expected and
-            current identity, the workspace, and every retained quarantine
-            with its receipt state. Takes the book lock unless --no-lock.
-            --hash also hashes each file and says whether it holds the
-            journal's old or new bytes: timestamps alone can miss a
-            same-size rewrite (FAT/exFAT keep 2-second times).
+            current identity, the workspace, every retained quarantine
+            with its receipt state, and any leftover a crash left behind
+            (`.book-switch-<id>/` staging without a journal, or a
+            `.active_book_transaction.json.new-<id>` temporary). Takes the
+            book lock unless --no-lock; without it an entry may be a live
+            switch's staging. --hash also hashes each file and says whether
+            it holds the journal's old or new bytes: timestamps alone can
+            miss a same-size rewrite (FAT/exFAT keep 2-second times).
 finish      Run the recovery the app runs before every book operation: restore,
             finish, or auto-quarantine when the book's files are consistent.
 quarantine  Move the pending switch's workspace and journal aside even though
@@ -86,10 +89,17 @@ def get_book_recovery_summary(data_dir, *, wait=0.25):
 
     {'status': 'clean' | 'pending' | 'migration_required' | 'unreadable',
      'phase', 'locked', 'retained': [{'name', 'kind', 'state', 'forced'}],
+     'leftovers': {'orphaned_staging', 'journal_temporaries', 'bytes'} | None,
      'commands': [{'purpose', 'command'}]}, the commands in the order to try
     them, run from the repository root. Changes no book state: it inspects
     under the lock (creating the lock file if absent), or without it when
     another operation holds it ('locked': True).
+
+    Leftovers are counts and bytes only, never names or paths: a pre-journal
+    `.book-switch-<id>/` or a journal publication temporary that nothing
+    claims. They are reported, not reclaimed. Without the lock they are None
+    rather than a possibly-wrong count, because the busy app may be staging
+    right now.
 
     The Home page reads the book without recovering it, so a pending
     journal here may still be one finish can restore: finish comes before
@@ -122,8 +132,15 @@ def get_book_recovery_summary(data_dir, *, wait=0.25):
     }[status]
     retained = [{key: entry.get(key) for key in ('name', 'kind', 'state', 'forced')}
                 for entry in report.get('quarantines', [])]
+    leftovers = None
+    if not locked:
+        staging = report.get('orphaned_staging', [])
+        temporaries = report.get('journal_temporaries', [])
+        leftovers = {'orphaned_staging': len(staging),
+                     'journal_temporaries': len(temporaries),
+                     'bytes': sum(entry.get('bytes') or 0 for entry in staging + temporaries)}
     return {'status': status, 'phase': journal.get('phase'), 'locked': locked,
-            'retained': retained, 'commands': commands}
+            'retained': retained, 'leftovers': leftovers, 'commands': commands}
 
 
 def _run_inspect(books, data_dir, wait, no_lock, hashes):
@@ -208,7 +225,7 @@ def _get_parser():
     commands = parser.add_subparsers(dest='command', required=True)
     inspect = commands.add_parser('inspect', help='read-only report')
     inspect.add_argument('--no-lock', action='store_true',
-                         help='inspect without the lock (a best-effort snapshot)')
+                         help='inspect without the lock (best effort; an entry may be live staging)')
     inspect.add_argument('--hash', action='store_true',
                          help="hash each file and compare it with the journal's")
     commands.add_parser('finish', help="run the app's recovery now")

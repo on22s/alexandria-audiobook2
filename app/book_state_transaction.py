@@ -8,6 +8,7 @@ import threading
 import hashlib
 import io
 import json
+import logging
 from editor_poll_snapshot import get_snapshot_digest
 import os
 import re
@@ -25,6 +26,7 @@ JOURNAL = '.active_book_transaction.json'
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
 MAX_LEGACY_CLEANUP_ENTRIES = 65536
 _held_books = ContextVar('held_book_state_scopes', default=())
+logger = logging.getLogger(__name__)
 
 
 class BookJournalPublicationUncertain(ValueError):
@@ -122,6 +124,14 @@ QUARANTINE_JOURNAL = 'journal.json'
 QUARANTINE_WORKSPACE = 'workspace'
 _QUARANTINE_NAME = re.compile(re.escape(QUARANTINE_PREFIX) + r'([0-9a-f]{8})-[0-9a-f]{8}')
 _MIGRATION_NAME = re.compile(re.escape(MIGRATION_PREFIX) + r'([0-9a-f]{8})-[0-9a-f]{8}')
+# Leftovers a crash can leave before anything of ours moved (#1660 step 5).
+# Full-match only: a near-miss name is never treated as a switch's own.  POSIX
+# names a workspace with uuid4().hex (32 hex); Windows creates it with
+# tempfile.mkdtemp (8 lowercase alphanumerics), so accept both there.
+_STAGING_LEFTOVER_NAME = re.compile(
+    r'\.book-switch-(?:[0-9a-f]{32}|[a-z0-9_]{8})' if os.name == 'nt'
+    else r'\.book-switch-[0-9a-f]{32}')
+_JOURNAL_TEMPORARY_NAME = re.compile(re.escape(JOURNAL) + r'\.new-[0-9a-f]{32}')
 
 
 def _capture_target_parent_identities_path(root, relative):
@@ -3159,7 +3169,8 @@ def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=No
     "Recovered" asserts every original is in place.  No target moved, but
     another writer may still have changed one, so that is checked first.  On
     a change a stream journal raises and stays "publishing" as evidence; a
-    byte journal keeps its previous cleanup (below).
+    byte journal (v3, or a v4 journal whose filesystem has no verified
+    exchange) keeps its previous cleanup (below).
     Otherwise a crash after the workspace is gone but before the journal is
     unlinked leaves a recovered journal, which recovery retires after
     rechecking the targets.  A "publishing" journal with a persisted
@@ -3178,13 +3189,15 @@ def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=No
     else:
         try:
             _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
-        except (ValueError, OSError):
+        except (ValueError, OSError) as error:
             # A target no longer matches the journal (changed, missing,
             # created, or unreadable mid-check); nothing of ours moved.  A
             # byte cleanup has always retired its journal here and let that
             # change stand, so keep doing exactly that rather than leave a
             # publishing journal recovery would refuse.  Only this rare
             # concurrent-change case keeps the old crash window.
+            logger.warning('Book switch %s was retired without recording recovered: %s',
+                           data.get('workspace'), error)
             _require_book_journal_version(root, journal_version)
             return journal_version
     data['phase'] = 'recovered'
@@ -3453,6 +3466,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
             raise ValueError('Book root changed during admission; alias scope no longer matches')
     journal = root / JOURNAL
     if not os.path.lexists(journal):
+        _complete_interrupted_quarantines(root, root_identity)
         return False
     if _quarantine_book_transaction(root, root_identity, cancel_check=cancel_check):
         return True
@@ -4183,6 +4197,96 @@ def _write_quarantine_receipt(directory, receipt):
     sync_adapter_directory(str(directory))
 
 
+def _complete_interrupted_quarantines(root, root_identity):
+    """Finish quarantine receipts a crash left prepared after both moves (#1660).
+
+    A death between moving the journal/workspace into the quarantine folder and
+    writing its completed receipt leaves a receipt nothing revisits: no journal
+    remains at the root, so recovery used to return before reading it.  Each
+    candidate is re-proved from its receipt before anything is written.  This
+    never raises, moves or deletes: an unprovable receipt stays prepared and is
+    left for inspect, and a broken one must not stop the book opening."""
+    try:
+        with os.scandir(root) as entries:
+            names = [entry.name for entry in entries]
+    except OSError:
+        return
+    for name in names:
+        if _QUARANTINE_NAME.fullmatch(name) is None:
+            continue
+        try:
+            _complete_interrupted_quarantine(root, root / name, root_identity)
+        except Exception:
+            continue
+
+
+def _complete_interrupted_quarantine(root, directory, root_identity):
+    """Complete one prepared quarantine receipt if its evidence still matches."""
+    try:
+        info = os.lstat(directory)
+    except OSError:
+        return
+    if (not stat.S_ISDIR(info.st_mode)
+            or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        return
+    receipt_path = directory / QUARANTINE_RECEIPT
+    if not os.path.lexists(receipt_path):
+        return
+    try:
+        receipt, _version = _read_book_journal(receipt_path)
+    except (OSError, ValueError):
+        return
+    if (not isinstance(receipt, dict) or receipt.get('version') != 1
+            or receipt.get('state') != 'prepared'):
+        return
+    journal = receipt.get('journal')
+    workspace = receipt.get('workspace')
+    if not isinstance(journal, dict) or not isinstance(workspace, dict):
+        return
+    expected_bytes = journal.get('bytes')
+    expected_sha256 = journal.get('sha256')
+    if (type(expected_bytes) is not int or expected_bytes < 0
+            or not isinstance(expected_sha256, str)):
+        return
+    held_journal = directory / QUARANTINE_JOURNAL
+    try:
+        held_info = os.lstat(held_journal)
+    except OSError:
+        return
+    if not stat.S_ISREG(held_info.st_mode) or held_info.st_size != expected_bytes:
+        return
+    try:
+        raw = _read_book_journal(held_journal, include_raw=True)[2]
+    except (OSError, ValueError):
+        return
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        return
+    moved_workspace = directory / QUARANTINE_WORKSPACE
+    identity = workspace.get('identity')
+    if identity is None:
+        if os.path.lexists(moved_workspace):
+            return
+    else:
+        if (not isinstance(identity, list) or len(identity) != 2
+                or any(type(value) is not int or value < 0 for value in identity)):
+            return
+        try:
+            moved_info = os.lstat(moved_workspace)
+        except OSError:
+            return
+        if (not stat.S_ISDIR(moved_info.st_mode)
+                or getattr(moved_info, 'st_file_attributes', 0)
+                & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                or [moved_info.st_dev, moved_info.st_ino] != identity):
+            return
+    if os.path.lexists(root / JOURNAL):
+        return
+    if not _is_admitted_root_unchanged(root, root_identity):
+        return
+    receipt['state'] = 'completed'
+    _write_quarantine_receipt(directory, receipt)
+
+
 def _get_legacy_migration_eligibility(root, root_identity, data):
     """-> (workspace, workspace identity or None) for a v1 journal whose
     targets hold the bytes its phase recorded; ValueError naming each row
@@ -4503,6 +4607,64 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
             _held_books.reset(token)
 
 
+def _get_leftover_staging_entries(root, names, entry_limit):
+    """-> report entries for pre-journal workspace names (#1660 step 5).
+
+    Read-only: only plain directories are walked, to depth 2 and at most
+    entry_limit entries, and a link or reparse point is never followed or
+    reported (it may be a live switch or something foreign)."""
+    found = []
+    for name in names:
+        path = root / name
+        try:
+            info = os.lstat(path)
+        except OSError as error:
+            found.append({'name': name, 'kind': 'other', 'entries': 0, 'bytes': 0,
+                          'truncated': False, 'newest_mtime_ns': None,
+                          'error': f'{type(error).__name__}: {error}'})
+            continue
+        if (stat.S_ISLNK(info.st_mode)
+                or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            continue
+        if not stat.S_ISDIR(info.st_mode):
+            found.append({'name': name, 'kind': 'other', 'entries': 0,
+                          'bytes': info.st_size, 'truncated': False,
+                          'newest_mtime_ns': info.st_mtime_ns})
+            continue
+        entries = bytes_total = 0
+        newest_mtime_ns = None
+        truncated = False
+        pending = [(path, 0)]
+        while pending and not truncated:
+            directory, depth = pending.pop()
+            try:
+                with os.scandir(directory) as scanned:
+                    for child in scanned:
+                        if entries >= entry_limit:
+                            truncated = True
+                            break
+                        try:
+                            child_info = child.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        entries += 1
+                        if (newest_mtime_ns is None
+                                or child_info.st_mtime_ns > newest_mtime_ns):
+                            newest_mtime_ns = child_info.st_mtime_ns
+                        if stat.S_ISREG(child_info.st_mode):
+                            bytes_total += child_info.st_size
+                        elif (depth < 1 and stat.S_ISDIR(child_info.st_mode)
+                              and not getattr(child_info, 'st_file_attributes', 0)
+                              & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                            pending.append((Path(child.path), depth + 1))
+            except OSError:
+                continue
+        found.append({'name': name, 'kind': 'directory', 'entries': entries,
+                      'bytes': bytes_total, 'truncated': truncated,
+                      'newest_mtime_ns': newest_mtime_ns})
+    return sorted(found, key=lambda entry: entry['name'])
+
+
 def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
                                 include_hashes=False):
     """-> a read-only report of a book root's pending transaction (#1660).
@@ -4514,6 +4676,14 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
     malformed journal is reported rather than raised. Pass the admitted root;
     hold book_operator_locked for a snapshot consistent with the recovery
     that follows.
+
+    Also reports leftovers that no journal claims: a `.book-switch-<id>/`
+    workspace from a crash before its journal was published
+    ('orphaned_staging', walked read-only to depth 2) and a
+    `.active_book_transaction.json.new-<id>` publication temporary
+    ('journal_temporaries'). They are reported only: nothing is reclaimed.
+    Without the lock an entry may be a live switch's staging, so treat it as
+    a hint and re-run under the lock before acting.
 
     Identity and timestamps can miss a same-size rewrite (FAT/exFAT keep
     2-second times), so include_hashes also hashes each entry's current
@@ -4546,20 +4716,40 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
             return {'status': 'unreadable', 'error': f'{type(error).__name__}: {error}'}
         return {'status': 'truncated' if truncated else 'complete', 'names': sorted(names)}
     root_listing = listing(root)
+    root_names = root_listing.get('names', [])
+    staging_names = [name for name in root_names if _STAGING_LEFTOVER_NAME.fullmatch(name)]
     report = {'root': str(root), 'journal': {'present': False}, 'entries': [],
-              'retained': [name for name in root_listing.get('names', [])
+              'retained': [name for name in root_names
                            if _is_retained_evidence_name(name)],
-              'retained_status': root_listing['status']}
+              'retained_status': root_listing['status'],
+              'orphaned_staging': [], 'journal_temporaries': []}
     if 'error' in root_listing:
         report['retained_error'] = root_listing['error']
     report['quarantines'] = [_inspect_quarantine(root / name) for name in report['retained']
                              if _QUARANTINE_NAME.fullmatch(name) or _MIGRATION_NAME.fullmatch(name)]
+    journal_temporaries = []
+    for name in root_names:
+        if _JOURNAL_TEMPORARY_NAME.fullmatch(name) is None:
+            continue
+        try:
+            info = os.lstat(root / name)
+        except OSError:
+            continue
+        if (not stat.S_ISREG(info.st_mode)
+                or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            continue
+        journal_temporaries.append({'name': name, 'bytes': info.st_size})
+    report['journal_temporaries'] = journal_temporaries
     journal = root / JOURNAL
     if not os.path.lexists(journal):
+        report['orphaned_staging'] = _get_leftover_staging_entries(
+            root, staging_names, entry_limit)
         return report
     try:
         data, _version, raw = _read_book_journal(journal, include_raw=True)
     except (OSError, ValueError) as error:
+        # A name beside an unreadable journal could belong to it; a false
+        # "orphan" invites deleting a live switch's staging.
         report['journal'] = {'present': True, 'error': f'{type(error).__name__}: {error}'}
         return report
     summary = {'present': True, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
@@ -4567,6 +4757,9 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
         summary['error'] = 'Journal is not an object'
         report['journal'] = summary
         return report
+    workspace_name = data.get('workspace')
+    report['orphaned_staging'] = _get_leftover_staging_entries(
+        root, [name for name in staging_names if name != workspace_name], entry_limit)
     for key in ('version', 'phase', 'workspace', 'workspace_identity', 'target_parent_identity_scheme'):
         summary[key] = data.get(key)
     summary['stream'] = 'stream_limits' in data
