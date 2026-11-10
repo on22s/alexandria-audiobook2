@@ -187,11 +187,24 @@ def _is_abbreviation(text, dot_index):
     return False
 
 
-_AA2_WORDS_RE = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
+# The upstream Qwen3-ForcedAligner processor (Qwen3ForceAlignProcessor.
+# is_kept_char) keeps ONLY the ASCII apostrophe U+0027, letters (L*) and
+# numbers (N*); every other character — including the curly apostrophes
+# U+2019/U+2018 that EPUB text commonly uses for "one's" — is dropped,
+# never folded to ASCII. This regex mirrors that: `'` is the only
+# intra-word apostrophe, so a curly apostrophe is a word boundary that
+# the stream drops, matching the aligner's "one’s" -> "ones".
+_AA2_WORDS_RE = re.compile(r"\w+(?:'\w+)*", re.UNICODE)
 
 
 def count_units(text):
-    """Count AA2 word tokens, roughly matching an aligner's tokens."""
+    """Count AA2 word tokens, roughly matching an aligner's tokens.
+
+    Unlike the validated stream (which drops a curly apostrophe because
+    the aligner emits "ones" for "one’s"), the word COUNT folds curly
+    apostrophes to ASCII first: the aligner whitespace-splits before
+    dropping non-kept characters, so "one’s" is still ONE token.
+    """
     folded = unicodedata.normalize("NFKC", text or "").casefold()
     folded = folded.replace("’", "'").replace("‘", "'")
     return len(_AA2_WORDS_RE.findall(folded))
@@ -270,7 +283,7 @@ def _get_normalized_stream_detailed(text):
     ends = []
     for start, stop in _normalized_clusters(text or ""):
         folded = unicodedata.normalize("NFKC", text[start:stop])
-        folded = folded.casefold().replace("’", "'").replace("‘", "'")
+        folded = folded.casefold()
         for char in folded:
             folded_chars.append(char)
             starts.append(start)
@@ -304,7 +317,7 @@ def get_token_key(token_text):
     if not isinstance(token_text, str):
         return ""
     folded = unicodedata.normalize("NFKC", token_text)
-    folded = folded.casefold().replace("’", "'").replace("‘", "'")
+    folded = folded.casefold()
     return "".join(_AA2_WORDS_RE.findall(folded))
 
 

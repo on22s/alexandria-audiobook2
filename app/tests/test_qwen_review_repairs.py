@@ -356,7 +356,9 @@ class PreferenceAndRouteTests(unittest.TestCase):
     def test_fake_worker_matches_exact_coverage(self):
         import importlib
         fake = importlib.import_module("tests.fixtures.qwen_fake_worker")
-        self.assertEqual(["don't"], fake._units("don’t"))
+        # The upstream aligner drops curly apostrophes ("don’t" -> "dont");
+        # the fake worker must mimic that, not fold them to ASCII.
+        self.assertEqual(["dont"], fake._units("don’t"))
 
     def test_long_windows_respect_180_cap_without_sharing_sentences(self):
         sentences = []

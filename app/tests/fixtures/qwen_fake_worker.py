@@ -30,7 +30,6 @@ MAX_SLICE_SECONDS = 180.0
 
 def _clean(word):
     folded = unicodedata.normalize("NFKC", word or "")
-    folded = folded.replace("’", "'").replace("‘", "'")
     kept = []
     for ch in folded:
         if ch == "'":
