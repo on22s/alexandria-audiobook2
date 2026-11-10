@@ -69,7 +69,7 @@ class EditorZipServiceTests(unittest.TestCase):
             foreign = root / '.alexandria-export-foreign.zip'; foreign.write_bytes(b'keep')
             source = root / 'source.mp3'; source.write_bytes(b'audio')
             with patch.object(editor, 'DATA_DIR', str(root)), \
-                 patch.object(zipfile.ZipFile, 'write', side_effect=OSError('fixture failed source read')):
+                 patch.object(editor.shutil, 'copyfileobj', side_effect=OSError('fixture failed source read')):
                 with self.assertRaisesRegex(OSError, 'fixture failed'):
                     editor.build_zip_download([(str(source), source.name)], 'export.zip')
             self.assertEqual(b'keep', foreign.read_bytes())

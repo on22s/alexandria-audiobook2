@@ -1131,16 +1131,57 @@ class ProjectManager:
         self._uids_file_version = (self._get_chunks_file_version()
                                    if uids_backfilled else None)
 
+    def _read_chunks_snapshot(self):
+        """-> (bytes, (dev, ino)) of chunks.json read through one descriptor,
+        or (None, None) when it is missing or unreadable."""
+        flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0)
+        try:
+            descriptor = os.open(self.chunks_path, flags)
+        except OSError:
+            return None, None
+        try:
+            info = os.fstat(descriptor)
+            with os.fdopen(os.dup(descriptor), 'rb') as stream:
+                return stream.read(), (info.st_dev, info.st_ino)
+        except OSError:
+            return None, None
+        finally:
+            os.close(descriptor)
+
+    @staticmethod
+    def _parse_chunks_snapshot(raw):
+        """safe_load_json's tolerance, on bytes already read: None when absent
+        or corrupt."""
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw.decode('utf-8'))
+        except (UnicodeDecodeError, ValueError) as error:
+            logger.warning("Corrupted/unreadable JSON at %s, using default: %s", "chunks.json", error)
+            return None
+
     def _read_chunks(self):
         """Read chunks.json, regenerating from script if missing or corrupted.
 
         Internal method - callers must hold _chunks_lock. Always returns a
-        list (possibly empty), never None.
+        list (possibly empty), never None. A book switch's placeholder at
+        either name (#1660) is refused rather than parsed, renamed aside as
+        corrupt, or regenerated over: the switch owns that name.
         """
-        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+        from book_placeholder import is_book_placeholder, is_book_placeholder_bytes
+        switching = "A book switch is in progress; chunks are not available yet"
+        journal_path = get_chunk_status_journal_path(self.chunks_path)
+        if is_book_placeholder(journal_path):
+            raise ValueError(switching)
+        if os.path.exists(journal_path):
+            # A placeholder landing after the check fails to parse: an error,
+            # never a write.
             return self._get_status_journal_locked().get_rows()
         file_version = self._get_chunks_file_version()
-        chunks = safe_load_json(self.chunks_path)
+        raw, read_identity = self._read_chunks_snapshot()
+        if raw is not None and is_book_placeholder_bytes(raw):
+            raise ValueError(switching)
+        chunks = self._parse_chunks_snapshot(raw)
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
             chunks = None
         if chunks is not None:
@@ -1167,6 +1208,19 @@ class ProjectManager:
             # Back the corrupted file up rather than deleting it - regenerating
             # resets every chunk to pending/no-audio, so keep a copy in case the
             # user's generation progress can be salvaged from it.
+            # Only back up the object that was read and found corrupt: a
+            # switch's placeholder appearing since is not ours to rename.
+            try:
+                now = os.lstat(self.chunks_path)
+            except OSError:
+                now = None
+            if is_book_placeholder(self.chunks_path):
+                raise ValueError(switching)
+            if now is None or (now.st_dev, now.st_ino) != read_identity:
+                # Identity alone can be fooled by a reused inode number; the
+                # placeholder check above does not depend on it.
+                raise ValueError("chunks.json changed while it was being read; "
+                                 "nothing was renamed. Retry.")
             backup = self.chunks_path + ".corrupt"
             suffix = 0
             while os.path.lexists(backup):

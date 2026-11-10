@@ -85,8 +85,9 @@ def is_scope_export_inventory_compatible(recorded, current):
 def is_scope_export_historical(root, path):
     root = Path(os.path.abspath(root)); path = Path(os.path.abspath(path))
     proof, raw = capture_scope_file(root, 'state.json', include_bytes=True)
-    if not proof['exists']:
-        return False
+    from book_placeholder import is_book_placeholder_bytes
+    if not proof['exists'] or is_book_placeholder_bytes(raw):
+        return False   # a switch creating state.json (#1660): no inventory yet
     state = json.loads(raw)
     if not isinstance(state, dict):
         raise ValueError('Invalid book state.')
