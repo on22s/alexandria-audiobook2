@@ -30,6 +30,16 @@ class BookJournalPublicationUncertain(ValueError):
     """Journal replacement may have occurred; preserve transaction evidence."""
 
 
+class BookExchangeDiverged(ValueError):
+    """An exchange swapped a pair that was not the journal's; it was swapped
+    back and both names re-proven (#1660). Nothing was overwritten."""
+
+
+class BookExchangeParked(ValueError):
+    """An exchange could be neither proven nor undone. Both names are left
+    as they are for recovery; nothing was overwritten or deleted."""
+
+
 class BookJournalMigrationRequired(ValueError):
     """A well-formed legacy v1 journal: only an explicit migration may act on it."""
 
@@ -1432,6 +1442,148 @@ def _read_book_journal(path, *, include_raw=False):
     return (data, before, raw) if include_raw else (data, before)
 
 
+@dataclass(frozen=True)
+class _AnchoredPair:
+    """Two names under one admitted root, with descriptors for their parents."""
+    source_fd: int
+    destination_fd: int
+    source_name: str
+    destination_name: str
+    sync_parents: object
+    require_named_parents: object
+    require_expected_parents: object
+
+
+@contextlib.contextmanager
+def _anchored_mutation(anchor, source, destination, *, anchor_identity=None,
+                       source_parent_identity=None, destination_parent_identity=None):
+    """POSIX: open the admitted root and both parents without following
+    links, and yield an _AnchoredPair whose checks bind them (#1660).
+
+    The setup _move and _exchange share: refuse an escaping or aliased path,
+    pin the root, open each parent by no-follow walk, and provide the
+    root/parent rechecks and the parent fsync. The checks are stat-then-act:
+    POSIX has no inode-conditional rename, so a later swap stays possible."""
+    if (os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd
+            or os.stat not in os.supports_follow_symlinks
+            or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
+        raise OSError(errno.ENOTSUP, 'Safe anchored book moves are unavailable')
+    from direct_path_admission import is_plain_path
+    root = Path(os.path.abspath(anchor))
+    if not is_plain_path(root):  # also refuses a symlinked root itself
+        raise ValueError('Book move root changed; recovery evidence was preserved')
+    source, destination = Path(os.path.abspath(source)), Path(os.path.abspath(destination))
+    try:
+        source_rel = source.relative_to(root)
+        destination_rel = destination.relative_to(root)
+    except ValueError as error:
+        raise ValueError('Book move escapes its admitted root') from error
+    if not source_rel.parts or not destination_rel.parts:
+        raise ValueError('Book move requires file or directory names')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    with contextlib.ExitStack() as stack:
+        root_fd = os.open(root, flags)
+        stack.callback(os.close, root_fd)
+        opened_root = os.fstat(root_fd)
+        try:
+            named_root = root.lstat()
+        except OSError as error:
+            raise ValueError('Book move root changed; recovery evidence was preserved') from error
+        if ((opened_root.st_dev, opened_root.st_ino) !=
+                (named_root.st_dev, named_root.st_ino)
+                or anchor_identity is not None
+                and (opened_root.st_dev, opened_root.st_ino) != anchor_identity):
+            raise ValueError('Book move root changed; recovery evidence was preserved')
+        def parent_fd(relative):
+            # Retain only the current descriptor while walking. A
+            # deeply nested book must not exhaust the process limit.
+            current = os.dup(root_fd)
+            try:
+                for component in relative.parts[:-1]:
+                    try:
+                        next_fd = os.open(component, flags, dir_fd=current)
+                    except OSError as error:
+                        raise ValueError('Book move parent changed; recovery evidence was preserved') from error
+                    os.close(current)
+                    current = next_fd
+            except BaseException:
+                os.close(current)
+                raise
+            stack.callback(os.close, current)
+            return current
+        source_fd = parent_fd(source_rel)
+        destination_fd = parent_fd(destination_rel)
+        def sync_parents():
+            first_error = None
+            for fd in dict.fromkeys((source_fd, destination_fd)):
+                try:
+                    os.fsync(fd)
+                except OSError as error:
+                    if first_error is None:
+                        first_error = error
+            if first_error is not None:
+                raise first_error
+        def require_expected_parents():
+            # Bind the descriptors actually used to the entire
+            # persisted no-follow chain, not only the leaf. This is a
+            # stat-then-rename check: POSIX has no inode-conditional
+            # rename, so a later swap remains possible.
+            for relative, opened_fd, expected in (
+                    (source_rel, source_fd, source_parent_identity),
+                    (destination_rel, destination_fd, destination_parent_identity)):
+                if expected is None:
+                    continue
+                if not isinstance(expected, (list, tuple)) or not expected:
+                    raise ValueError('Book move parent changed; recovery evidence was preserved')
+                if not isinstance(expected[0], (list, tuple)):
+                    if (len(expected) != 2
+                            or any(type(value) is not int or value < 0 for value in expected)):
+                        raise ValueError('Book move parent changed; recovery evidence was preserved')
+                    info = os.fstat(opened_fd)
+                    if (info.st_dev, info.st_ino) != tuple(expected):
+                        raise ValueError('Book move parent changed; recovery evidence was preserved')
+                    continue
+                chain = [list(pair) if isinstance(pair, (list, tuple)) else pair
+                         for pair in expected]
+                if any(not isinstance(pair, list) or len(pair) != 2
+                       or any(type(value) is not int or value < 0 for value in pair)
+                       for pair in chain):
+                    raise ValueError('Book move parent changed; recovery evidence was preserved')
+                try:
+                    actual = _capture_target_parent_identities(root_fd, str(relative))
+                except OSError as error:
+                    raise ValueError('Book move parent changed; recovery evidence was preserved') from error
+                if actual != chain:
+                    raise ValueError('Book move parent changed; recovery evidence was preserved')
+                info = os.fstat(opened_fd)
+                if [info.st_dev, info.st_ino] != actual[-1]:
+                    raise ValueError('Book move parent changed; recovery evidence was preserved')
+        def require_named_parents():
+            # Recheck the admitted root on every call: for root-level
+            # and nested moves parent_fd alone cannot observe a root
+            # rename/recreate/disappearance after the primary move.
+            # Only root.lstat() is translated; os.fstat failures such
+            # as a closed descriptor are programming defects and
+            # must not be swallowed as a root change.
+            opened_root_now = os.fstat(root_fd)
+            try:
+                named_root_now = root.lstat()
+            except OSError as error:
+                raise ValueError('Book move root changed; recovery evidence was preserved') from error
+            if ((opened_root_now.st_dev, opened_root_now.st_ino) !=
+                    (named_root_now.st_dev, named_root_now.st_ino)
+                    or anchor_identity is not None
+                    and (opened_root_now.st_dev, opened_root_now.st_ino) != anchor_identity):
+                raise ValueError('Book move root changed; recovery evidence was preserved')
+            for relative, opened in ((source_rel, source_fd), (destination_rel, destination_fd)):
+                current = parent_fd(relative)
+                first, second = os.fstat(opened), os.fstat(current)
+                if (first.st_dev, first.st_ino) != (second.st_dev, second.st_ino):
+                    raise ValueError('Book move parent changed; recovery evidence was preserved')
+        yield _AnchoredPair(source_fd, destination_fd, source_rel.name, destination_rel.name,
+                            sync_parents, require_named_parents, require_expected_parents)
+
+
 def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None,
           root_guard=None, source_parent_identity=None, destination_parent_identity=None,
           expected_source_identity=None, expected_source_generation=None):
@@ -1522,100 +1674,10 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                         'Book artifact changed during its move; recovery evidence was preserved') from error
             return
         else:
-            if (os.open not in os.supports_dir_fd or os.stat not in os.supports_dir_fd
-                    or os.stat not in os.supports_follow_symlinks
-                    or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
-                raise OSError(errno.ENOTSUP, 'Safe anchored book moves are unavailable')
-            from direct_path_admission import is_plain_path
-            root = Path(os.path.abspath(anchor))
-            if not is_plain_path(root):  # also refuses a symlinked root itself
-                raise ValueError('Book move root changed; recovery evidence was preserved')
-            source, destination = Path(os.path.abspath(source)), Path(os.path.abspath(destination))
-            try:
-                source_rel = source.relative_to(root)
-                destination_rel = destination.relative_to(root)
-            except ValueError as error:
-                raise ValueError('Book move escapes its admitted root') from error
-            if not source_rel.parts or not destination_rel.parts:
-                raise ValueError('Book move requires file or directory names')
-            flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-            with contextlib.ExitStack() as stack:
-                root_fd = os.open(root, flags)
-                stack.callback(os.close, root_fd)
-                opened_root = os.fstat(root_fd)
-                try:
-                    named_root = root.lstat()
-                except OSError as error:
-                    raise ValueError('Book move root changed; recovery evidence was preserved') from error
-                if ((opened_root.st_dev, opened_root.st_ino) !=
-                        (named_root.st_dev, named_root.st_ino)
-                        or anchor_identity is not None
-                        and (opened_root.st_dev, opened_root.st_ino) != anchor_identity):
-                    raise ValueError('Book move root changed; recovery evidence was preserved')
-                def parent_fd(relative):
-                    # Retain only the current descriptor while walking. A
-                    # deeply nested book must not exhaust the process limit.
-                    current = os.dup(root_fd)
-                    try:
-                        for component in relative.parts[:-1]:
-                            try:
-                                next_fd = os.open(component, flags, dir_fd=current)
-                            except OSError as error:
-                                raise ValueError('Book move parent changed; recovery evidence was preserved') from error
-                            os.close(current)
-                            current = next_fd
-                    except BaseException:
-                        os.close(current)
-                        raise
-                    stack.callback(os.close, current)
-                    return current
-                source_fd = parent_fd(source_rel)
-                destination_fd = parent_fd(destination_rel)
-                def sync_parents():
-                    first_error = None
-                    for fd in dict.fromkeys((source_fd, destination_fd)):
-                        try:
-                            os.fsync(fd)
-                        except OSError as error:
-                            if first_error is None:
-                                first_error = error
-                    if first_error is not None:
-                        raise first_error
-                def require_expected_parents():
-                    # Bind the descriptors actually used to the entire
-                    # persisted no-follow chain, not only the leaf. This is a
-                    # stat-then-rename check: POSIX has no inode-conditional
-                    # rename, so a later swap remains possible.
-                    for relative, opened_fd, expected in (
-                            (source_rel, source_fd, source_parent_identity),
-                            (destination_rel, destination_fd, destination_parent_identity)):
-                        if expected is None:
-                            continue
-                        if not isinstance(expected, (list, tuple)) or not expected:
-                            raise ValueError('Book move parent changed; recovery evidence was preserved')
-                        if not isinstance(expected[0], (list, tuple)):
-                            if (len(expected) != 2
-                                    or any(type(value) is not int or value < 0 for value in expected)):
-                                raise ValueError('Book move parent changed; recovery evidence was preserved')
-                            info = os.fstat(opened_fd)
-                            if (info.st_dev, info.st_ino) != tuple(expected):
-                                raise ValueError('Book move parent changed; recovery evidence was preserved')
-                            continue
-                        chain = [list(pair) if isinstance(pair, (list, tuple)) else pair
-                                 for pair in expected]
-                        if any(not isinstance(pair, list) or len(pair) != 2
-                               or any(type(value) is not int or value < 0 for value in pair)
-                               for pair in chain):
-                            raise ValueError('Book move parent changed; recovery evidence was preserved')
-                        try:
-                            actual = _capture_target_parent_identities(root_fd, str(relative))
-                        except OSError as error:
-                            raise ValueError('Book move parent changed; recovery evidence was preserved') from error
-                        if actual != chain:
-                            raise ValueError('Book move parent changed; recovery evidence was preserved')
-                        info = os.fstat(opened_fd)
-                        if [info.st_dev, info.st_ino] != actual[-1]:
-                            raise ValueError('Book move parent changed; recovery evidence was preserved')
+            with _anchored_mutation(
+                    anchor, source, destination, anchor_identity=anchor_identity,
+                    source_parent_identity=source_parent_identity,
+                    destination_parent_identity=destination_parent_identity) as pair:
                 def require_expected_source():
                     if expected_source_identity is None:
                         return
@@ -1630,7 +1692,7 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     if not valid_identity:
                         raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
                     try:
-                        info = os.stat(source_rel.name, dir_fd=source_fd, follow_symlinks=False)
+                        info = os.stat(pair.source_name, dir_fd=pair.source_fd, follow_symlinks=False)
                     except OSError as error:
                         raise ValueError('Book artifact changed during its move; recovery evidence was preserved') from error
                     if len(expected_source_identity) == 2:
@@ -1642,45 +1704,23 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                             raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
                     if expected_source_generation is not None:
                         try:
-                            generation = get_book_file_generation(source_rel.name, dir_fd=source_fd)
+                            generation = get_book_file_generation(pair.source_name, dir_fd=pair.source_fd)
                         except OSError as error:
                             raise ValueError('Book artifact changed during its move; recovery evidence was preserved') from error
                         if generation != expected_source_generation:
                             raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
-                def require_named_parents():
-                    # Recheck the admitted root on every call: for root-level
-                    # and nested moves parent_fd alone cannot observe a root
-                    # rename/recreate/disappearance after the primary move.
-                    # Only root.lstat() is translated; os.fstat failures such
-                    # as a closed descriptor are programming defects and
-                    # must not be swallowed as a root change.
-                    opened_root_now = os.fstat(root_fd)
-                    try:
-                        named_root_now = root.lstat()
-                    except OSError as error:
-                        raise ValueError('Book move root changed; recovery evidence was preserved') from error
-                    if ((opened_root_now.st_dev, opened_root_now.st_ino) !=
-                            (named_root_now.st_dev, named_root_now.st_ino)
-                            or anchor_identity is not None
-                            and (opened_root_now.st_dev, opened_root_now.st_ino) != anchor_identity):
-                        raise ValueError('Book move root changed; recovery evidence was preserved')
-                    for relative, opened in ((source_rel, source_fd), (destination_rel, destination_fd)):
-                        current = parent_fd(relative)
-                        first, second = os.fstat(opened), os.fstat(current)
-                        if (first.st_dev, first.st_ino) != (second.st_dev, second.st_ino):
-                            raise ValueError('Book move parent changed; recovery evidence was preserved')
-                require_named_parents()
-                require_expected_parents()
+                pair.require_named_parents()
+                pair.require_expected_parents()
                 require_expected_source()
-                move_source_upload_exclusively(source_rel.name, destination_rel.name,
-                    source_dir_fd=source_fd, destination_dir_fd=destination_fd)
+                move_source_upload_exclusively(pair.source_name, pair.destination_name,
+                    source_dir_fd=pair.source_fd, destination_dir_fd=pair.destination_fd)
                 try:
-                    require_named_parents()
+                    pair.require_named_parents()
                     # The leaf descriptor can remain identical after an
                     # ancestor is replaced and the leaf is moved back under
                     # the new chain.  Recheck the complete persisted chain,
                     # not only the still-open leaf parent.
-                    require_expected_parents()
+                    pair.require_expected_parents()
                 except BaseException as parent_error:
                     # A parent renamed after the pre-move check still leaves the
                     # descriptor valid, but named-parent authority is lost: the
@@ -1700,7 +1740,7 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                     # cause. Only OSError is caught, so a new interrupt from
                     # sync propagates as itself, never as ValueError.
                     try:
-                        sync_parents()
+                        pair.sync_parents()
                     except OSError as first_sync_error:
                         # The sync error is the explicit secondary failure, but
                         # retain the OSError that originally proved authority
@@ -1720,13 +1760,88 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                             first_sync_error.__context__ = None
                         raise parent_error from first_sync_error
                     raise
-                sync_parents()
+                pair.sync_parents()
             return
     else:
         os.replace(source, destination)
     sync_adapter_directory(str(source.parent))
     if destination.parent != source.parent:
         sync_adapter_directory(str(destination.parent))
+
+
+def _exchange(source, destination, *, anchor, anchor_identity=None,
+              source_parent_identity=None, destination_parent_identity=None,
+              expect_source, expect_destination):
+    """POSIX: atomically swap two existing names, then prove both (#1660).
+
+    expect_source / expect_destination are predicates (dir_fd, name) -> bool
+    built from journal evidence, never from what is observed now: they say
+    which object each name must hold before the swap. An exchange never
+    overwrites, so a writer who substitutes either side leaves both objects
+    alive at the two names. Then the swap is undone once, by exchanging the
+    same names again after re-observing them, and BookExchangeDiverged is
+    raised. If that cannot be proven either, BookExchangeParked is raised
+    and nothing else is touched.
+
+    Which object a name holds is decided by (dev, ino): an exchange updates
+    ctime, and a moved directory may change its own mtime. Content and
+    generation proof belong to the predicates. After a proven swap a parent
+    or root change is reported but never undone, since authority over the
+    names is no longer proven (the #1816 rule). Unsupported platforms and
+    filesystems raise OSError(ENOTSUP) before anything moves."""
+    from source_upload_publication import exchange_source_upload_names
+    if os.name == 'nt':
+        raise OSError(errno.ENOTSUP, 'Book exchange publication is unavailable')
+    refused = 'Book exchange refused: a name no longer holds the journaled object; recovery evidence was preserved'
+    with _anchored_mutation(
+            anchor, source, destination, anchor_identity=anchor_identity,
+            source_parent_identity=source_parent_identity,
+            destination_parent_identity=destination_parent_identity) as pair:
+        def observe(dir_fd, name):
+            try:
+                info = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+            except OSError as error:
+                raise BookExchangeParked(
+                    'Book exchange could not observe its names; recovery evidence was preserved') from error
+            return (info.st_dev, info.st_ino)
+        def swap():
+            exchange_source_upload_names(pair.source_name, pair.destination_name,
+                                         source_dir_fd=pair.source_fd,
+                                         destination_dir_fd=pair.destination_fd)
+        pair.require_named_parents()
+        pair.require_expected_parents()
+        if (not expect_source(pair.source_fd, pair.source_name)
+                or not expect_destination(pair.destination_fd, pair.destination_name)):
+            raise ValueError(refused)
+        before = (observe(pair.source_fd, pair.source_name),
+                  observe(pair.destination_fd, pair.destination_name))
+        swap()
+        after = (observe(pair.source_fd, pair.source_name),
+                 observe(pair.destination_fd, pair.destination_name))
+        if (after == (before[1], before[0])
+                and expect_source(pair.destination_fd, pair.destination_name)
+                and expect_destination(pair.source_fd, pair.source_name)):
+            pair.sync_parents()
+            pair.require_named_parents()
+            pair.require_expected_parents()
+            return
+        # Not the pair we proved: a writer changed a side. Undo our own swap
+        # once, only if the names still hold what was just observed.
+        try:
+            if after != (observe(pair.source_fd, pair.source_name),
+                         observe(pair.destination_fd, pair.destination_name)):
+                raise BookExchangeParked(refused)
+            swap()
+        except OSError as error:
+            raise BookExchangeParked(refused) from error
+        undone = (observe(pair.source_fd, pair.source_name),
+                  observe(pair.destination_fd, pair.destination_name))
+        if undone != (after[1], after[0]):
+            raise BookExchangeParked(refused)
+        pair.sync_parents()
+        raise BookExchangeDiverged(
+            'Book exchange met an object that was not the journal\'s; the swap was undone '
+            'and recovery evidence was preserved')
 
 
 def _capture_cleanup_tree(path, cancel_check=None):
