@@ -1050,19 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-10T12:24:52",
+  "written": "2026-11-10T13:32:24",
   "host": "RealMitch",
   "git": {
-   "commit": "f979423b059a71746fefe9a2e4ce8e64edb7e2ea",
+   "commit": "c03e23f62ddbe0b687855a1a9a72bc605c285882",
    "branch": "fix/readaloud-1844-spine-span",
-   "dirty": true,
-   "source_state": "dirty:0056b9765bb3",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/epub_readaloud.py",
-    "A  app/tests/test_epub_readaloud_span_groups.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
