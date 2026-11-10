@@ -1,4 +1,4 @@
-[English](THUNDER_COMPUTE.md) | [中文](THUNDER_COMPUTE_CN.md) | 日本語
+[English](THUNDER_COMPUTE.md) | [中文](THUNDER_COMPUTE_CN.md) | 日本語 | [Español](THUNDER_COMPUTE_ES.md)
 
 # Thunder Compute をいつ使うか（そして何に使うか）
 

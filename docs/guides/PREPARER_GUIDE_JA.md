@@ -1,4 +1,4 @@
-[English](PREPARER_GUIDE.md) | [中文](PREPARER_GUIDE_CN.md) | 日本語
+[English](PREPARER_GUIDE.md) | [中文](PREPARER_GUIDE_CN.md) | 日本語 | [Español](PREPARER_GUIDE_ES.md)
 
 # Alexandria Preparer ガイド
 

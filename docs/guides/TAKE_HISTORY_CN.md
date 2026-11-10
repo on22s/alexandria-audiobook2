@@ -1,4 +1,4 @@
-[English](TAKE_HISTORY.md) | [中文](TAKE_HISTORY_CN.md) | [日本語](TAKE_HISTORY_JA.md)
+[English](TAKE_HISTORY.md) | [中文](TAKE_HISTORY_CN.md) | [日本語](TAKE_HISTORY_JA.md) | [Español](TAKE_HISTORY_ES.md)
 
 # 录音历史
 

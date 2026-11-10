@@ -1,4 +1,4 @@
-[English](COMPARE_GUIDE.md) | [中文](COMPARE_GUIDE_CN.md) | 日本語
+[English](COMPARE_GUIDE.md) | [中文](COMPARE_GUIDE_CN.md) | 日本語 | [Español](COMPARE_GUIDE_ES.md)
 
 # Alexandria Compare ガイド
 

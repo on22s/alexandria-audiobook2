@@ -4,7 +4,7 @@
 
 # Alexandria Audiobook2
 
-[English](README.md) | [中文](README_CN.md) | 日本語 · [音声サンプル](https://github.com/user-attachments/files/25276110/sample.mp3)
+[English](README.md) | [中文](README_CN.md) | 日本語 | [Español](README_ES.md) · [音声サンプル](https://github.com/user-attachments/files/25276110/sample.mp3)
 
 Alexandria Audiobook2 は、本を登場人物ごとに異なる声で読み上げるオーディオブックに変換します。`.txt`、`.md`、`.epub` を読み込み、言語モデル（LLM）が話者と読み方を指定した台本を作成し、音声合成モデル（Qwen3-TTS）が読み上げます。完成した音声は MP3 や、章付きの M4B として書き出せます。
 

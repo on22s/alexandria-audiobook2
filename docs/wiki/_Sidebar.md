@@ -71,3 +71,23 @@
 - [评估配方](Evaluation-Recipes-CN.md)
 - [Thunder 运维](Thunder-Operations-CN.md)
 - [Hugging Face 发布](Hugging-Face-Releases-CN.md)
+
+**Guías en español**
+
+- [Inicio en español](Home-ES.md)
+- [Setup y servido](Setup-and-Serving-ES.md)
+- [Generación de guion](Script-Generation-ES.md)
+- [Tipos de voz](Voice-Types-ES.md)
+- [Referencia de voces](Voice-Reference-ES.md)
+- [Generación por lotes](Batch-Generation-ES.md)
+- [Editor y exportación](Editor-&-Export-ES.md)
+- [Solución de problemas](Troubleshooting-ES.md)
+- [Dataset Builder](Dataset-Builder-ES.md)
+- [Guía de entrenamiento](Training-Guide-ES.md)
+- [Referencia de la API](API-Reference-ES.md)
+- [Qué modelo para tu tarjeta](Which-Model-For-Your-Card-ES.md)
+- [Resultados](Results-ES.md)
+- [Prompts y adaptadores](Prompts-and-Adapters-ES.md)
+- [Recetas de evaluación](Evaluation-Recipes-ES.md)
+- [Operaciones de Thunder](Thunder-Operations-ES.md)
+- [Publicaciones en Hugging Face](Hugging-Face-Releases-ES.md)

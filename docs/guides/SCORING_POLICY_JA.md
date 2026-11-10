@@ -1,4 +1,4 @@
-[English](SCORING_POLICY.md) | [中文](SCORING_POLICY_CN.md) | 日本語
+[English](SCORING_POLICY.md) | [中文](SCORING_POLICY_CN.md) | 日本語 | [Español](SCORING_POLICY_ES.md)
 
 # 話者判定の採点方針
 

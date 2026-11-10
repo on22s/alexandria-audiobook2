@@ -1,4 +1,4 @@
-[English](lora.md) | [中文](lora_CN.md) | [日本語](lora_JA.md)
+[English](lora.md) | [中文](lora_CN.md) | [日本語](lora_JA.md) | [Español](lora_ES.md)
 
 # Alexandria 的 Qwen3-TTS LoRA 训练指南
 

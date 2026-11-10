@@ -1,4 +1,4 @@
-[English](BOOK_SWITCH_RECOVERY.md) | [中文](BOOK_SWITCH_RECOVERY_CN.md) | [日本語](BOOK_SWITCH_RECOVERY_JA.md)
+[English](BOOK_SWITCH_RECOVERY.md) | [中文](BOOK_SWITCH_RECOVERY_CN.md) | [日本語](BOOK_SWITCH_RECOVERY_JA.md) | [Español](BOOK_SWITCH_RECOVERY_ES.md)
 
 # 中断的保存和切换
 
