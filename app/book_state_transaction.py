@@ -79,6 +79,47 @@ def _capture_target_parent_identities(root_fd, relative):
         os.close(current)
 
 
+WINDOWS_PARENT_SCHEME = 'windows-path'
+
+
+def _capture_target_parent_identities_path(root, relative):
+    """Capture a parent chain by path for Windows, which has no dir_fd (#1660).
+
+    Same shape as the POSIX chain: the root's [dev, ino], then one entry per
+    parent component, None from the first missing one. A component that is
+    not a plain directory (a file, a symlink, or a reparse point such as a
+    junction) is refused rather than recorded.
+    """
+    if not isinstance(relative, str):
+        raise ValueError('Invalid book artifact path')
+    path = Path(relative)
+    # anchor/drive: on Windows '/x' and 'C:x' are not "absolute" but escape the root.
+    if (path.is_absolute() or path.anchor or path.drive or not path.parts
+            or '..' in path.parts or len(path.parts) > 128):
+        raise ValueError('Invalid book artifact path')
+    def identity(info):
+        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                or getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)):
+            raise ValueError('Book artifact parent changed; recovery evidence was preserved')
+        return [info.st_dev, info.st_ino]
+    current = Path(root)
+    identities = [identity(os.lstat(current))]
+    missing = False
+    for component in path.parts[:-1]:
+        if missing:
+            identities.append(None)
+            continue
+        current = current / component
+        try:
+            info = os.lstat(current)
+        except (FileNotFoundError, NotADirectoryError):
+            missing = True
+            identities.append(None)
+            continue
+        identities.append(identity(info))
+    return identities
+
+
 def _require_target_parent_identities(root_fd, relative, expected):
     """Refuse a changed or substituted parent chain without following links."""
     try:
@@ -112,8 +153,25 @@ def _validate_target_parent_identity_evidence(names, evidence, *, cancel_check=N
 
 
 def _require_transaction_parent_identities(root, names, evidence, *, root_fd=None, cancel_check=None):
-    """Recheck every persisted parent chain through the admitted root handle."""
-    if (os.name == 'nt' or os.open not in os.supports_dir_fd
+    """Recheck every persisted parent chain through the admitted root handle.
+
+    Windows has no dir_fd, so it rechecks the same chain by path (#1660)."""
+    if os.name == 'nt':
+        for name in names:
+            _check_stream_cancellation(cancel_check)
+            if not isinstance(name, str):
+                raise ValueError('Invalid book artifact path')
+        _validate_target_parent_identity_evidence(names, evidence, cancel_check=cancel_check)
+        for name, expected in zip(names, evidence):
+            _check_stream_cancellation(cancel_check)
+            try:
+                current = _capture_target_parent_identities_path(root, name)
+            except OSError as error:
+                raise ValueError('Book artifact parent changed; recovery evidence was preserved') from error
+            if current != expected:
+                raise ValueError('Book artifact parent changed; recovery evidence was preserved')
+        return
+    if (os.open not in os.supports_dir_fd
             or not hasattr(os, 'O_DIRECTORY') or not hasattr(os, 'O_NOFOLLOW')):
         raise OSError(errno.ENOTSUP, 'Anchored parent capture is unavailable')
     for name in names:
@@ -2420,6 +2478,11 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
            for name in names):
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
+    scheme = data.get('target_parent_identity_scheme')
+    if scheme not in (None, WINDOWS_PARENT_SCHEME) or scheme is not None and (
+            parent_identities is None or os.name != 'nt'):
+        # A path-captured Windows chain can only be rechecked on Windows.
+        raise ValueError('Invalid active-book parent identity evidence')
     if parent_identities is not None:
         _require_transaction_parent_identities(
             root, names, parent_identities, cancel_check=cancel_check)
@@ -2842,6 +2905,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         if root_fd is not None:
             parent_identities = [
                 _capture_target_parent_identities(root_fd, name) for name in names]
+        elif os.name == 'nt':
+            parent_identities = [
+                _capture_target_parent_identities_path(root, name) for name in names]
         for index, ((name, value), target) in enumerate(zip(operations, targets)):
             if value is not None and not isinstance(value, (bytes, BookStateStream)):
                 raise ValueError('Book replacements must be bytes')
@@ -2961,6 +3027,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             data['stream_limits'] = {'bytes':stream_byte_limit, 'entries':MAX_FILES}
         if parent_identities is not None:
             data['target_parent_identities'] = parent_identities
+            if root_fd is None:
+                data['target_parent_identity_scheme'] = WINDOWS_PARENT_SCHEME
         if root_guard is not None:
             root_guard.check()
         journal_version = _save_journal(
