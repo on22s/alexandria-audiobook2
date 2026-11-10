@@ -1135,9 +1135,15 @@ class ProjectManager:
         """Read chunks.json, regenerating from script if missing or corrupted.
 
         Internal method - callers must hold _chunks_lock. Always returns a
-        list (possibly empty), never None.
+        list (possibly empty), never None. A book switch's placeholder at
+        either name (#1660) is refused rather than parsed, renamed aside as
+        corrupt, or regenerated over: the switch owns that name.
         """
-        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+        from book_placeholder import is_book_placeholder
+        journal_path = get_chunk_status_journal_path(self.chunks_path)
+        if is_book_placeholder(self.chunks_path) or is_book_placeholder(journal_path):
+            raise ValueError("A book switch is in progress; chunks are not available yet")
+        if os.path.exists(journal_path):
             return self._get_status_journal_locked().get_rows()
         file_version = self._get_chunks_file_version()
         chunks = safe_load_json(self.chunks_path)
