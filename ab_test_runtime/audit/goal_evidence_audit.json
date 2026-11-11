@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T11:36:09",
+  "written": "2026-11-11T12:00:01",
   "host": "RealMitch",
   "git": {
-   "commit": "b3489dc82ba8f0fe45a11b48e5762b9fa81fc61b",
-   "branch": "fix/windows-connection-reset-1909",
+   "commit": "93defb2148a93ed8e9ed12afe0bca07a9183984e",
+   "branch": "fix/readaloud-1844-silent-blocks",
    "dirty": true,
-   "source_state": "dirty:fc0fb9938af4",
+   "source_state": "dirty:8ea05000df21",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/app.py",
-    "A  app/tests/test_connection_reset_filter.py",
+    "M  app/epub_readaloud.py",
+    "M  app/tests/test_epub_readaloud_span_groups.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
