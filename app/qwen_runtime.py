@@ -71,6 +71,22 @@ _PROBE_SOURCE = (
     '    from qwen_asr import Qwen3ForcedAligner as _Qwen3ForcedAligner\n'
     'except Exception as exc:\n'
     "    out['reason'] = 'missing module: %s' % getattr(exc, 'name', exc)\n"
+    '    # QwenLM/Qwen3-ASR#214: qwen-asr 0.0.6 pins nagisa 0.2.11, whose\n'
+    '    # DyNet loader cannot open its model under a non-ASCII path on\n'
+    '    # Windows, so the aligner import fails with an unhelpful error.\n'
+    '    try:\n'
+    "        _nagisa = importlib.util.find_spec('nagisa')\n"
+    "        _where = (_nagisa.origin or '') if _nagisa else ''\n"
+    '    except Exception:\n'
+    "        _where = ''\n"
+    "    if sys.platform == 'win32' and _where and not _where.isascii():\n"
+    "        out['reason'] = ('the Qwen runtime is installed under a folder path with non-ASCII '\n"
+    "                         'characters (%s). Its Japanese word splitter (nagisa 0.2.11, '\n"
+    "                         'required by qwen-asr 0.0.6) cannot load from such a path on '\n"
+    "                         'Windows (QwenLM/Qwen3-ASR#214). Move Alexandria to a folder '\n"
+    "                         'whose full path uses only plain English letters, digits and '\n"
+    "                         'spaces, then reinstall the Qwen runtime.'\n"
+    "                         % os.path.dirname(os.path.dirname(_where)))\n"
     '    print(json.dumps(out)); sys.exit(0)\n'
     'try:\n'
     '    import torch\n'

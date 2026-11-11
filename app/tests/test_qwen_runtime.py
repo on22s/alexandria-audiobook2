@@ -100,6 +100,42 @@ class CapabilityTests(unittest.TestCase):
         # The default production probe must at least compile.
         compile(qr._PROBE_SOURCE, "<probe>", "exec")
 
+    def _run_probe_with_failing_aligner(self, folder_name, platform):
+        # A qwen_asr whose aligner import fails the way nagisa 0.2.11 does
+        # under a non-ASCII path (QwenLM/Qwen3-ASR#214), plus a nagisa
+        # package in the same site folder.
+        import subprocess
+        site = self.root / folder_name / "site-packages"
+        (site / "qwen_asr").mkdir(parents=True)
+        (site / "qwen_asr" / "__init__.py").write_text(
+            "raise RuntimeError('Could not read model from nagisa_v001.model')\n",
+            encoding="utf-8")
+        (site / "qwen_asr-0.0.6.dist-info").mkdir()
+        (site / "qwen_asr-0.0.6.dist-info" / "METADATA").write_text(
+            "Metadata-Version: 2.1\nName: qwen-asr\nVersion: 0.0.6\n", encoding="utf-8")
+        (site / "nagisa").mkdir()
+        (site / "nagisa" / "__init__.py").write_text("", encoding="utf-8")
+        source = "import sys; sys.platform = %r\n" % platform + qr._PROBE_SOURCE
+        env = dict(os.environ, PYTHONPATH=str(site), PYTHONIOENCODING="utf-8")
+        completed = subprocess.run([sys.executable, "-c", source], env=env,
+                                   capture_output=True, timeout=60)
+        return json.loads(completed.stdout.decode("utf-8"))["reason"]
+
+    def test_probe_names_non_ascii_install_path_on_windows(self):
+        reason = self._run_probe_with_failing_aligner("José runtime", "win32")
+        self.assertIn("non-ASCII", reason)
+        self.assertIn("José runtime", reason)
+        self.assertIn("#214", reason)
+
+    def test_probe_keeps_plain_reason_for_ascii_path_or_other_platform(self):
+        # Only the real #214 shape gets the path advice: an ASCII path on
+        # Windows, or a non-ASCII path elsewhere, keeps the original error.
+        for folder, platform in (("plain runtime", "win32"), ("José runtime", "linux")):
+            with self.subTest(folder=folder, platform=platform):
+                reason = self._run_probe_with_failing_aligner(folder, platform)
+                self.assertNotIn("non-ASCII", reason)
+                self.assertIn("Could not read model", reason)
+
     def test_probe_timeout_not_ready(self):
         from tests.test_qwen_repairs import _complete_model
         model = _complete_model(self.root)
