@@ -19,9 +19,17 @@ function changeUiLocale(locale) {
     return applied;
 }
 
+// JS-built chrome does not carry data-i18n attributes, so the locale change
+// repaints it here: the finder status and the Home task-guide cards. Guide
+// text is rebuilt through translateUiMessage on every render.
+function renderUiLocaleChrome() {
+    renderSetupSearchStatus();
+    if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
+}
+
 function applyUiLocaleAndSearchStatus(locale) {
     const applied = applyUiLocale(locale);
-    renderSetupSearchStatus();
+    renderUiLocaleChrome();
     return applied.then(renderSetupSearchStatus);
 }
 
@@ -265,7 +273,7 @@ if (document.getElementById('setup-ui-locale')) {
     renderUiLocaleOptions();
     preloadUiCatalogs().then(() => {
         applyUiCatalog();
-        renderSetupSearchStatus();
+        renderUiLocaleChrome();
     });
     window.addEventListener('storage', event => {
         if (event.key !== UI_LOCALE_STORAGE_KEY && event.key !== null) { return; }

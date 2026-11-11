@@ -66,7 +66,7 @@ context.API.get=async()=>[];await context.dsbLoadProjects();assert.strictEqual(s
         self.run_scenario(r"""
 run("dsbCurrentProject='Book';dsbRows=[{text:'original',emotion:'warm',seed:0,status:'done',audio_url:'/sample.wav'}];");
 let flushes=0,resolvePost;context.flush=async()=>flushes++;run('dsbSaveRowsQueue={flush};');context.showConfirm=async()=>true;context.API.post=(url,body)=>{assert.strictEqual(url,'/api/dataset_builder/save');assert.strictEqual(body.name,'Book');return new Promise(yes=>resolvePost=yes);};
-const save=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();assert.strictEqual(flushes,1);resolvePost({sample_count:1});await save;const status=context.document.getElementById('dsb-save-status');assert.strictEqual(status.textContent,'Saved! 1 samples.');
+const save=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();assert.strictEqual(flushes,1);resolvePost({sample_count:1});await save;const status=context.document.getElementById('dsb-save-status');assert.strictEqual(status.textContent,'Saved! 1 sample.');
 run("dsbRows[0].status='generating';applyDatasetTrainingSaveFeedback();");assert(status.textContent.includes('saved before these changes'));
 run("dsbRows[0].status='done';applyDatasetTrainingSaveFeedback();");assert(status.textContent.includes('saved before these changes'),'regeneration completion must not resurrect old Saved');
 const next=context.dsbSave();for(let i=0;i<8;i++)await Promise.resolve();run("dsbRows[0].text='newer edit';");resolvePost({sample_count:1});await next;assert(status.textContent.includes('saved before these changes'));
@@ -501,6 +501,11 @@ const context = {
     showToast() { throw new Error('unexpected toast'); },
     _toastSaveError() { throw new Error('unexpected save error'); },
     escapeHtml: value => String(value),
+    // The Dataset Builder reads every visible message through t(); these
+    // harnesses provide the English fallback (with its {values}) so the
+    // behaviour under test is unchanged while the source keeps its literal English.
+    t: (key, english, values = {}) => english.replace(/\{(\w+)\}/g, (match, name) => Object.hasOwn(values, name) ? String(values[name]) : match),
+    formatUiSafetyText: (key, english) => english,
     setTimeout(callback) { const id = nextTimer++; timers.set(id, callback); return id; },
     clearTimeout(id) { timers.delete(id); }
 };

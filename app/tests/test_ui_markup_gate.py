@@ -36,18 +36,21 @@ KEEP_ENGLISH = frozenset({
     'Pseudo-English (layout test, not a translation)',
 })
 
-# Measured 2026-11-10 on the P4 tree by the counters below. A pane or file that
+# Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that
 # is absent here fails the test, so a new surface must declare its baseline.
 # P4 lowered index.html's setup 411 -> 0 and shell 81 -> 0 and app-settings.js
 # 63 -> 53; app-i18n.js rose 23 -> 25 by two key literals in the data-i18n-html
-# and safety branches. app-help.js's 75 counts two attribute-name literals in
-# the tooltip refresh; its 700+ help strings are catalog sources (excluded by
-# help_map_spans, and test_ui_help_i18n.py proves every one is keyed in all
-# three locales).
+# and safety branches. P5 lowered index.html's script 212 -> 2 (the two left are
+# live JS status lines), app-guides.js 154 -> 48 and app-workbench.js 382 -> 324
+# (the Dataset Builder surface; the Preparer and system-status sections in that
+# file belong to later phases). app-help.js's 75 counts two attribute-name
+# literals in the tooltip refresh; its 700+ help strings are catalog sources
+# (excluded by help_map_spans, and test_ui_help_i18n.py proves every one is
+# keyed in all three locales).
 MARKUP_BASELINE = {
     'index.html': {
         'audio': 153, 'casting': 61, 'dataset-builder': 30, 'designer': 19,
-        'editor': 207, 'home': 23, 'preparer': 62, 'reports': 17, 'script': 212,
+        'editor': 207, 'home': 23, 'preparer': 62, 'reports': 17, 'script': 2,
         'setup': 0, 'shell': 0, 'training': 69, 'voicelab': 54, 'voices': 75,
     },
     'readalong-player.html': {'shell': 16},
@@ -57,7 +60,7 @@ JS_BASELINE = {
     'app-audio-channels.js': 26, 'app-audiobookshelf.js': 88, 'app-calibre.js': 269,
     'app-casting-research.js': 436, 'app-casting.js': 262, 'app-character-roster.js': 110,
     'app-core.js': 2215, 'app-editor-repair.js': 32, 'app-editor-review.js': 193,
-    'app-export-quality.js': 38, 'app-guides.js': 154, 'app-help.js': 75,
+    'app-export-quality.js': 38, 'app-guides.js': 48, 'app-help.js': 75,
     'app-i18n.js': 25, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
     'app-project-scope.js': 33, 'app-pronunciation.js': 210,
     'app-publication-validation.js': 2, 'app-publication.js': 45, 'app-readalong.js': 63,
@@ -68,7 +71,7 @@ JS_BASELINE = {
     'app-synthesis-windows.js': 42, 'app-take-history.js': 92, 'app-training.js': 311,
     'app-translated-edition.js': 37, 'app-tts-capabilities.js': 56,
     'app-tts-diagnostics.js': 33, 'app-voicelab.js': 154, 'app-word-timing.js': 68,
-    'app-workbench.js': 382, 'app-workspace.js': 135,
+    'app-workbench.js': 324, 'app-workspace.js': 135,
 }
 
 
@@ -219,6 +222,13 @@ def keyed_spans(text):
         if len(arguments) >= 3:
             spans.add(arguments[1])
             spans.add(arguments[2])
+    # formatUiSafetyText('key', 'English', ...) is the string-sink form of the
+    # same authored safety message, so its first two arguments are keyed too.
+    for match in re.finditer(r"\bformatUiSafetyText\s*\(", text):
+        arguments = _arguments(text, match.end())
+        if len(arguments) >= 2:
+            spans.add(arguments[0])
+            spans.add(arguments[1])
     return spans
 
 

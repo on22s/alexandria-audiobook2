@@ -29,7 +29,7 @@ class DatasetHtmlRenderJsTests(unittest.TestCase):
         script=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(process.argv[2],'utf8'),payload=JSON.parse(process.argv[3]);
-const elements={};const context={window:{},console,document:{getElementById(id){return elements[id]??=( {innerHTML:'',style:{},value:''});}},showToast(){throw new Error('unexpected toast');}};context.window=context;vm.createContext(context);
+const elements={};const context={window:{},console,document:{getElementById(id){return elements[id]??=( {innerHTML:'',style:{},value:''});}},showToast(){throw new Error('unexpected toast');},t:(key,english)=>english};context.window=context;vm.createContext(context);
 const run=code=>vm.runInContext(code,context);
 run(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')));
 run(source.slice(0,source.indexOf('// Persist on input changes')));

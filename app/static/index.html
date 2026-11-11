@@ -1901,21 +1901,21 @@
         <!-- Script Tab -->
         <div id="script-tab" class="tab-content" style="display:none;">
             <details class="card mb-3" id="source-scope-panel" ontoggle="onSourceScopePanelToggle()">
-                <summary class="card-header">Keep a later part of this book</summary>
+                <summary data-i18n="script.scope.title" class="card-header">Keep a later part of this book</summary>
                 <div class="card-body">
-                    <p class="small">Remove a prefix from the current saved script while keeping unaffected voices, audio and take history. Preview the exact changes first. The original source stays on disk.</p>
-                    <label for="source-scope-search" class="form-label">Find the first entry to keep</label>
+                    <p data-i18n="script.scope.intro" class="small">Remove a prefix from the current saved script while keeping unaffected voices, audio and take history. Preview the exact changes first. The original source stays on disk.</p>
+                    <label for="source-scope-search" data-i18n="script.scope.search.label" class="form-label">Find the first entry to keep</label>
                     <div class="input-group mb-2">
-                        <input id="source-scope-search" class="form-control" maxlength="200" placeholder="Chapter heading or exact words">
-                        <button class="btn btn-outline-secondary" id="source-scope-find" type="button" onclick="refreshSourceScope()">Find / refresh</button>
-                        <button class="btn btn-outline-secondary" id="source-scope-next" type="button" onclick="loadNextSourceScopeEntries()" disabled>Next entries</button>
+                        <input id="source-scope-search" data-i18n-attr="placeholder:script.scope.search.placeholder" class="form-control" maxlength="200" placeholder="Chapter heading or exact words">
+                        <button data-i18n="script.scope.find" class="btn btn-outline-secondary" id="source-scope-find" type="button" onclick="refreshSourceScope()">Find / refresh</button>
+                        <button data-i18n="script.scope.next-entries" class="btn btn-outline-secondary" id="source-scope-next" type="button" onclick="loadNextSourceScopeEntries()" disabled>Next entries</button>
                     </div>
-                    <select id="source-scope-entry" class="form-select mb-2" aria-label="First saved entry to keep" onchange="invalidateSourceScopePreview()"><option value="">Find an entry first</option></select>
+                    <select id="source-scope-entry" data-i18n-attr="aria-label:script.scope.entry.aria-label" class="form-select mb-2" aria-label="First saved entry to keep" onchange="invalidateSourceScopePreview()"><option value="" data-i18n="script.scope.entry.empty">Find an entry first</option></select>
                     <div class="d-flex gap-2 flex-wrap mb-2">
-                        <button class="btn btn-outline-primary" id="source-scope-preview" type="button" onclick="previewSourceScope()" disabled>Preview scope</button>
-                        <button class="btn btn-primary" id="source-scope-apply" type="button" onclick="applySourceScope()" disabled>Apply reviewed scope</button>
-                        <button class="btn btn-outline-primary" id="source-scope-undo" type="button" onclick="undoSourceScope()" disabled>Undo scope change</button>
-                        <button class="btn btn-outline-danger" id="source-scope-discard" type="button" onclick="discardSourceScopeUndo()" disabled>Discard undo; keep current scope</button>
+                        <button data-i18n="script.scope.preview" class="btn btn-outline-primary" id="source-scope-preview" type="button" onclick="previewSourceScope()" disabled>Preview scope</button>
+                        <button data-i18n="script.scope.apply" class="btn btn-primary" id="source-scope-apply" type="button" onclick="applySourceScope()" disabled>Apply reviewed scope</button>
+                        <button data-i18n="script.scope.undo" class="btn btn-outline-primary" id="source-scope-undo" type="button" onclick="undoSourceScope()" disabled>Undo scope change</button>
+                        <button data-i18n="safety.script.scope.discard" class="btn btn-outline-danger" id="source-scope-discard" type="button" onclick="discardSourceScopeUndo()" disabled>Discard undo; keep current scope</button>
                     </div>
                     <p id="source-scope-feedback" class="small" role="status" aria-live="polite"></p>
                     <p id="source-scope-undo-status" class="small"></p>
@@ -1923,15 +1923,15 @@
                 </div>
             </details>
             <details class="card mb-3" id="translated-edition-panel" ontoggle="onTranslatedEditionPanelToggle()">
-                <summary class="card-header">Preview a translated edition (proposal only)</summary>
+                <summary data-i18n="script.translated-edition.title" class="card-header">Preview a translated edition (proposal only)</summary>
                 <div class="card-body">
-                    <p class="small">Build a reviewable translation proposal for the first 25 saved Script rows in one installed language pair, for authorised source material. The result is a proposal, not an approved translation: it never replaces the Script or source, adds no audio, and changes no UI, source or TTS language. Nothing is downloaded and no text leaves this machine: only directly installed pairs are listed (listing them fetches no index or package), and a preview refuses to start rather than let Argos fetch a sentence-splitting model (when a missing model is the cause, the refusal names the file). A proposal belongs to the active book: re-opening this panel shows the most recent saved preview for the current book, if one is still on disk (rebuild if the Script changed; a preview that is still building keeps showing its own progress), and a preview from another book is never shown for this book. Loading a different saved book from the library removes the previous folder; selecting an uploaded source leaves old files on disk until a different-book library load, and those files are never shown for the new book. Saving the book to the library does not copy proposals into the saved book.</p>
-                    <label for="translated-edition-pair" class="form-label">Installed language pair</label>
-                    <select id="translated-edition-pair" class="form-select mb-2" aria-label="Installed language pair for the preview" onchange="updateTranslatedEditionControls()"><option value="">Open this panel to check installed pairs</option></select>
+                    <p data-i18n="script.translated-edition.intro" class="small">Build a reviewable translation proposal for the first 25 saved Script rows in one installed language pair, for authorised source material. The result is a proposal, not an approved translation: it never replaces the Script or source, adds no audio, and changes no UI, source or TTS language. Nothing is downloaded and no text leaves this machine: only directly installed pairs are listed (listing them fetches no index or package), and a preview refuses to start rather than let Argos fetch a sentence-splitting model (when a missing model is the cause, the refusal names the file). A proposal belongs to the active book: re-opening this panel shows the most recent saved preview for the current book, if one is still on disk (rebuild if the Script changed; a preview that is still building keeps showing its own progress), and a preview from another book is never shown for this book. Loading a different saved book from the library removes the previous folder; selecting an uploaded source leaves old files on disk until a different-book library load, and those files are never shown for the new book. Saving the book to the library does not copy proposals into the saved book.</p>
+                    <label for="translated-edition-pair" data-i18n="script.translated-edition.pair.label" class="form-label">Installed language pair</label>
+                    <select id="translated-edition-pair" data-i18n-attr="aria-label:script.translated-edition.pair.aria-label" class="form-select mb-2" aria-label="Installed language pair for the preview" onchange="updateTranslatedEditionControls()"><option value="" data-i18n="script.translated-edition.pair.empty">Open this panel to check installed pairs</option></select>
                     <div class="d-flex gap-2 flex-wrap mb-2">
-                        <button class="btn btn-outline-secondary" id="translated-edition-refresh" type="button" onclick="refreshTranslatedEditionPairs()">Refresh installed pairs</button>
-                        <button class="btn btn-outline-primary" id="translated-edition-create" type="button" onclick="createTranslatedEditionProposal()" disabled>Create translation preview</button>
-                        <button class="btn btn-outline-danger" id="translated-edition-cancel" type="button" onclick="cancelTranslatedEditionProposal()" disabled>Cancel preview</button>
+                        <button data-i18n="script.translated-edition.refresh" class="btn btn-outline-secondary" id="translated-edition-refresh" type="button" onclick="refreshTranslatedEditionPairs()">Refresh installed pairs</button>
+                        <button data-i18n="script.translated-edition.create" class="btn btn-outline-primary" id="translated-edition-create" type="button" onclick="createTranslatedEditionProposal()" disabled>Create translation preview</button>
+                        <button data-i18n="script.translated-edition.cancel" class="btn btn-outline-danger" id="translated-edition-cancel" type="button" onclick="cancelTranslatedEditionProposal()" disabled>Cancel preview</button>
                     </div>
                     <p id="translated-edition-feedback" class="small" role="status" aria-live="polite"></p>
                     <div id="translated-edition-review"></div>
@@ -1939,87 +1939,87 @@
             </details>
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="m-0"><span class="step-indicator step-active">2</span>Generate Script</h4>
+                    <h4 class="m-0"><span class="step-indicator step-active">2</span><span data-i18n="script.header.title">Generate Script</span></h4>
                     <div class="form-check form-switch ms-3 flex-shrink-0">
                         <input class="form-check-input" type="checkbox" id="script-batch-mode" onchange="toggleScriptBatchMode()">
-                        <label class="form-check-label" for="script-batch-mode">Generate multiple books</label>
+                        <label data-i18n="script.header.batch-mode" class="form-check-label" for="script-batch-mode">Generate multiple books</label>
                     </div>
                 </div>
                 <div class="card-body">
                     <!-- Single Mode -->
                     <div id="script-single-area">
                         <div class="mb-4">
-                            <label class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, EPUB, or DOCX)</label>
+                            <label data-i18n="script.upload.label" class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, EPUB, or DOCX)</label>
                             <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub,.docx">
-                            <div class="form-text">DOCX policy v2 supports body paragraphs, literal headings, known metadata and checked style inheritance. Tables, notes, tracked changes, hidden text, numbering and other unsupported structures are refused. Review and accept the extracted text before selection. Batch DOCX is unsupported.</div>
-                            <button type="button" class="btn btn-secondary" onclick="openRetainedDocxDetails()">Inspect retained DOCX files</button>
+                            <div data-i18n="script.docx.policy" class="form-text">DOCX policy v2 supports body paragraphs, literal headings, known metadata and checked style inheritance. Tables, notes, tracked changes, hidden text, numbering and other unsupported structures are refused. Review and accept the extracted text before selection. Batch DOCX is unsupported.</div>
+                            <button data-i18n="script.docx.retained" type="button" class="btn btn-secondary" onclick="openRetainedDocxDetails()">Inspect retained DOCX files</button>
                             <pre id="docx-retained-details" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
-                            <section id="docx-preview-panel" class="mt-2" hidden aria-label="DOCX extraction preview">
+                            <section id="docx-preview-panel" data-i18n-attr="aria-label:script.docx.preview.aria-label" class="mt-2" hidden aria-label="DOCX extraction preview">
                                 <p id="docx-preview-policy"></p>
                                 <pre id="docx-preview-warnings" style="white-space:pre-wrap"></pre>
                                 <pre id="docx-preview-text" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
-                                <button id="docx-preview-accept" type="button" class="btn btn-primary" onclick="acceptDocxPreview()">Accept this exact text and select book</button>
-                                <button id="docx-preview-cancel" type="button" class="btn btn-secondary" onclick="cancelDocxPreview()">Cancel preview</button>
+                                <button data-i18n="script.docx.accept" id="docx-preview-accept" type="button" class="btn btn-primary" onclick="acceptDocxPreview()">Accept this exact text and select book</button>
+                                <button data-i18n="script.docx.cancel" id="docx-preview-cancel" type="button" class="btn btn-secondary" onclick="cancelDocxPreview()">Cancel preview</button>
                             </section>
                             <div class="form-check mt-2">
                                 <input class="form-check-input" type="checkbox" id="epub-extraction-report-enabled">
-                                <label class="form-check-label" for="epub-extraction-report-enabled">Include an EPUB extraction report with this import</label>
+                                <label data-i18n="script.epub-report.include" class="form-check-label" for="epub-extraction-report-enabled">Include an EPUB extraction report with this import</label>
                             </div>
                             <details id="epub-extraction-report-panel" class="mt-2" hidden>
-                                <summary>EPUB import snapshot</summary>
-                                <p class="small">Shows source hashes, reading order, navigation and title decisions from this upload. It does not certify later editor changes or apply exclusions or formatting. Re-upload an EPUB to inspect another revision. Labels and archive paths may contain private information; review before sharing. Omitted rows and shortened fields are marked in the report.</p>
-                                <pre id="epub-extraction-report-json" class="small" tabindex="0" role="region" aria-label="EPUB extraction report JSON" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
+                                <summary data-i18n="script.epub-report.title">EPUB import snapshot</summary>
+                                <p data-i18n="script.epub-report.intro" class="small">Shows source hashes, reading order, navigation and title decisions from this upload. It does not certify later editor changes or apply exclusions or formatting. Re-upload an EPUB to inspect another revision. Labels and archive paths may contain private information; review before sharing. Omitted rows and shortened fields are marked in the report.</p>
+                                <pre id="epub-extraction-report-json" data-i18n-attr="aria-label:script.epub-report.json.aria-label" class="small" tabindex="0" role="region" aria-label="EPUB extraction report JSON" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:24rem;overflow:auto"></pre>
                             </details>
-                            <label class="form-label mt-3" for="existing-upload-select">Or reuse an existing upload</label>
+                            <label data-i18n="script.existing-upload.label" class="form-label mt-3" for="existing-upload-select">Or reuse an existing upload</label>
                             <select class="form-select" id="existing-upload-select" onchange="selectExistingScriptUpload()">
-                                <option value="">Choose an existing TXT/MD file…</option>
+                                <option value="" data-i18n="script.existing-upload.empty">Choose an existing TXT/MD file…</option>
                             </select>
                             <div id="existing-uploads-status" class="mt-2 small" role="status" aria-live="polite"></div>
                             <div id="upload-status" class="mt-2"></div>
                             <details id="calibre-panel" class="border rounded p-3 mt-3">
-                                <summary>Optional: browse an OPDS catalog</summary>
-                                <p class="small mt-2">Save catalog settings explicitly, then browse categories and preview source metadata. Browsing and preview never download, capture, import, select, or synthesize a book. After a preview, an explicit capture downloads that exact source to a staged capture; an explicit import then publishes it as an existing upload without selecting a book. Passwords are never shown again after saving.</p>
-                                <label class="form-label mt-2" for="calibre-root-url">Catalog root URL</label>
-                                <input class="form-control" id="calibre-root-url" onchange="onCalibreConfigChange()" placeholder="https://catalog.example/opds">
-                                <label class="form-label mt-2" for="calibre-username">Username (optional)</label>
+                                <summary data-i18n="script.opds.title">Optional: browse an OPDS catalog</summary>
+                                <p data-i18n="script.opds.intro" class="small mt-2">Save catalog settings explicitly, then browse categories and preview source metadata. Browsing and preview never download, capture, import, select, or synthesize a book. After a preview, an explicit capture downloads that exact source to a staged capture; an explicit import then publishes it as an existing upload without selecting a book. Passwords are never shown again after saving.</p>
+                                <label data-i18n="script.opds.root-url.label" class="form-label mt-2" for="calibre-root-url">Catalog root URL</label>
+                                <input data-i18n-skip class="form-control" id="calibre-root-url" onchange="onCalibreConfigChange()" placeholder="https://catalog.example/opds">
+                                <label data-i18n="script.opds.username.label" class="form-label mt-2" for="calibre-username">Username (optional)</label>
                                 <input class="form-control" id="calibre-username" onchange="onCalibreConfigChange()" autocomplete="off">
-                                <label class="form-label mt-2" for="calibre-password">Password</label>
+                                <label data-i18n="script.opds.password.label" class="form-label mt-2" for="calibre-password">Password</label>
                                 <input class="form-control" id="calibre-password" type="password" onchange="onCalibreConfigChange()" autocomplete="off">
-                                <div class="form-text">Leave blank to keep the stored password.</div>
+                                <div data-i18n="script.opds.password.help" class="form-text">Leave blank to keep the stored password.</div>
                                 <div class="form-check mt-2">
                                     <input class="form-check-input" type="checkbox" id="calibre-clear-password" onchange="onCalibreConfigChange()">
-                                    <label class="form-check-label" for="calibre-clear-password">Clear the stored password on the next save</label>
+                                    <label data-i18n="script.opds.clear-password.label" class="form-check-label" for="calibre-clear-password">Clear the stored password on the next save</label>
                                 </div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <button type="button" class="btn btn-outline-secondary" id="calibre-load-config" onclick="loadCalibreConfig()">Load saved settings</button>
-                                    <button type="button" class="btn btn-primary" id="calibre-save-config" onclick="saveCalibreConfig()">Save catalog settings</button>
-                                    <button type="button" class="btn btn-outline-primary" id="calibre-browse-root" onclick="browseCalibreRoot()" disabled>Browse catalog</button>
+                                    <button data-i18n="script.opds.load-settings" type="button" class="btn btn-outline-secondary" id="calibre-load-config" onclick="loadCalibreConfig()">Load saved settings</button>
+                                    <button data-i18n="script.opds.save-settings" type="button" class="btn btn-primary" id="calibre-save-config" onclick="saveCalibreConfig()">Save catalog settings</button>
+                                    <button data-i18n="script.opds.browse" type="button" class="btn btn-outline-primary" id="calibre-browse-root" onclick="browseCalibreRoot()" disabled>Browse catalog</button>
                                 </div>
-                                <p id="calibre-status" class="small mt-2" role="status" aria-live="polite">Load or save settings before browsing.</p>
+                                <p id="calibre-status" data-i18n="script.opds.status.initial" class="small mt-2" role="status" aria-live="polite">Load or save settings before browsing.</p>
                                 <p id="calibre-page-title" class="small mt-2"></p>
                                 <p id="calibre-page-info" class="small"></p>
                                 <div id="calibre-entries"></div>
                                 <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <button type="button" class="btn btn-outline-secondary" id="calibre-next-page" onclick="browseCalibreNextPage()" disabled>Next page</button>
-                                    <button type="button" class="btn btn-outline-secondary" id="calibre-start-page" onclick="browseCalibreStartPage()" disabled>First page</button>
+                                    <button data-i18n="script.opds.next-page" type="button" class="btn btn-outline-secondary" id="calibre-next-page" onclick="browseCalibreNextPage()" disabled>Next page</button>
+                                    <button data-i18n="script.opds.first-page" type="button" class="btn btn-outline-secondary" id="calibre-start-page" onclick="browseCalibreStartPage()" disabled>First page</button>
                                 </div>
-                                <section id="calibre-review-panel" class="border rounded p-3 mt-3" hidden aria-label="Cross-origin destination review">
-                                    <p class="mb-1">Cross-origin destination requires review:</p>
+                                <section id="calibre-review-panel" data-i18n-attr="aria-label:script.opds.review.aria-label" class="border rounded p-3 mt-3" hidden aria-label="Cross-origin destination review">
+                                    <p data-i18n="script.opds.review.intro" class="mb-1">Cross-origin destination requires review:</p>
                                     <p id="calibre-review-url" style="overflow-wrap:anywhere"></p>
                                     <p id="calibre-review-origin"></p>
                                     <p id="calibre-review-operation"></p>
                                     <div class="d-flex gap-2 flex-wrap">
-                                        <button type="button" class="btn btn-primary" id="calibre-review-approve" onclick="approveCalibreReview()">Approve this exact destination</button>
-                                        <button type="button" class="btn btn-secondary" id="calibre-review-cancel" onclick="cancelCalibreReview()">Cancel review</button>
+                                        <button data-i18n="script.opds.review.approve" type="button" class="btn btn-primary" id="calibre-review-approve" onclick="approveCalibreReview()">Approve this exact destination</button>
+                                        <button data-i18n="script.opds.review.cancel" type="button" class="btn btn-secondary" id="calibre-review-cancel" onclick="cancelCalibreReview()">Cancel review</button>
                                     </div>
                                 </section>
-                                <section id="calibre-preview-panel" class="border rounded p-3 mt-3" hidden aria-label="Catalog metadata preview">
+                                <section id="calibre-preview-panel" data-i18n-attr="aria-label:script.opds.preview.aria-label" class="border rounded p-3 mt-3" hidden aria-label="Catalog metadata preview">
                                     <pre id="calibre-preview-out" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
-                                    <p class="small">Explicit capture only. This contacts the catalog for the previewed acquisition link; it does not import or select a book.</p>
-                                    <button type="button" class="btn btn-primary" id="calibre-capture-start" onclick="startCalibreCapture()" disabled>Capture this exact source</button>
+                                    <p data-i18n="script.opds.preview.intro" class="small">Explicit capture only. This contacts the catalog for the previewed acquisition link; it does not import or select a book.</p>
+                                    <button data-i18n="script.opds.capture.start" type="button" class="btn btn-primary" id="calibre-capture-start" onclick="startCalibreCapture()" disabled>Capture this exact source</button>
                                 </section>
-                                <section id="calibre-confirmation-panel" class="border rounded p-3 mt-3" hidden aria-label="Captured source confirmation">
-                                    <p class="mb-1">Captured source (read-only):</p>
+                                <section id="calibre-confirmation-panel" data-i18n-attr="aria-label:script.opds.confirmation.aria-label" class="border rounded p-3 mt-3" hidden aria-label="Captured source confirmation">
+                                    <p data-i18n="script.opds.confirmation.intro" class="mb-1">Captured source (read-only):</p>
                                     <pre id="calibre-confirmation-provider" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
                                     <p id="calibre-confirmation-stable-id"></p>
                                     <p id="calibre-confirmation-source" style="overflow-wrap:anywhere"></p>
@@ -2027,80 +2027,80 @@
                                     <p id="calibre-confirmation-sha256" style="overflow-wrap:anywhere"></p>
                                     <p id="calibre-confirmation-size"></p>
                                     <div class="d-flex gap-2 flex-wrap">
-                                        <button type="button" class="btn btn-primary" id="calibre-import-confirm" onclick="importCalibreCapture()" disabled>Import this captured source</button>
-                                        <button type="button" class="btn btn-secondary" id="calibre-discard-capture" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
+                                        <button data-i18n="script.opds.import" type="button" class="btn btn-primary" id="calibre-import-confirm" onclick="importCalibreCapture()" disabled>Import this captured source</button>
+                                        <button data-i18n="safety.script.opds.discard" type="button" class="btn btn-secondary" id="calibre-discard-capture" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
                                     </div>
                                 </section>
-                                <section id="calibre-job-panel" class="border rounded p-3 mt-3" hidden aria-label="Calibre capture job">
+                                <section id="calibre-job-panel" data-i18n-attr="aria-label:script.opds.job.aria-label" class="border rounded p-3 mt-3" hidden aria-label="Calibre capture job">
                                     <p id="calibre-job-status" class="small" role="status" aria-live="polite"></p>
                                     <pre id="calibre-job-out" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
                                     <pre id="calibre-import-receipt" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
                                     <div class="d-flex gap-2 flex-wrap">
-                                        <button type="button" class="btn btn-outline-secondary" id="calibre-check-status" onclick="checkCalibreCaptureStatus()" disabled>Check capture status</button>
-                                        <button type="button" class="btn btn-outline-danger" id="calibre-cancel-capture" onclick="cancelCalibreCapture()" disabled>Cancel capture</button>
-                                        <button type="button" class="btn btn-secondary" id="calibre-job-discard" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
+                                        <button data-i18n="script.opds.job.status" type="button" class="btn btn-outline-secondary" id="calibre-check-status" onclick="checkCalibreCaptureStatus()" disabled>Check capture status</button>
+                                        <button data-i18n="script.opds.job.cancel" type="button" class="btn btn-outline-danger" id="calibre-cancel-capture" onclick="cancelCalibreCapture()" disabled>Cancel capture</button>
+                                        <button data-i18n="safety.script.opds.discard" type="button" class="btn btn-secondary" id="calibre-job-discard" onclick="discardCalibreCapture()" disabled>Discard captured source</button>
                                     </div>
                                 </section>
                             </details>
-                            <label class="form-label mt-3" for="script-first-person-narrator">First-person narrator (optional)</label>
-                            <input class="form-control" id="script-first-person-narrator" maxlength="100" placeholder="e.g. ALEXIS IVANOVITCH">
-                            <div class="form-text">Enter the narrator's exact character name only when the book is narrated in first person.</div>
-                            <label class="form-label mt-3">Cast list (optional)</label>
+                            <label data-i18n="script.narrator.first-person.label" class="form-label mt-3" for="script-first-person-narrator">First-person narrator (optional)</label>
+                            <input data-i18n-attr="placeholder:script.narrator.first-person.placeholder" class="form-control" id="script-first-person-narrator" maxlength="100" placeholder="e.g. ALEXIS IVANOVITCH">
+                            <div data-i18n="script.narrator.first-person.help" class="form-text">Enter the narrator's exact character name only when the book is narrated in first person.</div>
+                            <label data-i18n="script.cast.label" class="form-label mt-3">Cast list (optional)</label>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <button class="btn btn-outline-info btn-sm" id="btn-build-cast-list" type="button" onclick="buildCastList()"><i class="fas fa-users me-1"></i>Build cast list</button>
-                                <button class="btn btn-outline-secondary btn-sm" id="btn-edit-cast-list" type="button" onclick="loadCastList(true)"><i class="fas fa-pen me-1"></i>Edit cast list</button>
-                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-cast-list" type="button" style="display:none;" onclick="cancelCastList()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                                <button class="btn btn-outline-info btn-sm" id="btn-build-cast-list" type="button" onclick="buildCastList()"><i class="fas fa-users me-1"></i><span data-i18n="script.cast.build">Build cast list</span></button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-edit-cast-list" type="button" onclick="loadCastList(true)"><i class="fas fa-pen me-1"></i><span data-i18n="script.cast.edit">Edit cast list</span></button>
+                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-cast-list" type="button" style="display:none;" onclick="cancelCastList()"><i class="fas fa-stop me-1"></i><span data-i18n="script.cast.cancel">Cancel</span></button>
                             </div>
-                            <div class="form-text" id="cast-list-status">One request over the whole book lists everyone who speaks, including people the book never names (<em>THE DETECTIVE</em>, <em>THE OLD WOMAN</em>). Generation then gives them their own lines instead of UNKNOWN.</div>
+                            <div class="form-text" id="cast-list-status"><span data-i18n="script.cast.status.before-examples">One request over the whole book lists everyone who speaks, including people the book never names (</span><em><span data-i18n="script.cast.status.example-detective">THE DETECTIVE</span></em>, <em><span data-i18n="script.cast.status.example-old-woman">THE OLD WOMAN</span></em><span data-i18n="script.cast.status.after-examples">). Generation then gives them their own lines instead of UNKNOWN.</span></div>
                             <div id="cast-list-panel" class="mt-2" style="display:none;"></div>
                             <details id="character-roster-panel" class="border rounded p-3 mt-3">
-                                <summary>Review character identities and source quotes</summary>
-                                <p class="small mt-2">Review recurring names, aliases and ambiguous characters before updating the cast for future script generation. Accepted text, voices and audio stay as they are.</p>
-                                <button type="button" id="roster-load" class="btn btn-sm btn-outline-secondary">Load or reload character review</button>
-                                <button type="button" id="roster-export" class="btn btn-sm btn-outline-secondary" disabled>Export approved roster</button>
-                                <button type="button" id="roster-recover" class="btn btn-sm btn-outline-secondary" hidden>Restore previous unsaved draft</button>
+                                <summary data-i18n="script.roster.title">Review character identities and source quotes</summary>
+                                <p data-i18n="script.roster.intro" class="small mt-2">Review recurring names, aliases and ambiguous characters before updating the cast for future script generation. Accepted text, voices and audio stay as they are.</p>
+                                <button data-i18n="script.roster.load" type="button" id="roster-load" class="btn btn-sm btn-outline-secondary">Load or reload character review</button>
+                                <button data-i18n="script.roster.export" type="button" id="roster-export" class="btn btn-sm btn-outline-secondary" disabled>Export approved roster</button>
+                                <button data-i18n="safety.script.roster.restore-draft" type="button" id="roster-recover" class="btn btn-sm btn-outline-secondary" hidden>Restore previous unsaved draft</button>
                                 <p id="roster-book" class="small mt-2"></p>
-                                <div id="roster-status" class="small mb-2" role="status" aria-live="polite">Load this book when you are ready.</div>
+                                <div id="roster-status" data-i18n="script.roster.status.initial" class="small mb-2" role="status" aria-live="polite">Load this book when you are ready.</div>
                                 <fieldset id="roster-fields" disabled>
                                     <div class="d-flex gap-2 flex-wrap my-2">
-                                        <button type="button" id="roster-seed" class="btn btn-sm btn-outline-secondary">Use current cast as a draft</button>
-                                        <button type="button" id="roster-add" class="btn btn-sm btn-outline-secondary">Add character</button>
-                                        <label class="small">Import an exported roster <input type="file" id="roster-import" accept=".json,application/json" class="form-control form-control-sm"></label>
+                                        <button data-i18n="script.roster.seed" type="button" id="roster-seed" class="btn btn-sm btn-outline-secondary">Use current cast as a draft</button>
+                                        <button data-i18n="script.roster.add" type="button" id="roster-add" class="btn btn-sm btn-outline-secondary">Add character</button>
+                                        <label class="small"><span data-i18n="script.roster.import.label">Import an exported roster</span> <input type="file" id="roster-import" accept=".json,application/json" class="form-control form-control-sm"></label>
                                     </div>
                                     <div id="roster-import-review" class="my-2"></div>
                                     <div class="border rounded p-2 mb-2">
-                                        <label class="small" for="roster-survivor">When merging selected characters, keep</label>
+                                        <label data-i18n="script.roster.survivor.label" class="small" for="roster-survivor">When merging selected characters, keep</label>
                                         <select id="roster-survivor" class="form-select form-select-sm mb-2"></select>
-                                        <button type="button" id="roster-merge" class="btn btn-sm btn-outline-secondary">Merge selected</button>
-                                        <label class="small ms-2" for="roster-split-name">New character name for a split</label>
+                                        <button data-i18n="script.roster.merge" type="button" id="roster-merge" class="btn btn-sm btn-outline-secondary">Merge selected</button>
+                                        <label data-i18n="script.roster.split-name.label" class="small ms-2" for="roster-split-name">New character name for a split</label>
                                         <input id="roster-split-name" class="form-control form-control-sm my-1" maxlength="2048">
-                                        <label class="small"><input type="checkbox" id="roster-split-new"> Give both split characters new identities</label>
-                                        <button type="button" id="roster-split" class="btn btn-sm btn-outline-secondary">Split selected character</button>
-                                        <button type="button" id="roster-retire" class="btn btn-sm btn-outline-danger">Retire selected</button>
+                                        <label class="small"><input type="checkbox" id="roster-split-new"> <span data-i18n="script.roster.split-new.label">Give both split characters new identities</span></label>
+                                        <button data-i18n="script.roster.split" type="button" id="roster-split" class="btn btn-sm btn-outline-secondary">Split selected character</button>
+                                        <button data-i18n="safety.script.roster.retire" type="button" id="roster-retire" class="btn btn-sm btn-outline-danger">Retire selected</button>
                                     </div>
                                     <div id="roster-rows"></div>
-                                    <button type="button" id="roster-previous" class="btn btn-sm btn-outline-secondary">Previous characters</button>
+                                    <button data-i18n="script.roster.previous" type="button" id="roster-previous" class="btn btn-sm btn-outline-secondary">Previous characters</button>
                                     <span id="roster-page" class="small mx-2"></span>
-                                    <button type="button" id="roster-next" class="btn btn-sm btn-outline-secondary">Next characters</button>
-                                    <button type="button" id="roster-preview" class="btn btn-sm btn-outline-info ms-2">Review draft changes</button>
+                                    <button data-i18n="script.roster.next" type="button" id="roster-next" class="btn btn-sm btn-outline-secondary">Next characters</button>
+                                    <button data-i18n="script.roster.preview" type="button" id="roster-preview" class="btn btn-sm btn-outline-info ms-2">Review draft changes</button>
                                 </fieldset>
                                 <div id="roster-review" class="my-3"></div>
-                                <label class="small"><input type="checkbox" id="roster-consent" disabled> I reviewed the character identities and quote locations.</label>
-                                <button type="button" id="roster-approve" class="btn btn-sm btn-primary" disabled>Approve reviewed roster</button>
+                                <label class="small"><input type="checkbox" id="roster-consent" disabled> <span data-i18n="script.roster.consent">I reviewed the character identities and quote locations.</span></label>
+                                <button data-i18n="script.roster.approve" type="button" id="roster-approve" class="btn btn-sm btn-primary" disabled>Approve reviewed roster</button>
                                 <div class="border-top mt-3 pt-2">
                                     <p id="roster-undo-status" class="small"></p>
-                                    <button type="button" id="roster-undo" class="btn btn-sm btn-outline-secondary" disabled>Undo last approval</button>
-                                    <button type="button" id="roster-discard" class="btn btn-sm btn-outline-danger" disabled>Discard saved undo</button>
+                                    <button data-i18n="script.roster.undo" type="button" id="roster-undo" class="btn btn-sm btn-outline-secondary" disabled>Undo last approval</button>
+                                    <button data-i18n="safety.script.roster.discard-undo" type="button" id="roster-discard" class="btn btn-sm btn-outline-danger" disabled>Discard saved undo</button>
                                 </div>
                             </details>
                             <section id="source-preview-panel" class="border rounded p-3 mt-3" aria-labelledby="source-preview-title">
-                                <h6 id="source-preview-title">Source text preview</h6>
-                                <p class="small text-muted">Read-only excerpt of the actual extracted source for this book. Loading it starts no inference and creates no new user edit, but standard pending transaction recovery can run.</p>
-                                <pre id="source-preview-text" class="text-wrap border rounded p-2" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:12rem;overflow:auto">No source preview loaded for this book.</pre>
+                                <h6 id="source-preview-title" data-i18n="script.source-preview.title">Source text preview</h6>
+                                <p data-i18n="script.source-preview.intro" class="small text-muted">Read-only excerpt of the actual extracted source for this book. Loading it starts no inference and creates no new user edit, but standard pending transaction recovery can run.</p>
+                                <pre id="source-preview-text" data-i18n="script.source-preview.empty" class="text-wrap border rounded p-2" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:12rem;overflow:auto">No source preview loaded for this book.</pre>
                                 <p id="source-preview-meta" class="small"></p>
                                 <p id="source-preview-status" class="small" role="status" aria-live="polite"></p>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadSingleVoiceSourcePreview()">Load source preview</button>
-                                <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="source-preview-confirm" onchange="onSingleVoiceSourceConfirm()"><label class="form-check-label" for="source-preview-confirm">I confirmed the loaded excerpt above (first 4000 characters) for the current book.</label></div>
+                                <button data-i18n="script.source-preview.load" type="button" class="btn btn-outline-secondary btn-sm" onclick="loadSingleVoiceSourcePreview()">Load source preview</button>
+                                <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="source-preview-confirm" onchange="onSingleVoiceSourceConfirm()"><label data-i18n="script.source-preview.confirm" class="form-check-label" for="source-preview-confirm">I confirmed the loaded excerpt above (first 4000 characters) for the current book.</label></div>
                             </section>
                         </div>
                     </div>
@@ -2108,45 +2108,45 @@
                     <!-- Batch Mode -->
                     <div id="script-batch-area" style="display:none;">
                         <div class="alert alert-info py-2 small mb-3">
-                            <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
-                            Select multiple book files. Each is processed with your configured LLM and saved directly to the Scripts library below.
+                            <i class="fas fa-info-circle me-1"></i><strong data-i18n="script.batch.title">Batch Mode:</strong>
+                            <span data-i18n="script.batch.intro">Select multiple book files. Each is processed with your configured LLM and saved directly to the Scripts library below.</span>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="script-batch-files">Select Files (TXT, MD, EPUB)</label>
+                            <label data-i18n="script.batch.files.label" class="form-label" for="script-batch-files">Select Files (TXT, MD, EPUB)</label>
                             <input type="file" class="form-control" id="script-batch-files" accept=".txt,.md,.epub" multiple onchange="onScriptBatchFilesChange()">
-                            <label class="form-label mt-3">Also reuse existing uploads</label>
+                            <label data-i18n="script.batch.reuse.label" class="form-label mt-3">Also reuse existing uploads</label>
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(true)">Select all</button>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(false)">Clear</button>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Sort existing uploads">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('az')" title="Sort by name A→Z">A→Z</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('za')" title="Sort by name Z→A">Z→A</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-asc')" title="Sort by volume number 1→10">1→10</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-desc')" title="Sort by volume number 10→1">10→1</button>
+                                <button data-i18n="script.batch.select-all" class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(true)">Select all</button>
+                                <button data-i18n="script.batch.clear" class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSelectAll(false)">Clear</button>
+                                <div class="btn-group btn-group-sm" role="group" data-i18n-attr="aria-label:script.batch.sort.aria-label" aria-label="Sort existing uploads">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('az')" data-i18n-attr="title:script.sort.name-az" title="Sort by name A→Z">A→Z</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('za')" data-i18n-attr="title:script.sort.name-za" title="Sort by name Z→A">Z→A</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-asc')" data-i18n-attr="title:script.sort.number-asc" title="Sort by volume number 1→10">1→10</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="scriptBatchSort('num-desc')" data-i18n-attr="title:script.sort.number-desc" title="Sort by volume number 10→1">10→1</button>
                                 </div>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSort('reverse')" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i>Reverse</button>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="scriptBatchSort('reverse')" data-i18n-attr="title:script.sort.reverse.title" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i><span data-i18n="script.sort.reverse">Reverse</span></button>
                                 <span class="small text-muted ms-auto" id="script-batch-selected-count">0 selected</span>
                             </div>
                             <div id="script-existing-uploads" class="border rounded p-2" style="max-height:200px;overflow-y:auto;"></div>
-                            <label class="form-label mt-3" for="script-collision-policy">When a saved script already exists</label>
+                            <label data-i18n="script.batch.collision.label" class="form-label mt-3" for="script-collision-policy">When a saved script already exists</label>
                             <select class="form-select" id="script-collision-policy">
-                                <option value="cancel">Skip it (safest)</option>
-                                <option value="version">Create a new version</option>
-                                <option value="replace">Back up and replace it</option>
+                                <option value="cancel" data-i18n="script.batch.collision.skip">Skip it (safest)</option>
+                                <option value="version" data-i18n="script.batch.collision.version">Create a new version</option>
+                                <option value="replace" data-i18n="safety.script.batch.collision.replace">Back up and replace it</option>
                             </select>
                             <div class="form-check mt-3">
                                 <input class="form-check-input" type="checkbox" id="script-batch-build-cast-lists">
                                 <label class="form-check-label small" for="script-batch-build-cast-lists">
-                                    Build a cast list for each book first &mdash; one extra request per book that has none, so unnamed speakers get their own lines instead of UNKNOWN.
+                                    <span data-i18n="script.batch.build-cast">Build a cast list for each book first &mdash; one extra request per book that has none, so unnamed speakers get their own lines instead of UNKNOWN.</span>
                                 </label>
                             </div>
                         </div>
                         <div id="script-batch-queue-container" class="mb-4" style="display:none;">
-                            <h6>Processing Queue</h6>
+                            <h6 data-i18n="script.batch.queue.title">Processing Queue</h6>
                             <div class="table-responsive border rounded">
                                 <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
                                     <thead class="table-light">
-                                        <tr><th>File</th><th>First-person narrator (optional)</th><th style="width:110px;">Status</th></tr>
+                                        <tr><th data-i18n="script.batch.queue.file">File</th><th data-i18n="script.batch.queue.narrator">First-person narrator (optional)</th><th data-i18n="script.batch.queue.status" style="width:110px;">Status</th></tr>
                                     </thead>
                                     <tbody id="script-batch-queue-body"></tbody>
                                 </table>
@@ -2155,101 +2155,101 @@
                     </div>
 
                     <div class="mb-2" id="book-preflight-controls">
-                        <button type="button" class="btn btn-outline-primary" id="btn-book-preflight" onclick="startBookPreflight()">Test this book with the LLM</button>
-                        <button type="button" class="btn btn-outline-danger" id="btn-cancel-book-preflight" onclick="cancelBookPreflight()" style="display:none;">Cancel book test</button>
+                        <button data-i18n="script.preflight.start" type="button" class="btn btn-outline-primary" id="btn-book-preflight" onclick="startBookPreflight()">Test this book with the LLM</button>
+                        <button data-i18n="script.preflight.cancel" type="button" class="btn btn-outline-danger" id="btn-cancel-book-preflight" onclick="cancelBookPreflight()" style="display:none;">Cancel book test</button>
                         <div id="book-preflight-result" class="alert alert-secondary small mt-2" style="display:none;"></div>
                     </div>
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-gen-script">
-                            <i class="fas fa-magic me-2"></i>Generate Annotated Script
+                            <i class="fas fa-magic me-2"></i><span data-i18n="script.run.generate">Generate Annotated Script</span>
                         </button>
-                        <button class="btn btn-outline-secondary" id="btn-gen-script-fresh" aria-describedby="script-resume-help" title="Discard saved progress for this text and begin again at chunk 1.">
-                            <i class="fas fa-undo me-1"></i>Start over
+                        <button class="btn btn-outline-secondary" id="btn-gen-script-fresh" data-i18n-attr="title:safety.script.run.start-over.title" aria-describedby="script-resume-help" title="Discard saved progress for this text and begin again at chunk 1.">
+                            <i class="fas fa-undo me-1"></i><span data-i18n="safety.script.run.start-over">Start over</span>
                         </button>
                         <button class="btn btn-outline-warning" id="btn-pause-script" style="display:none;" onclick="pauseResumeScript()">
-                            <i class="fas fa-pause me-1"></i>Pause
+                            <i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span>
                         </button>
-                        <button class="btn btn-outline-info" id="btn-snapshot-script" style="display:none;" onclick="snapshotScript()" title="Save the finished part of this run to the library without stopping it">
-                            <i class="fas fa-camera me-1"></i>Save snapshot
+                        <button class="btn btn-outline-info" id="btn-snapshot-script" data-i18n-attr="title:script.run.snapshot.title" style="display:none;" onclick="snapshotScript()" title="Save the finished part of this run to the library without stopping it">
+                            <i class="fas fa-camera me-1"></i><span data-i18n="script.run.snapshot">Save snapshot</span>
                         </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-script" style="display:none;" onclick="cancelScript()">
-                            <i class="fas fa-stop me-1"></i>Cancel
+                            <i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span>
                         </button>
                         <button class="btn btn-outline-primary" id="btn-retry-script" style="display:none;" onclick="retryScriptGeneration()">
-                            <i class="fas fa-rotate-right me-1"></i>Resume failed run
+                            <i class="fas fa-rotate-right me-1"></i><span data-i18n="safety.script.run.resume-failed">Resume failed run</span>
                         </button>
                         <button class="btn btn-outline-warning" id="btn-pause-batch-script" style="display:none;" onclick="pauseResumeBatchScript()">
-                            <i class="fas fa-pause me-1"></i>Pause
+                            <i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span>
                         </button>
                         <button class="btn btn-outline-danger" id="btn-cancel-batch-script" style="display:none;" onclick="cancelBatchScript()">
-                            <i class="fas fa-stop me-1"></i>Cancel
+                            <i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span>
                         </button>
                     </div>
                     <div class="small text-muted mb-2" id="script-cancellation-status" role="status" hidden></div>
-                    <small class="text-muted d-block mb-1" id="script-pause-unavailable-help" hidden>Pause is not available on Windows. Use Cancel; a cancelled run resumes from its checkpoint.</small>
-                    <small class="text-muted d-block mt-1" id="script-resume-help">For a single book, Generate continues from its saved checkpoint. Start over discards this text’s saved progress and begins again at chunk 1.</small>
+                    <small data-i18n="script.run.pause-unavailable" class="text-muted d-block mb-1" id="script-pause-unavailable-help" hidden>Pause is not available on Windows. Use Cancel; a cancelled run resumes from its checkpoint.</small>
+                    <small data-i18n="script.run.resume-help" class="text-muted d-block mt-1" id="script-resume-help">For a single book, Generate continues from its saved checkpoint. Start over discards this text’s saved progress and begins again at chunk 1.</small>
                     <div id="script-batch-status-msg" class="text-center text-muted small mb-2" style="display:none;"></div>
                     <div id="script-batch-recovery-panel" class="alert alert-warning small mb-3" style="display:none;"></div>
                     <div id="script-recovery-panel" class="card border-danger mb-3" style="display:none;"></div>
 
                     <div class="d-grid gap-2">
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
+                            <small data-i18n="script.review.intro" class="text-muted">Sends the book to your LLM to split it into annotated chunks with speaker labels and voice directions.</small>
                             <div class="form-check form-switch ms-3 flex-shrink-0">
                                 <input class="form-check-input" type="checkbox" id="review-batch-mode" onchange="toggleReviewBatchMode()">
-                                <label class="form-check-label" for="review-batch-mode">Review saved books</label>
+                                <label data-i18n="script.review.batch-mode" class="form-check-label" for="review-batch-mode">Review saved books</label>
                             </div>
                         </div>
 
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="review-dedupe-speakers" checked>
                             <label class="form-check-label small" for="review-dedupe-speakers">
-                                Merge duplicate character names &mdash; unify aliases of the same character (e.g. <em>"Kenji" / "Kenji Sato" / "the boy"</em> &rarr; one voice). In Batch Mode names stay consistent across the whole series.
+                                <span data-i18n="script.review.dedupe.before-examples">Merge duplicate character names &mdash; unify aliases of the same character (e.g.</span> <em><span data-i18n="script.review.dedupe.examples">"Kenji" / "Kenji Sato" / "the boy"</span></em> &rarr; <span data-i18n="script.review.dedupe.after-examples">one voice). In Batch Mode names stay consistent across the whole series.</span>
                             </label>
                         </div>
 
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="script-strip-front-matter" checked>
                             <label class="form-check-label small" for="script-strip-front-matter">
-                                Strip known translator front matter &mdash; remove non-story boilerplate (translator's notes, tables of contents) some compiled web-novel uploads include, before it's sent to the LLM.
+                                <span data-i18n="script.review.strip-front-matter">Strip known translator front matter &mdash; remove non-story boilerplate (translator's notes, tables of contents) some compiled web-novel uploads include, before it's sent to the LLM.</span>
                             </label>
                         </div>
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" id="script-literal-source-preserving">
                             <label class="form-check-label small" for="script-literal-source-preserving">
-                                Preserve source words through annotation and review. Speech preparation may expand numbers and symbols later.
+                                <span data-i18n="script.review.preserve-source">Preserve source words through annotation and review. Speech preparation may expand numbers and symbols later.</span>
                             </label>
                         </div>
 
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="review-force-rerun">
-                            <label class="form-check-label small" for="review-force-rerun">Review again even if nothing changed since the completed review.</label>
+                            <label data-i18n="script.review.force-rerun" class="form-check-label small" for="review-force-rerun">Review again even if nothing changed since the completed review.</label>
                         </div>
 
                         <!-- Single review -->
                         <div id="review-single-area">
                             <button class="btn btn-outline-secondary btn-lg w-100" id="btn-review-script">
-                                <i class="fas fa-check-double me-2"></i>Review Script (Optional)
+                                <i class="fas fa-check-double me-2"></i><span data-i18n="script.review.start">Review Script (Optional)</span>
                             </button>
-                            <small class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
+                            <small data-i18n="script.review.start.help" class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
                             <div class="input-group mt-1">
-                                <label class="input-group-text" for="review-context-window">Context Window</label>
+                                <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-context-window">Context Window</label>
                                 <input type="number" class="form-control" id="review-context-window" aria-describedby="review-context-help" value="4" min="1" max="12">
                                 <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
-                                    <i class="fas fa-crosshairs me-2"></i>Contextual Review (+/- N)
+                                    <i class="fas fa-crosshairs me-2"></i><span data-i18n="script.review.contextual">Contextual Review (+/- N)</span>
                                 </button>
                             </div>
-                            <small class="text-muted d-block" id="review-context-help">Contextual Review uses N script entries before and after each entry (1–12; default 4). Standard Review does not use this setting.</small>
-                            <small class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
-                            <small class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
+                            <small data-i18n="script.review.contextual.help" class="text-muted d-block" id="review-context-help">Contextual Review uses N script entries before and after each entry (1–12; default 4). Standard Review does not use this setting.</small>
+                            <small data-i18n="script.review.contextual.estimate" class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
+                            <small data-i18n="script.review.contextual.intro" class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
 
                             <hr class="my-2">
                             <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <button class="btn btn-outline-info btn-sm" id="btn-find-nicknames" onclick="findNicknames()"><i class="fas fa-id-badge me-1"></i>Find Nicknames</button>
-                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="loadCharacterAliases(true)"><i class="fas fa-pen me-1"></i>Edit aliases</button>
-                                <button class="btn btn-outline-warning btn-sm" id="btn-pause-nick" style="display:none;" onclick="pauseResumeNicknames()"><i class="fas fa-pause me-1"></i>Pause</button>
-                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-nick" style="display:none;" onclick="cancelNicknames()"><i class="fas fa-stop me-1"></i>Cancel</button>
-                                <small class="text-muted">Scans context for nickname/alias pairs (e.g. <em>"Betty" &rarr; "BEATRICE"</em>). Review then applies them. You can edit the list before running Review.</small>
+                                <button class="btn btn-outline-info btn-sm" id="btn-find-nicknames" onclick="findNicknames()"><i class="fas fa-id-badge me-1"></i><span data-i18n="script.nicknames.find">Find Nicknames</span></button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="loadCharacterAliases(true)"><i class="fas fa-pen me-1"></i><span data-i18n="script.nicknames.edit-aliases">Edit aliases</span></button>
+                                <button class="btn btn-outline-warning btn-sm" id="btn-pause-nick" style="display:none;" onclick="pauseResumeNicknames()"><i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span></button>
+                                <button class="btn btn-outline-danger btn-sm" id="btn-cancel-nick" style="display:none;" onclick="cancelNicknames()"><i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span></button>
+                                <small class="text-muted"><span data-i18n="script.nicknames.help.before-examples">Scans context for nickname/alias pairs (e.g.</span> <em><span data-i18n="script.nicknames.help.examples">"Betty" &rarr; "BEATRICE"</span></em><span data-i18n="script.nicknames.help.after-examples">). Review then applies them. You can edit the list before running Review.</span></small>
                             </div>
                             <div id="nickname-recovery-panel" class="alert alert-warning small mt-2" style="display:none;"></div>
                             <div id="nickname-aliases-panel" class="mt-2" style="display:none;"></div>
@@ -2258,32 +2258,32 @@
                         <!-- Batch review -->
                         <div id="review-batch-area" style="display:none;">
                             <div class="alert alert-info py-2 small mb-2">
-                                <i class="fas fa-info-circle me-1"></i><strong>Batch Review:</strong> Select saved scripts to review in sequence. Each is reviewed and saved back in place. With character-name merging on, canonical names are kept consistent across every selected book.
+                                <i class="fas fa-info-circle me-1"></i><strong data-i18n="script.review.batch.title">Batch Review:</strong> <span data-i18n="script.review.batch.intro">Select saved scripts to review in sequence. Each is reviewed and saved back in place. With character-name merging on, canonical names are kept consistent across every selected book.</span>
                             </div>
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" id="review-batch-find-nicknames" checked>
-                                <label class="form-check-label small" for="review-batch-find-nicknames">Discover nicknames first (per book, shared across the series) before merging</label>
+                                <label data-i18n="script.review.batch.discover-nicknames" class="form-check-label small" for="review-batch-find-nicknames">Discover nicknames first (per book, shared across the series) before merging</label>
                             </div>
                             <div class="form-check mb-2">
                                 <input class="form-check-input" type="checkbox" id="review-batch-bidirectional">
-                                <label class="form-check-label small" for="review-batch-bidirectional">Two-pass (forward + backward) — after reading-order discovery, re-scan from the end so early books pick up names that only make sense later. Needs nickname discovery; ~2× the time.</label>
+                                <label data-i18n="script.review.batch.two-pass" class="form-check-label small" for="review-batch-bidirectional">Two-pass (forward + backward) — after reading-order discovery, re-scan from the end so early books pick up names that only make sense later. Needs nickname discovery; ~2× the time.</label>
                             </div>
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                 <div class="input-group input-group-sm" style="width:auto;">
-                                    <label class="input-group-text" for="review-batch-context-window">Context Window</label>
-                                    <input type="number" class="form-control" id="review-batch-context-window" aria-describedby="review-batch-context-help" value="0" min="0" max="12" style="width:70px;" title="0 = standard review, greater than 0 = contextual (+/- N neighbors)">
+                                    <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-batch-context-window">Context Window</label>
+                                    <input type="number" class="form-control" id="review-batch-context-window" data-i18n-attr="title:script.review.batch.context-window.title" aria-describedby="review-batch-context-help" value="0" min="0" max="12" style="width:70px;" title="0 = standard review, greater than 0 = contextual (+/- N neighbors)">
                                 </div>
-                                <small class="text-muted d-block" id="review-batch-context-help">0 = standard review (the batch default). 1–12 = contextual review using N script entries before and after each entry.</small>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(true)">Select all</button>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(false)">Clear</button>
-                                <button class="btn btn-sm btn-outline-primary" type="button" onclick="loadReviewBatchScripts()"><i class="fas fa-sync me-1"></i>Refresh</button>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Sort scripts">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('az')" title="Sort by name A→Z">A→Z</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('za')" title="Sort by name Z→A">Z→A</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('num-asc')" title="Sort by volume number 1→10">1→10</button>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('num-desc')" title="Sort by volume number 10→1">10→1</button>
+                                <small data-i18n="script.review.batch.context.help" class="text-muted d-block" id="review-batch-context-help">0 = standard review (the batch default). 1–12 = contextual review using N script entries before and after each entry.</small>
+                                <button data-i18n="script.review.batch.select-all" class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(true)">Select all</button>
+                                <button data-i18n="script.review.batch.clear" class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(false)">Clear</button>
+                                <button class="btn btn-sm btn-outline-primary" type="button" onclick="loadReviewBatchScripts()"><i class="fas fa-sync me-1"></i><span data-i18n="script.review.batch.refresh">Refresh</span></button>
+                                <div class="btn-group btn-group-sm" role="group" data-i18n-attr="aria-label:script.review.batch.sort.aria-label" aria-label="Sort scripts">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('az')" data-i18n-attr="title:script.sort.name-az" title="Sort by name A→Z">A→Z</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('za')" data-i18n-attr="title:script.sort.name-za" title="Sort by name Z→A">Z→A</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('num-asc')" data-i18n-attr="title:script.sort.number-asc" title="Sort by volume number 1→10">1→10</button>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="reviewBatchSort('num-desc')" data-i18n-attr="title:script.sort.number-desc" title="Sort by volume number 10→1">10→1</button>
                                 </div>
-                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSort('reverse')" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i>Reverse</button>
+                                <button class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSort('reverse')" data-i18n-attr="title:script.sort.reverse.title" title="Reverse current order"><i class="fas fa-exchange-alt me-1"></i><span data-i18n="script.sort.reverse">Reverse</span></button>
                             </div>
                             <div id="review-batch-list" class="border rounded p-2 mb-2" style="max-height:220px;overflow-y:auto;">
                                 <span class="text-muted small">No saved scripts found. Generate or save scripts first.</span>
@@ -2294,12 +2294,12 @@
                         <!-- Shared run controls -->
                         <div class="d-flex gap-2">
                             <button class="btn btn-success flex-grow-1" id="btn-review-batch-start" style="display:none;" onclick="startBatchReview()">
-                                <i class="fas fa-check-double me-2"></i>Start Batch Review
+                                <i class="fas fa-check-double me-2"></i><span data-i18n="script.review.batch.start">Start Batch Review</span>
                             </button>
-                            <button class="btn btn-outline-warning" id="btn-pause-review" style="display:none;" onclick="pauseResumeReview()"><i class="fas fa-pause me-1"></i>Pause</button>
-                            <button class="btn btn-outline-danger" id="btn-cancel-review" style="display:none;" onclick="cancelReview()"><i class="fas fa-stop me-1"></i>Cancel</button>
-                            <button class="btn btn-outline-warning" id="btn-pause-batch-review" style="display:none;" onclick="pauseResumeBatchReview()"><i class="fas fa-pause me-1"></i>Pause</button>
-                            <button class="btn btn-outline-danger" id="btn-cancel-batch-review" style="display:none;" onclick="cancelBatchReview()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            <button class="btn btn-outline-warning" id="btn-pause-review" style="display:none;" onclick="pauseResumeReview()"><i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span></button>
+                            <button class="btn btn-outline-danger" id="btn-cancel-review" style="display:none;" onclick="cancelReview()"><i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span></button>
+                            <button class="btn btn-outline-warning" id="btn-pause-batch-review" style="display:none;" onclick="pauseResumeBatchReview()"><i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span></button>
+                            <button class="btn btn-outline-danger" id="btn-cancel-batch-review" style="display:none;" onclick="cancelBatchReview()"><i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span></button>
                         </div>
                         <div id="review-batch-status-msg" class="text-center text-muted small" style="display:none;"></div>
                         <div id="review-batch-recovery-panel" class="alert alert-warning small mt-2" style="display:none;"></div>
@@ -2311,48 +2311,48 @@
             <div class="card mb-3" id="speaker-review-card">
                 <div class="card-body">
                     <details id="speaker-review-panel">
-                        <summary class="h5 mb-2">Speaker-label suggestions</summary>
-                        <p class="small text-muted">Compare this book's speaker labels with a saved provisional reference. Matching text supplies evidence, not ground truth. Suggestions never change your script or aliases automatically.</p>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-2" id="speaker-review-load">Load review options</button>
+                        <summary data-i18n="script.speaker-review.title" class="h5 mb-2">Speaker-label suggestions</summary>
+                        <p data-i18n="script.speaker-review.intro" class="small text-muted">Compare this book's speaker labels with a saved provisional reference. Matching text supplies evidence, not ground truth. Suggestions never change your script or aliases automatically.</p>
+                        <button data-i18n="script.speaker-review.load" type="button" class="btn btn-sm btn-outline-secondary mb-2" id="speaker-review-load">Load review options</button>
                         <p class="small mb-2" id="speaker-review-book"></p>
                         <div id="speaker-review-options" hidden>
                             <div class="row g-2 mb-2">
                                 <div class="col-md-6">
-                                    <label class="form-label" for="speaker-review-source">Labels to review</label>
+                                    <label data-i18n="script.speaker-review.source.label" class="form-label" for="speaker-review-source">Labels to review</label>
                                     <select class="form-select" id="speaker-review-source" aria-describedby="speaker-review-source-help"></select>
                                     <div class="form-text" id="speaker-review-source-help"></div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label" for="speaker-review-reference">Provisional reference (saved script)</label>
+                                    <label data-i18n="script.speaker-review.reference.label" class="form-label" for="speaker-review-reference">Provisional reference (saved script)</label>
                                     <select class="form-select" id="speaker-review-reference"></select>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label" for="speaker-review-max-pairs">Maximum label pairs</label>
+                                    <label data-i18n="script.speaker-review.max-pairs.label" class="form-label" for="speaker-review-max-pairs">Maximum label pairs</label>
                                     <input type="number" class="form-control" id="speaker-review-max-pairs" value="20" min="1" max="20" step="1">
                                 </div>
                                 <div class="col-md-6 d-flex align-items-end">
                                     <div class="form-check mb-2">
                                         <input type="checkbox" class="form-check-input" id="speaker-review-partial">
-                                        <label class="form-check-label" for="speaker-review-partial">Allow an incomplete attribution checkpoint</label>
+                                        <label data-i18n="script.speaker-review.partial" class="form-check-label" for="speaker-review-partial">Allow an incomplete attribution checkpoint</label>
                                     </div>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-outline-info" id="speaker-review-preview">Preview evidence</button>
-                            <p class="form-text">Preview reads local saved data only. It requires exact source/checkpoint alignment and unique reference-text matches.</p>
+                            <button data-i18n="script.speaker-review.preview" type="button" class="btn btn-outline-info" id="speaker-review-preview">Preview evidence</button>
+                            <p data-i18n="script.speaker-review.preview.help" class="form-text">Preview reads local saved data only. It requires exact source/checkpoint alignment and unique reference-text matches.</p>
                         </div>
                         <div id="speaker-review-consent-panel" class="border rounded p-3 my-2" hidden>
                             <p class="small mb-1" id="speaker-review-profile"></p>
                             <p class="small mb-2" id="speaker-review-budget"></p>
                             <div class="form-check mb-2">
                                 <input type="checkbox" class="form-check-input" id="speaker-review-consent">
-                                <label class="form-check-label" for="speaker-review-consent">I agree to send the displayed book and reference excerpts to this model endpoint for this review. Remote providers may charge for requests.</label>
+                                <label data-i18n="script.speaker-review.consent" class="form-check-label" for="speaker-review-consent">I agree to send the displayed book and reference excerpts to this model endpoint for this review. Remote providers may charge for requests.</label>
                             </div>
-                            <button type="button" class="btn btn-primary" id="speaker-review-start" disabled>Start speaker-label review</button>
+                            <button data-i18n="script.speaker-review.start" type="button" class="btn btn-primary" id="speaker-review-start" disabled>Start speaker-label review</button>
                         </div>
                         <div class="d-flex gap-2 my-2">
-                            <button type="button" class="btn btn-outline-danger" id="speaker-review-cancel" hidden>Cancel review</button>
-                            <button type="button" class="btn btn-outline-danger" id="speaker-review-cancel-previous" hidden>Cancel previous book's review</button>
-                            <button type="button" class="btn btn-outline-secondary" id="speaker-review-refresh" hidden>Refresh review status</button>
+                            <button data-i18n="script.speaker-review.cancel" type="button" class="btn btn-outline-danger" id="speaker-review-cancel" hidden>Cancel review</button>
+                            <button data-i18n="script.speaker-review.cancel-previous" type="button" class="btn btn-outline-danger" id="speaker-review-cancel-previous" hidden>Cancel previous book's review</button>
+                            <button data-i18n="script.speaker-review.refresh" type="button" class="btn btn-outline-secondary" id="speaker-review-refresh" hidden>Refresh review status</button>
                         </div>
                         <div id="speaker-review-status" class="small" role="status" aria-live="polite" aria-atomic="true">Load options when you are ready. Opening this panel makes no model requests.</div>
                         <div id="speaker-review-results" class="mt-3"></div>
@@ -2362,15 +2362,15 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h5 class="m-0">Saved Scripts</h5>
+                    <h5 data-i18n="script.saved.title" class="m-0">Saved Scripts</h5>
                 </div>
                 <div class="card-body">
                     <div class="input-group mb-3">
-                        <input type="text" class="form-control" id="save-script-name" placeholder="Script name (e.g. The Great Gatsby)" aria-label="Script name">
-                        <button class="btn btn-outline-primary" onclick="saveScript()"><i class="fas fa-save me-1"></i>Save Current</button>
+                        <input data-i18n-attr="placeholder:script.saved.name.placeholder,aria-label:script.saved.name.aria-label" type="text" class="form-control" id="save-script-name" placeholder="Script name (e.g. The Great Gatsby)" aria-label="Script name">
+                        <button class="btn btn-outline-primary" onclick="saveScript()"><i class="fas fa-save me-1"></i><span data-i18n="script.saved.save">Save Current</span></button>
                     </div>
                     <div id="saved-scripts-list">
-                        <p class="text-muted mb-0">No saved scripts yet.</p>
+                        <p data-i18n="script.saved.empty" class="text-muted mb-0">No saved scripts yet.</p>
                     </div>
                     <div id="saved-script-preflight" class="alert alert-secondary small mt-3 mb-0" style="display:none;"></div>
                 </div>
@@ -2378,20 +2378,20 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Generation Logs</span>
+                    <span data-i18n="script.logs.title">Generation Logs</span>
                     <span class="small">
-                        <span class="text-muted me-2">live view shows recent lines; full history saved to file</span>
-                        <a href="/api/logs/script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete single generate-script log">
-                            <i class="fas fa-download me-1"></i>Gen log
+                        <span data-i18n="script.logs.note" class="text-muted me-2">live view shows recent lines; full history saved to file</span>
+                        <a href="/api/logs/script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:script.logs.gen.title" title="Download the complete single generate-script log">
+                            <i class="fas fa-download me-1"></i><span data-i18n="script.logs.gen">Gen log</span>
                         </a>
-                        <a href="/api/logs/batch_script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete batch generate-script log">
-                            <i class="fas fa-download me-1"></i>Batch gen log
+                        <a href="/api/logs/batch_script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:script.logs.batch-gen.title" title="Download the complete batch generate-script log">
+                            <i class="fas fa-download me-1"></i><span data-i18n="script.logs.batch-gen">Batch gen log</span>
                         </a>
-                        <a href="/api/logs/review?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete single review/dedupe log">
-                            <i class="fas fa-download me-1"></i>Review log
+                        <a href="/api/logs/review?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:script.logs.review.title" title="Download the complete single review/dedupe log">
+                            <i class="fas fa-download me-1"></i><span data-i18n="script.logs.review">Review log</span>
                         </a>
-                        <a href="/api/logs/batch_review?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete batch review/dedupe log">
-                            <i class="fas fa-download me-1"></i>Batch review log
+                        <a href="/api/logs/batch_review?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:script.logs.batch-review.title" title="Download the complete batch review/dedupe log">
+                            <i class="fas fa-download me-1"></i><span data-i18n="script.logs.batch-review">Batch review log</span>
                         </a>
                     </span>
                 </div>

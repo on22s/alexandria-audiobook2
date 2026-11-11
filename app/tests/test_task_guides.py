@@ -18,8 +18,11 @@ for(const id of ['task-guide-cards','task-guide-detail','task-guide-return','tas
 const ttsSection=document.getElementById('settings-tts');ttsSection.setAttribute('data-settings-section','Speech engine');ttsSection.setAttribute('hidden','');
 const navigation=[],navigationOptions=[],opened=[],warnings=[];let pending=false;
 context.currentTabName='home';context.activateTab=(tab,updateHistory,options)=>{navigation.push(tab);navigationOptions.push({tab,updateHistory,options});context.currentTabName=tab;};context.openConfigField=target=>{opened.push(target.id);const section=target.closest&&target.closest('[data-settings-section]');if(section){section.removeAttribute('hidden');}};context.isEditorEditPending=()=>pending;context.showToast=(...args)=>warnings.push(args);context.API={post(){throw new Error('guide must not POST');}};
+// The guides read their text through app-i18n.js's t(), so that module is
+// loaded into the same context first, exactly as the page loads it.
+vm.runInContext(fs.readFileSync(%s,'utf8'),context);
 load();
-'''
+''' % json.dumps(str(STATIC/'js'/'app-i18n.js'))
 
 class TaskGuideTests(unittest.TestCase):
     def run_js(self, code):
