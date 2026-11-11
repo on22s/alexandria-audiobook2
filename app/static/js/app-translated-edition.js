@@ -68,7 +68,7 @@ async function onTranslatedEditionPanelToggle() {
     // message, so it comes after the proposal load instead of being lost.
     const feedback = translatedEditionElement('feedback').textContent;
     if (pairNote && epoch === translatedEditionEpoch && feedback) {
-        translatedEditionElement('feedback').textContent = `${feedback} ${pairNote}`;
+        translatedEditionElement('feedback').textContent = joinUiSentences([feedback, pairNote]);
     }
 }
 
@@ -150,10 +150,10 @@ async function loadTranslatedEditionLatestProposal() {
         if (proposal) {
             translatedEditionProposal = proposal;
             renderTranslatedEditionProposal(proposal);
-            translatedEditionElement('feedback').textContent = (proposal.stale
+            translatedEditionElement('feedback').textContent = joinUiSentences([(proposal.stale
                 ? t('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
-                : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.'))
-                + (malformed.length ? ' ' + t('translation.malformed', '{count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}) : '');
+                : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.')),
+                malformed.length ? t('translation.malformed', '{count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}) : '']);
         } else if (malformed.length) {
             translatedEditionElement('feedback').textContent = t('translation.no-readable-proposal', 'No readable saved preview for this book. {count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length});
         } else {

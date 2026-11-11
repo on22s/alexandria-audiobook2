@@ -21,6 +21,7 @@ const elements=id=>document.getElementById(id);
 const requests=[],activated=[],timers=[],actionErrors=[];let responses={},fail=false;
 context.window=context;context.currentTabName='home';document.visibilityState='visible';
 context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');
 context.renderUiSafety=(target,key,english,values={})=>{target.textContent=context.t(key,english,values);};
 context.formatUiSafetyText=context.t;context.getIntlUiLocale=()=> 'en';
 context.TASK_LABELS={script:'Script generation'};

@@ -194,7 +194,7 @@ setUiCatalog('zh-CN',catalog({
 }));
 context.applyUiLocale('zh-CN');
 const text=context.getItemHelpText(new Element('input',{id:'compile-codec'}));
-assert.strictEqual(text,'用 torch.compile 编译音频编解码器。 推荐：保持关闭：它目前对渲染速度没有影响。（来源：#1113 / #1120 measurement）');
+assert.strictEqual(text,'用 torch.compile 编译音频编解码器。推荐：保持关闭：它目前对渲染速度没有影响。（来源：#1113 / #1120 measurement）');
 ''')
 
     def test_the_next_tooltip_after_a_locale_change_uses_the_new_language(self):

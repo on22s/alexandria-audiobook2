@@ -65,6 +65,7 @@ vm.createContext(context);
 // app-i18n.js still needs the English-fallback t() those call sites use;
 // loading the real module overrides these helpers.
 context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');
 context.translateUiMessage=context.t;
 context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);
 context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});

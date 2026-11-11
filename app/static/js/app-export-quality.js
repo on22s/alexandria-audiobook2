@@ -72,13 +72,13 @@ async function loadExportQualityReports() {
         const container = document.getElementById('export-quality-reports');
         for (const report of result.reports) { container.appendChild(renderExportQualityReport(report, false)); }
         for (const report of result.rejected_attempts) { container.appendChild(renderExportQualityReport(report, true)); }
-        let text = t('audio.export-quality.summary', '{completed} completed check(s), {rejected} rejected attempt(s) retained for this book in this app session. File metadata is unchanged for the displayed deliveries; this view does not rehash or decode them. Checks do not certify pronunciation.', {completed: result.reports.length, rejected: result.rejected_attempts.length});
-        if (result.unavailable) { text += ' ' + t('audio.export-quality.omitted', '{count} earlier receipt(s) omitted because files changed or are unavailable.', {count: result.unavailable}); }
+        const parts = [t('audio.export-quality.summary', '{completed} completed check(s), {rejected} rejected attempt(s) retained for this book in this app session. File metadata is unchanged for the displayed deliveries; this view does not rehash or decode them. Checks do not certify pronunciation.', {completed: result.reports.length, rejected: result.rejected_attempts.length})];
+        if (result.unavailable) { parts.push(t('audio.export-quality.omitted', '{count} earlier receipt(s) omitted because files changed or are unavailable.', {count: result.unavailable})); }
         for (const attempt of result.attempts) {
-            text += ' ' + t('audio.export-quality.attempt', '{task}: {status}, {delivered} delivered file(s) checked in its latest attempt.', {task: attempt.task, status: attempt.status, delivered: attempt.completed_files});
+            parts.push(t('audio.export-quality.attempt', '{task}: {status}, {delivered} delivered file(s) checked in its latest attempt.', {task: attempt.task, status: attempt.status, delivered: attempt.completed_files}));
         }
-        text += ' ' + t('audio.export-quality.history', 'History keeps at most {deliveries} deliveries and {rejections} rejected attempts per export type; older entries may be omitted.', {deliveries: result.reports_per_task_limit, rejections: result.rejections_per_task_limit});
-        document.getElementById('export-quality-status').textContent = text;
+        parts.push(t('audio.export-quality.history', 'History keeps at most {deliveries} deliveries and {rejections} rejected attempts per export type; older entries may be omitted.', {deliveries: result.reports_per_task_limit, rejections: result.rejections_per_task_limit}));
+        document.getElementById('export-quality-status').textContent = joinUiSentences(parts);
     } catch (error) {
         if (current()) {
             document.getElementById('export-quality-status').textContent = t('audio.export-quality.unavailable-status', 'Checks unavailable. Refresh Editor and wait for export completion.');

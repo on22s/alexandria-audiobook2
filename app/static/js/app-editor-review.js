@@ -174,7 +174,7 @@ async function previewEditorSpeechInput() {
             throw new Error(t('editor.review.preview.changed', 'Saved line changed. Refresh Editor before inspecting its input.'));
         }
         status.textContent = t('editor.review.preview.snapshot', 'Snapshot at last preview, not the input recorded for a take. May be outdated: refresh after line, rule, voice or settings changes. Historical transformation traces are not reconstructed.');
-        if (result.preview.warnings?.length) { status.textContent += ' ' + t('editor.review.preview.warnings', 'Preparation warnings: {warnings}', {warnings: result.preview.warnings.join('; ')}); }
+        if (result.preview.warnings?.length) { status.textContent = joinUiSentences([status.textContent, t('editor.review.preview.warnings', 'Preparation warnings: {warnings}', {warnings: result.preview.warnings.join('; ')})]); }
         document.getElementById('editor-line-input-details').textContent = JSON.stringify({
             authored_text: result.preview.authored_text, prepared_text: result.preview.text,
             transformations: result.preview.transformations, pronunciation_decisions: result.preview.decisions,
@@ -315,7 +315,7 @@ function renderEditorSpeechEvidence(chunk, fact) {
     const failure=fact.speech_attempt === 'rejected' && rejected?.book_token === chunkSnapshotBookToken
         && rejected.uid === chunk.uid && rejected.status === 'corroborated_content_difference';
     attempt.textContent=failure ? t('editor.review.speech.rejected', 'A later attempt was rejected for confirmed missing or extra speech. The prior take was kept. Listen, review the line, and generate it again.') : '';
-    if (incomplete) { attempt.textContent+=' ' + t('editor.review.speech.recheck-incomplete', 'Latest recheck incomplete or unavailable; the existing selected-take evidence is retained.'); }
+    if (incomplete) { attempt.textContent = joinUiSentences([attempt.textContent, t('editor.review.speech.recheck-incomplete', 'Latest recheck incomplete or unavailable; the existing selected-take evidence is retained.')]); }
     expected.textContent=current && receipt.expected_text ? t('editor.review.speech.expected-current', 'Exact input sent for this take: {text}', {text: receipt.expected_text})
         : historical?.expected_text ? t('editor.review.speech.expected-historical', 'Historical exact input sent for this take: {text}', {text: historical.expected_text})
         : t('editor.review.speech.expected-unavailable', 'Exact synthesis input is not available for a current selected-take check.');
@@ -360,9 +360,9 @@ function renderEditorRecordedInput(chunk, fact) {
     };
     status.textContent = Object.hasOwn(states, chunk.recorded_input_state) ? states[chunk.recorded_input_state]
         : t('editor.review.recorded.state.unavailable', 'Recorded-input state unavailable. Reload to match the server version.');
-    if (Object.hasOwn(reasons, chunk.recorded_input_reason)) { status.textContent += ' ' + reasons[chunk.recorded_input_reason]; }
-    if (!chunk.audio_path) { status.textContent = t('editor.review.recorded.no-audio', 'No selected audio file. Retained metadata follows, not current audio proof.') + ' ' + status.textContent; }
-    if (chunk.speech_verification_failure) { status.textContent += ' ' + t('editor.review.recorded.rejected-separate', 'Rejected-attempt evidence is separate from the selected take.'); }
+    if (Object.hasOwn(reasons, chunk.recorded_input_reason)) { status.textContent = joinUiSentences([status.textContent, reasons[chunk.recorded_input_reason]]); }
+    if (!chunk.audio_path) { status.textContent = joinUiSentences([t('editor.review.recorded.no-audio', 'No selected audio file. Retained metadata follows, not current audio proof.'), status.textContent]); }
+    if (chunk.speech_verification_failure) { status.textContent = joinUiSentences([status.textContent, t('editor.review.recorded.rejected-separate', 'Rejected-attempt evidence is separate from the selected take.')]); }
     if (['current', 'historical'].includes(chunk.recorded_input_state)) {
         const receipt = chunk.recorded_input_state === 'current' ? chunk.speech_verification : chunk.speech_verification_historical;
         if (!receipt || receipt.book_token !== chunkSnapshotBookToken || receipt.uid !== chunk.uid

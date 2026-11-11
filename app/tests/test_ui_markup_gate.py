@@ -34,6 +34,9 @@ KEEP_ENGLISH = frozenset({
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',
     'Pseudo-English (layout test, not a translation)',
+    # Locale tags are identifiers, not copy: the counter sees several of them
+    # in app-i18n.js and would read a new one as a display literal.
+    'zh-CN', 'ja',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that

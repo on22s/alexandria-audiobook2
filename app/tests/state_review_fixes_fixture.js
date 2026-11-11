@@ -15,7 +15,8 @@ const ctx = {document: {getElementById: () => null}, window: null, currentBookFi
     getLoraModelsById: () => new Map([['known', {path: 'lora_models/known', description: 'warm', gender: 'female'}]])};
 ctx.window = ctx;
 vm.createContext(ctx);
-ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
+ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+ctx.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 function load(start, end) {
     const a = source.indexOf(start), b = source.indexOf(end, a);
     assert(a >= 0 && b > a, start);

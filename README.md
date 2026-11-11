@@ -216,29 +216,20 @@ for missing lines and incorrect speakers.
 
 ### Step 1 — Setup
 
-The Setup sidebar has a **Setup UI language (partial coverage)** selector above
-the setting finder. The finder's text, including its search feedback, the **Preview changes**
-action, preview title, **Close preview** action, default-count summary and
-**Saved**/**Would save** column headings use the English message catalog. Counts
-are preserved. Thirty of the most visible server refusals (voice saves, book
-busy/switch, uploads and generation admission) also arrive with a message key
-and are translated; safety refusals from that set show the English sentence
-beneath the translation, so a mistranslation cannot remove the original. Setting
-names, comparison values, default markers, contextual help and the remaining
-server sentences stay English. The optional **Pseudo-English** mode expands
-those messages for layout testing; it is not a reviewed translation. The
-preference is browser-local, synchronizes between same-origin tabs when storage
-is available, and never changes book, TTS or transcription language,
-configuration values or submitted technical identifiers. Unsupported locales
-(including RTL language codes) fall back to English without changing layout
-direction. Uncatalogued markup retains its authored English text or placeholder
-instead of displaying a message key. **Task logs and subprocess output stay
-English in every locale**: they are a debugging transcript that one stored run
-may need to serve under two browser locales, and `logs/api/*.log` must stay
-greppable. No RTL locale or full-interface translation is claimed. The bounded
-catalog foundation requested by #1732 is complete; reviewed translations and
-additional workflows are future work. See
-[the acceptance record](docs/setup-ui-catalog.md) for the exact scope, tests and limits.
+The Setup sidebar has a **Setup UI language** selector above the setting
+finder. The whole interface is translated into Simplified Chinese (`zh-CN`),
+Japanese (`ja`) and Latin American Spanish (`es-419`); English remains the
+default and the authored source. All three catalogs are machine drafts, so the
+picker marks them **(draft)** until a native reviewer approves that locale, and
+a translated safety message keeps the authored English beneath it. **Task logs
+and subprocess output stay English in every locale**: they are a debugging
+transcript that must stay greppable (`logs/api/*.log`). The optional
+**Pseudo-English** mode expands every message for layout testing and is not a
+translation. The preference is browser-local, synchronizes between same-origin
+tabs when storage is available, and never changes book, TTS or transcription
+language, configuration values or submitted technical identifiers. Unsupported
+locales, including RTL language codes, fall back to English without changing
+layout direction.
 
 For troubleshooting, **Setup > Speech engine > Refresh report** shows the exact
 local support-report JSON before download. Nothing uploads automatically. See

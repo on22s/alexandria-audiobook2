@@ -794,10 +794,10 @@
         function getFieldHelpText(entry, id, locale = getUiLocale()) {
             let text = formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'what'), entry.what, locale);
             if (entry.recommend) {
-                text += ' ' + t('help.field.recommended', 'Recommended: {recommend} (source: {source})', {
+                text = joinUiSentences([text, t('help.field.recommended', 'Recommended: {recommend} (source: {source})', {
                     recommend: formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'recommend'), entry.recommend, locale),
                     source: formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'source'), entry.source, locale),
-                }, locale);
+                }, locale)], locale);
             }
             return text;
         }
