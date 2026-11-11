@@ -96,6 +96,7 @@ class SpanBuildTests(unittest.TestCase):
             document = ET.fromstring(archive.read('OEBPS/ch1.xhtml'))
             smil = ET.fromstring(archive.read('OEBPS/ch1.smil'))
         wrappers = [div for div in document.iter(XHTML + "div") if div.get("id", "").startswith("aa2-g-")]
+        self.document = document
         return wrappers, _par_clips(smil)
 
     def test_cpu_mode_groups_heading_nested_in_its_own_container(self):
@@ -111,16 +112,61 @@ class SpanBuildTests(unittest.TestCase):
                 self.assertEqual(1, len(clips))
                 self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
 
-    def test_cpu_mode_refuses_when_wrapper_would_take_other_text(self):
-        # The heading's container also holds the previous chunk's text, so
-        # no wrapper can cover only this chunk's blocks.
+    def test_cpu_mode_splits_a_container_holding_the_whole_chapter(self):
+        # Common web-novel layout: the heading, then one div holding every
+        # paragraph. The chunk is heading + first paragraph, so the div is
+        # split: its copy keeps the class but not the id.
+        body = ('<h2>Chapter 3: River Survey (2)</h2>'
+                '<div class="text" id="body-text"><p>The test began at dawn.</p>'
+                '<p>Then it rained.</p><p>Nobody minded.</p></div>')
+        entries = [dict(SPANNING[0]),
+                   {"index": 1, "prepared_text": "Then it rained.",
+                    "start_frame": 96000, "end_frame": 120000, "sample_rate": 24000},
+                   {"index": 2, "prepared_text": "Nobody minded.",
+                    "start_frame": 120000, "end_frame": 144000, "sample_rate": 24000}]
+        wrappers, clips = self._cpu_wrappers(body, entries)
+        self.assertEqual(1, len(wrappers))
+        heading, copy = list(wrappers[0])
+        self.assertEqual(["h2", "div"], [heading.tag.split("}")[1], copy.tag.split("}")[1]])
+        self.assertEqual("text", copy.get("class"))
+        self.assertIsNone(copy.get("id"))
+        self.assertEqual(["The test began at dawn."], [p.text for p in copy])
+        rest = [div for div in self.document.iter(XHTML + "div") if div.get("id") == "body-text"]
+        self.assertEqual(["Then it rained.", "Nobody minded."], [p.text for p in rest[0]])
+        self.assertEqual(3, len(clips), clips)
+        self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
+
+    def test_cpu_mode_splits_a_container_whose_last_block_opens_the_chunk(self):
+        # The heading ends a div that also holds the previous chunk's text.
         body = ('<div><p>Before it all.</p><h2>Chapter 3: River Survey (2)</h2></div>'
                 '<p>The test began at dawn.</p>')
         entries = [{"index": 0, "prepared_text": "Before it all.", "start_frame": 0,
                     "end_frame": 24000, "sample_rate": 24000},
                    dict(SPANNING[0], index=1, start_frame=24000, end_frame=120000)]
-        with self.assertRaisesRegex(ValueError, "cannot be grouped under one wrapper"):
+        wrappers, clips = self._cpu_wrappers(body, entries)
+        self.assertEqual(["div", "p"], [child.tag.split("}")[1] for child in wrappers[0]])
+        self.assertEqual(["h2"], [child.tag.split("}")[1] for child in wrappers[0][0]])
+        self.assertEqual(2, len(clips), clips)
+
+    def test_cpu_mode_refusal_names_the_rule_and_the_tag_outline(self):
+        # The heading is nested one level deeper inside a div that also holds
+        # the previous chunk's text: no split applies, so it still refuses,
+        # and the message gives the layout without any book text beyond the
+        # first block it already names.
+        body = ('<div class="chapter"><p>Before it all.</p>'
+                '<div class="title"><h2>Chapter 3: River Survey (2)</h2></div></div>'
+                '<p>The test began at dawn.</p>')
+        entries = [{"index": 0, "prepared_text": "Before it all.", "start_frame": 0,
+                    "end_frame": 24000, "sample_rate": 24000},
+                   dict(SPANNING[0], index=1, start_frame=24000, end_frame=120000)]
+        with self.assertRaises(ValueError) as caught:
             self._cpu_wrappers(body, entries)
+        message = str(caught.exception)
+        self.assertIn("a wrapper would also take text from outside this chunk", message)
+        self.assertIn("Layout inside body: div.chapter > h2 (holds 2 text blocks, 1 in this chunk) + p",
+                      message)
+        self.assertNotIn("Before it all", message)
+        self.assertNotIn("The test began", message)
 
     def test_cpu_mode_refuses_list_items(self):
         body = '<ul><li>Chapter 3: River Survey (2)</li><li>The test began at dawn.</li></ul>'

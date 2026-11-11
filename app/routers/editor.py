@@ -37,6 +37,7 @@ from export_download import ExportFileResponse, open_export_reader
 from book_placeholder import is_book_placeholder, is_book_placeholder_stream
 from export_download import SWITCH_IN_PROGRESS
 from core import (
+    _init_task_log,
     AUDIOBOOK_PATH,
     CONFIG_PATH,
     DATA_DIR,
@@ -2384,6 +2385,25 @@ def _restore_readaloud_timing_preference_bytes(path, prior_bytes):
     save_adapter_publication_bytes(path, prior_bytes)
 
 
+def _save_readaloud_log(state):
+    """Keep a finished build's log on disk so a failure can be attached to a bug report.
+
+    The progress panel only shows the live tail; the reason a build refused
+    (#1844) belongs in a file the user can find and post, at
+    logs/api/readaloud_epub-latest.log. The panel's own lines are left
+    unchanged: their last line is the build outcome. Never raises.
+    """
+    lines = state.get("logs")
+    if not isinstance(lines, list):
+        return
+    path = _init_task_log("readaloud_epub")
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.writelines(f"{line}\n" for line in lines)
+    except OSError:
+        pass
+
+
 def _start_readaloud_epub(background_tasks, request):
     # Phase A: admit (under book state).
     with ensure_book_state(DATA_DIR):
@@ -2604,6 +2624,7 @@ def _start_readaloud_epub(background_tasks, request):
                         else f"EPUB read-aloud error: {e}")
                 finally:
                     if _is_current_readalong_generation("readaloud_epub", generation):
+                        _save_readaloud_log(state)
                         state["running"] = False
                         state["cancel"] = False
 
