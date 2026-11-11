@@ -77,7 +77,7 @@ const context = {
     scriptBatchPoller: null,
     syncPauseButton() {}, syncSnapshotButton() {}, renderActivity() {}, notifyJobDone(...args) {notifications.push(args);}
 };
-vm.createContext(context);
+vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));
 vm.runInContext(
     slice(core, 'async function confirmIfRemote(', '// navigator.clipboard') +
     slice(core, 'const taskStartButtons =', '// --- API Helpers ---') +
