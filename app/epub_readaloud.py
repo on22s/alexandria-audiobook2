@@ -396,7 +396,31 @@ def get_normalized_words(text):
     """NFKC + casefold tokenization (case/punctuation intentionally ignored)."""
     folded = unicodedata.normalize("NFKC", text or "").casefold()
     folded = folded.replace('\u2019', "'").replace('\u2018', "'")
-    return _WORDS_RE.findall(folded)
+    words = _WORDS_RE.findall(folded)
+    if not any(not word.isascii() for word in words):
+        return words
+    # Han and kana have no spaces, so a whole run would be one "word" and a
+    # chunk cut inside it could never match (#1844). Each Han or kana
+    # character is its own token; the joined text is unchanged, so this
+    # stays exact and keeps qwen_align's stream equal to "".join(words).
+    from project import is_han_or_kana_letter
+    split = []
+    for word in words:
+        if not any(is_han_or_kana_letter(ch) for ch in word):
+            split.append(word)
+            continue
+        run = ""
+        for ch in word:
+            if is_han_or_kana_letter(ch):
+                if run:
+                    split.append(run)
+                    run = ""
+                split.append(ch)
+            else:
+                run += ch
+        if run:
+            split.append(run)
+    return split
 
 
 def get_spoken_text(text):

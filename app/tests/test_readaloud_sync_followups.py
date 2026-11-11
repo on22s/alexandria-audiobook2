@@ -113,6 +113,47 @@ class SpokenTextTests(unittest.TestCase):
         self.assertEqual("00:00:00.000", clips[0][1])
 
 
+class CjkCutInsideRunTests(unittest.TestCase):
+    """A long Chinese/Japanese sentence the chunker cuts mid-run (no spaces).
+
+    group_into_chunks hard-cuts a Chinese sentence longer than 183
+    characters (Japanese 239) when no 。！？ falls inside the limit; the cut
+    lands between two characters of one unspaced run.
+    """
+
+    BOOK = "他们走进了大厅，" * 3 + "然后坐下。"
+
+    def test_cut_inside_a_run_maps(self):
+        cut = 10  # inside the second 他们走进了大厅
+        mapping, cursor = map_spine_to_chunks(_spine(self.BOOK),
+                                              _entries(self.BOOK[:cut], self.BOOK[cut:]))
+        self.assertEqual(2, cursor)
+        self.assertEqual([0, 1], mapping[0]["chunk_indexes"])
+
+    def test_changed_character_still_refuses(self):
+        changed = self.BOOK.replace("进", "近", 1)
+        with self.assertRaisesRegex(ValueError, "EPUB '进', spoken '近'"):
+            map_spine_to_chunks(_spine(self.BOOK), _entries(changed[:10], changed[10:]))
+
+    def test_qwen_build_with_a_mid_run_cut(self):
+        first, second = self.BOOK[:10], self.BOOK[10:]
+        entries = _entries(first, second, rate=24000)
+        entries[0]["end_frame"], entries[1]["start_frame"], entries[1]["end_frame"] = 240000, 240000, 720000
+
+        def char_tokens(text):
+            chars = [ch for ch in text if ch not in "，。"]
+            return [{"text": ch, "start_time": i * 0.3, "end_time": (i + 1) * 0.3}
+                    for i, ch in enumerate(chars)]
+        body = f"<p>{self.BOOK}</p>"
+        epub = _source_epub(body).replace(b"<dc:language>en", b"<dc:language>zh")
+        result, _report = build_epub_readaloud(
+            retained_epub_bytes=epub, audio_bytes=b'\xff\xfbmp3', audio_filename='audiobook.mp3',
+            script_entries=entries,
+            aligned_rows=[{"tokens": char_tokens(first)}, {"tokens": char_tokens(second)}])
+        validate_epub_readaloud(result)
+        self.assertGreaterEqual(len(_clips(result)), 1)
+
+
 class TerminalAcronymTests(unittest.TestCase):
     """#1872: the documented terminal-acronym policy."""
 

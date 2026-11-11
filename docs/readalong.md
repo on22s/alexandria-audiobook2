@@ -105,7 +105,9 @@ snapshot separately guards the original TXT identity.
   spoken `50 percent`) or a pronunciation respelling matches the book it
   came from. Exact normalized token coverage is the authority; similarity
   is only a hint. Normalization is NFKC + casefold + word tokens
-  (case/punctuation intentionally ignored). Sustained mismatch, a changed
+  (case/punctuation intentionally ignored); each Han or kana character
+  is its own token, so a chunk cut inside an unspaced Chinese or Japanese
+  run still matches exactly. Sustained mismatch, a changed
   word at high ratio, a missing interior/leading chunk, or a split beyond
   exact coverage fails closed, and the refusal names the first differing
   word (EPUB vs spoken) and the audio chunk. Many chunks may form one
