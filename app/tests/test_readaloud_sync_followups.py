@@ -196,3 +196,25 @@ class TerminalAcronymTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZeroLengthTokenBuildTests(unittest.TestCase):
+    """QwenLM/Qwen3-ASR#197: zero-length words no longer refuse a build."""
+
+    def test_book_builds_with_zero_length_words(self):
+        text = "We went to a shop. Then we came home."
+        entries = _entries(text, rate=24000)
+        entries[0]["end_frame"] = 24000 * 3
+        tokens = [{"text": w, "start_time": s, "end_time": e} for w, s, e in (
+            ("We", 0.0, 0.2), ("went", 0.2, 0.5), ("to", 0.5, 0.5), ("a", 0.5, 0.5),
+            ("shop", 0.5, 0.9), ("Then", 1.2, 1.2), ("we", 1.2, 1.4), ("came", 1.4, 1.7),
+            ("home", 1.7, 2.1))]
+        result, _report = build_epub_readaloud(
+            retained_epub_bytes=_source_epub(f"<p>{text}</p>"), audio_bytes=b'\xff\xfbmp3',
+            audio_filename='audiobook.mp3', script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+        clips = _clips(result)
+        # Two sentence clips on real word times: 0.0-0.9 and 1.2-2.1.
+        self.assertEqual([("00:00:00.000", "00:00:00.900"), ("00:00:01.200", "00:00:02.100")],
+                         [(begin, end) for _src, begin, end in clips])

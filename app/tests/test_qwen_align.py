@@ -184,13 +184,17 @@ class TokenValidationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 qa.get_validated_aligner_tokens(tokens, 2.0)
 
-    def test_reversed_and_zero_length_rejected(self):
+    def test_reversed_rejected(self):
         with self.assertRaises(ValueError):
             qa.get_validated_aligner_tokens(
                 [{"text": "A", "start_time": 1.0, "end_time": 0.5}], 2.0)
-        with self.assertRaises(ValueError):
-            qa.get_validated_aligner_tokens(
-                [{"text": "A", "start_time": 0.5, "end_time": 0.5}], 2.0)
+
+    def test_zero_length_kept_as_a_point(self):
+        # QwenLM/Qwen3-ASR#197: qwen-asr 0.0.6 reports [t, t] for real,
+        # audible words; the point is kept exactly, never stretched.
+        tokens = qa.get_validated_aligner_tokens(
+            [{"text": "A", "start_time": 0.5, "end_time": 0.5}], 2.0)
+        self.assertEqual([(0.5, 0.5)], [(t["start_time"], t["end_time"]) for t in tokens])
 
     def test_out_of_bounds_rejected(self):
         with self.assertRaises(ValueError):
@@ -220,6 +224,52 @@ class TokenValidationTests(unittest.TestCase):
             qa.get_validated_aligner_tokens(
                 [{"text": "A", "start_time": 0.0, "end_time": 1.0},
                  {"text": "B", "start_time": 0.0, "end_time": 1.0}], 2.0)
+
+    def test_upstream_zero_length_patterns_accepted(self):
+        # #197's Chinese badcase: 我 = [2.72, 2.72] beside 们 = [2.72, 2.88].
+        badcase = [{"text": "对", "start_time": 2.40, "end_time": 2.56},
+                   {"text": "我", "start_time": 2.72, "end_time": 2.72},
+                   {"text": "们", "start_time": 2.72, "end_time": 2.88}]
+        self.assertEqual(3, len(qa.get_validated_aligner_tokens(badcase, 4.0)))
+        # #55: several characters sharing one instant.
+        cluster = [{"text": c, "start_time": 1.0, "end_time": 1.0} for c in "的我们"]
+        cluster.append({"text": "好", "start_time": 1.0, "end_time": 1.2})
+        self.assertEqual(4, len(qa.get_validated_aligner_tokens(cluster, 4.0)))
+
+    def test_zero_length_does_not_excuse_other_faults(self):
+        cases = {
+            "overlap": [{"text": "A", "start_time": 0.0, "end_time": 1.0},
+                        {"text": "B", "start_time": 0.5, "end_time": 0.5}],
+            "backwards": [{"text": "A", "start_time": 1.0, "end_time": 1.0},
+                          {"text": "B", "start_time": 0.5, "end_time": 0.5}],
+            "out of bounds": [{"text": "A", "start_time": 2.5, "end_time": 2.5}],
+        }
+        for name, tokens in cases.items():
+            with self.subTest(name), self.assertRaises(ValueError):
+                qa.get_validated_aligner_tokens(tokens, 2.0)
+
+    def test_sentence_of_only_zero_length_words_still_refuses(self):
+        text = "Hi there."
+        tokens = qa.get_validated_aligner_tokens(
+            [{"text": "Hi", "start_time": 0.4, "end_time": 0.4},
+             {"text": "there", "start_time": 0.4, "end_time": 0.4}], 2.0)
+        spans = qa.require_exact_coverage(text, tokens)
+        with self.assertRaisesRegex(ValueError, "no positive duration"):
+            qa.derive_fragment_times(qa.cover_ranges(text, qa.split_sentences(text)), spans)
+
+    def test_zero_length_word_inside_a_sentence_keeps_real_bounds(self):
+        text = "We went to a shop. Then home."
+        tokens = qa.get_validated_aligner_tokens(
+            [{"text": "We", "start_time": 0.0, "end_time": 0.2},
+             {"text": "went", "start_time": 0.2, "end_time": 0.5},
+             {"text": "to", "start_time": 0.5, "end_time": 0.5},
+             {"text": "a", "start_time": 0.5, "end_time": 0.5},
+             {"text": "shop", "start_time": 0.5, "end_time": 0.9},
+             {"text": "Then", "start_time": 1.2, "end_time": 1.4},
+             {"text": "home", "start_time": 1.4, "end_time": 1.8}], 2.0)
+        spans = qa.require_exact_coverage(text, tokens)
+        times = qa.derive_fragment_times(qa.cover_ranges(text, qa.split_sentences(text)), spans)
+        self.assertEqual([(0.0, 0.9), (1.2, 1.8)], times)
 
     def test_no_monotonic_clamping(self):
         """A non-monotonic token sequence must raise, never be repaired."""
