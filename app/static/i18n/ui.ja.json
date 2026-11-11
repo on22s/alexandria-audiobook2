@@ -536,6 +536,7 @@
   "core.design.range": "{label}は 1〜500 の整数である必要があります。",
   "core.design.text-max": "ボイスデザインのテキスト最大値",
   "core.design.text-min": "ボイスデザインのテキスト最小値",
+  "core.download.preparing": "ダウンロードを準備しています…",
   "core.download.refused": "ダウンロードが拒否されました：{detail}",
   "core.download.refused-status": "サーバーがダウンロードを拒否しました（ステータス {status}）。",
   "core.download.unreachable": "ダウンロードに失敗しました：Alexandria から応答がありません。実行中か確認してから、もう一度お試しください。",

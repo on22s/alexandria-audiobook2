@@ -91,38 +91,70 @@
 
         // Export links the server may refuse (a stale build answers 409 with
         // its reason). A plain <a download> turns that into the browser
-        // message Failed - Unknown server error and the reason is lost (#1906), so
-        // a marked link checks the response status first, cancels the body,
-        // and only then lets the browser download it as usual.
+        // message Failed - Unknown server error and the reason is lost (#1906). A
+        // marked link fetches the response, checks its status, and when the
+        // server accepts, saves that same body, so the server's heavy validation
+        // runs once. Two cases keep the browser's own download instead (the
+        // check request is cancelled and the link clicked again, which validates
+        // a second time): a body too large to hold in memory or of unknown size,
+        // and a page that is not a secure context (plain HTTP on a LAN address), where browsers may
+        // block a download from a blob URL.
+        const CHECKED_DOWNLOAD_MAX_BLOB_BYTES = 256 * 1024 * 1024;
+        // A blob URL must outlive a where-to-save dialog left open a while.
+        const CHECKED_DOWNLOAD_REVOKE_MS = 10 * 60 * 1000;
         async function onCheckedDownloadClick(event) {
             const link = event.target.closest?.('[data-checked-download]');
-            if (!link || link.dataset.downloadChecked === '1') { return; }
+            if (!link) { return; }
+            if (link.dataset.downloadChecked === 'native') { return; }
             event.preventDefault();
+            if (link.dataset.downloadChecked === 'pending') { return; }
+            link.dataset.downloadChecked = 'pending';
             const controller = new AbortController();
-            let response;
             try {
-                response = await fetch(link.href, {signal: controller.signal});
-            } catch (_error) {
-                showToast(t('core.download.unreachable', 'Download failed: Alexandria did not respond. Check that it is still running, then try again.'), 'error');
-                return;
-            }
-            if (!response.ok) {
-                let detail = '';
+                showToast(t('core.download.preparing', 'Preparing download…'), 'info', 30000);
+                let response;
                 try {
-                    const body = await response.json();
-                    detail = typeof body?.detail === 'string' ? body.detail : '';
+                    response = await fetch(link.href, {signal: controller.signal});
                 } catch (_error) {
-                    detail = '';
+                    showToast(t('core.download.unreachable', 'Download failed: Alexandria did not respond. Check that it is still running, then try again.'), 'error');
+                    return;
                 }
-                showToast(detail
-                    ? t('core.download.refused', 'Download refused: {detail}', {detail})
-                    : t('core.download.refused-status', 'Download refused by the server (status {status}).', {status: String(response.status)}), 'error');
-                return;
-            }
-            controller.abort();
-            link.dataset.downloadChecked = '1';
-            try {
-                link.click();
+                if (!response.ok) {
+                    let detail = '';
+                    try {
+                        const body = await response.json();
+                        detail = typeof body?.detail === 'string' ? body.detail : '';
+                    } catch (_error) {
+                        detail = '';
+                    }
+                    showToast(detail
+                        ? t('core.download.refused', 'Download refused: {detail}', {detail})
+                        : t('core.download.refused-status', 'Download refused by the server (status {status}).', {status: String(response.status)}), 'error');
+                    return;
+                }
+                const length = Number(response.headers?.get?.('content-length'));
+                const fitsInMemory = Number.isFinite(length) && length > 0 && length <= CHECKED_DOWNLOAD_MAX_BLOB_BYTES;
+                if (!fitsInMemory || globalThis.isSecureContext === false) {
+                    controller.abort();
+                    link.dataset.downloadChecked = 'native';
+                    link.click();
+                    return;
+                }
+                let blob;
+                try {
+                    blob = await response.blob();
+                } catch (_error) {
+                    showToast(t('core.download.unreachable', 'Download failed: Alexandria did not respond. Check that it is still running, then try again.'), 'error');
+                    return;
+                }
+                const objectUrl = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = objectUrl;
+                anchor.download = link.download || link.href.split('/').pop();
+                document.body.appendChild(anchor);
+                anchor.click();
+                anchor.remove();
+                setTimeout(() => URL.revokeObjectURL(objectUrl), CHECKED_DOWNLOAD_REVOKE_MS);
             } finally {
                 delete link.dataset.downloadChecked;
             }
