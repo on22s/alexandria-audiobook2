@@ -2540,7 +2540,10 @@
     "tests.test_cast_library_request_order_js.CastLibraryRequestOrderJsTests.test_creation_and_current_book_keep_newer_library_despite_old_response"
   ],
   "test_cast_list": [
+    "tests.test_cast_list.CastListTest.test_a_clean_model_list_is_saved_unchanged",
+    "tests.test_cast_list.CastListTest.test_a_hand_saved_list_with_a_protected_alias_is_still_refused",
     "tests.test_cast_list.CastListTest.test_a_list_generation_would_refuse_is_not_written",
+    "tests.test_cast_list.CastListTest.test_a_model_list_with_refused_aliases_is_saved_without_them",
     "tests.test_cast_list.CastListTest.test_documented_bare_output_saves_valid_cast_and_rejects_invalid_replacement",
     "tests.test_cast_list.CastListTest.test_model_is_sent_the_text_generation_sees",
     "tests.test_cast_list.CastListTest.test_path_is_keyed_by_bytes_not_name",

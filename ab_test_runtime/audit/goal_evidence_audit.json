@@ -1050,19 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T12:00:01",
+  "written": "2026-11-11T13:10:44",
   "host": "RealMitch",
   "git": {
-   "commit": "93defb2148a93ed8e9ed12afe0bca07a9183984e",
-   "branch": "fix/readaloud-1844-silent-blocks",
-   "dirty": true,
-   "source_state": "dirty:8ea05000df21",
+   "commit": "feef6510202782c8a3b9c15282645f8d9a07f8ed",
+   "branch": "fix/cast-list-protected-aliases-1913",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/epub_readaloud.py",
-    "M  app/tests/test_epub_readaloud_span_groups.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"

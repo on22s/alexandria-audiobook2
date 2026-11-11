@@ -528,6 +528,12 @@ def load_cast(path):
     return {**cast, "sha256": hashlib.sha256(raw).hexdigest()}
 
 
+def is_cast_alias_allowed(alias, name):
+    """May ``alias`` be another name for cast member ``name``? Narration,
+    UNKNOWN and group labels never merge into a character (#1913)."""
+    return is_speaker_merge_allowed(alias, name) and alias != "UNKNOWN"
+
+
 def get_cast_from_data(data):
     """The one cast validator, for a file (load_cast) and an edited list (the
     app's PUT /api/cast_list) alike. Returns load_cast's dict without the
@@ -551,7 +557,7 @@ def get_cast_from_data(data):
         names.append(name)
         groups.append([name] + aliases)
         for alias in aliases:
-            if not is_speaker_merge_allowed(alias, name) or alias == "UNKNOWN":
+            if not is_cast_alias_allowed(alias, name):
                 raise ValueError(f"protected cast alias: {alias} -> {name}")
             if alias in alias_to_name and alias_to_name[alias] != name:
                 raise ValueError(f"duplicate cast alias ownership: {alias}")

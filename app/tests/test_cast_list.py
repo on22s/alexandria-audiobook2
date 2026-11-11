@@ -135,5 +135,39 @@ class CastListTest(unittest.TestCase):
         self.assertFalse(os.path.exists(out))
 
 
+    def test_a_model_list_with_refused_aliases_is_saved_without_them(self):
+        """#1913: one protected alias used to throw the whole list away."""
+        reply = [{"name": "MAURICE OAKLEY", "aliases": ["MR. OAKLEY", "NARRATOR", "I"]},
+                 {"name": "THE PUPILS", "aliases": ["THE CROWD", "THE CLASS"]},
+                 {"name": "THE DETECTIVE", "aliases": ["MAURICE OAKLEY", "THE INSPECTOR"]},
+                 {"name": "A CLERK", "aliases": ["THE INSPECTOR", "UNKNOWN"]}]
+        with contextlib.redirect_stdout(io.StringIO()) as printed:
+            code, out = self.run_main(_Client(content=json.dumps(reply)))
+        self.assertEqual(0, code, printed.getvalue())
+        with open(out, encoding="utf-8") as handle:
+            saved = json.load(handle)
+        self.assertEqual(
+            [{"name": "MAURICE OAKLEY", "aliases": ["MR. OAKLEY", "I"]},
+             {"name": "THE PUPILS", "aliases": ["THE CLASS"]},
+             {"name": "THE DETECTIVE", "aliases": []},
+             {"name": "A CLERK", "aliases": []}], saved["cast"])
+        self.assertEqual(
+            [("NARRATOR", "MAURICE OAKLEY"), ("THE CROWD", "THE PUPILS"),
+             ("MAURICE OAKLEY", "THE DETECTIVE"), ("THE INSPECTOR", "THE DETECTIVE"),
+             ("THE INSPECTOR", "A CLERK"), ("UNKNOWN", "A CLERK")],
+            [(row["alias"], row["name"]) for row in saved["provenance"]["dropped_aliases"]])
+        self.assertIn("Dropped alias NARRATOR from MAURICE OAKLEY", printed.getvalue())
+
+    def test_a_hand_saved_list_with_a_protected_alias_is_still_refused(self):
+        path = os.path.join(self.dir, "lists", "cast.json")
+        with self.assertRaisesRegex(ValueError, "protected cast alias: NARRATOR"):
+            cast_list.save_cast_list(path, [{"name": "X", "aliases": ["NARRATOR"]}])
+        self.assertFalse(os.path.exists(path))
+
+    def test_a_clean_model_list_is_saved_unchanged(self):
+        cleaned, dropped = cast_list.get_cast_without_refused_aliases(CAST)
+        self.assertEqual((CAST, []), (cleaned, dropped))
+
+
 if __name__ == "__main__":
     unittest.main()
