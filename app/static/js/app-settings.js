@@ -59,11 +59,15 @@ function getSetupSettingsMatches(query) {
         if (!control.id || !isSetupSettingAvailable(control)) { continue; }
         const label = Array.from(control.labels || []).map(node => node.textContent.trim()).join(' ').replace(/\s+/g, ' ');
         if (!label) { continue; }
-        const section = control.closest('[data-settings-section]')?.getAttribute('data-settings-section') || 'Setup';
+        const sectionNode = control.closest('[data-settings-section]');
+        const section = sectionNode?.getAttribute('data-settings-section') || t('setup.search.section_fallback', 'Setup');
+        // The result row shows the translated category heading; the raw
+        // attribute value stays in the English search index below.
+        const sectionLabel = sectionNode?.querySelectorAll('h5')[0]?.textContent.trim() || section;
         const description = getItemHelpText(control);
         const englishDescription = getItemHelpText(control, 'en');
         const text = normalizeSetupSearchText(`${label} ${section} ${description} ${englishDescription}`);
-        if (terms.every(term => text.includes(term))) { matches.push({id: control.id, label, section}); }
+        if (terms.every(term => text.includes(term))) { matches.push({id: control.id, label, section, sectionLabel}); }
     }
     return matches;
 }
@@ -88,7 +92,7 @@ function renderSetupSettingsSearch() {
         button.type = 'button';
         button.className = 'btn btn-outline-primary';
         button.setAttribute('data-help-key', 'openSetupSetting');
-        button.textContent = `${match.label} · ${match.section}`;
+        button.textContent = `${match.label} · ${match.sectionLabel}`;
         button.addEventListener('click', () => openSetupSetting(match.id));
         row.appendChild(button);
         results.appendChild(row);
@@ -160,7 +164,7 @@ let setupPreviewPending = null;
 function invalidateSetupPreview() {
     setupPreviewRequest++;
     document.getElementById('setup-preview-results').hidden = true;
-    applySystemStatusText('setup-preview-status', 'Settings or saved state may have changed. Preview again before relying on this comparison.');
+    applySystemStatusText('setup-preview-status', t('setup.preview.invalidated', 'Settings or saved state may have changed. Preview again before relying on this comparison.'));
 }
 
 function closeSetupPreview() {
@@ -207,7 +211,7 @@ async function previewSetupChanges() {
     const request = ++setupPreviewRequest;
     document.getElementById('setup-preview-panel').hidden = false;
     document.getElementById('setup-preview-results').hidden = true;
-    applySystemStatusText('setup-preview-status', 'Comparing the proposed settings with the saved configuration…');
+    applySystemStatusText('setup-preview-status', t('setup.preview.comparing', 'Comparing the proposed settings with the saved configuration…'));
     if (setupPreviewPending) { await setupPreviewPending.catch(() => {}); }
     if (request !== setupPreviewRequest) { return; }
     const pending = Promise.resolve().then(() => API.post('/api/config/preview', proposal));
@@ -216,16 +220,25 @@ async function previewSetupChanges() {
         const data = await pending;
         if (request !== setupPreviewRequest) { return; }
         if (JSON.stringify(getConfigPreviewProposal()) !== captured) { invalidateSetupPreview(); return; }
-        if (!isSetupPreviewValid(data)) { throw new Error('Incomplete settings preview'); }
+        if (!isSetupPreviewValid(data)) { throw new Error(t('setup.preview.incomplete', 'Incomplete settings preview')); }
         const baseline = data.baseline === 'read' && !data.warning_count ? ''
-            : data.baseline === 'missing' ? 'No saved configuration was found. '
-            : 'Saved configuration is damaged or incomplete; recovered/default values are shown. ';
-        applySystemStatusText('setup-preview-status', baseline + `${data.changes.length} supported settings would change; ${data.defaults.length} missing settings would be filled with defaults. No settings were applied.`);
-        document.getElementById('setup-preview-active').textContent = 'Active model after Save: ' + (data.active_after === 'local' ? 'Local' : 'Remote');
+            : data.baseline === 'missing' ? t('setup.preview.baseline_missing', 'No saved configuration was found.') + ' '
+            : t('setup.preview.baseline_damaged', 'Saved configuration is damaged or incomplete; recovered/default values are shown.') + ' ';
+        applySystemStatusText('setup-preview-status', baseline + t('setup.preview.summary',
+            '{changes} supported settings would change; {defaults} missing settings would be filled with defaults. No settings were applied.',
+            {changes: data.changes.length, defaults: data.defaults.length}));
+        document.getElementById('setup-preview-active').textContent = t('setup.preview.active', 'Active model after Save: {model}', {
+            model: data.active_after === 'local' ? t('setup.preview.local', 'Local') : t('setup.preview.remote', 'Remote')});
         document.getElementById('setup-preview-notice').textContent = data.notice;
         document.getElementById('setup-preview-timing').textContent = data.timing;
-        document.getElementById('setup-preview-unmanaged').textContent = data.unmanaged_fields
-            ? `${data.unmanaged_fields} additional saved fields are outside the supported form and would not be retained by the existing Save. Review the saved file before saving.` : '';
+        const unmanaged = document.getElementById('setup-preview-unmanaged');
+        if (data.unmanaged_fields) {
+            renderUiSafety(unmanaged, 'safety.setup.unmanaged_fields',
+                '{count} additional saved fields are outside the supported form and would not be retained by the existing Save. Review the saved file before saving.',
+                {count: data.unmanaged_fields});
+        } else {
+            unmanaged.textContent = '';
+        }
         renderSetupPreviewRows(document.getElementById('setup-preview-changes'), data.changes);
         const defaultSummary = document.getElementById('setup-preview-default-summary');
         defaultSummary.setAttribute('data-i18n-count', String(data.defaults.length));
@@ -237,7 +250,7 @@ async function previewSetupChanges() {
     } catch (error) {
         if (request !== setupPreviewRequest) { return; }
         document.getElementById('setup-preview-results').hidden = true;
-        applySystemStatusText('setup-preview-status', 'Preview unavailable. Check model profiles, prompt presets, number ranges and JSON fields, then preview again. No settings were applied by Preview.');
+        applySystemStatusText('setup-preview-status', t('setup.preview.unavailable', 'Preview unavailable. Check model profiles, prompt presets, number ranges and JSON fields, then preview again. No settings were applied by Preview.'));
     } finally { if (setupPreviewPending === pending) { setupPreviewPending = null; } }
 }
 

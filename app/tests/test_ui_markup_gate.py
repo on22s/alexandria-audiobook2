@@ -36,16 +36,19 @@ KEEP_ENGLISH = frozenset({
     'Pseudo-English (layout test, not a translation)',
 })
 
-# Measured 2026-11-10 on the P1 tree by the counters below. A pane or file that
+# Measured 2026-11-10 on the P4 tree by the counters below. A pane or file that
 # is absent here fails the test, so a new surface must declare its baseline.
-# app-help.js's 75 counts two attribute-name literals in the tooltip refresh;
-# its 700+ help strings are catalog sources (excluded by help_map_spans, and
-# test_ui_help_i18n.py proves every one is keyed in all three locales).
+# P4 lowered index.html's setup 411 -> 0 and shell 81 -> 0 and app-settings.js
+# 63 -> 53; app-i18n.js rose 23 -> 25 by two key literals in the data-i18n-html
+# and safety branches. app-help.js's 75 counts two attribute-name literals in
+# the tooltip refresh; its 700+ help strings are catalog sources (excluded by
+# help_map_spans, and test_ui_help_i18n.py proves every one is keyed in all
+# three locales).
 MARKUP_BASELINE = {
     'index.html': {
         'audio': 153, 'casting': 61, 'dataset-builder': 30, 'designer': 19,
         'editor': 207, 'home': 23, 'preparer': 62, 'reports': 17, 'script': 212,
-        'setup': 411, 'shell': 81, 'training': 69, 'voicelab': 54, 'voices': 75,
+        'setup': 0, 'shell': 0, 'training': 69, 'voicelab': 54, 'voices': 75,
     },
     'readalong-player.html': {'shell': 16},
 }
@@ -55,10 +58,10 @@ JS_BASELINE = {
     'app-casting-research.js': 436, 'app-casting.js': 262, 'app-character-roster.js': 110,
     'app-core.js': 2215, 'app-editor-repair.js': 32, 'app-editor-review.js': 193,
     'app-export-quality.js': 38, 'app-guides.js': 154, 'app-help.js': 75,
-    'app-i18n.js': 23, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
+    'app-i18n.js': 25, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
     'app-project-scope.js': 33, 'app-pronunciation.js': 210,
     'app-publication-validation.js': 2, 'app-publication.js': 45, 'app-readalong.js': 63,
-    'app-reports.js': 91, 'app-scripts.js': 329, 'app-settings.js': 63,
+    'app-reports.js': 91, 'app-scripts.js': 329, 'app-settings.js': 53,
     'app-single-voice.js': 96, 'app-sound-assets.js': 39, 'app-sound-cues.js': 111,
     'app-sound-mix-cover.js': 19, 'app-sound-mixes.js': 93, 'app-sound-renditions.js': 148,
     'app-speaker-review.js': 107, 'app-speech-verification.js': 29,
@@ -108,7 +111,7 @@ class LiteralInventory(HTMLParser):
         if attributes.get('id', '').endswith('-tab') and 'tab-content' in attributes.get('class', ''):
             pane = attributes['id'][:-4]
         skip = inherited == 'skip' or 'data-i18n-skip' in attributes
-        keyed = skip or 'data-i18n' in attributes
+        keyed = skip or 'data-i18n' in attributes or 'data-i18n-html' in attributes
         if tag in {'script', 'style'}:
             self.raw = True
             keyed = True

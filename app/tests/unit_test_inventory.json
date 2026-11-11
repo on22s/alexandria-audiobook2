@@ -15281,16 +15281,19 @@
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_added_placeholder_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_english_copy_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_extra_key_is_rejected",
+    "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_html_key_must_keep_its_tags",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_chinese_plural_forms_that_differ_are_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_empty_padded_and_interpolated_values_are_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_markup_in_a_plain_text_value_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_unreviewed_safety_text_in_a_draft_locale_is_allowed_but_visible",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_unreviewed_safety_text_in_a_reviewed_locale_is_rejected",
+    "tests.test_ui_catalog_parity.FileExtensionTokenTests.test_abbreviations_are_not_extensions_but_real_extensions_are",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_every_locale_carries_exactly_the_english_key_set",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_every_real_catalog_passes_every_rule",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_no_locale_claims_a_review_it_does_not_have",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_the_catalogs_are_utf8_json_without_a_bom",
-    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source"
+    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source",
+    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_html_allowlist_is_small_and_named"
   ],
   "test_ui_contract": [
     "tests.test_ui_contract.UIContractTests.test_error_toasts_are_assertive_but_other_toasts_are_polite",
@@ -15364,6 +15367,19 @@
     "tests.test_ui_i18n_js.UiI18nJsTests.test_the_locale_storage_key_is_read_in_exactly_one_module",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_the_removed_setup_catalog_names_no_longer_exist_anywhere",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_untranslated_locales_are_never_marked_draft"
+  ],
+  "test_ui_i18n_setup_shell": [
+    "tests.test_ui_i18n_setup_shell.MarkupKeyingTests.test_every_sampled_p4_key_is_translated_in_every_locale",
+    "tests.test_ui_i18n_setup_shell.MarkupKeyingTests.test_setup_and_shell_nodes_are_keyed",
+    "tests.test_ui_i18n_setup_shell.MarkupKeyingTests.test_the_brand_is_a_deliberate_english_skip",
+    "tests.test_ui_i18n_setup_shell.MarkupKeyingTests.test_the_nav_tab_names_and_shared_modal_buttons_are_keyed",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_a_keyed_placeholder_attribute_follows_the_locale",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_a_markup_paragraph_keeps_its_tags_and_restores_english",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_a_safety_markup_node_shows_the_english_beneath_the_translation",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_an_unknown_key_falls_back_to_english_and_english_restores_authored_text",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_markup_literal_braces_survive_the_sweep",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_app_shell_paints_its_translation_in_each_locale",
+    "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_setup_pane_paints_its_translation_in_each_locale"
   ],
   "test_ui_markup_gate": [
     "tests.test_ui_markup_gate.CounterFixtureTests.test_js_counter_ignores_the_english_argument_of_t_and_create",

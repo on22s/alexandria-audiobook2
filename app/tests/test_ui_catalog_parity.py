@@ -28,15 +28,36 @@ PROTECTED = {
     'backticked identifier': re.compile(r'`[^`\n]+`'),
     'API path': re.compile(r'/api/[^\s";)]+'),
     'environment name': re.compile(r'\benv:[A-Za-z_][A-Za-z0-9_]*'),
-    'file extension': re.compile(r'\.[A-Za-z0-9]{1,5}\b'),
+    # A dot after one standalone letter is an abbreviation (e.g., i.e.), not
+    # an extension: forcing it to match made translations keep English 'e.g.'.
+    'file extension': re.compile(r'(?<!\b[A-Za-z])\.[A-Za-z0-9]{1,5}\b'),
 }
 # Terms this UI keeps in English by design; a value equal to its English source
 # is allowed only when the whole value is one of these. A help `*.source` value
 # names a repository artifact, PR or RECIPES.md section, which the glossary
 # forbids translating, so those are exempt in validate().
 KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria',
-                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS'})
-HTML_KEYS = frozenset()
+                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor'})
+STATIC = Path(__file__).resolve().parent.parent / 'static'
+TAG = re.compile(r'</?([a-z]+)[^>]*>')
+
+
+def html_keys():
+    """The keys allowed to carry inline markup, read from the markup itself.
+
+    Design section 3.3 caps this list at ten and gives it one purpose: keep a
+    <strong>/<code>/<em> span that a translator must not drop. Reading the list
+    from the source means adding a key there is a reviewable, one-line change.
+    """
+    keys = set()
+    for page in ('index.html', 'readalong-player.html'):
+        path = STATIC / page
+        if path.exists():
+            keys.update(re.findall(r'data-i18n-html="([^"]+)"', path.read_text(encoding='utf-8')))
+    return frozenset(keys)
+
+
+HTML_KEYS = html_keys()
 
 
 def load(locale):
@@ -79,6 +100,8 @@ def validate(payload, english, locale):
             errors.append(f'{locale}: {key} contains template interpolation')
         if '<' in value and key not in HTML_KEYS:
             errors.append(f'{locale}: {key} contains markup outside the HTML allowlist')
+        if key in HTML_KEYS and sorted(TAG.findall(value)) != sorted(TAG.findall(source)):
+            errors.append(f'{locale}: {key} changed the inline markup tags')
         if sorted(PLACEHOLDER.findall(value)) != sorted(PLACEHOLDER.findall(source)):
             errors.append(f'{locale}: {key} placeholder set differs from English')
         for label, pattern in PROTECTED.items():
@@ -165,6 +188,17 @@ class CheckerFixtureTests(unittest.TestCase):
         broken = dict(ZH_FIXTURE, **{'setup.finder.label': '<b>查找设置</b>'})
         self.assertRejected(catalog('zh-CN', broken), ENGLISH_FIXTURE, 'zh-CN', 'contains markup')
 
+    def test_an_html_key_must_keep_its_tags(self):
+        key = 'setup.strategy.tp-segmentation.help'
+        self.assertIn(key, HTML_KEYS)
+        source = {key: '<strong>Quote marks first</strong> uses <code>x</code>.'}
+        good = {key: '<strong>引号优先</strong> 使用 <code>x</code>。'}
+        self.assertEqual([], validate(catalog('zh-CN', good), source, 'zh-CN'))
+        dropped = {key: '<strong>引号优先</strong> 使用 x。'}
+        self.assertRejected(catalog('zh-CN', dropped), source, 'zh-CN', 'changed the inline markup tags')
+        swapped = {key: '<b>引号优先</b> 使用 <code>x</code>。'}
+        self.assertRejected(catalog('zh-CN', swapped), source, 'zh-CN', 'changed the inline markup tags')
+
     def test_a_key_with_uppercase_or_spaces_is_rejected(self):
         source = dict(ENGLISH_FIXTURE, **{'help.field.Bad Key.what': 'English'})
         broken = dict(ZH_FIXTURE, **{'help.field.Bad Key.what': '中文'})
@@ -248,6 +282,27 @@ class RealCatalogTests(unittest.TestCase):
                 self.assertFalse(raw.startswith(b'\xef\xbb\xbf'))
                 self.assertIn('"locale": "' + locale + '"', raw.decode('utf-8'))
 
+    def test_the_html_allowlist_is_small_and_named(self):
+        """Design section 3.3: at most ten keys may keep inline markup."""
+        self.assertLessEqual(len(HTML_KEYS), 10)
+        self.assertEqual({'setup.generation.banned-tokens.help',
+                          'setup.llm.llm-key-help.help',
+                          'setup.llm.llm-reasoning-effort.help',
+                          'setup.llm.llm-ssh.help',
+                          'setup.prompts.prompt-preset-select.help',
+                          'setup.strategy.three-steps.help',
+                          'setup.strategy.tp-pass1-format.help',
+                          'setup.strategy.tp-segmentation.help',
+                          'setup.tts.tts-external-urls.help'}, set(HTML_KEYS))
+
+
+
+class FileExtensionTokenTests(unittest.TestCase):
+    def test_abbreviations_are_not_extensions_but_real_extensions_are(self):
+        rule = PROTECTED['file extension']
+        self.assertEqual([], rule.findall('Ollama, e.g. LM Studio, i.e. local'))
+        self.assertEqual(['.json'], rule.findall('catalog.json'))
+        self.assertEqual(['.wav', '.mp3'], rule.findall('ref.wav and out.mp3'))
 
 if __name__ == '__main__':
     unittest.main()
