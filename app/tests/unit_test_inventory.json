@@ -3011,6 +3011,13 @@
     "tests.test_character_voice_seed.TestSeedDerivation.test_the_seed_fits_what_torch_accepts",
     "tests.test_character_voice_seed.TestSeedDerivation.test_the_seed_is_never_negative"
   ],
+  "test_checked_download_js": [
+    "tests.test_checked_download_js.CheckedDownloadTests.test_every_read_along_export_link_is_checked",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_non_json_error_falls_back_to_the_status",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_refusal_shows_the_server_reason_and_does_not_download",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_success_cancels_the_probe_and_lets_the_browser_download",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_unreachable_server_says_so"
+  ],
   "test_child_voice_context_retest": [
     "tests.test_child_voice_context_retest.ChildContextRetestTests.test_actual_clone_dispatch_writes_verified_complete_artifact_and_page",
     "tests.test_child_voice_context_retest.ChildContextRetestTests.test_failed_generation_cannot_count_existing_wav_as_success",

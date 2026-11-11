@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T09:41:44",
+  "written": "2026-11-11T10:09:54",
   "host": "RealMitch",
   "git": {
-   "commit": "91249fa971560fce5fcd37489ed9fab4fb554e94",
-   "branch": "fix/qwen-nonascii-path-214",
+   "commit": "9f6ca9f09a654151759f6475db7a870b9ded9f71",
+   "branch": "fix/readaloud-download-1906",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,
