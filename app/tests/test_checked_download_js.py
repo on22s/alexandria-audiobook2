@@ -24,26 +24,19 @@ const handlerSource = source.slice(start, source.indexOf('// --- Toast & Confirm
 
 async function run(fetchImpl) {
     const toasts = [];
-    const aborted = [];
+    const saved = [];
+    const revoked = [];
     let handler = null;
-    let downloads = 0;
-    const link = {
-        href: '/api/readaloud_epub', dataset: {},
-        click() {
-            // A synthetic click re-enters the listener; it must pass through.
-            const event = {target: {closest: () => link}, defaultPrevented: false,
-                           preventDefault() { this.defaultPrevented = true; }};
-            handler(event);
-            if (!event.defaultPrevented) { downloads += 1; }
-        },
-    };
-    class FakeAbortController {
-        constructor() { this.signal = {}; }
-        abort() { aborted.push(true); }
-    }
+    let fetches = 0;
+    const link = {href: '/api/readaloud_epub', getAttribute: (name) => name === 'download' ? 'readaloud.epub' : null};
     const context = {
-        document: {addEventListener: (name, fn) => { if (name === 'click') { handler = fn; } }},
-        fetch: fetchImpl, AbortController: FakeAbortController,
+        document: {
+            addEventListener: (name, fn) => { if (name === 'click') { handler = fn; } },
+            createElement: () => ({click() { saved.push([this.href, this.download]); }}),
+        },
+        fetch: async (...args) => { fetches += 1; return fetchImpl(...args); },
+        URL: {createObjectURL: (blob) => 'blob:' + blob.body, revokeObjectURL: (url) => revoked.push(url)},
+        setTimeout: (fn) => fn(),
         showToast: (message, type) => toasts.push([message, type]),
         t: (key, english, values = {}) => english.replace(/\{(\w+)\}/g, (_m, name) => values[name]),
     };
@@ -52,14 +45,13 @@ async function run(fetchImpl) {
     const event = {target: {closest: (selector) => selector === '[data-checked-download]' ? link : null},
                    defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }};
     await handler(event);
-    return {toasts, aborted: aborted.length, downloads, prevented: event.defaultPrevented,
-            leftMarked: 'downloadChecked' in link.dataset};
+    return {toasts, saved, revoked, fetches, prevented: event.defaultPrevented};
 }
 
 (async () => {
     const refused = await run(async () => ({ok: false, status: 409,
         json: async () => ({detail: 'EPUB read-aloud timing settings changed; rebuild it.'})}));
-    const ok = await run(async () => ({ok: true, status: 200}));
+    const ok = await run(async () => ({ok: true, status: 200, blob: async () => ({body: 'epub-bytes'})}));
     const down = await run(async () => { throw new TypeError('Failed to fetch'); });
     const noJson = await run(async () => ({ok: false, status: 500, json: async () => { throw new Error('html'); }}));
     console.log(JSON.stringify({refused, ok, down, noJson}));
@@ -82,20 +74,26 @@ class CheckedDownloadTests(unittest.TestCase):
     def test_refusal_shows_the_server_reason_and_does_not_download(self):
         refused = self.results['refused']
         self.assertTrue(refused['prevented'])
-        self.assertEqual(0, refused['downloads'])
+        self.assertEqual([], refused['saved'])
         self.assertEqual([['Download refused: EPUB read-aloud timing settings changed; rebuild it.',
                            'error']], refused['toasts'])
 
-    def test_success_cancels_the_probe_and_lets_the_browser_download(self):
+    def test_success_saves_the_one_response_without_a_second_request(self):
         ok = self.results['ok']
         self.assertEqual([], ok['toasts'])
-        self.assertEqual(1, ok['aborted'])
-        self.assertEqual(1, ok['downloads'])
-        self.assertFalse(ok['leftMarked'])
+        self.assertEqual(1, ok['fetches'])
+        self.assertEqual([['blob:epub-bytes', 'readaloud.epub']], ok['saved'])
+        self.assertEqual(['blob:epub-bytes'], ok['revoked'])
+
+    def test_refusal_and_outage_make_one_request_and_save_nothing(self):
+        for name in ('refused', 'down', 'noJson'):
+            with self.subTest(name=name):
+                self.assertEqual(1, self.results[name]['fetches'])
+                self.assertEqual([], self.results[name]['saved'])
 
     def test_unreachable_server_says_so(self):
         down = self.results['down']
-        self.assertEqual(0, down['downloads'])
+        self.assertEqual([], down['saved'])
         self.assertIn('did not respond', down['toasts'][0][0])
 
     def test_non_json_error_falls_back_to_the_status(self):

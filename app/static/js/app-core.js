@@ -92,16 +92,20 @@
         // Export links the server may refuse (a stale build answers 409 with
         // its reason). A plain <a download> turns that into the browser
         // message Failed - Unknown server error and the reason is lost (#1906), so
-        // a marked link checks the response status first, cancels the body,
-        // and only then lets the browser download it as usual.
+        // a marked link fetches the file once and saves that same response.
+        // Requesting it a second time would repeat the server validation,
+        // which hashes the whole export and doubled the wait before a save.
         async function onCheckedDownloadClick(event) {
             const link = event.target.closest?.('[data-checked-download]');
-            if (!link || link.dataset.downloadChecked === '1') { return; }
+            if (!link) { return; }
             event.preventDefault();
-            const controller = new AbortController();
             let response;
+            let blob;
             try {
-                response = await fetch(link.href, {signal: controller.signal});
+                response = await fetch(link.href);
+                if (response.ok) {
+                    blob = await response.blob();
+                }
             } catch (_error) {
                 showToast(t('core.download.unreachable', 'Download failed: Alexandria did not respond. Check that it is still running, then try again.'), 'error');
                 return;
@@ -119,13 +123,11 @@
                     : t('core.download.refused-status', 'Download refused by the server (status {status}).', {status: String(response.status)}), 'error');
                 return;
             }
-            controller.abort();
-            link.dataset.downloadChecked = '1';
-            try {
-                link.click();
-            } finally {
-                delete link.dataset.downloadChecked;
-            }
+            const saver = document.createElement('a');
+            saver.href = URL.createObjectURL(blob);
+            saver.download = link.getAttribute('download');
+            saver.click();
+            setTimeout(() => URL.revokeObjectURL(saver.href), 60000);
         }
         if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
             document.addEventListener('click', onCheckedDownloadClick);

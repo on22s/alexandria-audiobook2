@@ -3017,8 +3017,9 @@
   "test_checked_download_js": [
     "tests.test_checked_download_js.CheckedDownloadTests.test_every_read_along_export_link_is_checked",
     "tests.test_checked_download_js.CheckedDownloadTests.test_non_json_error_falls_back_to_the_status",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_refusal_and_outage_make_one_request_and_save_nothing",
     "tests.test_checked_download_js.CheckedDownloadTests.test_refusal_shows_the_server_reason_and_does_not_download",
-    "tests.test_checked_download_js.CheckedDownloadTests.test_success_cancels_the_probe_and_lets_the_browser_download",
+    "tests.test_checked_download_js.CheckedDownloadTests.test_success_saves_the_one_response_without_a_second_request",
     "tests.test_checked_download_js.CheckedDownloadTests.test_unreachable_server_says_so"
   ],
   "test_child_voice_context_retest": [
