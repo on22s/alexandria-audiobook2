@@ -167,8 +167,7 @@ class CiEnvParityTests(unittest.TestCase):
         test_conditions = [step.get("if", "") for step in jobs["test"]["steps"]]
         self.assertIn("needs.unit.result != 'success'", test_conditions)
         self.assertIn("needs.derived-files.result != 'success'", test_conditions)
-        derived_runs = "
-".join(step.get("run", "") for step in jobs["derived-files"]["steps"])
+        derived_runs = "\n".join(step.get("run", "") for step in jobs["derived-files"]["steps"])
         for _gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
                               ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
                               ("results_index", "tools/audit/collect_results.py"),
@@ -184,9 +183,7 @@ class CiEnvParityTests(unittest.TestCase):
         install = steps["Install Python dependencies"]["run"]
         self.assertIn("steps.env-cache.outputs.cache-hit", install)
         # The assertion line comes after `fi`, so it is outside the skipped branch.
-        self.assertGreater(install.index("assert torch.version.cuda is None"), install.index("
-fi
-"))
+        self.assertGreater(install.index("assert torch.version.cuda is None"), install.index("\nfi\n"))
 
     @unittest.skipUnless(sys.platform == "linux", "native Linux timeout qualification")
     def test_selected_timeout_real_signal_and_grace_contract(self):
