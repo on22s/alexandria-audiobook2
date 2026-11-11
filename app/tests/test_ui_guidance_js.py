@@ -110,7 +110,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{awai
 
     def test_reload_cancel_is_noop_and_confirmation_reloads_once(self):
         script=r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');let reloads=0,choice=false;
-const c={location:{reload:()=>reloads++},showConfirm:async text=>{assert.match(text,/Unsaved changes may be lost/);return choice;}};vm.createContext(c);const a=s.indexOf('async function reloadPageAfterConfirmation()');assert(a>=0);vm.runInContext(s.slice(a,s.indexOf('async function confirmIfRemote(',a)),c);
+const c={location:{reload:()=>reloads++},showConfirm:async text=>{assert.match(text,/Unsaved changes may be lost/);return choice;}};vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]]));const a=s.indexOf('async function reloadPageAfterConfirmation()');assert(a>=0);vm.runInContext(s.slice(a,s.indexOf('async function confirmIfRemote(',a)),c);
 let finished=false;process.on('beforeExit',()=>assert(finished,'reload assertions must finish'));(async()=>{await c.reloadPageAfterConfirmation();assert.strictEqual(reloads,0);choice=true;await c.reloadPageAfterConfirmation();assert.strictEqual(reloads,1);finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});'''
         self.run_js(script)
 
@@ -132,7 +132,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{for(
 
     def test_trait_estimates_remain_qualified_and_escape_model_text(self):
         script=r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
-const c={escapeHtml:t=>String(t).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);const a=s.indexOf('function getTraitBadgeHtml(');vm.runInContext(s.slice(a,s.indexOf('function createVoiceCard(',a)),c);
+const c={escapeHtml:t=>String(t).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]]));const a=s.indexOf('function getTraitBadgeHtml(');vm.runInContext(s.slice(a,s.indexOf('function createVoiceCard(',a)),c);
 assert.strictEqual(c.getTraitBadgeHtml(null),'');assert.strictEqual(c.getTraitBadgeHtml({gender:'unknown',age_group:'unknown'}),'');const html=c.getTraitBadgeHtml({states:[{gender:'female',age_group:'young_adult'},{gender:'<script>',age_group:'elderly'}],ageless:true,lines:12});assert.match(html,/Script estimate: female · young adult → &lt;script&gt; · elderly · ageless/);assert.match(html,/Model-inferred from 12 script lines; review against the source/);assert(!html.includes('<script>'));'''
         self.run_js(script)
 

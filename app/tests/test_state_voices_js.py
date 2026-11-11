@@ -14,7 +14,7 @@ const fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'
 const calls=[];const context={window:{},currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64)},calls,
   API:{get:async u=>payload.suggestion,post:async(u,b)=>{calls.push(['POST',u,b]);return {};},del:async u=>{calls.push(['DEL',u]);return {};}},
   flushVoiceSaves:async()=>{},loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
-vm.createContext(context);
+vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context.showActionError=context.showActionError||((action,error,recovery)=>context.t('core.action.details','{action}. {guidance} Details: {detail}',{action,guidance:recovery,detail:String(error&&error.message||error)}));
 vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),context);
 const a=source.indexOf('function getVoiceStateDefault('),b=source.indexOf('// Editor: from this line on',a);
 vm.runInContext(source.slice(a,b),context);

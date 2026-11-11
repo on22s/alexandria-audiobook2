@@ -189,7 +189,8 @@ async function run(fail) {
  const context={ensureVoiceRosterOptions:()=>true,window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_editingDesignedVoiceId:'existing',_designedVoicesCache:[{id:'existing'}]},
   document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})}, API:{post(path,payload){requests.push({path,payload});return pending.promise;}},
   showToast:(...args)=>toasts.push(args),loadDesignedVoices(){reloads++;}};
- const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
+ const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');Object.assign(context,{t:context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),tSafety:(key,english,values=Object())=>({primary:context.t(key,english,values),secondary:null})});
+vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
  const first=context.window.saveDesignedVoice();
  assert.strictEqual(requests.length,1);
  const duplicate=context.window.saveDesignedVoice();
@@ -228,7 +229,8 @@ const elements={'design-voice-name':{value:''},'design-description':{value:'Calm
 const requests=[],toasts=[];
 const context={ensureVoiceRosterOptions:()=>true,window:{_currentPreviewFile:'preview.wav',_designerPreviewInputs:{file:'preview.wav',description:'Calm',sample_text:'Sample'},_designedVoicesCache:[]},document:{getElementById:id=>elements[id]||(elements[id]={value:'',style:{},dataset:{},innerHTML:''})},
  API:{post:async(path,payload)=>{requests.push({path,payload});return {}; }},showToast:(...args)=>toasts.push(args),loadDesignedVoices(){}};
-const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
+const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');Object.assign(context,{t:context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),tSafety:(key,english,values=Object())=>({primary:context.t(key,english,values),secondary:null})});
+vm.runInNewContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm('))+code,context);
 (async()=>{
  await context.window.saveDesignedVoice();assert.strictEqual(requests.length,0);
  elements['design-voice-name'].value='Voice';context.window._currentPreviewFile=null;

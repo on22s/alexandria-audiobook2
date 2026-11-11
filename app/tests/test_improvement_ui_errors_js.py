@@ -17,7 +17,7 @@ const ctx={window:{},document:{getElementById:el},console:{error(){}},llmProfile
 for(const name of ['renderConfigWarnings','applyPauseSupport','renderActiveLlmModeBadge','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets','applyCurrentBookFilename']){ctx[name]=()=>{};}
 ctx.populateLlmInputs=()=>{el('llm-url').value=ctx.llmProfiles.local.base_url;el('llm-model').value=ctx.llmProfiles.local.model_name;};
 for(const id of ['review-system-prompt','review-user-prompt','persona-system-prompt','persona-user-prompt']){el(id).value='filled';}
-vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),source.indexOf('// Reset prompts and generation settings to factory defaults')),ctx);
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),source.indexOf('// Reset prompts and generation settings to factory defaults')),ctx);
 const stored={llm:{base_url:'stored-url',model_name:'stored-model'},tts:{url:'stored-tts',parallel_workers:2}};
 let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
 const first=ctx.loadConfig();requests.at(-1).reject(Error('initial failure'));await first;
@@ -44,7 +44,7 @@ const ctx={window:{},legacyChunkSize:123,console:{error:(...args)=>errors.push(a
  passPromptDefaults:{pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},
  API:{get:async path=>{assert.strictEqual(path,'/api/config');if(fail){throw Error('HTTP 503 <img src=x>');}return {tts:{mode:'local'}};}}};
 for(const name of ['applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets','applyCurrentBookFilename']){ctx[name]=()=>{};}
-vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(source.slice(source.indexOf('function renderConfigWarnings('),source.indexOf('function populateLlmInputs(')),ctx);
 vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),source.indexOf('// Reset prompts and generation settings to factory defaults')),ctx);
 (async()=>{
@@ -70,11 +70,11 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('p
 const core=fs.readFileSync(path.join(process.argv[1],'app-core.js'),'utf8');
 const source=fs.readFileSync(path.join(process.argv[1],'app-workbench.js'),'utf8');
 const row={text:'Original line.',emotion:'calm',seed:'',status:'pending'},toasts=[];let fail=true,stale=false;
-const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,t:(key,english)=>english,
+const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,
  document:{getElementById:id=>({value:id==='dsb-description'?'Fixture voice':'-1'})},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}},dsbRenderTable:()=>{},
  isDatasetProjectLoading:()=>false,isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
-vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(source.slice(source.indexOf('function datasetRowStatusLabel('),source.indexOf('function dsbRenderTable(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('function ensureDatasetRowSaveState(')),ctx);

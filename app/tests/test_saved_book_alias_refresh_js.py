@@ -17,7 +17,7 @@ const context={window:{},console:{error(){}},Date,escapeHtml:String,
  showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,
  fetch:async()=>({ok:true,json:async()=>({status:'loaded',name:'Book B'})}),ensureCastListEditsDiscardable:async()=>true,clearCastListEditor(){},loadCastList:async()=>{},flushVoiceSaves:async()=>{},resetDesignerForm(){},clearVoiceSuggestions(){},
  loadChunks:async()=>{},refreshVoiceMetadata:async()=>{},loadVoices:async()=>{},loadSavedScripts(){},loadDesignedVoices(){}};
-vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
+vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
 const bookStart=core.indexOf('let currentBookFilename =');vm.runInContext(core.slice(bookStart,core.indexOf('async function loadConfig()',bookStart)),context);
 const start=core.indexOf('let characterAliasesLoaded'),end=core.indexOf('// One-line "N changes:',start);
 assert(start>=0&&end>start);vm.runInContext(core.slice(start,end),context);

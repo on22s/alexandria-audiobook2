@@ -86,6 +86,30 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   (`语音实验室 (Voice Lab)` / `ボイスラボ (Voice Lab)` / `Laboratorio de voz`,
   `设计器 (Designer)` / `デザイナー (Designer)` / `Diseñador`), and the Chinese
   `流程` entries that meant "pipeline" are now `流水线`.
+- P9a adds 469 keys for the `app-core.js` surfaces phases 4-8 deliberately left
+  English because their strings are shared: the voice card (104 keys,
+  `voice.card.*` - voice-type radios, per-type options, aliases, Ready,
+  versions, the approval/review labels, the state seed, and the
+  clone/LoRA/design/ensemble sections), the candidate list and trait badge (17),
+  the voice-states editor (`voice.states.*`, 33), the four voice-version, audit,
+  age-version and change-point dialogs (`voice.version.*`, `voice.audit.*`,
+  `voice.age.*`, `voice.change.*`), the ensemble members and state-card labels
+  (4), and the Script-area strings P5 left (`script.recovery.*` 45,
+  `script.cast_list.*` 35, `script.review.*` 33, `script.batch.*` 31,
+  `script.aliases.*` 19, plus `script.nicknames.*`, `script.saved.*`,
+  `script.snapshot.*`, `script.cancel.*` and `script.task.*`), the shared
+  defaults (`core.*`: showConfirm, copy/toast glue, confirmIfRemote sentences,
+  the task-label map, the field validators) and 30 `safety.*` keys listed below.
+  `TASK_LABELS` is still the English map `app-workspace.js` reads; notifications
+  translate at use time through `getTaskLabel()`, and this module's test pins
+  each `t()` literal equal to its map entry. Prompt and persona text stays
+  English, including `copyPersonaPrompt` defaults: anything sent to a model is a
+  technical value. The built-in-voice hint that read "Grayed-out voices need to
+  be downloaded first. Go to the **Training** tab to download them." lost its
+  inline `<strong>` around Training: a `t()` value cannot carry markup and the
+  `data-i18n-html` allowlist is full, so it now reads "Download them from the
+  Training tab." All three locales remain machine drafts.
+
 
 
 ## P2 server-refusal keys
@@ -446,6 +470,50 @@ they name the control, not the consequence.
 | `safety.training.rollback` | Restore the production checkpoint saved before promotion? The promoted candidate stops being production. |
 | `safety.training.recover` | Recover production from the checkpoint saved before the interrupted operation? The files written by that operation are discarded. |
 | `safety.training.review.clear` | Delete all human review history for this adapter? The decisions and notes are removed and cannot be recovered. |
+
+## P9a safety keys
+
+P9a adds the voice-card and Script-area warnings and confirms. The destructive
+confirms render through `formatUiSafetyText()` (the cast-list delete, the
+cast-list discard, the voice-change clear and the reload) so the authored English
+stays on screen beneath the translation; the rest are stale-state and
+partial-outcome warnings, which use the same `safety.*` namespace because a
+reader who cannot read the translation must still be able to see that the book,
+the checkpoint or the save state changed. Confirm titles and action labels stay
+plain translated keys: they name the control, not the consequence.
+
+| Key | English source |
+| --- | --- |
+| `safety.core.reload` | Reload the page? Unsaved changes may be lost. |
+| `safety.core.reload.title` | Reload page? |
+| `safety.script.batch_selection_changed` | The batch selection changed during preparation. Check the queue and start again. |
+| `safety.script.batch_start_unconfirmed` | Batch start is unconfirmed. Checking task activity; generation may have started. |
+| `safety.script.cancel_unconfirmed` | Cancellation of {task} was not confirmed. Check the task activity before trying again; work may still be running. |
+| `safety.script.cast_list.book_changed` | The book or cast edits changed. Review them before switching books. |
+| `safety.script.cast_list.book_changed_build` | The loaded book changed. Review it before building its cast list. |
+| `safety.script.cast_list.delete` | Delete this book’s cast list? Generation will find speakers on its own, and unnamed speakers may be labelled UNKNOWN. |
+| `safety.script.cast_list.delete.action` | Delete cast list |
+| `safety.script.cast_list.delete.book_changed` | The current book changed. Review its cast list before deleting. |
+| `safety.script.cast_list.delete.title` | Delete book cast list? |
+| `safety.script.cast_list.discard` | Discard unsaved cast-list changes? |
+| `safety.script.cast_list.discard.action` | Discard edits |
+| `safety.script.cast_list.discard.title` | Discard cast edits? |
+| `safety.script.cast_list.edits-kept` | Your cast-list edits are still here. Save them before refreshing the editor. |
+| `safety.script.cast_list.edits_changed` | Your cast-list edits changed while loading. They have been kept. |
+| `safety.script.legacy_checkpoint` | This older checkpoint does not record which book it belongs to. Resume only if you recognize it as progress for the currently selected book. The source and generation settings must still match. |
+| `safety.script.legacy_checkpoint.title` | Confirm older checkpoint |
+| `safety.script.recovery_changed_review` | The book or recovery section changed. Review the latest recovery details before continuing. |
+| `safety.script.snapshot_book_changed` | The book changed. Review it before saving a snapshot. |
+| `safety.voice.age_book_changed` | The book or voice changed. Review it before generating an age version. |
+| `safety.voice.clear_states` | Clear all saved voice changes for {speaker}? Affected lines will become pending and need regeneration; previous audio files remain on disk. |
+| `safety.voice.clear_states.action` | Clear voice changes |
+| `safety.voice.clear_states.book_changed` | The book changed. Review the current voice changes before saving. |
+| `safety.voice.clear_states.book_changed_remaining` | The book changed; remaining voice changes were not saved. |
+| `safety.voice.clear_states.book_changed_saving` | The book changed while saving the main voice; review voice changes again. |
+| `safety.voice.clear_states.book_changed_timeline` | The book changed; the voice timeline was not saved. |
+| `safety.voice.clear_states.title` | Replace voice changes? |
+| `safety.voice.states_not_applied` | Not applied (no safe Editor boundary): {ages}. Rebuild chunks, then apply again. |
+| `safety.voice.version_book_changed` | The book changed. Review it before adding a voice version. |
 
 ## Do not translate
 

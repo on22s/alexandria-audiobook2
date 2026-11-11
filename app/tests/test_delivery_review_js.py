@@ -29,7 +29,7 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'All delivery UI 
 const panel={style:{},innerHTML:'',textContent:''},posts=[],toasts=[];let poll,loads=0;
 const ctx={window:null,document:{getElementById:()=>panel},API:{get:async url=>url.includes('/status/')?{running:false}:native,post:async(url,data)=>{posts.push({url,data});return{claim_id:'fixture-owner'};}},
 escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),ensureEditorRenderSnapshot:async()=>[],confirmIfRemote:async()=>true,showToast:message=>toasts.push(message),loadChunks:async()=>loads++,_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'delivery_retry');poll={fetch,options};}};
-ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
+ctx.window=ctx;vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('let deliveryReviewView ='),source.indexOf('async function loadChunks(')));
 '''
         result = subprocess.run(['node', '-e', harness + code, str(source), json.dumps(native)],

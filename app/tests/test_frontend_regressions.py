@@ -216,7 +216,7 @@ class FrontendTests(unittest.TestCase):
                 "scriptBatchSelectAll(true)", "scriptBatchSelectAll(false)",
                 "scriptBatchSort('num-asc')", "scriptBatchSort('reverse')",
                 "script-batch-selected-count", "Failed books keep validated checkpoints",
-                "completed, ${failed} failed, ${cancelled} cancelled",
+                "completed, {failed} failed, {cancelled} cancelled",
                 # Checkboxes instead of a native <select multiple> - selecting a
                 # subset normally requires ctrl/shift-click, unusable over a
                 # remote-desktop session with no modifier keys.
@@ -751,7 +751,8 @@ for (const previous of ['local','remote']) {
         const notifications = [];
         const context = {window:{}, currentLlmMode:previous, savedLlmMode:previous,
             llmProfiles:{local:{base_url:'local-url',model_name:'local-model'}, remote:{base_url:'remote-url',model_name:'remote-model'}},
-            document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level})};
+            document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level}),
+            t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))};
         vm.runInNewContext(code, context);
         context.populateLlmInputs(previous);
         element('llm-mode').value = next;

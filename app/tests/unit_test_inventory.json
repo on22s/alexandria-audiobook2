@@ -15348,6 +15348,15 @@
     "tests.test_ui_help_js.UiHelpTests.test_summary_retains_authored_help_and_observes_details_open",
     "tests.test_ui_help_js.UiHelpTests.test_title_naming_search_and_updates"
   ],
+  "test_ui_i18n_app_core": [
+    "tests.test_ui_i18n_app_core.CastListRenderTests.test_show_confirm_defaults_and_recovery_copy_are_keyed",
+    "tests.test_ui_i18n_app_core.CastListRenderTests.test_the_cast_list_delete_confirm_keeps_english_beneath_the_translation",
+    "tests.test_ui_i18n_app_core.CastListRenderTests.test_the_real_cast_list_row_translates_its_placeholder_and_names",
+    "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_a_missing_voice_card_key_keeps_its_english",
+    "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_candidate_list_and_trait_badge_translate",
+    "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_ensemble_members_and_state_editor_translate",
+    "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_voice_card_paints_each_locale_and_restores_english"
+  ],
   "test_ui_i18n_editor_audio_reports": [
     "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_each_module_keys_its_safety_confirms",
     "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_panes_are_keyed",

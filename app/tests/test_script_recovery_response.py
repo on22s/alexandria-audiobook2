@@ -44,7 +44,7 @@ class ScriptRecoveryResponseTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync(process.argv[1],'utf8');let posts=[],confirm=false;
 const buttons={};for(const id of ['btn-gen-script','btn-retry-script','btn-cancel-script','btn-pause-script']) buttons[id]={disabled:false,style:{}};
-const ctx={window:{},document:{getElementById:id=>buttons[id]},API:{get:async()=>({legacy_confirmation:{checkpoint_token:'a'.repeat(64),book_token:'b'.repeat(64)}}),post:async(path,data)=>posts.push({path,data})},showConfirm:async()=>confirm,_resetPauseBtn:()=>{},pollScriptLogs:()=>{},refreshScriptRecovery:()=>{},showActionError:()=>{},scriptBatchPoller:null};vm.createContext(ctx);
+const ctx={window:{},document:{getElementById:id=>buttons[id]},API:{get:async()=>({legacy_confirmation:{checkpoint_token:'a'.repeat(64),book_token:'b'.repeat(64)}}),post:async(path,data)=>posts.push({path,data})},showConfirm:async()=>confirm,_resetPauseBtn:()=>{},pollScriptLogs:()=>{},refreshScriptRecovery:()=>{},showActionError:()=>{},scriptBatchPoller:null};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
 vm.runInContext(src.slice(src.indexOf('window.retryScriptGeneration ='),src.indexOf('// --- Script Batch Mode ---')),ctx);
 (async()=>{await ctx.window.retryScriptGeneration();assert.equal(posts.length,0);confirm=true;await ctx.window.retryScriptGeneration();assert.equal(posts.length,1);assert.equal(posts[0].data.legacy_checkpoint_token,'a'.repeat(64));assert.equal(posts[0].data.legacy_book_token,'b'.repeat(64));})().catch(e=>{console.error(e);process.exit(1)});
 """
@@ -56,7 +56,7 @@ vm.runInContext(src.slice(src.indexOf('window.retryScriptGeneration ='),src.inde
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const core=fs.readFileSync(process.argv[1],'utf8'),panel={style:{},innerHTML:''};
-const ctx={window:{},document:{getElementById:()=>panel}};vm.createContext(ctx);
+const ctx={window:{},document:{getElementById:()=>panel}};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(core.slice(core.indexOf('function renderScriptRecovery('),core.indexOf('async function onCopyRecoveryPrompt(')),ctx);
 for(const pass of ['segment','attribute','instruct']){
@@ -189,7 +189,8 @@ const handler=source.slice(source.indexOf('async function refreshScriptRecovery(
   const context={document:{getElementById:id=>id==='btn-retry-script'?retry:panel},console:{debug(){}},
    API:{get:async path=>{calls.push(path);if(mode==='error'){throw new Error('unavailable');}
     return {recoverable:mode!=='none',failed_pass:'segment',detail:mode==='detail'?detail:null};}},
-   showToast:(...args)=>toasts.push(args),renderScriptRecovery:value=>renders.push(value)};
+   showToast:(...args)=>toasts.push(args),renderScriptRecovery:value=>renders.push(value),
+   t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))};
   vm.runInNewContext(handler,context);await context.refreshScriptRecovery();
   assert.deepStrictEqual(calls,['/api/generate_script/recovery?include_detail=true']);
   assert.strictEqual(retry.style.display,(mode==='detail'||mode==='no-detail')?'inline-block':'none');

@@ -225,6 +225,8 @@ const take = (name) => {
     }
     return core.slice(start, i + 1);
 };
+const t = (key, english, values = {}) => Object.keys(values)
+    .reduce((text, name) => text.split(String.fromCharCode(123) + name + String.fromCharCode(125)).join(String(values[name])), String(english));
 eval(take('escapeHtml') + take('getTraitBadgeHtml'));
 process.stdout.write(JSON.stringify([
   getTraitBadgeHtml({gender: 'male', age_group: 'adult', ageless: false, lines: 9,
