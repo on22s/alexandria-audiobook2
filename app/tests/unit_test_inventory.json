@@ -5129,8 +5129,10 @@
     "tests.test_epub_readaloud_sentences.SentenceSpanTests.test_spoken_range_membership_work_is_linear"
   ],
   "test_epub_readaloud_span_groups": [
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_groups_heading_nested_in_its_own_container",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_highlights_group_as_one_block",
-    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_non_sibling_blocks",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_list_items",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_when_wrapper_would_take_other_text",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_book_and_script_apostrophe_styles_may_differ",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_times_each_block_from_its_own_tokens",
     "tests.test_epub_readaloud_span_groups.SpanMappingTests.test_changed_word_inside_group_still_refuses",
