@@ -3905,9 +3905,9 @@
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     <button type="button" class="btn btn-outline-success btn-sm" id="readalong-build-btn" onclick="buildReadalongSidecar()" data-i18n="audio.readalong.build">Build sidecar</button>
                                     <button type="button" class="btn btn-outline-danger btn-sm" id="readalong-cancel-btn" style="display:none" onclick="cancelReadalongSidecar()" data-i18n="audio.readalong.cancel">Cancel</button>
-                                    <a class="btn btn-outline-dark btn-sm" href="/api/readalong/sidecar" download="readalong.sidecar.json" data-i18n="audio.readalong.download-sidecar">Download sidecar</a>
-                                    <a class="btn btn-outline-primary btn-sm" href="/api/readalong/sidecar/audio" download="audiobook.mp3" data-i18n="audio.readalong.download-mp3">Download MP3 (matching)</a>
-                                    <a class="btn btn-outline-secondary btn-sm" href="/api/readalong/player" download="readalong-player.html" data-i18n="audio.readalong.download-player">Download player</a>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readalong/sidecar" data-checked-download download="readalong.sidecar.json" data-i18n="audio.readalong.download-sidecar">Download sidecar</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readalong/sidecar/audio" data-checked-download download="audiobook.mp3" data-i18n="audio.readalong.download-mp3">Download MP3 (matching)</a>
+                                    <a class="btn btn-outline-secondary btn-sm" href="/api/readalong/player" data-checked-download download="readalong-player.html" data-i18n="audio.readalong.download-player">Download player</a>
                                 </div>
                                 <p id="readalong-status" class="small mt-2" role="status" aria-live="polite" data-i18n="audio.readalong.status-default">Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.</p>
                             </details>
@@ -3946,8 +3946,8 @@
                                 <div class="d-flex flex-wrap gap-2 mt-2">
                                     <button type="button" class="btn btn-outline-success btn-sm" id="readaloud-build-btn" onclick="buildReadaloudEpub()" data-i18n="audio.readaloud.build">Build EPUB</button>
                                     <button type="button" class="btn btn-outline-danger btn-sm" id="readaloud-cancel-btn" style="display:none" onclick="cancelReadaloudEpub()" data-i18n="audio.readaloud.cancel">Cancel</button>
-                                    <a class="btn btn-outline-dark btn-sm" href="/api/readaloud_epub" download="readaloud.epub" data-i18n="audio.readaloud.download-epub">Download EPUB</a>
-                                    <a class="btn btn-outline-primary btn-sm" href="/api/readaloud_epub/audio" download="audiobook.mp3" data-i18n="audio.readaloud.download-mp3">Download MP3 (matching)</a>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readaloud_epub" data-checked-download download="readaloud.epub" data-i18n="audio.readaloud.download-epub">Download EPUB</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readaloud_epub/audio" data-checked-download download="audiobook.mp3" data-i18n="audio.readaloud.download-mp3">Download MP3 (matching)</a>
                                 </div>
                                 <p id="readaloud-status" class="small mt-2" role="status" aria-live="polite" data-i18n="audio.readaloud.status-default">Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).</p>
                             </details>
