@@ -28,7 +28,9 @@ PROTECTED = {
     'backticked identifier': re.compile(r'`[^`\n]+`'),
     'API path': re.compile(r'/api/[^\s";)]+'),
     'environment name': re.compile(r'\benv:[A-Za-z_][A-Za-z0-9_]*'),
-    'file extension': re.compile(r'\.[A-Za-z0-9]{1,5}\b'),
+    # A dot after one standalone letter is an abbreviation (e.g., i.e.), not
+    # an extension: forcing it to match made translations keep English 'e.g.'.
+    'file extension': re.compile(r'(?<!\b[A-Za-z])\.[A-Za-z0-9]{1,5}\b'),
 }
 # Terms this UI keeps in English by design; a value equal to its English source
 # is allowed only when the whole value is one of these. A help `*.source` value
@@ -293,6 +295,14 @@ class RealCatalogTests(unittest.TestCase):
                           'setup.strategy.tp-segmentation.help',
                           'setup.tts.tts-external-urls.help'}, set(HTML_KEYS))
 
+
+
+class FileExtensionTokenTests(unittest.TestCase):
+    def test_abbreviations_are_not_extensions_but_real_extensions_are(self):
+        rule = PROTECTED['file extension']
+        self.assertEqual([], rule.findall('Ollama, e.g. LM Studio, i.e. local'))
+        self.assertEqual(['.json'], rule.findall('catalog.json'))
+        self.assertEqual(['.wav', '.mp3'], rule.findall('ref.wav and out.mp3'))
 
 if __name__ == '__main__':
     unittest.main()
