@@ -15,7 +15,7 @@ function fn(name){const start=source.indexOf('function '+name+'(');assert(start>
 const elements={},handlers={},calls=[];
 function element(id){if(!elements[id]){elements[id]={checked:false,value:'4',style:{},addEventListener:(event,callback)=>{handlers[id]=callback;}};}return elements[id];}
 const ctx={document:{getElementById:element,querySelectorAll:()=>[{dataset:{name:'book'}}]},API:{post:async(url,data)=>{calls.push({url,data});return {estimated_calls:1,total_entries:1,batch_size:25};}},confirmIfRemote:async()=>true,_disableReviewButtons:()=>{},_showReviewControls:()=>{},_onReviewDone:()=>{},pollScriptLogs:()=>{},pollReviewBatch:()=>{},_resetPauseBtn:()=>{},showToast:(message)=>{throw Error(message);},escapeHtml:String};
-vm.createContext(ctx);
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
 vm.runInContext(fn('_isReviewDedupeChecked')+'\n'+fn('_isReviewForceChecked')+'\n'+fn('startBatchReview'),ctx);
 const a=source.indexOf("document.getElementById('btn-review-script').addEventListener");
 const b=source.indexOf("document.getElementById('btn-review-script-contextual').addEventListener",a);

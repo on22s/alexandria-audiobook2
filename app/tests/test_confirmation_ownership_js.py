@@ -24,6 +24,9 @@ elements['toast-container']={insertAdjacentHTML(position,html){const id=html.mat
 let failShow=false;
 let delayShow=false;
 const context={document:{getElementById(id){return elements[id];}},Date:{now:()=>123},escapeHtml:value=>value,
+ t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)),
+ formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),
+ tSafety:(key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]),
  bootstrap:{Modal:class {constructor(el){this.el=el;this.hidden=false;this.disposed=false;modals.push(this);}
  show(){if(failShow){failShow=false;throw new Error('show failed');}this.shown=!delayShow;if(this.shown){this.el.emit('shown.bs.modal');}}
  hide(){if(this.shown){this.hidden=true;}}

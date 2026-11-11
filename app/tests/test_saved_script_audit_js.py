@@ -27,7 +27,7 @@ const context = {document:{getElementById: id => {
 API:{post: (url, payload) => new Promise((resolve,reject) => {
     assert.strictEqual(JSON.stringify(payload), '{}'); requests.push({url,resolve,reject});
 })}};
-vm.createContext(context);const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
+vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
 vm.runInContext(source.slice(start, end), context);
 const clean = {counts:{blocking:0,manual_review:0}, findings:[]};
 const risk = {counts:{blocking:1,manual_review:2},findings:[{code:'nonprose_speech_risk',

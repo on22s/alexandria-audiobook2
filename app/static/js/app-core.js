@@ -105,7 +105,7 @@
                 <div id="${id}" class="toast align-items-center ${lightBackground ? 'text-dark fw-medium' : 'text-white'} ${bgClass} border-0" role="${liveRole}" aria-live="${livePriority}" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
-                        <button type="button" class="btn-close${lightBackground ? '' : ' btn-close-white'} me-2 m-auto" ${lightBackground ? 'style="filter: none;"' : ''} data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
+                        <button type="button" class="btn-close${lightBackground ? '' : ' btn-close-white'} me-2 m-auto" ${lightBackground ? 'style="filter: none;"' : ''} data-bs-dismiss="toast" aria-label="${t('core.toast.dismiss', 'Dismiss notification')}"></button>
                     </div>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
@@ -139,15 +139,15 @@
                 // must never be presented as a failed mutation. The
                 // supersession may come from a newer load OR a save/ACK
                 // snapshot change, so no save outcome is claimed here.
-                return 'The Voices display refresh was superseded by a newer local change. Check current Voices before repeating the action.';
+                return t('core.action.superseded', 'The Voices display refresh was superseded by a newer local change. Check current Voices before repeating the action.');
             }
             const english = error?.message || String(error);
             const detail = describeApiError(error);
             const unreachable = !error?.status && /failed to fetch|networkerror|network request failed|load failed/i.test(english);
             const guidance = unreachable
-                ? `Could not reach Alexandria. Check that the app is running and the connection is available. Review the current status before retrying; a request may have completed even if its reply was lost. ${recovery}`
+                ? t('core.action.unreachable', 'Could not reach Alexandria. Check that the app is running and the connection is available. Review the current status before retrying; a request may have completed even if its reply was lost. {recovery}', {recovery})
                 : recovery;
-            return `${action}. ${guidance} Details: ${detail}`;
+            return t('core.action.details', '{action}. {guidance} Details: {detail}', {action, guidance, detail});
         }
 
         // Server refusals carry message_key beside the byte-identical English
@@ -196,7 +196,7 @@
             return translated + '\n' + english;
         }
 
-        function showConfirm(message, {title = 'Confirm action', actionLabel = 'Continue', danger = false} = {}) {
+        function showConfirm(message, {title = t('core.confirm.title', 'Confirm action'), actionLabel = t('core.confirm.continue', 'Continue'), danger = false} = {}) {
             const confirmation = confirmQueue.then(() => new Promise((resolve, reject) => {
                 const body = document.getElementById('confirmModalBody');
                 body.textContent = message;
@@ -255,7 +255,16 @@
         }
 
         let presetEditorPending = false;
-        async function showPresetEditor({title, name = '', description = '', includeDescription = true, validateName = () => '', nameLabel = 'Preset name', descriptionLabel = 'Description (optional)', descriptionPlaceholder = 'When should it be used?', actionLabel = 'Save preset', helperText = 'Enter a name for this preset. Using an existing name replaces that saved preset.', submitValues = null, allowEmptyName = false}) {
+        // The modal's own fallback validation text. English picks "a" or "an"
+        // from the label; the two keys exist so each locale can word the
+        // sentence its own way instead of receiving an English article.
+        function getPresetNameRequiredMessage(nameLabel) {
+            return /^[aeiou]/i.test(nameLabel)
+                ? t('core.preset.enter-name.an', 'Enter an {label}.', {label: nameLabel.toLowerCase()})
+                : t('core.preset.enter-name.a', 'Enter a {label}.', {label: nameLabel.toLowerCase()});
+        }
+
+        async function showPresetEditor({title, name = '', description = '', includeDescription = true, validateName = () => '', nameLabel = t('core.preset.name', 'Preset name'), descriptionLabel = t('core.preset.description', 'Description (optional)'), descriptionPlaceholder = t('core.preset.description-placeholder', 'When should it be used?'), actionLabel = t('core.preset.save', 'Save preset'), helperText = t('core.preset.helper', 'Enter a name for this preset. Using an existing name replaces that saved preset.'), submitValues = null, allowEmptyName = false}) {
             if (presetEditorPending) { return null; }
             presetEditorPending = true;
             const editing = confirmQueue.then(() => new Promise((resolve, reject) => {
@@ -298,7 +307,7 @@
                         finish({...values, receipt});
                     } catch (failure) {
                         console.error('Text dialog submission failed', failure);
-                        error.textContent = failure.message || 'The change was not confirmed. Check the app connection before trying again.';
+                        error.textContent = failure.message || t('core.preset.unconfirmed', 'The change was not confirmed. Check the app connection before trying again.');
                     } finally { setSubmitting(false); }
                 }
                 function cleanup() {
@@ -318,7 +327,7 @@
                     event.preventDefault();
                     if (answered || submitting) { return; }
                     const value = nameField.value.trim();
-                    const message = value || allowEmptyName ? validateName(value) : `Enter ${/^[aeiou]/i.test(nameLabel) ? 'an' : 'a'} ${nameLabel.toLowerCase()}.`;
+                    const message = value || allowEmptyName ? validateName(value) : getPresetNameRequiredMessage(nameLabel);
                     if (message) {
                         error.textContent = message;
                         nameField.setAttribute('aria-invalid', 'true');
@@ -353,7 +362,7 @@
         }
 
         async function reloadPageAfterConfirmation() {
-            if (!await showConfirm('Reload the page? Unsaved changes may be lost.', {title: 'Reload page?', actionLabel: 'Reload', danger: true})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.core.reload', 'Reload the page? Unsaved changes may be lost.'), {title: t('safety.core.reload.title', 'Reload page?'), actionLabel: t('core.confirm.reload', 'Reload'), danger: true})) { return; }
             location.reload();
         }
 
@@ -363,18 +372,14 @@
             if (failoverOnly && !failoverIsRemote) { return true; }
             if (currentIsRemote) {
                 return await showConfirm(
-                    `This will run ${taskLabel} on your REMOTE LLM profile and may incur usage ` +
-                    `charges from your provider. Continue on remote, or Cancel and switch ` +
-                    `to Local in Setup first?`,
-                    {title: 'Remote usage charges', actionLabel: 'Continue on remote', danger: false});
+                    t('core.remote.charges', 'This will run {task} on your REMOTE LLM profile and may incur usage charges from your provider. Continue on remote, or Cancel and switch to Local in Setup first?', {task: taskLabel}),
+                    {title: t('core.remote.charges.title', 'Remote usage charges'), actionLabel: t('core.remote.charges.action', 'Continue on remote'), danger: false});
             }
             if (failoverIsRemote) {
                 // Server-computed: failover is on and the other profile is remote.
                 return await showConfirm(
-                    `${taskLabel} runs on Local, but failover is on: if Local gives up (retries run out ` +
-                    `or a content-policy refusal) the rest of the run switches to your REMOTE LLM and ` +
-                    `may incur usage charges from your provider. Continue, or Cancel and turn failover off in Setup?`,
-                    {title: 'Remote failover charges', actionLabel: 'Continue with failover', danger: false});
+                    t('core.remote.failover', '{task} runs on Local, but failover is on: if Local gives up (retries run out or a content-policy refusal) the rest of the run switches to your REMOTE LLM and may incur usage charges from your provider. Continue, or Cancel and turn failover off in Setup?', {task: taskLabel}),
+                    {title: t('core.remote.failover.title', 'Remote failover charges'), actionLabel: t('core.remote.failover.action', 'Continue with failover'), danger: false});
             }
             return true;
         }
@@ -389,7 +394,7 @@
                 return approved;
             } catch (error) {
                 console.error('Script start confirmation failed:', error);
-                showToast('Could not confirm this script run. Check the connection and try again.', 'error');
+                showToast(t('script.run.confirm-failed', 'Could not confirm this script run. Check the connection and try again.'), 'error');
                 return false;
             } finally {
                 if (!approved) { button.disabled = false; }
@@ -408,7 +413,7 @@
                 const element = document.getElementById('manualCopyModal');
                 const field = document.getElementById('manual-copy-text');
                 const close = document.getElementById('manual-copy-close');
-                document.getElementById('manualCopyTitle').textContent = `Copy ${what} manually`;
+                document.getElementById('manualCopyTitle').textContent = t('core.copy.manual-title', 'Copy {what} manually', {what});
                 field.value = text;
                 const modal = new bootstrap.Modal(element);
                 let shown = false;
@@ -443,11 +448,11 @@
             return copying;
         }
 
-        async function copyToClipboard(text, what = 'Text') {
+        async function copyToClipboard(text, what = t('core.copy.default-subject', 'Text')) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 try {
                     await navigator.clipboard.writeText(text);
-                    showToast(`${what} copied to the clipboard.`, 'success');
+                    showToast(t('core.copy.copied', '{what} copied to the clipboard.', {what}), 'success');
                     return true;
                 } catch (e) { /* fall through to the legacy path */ }
             }
@@ -462,7 +467,7 @@
             try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
             document.body.removeChild(area);
             if (copied) {
-                showToast(`${what} copied to the clipboard.`, 'success');
+                showToast(t('core.copy.copied', '{what} copied to the clipboard.', {what}), 'success');
                 return true;
             }
             await showManualCopy(text, what);
@@ -540,7 +545,7 @@
             if (!raw) { return null; }
             const value = Number(raw);
             if (!Number.isFinite(value)) {
-                throw getConfigValidationError(id, label + ' must be a number.');
+                throw getConfigValidationError(id, t('core.field.number', '{label} must be a number.', {label}));
             }
             return value;
         }
@@ -548,7 +553,7 @@
         function getOptionalTokenInput(id, label) {
             const value = getOptionalNumberInput(id, label);
             if (value !== null && (!Number.isSafeInteger(value) || value <= 0)) {
-                throw getConfigValidationError(id, label + ' must be a positive whole number or blank.');
+                throw getConfigValidationError(id, t('core.field.token', '{label} must be a positive whole number or blank.', {label}));
             }
             return value;
         }
@@ -559,14 +564,14 @@
                 const value = getOptionalNumberInput(id, label);
                 if (value === null) { return def; }
                 if (!Number.isSafeInteger(value) || value < 1 || value > 500) {
-                    throw getConfigValidationError(id, label + ' must be a whole number from 1 to 500.');
+                    throw getConfigValidationError(id, t('core.design.range', '{label} must be a whole number from 1 to 500.', {label}));
                 }
                 return value;
             };
-            const min = read('design-text-min-chars', 'Voice Design text minimum', 12);
-            const max = read('design-text-max-chars', 'Voice Design text maximum', 500);
+            const min = read('design-text-min-chars', t('core.design.text-min', 'Voice Design text minimum'), 12);
+            const max = read('design-text-max-chars', t('core.design.text-max', 'Voice Design text maximum'), 500);
             if (min > max) {
-                throw getConfigValidationError('design-text-min-chars', 'Voice Design text minimum is larger than the maximum.');
+                throw getConfigValidationError('design-text-min-chars', t('core.design.min-over-max', 'Voice Design text minimum is larger than the maximum.'));
             }
             return {design_text_min_chars: min, design_text_max_chars: max};
         }
@@ -574,13 +579,13 @@
         function getIntListInput(id, label, def) {
             const raw = document.getElementById(id).value.trim();
             if (!raw) { return def; }
-            const tokens = raw.split(',').map(t => t.trim());
-            if (tokens.some(t => !/^[1-9]\d*$/.test(t))) {
-                throw getConfigValidationError(id, `${label}: use positive whole numbers separated by commas.`);
+            const tokens = raw.split(',').map(token => token.trim());
+            if (tokens.some(token => !/^[1-9]\d*$/.test(token))) {
+                throw getConfigValidationError(id, t('core.field.int-list', '{label}: use positive whole numbers separated by commas.', {label}));
             }
             const values = tokens.map(Number);
-            if (values.some(v => !Number.isSafeInteger(v))) {
-                throw getConfigValidationError(id, `${label}: use positive whole numbers separated by commas.`);
+            if (values.some(value => !Number.isSafeInteger(value))) {
+                throw getConfigValidationError(id, t('core.field.int-list', '{label}: use positive whole numbers separated by commas.', {label}));
             }
             return values;
         }
@@ -608,6 +613,9 @@
         }
 
         // --- Desktop notifications ---
+        // The English labels stay here as data; getTaskLabel() translates at use
+        // time, because this map is created once at load and a locale switch
+        // must change the next notification rather than only a reload.
         const TASK_LABELS = {
             script: 'Script generation',
             review: 'Script review',
@@ -630,6 +638,37 @@
             audacity_export: 'Audacity export',
             m4b_export: 'M4B export',
         };
+
+        // The authored English above also reaches app-workspace.js's task list,
+        // which is why it stays a map; a translated label is produced here, at
+        // use time, since the map is built once at load. The literals below are
+        // the catalog source the harvest reads, and this module's test pins each
+        // one equal to TASK_LABELS so the two cannot drift (Rule 15).
+        function getTaskLabel(taskName) {
+            switch (taskName) {
+                case 'script': return t('core.task-label.script', 'Script generation');
+                case 'review': return t('core.task-label.review', 'Script review');
+                case 'word_timing': return t('core.task-label.word-timing', 'Word timing');
+                case 'speech_verification': return t('core.task-label.speech-verification', 'Speech verification');
+                case 'outlier_check': return t('core.task-label.outlier-check', 'Acoustic outlier check');
+                case 'nicknames': return t('core.task-label.nicknames', 'Nickname discovery');
+                case 'cast_list': return t('core.task-label.cast-list', 'Cast list');
+                case 'persona': return t('core.task-label.persona', 'Persona generation');
+                case 'audio': return t('core.task-label.audio', 'Audio generation');
+                case 'batch_review': return t('core.task-label.batch-review', 'Batch review');
+                case 'batch_script': return t('core.task-label.batch-script', 'Batch script generation');
+                case 'lora_training': return t('core.task-label.lora-training', 'LoRA training');
+                case 'voicelab': return t('core.task-label.voicelab', 'Voice Lab pipeline');
+                case 'preparer': return t('core.task-label.preparer', 'Dataset preparer');
+                case 'batch_preparer': return t('core.task-label.batch-preparer', 'Dataset preparer batch');
+                case 'dataset_builder': return t('core.task-label.dataset-builder', 'Dataset builder batch');
+                case 'book_preflight': return t('core.task-label.book-preflight', 'Book test');
+                case 'benchmark': return t('core.task-label.benchmark', 'Benchmark');
+                case 'audacity_export': return t('core.task-label.audacity-export', 'Audacity export');
+                case 'm4b_export': return t('core.task-label.m4b-export', 'M4B export');
+                default: return taskName;
+            }
+        }
 
         // The one label map for the task-status vocabulary the server sends for
         // per-stage progress (Preparer batch rows, Voice Lab stage pills). One
@@ -663,10 +702,10 @@
             if (!('Notification' in window) || Notification.permission !== 'granted') { return; }
             if (document.visibilityState === 'visible' && document.hasFocus()) { return; }
             const completion = status ? getTaskCompletionOutcome(status) : outcome;
-            const title = `${TASK_LABELS[taskName] || taskName} ${completion}`;
+            const title = `${getTaskLabel(taskName)} ${completion}`;
             const message = detail || (completion === 'failed' || completion === 'cancelled'
-                ? 'Open Alexandria to review the activity log and your recovery options.'
-                : 'Switch back to Alexandria to see the results.');
+                ? t('core.notify.failed-body', 'Open Alexandria to review the activity log and your recovery options.')
+                : t('core.notify.finished-body', 'Switch back to Alexandria to see the results.'));
             try {
                 new Notification(title, { body: message, icon: '/favicon.ico' });
             } catch (e) { /* notifications are a nice-to-have */ }
@@ -682,13 +721,13 @@
             const supported = 'Notification' in window;
             const permission = supported ? Notification.permission : 'unsupported';
             button.disabled = notificationPermissionPending || permission !== 'default';
-            button.textContent = notificationPermissionPending ? 'Requesting notifications…'
-                : permission === 'granted' ? 'Notifications enabled' : 'Enable task notifications';
+            button.textContent = notificationPermissionPending ? t('core.notify.requesting', 'Requesting notifications…')
+                : permission === 'granted' ? t('core.notify.enabled', 'Notifications enabled') : t('core.notify.enable', 'Enable task notifications');
             status.textContent = permission === 'granted'
-                ? 'Task updates appear when you are away from Alexandria.'
-                : permission === 'denied' ? 'Notifications are blocked. Change this site’s browser permissions to enable them.'
-                    : permission === 'unsupported' ? 'This browser does not support desktop notifications.'
-                        : 'Optional: receive desktop updates when tasks finish.';
+                ? t('core.notify.status-granted', 'Task updates appear when you are away from Alexandria.')
+                : permission === 'denied' ? t('core.notify.status-denied', 'Notifications are blocked. Change this site’s browser permissions to enable them.')
+                    : permission === 'unsupported' ? t('core.notify.status-unsupported', 'This browser does not support desktop notifications.')
+                        : t('core.notify.status-default', 'Optional: receive desktop updates when tasks finish.');
         }
 
         async function requestTaskNotifications() {
@@ -698,7 +737,7 @@
             try {
                 await Notification.requestPermission();
             } catch (error) {
-                showToast('Could not request notifications. Check this site’s browser permissions and try again.', 'warning');
+                showToast(t('core.notify.request-failed', 'Could not request notifications. Check this site’s browser permissions and try again.'), 'warning');
             } finally {
                 notificationPermissionPending = false;
                 renderNotificationPermission();
@@ -2944,7 +2983,7 @@
         // copy the try/catch+toast pattern by hand.
         async function cancelTask(url, {
             onSuccess,
-            errorMessage = (e) => getActionErrorMessage('Cancellation was not confirmed', e, 'Check the current task state before cancelling again; work may still be running.'),
+            errorMessage = (e) => getActionErrorMessage(t('core.cancel.not-confirmed', 'Cancellation was not confirmed'), e, t('core.cancel.recovery', 'Check the current task state before cancelling again; work may still be running.')),
             toastType = 'warning',
         } = {}) {
             try {
@@ -2975,20 +3014,20 @@
             scriptCancellationRequests.set(taskName, operation);
             button.disabled = true;
             hint.hidden = false;
-            hint.textContent = `Requesting cancellation of ${label}…`;
+            hint.textContent = t('script.cancel.requesting', 'Requesting cancellation of {task}…', {task: label});
             const accepted = await cancelTask(url, {
                 onSuccess: (result) => {
                     if (scriptCancellationRequests.get(taskName) !== operation) { return; }
                     _resetPauseBtn(pauseId);
                     hint.textContent = ['published_cleanup_stop', 'published_cleanup_stop_requested'].includes(result?.status)
-                        ? 'The script was already published. Waiting for its worker to stop.'
-                        : `Cancelling ${label}… Waiting for the worker to stop.`;
+                        ? t('script.cancel.published', 'The script was already published. Waiting for its worker to stop.')
+                        : t('script.cancel.stopping', 'Cancelling {task}… Waiting for the worker to stop.', {task: label});
                 },
             });
             if (!accepted && scriptCancellationRequests.get(taskName) === operation) {
                 operation.pending = false;
                 button.disabled = false;
-                hint.textContent = `Cancellation of ${label} was not confirmed. Check the task activity before trying again; work may still be running.`;
+                hint.textContent = t('safety.script.cancel_unconfirmed', 'Cancellation of {task} was not confirmed. Check the task activity before trying again; work may still be running.', {task: label});
             }
             return accepted;
         }
@@ -2997,7 +3036,7 @@
         // uses, for callers (debounced autosaves) that POST a real body and
         // so can't go through cancelTask itself, which always posts {}.
         function _toastSaveError(action, e) {
-            showActionError(`Failed to save ${action}`, e, 'Review the current saved settings and task state before retrying this action.', 'warning');
+            showActionError(t('core.save.failed', 'Failed to save {action}', {action}), e, t('core.save.recovery', 'Review the current saved settings and task state before retrying this action.'), 'warning');
         }
 
         function _makePauseResumeHandler(pauseUrl, resumeUrl, btnId) {
@@ -3026,26 +3065,26 @@
                     try {
                         const taskName = Object.keys(PAUSE_BUTTON_FOR_TASK)
                             .find(task => PAUSE_BUTTON_FOR_TASK[task] === btnId);
-                        if (!taskName) { throw new Error('Unknown pause task'); }
+                        if (!taskName) { throw new Error(t('core.pause.unknown-task', 'Unknown pause task')); }
                         const status = await API.get(`/api/status/${taskName}`);
                         paused = !!status.paused;
                     } catch (e) {
-                        showActionError('Task status check failed', e, 'Wait for a current status update before trying Pause or Resume again.', 'warning');
+                        showActionError(t('core.pause.status-failed', 'Task status check failed'), e, t('core.pause.status-recovery', 'Wait for a current status update before trying Pause or Resume again.'), 'warning');
                         return;
                     }
                     if (!paused) {
                         await postWithRetry(pauseUrl);
-                        btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                        btn.innerHTML = `<i class="fas fa-play me-1"></i>${t('core.pause.resume', 'Resume')}`;
                         btn.classList.remove('btn-outline-warning');
                         btn.classList.add('btn-outline-success');
                     } else {
                         await postWithRetry(resumeUrl);
-                        btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+                        btn.innerHTML = `<i class="fas fa-pause me-1"></i>${t('core.pause.pause', 'Pause')}`;
                         btn.classList.remove('btn-outline-success');
                         btn.classList.add('btn-outline-warning');
                     }
                 } catch (e) {
-                    showActionError((paused ? 'Resume' : 'Pause') + ' was not confirmed', e, 'Check the current task state before trying Pause or Resume again.', 'warning');
+                    showActionError(t('core.pause.not-confirmed', '{action} was not confirmed', {action: paused ? t('core.pause.resume', 'Resume') : t('core.pause.pause', 'Pause')}), e, t('core.pause.recovery', 'Check the current task state before trying Pause or Resume again.'), 'warning');
                 } finally {
                     btn.disabled = false;
                 }
@@ -3064,22 +3103,22 @@
         window.snapshotScript = async () => {
             const suggested = `${getCurrentBookName()} snapshot ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
             const book = currentBookFilename;
-            const values = await showPresetEditor({title: 'Save snapshot', name: suggested, includeDescription: false,
-                nameLabel: 'Snapshot name', actionLabel: 'Save snapshot',
-                helperText: 'Save the finished part of this run to the library as:'});
+            const values = await showPresetEditor({title: t('script.snapshot.save-title', 'Save snapshot'), name: suggested, includeDescription: false,
+                nameLabel: t('script.snapshot.name', 'Snapshot name'), actionLabel: t('script.snapshot.save-title', 'Save snapshot'),
+                helperText: t('script.snapshot.helper', 'Save the finished part of this run to the library as:')});
             if (!values) { return; }
-            if (book !== currentBookFilename) { showToast('The book changed. Review it before saving a snapshot.', 'warning'); return; }
+            if (book !== currentBookFilename) { showToast(t('safety.script.snapshot_book_changed', 'The book changed. Review it before saving a snapshot.'), 'warning'); return; }
             const name = values.name;
             try {
                 const res = await API.post('/api/generate_script/snapshot', { name });
-                showToast(`Snapshot "${res.name}" saved: ${res.entries} finished lines (${res.chunks_done} chunks split). To work on it now, cancel this run (Generate resumes it later) and load the snapshot from the library.`, 'success', 12000);
+                showToast(t('script.snapshot.saved', 'Snapshot "{name}" saved: {lines} finished lines ({chunks} chunks split). To work on it now, cancel this run (Generate resumes it later) and load the snapshot from the library.', {name: res.name, lines: res.entries, chunks: res.chunks_done}), 'success', 12000);
             } catch (e) {
-                showActionError('Snapshot save was not confirmed', e, 'Check the saved snapshots before saving another copy.', 'warning');
+                showActionError(t('script.snapshot.unconfirmed', 'Snapshot save was not confirmed'), e, t('script.snapshot.recovery', 'Check the saved snapshots before saving another copy.'), 'warning');
             }
         };
 
         window.cancelScript = () => requestScriptCancellation('script', '/api/generate_script/cancel',
-            'btn-cancel-script', 'btn-pause-script', 'script generation');
+            'btn-cancel-script', 'btn-pause-script', t('script.cancel.task-script', 'script generation'));
         window.pauseResumeScript      = _scriptPauseResume;
 
         async function refreshScriptRecovery() {
@@ -3089,10 +3128,10 @@
                 const recovery = await API.get('/api/generate_script/recovery?include_detail=true');
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
                 if (recovery.recoverable) {
-                    const location = recovery.failed_pass
-                        ? ` at ${recovery.failed_pass}`
-                        : '';
-                    showToast(`Generation can resume from its checkpoint${location}.`, 'warning');
+                    const resumeAtPass = recovery.failed_pass
+                        ? t('script.recovery.can-resume-at', 'Generation can resume from its checkpoint at {pass}.', {pass: recovery.failed_pass})
+                        : t('script.recovery.can-resume', 'Generation can resume from its checkpoint.');
+                    showToast(resumeAtPass, 'warning');
                     renderScriptRecovery(recovery.detail || null);
                 } else {
                     renderScriptRecovery(null);
@@ -3128,39 +3167,39 @@
                     <td>${escapeHtml(a.outcome || '')}</td>
                     <td>${a.http_status != null ? escapeHtml(String(a.http_status)) : '—'}</td>
                     <td>${escapeHtml(a.error_category || (a.failure_codes || []).join(', ') || '')}</td>
-                    <td>${a.finish_reason ? escapeHtml(a.finish_reason) : ''}${a.completion_tokens != null ? ` · ${a.completion_tokens} tok` : ''}</td>
-                    <td>${a.next_retry_seconds != null ? escapeHtml(String(a.next_retry_seconds)) + ' s' : '—'}</td>
+                    <td>${a.finish_reason ? escapeHtml(a.finish_reason) : ''}${a.completion_tokens != null ? ' · ' + escapeHtml(t('script.recovery.tokens-unit', '{count} tok', {count: a.completion_tokens})) : ''}</td>
+                    <td>${a.next_retry_seconds != null ? escapeHtml(t('script.recovery.seconds-unit', '{count} s', {count: a.next_retry_seconds})) : '—'}</td>
                     <td class="text-truncate" style="max-width: 24em;" title="${escapeHtml(a.error || '')}">${escapeHtml(a.error || '')}</td>
                 </tr>`).join('');
             const profile = detail.retry_profile || {};
             const isAttribute = detail.failed_pass === 'attribute';
             const where = isAttribute
-                ? `batch of ${(detail.batch_entries || []).length} entries (script entries ${escapeHtml(String((detail.batch_indices || [])[0] ?? '?'))}–${escapeHtml(String((detail.batch_indices || []).slice(-1)[0] ?? '?'))})`
-                : `chunk ${escapeHtml(String(detail.failed_chunk))} of ${escapeHtml(String(detail.chunks_total))}`;
+                ? escapeHtml(t('script.recovery.where-batch', 'batch of {entries} entries (script entries {first}–{last})', {entries: (detail.batch_entries || []).length, first: String((detail.batch_indices || [])[0] ?? '?'), last: String((detail.batch_indices || []).slice(-1)[0] ?? '?')}))
+                : escapeHtml(t('script.recovery.where-chunk', 'chunk {chunk} of {total}', {chunk: String(detail.failed_chunk), total: String(detail.chunks_total)}));
             const pasteHint = isAttribute
-                ? 'Speakers JSON — <code>[{"n":0,"speaker":"NAME"}, …]</code>, one per batch entry (n as shown), NARRATOR lines stay NARRATOR'
-                : 'Segmentation JSON — <code>[{"type":"NARRATOR"|"SPOKEN","text":"..."}]</code>, every word of the source, in order';
-            const skipLabel = isAttribute ? 'Mark speakers UNKNOWN' : 'Narrate as-is';
+                ? `${t('script.recovery.attribute-hint', 'Speakers JSON, one per batch entry (n as shown). NARRATOR lines stay NARRATOR.')} <code>[{"n":0,"speaker":"NAME"}, …]</code>`
+                : `${t('script.recovery.segment-hint', 'Segmentation JSON, every word of the source, in order.')} <code>[{"type":"NARRATOR"|"SPOKEN","text":"..."}]</code>`;
+            const skipLabel = isAttribute ? t('script.recovery.skip-attribute', 'Mark speakers UNKNOWN') : t('script.recovery.skip-segment', 'Narrate as-is');
             panel.style.display = '';
             panel.innerHTML = `
-                <div class="card-header"><strong>Script generation needs your help</strong></div>
+                <div class="card-header"><strong>${t('script.recovery.title', 'Script generation needs your help')}</strong></div>
                 <div class="card-body">
-                    <p>Generation stopped because the model did not return a usable result. Review this section, then retry, use Copy prompt with another model, paste a result for validation, or use the fallback action below.</p>
+                    <p>${t('script.recovery.intro', 'Generation stopped because the model did not return a usable result. Review this section, then retry, use Copy prompt with another model, paste a result for validation, or use the fallback action below.')}</p>
                     <details class="mb-3">
-                        <summary>Technical details</summary>
-                    <strong><i class="fas fa-triangle-exclamation me-1"></i>Generation stopped at ${escapeHtml(detail.failed_pass || 'segment')} · ${where}</strong>
-                    <span class="small text-muted">${escapeHtml(String(detail.chunks_done))} chunks accepted · retries ${escapeHtml(String(profile.api_retry_limit ?? 'default'))}, backoff ${escapeHtml(String(profile.retry_initial_delay_seconds))}s ×${escapeHtml(String(profile.retry_multiplier))} ±${Math.round((profile.retry_jitter || 0) * 100)}%, on exhaustion: ${escapeHtml(profile.on_api_exhaustion || 'fail')}</span>
-                    <div class="small mb-2">Last error: <strong>${escapeHtml(last.category || (detail.failure_codes || []).join(', ') || detail.reason || 'unknown')}</strong>${last.http_status != null ? ` (HTTP ${escapeHtml(String(last.http_status))})` : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}${isAttribute && detail.roster ? `<br>Roster: ${escapeHtml(detail.roster.join(', '))}` : ''}</div>
+                        <summary>${t('script.recovery.technical', 'Technical details')}</summary>
+                    <strong><i class="fas fa-triangle-exclamation me-1"></i>${escapeHtml(t('script.recovery.stopped-at', 'Generation stopped at {pass} · {where}', {pass: detail.failed_pass || t('script.recovery.pass-segment', 'segment'), where}))}</strong>
+                    <span class="small text-muted">${escapeHtml(t('script.recovery.profile-line', '{done} chunks accepted · retries {limit}, backoff {seconds}s ×{multiplier} ±{jitter}%, on exhaustion: {mode}', {done: String(detail.chunks_done), limit: String(profile.api_retry_limit ?? t('script.recovery.default', 'default')), seconds: String(profile.retry_initial_delay_seconds), multiplier: String(profile.retry_multiplier), jitter: Math.round((profile.retry_jitter || 0) * 100), mode: profile.on_api_exhaustion || 'fail'}))}</span>
+                    <div class="small mb-2">${escapeHtml(t('script.recovery.last-error', 'Last error: {category}', {category: last.category || (detail.failure_codes || []).join(', ') || detail.reason || t('script.recovery.unknown', 'unknown')}))}${last.http_status != null ? ' ' + escapeHtml(t('script.recovery.http', '(HTTP {status})', {status: String(last.http_status)})) : ''}${last.error ? ` — ${escapeHtml(last.error)}` : ''}${isAttribute && detail.roster ? `<br>${escapeHtml(t('script.recovery.roster', 'Roster: {names}', {names: detail.roster.join(', ')}))}` : ''}</div>
                     <div class="table-responsive mb-2">
                         <table class="table table-sm small mb-0">
-                            <thead><tr><th>#</th><th>Outcome</th><th>HTTP</th><th>Category / codes</th><th>Finish</th><th>Next retry</th><th>Error</th></tr></thead>
-                            <tbody>${attemptRows || '<tr><td colspan="7" class="text-muted">No attempt records for this chunk.</td></tr>'}</tbody>
+                            <thead><tr><th>#</th><th>${t('script.recovery.col-outcome', 'Outcome')}</th><th>${t('script.recovery.col-http', 'HTTP')}</th><th>${t('script.recovery.col-category', 'Category / codes')}</th><th>${t('script.recovery.col-finish', 'Finish')}</th><th>${t('script.recovery.col-retry', 'Next retry')}</th><th>${t('script.recovery.col-error', 'Error')}</th></tr></thead>
+                            <tbody>${attemptRows || `<tr><td colspan="7" class="text-muted">${t('script.recovery.no-attempts', 'No attempt records for this chunk.')}</td></tr>`}</tbody>
                         </table>
                     </div>
                     </details>
                     <div class="row g-2">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">${isAttribute ? 'Batch entries' : 'Source chunk'}</label>
+                            <label class="form-label small mb-1">${isAttribute ? t('script.recovery.batch-entries', 'Batch entries') : t('script.recovery.source-chunk', 'Source chunk')}</label>
                             <textarea class="form-control font-monospace" rows="8" readonly style="font-size: 0.8em;">${escapeHtml(detail.source || '')}</textarea>
                         </div>
                         <div class="col-md-6">
@@ -3170,9 +3209,9 @@
                     </div>
                     <div id="script-recovery-findings" class="small text-danger mt-2"></div>
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                        <button class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"><i class="fas fa-rotate-right me-1"></i>Retry this chunk</button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="onCopyRecoveryPrompt()"><i class="fas fa-copy me-1"></i>Copy prompt</button>
-                        <button class="btn btn-sm btn-outline-success" onclick="onInjectRecoverySegmentation()"><i class="fas fa-file-import me-1"></i>Validate &amp; apply segmentation</button>
+                        <button class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"><i class="fas fa-rotate-right me-1"></i>${t('script.recovery.retry', 'Retry this chunk')}</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="onCopyRecoveryPrompt()"><i class="fas fa-copy me-1"></i>${t('script.recovery.copy-prompt', 'Copy prompt')}</button>
+                        <button class="btn btn-sm btn-outline-success" onclick="onInjectRecoverySegmentation()"><i class="fas fa-file-import me-1"></i>${t('script.recovery.apply-segmentation', 'Validate & apply segmentation')}</button>
                         <button class="btn btn-sm btn-outline-warning" onclick="onSkipRecoveryChunk()"><i class="fas fa-forward me-1"></i>${skipLabel}</button>
                     </div>
                 </div>`;
@@ -3184,7 +3223,7 @@
                 return;
             }
             const text = `SYSTEM:\n${detail.prompt.system}\n\nUSER:\n${detail.prompt.user}`;
-            await copyToClipboard(text, 'Prompt');
+            await copyToClipboard(text, t('core.copy.subject-prompt', 'Prompt'));
         }
 
         function renderRecoveryFindings(detail) {
@@ -3196,8 +3235,8 @@
                 el.innerHTML = '';
                 return;
             }
-            const findings = (detail.findings || []).map(f => `<li>${escapeHtml(f.message || f.code || JSON.stringify(f))}${f.entry_number ? ` (entry ${escapeHtml(String(f.entry_number))})` : ''}</li>`).join('');
-            el.innerHTML = `<div>${escapeHtml(detail.message || 'Rejected.')}</div>${findings ? `<ul class="mb-0">${findings}</ul>` : ''}`;
+            const findings = (detail.findings || []).map(f => `<li>${escapeHtml(f.message || f.code || JSON.stringify(f))}${f.entry_number ? ` ${escapeHtml(t('script.recovery.entry-number', '(entry {number})', {number: String(f.entry_number)}))}` : ''}</li>`).join('');
+            el.innerHTML = `<div>${escapeHtml(detail.message || t('script.recovery.rejected', 'Rejected.'))}</div>${findings ? `<ul class="mb-0">${findings}</ul>` : ''}`;
         }
 
         async function onInjectRecoverySegmentation() {
@@ -3210,17 +3249,17 @@
             try {
                 entries = JSON.parse(box.value);
             } catch (e) {
-                renderRecoveryFindings({ message: 'Not valid JSON: ' + e.message });
+                renderRecoveryFindings({ message: t('script.recovery.not-json', 'Not valid JSON: {message}', {message: e.message}) });
                 return;
             }
             if (!Array.isArray(entries)) {
-                renderRecoveryFindings({ message: 'Expected a JSON array of {type, text} entries.' });
+                renderRecoveryFindings({ message: t('script.recovery.expected-array', 'Expected a JSON array of entries, each with a type and a text.') });
                 return;
             }
             try {
                 const result = await API.post('/api/generate_script/inject', { chunk: detail.failed_chunk, entries });
                 renderRecoveryFindings(null);
-                showToast(`Accepted (${result.resolution}). Resume to continue.`, 'success');
+                showToast(t('script.recovery.accepted', 'Accepted ({resolution}). Resume to continue.', {resolution: result.resolution}), 'success');
                 await refreshScriptRecovery();
             } catch (e) {
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
@@ -3233,19 +3272,19 @@
                 return;
             }
             const question = detail.failed_pass === 'attribute'
-                ? 'Label every spoken line in this batch UNKNOWN and continue? You can fix speakers in the Editor afterwards.'
-                : `Put chunk ${detail.failed_chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.`;
+                ? t('script.recovery.skip-question-attribute', 'Label every spoken line in this batch UNKNOWN and continue? You can fix speakers in the Editor afterwards.')
+                : t('script.recovery.skip-question-segment', 'Put chunk {chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.', {chunk: detail.failed_chunk});
             const book = currentBookFilename;
             const chunk = detail.failed_chunk;
             const pass = detail.failed_pass;
-            if (!await showConfirm(question, {title: 'Continue with fallback script?', actionLabel: 'Use fallback', danger: false})) { return; }
+            if (!await showConfirm(question, {title: t('script.recovery.fallback-title', 'Continue with fallback script?'), actionLabel: t('script.recovery.fallback-action', 'Use fallback'), danger: false})) { return; }
             if (book !== currentBookFilename || window._scriptRecoveryDetail !== detail
                 || detail.failed_chunk !== chunk || detail.failed_pass !== pass) {
-                showToast('The book or recovery section changed. Review the latest recovery details before continuing.', 'warning'); return;
+                showToast(t('safety.script.recovery_changed_review', 'The book or recovery section changed. Review the latest recovery details before continuing.'), 'warning'); return;
             }
             try {
                 const result = await API.post('/api/generate_script/skip', { chunk });
-                showToast(`Accepted (${result.resolution}). Resume to continue.`, 'success');
+                showToast(t('script.recovery.accepted', 'Accepted ({resolution}). Resume to continue.', {resolution: result.resolution}), 'success');
                 await refreshScriptRecovery();
             } catch (e) {
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
@@ -3263,8 +3302,8 @@
                 const payload = {};
                 if (recovery.legacy_confirmation) {
                     const confirmed = await showConfirm(
-                        'This older checkpoint does not record which book it belongs to. Resume only if you recognize it as progress for the currently selected book. The source and generation settings must still match.',
-                        {title: 'Confirm older checkpoint', actionLabel: 'Resume this checkpoint'});
+                        formatUiSafetyText('safety.script.legacy_checkpoint', 'This older checkpoint does not record which book it belongs to. Resume only if you recognize it as progress for the currently selected book. The source and generation settings must still match.'),
+                        {title: t('safety.script.legacy_checkpoint.title', 'Confirm older checkpoint'), actionLabel: t('script.recovery.resume-checkpoint', 'Resume this checkpoint')});
                     if (!confirmed) { return; }
                     payload.legacy_checkpoint_token = recovery.legacy_confirmation.checkpoint_token;
                     payload.legacy_book_token = recovery.legacy_confirmation.book_token;
@@ -3282,7 +3321,7 @@
                     refreshScriptRecovery();
                 });
             } catch (e) {
-                showActionError('Script resume was not confirmed', e, 'Check the Script task state, recovery panel and Test Connection in Setup before resuming again.', 'warning');
+                showActionError(t('script.recovery.resume-failed', 'Script resume was not confirmed'), e, t('script.recovery.resume-recovery', 'Check the Script task state, recovery panel and Test Connection in Setup before resuming again.'), 'warning');
                 refreshScriptRecovery();
             } finally {
                 retryBtn.disabled = false;
@@ -3307,7 +3346,7 @@
                 idPrefix: 'script-batch-upload-',
                 keyField: 'filename',
                 onchange: 'onScriptBatchFilesChange()',
-                emptyMessage: 'No existing uploads found.',
+                emptyMessage: t('script.batch.no-uploads', 'No existing uploads found.'),
                 renderLabel: (item) => `${escapeHtml(item.filename)} (${Math.ceil(item.size / 1024)} KB)`,
             });
         }
@@ -3331,7 +3370,7 @@
             tbody.innerHTML = '';
             scriptBatchQueue = [];
             document.getElementById('script-batch-selected-count').textContent =
-                `${files.length + existing.length} selected`;
+                t('script.batch.selected-count', '{count} selected', {count: files.length + existing.length});
 
             if (!files.length && !existing.length) {
                 document.getElementById('script-batch-queue-container').style.display = 'none';
@@ -3343,8 +3382,8 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td title="${escapeHtml(file.name)}" style="max-width:350px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(file.name)}</td>
-                    <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="Exact character name"></td>
-                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                    <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="${escapeHtml(t('script.batch.narrator-placeholder', 'Exact character name'))}"></td>
+                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">${t('core.task-status.pending', 'pending')}</span></td>
                 `;
                 tbody.appendChild(row);
                 document.getElementById(`script-batch-narrator-${i}`).value = narratorDrafts.get(file) || '';
@@ -3354,9 +3393,9 @@
                 const i = scriptBatchQueue.length;
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td title="${escapeHtml(checkbox.dataset.name)}" style="max-width:350px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(checkbox.dataset.name)} <span class="text-muted">(existing)</span></td>
-                    <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="Exact character name"></td>
-                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                    <td title="${escapeHtml(checkbox.dataset.name)}" style="max-width:350px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(checkbox.dataset.name)} <span class="text-muted">${t('script.batch.existing', '(existing)')}</span></td>
+                    <td><input class="form-control form-control-sm" id="script-batch-narrator-${i}" maxlength="100" placeholder="${escapeHtml(t('script.batch.narrator-placeholder', 'Exact character name'))}"></td>
+                    <td id="script-batch-status-${i}"><span class="badge bg-secondary">${t('core.task-status.pending', 'pending')}</span></td>
                 `;
                 tbody.appendChild(row);
                 document.getElementById(`script-batch-narrator-${i}`).value = narratorDrafts.get(checkbox.dataset.name) || '';
@@ -3389,11 +3428,11 @@
             if (scriptBatchStartOperation && !['started', 'unconfirmed'].includes(scriptBatchStartOperation.phase)) {
                 scriptBatchStartOperation.cancelled = true;
                 document.getElementById('script-batch-status-msg').innerHTML =
-                    '<span class="text-muted">Cancelling batch preparation…</span>';
+                    `<span class="text-muted">${t('script.batch.cancelling-prep', 'Cancelling batch preparation…')}</span>`;
                 return;
             }
             return requestScriptCancellation('batch_script', '/api/generate_script/batch/cancel',
-                'btn-cancel-batch-script', 'btn-pause-batch-script', 'batch script generation');
+                'btn-cancel-batch-script', 'btn-pause-batch-script', t('script.cancel.task-batch-script', 'batch script generation'));
         };
 
         window.pauseResumeBatchScript = _batchPauseResume;
@@ -3401,8 +3440,8 @@
 
         async function _startBatchScript() {
             if (scriptBatchStartOperation) { return; }
-            if (!scriptBatchQueue.length) { showToast('No files selected', 'warning'); return; }
-            if (!(await ensureScriptStartConfirmed('this batch script generation'))) { return; }
+            if (!scriptBatchQueue.length) { showToast(t('script.batch.no-files', 'No files selected'), 'warning'); return; }
+            if (!(await ensureScriptStartConfirmed(t('core.remote.task.batch-script', 'this batch script generation')))) { return; }
             if (scriptBatchStartOperation) { return; }
             const queue = scriptBatchQueue;
             const narratorValues = queue.map((_, index) => document.getElementById(`script-batch-narrator-${index}`).value);
@@ -3414,7 +3453,7 @@
             const ensureCurrentQueue = () => {
                 if (!isCurrentQueue() && !operation.cancelled) {
                     operation.cancelled = true;
-                    showToast('The batch selection changed during preparation. Check the queue and start again.', 'warning');
+                    showToast(t('safety.script.batch_selection_changed', 'The batch selection changed during preparation. Check the queue and start again.'), 'warning');
                 }
                 return !operation.cancelled;
             };
@@ -3429,7 +3468,7 @@
             pauseBtn.style.display = 'none';
             _resetPauseBtn('btn-pause-batch-script');
             document.getElementById('btn-cancel-batch-script').style.display = 'inline-block';
-            statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading files…</span>';
+            statusMsg.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${t('script.batch.uploading', 'Uploading files…')}</span>`;
             statusMsg.style.display = '';
 
             const logEl = document.getElementById('script-logs');
@@ -3461,37 +3500,38 @@
                 if (!ensureCurrentQueue()) { return; }
                 const scripts = [...new Set(preflight.books.flatMap(book => book.scripts))];
                 const fallback = preflight.fallback_reason
-                    ? `\nSafety adjustment: ${preflight.fallback_reason}` : '';
+                    ? '\n' + t('script.batch.safety-adjustment', 'Safety adjustment: {reason}', {reason: preflight.fallback_reason}) : '';
                 const overCeiling = preflight.books.filter(book => book.exceeds_output_ceiling);
                 if (overCeiling.length) {
                     const suggested = Math.min(...overCeiling.map(book => book.suggested_chunk_size));
-                    showToast(
-                        `"Step 1: text per request" (${preflight.chunk_size} characters) is more than this model can write back in one reply ` +
-                        `(${overCeiling.map(book => book.filename).join(', ')}). ` +
-                        `Set it to ${suggested} or below in Setup, or raise the profile Output ceiling / Baseline Response Tokens.`, 'error');
-                    statusMsg.innerHTML = '<span class="text-danger">Not started: the text-per-request setting is more than this model can write back in one reply.</span>';
+                    showToast(t('script.batch.over-ceiling', '"Step 1: text per request" ({size} characters) is more than this model can write back in one reply ({books}). Set it to {suggested} or below in Setup, or raise the profile Output ceiling / Baseline Response Tokens.', {size: preflight.chunk_size, books: overCeiling.map(book => book.filename).join(', '), suggested}), 'error');
+                    statusMsg.innerHTML = `<span class="text-danger">${t('script.batch.over-ceiling-status', 'Not started: the text-per-request setting is more than this model can write back in one reply.')}</span>`;
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';
                     return;
                 }
+                const preflightHeading = preflight.book_count === 1
+                    ? t('script.batch.preflight-heading.one', 'Batch preflight ({count} book):', {count: preflight.book_count})
+                    : t('script.batch.preflight-heading.many', 'Batch preflight ({count} books):', {count: preflight.book_count});
                 const approved = await showConfirm(
-                    `Batch preflight (${preflight.book_count} book${preflight.book_count === 1 ? '' : 's'}):\n` +
-                    `Concurrency: ${preflight.workers} (LM Studio loaded for ${preflight.loaded_parallel})\n` +
-                    `Context per worker: ${preflight.per_slot_context.toLocaleString()} tokens\n` +
-                    `Largest predicted request: ${preflight.worst_request_tokens.toLocaleString()} tokens\n` +
-                    `Writing systems detected: ${scripts.join(', ') || 'none'}${fallback}\n\nStart generation?`,
-                    {title: 'Start batch generation?', actionLabel: 'Start generation', danger: false});
+                    preflightHeading + '\n' +
+                    t('script.batch.preflight-concurrency', 'Concurrency: {workers} (LM Studio loaded for {loaded})', {workers: preflight.workers, loaded: preflight.loaded_parallel}) + '\n' +
+                    t('script.batch.preflight-context', 'Context per worker: {tokens} tokens', {tokens: preflight.per_slot_context.toLocaleString()}) + '\n' +
+                    t('script.batch.preflight-largest', 'Largest predicted request: {tokens} tokens', {tokens: preflight.worst_request_tokens.toLocaleString()}) + '\n' +
+                    t('script.batch.preflight-scripts', 'Writing systems detected: {systems}', {systems: scripts.join(', ') || t('script.batch.preflight-none', 'none')}) + fallback + '\n\n' +
+                    t('script.batch.preflight-start', 'Start generation?'),
+                    {title: t('script.batch.start-title', 'Start batch generation?'), actionLabel: t('script.batch.start-action', 'Start generation'), danger: false});
                 if (!ensureCurrentQueue()) { return; }
                 if (!approved) {
-                    statusMsg.innerHTML = '<span class="text-muted">Batch cancelled after preflight.</span>';
+                    statusMsg.innerHTML = `<span class="text-muted">${t('script.batch.cancelled-after-preflight', 'Batch cancelled after preflight.')}</span>`;
                     btn.disabled = false;
                     pauseBtn.style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';
                     return;
                 }
 
-                statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Processing…</span>';
+                statusMsg.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${t('script.batch.processing', 'Processing…')}</span>`;
                 operation.phase = 'starting';
                 await API.post('/api/generate_script/batch/start', {
                     tasks, collision_policy: collisionPolicy,
@@ -3509,17 +3549,17 @@
                     const refused = Number.isInteger(e.status) && e.status >= 400 && e.status < 500 && e.status !== 408;
                     operation.phase = refused ? 'refused' : 'unconfirmed';
                     statusMsg.innerHTML = refused
-                        ? '<span class="text-danger">Batch start was refused. Review the error before trying again.</span>'
-                        : '<span class="text-warning">Batch start is unconfirmed. Checking task activity; generation may have started.</span>';
-                    showActionError('Batch start was not confirmed', e, 'Check the batch task activity before starting another batch; work may still be running.');
+                        ? `<span class="text-danger">${t('script.batch.start-refused', 'Batch start was refused. Review the error before trying again.')}</span>`
+                        : `<span class="text-warning">${t('safety.script.batch_start_unconfirmed', 'Batch start is unconfirmed. Checking task activity; generation may have started.')}</span>`;
+                    showActionError(t('script.batch.start-unconfirmed', 'Batch start was not confirmed'), e, t('script.batch.start-recovery', 'Check the batch task activity before starting another batch; work may still be running.'));
                     if (!refused) {
                         startUnconfirmed = true;
                         _pollScriptBatchLogs();
                         if (operation.cancelled) { await cancelBatchScript(); }
                     }
                 } else if (!operation.cancelled) {
-                    statusMsg.innerHTML = '<span class="text-danger">Batch preparation failed before generation started. Review the error and try again.</span>';
-                    showActionError("Failed to start batch", e, "Check the batch task state, selected books and Test Connection in Setup before starting another batch.");
+                    statusMsg.innerHTML = `<span class="text-danger">${t('script.batch.prep-failed', 'Batch preparation failed before generation started. Review the error and try again.')}</span>`;
+                    showActionError(t('script.batch.start-failed', 'Failed to start batch'), e, t('script.batch.start-failed-recovery', 'Check the batch task state, selected books and Test Connection in Setup before starting another batch.'));
                 }
             } finally {
                 if (scriptBatchStartOperation === operation) { scriptBatchStartOperation = null; }
@@ -3528,7 +3568,7 @@
                     pauseBtn.style.display = 'none';
                     document.getElementById('btn-cancel-batch-script').style.display = 'none';
                     if (operation.cancelled && operation.phase === 'preparing') {
-                        statusMsg.innerHTML = '<span class="text-muted">Batch cancelled before generation started.</span>';
+                        statusMsg.innerHTML = `<span class="text-muted">${t('script.batch.cancelled-before-start', 'Batch cancelled before generation started.')}</span>`;
                     }
                 }
             }
@@ -3556,11 +3596,11 @@
                     // the user too; pollLogs does this for the single-book tasks
                     renderManualRequest(state, 'batch_script');
                     if (state.tasks) {
-                        state.tasks.forEach((t, i) => {
+                        state.tasks.forEach((taskStatus, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
                             if (!el) { return; }
                             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
+                            el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
                         });
                     }
                 },
@@ -3569,7 +3609,7 @@
                     clearScriptCancellation('batch_script');
                     renderManualRequest({ running: false }, 'batch_script');
                     _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
-                        'Inspect the log and resume failed books from their validated checkpoints.');
+                        t('script.batch.recovery-hint', 'Inspect the log and resume failed books from their validated checkpoints.'));
                     notifyJobDone('batch_script', '', 'finished', state);
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
@@ -3580,7 +3620,7 @@
                     const cancelled = tasks.filter(task => task.status === 'cancelled').length;
                     const tone = failed ? 'text-warning' : 'text-muted';
                     document.getElementById('script-batch-status-msg').innerHTML =
-                        `<span class="${tone}">Batch finished — ${done} completed, ${failed} failed, ${cancelled} cancelled. Failed books keep validated checkpoints.</span>`;
+                        `<span class="${tone}">${escapeHtml(t('script.batch.finished', 'Batch finished — {done} completed, {failed} failed, {cancelled} cancelled. Failed books keep validated checkpoints.', {done, failed, cancelled}))}</span>`;
                     loadSavedScripts();
                 }
             });
@@ -3621,16 +3661,16 @@
             if (panel) {
                 panel.style.display = failed ? '' : 'none';
                 if (failed) {
-                    const last = logs.filter(Boolean).slice(-1)[0] || 'Unknown review error';
-                    panel.innerHTML = `Review stopped with an error: ${escapeHtml(last)} ` +
-                        `<a href="/api/logs/review?download=true" target="_blank" rel="noopener">Download full log</a>. ` +
-                        'Inspect the log, correct the source or profile, and retry.';
+                    const last = logs.filter(Boolean).slice(-1)[0] || t('script.review.unknown-error', 'Unknown review error');
+                    panel.innerHTML = `${escapeHtml(t('script.review.stopped', 'Review stopped with an error: {log}.', {log: last}))} ` +
+                        `<a href="/api/logs/review?download=true" target="_blank" rel="noopener">${t('script.review.download-log', 'Download full log.')}</a> ` +
+                        t('script.review.inspect-log', 'Inspect the log, correct the source or profile, and retry.');
                 }
             }
         }
 
         document.getElementById('btn-review-script').addEventListener('click', async () => {
-            if (!(await confirmIfRemote('this review', true))) { return; }
+            if (!(await confirmIfRemote(t('core.remote.task.review', 'this review'), true))) { return; }
             try {
                 _disableReviewButtons(true);
                 _showReviewControls(true);
@@ -3638,7 +3678,7 @@
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
-                showActionError("Failed to start review", e, "Check the current review task state and Test Connection in Setup before starting another review.");
+                showActionError(t('script.review.start-failed', 'Failed to start review'), e, t('script.review.start-recovery', 'Check the current review task state and Test Connection in Setup before starting another review.'));
             }
         });
 
@@ -3647,13 +3687,13 @@
             const windowSize = Number.isFinite(rawWindow) ? Math.max(minimum, Math.min(rawWindow, 12)) : defaultValue;
             const corrected = !Number.isFinite(rawWindow) || Number(field.value) !== windowSize;
             field.value = String(windowSize);
-            if (corrected) { showToast(`Context Window must be ${minimum}–12; using ${windowSize}`, 'warning'); }
+            if (corrected) { showToast(t('script.review.context-corrected', 'Context Window must be {minimum}–12; using {size}', {minimum, size: windowSize}), 'warning'); }
             return windowSize;
         }
 
         document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
             try {
-                if (!(await confirmIfRemote('this contextual review', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.contextual-review', 'this contextual review'), true))) { return; }
                 const windowSize = applyReviewContextWindow(document.getElementById('review-context-window'), 1, 4);
                 _disableReviewButtons(true);
                 _showReviewControls(true);
@@ -3661,13 +3701,13 @@
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
-                        ? `Estimated LLM calls: ~${result.estimated_calls} for ${result.total_entries} entries with batches of ${result.batch_size}.`
-                        : 'Contextual review started.';
+                        ? t('script.review.estimate', 'Estimated LLM calls: ~{calls} for {entries} entries with batches of {size}.', {calls: result.estimated_calls, entries: result.total_entries, size: result.batch_size})
+                        : t('script.review.contextual-started', 'Contextual review started.');
                 }
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
                 _onReviewDone();
-                showActionError("Failed to start contextual review", e, "Check the review task state, context window and Test Connection in Setup before starting another review.");
+                showActionError(t('script.review.contextual-failed', 'Failed to start contextual review'), e, t('script.review.contextual-recovery', 'Check the review task state, context window and Test Connection in Setup before starting another review.'));
             }
         });
 
@@ -3713,7 +3753,7 @@
                 onLoaded(scripts);
             } catch (e) {
                 if (!isCurrent()) { return; }
-                container.innerHTML = `<span class="text-danger small">${escapeHtml(getActionErrorMessage('Could not load saved scripts', e, 'Check that Alexandria is running, then refresh the saved-script list before choosing a book.'))}</span>`;
+                container.innerHTML = `<span class="text-danger small">${escapeHtml(getActionErrorMessage(t('script.saved.load-failed', 'Could not load saved scripts'), e, t('script.saved.load-recovery', 'Check that Alexandria is running, then refresh the saved-script list before choosing a book.')))}</span>`;
             }
         }
 
@@ -3726,8 +3766,8 @@
                                                      emptyMessage }) {
             const container = document.getElementById(containerId);
             if (!items.length) {
-                container.innerHTML = `<span class="text-muted small">${emptyMessage ||
-                    'No saved scripts found. Generate or save scripts first.'}</span>`;
+                container.innerHTML = `<span class="text-muted small">${escapeHtml(emptyMessage ||
+                    t('script.saved.none', 'No saved scripts found. Generate or save scripts first.'))}</span>`;
                 return;
             }
             const checked = new Set(
@@ -3736,7 +3776,7 @@
             container.innerHTML = items.map((item, i) => {
                 const key = item[keyField];
                 const label = renderLabel ? renderLabel(item)
-                    : `${escapeHtml(item.name)} ${item.has_voice_config ? '<span class="badge bg-info ms-1">voices</span>' : ''}`;
+                    : `${escapeHtml(item.name)} ${item.has_voice_config ? `<span class="badge bg-info ms-1">${t('script.saved.voices-badge', 'voices')}</span>` : ''}`;
                 return `
                 <div class="form-check${extra ? ' d-flex align-items-center justify-content-between' : ''}">
                     <div>
@@ -3806,8 +3846,8 @@
 
         async function startBatchReview() {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
-            if (!names.length) { showToast('Select at least one script to review.', 'warning'); return; }
-            if (!(await confirmIfRemote('this batch review'))) { return; }
+            if (!names.length) { showToast(t('script.review.batch.select-one', 'Select at least one script to review.'), 'warning'); return; }
+            if (!(await confirmIfRemote(t('core.remote.task.batch-review', 'this batch review')))) { return; }
             reviewBatchSelected = names;
             const contextWindow = applyReviewContextWindow(document.getElementById('review-batch-context-window'), 0, 0);
 
@@ -3820,7 +3860,7 @@
             cancelBtn.style.display = 'inline-block';
             _resetPauseBtn('btn-pause-batch-review');
             statusMsg.style.display = '';
-            statusMsg.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Starting batch review…</span>';
+            statusMsg.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${t('script.review.batch.starting', 'Starting batch review…')}</span>`;
 
             try {
                 await API.post('/api/review_script/batch/start', {
@@ -3836,7 +3876,7 @@
                 startBtn.disabled = false;
                 pauseBtn.style.display = 'none';
                 cancelBtn.style.display = 'none';
-                statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Batch review start was not confirmed', e, 'Check the batch review task state, selected books and Test Connection in Setup before starting again.'))}</span>`;
+                statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage(t('script.review.batch.start-unconfirmed', 'Batch review start was not confirmed'), e, t('script.review.batch.start-recovery', 'Check the batch review task state, selected books and Test Connection in Setup before starting again.')))}</span>`;
             }
         }
 
@@ -3849,7 +3889,7 @@
         });
 
         async function findNicknames() {
-            if (!(await confirmIfRemote('this nickname discovery', true))) { return; }
+            if (!(await confirmIfRemote(t('core.remote.task.nicknames', 'this nickname discovery'), true))) { return; }
             const btn = document.getElementById('btn-find-nicknames');
             btn.disabled = true;
             document.getElementById('btn-pause-nick').style.display = 'inline-block';
@@ -3859,7 +3899,7 @@
                 await API.post('/api/find_nicknames', {});
                 pollScriptLogs('nicknames', async (status) => {
                     _showTaskRecoveryPanel('nickname-recovery-panel', 'nicknames', status,
-                        'Inspect the log, correct aliases if needed, and retry.');
+                        t('script.nicknames.recovery-hint', 'Inspect the log, correct aliases if needed, and retry.'));
                     btn.disabled = false;
                     document.getElementById('btn-pause-nick').style.display = 'none';
                     document.getElementById('btn-cancel-nick').style.display = 'none';
@@ -3869,7 +3909,7 @@
                 btn.disabled = false;
                 document.getElementById('btn-pause-nick').style.display = 'none';
                 document.getElementById('btn-cancel-nick').style.display = 'none';
-                showActionError("Failed to start nickname discovery", e, "Check the nickname task state and Test Connection in Setup before starting nickname discovery again.");
+                showActionError(t('script.nicknames.start-failed', 'Failed to start nickname discovery'), e, t('script.nicknames.start-recovery', 'Check the nickname task state and Test Connection in Setup before starting nickname discovery again.'));
             }
         }
 
@@ -3906,16 +3946,16 @@
         async function ensureCastListEditsDiscardable() {
             if (typeof globalThis.ensureCharacterRosterEditsDiscardable === 'function' && !await globalThis.ensureCharacterRosterEditsDiscardable()) { return false; }
             if (castListMutationPending) {
-                showToast('Wait for the cast-list request to finish before switching books.', 'warning');
+                showToast(t('script.cast_list.pending-switch', 'Wait for the cast-list request to finish before switching books.'), 'warning');
                 return false;
             }
             if (castListEditorSnapshot === null || document.getElementById('cast-list-panel').style.display === 'none') { return true; }
             const snapshot = getCastListEditorSnapshot();
             if (snapshot === castListEditorSnapshot) { return true; }
             const book = currentBookFilename;
-            if (!await showConfirm('Discard unsaved cast-list changes?', {title: 'Discard cast edits?', actionLabel: 'Discard edits', danger: true})) { return false; }
+            if (!await showConfirm(formatUiSafetyText('safety.script.cast_list.discard', 'Discard unsaved cast-list changes?'), {title: t('safety.script.cast_list.discard.title', 'Discard cast edits?'), actionLabel: t('safety.script.cast_list.discard.action', 'Discard edits'), danger: true})) { return false; }
             if (book !== currentBookFilename || snapshot !== getCastListEditorSnapshot()) {
-                showToast('The book or cast edits changed. Review them before switching books.', 'warning');
+                showToast(t('safety.script.cast_list.book_changed', 'The book or cast edits changed. Review them before switching books.'), 'warning');
                 return false;
             }
             return true;
@@ -3923,10 +3963,10 @@
 
         async function buildCastList() {
             const source = getLoadedScriptSourceFilename();
-            if (!source) { showToast('Select or upload a book before building its cast list.', 'warning'); return; }
-            if (!(await confirmIfRemote('this cast list (the whole book in one request)'))) { return; }
+            if (!source) { showToast(t('script.cast_list.no-book', 'Select or upload a book before building its cast list.'), 'warning'); return; }
+            if (!(await confirmIfRemote(t('core.remote.task.cast-list', 'this cast list (the whole book in one request)')))) { return; }
             if (source !== getLoadedScriptSourceFilename()) {
-                showToast('The loaded book changed. Review it before building its cast list.', 'warning'); return;
+                showToast(t('safety.script.cast_list.book_changed_build', 'The loaded book changed. Review it before building its cast list.'), 'warning'); return;
             }
             const btn = document.getElementById('btn-build-cast-list');
             const cancelBtn = document.getElementById('btn-cancel-cast-list');
@@ -3942,7 +3982,7 @@
             } catch (e) {
                 btn.disabled = false;
                 cancelBtn.style.display = 'none';
-                showActionError("Failed to start the cast list", e, "Check the cast-list task state, selected book and Test Connection in Setup before starting again.");
+                showActionError(t('script.cast_list.start-failed', 'Failed to start the cast list'), e, t('script.cast_list.start-recovery', 'Check the cast-list task state, selected book and Test Connection in Setup before starting again.'));
             }
         }
 
@@ -3956,10 +3996,12 @@
         function renderCastListStatus(result) {
             const status = document.getElementById('cast-list-status');
             if (result && result.cast) {
-                const edited = result.edited ? ', edited' : '';
-                status.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Generate will use this book's cast list (${result.count} people${edited}).</span>`;
+                const message = result.edited
+                    ? t('script.cast_list.status-edited', "Generate will use this book's cast list ({count} people, edited).", {count: result.count})
+                    : t('script.cast_list.status', "Generate will use this book's cast list ({count} people).", {count: result.count});
+                status.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(message)}</span>`;
             } else {
-                status.textContent = 'No cast list for this book. Generation finds speakers on its own; people the book never names come out as UNKNOWN.';
+                status.textContent = t('script.cast_list.status-none', 'No cast list for this book. Generation finds speakers on its own; people the book never names come out as UNKNOWN.');
             }
         }
 
@@ -3967,9 +4009,9 @@
             const aliases = (entry.aliases || []).join(', ');
             return `
                 <div class="input-group input-group-sm mb-1 cast-list-row">
-                    <input type="text" class="form-control cast-list-name" aria-label="Cast name" placeholder="NAME or THE DESCRIPTION" value="${escapeHtml(entry.name || '')}">
-                    <input type="text" class="form-control cast-list-aliases" aria-label="${escapeHtml('Aliases for ' + (entry.name || 'new cast member'))}" placeholder="other names, comma-separated" value="${escapeHtml(aliases)}">
-                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml('Remove ' + (entry.name || 'new member') + ' from cast')}" onclick="this.closest('.cast-list-row').remove()"><i class="fas fa-times"></i></button>
+                    <input type="text" class="form-control cast-list-name" aria-label="${escapeHtml(t('script.cast_list.name-aria', 'Cast name'))}" placeholder="${escapeHtml(t('script.cast_list.name-placeholder', 'NAME or THE DESCRIPTION'))}" value="${escapeHtml(entry.name || '')}">
+                    <input type="text" class="form-control cast-list-aliases" aria-label="${escapeHtml(t('script.cast_list.aliases-aria', 'Aliases for {name}', {name: entry.name || t('script.cast_list.new-member', 'new cast member')}))}" placeholder="${escapeHtml(t('script.cast_list.aliases-placeholder', 'other names, comma-separated'))}" value="${escapeHtml(aliases)}">
+                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml(t('script.cast_list.remove-aria', 'Remove {name} from cast', {name: entry.name || t('script.cast_list.new-member-short', 'new member')}))}" onclick="this.closest('.cast-list-row').remove()"><i class="fas fa-times"></i></button>
                 </div>`;
         }
 
@@ -3977,7 +4019,7 @@
             const panel = document.getElementById('cast-list-panel');
             const editorSnapshot = getCastListEditorSnapshot();
             if (show && (castListMutationPending || (castListEditorSnapshot !== null && panel.style.display !== 'none' && editorSnapshot !== castListEditorSnapshot))) {
-                showToast('Your cast-list edits are still here. Save them before refreshing the editor.', 'warning');
+                showToast(t('safety.script.cast_list.edits-kept', 'Your cast-list edits are still here. Save them before refreshing the editor.'), 'warning');
                 return;
             }
             const book = currentBookFilename;
@@ -3989,9 +4031,9 @@
             } catch (e) {
                 if (request !== castListRequest || book !== currentBookFilename) { return; }
                 document.getElementById('cast-list-status').textContent = getActionErrorMessage(
-                    'Cast-list refresh was not confirmed', e,
-                    'Existing editor rows were kept. Retry loading this book’s cast list before relying on it for generation.');
-                if (show) { showActionError('Cast-list refresh was not confirmed', e, 'Existing editor rows were kept. Retry loading the current book’s cast list.'); }
+                    t('script.cast_list.refresh-unconfirmed', 'Cast-list refresh was not confirmed'), e,
+                    t('script.cast_list.refresh-recovery', 'Existing editor rows were kept. Retry loading this book’s cast list before relying on it for generation.'));
+                if (show) { showActionError(t('script.cast_list.refresh-unconfirmed', 'Cast-list refresh was not confirmed'), e, t('script.cast_list.refresh-recovery-toast', 'Existing editor rows were kept. Retry loading the current book’s cast list.')); }
                 return;
             }
             if (request !== castListRequest || book !== currentBookFilename) { return; }
@@ -3999,21 +4041,21 @@
             renderCastListStatus(result);
             if (!show) { return; }
             if (castListMutationPending || editorSnapshot !== getCastListEditorSnapshot()) {
-                showToast('Your cast-list edits changed while loading. They have been kept.', 'warning');
+                showToast(t('safety.script.cast_list.edits_changed', 'Your cast-list edits changed while loading. They have been kept.'), 'warning');
                 return;
             }
             const cast = (result && result.cast) || [];
             panel.style.display = 'block';
             panel.innerHTML = `
                 <fieldset id="cast-list-fields" class="border rounded p-2">
-                    <div class="small fw-bold mb-1">Cast list <span class="text-muted">(each person gets their own voice; aliases are the same person)</span></div>
+                    <div class="small fw-bold mb-1">${t('script.cast_list.title', 'Cast list')} <span class="text-muted">${t('script.cast_list.help', '(each person gets their own voice; aliases are the same person)')}</span></div>
                     <div id="cast-list-rows">
-                        ${cast.length ? cast.map(getCastListRowHtml).join('') : '<div class="text-muted small mb-1">No cast list yet. Build one, or add people by hand.</div>'}
+                        ${cast.length ? cast.map(getCastListRowHtml).join('') : `<div class="text-muted small mb-1">${t('script.cast_list.none', 'No cast list yet. Build one, or add people by hand.')}</div>`}
                     </div>
                     <div class="d-flex gap-2 mt-1">
-                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addCastListRow()"><i class="fas fa-plus me-1"></i>Add</button>
-                        <button class="btn btn-sm btn-success" type="button" onclick="saveCastList()"><i class="fas fa-save me-1"></i>Save cast list</button>
-                        <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCastList()"><i class="fas fa-trash me-1"></i>Delete</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addCastListRow()"><i class="fas fa-plus me-1"></i>${t('script.cast_list.add', 'Add')}</button>
+                        <button class="btn btn-sm btn-success" type="button" onclick="saveCastList()"><i class="fas fa-save me-1"></i>${t('script.cast_list.save', 'Save cast list')}</button>
+                        <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCastList()"><i class="fas fa-trash me-1"></i>${t('script.cast_list.delete', 'Delete')}</button>
                     </div>
                     <div id="cast-list-editor-status" class="small mt-1" role="status"></div>
                 </fieldset>`;
@@ -4030,7 +4072,7 @@
         async function saveCastList() {
             if (castListMutationPending) { return; }
             if (!castListLoaded) {
-                showToast('Reload the cast list before saving.', 'error');
+                showToast(t('script.cast_list.reload-first', 'Reload the cast list before saving.'), 'error');
                 return;
             }
             const cast = [];
@@ -4039,26 +4081,26 @@
                 const aliases = row.querySelector('.cast-list-aliases').value
                     .split(',').map(a => a.trim()).filter(a => a);
                 if (!name && aliases.length) {
-                    showToast('Every row with aliases needs a name.', 'error');
+                    showToast(t('script.cast_list.aliases-need-name', 'Every row with aliases needs a name.'), 'error');
                     return;
                 }
                 if (name) { cast.push({ name, aliases }); }
             }
             if (!cast.length) {
-                showToast('The cast list is empty; use Delete to remove it.', 'error');
+                showToast(t('script.cast_list.empty-save', 'The cast list is empty; use Delete to remove it.'), 'error');
                 return;
             }
             const book = currentBookFilename;
             const savedSnapshot = getCastListEditorSnapshot();
             try {
-                applyCastListMutationState(true, 'Saving cast list…');
+                applyCastListMutationState(true, t('script.cast_list.saving', 'Saving cast list…'));
                 const res = await API.post('/api/cast_list', { cast });
                 if (book !== currentBookFilename) { return; }
                 castListEditorSnapshot = savedSnapshot;
                 renderCastListStatus({ cast, count: res.count, edited: true });
-                showToast(`Saved ${res.count} people. Generate will use them.`, 'success');
+                showToast(t('script.cast_list.saved', 'Saved {count} people. Generate will use them.', {count: res.count}), 'success');
             } catch (e) {
-                showActionError('Cast-list save was not confirmed', e, 'Keep your edited rows and check the saved cast list before saving again.');
+                showActionError(t('script.cast_list.save-unconfirmed', 'Cast-list save was not confirmed'), e, t('script.cast_list.save-recovery', 'Keep your edited rows and check the saved cast list before saving again.'));
             } finally {
                 applyCastListMutationState(false);
             }
@@ -4068,19 +4110,19 @@
             if (castListMutationPending) { return; }
             const book = currentBookFilename;
             try {
-                applyCastListMutationState(true, 'Confirming cast deletion…');
-                if (!await showConfirm('Delete this book’s cast list? Generation will find speakers on its own, and unnamed speakers may be labelled UNKNOWN.', {title: 'Delete book cast list?', actionLabel: 'Delete cast list', danger: true})) { return; }
+                applyCastListMutationState(true, t('script.cast_list.confirming-delete', 'Confirming cast deletion…'));
+                if (!await showConfirm(formatUiSafetyText('safety.script.cast_list.delete', 'Delete this book’s cast list? Generation will find speakers on its own, and unnamed speakers may be labelled UNKNOWN.'), {title: t('safety.script.cast_list.delete.title', 'Delete book cast list?'), actionLabel: t('safety.script.cast_list.delete.action', 'Delete cast list'), danger: true})) { return; }
                 if (book !== currentBookFilename) {
-                    showToast('The current book changed. Review its cast list before deleting.', 'warning');
+                    showToast(t('safety.script.cast_list.delete.book_changed', 'The current book changed. Review its cast list before deleting.'), 'warning');
                     return;
                 }
-                applyCastListMutationState(true, 'Deleting cast list…');
+                applyCastListMutationState(true, t('script.cast_list.deleting', 'Deleting cast list…'));
                 await API.del('/api/cast_list');
                 document.getElementById('cast-list-panel').style.display = 'none';
                 await loadCastList(false);
-                showToast('Cast list deleted.', 'success');
+                showToast(t('script.cast_list.deleted', 'Cast list deleted.'), 'success');
             } catch (e) {
-                showActionError('Cast-list deletion was not confirmed', e, 'Reload the cast list to check whether it was deleted before trying Delete again.');
+                showActionError(t('script.cast_list.delete-unconfirmed', 'Cast-list deletion was not confirmed'), e, t('script.cast_list.delete-recovery', 'Reload the cast list to check whether it was deleted before trying Delete again.'));
             } finally {
                 applyCastListMutationState(false);
             }
@@ -4105,7 +4147,7 @@
             } catch (e) {
                 if (request !== characterAliasesRequest) { return; }
                 console.error('Failed to load character aliases:', e);
-                showActionError('Could not load character aliases', e, 'Retry loading aliases before editing or saving them. The displayed list may be out of date.');
+                showActionError(t('script.aliases.load-failed', 'Could not load character aliases'), e, t('script.aliases.load-recovery', 'Retry loading aliases before editing or saving them. The displayed list may be out of date.'));
                 return;
             }
             if (request !== characterAliasesRequest) { return; }
@@ -4114,20 +4156,20 @@
             if (show) { panel.style.display = 'block'; }
             const rowHtml = (a, c) => `
                 <div class="input-group input-group-sm mb-1 nick-alias-row">
-                    <input type="text" class="form-control nick-alias" aria-label="Alias or nickname" placeholder="alias / nickname" value="${escapeHtml(a)}">
+                    <input type="text" class="form-control nick-alias" aria-label="${escapeHtml(t('script.aliases.alias-aria', 'Alias or nickname'))}" placeholder="${escapeHtml(t('script.aliases.alias-placeholder', 'alias / nickname'))}" value="${escapeHtml(a)}">
                     <span class="input-group-text">&rarr;</span>
-                    <input type="text" class="form-control nick-canonical" aria-label="Canonical character name" placeholder="canonical name" value="${escapeHtml(c)}">
-                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml('Remove alias ' + a)}" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>
+                    <input type="text" class="form-control nick-canonical" aria-label="${escapeHtml(t('script.aliases.canonical-aria', 'Canonical character name'))}" placeholder="${escapeHtml(t('script.aliases.canonical-placeholder', 'canonical name'))}" value="${escapeHtml(c)}">
+                    <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml(t('script.aliases.remove-aria', 'Remove alias {alias}', {alias: a}))}" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>
                 </div>`;
             panel.innerHTML = `
                 <div class="border rounded p-2">
-                    <div class="small fw-bold mb-1">Character aliases <span class="text-muted">(applied automatically when you run Review)</span></div>
+                    <div class="small fw-bold mb-1">${t('script.aliases.title', 'Character aliases')} <span class="text-muted">${t('script.aliases.help', '(applied automatically when you run Review)')}</span></div>
                     <div id="nick-alias-rows">
-                        ${entries.length ? entries.map(([a, c]) => rowHtml(a, c)).join('') : '<div class="text-muted small mb-1">No aliases yet. Run "Find Nicknames" or add rows manually.</div>'}
+                        ${entries.length ? entries.map(([a, c]) => rowHtml(a, c)).join('') : `<div class="text-muted small mb-1">${t('script.aliases.none', 'No aliases yet. Run "Find Nicknames" or add rows manually.')}</div>`}
                     </div>
                     <div class="d-flex gap-2 mt-1">
-                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addAliasRow()"><i class="fas fa-plus me-1"></i>Add</button>
-                        <button class="btn btn-sm btn-success" type="button" onclick="saveCharacterAliases()"><i class="fas fa-save me-1"></i>Save aliases</button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="addAliasRow()"><i class="fas fa-plus me-1"></i>${t('script.aliases.add', 'Add')}</button>
+                        <button class="btn btn-sm btn-success" type="button" onclick="saveCharacterAliases()"><i class="fas fa-save me-1"></i>${t('script.aliases.save', 'Save aliases')}</button>
                     </div>
                 </div>`;
         }
@@ -4139,16 +4181,16 @@
             const div = document.createElement('div');
             div.className = 'input-group input-group-sm mb-1 nick-alias-row';
             div.innerHTML = `
-                <input type="text" class="form-control nick-alias" aria-label="Alias or nickname" placeholder="alias / nickname">
+                <input type="text" class="form-control nick-alias" aria-label="${escapeHtml(t('script.aliases.alias-aria', 'Alias or nickname'))}" placeholder="${escapeHtml(t('script.aliases.alias-placeholder', 'alias / nickname'))}">
                 <span class="input-group-text">&rarr;</span>
-                <input type="text" class="form-control nick-canonical" aria-label="Canonical character name" placeholder="canonical name">
-                <button class="btn btn-outline-danger" type="button" aria-label="Remove new alias" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>`;
+                <input type="text" class="form-control nick-canonical" aria-label="${escapeHtml(t('script.aliases.canonical-aria', 'Canonical character name'))}" placeholder="${escapeHtml(t('script.aliases.canonical-placeholder', 'canonical name'))}">
+                <button class="btn btn-outline-danger" type="button" aria-label="${escapeHtml(t('script.aliases.remove-new-aria', 'Remove new alias'))}" onclick="this.closest('.nick-alias-row').remove()"><i class="fas fa-times"></i></button>`;
             rows.appendChild(div);
         };
 
         async function saveCharacterAliases() {
             if (!characterAliasesLoaded) {
-                showToast('Reload character aliases before saving.', 'error');
+                showToast(t('script.aliases.reload-first', 'Reload character aliases before saving.'), 'error');
                 return;
             }
             const map = Object.create(null);
@@ -4156,39 +4198,38 @@
                 const a = row.querySelector('.nick-alias').value.trim();
                 const c = row.querySelector('.nick-canonical').value.trim();
                 if ((a && !c) || (!a && c)) {
-                    showToast('Fill in both alias and canonical name before saving.', 'error');
+                    showToast(t('script.aliases.both-required', 'Fill in both alias and canonical name before saving.'), 'error');
                     return;
                 }
                 if (a && c) { map[a] = c; }
             }
             try {
                 const res = await API.post('/api/character_aliases', map);
-                showToast(`Saved ${res.count} alias${res.count !== 1 ? 'es' : ''}. Run Review to apply.`, 'success');
+                showToast(res.count === 1
+                    ? t('script.aliases.saved.one', 'Saved {count} alias. Run Review to apply.', {count: res.count})
+                    : t('script.aliases.saved.many', 'Saved {count} aliases. Run Review to apply.', {count: res.count}), 'success');
             } catch (e) {
-                showActionError('Alias save was not confirmed', e, 'Keep your edited rows and check the saved aliases before saving again.');
+                showActionError(t('script.aliases.save-unconfirmed', 'Alias save was not confirmed'), e, t('script.aliases.save-recovery', 'Keep your edited rows and check the saved aliases before saving again.'));
             }
         }
 
         // One-line "N changes: X text, Y speaker, ..." breakdown for a finished book's badge tooltip.
-        function _formatBookStats(s) {
-            let txt = s.partial ? '(partial — not every pass completed) ' : '';
-            txt += `${s.total_changes} changes: ${s.text_changed} text, ${s.speaker_changed} speaker, ` +
-                      `${s.instruct_changed} instruct, +${s.entries_added}/-${s.entries_removed} entries`;
-            if (s.narrators_merged) { txt += `, ${s.narrators_merged} narrators merged`; }
-            if (s.speakers_merged) { txt += `, ${s.speakers_merged} speakers merged`; }
-            if (s.batches_failed) { txt += `, ${s.batches_failed} batch(es) failed`; }
-            if (s.batches_skipped_vram) { txt += `, ${s.batches_skipped_vram} batch(es) skipped (VRAM)`; }
-            if (s.accounting_warning) { txt += ` — ${s.accounting_warning}`; }
+        function _formatBookStats(stats) {
+            let txt = stats.partial ? t('script.review.stats.partial', '(partial — not every pass completed)') + ' ' : '';
+            txt += t('script.review.stats.changes', '{changes} changes: {text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries', {changes: stats.total_changes, text: stats.text_changed, speaker: stats.speaker_changed, instruct: stats.instruct_changed, added: stats.entries_added, removed: stats.entries_removed});
+            if (stats.narrators_merged) { txt += t('script.review.stats.narrators-merged', ', {count} narrators merged', {count: stats.narrators_merged}); }
+            if (stats.speakers_merged) { txt += t('script.review.stats.speakers-merged', ', {count} speakers merged', {count: stats.speakers_merged}); }
+            if (stats.batches_failed) { txt += t('script.review.stats.batches-failed', ', {count} batch(es) failed', {count: stats.batches_failed}); }
+            if (stats.batches_skipped_vram) { txt += t('script.review.stats.batches-skipped', ', {count} batch(es) skipped (VRAM)', {count: stats.batches_skipped_vram}); }
+            if (stats.accounting_warning) { txt += ` — ${stats.accounting_warning}`; }
             return txt;
         }
 
-        function _formatTotalsLine(label, t) {
-            if (!t || !t.books_done) { return `${label}: no books finished yet`; }
-            let txt = `${label}: ${t.books_done} book(s), ${t.total_changes} total change(s) ` +
-                      `(${t.text_changed} text, ${t.speaker_changed} speaker, ${t.instruct_changed} instruct, ` +
-                      `+${t.entries_added}/-${t.entries_removed} entries)`;
-            if (t.batches_failed) { txt += ` — ${t.batches_failed} batch(es) failed`; }
-            if (t.accounting_warning) { txt += ` — ${t.accounting_warning}`; }
+        function _formatTotalsLine(label, totals) {
+            if (!totals || !totals.books_done) { return t('script.review.totals.none', '{label}: no books finished yet', {label}); }
+            let txt = t('script.review.totals.line', '{label}: {books} book(s), {changes} total change(s) ({text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries)', {label, books: totals.books_done, changes: totals.total_changes, text: totals.text_changed, speaker: totals.speaker_changed, instruct: totals.instruct_changed, added: totals.entries_added, removed: totals.entries_removed});
+            if (totals.batches_failed) { txt += ' ' + t('script.review.totals.batches-failed', '— {count} batch(es) failed', {count: totals.batches_failed}); }
+            if (totals.accounting_warning) { txt += ` — ${totals.accounting_warning}`; }
             return txt;
         }
 
@@ -4203,13 +4244,13 @@
             }
             let html = '';
             if (state.bidirectional) {
-                html += `<div>${escapeHtml(_formatTotalsLine('Forward pass', fwd))}</div>`;
-                html += `<div>${escapeHtml(_formatTotalsLine('Backward pass (hindsight)', bwd))}</div>`;
+                html += `<div>${escapeHtml(_formatTotalsLine(t('script.review.totals.forward', 'Forward pass'), fwd))}</div>`;
+                html += `<div>${escapeHtml(_formatTotalsLine(t('script.review.totals.backward', 'Backward pass (hindsight)'), bwd))}</div>`;
             } else {
-                html += `<div>${escapeHtml(_formatTotalsLine('Totals', fwd))}</div>`;
+                html += `<div>${escapeHtml(_formatTotalsLine(t('script.review.totals.all', 'Totals'), fwd))}</div>`;
             }
             if (aliasesBwd.length) {
-                html += `<div class="mt-1"><strong>New characters found on the backward pass (${aliasesBwd.length}):</strong></div>`;
+                html += `<div class="mt-1"><strong>${escapeHtml(t('script.review.totals.new-characters', 'New characters found on the backward pass ({count}):', {count: aliasesBwd.length}))}</strong></div>`;
                 html += '<ul class="mb-0 ps-3">' + aliasesBwd.map(a =>
                     `<li>'${escapeHtml(a.variant)}' &rarr; '${escapeHtml(a.canonical)}' <span class="text-muted">(${escapeHtml(a.book)})</span></li>`
                 ).join('') + '</ul>';
@@ -4225,9 +4266,9 @@
             if (!panel) { return; }
             panel.style.display = failed ? '' : 'none';
             if (failed) {
-                const last = logs.filter(Boolean).slice(-1)[0] || `Unknown ${taskName} error`;
-                panel.innerHTML = `${escapeHtml(taskName)} stopped with an error: ${escapeHtml(last)} ` +
-                    `<a href="/api/logs/${encodeURIComponent(taskName)}?download=true" target="_blank" rel="noopener">Download full log</a>. ${escapeHtml(action)}`;
+                const last = logs.filter(Boolean).slice(-1)[0] || t('script.task.unknown-error', 'Unknown {task} error', {task: getTaskLabel(taskName)});
+                panel.innerHTML = `${escapeHtml(t('script.task.stopped', '{task} stopped with an error: {log}.', {task: getTaskLabel(taskName), log: last}))} ` +
+                    `<a href="/api/logs/${encodeURIComponent(taskName)}?download=true" target="_blank" rel="noopener">${t('script.task.download-log', 'Download full log.')}</a> ${escapeHtml(action)}`;
             }
         }
 
@@ -4249,30 +4290,30 @@
                     renderLogs(state);
                     syncPauseButton('batch_review', state);
                     const colours = { pending: 'secondary', running: 'primary', done: 'success', incomplete: 'warning', failed: 'danger', cancelled: 'warning' };
-                    (state.tasks || []).forEach(t => {
+                    (state.tasks || []).forEach(taskStatus => {
                         // Map by name (the list shows all scripts; only selected ones are tasks)
-                        const cb = document.querySelector(`.review-batch-check[data-name="${CSS.escape(t.name)}"]`);
+                        const cb = document.querySelector(`.review-batch-check[data-name="${CSS.escape(taskStatus.name)}"]`);
                         if (!cb) { return; }
                         const el = document.getElementById(cb.id.replace('rb-check-', 'rb-status-'));
                         if (el) {
-                            el.innerHTML = `<span class="badge bg-${colours[t.status] || 'secondary'}">${t.status}</span>`;
-                            el.title = t.stats ? _formatBookStats(t.stats) : '';
+                            el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
+                            el.title = taskStatus.stats ? _formatBookStats(taskStatus.stats) : '';
                         }
                     });
                     _updateReviewBatchTotals(state);
                 },
                 onDone: (state) => {
                     _showTaskRecoveryPanel('review-batch-recovery-panel', 'batch_review', state,
-                        'Inspect the failed books and retry the batch.');
+                        t('script.review.batch.recovery-hint', 'Inspect the failed books and retry the batch.'));
                     notifyJobDone('batch_review', '', 'finished', state);
                     document.getElementById('btn-review-batch-start').disabled = false;
                     document.getElementById('btn-pause-batch-review').style.display = 'none';
                     document.getElementById('btn-cancel-batch-review').style.display = 'none';
                     const outcome = getBatchOutcome(state.tasks || []);
-                    const label = outcome.complete ? 'complete' : state.cancel || outcome.cancelled ? 'stopped' : 'incomplete';
+                    const stateLabel = outcome.complete ? t('script.review.batch.state.complete', 'complete') : state.cancel || outcome.cancelled ? t('script.review.batch.state.stopped', 'stopped') : t('script.review.batch.state.incomplete', 'incomplete');
                     const tone = outcome.complete ? 'text-success' : 'text-warning';
                     document.getElementById('review-batch-status-msg').innerHTML =
-                        `<span class="${tone}">Batch review ${label}: ${outcome.completed} completed, ${outcome.failed} failed, ${outcome.cancelled} cancelled, ${outcome.unfinished} unfinished.</span>`;
+                        `<span class="${tone}">${escapeHtml(t('script.review.batch.finished', 'Batch review {state}: {completed} completed, {failed} failed, {cancelled} cancelled, {unfinished} unfinished.', {state: stateLabel, completed: outcome.completed, failed: outcome.failed, cancelled: outcome.cancelled, unfinished: outcome.unfinished}))}</span>`;
                 }
             });
         }
@@ -4596,7 +4637,7 @@
         const AVAILABLE_VOICES = ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"];
 
         function getVoiceCandidateMarkup(candidates, activeCandidate) {
-            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>Saved candidates</strong>${getCandidatesNewestFirst(candidates).map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(getCandidateLabel(candidate))}${candidate.rank ? ` · #${candidate.rank}` : ''}${candidate.type === 'clone' && candidate.ref_text ? ` · “${escapeHtml(String(candidate.ref_text).slice(0, 40))}${String(candidate.ref_text).length > 40 ? '…' : ''}”` : ''}</span>${getCandidateAudioUrl(candidate) ? `<button class="btn btn-sm btn-outline-primary py-0 candidate-play" type="button" data-label="${escapeHtml('candidate ' + getCandidateLabel(candidate))}" aria-label="${escapeHtml('Play candidate ' + getCandidateLabel(candidate))}" onclick="toggleCandidatePlayback(this, ${getInlineStringArgument(candidate.candidate_id || '')})"><i class="fas fa-play"></i></button>` : ''}<button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${candidate.favorite ? 'Unfavourite' : 'Favourite'} candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button>${candidate.candidate_id && candidate.candidate_id === activeCandidate ? `<button class="btn btn-sm btn-success py-0" type="button" disabled aria-label="Candidate ${escapeHtml(candidate.candidate_id)} is in use">In use</button>` : `<button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="Use candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">Use</button>`}<button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="Delete candidate ${escapeHtml(candidate.candidate_id || '')}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
+            return Array.isArray(candidates) && candidates.length ? `<div class="small mt-2"><strong>${t('voice.candidate.saved-title', 'Saved candidates')}</strong>${getCandidatesNewestFirst(candidates).map(candidate => `<div class="d-flex align-items-center gap-1 mt-1"><span class="text-truncate" title="${escapeHtml(candidate.candidate_id || '')}">${escapeHtml(getCandidateLabel(candidate))}${candidate.rank ? ` · #${candidate.rank}` : ''}${candidate.type === 'clone' && candidate.ref_text ? ` · “${escapeHtml(String(candidate.ref_text).slice(0, 40))}${String(candidate.ref_text).length > 40 ? '…' : ''}”` : ''}</span>${getCandidateAudioUrl(candidate) ? `<button class="btn btn-sm btn-outline-primary py-0 candidate-play" type="button" data-label="${escapeHtml(getCandidateLabel(candidate))}" aria-label="${escapeHtml(t('voice.candidate.play-aria', 'Play candidate {candidate}', {candidate: getCandidateLabel(candidate)}))}" onclick="toggleCandidatePlayback(this, ${getInlineStringArgument(candidate.candidate_id || '')})"><i class="fas fa-play"></i></button>` : ''}<button class="btn btn-sm ${candidate.favorite ? 'btn-warning' : 'btn-outline-warning'} py-0" type="button" data-voice-focus-key="${escapeHtml('candidate-favorite:' + (candidate.candidate_id || ''))}" aria-label="${escapeHtml(candidate.favorite ? t('voice.candidate.unfavourite-aria', 'Unfavourite candidate {candidate}', {candidate: candidate.candidate_id || ''}) : t('voice.candidate.favourite-aria', 'Favourite candidate {candidate}', {candidate: candidate.candidate_id || ''}))}" onclick="favoriteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')}, ${candidate.favorite ? 'false' : 'true'})">★</button>${candidate.candidate_id && candidate.candidate_id === activeCandidate ? `<button class="btn btn-sm btn-success py-0" type="button" disabled aria-label="${escapeHtml(t('voice.candidate.in-use-aria', 'Candidate {candidate} is in use', {candidate: candidate.candidate_id}))}">${t('voice.candidate.in-use', 'In use')}</button>` : `<button class="btn btn-sm btn-outline-success py-0" type="button" aria-label="${escapeHtml(t('voice.candidate.use-aria', 'Use candidate {candidate}', {candidate: candidate.candidate_id || ''}))}" onclick="selectVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">${t('voice.candidate.use', 'Use')}</button>`}<button class="btn btn-sm btn-outline-danger py-0" type="button" aria-label="${escapeHtml(t('voice.candidate.delete-aria', 'Delete candidate {candidate}', {candidate: candidate.candidate_id || ''}))}" onclick="deleteVoiceCandidate(this, ${getInlineStringArgument(candidate.candidate_id || '')})">×</button></div>`).join('')}</div>` : '';
         }
 
         // Newest first (#1300). Candidates are stored in saving order, so the list
@@ -4657,7 +4698,9 @@
 
         function setCandidatePlayButton(button, playing) {
             button.innerHTML = playing ? '<i class="fas fa-stop"></i>' : '<i class="fas fa-play"></i>';
-            button.setAttribute('aria-label', (playing ? 'Stop ' : 'Play ') + button.dataset.label);
+            button.setAttribute('aria-label', playing
+                ? t('voice.candidate.stop-aria', 'Stop candidate {candidate}', {candidate: button.dataset.label})
+                : t('voice.candidate.play-aria', 'Play candidate {candidate}', {candidate: button.dataset.label}));
             button.classList.toggle('btn-primary', playing);
             button.classList.toggle('btn-outline-primary', !playing);
         }
@@ -4679,7 +4722,7 @@
                 .find(item => item && item.candidate_id === candidateId);
             const url = candidate ? getCandidateAudioUrl(candidate) : null;
             if (!url) {
-                showToast('This candidate has no audio to play.', 'warning');
+                showToast(t('voice.candidate.no-audio', 'This candidate has no audio to play.'), 'warning');
                 return;
             }
             const audio = new Audio(url);
@@ -4697,7 +4740,7 @@
                 await audio.play();
             } catch (error) {
                 finish();
-                showToast('Could not play this candidate. Check that Alexandria is running, then try Play again.', 'warning');
+                showToast(t('voice.candidate.play-failed', 'Could not play this candidate. Check that Alexandria is running, then try Play again.'), 'warning');
             }
         };
 
@@ -4711,8 +4754,8 @@
             const states = (traits.states || []).map(label).filter(text => text);
             const text = states.length ? states.join(' → ') : label(traits);
             if (!text && !traits.ageless) { return ''; }
-            const shown = [text, traits.ageless ? 'ageless' : ''].filter(part => part).join(' · ');
-            return `<span class="badge bg-light text-dark border ms-2" title="Model-inferred from ${Number(traits.lines) || 0} script lines; review against the source">Script estimate: ${escapeHtml(shown)}</span>`;
+            const shown = [text, traits.ageless ? t('voice.trait.ageless', 'ageless') : ''].filter(part => part).join(' · ');
+            return `<span class="badge bg-light text-dark border ms-2" title="${escapeHtml(t('voice.trait.title', 'Model-inferred from {lines} script lines; review against the source', {lines: Number(traits.lines) || 0}))}">${escapeHtml(t('voice.trait.label', 'Script estimate: {traits}', {traits: shown}))}</span>`;
         }
 
 
@@ -4770,14 +4813,14 @@
                 if (!voice.persona_states?.length) { return base; }
                 const states = voice.persona_states.map(state => {
                     const config = voice.config?.versions?.[state.version_id] || {};
-                    const label = `${voice.name} (${state.gender} · ${state.age_group.replaceAll('_', ' ')}) — state ${state.state_number}`;
+                    const label = t('voice.state.card-label', '{name} ({gender} · {age}) — state {number}', {name: voice.name, gender: state.gender, age: state.age_group.replaceAll('_', ' '), number: state.state_number});
                     const stale = state.current !== true;   // the server's rule (#1040 review C37)
                     const markup = createVoiceCard({...voice, version_id: state.version_id, display_name: label,
                         config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++);
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
                     return stale ? disableStaleCardControls(markup) : markup;
                 }).join('');
-                return `<div class="voice-character-group" data-voice="${escapeHtml(voice.name)}"><details class="mb-3 voice-base-details"><summary>${escapeHtml(voice.name)}: base voice and manual versions</summary>${base}</details>${states}</div>`;
+                return `<div class="voice-character-group" data-voice="${escapeHtml(voice.name)}"><details class="mb-3 voice-base-details"><summary>${escapeHtml(t('voice.state.base-summary', '{name}: base voice and manual versions', {name: voice.name}))}</summary>${base}</details>${states}</div>`;
             }).join('');
         }
 
@@ -4797,73 +4840,73 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="Alias of ${escapeHtml(getEffectiveVoiceAlias(config))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${window._lineCounts[voice.name]} lines in this book">${window._lineCounts[voice.name]} lines</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${voice.state_line_count} lines spoken in this state">${voice.state_line_count} lines in this state</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Regenerate persona for ' + label)}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>Regenerate persona</button>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml('Generate age version for ' + label)}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>Generate age version</button>
+                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('voice.card.alias-of', 'Alias of {alias}', {alias: getEffectiveVoiceAlias(config)}))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${escapeHtml(t('voice.card.lines-title', '{count} lines in this book', {count: window._lineCounts[voice.name]}))}">${escapeHtml(t('voice.card.lines', '{count} lines', {count: window._lineCounts[voice.name]}))}</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${escapeHtml(t('voice.card.state-lines-title', '{count} lines spoken in this state', {count: voice.state_line_count}))}">${escapeHtml(t('voice.card.state-lines', '{count} lines in this state', {count: voice.state_line_count}))}</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${t('voice.card.regenerate', 'Regenerate persona')}</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${t('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
-                                    <select class="form-select design-line-select" aria-label="${escapeHtml('Line to design the voice of ' + label + ' from')}" onfocus="loadDesignLines(this)"><option value="">Design from one of their lines…</option></select>
-                                    <input type="number" class="form-control design-count" min="1" max="100" value="1" style="max-width: 4.5rem;" title="How many voices to design from the line; each is saved under Saved candidates" aria-label="${escapeHtml('How many voices to design for ' + label)}">
-                                    <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml('Design the voice of ' + label + ' from the chosen line')}" onclick="designFromChosenLine(this)">Design</button>
+                                    <select class="form-select design-line-select" aria-label="${escapeHtml(t('voice.card.design-line-aria', 'Line to design the voice of {name} from', {name: label}))}" onfocus="loadDesignLines(this)"><option value="">${t('voice.card.design-line-empty', 'Design from one of their lines…')}</option></select>
+                                    <input type="number" class="form-control design-count" min="1" max="100" value="1" style="max-width: 4.5rem;" title="${escapeHtml(t('voice.card.design-count-title', 'How many voices to design from the line; each is saved under Saved candidates'))}" aria-label="${escapeHtml(t('voice.card.design-count-aria', 'How many voices to design for {name}', {name: label}))}">
+                                    <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.design-aria', 'Design the voice of {name} from the chosen line', {name: label}))}" onclick="designFromChosenLine(this)">${t('voice.card.design', 'Design')}</button>
                                 </div>
-                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml('Recover persona for ' + label)}" onclick="openStatePersonaRecovery(this)">Recover persona</button>` : ''}
-                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml('Remove saved state persona for ' + label)}" onclick="removeStatePersona(this)">Remove saved state persona</button>` : ''}
-                                <div class="small text-muted">${voice.version_id && voice.state_stale ? 'State persona needs generation for the current script. ' : ''}Persona review: ${escapeHtml(config.persona_status || 'unreviewed')} · Voice review: ${escapeHtml(config.voice_status || 'unassigned')}</div>
-                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">Persona-to-voice audit: ${escapeHtml(config.persona_voice_audit.voice_adapter_id || 'manual')} · ${escapeHtml(config.persona_voice_audit.persona_ref || 'inline persona')} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml('Edit persona-to-voice audit for ' + label)}" onclick="editPersonaVoiceAudit(this)">Edit</button></div>` : ''}
-                                <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="Approval status" aria-describedby="voice-approval-help">
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">Approve persona</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">Mark persona reviewed</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">Reject persona</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">Approve voice</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">Mark voice reviewed</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">Reject voice</button>
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${t('voice.card.recover', 'Recover persona')}</button>` : ''}
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${t('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
+                                <div class="small text-muted">${voice.version_id && voice.state_stale ? t('voice.card.state-needs-generation', 'State persona needs generation for the current script.') + ' ' : ''}${escapeHtml(t('voice.card.review-line', 'Persona review: {persona} · Voice review: {voice}', {persona: config.persona_status || t('voice.card.review-unreviewed', 'unreviewed'), voice: config.voice_status || t('voice.card.review-unassigned', 'unassigned')}))}</div>
+                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${escapeHtml(t('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')}))} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${t('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
+                                <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help">
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${t('voice.card.approve-persona', 'Approve persona')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">${t('voice.card.mark-persona', 'Mark persona reviewed')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">${t('voice.card.reject-persona', 'Reject persona')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">${t('voice.card.approve-voice', 'Approve voice')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">${t('voice.card.mark-voice', 'Mark voice reviewed')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">${t('voice.card.reject-voice', 'Reject voice')}</button>
                                 </div>
                                 <div class="input-group input-group-sm mt-2" ${voice.version_id ? 'hidden' : ''}>
-                                    <select class="form-select voice-version-select" aria-label="${escapeHtml('Voice version for ' + label)}" onchange="selectVoiceVersion(this)">
-                                        <option value="" disabled>Choose a saved version</option>
+                                    <select class="form-select voice-version-select" aria-label="${escapeHtml(t('voice.card.version-aria', 'Voice version for {name}', {name: label}))}" onchange="selectVoiceVersion(this)">
+                                        <option value="" disabled>${t('voice.card.version-empty', 'Choose a saved version')}</option>
                                         ${Object.entries(config.versions || {}).map(([id, version]) => `<option value="${escapeHtml(id)}" ${config.active_version === id ? 'selected' : ''}>${escapeHtml(id)}${version.age_group ? ` · ${escapeHtml(version.age_group)}` : ''}</option>`).join('')}
                                     </select>
-                                    <button class="btn btn-outline-secondary" type="button" aria-label="${escapeHtml('Add voice version for ' + label)}" onclick="addVoiceVersion(this)">Version</button>
+                                    <button class="btn btn-outline-secondary" type="button" aria-label="${escapeHtml(t('voice.card.add-version-aria', 'Add voice version for {name}', {name: label}))}" onclick="addVoiceVersion(this)">${t('voice.card.add-version', 'Version')}</button>
                                 </div>
-                                <div class="form-text" ${voice.version_id ? 'hidden' : ''}>Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.</div>
-                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml('Load voice changes for ' + label)}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>Voice changes (${voice.traits.states.length - 1} change${voice.traits.states.length === 2 ? '' : 's'})</button><div class="form-text">Review which voice is used before and after each change.</div><div class="voice-state-rows"></div></div>` : ''}
-                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml('Generate more voice candidates for ' + label)}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate more candidates</button>
+                                <div class="form-text" ${voice.version_id ? 'hidden' : ''}>${t('voice.card.version-help', 'Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.')}</div>
+                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.voice-changes-aria', 'Load voice changes for {name}', {name: label}))}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>${escapeHtml(voice.traits.states.length === 2 ? t('voice.card.voice-changes.one', 'Voice changes ({count} change)', {count: 1}) : t('voice.card.voice-changes.many', 'Voice changes ({count} changes)', {count: voice.traits.states.length - 1}))}</button><div class="form-text">${t('voice.card.voice-changes-help', 'Review which voice is used before and after each change.')}</div><div class="voice-state-rows"></div></div>` : ''}
+                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.more-candidates-aria', 'Generate more voice candidates for {name}', {name: label}))}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>${t('voice.card.more-candidates', 'Generate more candidates')}</button>
                                 <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates, config.active_candidate)}</div>
                                 <div class="form-check form-switch small">
-                                    <input class="form-check-input voice-ready" aria-label="${escapeHtml('Ready for audio generation for ' + label)}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
-                                    <label class="form-check-label" for="voice-ready-${index}">Ready</label>
+                                    <input class="form-check-input voice-ready" aria-label="${escapeHtml(t('voice.card.ready-aria', 'Ready for audio generation for {name}', {name: label}))}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
+                                    <label class="form-check-label" for="voice-ready-${index}">${t('voice.card.ready', 'Ready')}</label>
                                 </div>
-                                ${voice.version_id ? `<label class="form-label small mt-1">State seed<input class="form-control form-control-sm voice-seed" type="number" min="-1" max="4294967295" aria-label="${escapeHtml('Seed for ' + label)}" value="${escapeHtml(String(config.seed ?? '-1'))}"></label>` : ''}
-                                <div class="form-text small text-muted mt-1">Alias of:</div>
-                                <select class="form-select form-select-sm alias-select mt-1" data-voice-roster="alias" data-roster-book="${escapeHtml(roster.book)}" ${voice.version_id ? 'disabled' : ''} aria-label="${escapeHtml('Alias target for ' + label)}">
-                                    <option value="">-- None --</option>
+                                ${voice.version_id ? `<label class="form-label small mt-1">${t('voice.card.state-seed', 'State seed')}<input class="form-control form-control-sm voice-seed" type="number" min="-1" max="4294967295" aria-label="${escapeHtml(t('voice.card.seed-aria', 'Seed for {name}', {name: label}))}" value="${escapeHtml(String(config.seed ?? '-1'))}"></label>` : ''}
+                                <div class="form-text small text-muted mt-1">${t('voice.card.alias-label', 'Alias of:')}</div>
+                                <select class="form-select form-select-sm alias-select mt-1" data-voice-roster="alias" data-roster-book="${escapeHtml(roster.book)}" ${voice.version_id ? 'disabled' : ''} aria-label="${escapeHtml(t('voice.card.alias-target-aria', 'Alias target for {name}', {name: label}))}">
+                                    <option value="">${t('voice.card.alias-none', '-- None --')}</option>
                                     ${renderInitialAliasOptions(voice)}
                                 </select>
                             </div>
                             <div class="col-md-9">
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="custom" id="voice-type-${index}-custom" aria-label="${escapeHtml('Custom voice for ' + label)}" ${voiceType === 'custom' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-custom">Custom voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="custom" id="voice-type-${index}-custom" aria-label="${escapeHtml(t('voice.card.type.custom-aria', 'Custom voice for {name}', {name: label}))}" ${voiceType === 'custom' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-custom">${t('voice.card.type.custom', 'Custom voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="builtin_lora" id="voice-type-${index}-builtin_lora" aria-label="${escapeHtml('Built-in LoRA voice for ' + label)}" ${voiceType === 'builtin_lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-builtin_lora">Built-in LoRA voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="builtin_lora" id="voice-type-${index}-builtin_lora" aria-label="${escapeHtml(t('voice.card.type.builtin-lora-aria', 'Built-in LoRA voice for {name}', {name: label}))}" ${voiceType === 'builtin_lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-builtin_lora">${t('voice.card.type.builtin-lora', 'Built-in LoRA voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="clone" id="voice-type-${index}-clone" aria-label="${escapeHtml('Clone voice for ' + label)}" ${voiceType === 'clone' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-clone">Clone voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="clone" id="voice-type-${index}-clone" aria-label="${escapeHtml(t('voice.card.type.clone-aria', 'Clone voice for {name}', {name: label}))}" ${voiceType === 'clone' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-clone">${t('voice.card.type.clone', 'Clone voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="lora" id="voice-type-${index}-lora" aria-label="${escapeHtml('LoRA voice for ' + label)}" ${voiceType === 'lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-lora">LoRA voice</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="lora" id="voice-type-${index}-lora" aria-label="${escapeHtml(t('voice.card.type.lora-aria', 'LoRA voice for {name}', {name: label}))}" ${voiceType === 'lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-lora">${t('voice.card.type.lora', 'LoRA voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" id="voice-type-${index}-design" aria-label="${escapeHtml('Voice Design for ' + label)}" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-design">Voice Design</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" id="voice-type-${index}-design" aria-label="${escapeHtml(t('voice.card.type.design-aria', 'Voice Design for {name}', {name: label}))}" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-design">${t('voice.card.type.design', 'Voice Design')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" id="voice-type-${index}-ensemble" aria-label="${escapeHtml('Character ensemble for ' + label)}" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-ensemble">Character ensemble</label>
+                                        <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" id="voice-type-${index}-ensemble" aria-label="${escapeHtml(t('voice.card.type.ensemble-aria', 'Character ensemble for {name}', {name: label}))}" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
+                                        <label class="form-check-label" for="voice-type-${index}-ensemble">${t('voice.card.type.ensemble', 'Character ensemble')}</label>
                                     </div>
                                 </div>
 
@@ -4871,12 +4914,12 @@
                                 <div class="custom-opts" style="display: ${voiceType === 'custom' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select voice-select" aria-label="${escapeHtml('Custom voice for ' + label)}">
+                                            <select class="form-select voice-select" aria-label="${escapeHtml(t('voice.card.type.custom-aria', 'Custom voice for {name}', {name: label}))}">
                                                 ${customVoices.map(v => `<option value="${escapeHtml(v)}" ${config.voice === v ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control character-style" aria-label="${escapeHtml('Custom voice style for ' + label)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(config.character_style || config.default_style || '')}">
+                                            <input type="text" class="form-control character-style" aria-label="${escapeHtml(t('voice.card.custom-style-aria', 'Custom voice style for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.style-placeholder', 'Character style (e.g. refined aristocratic tone, heavy Scottish accent)'))}" value="${escapeHtml(config.character_style || config.default_style || '')}">
                                             ${renderStyleTimeline(voice.name, config)}
                                         </div>
                                     </div>
@@ -4886,21 +4929,21 @@
                                 <div class="builtin-lora-opts" style="display: ${voiceType === 'builtin_lora' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select builtin-lora-select" aria-label="${escapeHtml('Built-in LoRA voice for ' + label)}">
-                                                <option value="">-- Select built-in voice --</option>
+                                            <select class="form-select builtin-lora-select" aria-label="${escapeHtml(t('voice.card.type.builtin-lora-aria', 'Built-in LoRA voice for {name}', {name: label}))}">
+                                                <option value="">${t('voice.card.builtin-empty', '-- Select built-in voice --')}</option>
                                                 ${(() => {
                                                     const models = (window._loraModelsCache || []).filter(m => m.builtin);
                                                     const males = models.filter(m => m.gender === 'male');
                                                     const females = models.filter(m => m.gender === 'female');
                                                     let html = '';
                                                     if (males.length) {
-                                                        html += '<optgroup label="Male">';
-                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += '<optgroup label="' + escapeHtml(t('voice.card.builtin-male', 'Male')) + '">';
+                                                        html += males.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' ' + escapeHtml(t('voice.card.not-downloaded', '(not downloaded)')) : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     if (females.length) {
-                                                        html += '<optgroup label="Female">';
-                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' (not downloaded)' : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
+                                                        html += '<optgroup label="' + escapeHtml(t('voice.card.builtin-female', 'Female')) + '">';
+                                                        html += females.map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''} ${m.downloaded === false ? 'disabled' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}${m.downloaded === false ? ' ' + escapeHtml(t('voice.card.not-downloaded', '(not downloaded)')) : ''} — ${escapeHtml(m.description || '')}</option>`).join('');
                                                         html += '</optgroup>';
                                                     }
                                                     return html + getSavedAdapterOption(voiceType === 'builtin_lora' ? config.adapter_id : '', models);
@@ -4908,38 +4951,38 @@
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control builtin-lora-style" aria-label="${escapeHtml('Built-in LoRA voice style for ' + label)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
+                                            <input type="text" class="form-control builtin-lora-style" aria-label="${escapeHtml(t('voice.card.builtin-style-aria', 'Built-in LoRA voice style for {name}', {name: label}))}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
-                                    <small class="text-muted mt-1 d-block">Grayed-out voices need to be downloaded first. Go to the <strong>Training</strong> tab to download them.</small>
+                                    <small class="text-muted mt-1 d-block">${t('voice.card.builtin-download-hint', 'Grayed-out voices need to be downloaded first. Download them from the Training tab.')}</small>
                                 </div>
 
                                 <!-- Clone Options -->
                                 <div class="clone-opts" style="display: ${voiceType === 'clone' ? 'block' : 'none'}">
                                     <div class="row g-2 mb-2 align-items-center">
                                         <div class="col">
-                                            <select class="form-select designed-voice-select" aria-label="${escapeHtml('Reference voice for ' + label)}" onchange="onDesignedVoiceSelect(this)">
-                                                <option value="">-- Select voice or enter path manually --</option>
-                                                ${(window._cloneVoicesCache || []).length ? `<optgroup label="Uploaded Voices">
+                                            <select class="form-select designed-voice-select" aria-label="${escapeHtml(t('voice.card.clone-reference-aria', 'Reference voice for {name}', {name: label}))}" onchange="onDesignedVoiceSelect(this)">
+                                                <option value="">${t('voice.card.clone-empty', '-- Select voice or enter path manually --')}</option>
+                                                ${(window._cloneVoicesCache || []).length ? `<optgroup label="${escapeHtml(t('voice.card.clone-uploaded-group', 'Uploaded Voices'))}">
                                                     ${(window._cloneVoicesCache || []).map(v => `<option value="clone:${escapeHtml(v.id)}" ${reference?.type === 'clone' && reference.id === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
-                                                ${(window._designedVoicesCache || []).length ? `<optgroup label="Designed Voices">
+                                                ${(window._designedVoicesCache || []).length ? `<optgroup label="${escapeHtml(t('voice.card.clone-designed-group', 'Designed Voices'))}">
                                                     ${(window._designedVoicesCache || []).map(v => `<option value="design:${escapeHtml(v.id)}" ${reference?.type === 'design' && reference.id === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`).join('')}
                                                 </optgroup>` : ''}
-                                                <option value="__manual__" ${config.ref_audio && !reference ? 'selected' : ''}>Custom path...</option>
+                                                <option value="__manual__" ${config.ref_audio && !reference ? 'selected' : ''}>${t('voice.card.clone-manual', 'Custom path...')}</option>
                                             </select>
                                         </div>
                                         <div class="col-auto">
-                                            <button class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml('Upload reference audio for ' + label)}" onclick="uploadCloneVoice(this)" title="Upload audio file"><i class="fas fa-upload"></i> Upload</button>
-                                            <input type="file" class="clone-voice-file-input" aria-label="${escapeHtml('Upload reference audio for ' + label)}" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
+                                            <button class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml(t('voice.card.clone-upload-aria', 'Upload reference audio for {name}', {name: label}))}" onclick="uploadCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-upload-title', 'Upload audio file'))}"><i class="fas fa-upload"></i> ${t('voice.card.clone-upload', 'Upload')}</button>
+                                            <input type="file" class="clone-voice-file-input" aria-label="${escapeHtml(t('voice.card.clone-upload-aria', 'Upload reference audio for {name}', {name: label}))}" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
                                         </div>
                                     </div>
-                                    <input type="text" class="form-control ref-text mb-2" aria-label="${escapeHtml('Reference transcript for ' + label)}" placeholder="Reference Text" value="${escapeHtml(config.ref_text || '')}">
-                                    <label class="form-label small d-block w-100">Persona description<textarea class="form-control persona-description" aria-label="${escapeHtml('Persona description for ' + label)}">${escapeHtml(config.description || '')}</textarea></label>
+                                    <input type="text" class="form-control ref-text mb-2" aria-label="${escapeHtml(t('voice.card.clone-transcript-aria', 'Reference transcript for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-transcript-placeholder', 'Reference Text'))}" value="${escapeHtml(config.ref_text || '')}">
+                                    <label class="form-label small d-block w-100">${t('voice.card.clone-persona-label', 'Persona description')}<textarea class="form-control persona-description" aria-label="${escapeHtml(t('voice.card.clone-persona-aria', 'Persona description for {name}', {name: label}))}">${escapeHtml(config.description || '')}</textarea></label>
                                     <div class="input-group">
-                                        <input type="text" class="form-control ref-audio" aria-label="${escapeHtml('Reference audio path for ' + label)}" placeholder="Path to audio file" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
-                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" aria-label="${escapeHtml('Play reference audio for ' + label)}" onclick="playCloneVoice(this)" title="Play reference audio" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
-                                        <button class="btn btn-sm btn-outline-danger clone-delete-btn" aria-label="${escapeHtml('Delete uploaded reference voice for ' + label)}" onclick="deleteCloneVoice(this)" title="Delete uploaded voice" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
+                                        <input type="text" class="form-control ref-audio" aria-label="${escapeHtml(t('voice.card.clone-path-aria', 'Reference audio path for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-path-placeholder', 'Path to audio file'))}" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
+                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger clone-delete-btn" aria-label="${escapeHtml(t('voice.card.clone-delete-aria', 'Delete uploaded reference voice for {name}', {name: label}))}" onclick="deleteCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-delete-title', 'Delete uploaded voice'))}" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
 
@@ -4947,31 +4990,31 @@
                                 <div class="lora-opts" style="display: ${voiceType === 'lora' ? 'block' : 'none'}">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <select class="form-select lora-adapter-select" aria-label="${escapeHtml('Trained LoRA voice for ' + label)}">
-                                                <option value="">-- Select trained adapter --</option>
+                                            <select class="form-select lora-adapter-select" aria-label="${escapeHtml(t('voice.card.lora-adapter-aria', 'Trained LoRA voice for {name}', {name: label}))}">
+                                                <option value="">${t('voice.card.lora-adapter-empty', '-- Select trained adapter --')}</option>
                                                 ${getSavedAdapterOption(voiceType === 'lora' ? config.adapter_id : '', window._loraModelsCache || [])}
                                                 ${(window._loraModelsCache || []).map(m => `<option value="${escapeHtml(m.id)}" ${config.adapter_id === m.id ? 'selected' : ''}>${m.favorite ? '★ ' : ''}${escapeHtml(m.name)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div class="col-md-6">
-                                            <input type="text" class="form-control lora-character-style" aria-label="${escapeHtml('LoRA voice style for ' + label)}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
+                                            <input type="text" class="form-control lora-character-style" aria-label="${escapeHtml(t('voice.card.lora-style-aria', 'LoRA voice style for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.style-placeholder', 'Character style (e.g. refined aristocratic tone, heavy Scottish accent)'))}" value="${escapeHtml(voiceType === 'lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="mb-2">
-                                    <label class="form-label small" for="voice-presentation-${index}">Voice presentation (optional, user confirmed)</label>
-                                    <input type="text" class="form-control form-control-sm voice-presentation" id="voice-presentation-${index}" maxlength="500" aria-label="${escapeHtml('Voice presentation for ' + label)}" placeholder="e.g. lower, resonant female voice; soft, light male voice" value="${escapeHtml(config.voice_presentation || '')}">
-                                    <div class="form-text">Describe how this character should sound, separately from gender or appearance. Used by model-based voice suggestions; saving this hint does not change the assigned voice or rendered audio.</div>
+                                    <label class="form-label small" for="voice-presentation-${index}">${t('voice.card.presentation-label', 'Voice presentation (optional, user confirmed)')}</label>
+                                    <input type="text" class="form-control form-control-sm voice-presentation" id="voice-presentation-${index}" maxlength="500" aria-label="${escapeHtml(t('voice.card.presentation-aria', 'Voice presentation for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.presentation-placeholder', 'e.g. lower, resonant female voice; soft, light male voice'))}" value="${escapeHtml(config.voice_presentation || '')}">
+                                    <div class="form-text">${t('voice.card.presentation-help', 'Describe how this character should sound, separately from gender or appearance. Used by model-based voice suggestions; saving this hint does not change the assigned voice or rendered audio.')}</div>
                                 </div>
 
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
-                                    <input type="text" class="form-control design-description mb-1" aria-label="${escapeHtml('Base voice description for ' + label)}" placeholder="Base voice description (e.g. Young strong soldier)" value="${escapeHtml(config.description || '')}">
-                                    <span class="text-muted small">Per-line instruct is appended to this description as delivery/emotion direction</span>
+                                    <input type="text" class="form-control design-description mb-1" aria-label="${escapeHtml(t('voice.card.design-description-aria', 'Base voice description for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.design-description-placeholder', 'Base voice description (e.g. Young strong soldier)'))}" value="${escapeHtml(config.description || '')}">
+                                    <span class="text-muted small">${t('voice.card.design-instruct-note', 'Per-line instruct is appended to this description as delivery/emotion direction')}</span>
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml('Re-design voice for ' + label)}" onclick="openVoiceDesignEditor(this)">
-                                            <i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice
+                                        <button type="button" class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml(t('voice.card.redesign-aria', 'Re-design voice for {name}', {name: label}))}" onclick="openVoiceDesignEditor(this)">
+                                            <i class="fas fa-wand-magic-sparkles me-1"></i>${t('voice.card.redesign', 'Re-design Voice')}
                                         </button>
                                     </div>
                                 </div>
@@ -4979,7 +5022,7 @@
                                 <!-- Ensemble Options -->
                                 <div class="ensemble-opts" style="display: ${voiceType === 'ensemble' ? 'block' : 'none'}">
                                     <div class="ensemble-members small">${ensembleMembersMarkup(voice.name, config.members)}</div>
-                                    <span class="text-muted small">Each character is voiced with whatever voice it already has, then mixed together. Clips are aligned to the longest, so this sounds like a chorus rather than exact unison.</span>
+                                    <span class="text-muted small">${t('voice.card.ensemble-help', 'Each character is voiced with whatever voice it already has, then mixed together. Clips are aligned to the longest, so this sounds like a chorus rather than exact unison.')}</span>
                                 </div>
                             </div>
                         </div>
@@ -5001,13 +5044,13 @@
         function ensembleMembersMarkup(name, members) {
             const names = (window._voicesNames || []).filter(n => n !== name);
             if (names.length === 0) {
-                return '<div class="text-muted">No other characters to combine.</div>';
+                return `<div class="text-muted">${t('voice.ensemble.none', 'No other characters to combine.')}</div>`;
             }
             // Only prefill when nothing is saved yet — never override a choice.
             const selected = new Set(Array.isArray(members) ? members : suggestEnsembleMembers(name));
             return names.map(n => `
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input ensemble-member" aria-label="${escapeHtml(`Include ${n} in voices together for ${name}`)}" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
+                    <input class="form-check-input ensemble-member" aria-label="${escapeHtml(t('voice.ensemble.include-aria', 'Include {member} in voices together for {name}', {member: n, name}))}" type="checkbox" value="${escapeHtml(n)}" ${selected.has(n) ? 'checked' : ''} onchange="saveVoicesDebounced()">
                     <label class="form-check-label">${escapeHtml(n)}</label>
                 </div>
             `).join('');
@@ -6781,33 +6824,35 @@
             return 'main';
         }
 
-        function renderVoiceStateRows(data, speaker = 'this character') {
+        function renderVoiceStateRows(data, speaker = t('voice.states.this-character', 'this character')) {
             const states = (data && data.states) || [];
-            if (!states.length) { return '<div class="small text-muted">No detected change in age or gender for this character.</div>'; }
+            if (!states.length) { return `<div class="small text-muted">${t('voice.states.none', 'No detected change in age or gender for this character.')}</div>`; }
             const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
             const rows = states.map((state, index) => {
                 const sources = state.sources || {};
                 const selected = getVoiceStateDefault(state, data.applied, index);
                 const where = state.from_index === null || state.from_index === undefined
-                    ? 'line not found in the Editor yet' : `from line ${state.from_index + 1}`;
-                const library = (c, suffix) => option(`library:${c.adapter_id}`, `${c.name} · ${c.gender} · ${c.age_group}${suffix}`, selected);
-                const options = [option('main', 'Main voice', selected),
-                    ...(sources.versions || []).map(v => option(`version:${v.version_id}`, `Version: ${v.version_id}`, selected)),
+                    ? t('voice.states.line-not-found', 'line not found in the Editor yet') : t('voice.states.from-line', 'from line {line}', {line: state.from_index + 1});
+                const library = (c, usedBy) => option(`library:${c.adapter_id}`, usedBy === null
+                    ? t('voice.states.library-option-unused', '{name} · {gender} · {age} · unused', {name: c.name, gender: c.gender, age: c.age_group})
+                    : t('voice.states.library-option-used', '{name} · {gender} · {age} · used by {books}', {name: c.name, gender: c.gender, age: c.age_group, books: usedBy.join(', ')}), selected);
+                const options = [option('main', t('voice.states.main', 'Main voice'), selected),
+                    ...(sources.versions || []).map(v => option(`version:${v.version_id}`, t('voice.states.option-version', 'Version: {version}', {version: v.version_id}), selected)),
                     // the applied version, even when it no longer ranks as a match
                     ...(selected.startsWith('version:') && !(sources.versions || []).some(v => `version:${v.version_id}` === selected)
-                        ? [option(selected, `Version: ${selected.slice(8)}`, selected)] : []),
-                    ...(sources.library_unused || []).map(c => library(c, ' · unused')),
-                    ...(sources.library_used || []).map(c => library(c, ` · used by ${(c.used_by || []).join(', ')}`))]
+                        ? [option(selected, t('voice.states.option-version', 'Version: {version}', {version: selected.slice(8)}), selected)] : []),
+                    ...(sources.library_unused || []).map(c => library(c, null)),
+                    ...(sources.library_used || []).map(c => library(c, c.used_by || []))]
                     .join('');
                 const generate = sources.offer_generate
-                    ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">Generate ${escapeHtml(state.age_group.replace(/_/g, ' '))} version</button>` : '';
+                    ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">${escapeHtml(t('voice.states.generate-age', 'Generate {age} version', {age: state.age_group.replace(/_/g, ' ')}))}</button>` : '';
                 return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-age="${escapeHtml(state.age_group)}">`
-                    + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${where})</span></div>`
-                    + (state.possible_gender_reveal ? '<div class="alert alert-warning py-1 px-2 mb-1" role="note">Possible identity reveal: the text may have misidentified this character earlier. Review their actual voice; a gender label change alone does not require a different voice.</div>' : '')
-                    + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(`Voice for ${speaker}, ${state.gender}, ${state.age_group.replace(/_/g, ' ')}, ${where}`)}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
+                    + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${escapeHtml(where)})</span></div>`
+                    + (state.possible_gender_reveal ? `<div class="alert alert-warning py-1 px-2 mb-1" role="note">${t('voice.states.identity-reveal', 'Possible identity reveal: the text may have misidentified this character earlier. Review their actual voice; a gender label change alone does not require a different voice.')}</div>` : '')
+                    + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(t('voice.states.voice-aria', 'Voice for {speaker}, {gender}, {age}, {where}', {speaker, gender: state.gender, age: state.age_group.replace(/_/g, ' '), where}))}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
             }).join('');
-            const revealHelp = `<div class="small mt-2">Narrative age and gender labels are evidence, not instructions to change the voice. For one consistent voice, set the character’s base voice and choose Main voice for every segment. <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Choose Main voice throughout for ${speaker}`)}" onclick="chooseMainVoiceStates(this)">Choose Main voice throughout</button> Review, then Apply.</div>`;
-            return rows + revealHelp + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(`Apply voice changes for ${speaker}`)}" onclick="applyVoiceStates(this)">Apply</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(`Clear voice changes for ${speaker}`)}" onclick="clearVoiceStates(this)">Clear</button></div>`;
+            const revealHelp = `<div class="small mt-2">${t('voice.states.reveal-help', 'Narrative age and gender labels are evidence, not instructions to change the voice. For one consistent voice, set the character’s base voice and choose Main voice for every segment.')} <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(t('voice.states.choose-main-aria', 'Choose Main voice throughout for {speaker}', {speaker}))}" onclick="chooseMainVoiceStates(this)">${t('voice.states.choose-main', 'Choose Main voice throughout')}</button> ${t('voice.states.review-then-apply', 'Review, then Apply.')}</div>`;
+            return rows + revealHelp + `<div class="mt-1"><button class="btn btn-sm btn-primary" type="button" aria-label="${escapeHtml(t('voice.states.apply-aria', 'Apply voice changes for {speaker}', {speaker}))}" onclick="applyVoiceStates(this)">${t('voice.states.apply', 'Apply')}</button> <button class="btn btn-sm btn-outline-secondary" type="button" aria-label="${escapeHtml(t('voice.states.clear-aria', 'Clear voice changes for {speaker}', {speaker}))}" onclick="clearVoiceStates(this)">${t('voice.states.clear', 'Clear')}</button></div>`;
         }
 
         function chooseMainVoiceStates(button) {
@@ -6831,7 +6876,7 @@
             if (!speaker || !target || pendingVoiceStateLoads.has(target)) { return; }
             const book = currentBookFilename;
             if (pendingVoiceStateSaves.has(`${book}\0${speaker}`)) {
-                showToast('Wait for these voice changes to finish saving before refreshing the panel.', 'warning');
+                showToast(t('voice.states.save-pending', 'Wait for these voice changes to finish saving before refreshing the panel.'), 'warning');
                 return;
             }
             const wasDisabled = button.disabled;
@@ -6839,14 +6884,14 @@
             pendingVoiceStateLoads.set(target, true);
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
-            if (empty) { target.innerHTML = '<div class="small text-muted" role="status">Loading voice changes…</div>'; }
+            if (empty) { target.innerHTML = `<div class="small text-muted" role="status">${t('voice.states.loading', 'Loading voice changes…')}</div>`; }
             const snapshot = getVoiceStateEditorSnapshot(target);
             const isCurrent = () => book === currentBookFilename && card.isConnected !== false && target.isConnected !== false;
             try {
                 const data = await API.get(`/api/voices/${encodeURIComponent(speaker)}/state_timeline`);
                 if (!isCurrent()) { return; }
                 if (getVoiceStateEditorSnapshot(target) !== snapshot) {
-                    showToast('Voice changes were edited while loading. Your current choices were kept; reopen the panel when ready to refresh.', 'warning');
+                    showToast(t('voice.states.edited-while-loading', 'Voice changes were edited while loading. Your current choices were kept; reopen the panel when ready to refresh.'), 'warning');
                     return;
                 }
                 window._voiceStateSuggestions = window._voiceStateSuggestions || {};
@@ -6855,9 +6900,9 @@
             } catch (e) {
                 console.debug('Could not load voice changes:', e);
                 if (!isCurrent()) { return; }
-                const message = 'Voice changes could not be loaded. Check that Alexandria is running, then retry.';
+                const message = t('voice.states.load-failed', 'Voice changes could not be loaded. Check that Alexandria is running, then retry.');
                 if (empty && getVoiceStateEditorSnapshot(target) === snapshot) {
-                    target.innerHTML = `<div class="small text-warning" role="status">${message} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openVoiceStates(this)">Retry voice changes</button></div>`;
+                    target.innerHTML = `<div class="small text-warning" role="status">${escapeHtml(message)} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openVoiceStates(this)">${t('voice.states.retry', 'Retry voice changes')}</button></div>`;
                 }
                 showToast(message, 'warning');
             } finally {
@@ -6884,11 +6929,11 @@
             button.setAttribute?.('aria-busy', 'true');
             const isCurrent = () => currentBookFilename === book && bookToken === _voiceSaveSnapshot?.book_token && card.isConnected !== false;
             try {
-                if (!bookToken) { throw new Error('Reload Voices before saving changes for this book.'); }
-                if (confirmation && !await showConfirm(confirmation, {title: 'Replace voice changes?', actionLabel: 'Clear voice changes', danger: true})) { return; }
-                if (!isCurrent()) { showToast('The book changed. Review the current voice changes before saving.', 'warning'); return; }
+                if (!bookToken) { throw new Error(t('voice.states.reload-first', 'Reload Voices before saving changes for this book.')); }
+                if (confirmation && !await showConfirm(confirmation, {title: t('safety.voice.clear_states.title', 'Replace voice changes?'), actionLabel: t('safety.voice.clear_states.action', 'Clear voice changes'), danger: true})) { return; }
+                if (!isCurrent()) { showToast(t('safety.voice.clear_states.book_changed', 'The book changed. Review the current voice changes before saving.'), 'warning'); return; }
                 await flushVoiceSaves();
-                if (!isCurrent()) { throw new Error('The book changed while saving the main voice; review voice changes again.'); }
+                if (!isCurrent()) { throw new Error(t('safety.voice.clear_states.book_changed_saving', 'The book changed while saving the main voice; review voice changes again.')); }
                 await save(isCurrent, bookToken);
             } finally {
                 pendingVoiceStateSaves.delete(key);
@@ -6915,9 +6960,9 @@
             const points = [], skipped = [];
             const versions = JSON.parse(JSON.stringify(window._voicesByName?.[speaker]?.config?.versions || {}));
             try {
-                await applyVoiceStateSave(button, speaker, 'Applying…', async (isCurrent, bookToken) => {
+                await applyVoiceStateSave(button, speaker, t('voice.states.applying', 'Applying…'), async (isCurrent, bookToken) => {
                 for (const row of rows) {
-                    if (!isCurrent()) { throw new Error('The book changed; remaining voice changes were not saved.'); }
+                    if (!isCurrent()) { throw new Error(t('safety.voice.clear_states.book_changed_remaining', 'The book changed; remaining voice changes were not saved.')); }
                     const value = row.value;
                     if (row.fromIndex === '') {
                         // No safe Editor boundary for this state: skip it and say so,
@@ -6950,7 +6995,7 @@
                         points.push({from_index: fromIndex, version_id: versionId});
                     }
                 }
-                if (!isCurrent()) { throw new Error('The book changed; the voice timeline was not saved.'); }
+                if (!isCurrent()) { throw new Error(t('safety.voice.clear_states.book_changed_timeline', 'The book changed; the voice timeline was not saved.')); }
                 if (points.length) {
                     await API.post(`/api/voices/${encodeURIComponent(speaker)}/version_timeline`, {points, book_token: bookToken});
                 } else {
@@ -6958,25 +7003,25 @@
                 }
                 if (!isCurrent()) { return; }
                 await loadVoices();
-                showToast(`Voice changes saved for ${speaker}. Affected lines are pending; use Render Pending in the Editor to regenerate them.`, 'success');
+                showToast(t('voice.states.saved', 'Voice changes saved for {speaker}. Affected lines are pending; use Render Pending in the Editor to regenerate them.', {speaker}), 'success');
                 if (skipped.length) {
-                    showToast(`Not applied (no safe Editor boundary): ${skipped.join(', ')}. Rebuild chunks, then apply again.`, 'warning');
+                    showToast(formatUiSafetyText('safety.voice.states_not_applied', 'Not applied (no safe Editor boundary): {ages}. Rebuild chunks, then apply again.', {ages: skipped.join(', ')}), 'warning');
                 }
                 });
-            } catch (e) { showActionError("Could not apply voice changes", e, "Review the current book and saved voice changes before applying again; some version writes may have completed."); }
+            } catch (e) { showActionError(t('voice.states.apply-failed', 'Could not apply voice changes'), e, t('voice.states.apply-recovery', 'Review the current book and saved voice changes before applying again; some version writes may have completed.')); }
         }
 
         async function clearVoiceStates(button) {
             const speaker = button.closest('.voice-card')?.dataset.voice;
             if (!speaker) { return; }
             try {
-                await applyVoiceStateSave(button, speaker, 'Clearing…', async (isCurrent, bookToken) => {
+                await applyVoiceStateSave(button, speaker, t('voice.states.clearing', 'Clearing…'), async (isCurrent, bookToken) => {
                     await API.del(`/api/voices/${encodeURIComponent(speaker)}/version_timeline?book_token=${encodeURIComponent(bookToken)}`);
                     if (!isCurrent()) { return; }
                     await loadVoices();
-                    showToast(`${speaker} uses the main voice throughout. Affected lines are pending; use Render Pending in the Editor.`, 'success');
-                }, `Clear all saved voice changes for ${speaker}? Affected lines will become pending and need regeneration; previous audio files remain on disk.`);
-            } catch (e) { showActionError("Could not clear voice changes", e, "Reload Voices to check whether the saved changes were cleared before trying again."); }
+                    showToast(t('voice.states.cleared', '{speaker} uses the main voice throughout. Affected lines are pending; use Render Pending in the Editor.', {speaker}), 'success');
+                }, formatUiSafetyText('safety.voice.clear_states', 'Clear all saved voice changes for {speaker}? Affected lines will become pending and need regeneration; previous audio files remain on disk.', {speaker}));
+            } catch (e) { showActionError(t('voice.states.clear-failed', 'Could not clear voice changes'), e, t('voice.states.clear-recovery', 'Reload Voices to check whether the saved changes were cleared before trying again.')); }
         }
 
         // Editor: from this line on, this character sounds different (an aged
@@ -9335,7 +9380,7 @@
                     // silent for the rest of the failure streak.
                     if (consecutiveErrors % MAX_SILENT_ERRORS === 0) {
                         const taskKey = key.replace(/^reattach:/, '');
-                        const label = displayLabel || (typeof TASK_LABELS !== 'undefined' && TASK_LABELS[taskKey]) || 'Task';
+                        const label = displayLabel || (typeof TASK_LABELS !== 'undefined' && TASK_LABELS[taskKey] ? getTaskLabel(taskKey) : t('core.task.fallback-label', 'Task'));
                         showToast(`Having trouble reaching Alexandria for ${label} status updates. It is still retrying and has not cancelled the run from this page. Save your work, check that Alexandria is still running, then reopen the page if this continues.`, 'warning');
                     }
                 } finally {
@@ -9368,7 +9413,7 @@
                 btn.classList.add('btn-outline-success');
                 if (!_autoPauseNotified[taskName] && status.logs.some(l => l.includes('[AUTO-PAUSE]'))) {
                     _autoPauseNotified[taskName] = true;
-                    showToast(`${TASK_LABELS[taskName] || taskName} paused itself: retries ran out. Fix the provider, then press Resume.`, 'warning', 8000);
+                    showToast(t('core.task.paused-self', '{task} paused itself: retries ran out. Fix the provider, then press Resume.', {task: getTaskLabel(taskName)}), 'warning', 8000);
                     notifyJobDone(taskName, 'Paused: API retries ran out. Press Resume when the provider is back.', 'paused');
                 }
             } else if (!status.paused && showsResume) {

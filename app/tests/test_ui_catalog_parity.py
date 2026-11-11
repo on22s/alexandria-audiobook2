@@ -38,7 +38,11 @@ PROTECTED = {
 # forbids translating, so those are exempt in validate().
 KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria',
                           'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor', 'LLM',
-                          'Audio'})
+                          'Audio',
+                          # Protocol and table abbreviations, and two Spanish words
+                          # that are spelled exactly as the English source
+                          # ("Error", "manual"): real words, not untranslated stubs.
+                          'HTTP', 'Error', 'manual'})
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 TAG = re.compile(r'</?([a-z]+)[^>]*>')
 

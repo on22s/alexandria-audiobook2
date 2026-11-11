@@ -81,10 +81,20 @@ MARKUP_BASELINE = {
     'readalong-player.html': {'shell': 16},
 }
 
+# P9a lowered app-core.js 2038 -> 1825: the voice card (createVoiceCard,
+# getStateVoiceCardsMarkup, getVoiceCandidateMarkup, getTraitBadgeHtml,
+# ensembleMembersMarkup, the voice-states editor), the Script-area strings P5
+# left (generation batch and review status, the recovery panel, saved-script
+# rows, nickname/alias panels, the cast list), and the shared defaults
+# (showConfirm, showToast/copy glue, confirmIfRemote, TASK_LABELS by getTaskLabel,
+# getDesignTextRangeInput and the field validators). What remains in that file is
+# the same kind of counted non-copy it always was: template HTML, element ids,
+# CSS classes, API paths, task-log transcripts, prompt/persona text and the
+# English task-label map that app-workspace.js also reads.
 JS_BASELINE = {
     'app-audio-channels.js': 26, 'app-audiobookshelf.js': 65, 'app-calibre.js': 269,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
-    'app-core.js': 2038, 'app-editor-repair.js': 32, 'app-editor-review.js': 98,
+    'app-core.js': 1825, 'app-editor-repair.js': 32, 'app-editor-review.js': 98,
     'app-export-quality.js': 38, 'app-guides.js': 48, 'app-help.js': 75,
     'app-i18n.js': 25, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
     'app-project-scope.js': 33, 'app-pronunciation.js': 74,

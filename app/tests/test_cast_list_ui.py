@@ -46,6 +46,8 @@ const take = (name) => {
     }
     return core.slice(start, i + 1);
 };
+const t = (key, english, values = {}) => Object.keys(values)
+    .reduce((text, name) => text.split(String.fromCharCode(123) + name + String.fromCharCode(125)).join(String(values[name])), String(english));
 eval(take('escapeHtml') + take('getCastListRowHtml'));
 process.stdout.write(getCastListRowHtml({name: '<img src=x onerror=alert(1)>', aliases: ['"><b>X</b>']}));
 '''

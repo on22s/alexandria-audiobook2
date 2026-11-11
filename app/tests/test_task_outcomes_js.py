@@ -11,7 +11,7 @@ function el(id){if(!elements[id]){const classes=new Set();elements[id]={style:{}
 function Notice(title,options){notifications.push({title,...options});}Notice.permission='granted';
 const ctx={window:null,currentBookFilename:'book.txt',Notification:Notice,document:{getElementById:el,visibilityState:'hidden',hasFocus:()=>false},console,API:{get:async()=>[]},
  _startPolling:(key,fetch,options)=>poll={key,...options},showToast:()=>{},renderManualRequest:()=>{},loadVoices:async()=>({refreshedResources:['/api/voice_design/list','/api/clone_voices/list'],failedResources:[]}),_resetPauseBtn:()=>{},createTaskLogRenderer:()=>()=>{}};ctx.window=ctx;
-vm.createContext(ctx);function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),ctx);}
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));function load(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),ctx);}
 load('function escapeHtml(', '// Parse a numeric input');
 load('const taskStartButtons =','// --- API Helpers ---');
 if(source.includes('function isTaskFailed(')){load('function isTaskFailed(', '// --- Desktop notifications ---');}

@@ -27,7 +27,7 @@ for(const pass of ['pass1','pass3']){
  const base=input.custom?presets[pass][0]:defaults[pass];
  ctx.document.getElementById(pass+'-system-prompt').value=input.edited?' edited '+pass+' system\n"é"':base.system_prompt;ctx.document.getElementById(pass+'-user-prompt').value=input.edited?'edited '+pass+' user {batch}':base.user_prompt;
 }
-const before=JSON.stringify({presets,active});vm.createContext(ctx);
+const before=JSON.stringify({presets,active});vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
 vm.runInContext(source.slice(source.indexOf('function getNumFieldValue('),source.indexOf('// --- Desktop notifications ---')),ctx);
 vm.runInContext(source.slice(source.indexOf('function passPromptFields('),source.indexOf('window.savePassPromptPreset =')),ctx);
 vm.runInContext(source.slice(source.indexOf('function buildConfigPayload('),source.indexOf("document.getElementById('config-form').addEventListener")),ctx);

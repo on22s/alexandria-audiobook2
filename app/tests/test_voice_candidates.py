@@ -251,7 +251,7 @@ class NewestFirstListTests(unittest.TestCase):
         core = Path(__file__).resolve().parent.parent / "static/js/app-core.js"
         code = r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const s=fs.readFileSync(process.argv[1],'utf8');
-const c={window:{},escapeHtml:x=>String(x),getInlineStringArgument:x=>JSON.stringify(x),getLocalAudioUrl:p=>'/'+p,getLoraModelsById:()=>new Map()};vm.createContext(c);
+const c={window:{},escapeHtml:x=>String(x),getInlineStringArgument:x=>JSON.stringify(x),getLocalAudioUrl:p=>'/'+p,getLoraModelsById:()=>new Map()};vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]]));
 const start=s.indexOf('function getVoiceCandidateMarkup(');
 vm.runInContext(s.slice(start,s.indexOf('function getLibraryVoiceReference(')),c);
 const saved=[{candidate_id:'design-old'},{candidate_id:'lora-a',rank:1},{candidate_id:'lora-b',rank:2},
@@ -301,7 +301,7 @@ const c={window:{},Audio,escapeHtml:x=>String(x),getInlineStringArgument:x=>JSON
     ['builtin_tenor',{id:'builtin_tenor',builtin:true,preview_audio_url:'/builtin_lora/builtin_tenor/preview_sample.wav'}],
     ['builtin_silent',{id:'builtin_silent',builtin:true,preview_audio_url:null}]]),
   getVoiceCardMetadata:()=>({candidates}),showToast:(m)=>toasts.push(m)};
-vm.createContext(c);
+vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]]));
 vm.runInContext(s.slice(s.indexOf('function getVoiceCandidateMarkup('),s.indexOf('// Gender/age per line (#653)')),c);
 (async()=>{
   const a=button(),b=button();
