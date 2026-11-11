@@ -819,15 +819,17 @@
                 const diskWrap = document.getElementById('sys-disk');
 
                 const runtime = stats.runtime || {};
-                applySystemStatusText('sys-build-val', runtime.short_revision ? `build ${runtime.short_revision}` : 'build unknown');
+                applySystemStatusText('sys-build-val', runtime.short_revision
+                    ? t('core.system.build', 'build {revision}', {revision: runtime.short_revision})
+                    : t('core.system.build-unknown', 'build unknown'));
                 checkStaleBuild(runtime.short_revision);
                 const packageVersions = Object.entries(runtime.packages || {})
                     .filter(item => item[1])
                     .map(item => `${item[0]} ${item[1]}`)
                     .join(', ');
                 buildWrap.title = [
-                    runtime.revision ? `Revision: ${runtime.revision}` : 'Revision unavailable',
-                    runtime.branch ? `Branch: ${runtime.branch}` : '',
+                    runtime.revision ? t('core.system.revision', 'Revision: {revision}', {revision: runtime.revision}) : t('core.system.revision-unavailable', 'Revision unavailable'),
+                    runtime.branch ? t('core.system.branch', 'Branch: {branch}', {branch: runtime.branch}) : '',
                     runtime.python ? `Python ${runtime.python}` : '',
                     packageVersions,
                 ].filter(Boolean).join('\n');
@@ -837,17 +839,14 @@
                     // is silently running on CPU. Worth a much louder signal than the
                     // normal VRAM-pressure red, since this is a broken install, not
                     // just "busy right now".
-                    applySystemStatusText('sys-gpu-val', 'CPU fallback!');
-                    gpuWrap.title = `${stats.gpu_mismatch_vendor || 'A'} GPU was detected on this system, ` +
-                        `but the installed torch build can't use it - generation/training will run on CPU ` +
-                        `and be dramatically slower. This usually means torch/torchaudio is the wrong build ` +
-                        `for this GPU; re-run install.js to fix it.`;
+                    applySystemStatusText('sys-gpu-val', t('core.system.cpu-fallback', 'CPU fallback!'));
+                    gpuWrap.title = t('core.system.gpu-mismatch', '{vendor} GPU was detected on this system, but the installed torch build cannot use it - generation and training will run on CPU and be dramatically slower. This usually means torch/torchaudio is the wrong build for this GPU; re-run install.js to fix it.', {vendor: stats.gpu_mismatch_vendor || 'A'});
                     gpuWrap.classList.add('text-danger');
                     gpuWrap.classList.remove('text-light');
                 } else if (stats.gpu) {
                     const used = stats.gpu.reserved_gb.toFixed(1);
                     const total = stats.gpu.total_gb.toFixed(1);
-                    applySystemStatusText('sys-gpu-val', `${used}/${total} GB`);
+                    applySystemStatusText('sys-gpu-val', t('core.system.gpu-used', '{used}/{total} GB', {used, total}));
                     gpuWrap.title = '';
                     if (stats.gpu.allocated_percent > 90) {
                         gpuWrap.classList.add('text-danger');
@@ -857,15 +856,17 @@
                         gpuWrap.classList.add('text-light');
                     }
                 } else {
-                    applySystemStatusText('sys-gpu-val', 'Unavailable');
+                    applySystemStatusText('sys-gpu-val', t('core.system.gpu-unavailable', 'Unavailable'));
                     gpuWrap.classList.remove('text-danger');
                     gpuWrap.classList.add('text-light');
                     gpuWrap.title = '';
                 }
 
-                applySystemStatusText('sys-disk-val', `${stats.disk.free_gb} GB`);
-                applySystemStatusText('sys-gpu-warning', stats.gpu_mismatch ? ' GPU unavailable; using CPU.' : stats.gpu?.allocated_percent > 90 ? ' High GPU memory usage.' : '');
-                applySystemStatusText('sys-disk-warning', stats.disk.low_space ? ' Low disk space.' : '');
+                applySystemStatusText('sys-disk-val', t('core.system.disk-free', '{free} GB', {free: stats.disk.free_gb}));
+                applySystemStatusText('sys-gpu-warning', stats.gpu_mismatch
+                    ? t('core.system.gpu-warning-mismatch', 'GPU unavailable; using CPU.')
+                    : stats.gpu?.allocated_percent > 90 ? t('core.system.gpu-warning-pressure', 'High GPU memory usage.') : '');
+                applySystemStatusText('sys-disk-warning', stats.disk.low_space ? t('core.system.disk-warning', 'Low disk space.') : '');
                 applySystemStatusText('sys-status-error', '');
                 if (stats.disk.low_space) {
                     diskWrap.classList.add('text-danger');
@@ -875,7 +876,7 @@
                     diskWrap.classList.add('text-light');
                 }
             } catch (e) {
-                applySystemStatusText('sys-status-error', 'System readings could not be refreshed. Showing last available readings; check the app connection.');
+                applySystemStatusText('sys-status-error', t('core.system.readings-stale', 'System readings could not be refreshed. Showing last available readings; check the app connection.'));
                 console.error('Failed to update system stats', e);
             }
             finally { _systemStatsPending = false; }
@@ -885,11 +886,11 @@
         function formatDuration(seconds) {
             if (seconds == null || !isFinite(seconds) || seconds < 0) { return '--'; }
             seconds = Math.round(seconds);
-            if (seconds < 60) { return `${seconds}s`; }
+            if (seconds < 60) { return t('core.duration.seconds', '{seconds}s', {seconds}); }
             const m = Math.floor(seconds / 60);
-            if (seconds < 3600) { return `${m}m ${seconds % 60}s`; }
+            if (seconds < 3600) { return t('core.duration.minutes', '{minutes}m {seconds}s', {minutes: m, seconds: seconds % 60}); }
             const h = Math.floor(seconds / 3600);
-            return `${h}h ${Math.floor((seconds % 3600) / 60)}m`;
+            return t('core.duration.hours', '{hours}h {minutes}m', {hours: h, minutes: Math.floor((seconds % 3600) / 60)});
         }
 
         // Always-visible "what's running and how long until it's done" indicator,
@@ -907,11 +908,11 @@
                     return;
                 }
                 let text = eta.label;
-                if (eta.progress) { text += ` — ${eta.progress}`; }
+                if (eta.progress) { text = t('core.eta.with-progress', '{label} — {progress}', {label: text, progress: eta.progress}); }
                 if (eta.eta_seconds != null) {
-                    text += ` (ETA ${formatDuration(eta.eta_seconds)})`;
+                    text = t('core.eta.with-remaining', '{label} (ETA {remaining})', {label: text, remaining: formatDuration(eta.eta_seconds)});
                 } else if (eta.elapsed_seconds != null) {
-                    text += ` (running ${formatDuration(eta.elapsed_seconds)})`;
+                    text = t('core.eta.with-elapsed', '{label} (running {elapsed})', {label: text, elapsed: formatDuration(eta.elapsed_seconds)});
                 }
                 applySystemStatusText('sys-eta-val', text);
                 if (valEl.title) { valEl.title = ''; }
@@ -920,7 +921,7 @@
                 console.error('Failed to update ETA status', e);
                 if (wrap.style.display !== 'none' && valEl.textContent) {
                     if (!valEl.title) { valEl.title = valEl.textContent; }
-                    applySystemStatusText('sys-eta-val', 'Status unavailable — a task may still be running');
+                    applySystemStatusText('sys-eta-val', t('core.eta.unavailable', 'Status unavailable — a task may still be running'));
                 }
             } finally {
                 _etaStatusPending = false;
@@ -945,33 +946,33 @@
                 const status = await API.get('/api/lmstudio/status');
                 if (!isCurrent()) { return; }
                 if (status.remote) {
-                    badge.textContent = 'Remote (optimize via SSH)';
+                    badge.textContent = t('core.lmstudio.remote', 'Remote (optimize via SSH)');
                     toggle.checked = !!status.optimized;
                     badge.className = 'badge bg-info text-dark';
                     toggle.disabled = false;
                 } else if (!status.available) {
-                    badge.textContent = 'lms CLI not found';
+                    badge.textContent = t('core.lmstudio.cli-missing', 'lms CLI not found');
                     badge.className = 'badge bg-secondary';
                     toggle.disabled = true;
                 } else if (!status.loaded) {
-                    badge.textContent = 'Model not loaded';
+                    badge.textContent = t('core.lmstudio.not-loaded', 'Model not loaded');
                     badge.className = 'badge bg-secondary';
                     toggle.disabled = false;
                     toggle.checked = false;
                 } else if (status.optimized) {
-                    badge.textContent = `On (ctx ${status.context_length}, parallel ${status.parallel})`;
+                    badge.textContent = t('core.lmstudio.on', 'On (ctx {context}, parallel {parallel})', {context: status.context_length, parallel: status.parallel});
                     badge.className = 'badge bg-success';
                     toggle.disabled = false;
                     toggle.checked = true;
                 } else {
-                    badge.textContent = `Off (ctx ${status.context_length}, parallel ${status.parallel})`;
+                    badge.textContent = t('core.lmstudio.off', 'Off (ctx {context}, parallel {parallel})', {context: status.context_length, parallel: status.parallel});
                     badge.className = 'badge bg-warning text-dark';
                     toggle.disabled = false;
                     toggle.checked = false;
                 }
             } catch (e) {
                 if (!isCurrent()) { return; }
-                badge.textContent = 'Status unavailable';
+                badge.textContent = t('core.lmstudio.unavailable', 'Status unavailable');
                 badge.className = 'badge bg-secondary';
             }
         }
@@ -984,11 +985,13 @@
             badge._statusRequest = {};
             const enable = toggle.checked;
             toggle.disabled = true;
-            badge.textContent = 'Applying...';
+            badge.textContent = t('core.lmstudio.applying', 'Applying...');
             badge.className = 'badge bg-secondary';
             try {
                 await API.post('/api/lmstudio/optimize', { enable });
-                showToast(enable ? 'LM Studio set to VRAM-safe settings' : 'LM Studio reset to default settings', 'success');
+                showToast(enable
+                    ? t('core.lmstudio.enabled', 'LM Studio set to VRAM-safe settings')
+                    : t('core.lmstudio.reset', 'LM Studio reset to default settings'), 'success');
             } catch (e) {
                 showActionError('LM Studio settings update is unconfirmed', e, 'Check the refreshed LM Studio status before changing settings again.');
                 toggle.checked = !enable;
@@ -1005,8 +1008,8 @@
             const statusEl = statusId ? document.getElementById(statusId) : null;
             const label = taskName.replaceAll('_', ' ');
             buttons.forEach(button => { button.disabled = true; });
-            if (statusEl) { statusEl.textContent = `${label} running...`; }
-            else { showToast(`${label} is still running.`, 'info'); }
+            if (statusEl) { statusEl.textContent = t('core.task.restored-running', '{task} running...', {task: label}); }
+            else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
             _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
                 doneCheck: state => !state.running,
                 onTick: state => {
@@ -1016,7 +1019,7 @@
                 onDone: async state => {
                     releaseTaskStart(taskName);
                     buttons.forEach(button => { button.disabled = false; });
-                    const message = (state.logs || []).slice(-1)[0] || `${label} finished; the original request result is unavailable after reload.`;
+                    const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
                     if (statusEl) { statusEl.textContent = message; }
                     else { showToast(message, 'info'); }
                     notifyJobDone(taskName, '', 'finished', state);
@@ -1082,7 +1085,7 @@
                 const el = document.getElementById(group.elementId);
                 if (el && latest) {
                     el.innerText = latest.logs.join('\n');
-                    el.title = `Restored ${latest.name.replaceAll('_', ' ')} logs`;
+                    el.title = t('core.task.logs-restored', 'Restored {task} logs', {task: latest.name.replaceAll('_', ' ')});
                     el.scrollTop = el.scrollHeight;
                 }
             });
@@ -1247,7 +1250,7 @@
         window.onPrepBatchFilesChange = () => {
             if (prepSubmitting || prepActiveTask === 'batch_preparer') {
                 document.getElementById('prep-batch-files').value = '';
-                showToast('Wait for the current preparation to finish or cancel it before changing batch files.', 'warning');
+                showToast(t('preparer.batch.wait', 'Wait for the current preparation to finish or cancel it before changing batch files.'), 'warning');
                 return;
             }
             const files = document.getElementById('prep-batch-files').files;
@@ -1266,7 +1269,7 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td title="${escapeHtml(file.name)}" style="max-width:350px;white-space:normal;overflow-wrap:anywhere;">${escapeHtml(file.name)}</td>
-                    <td id="prep-batch-status-${i}"><span class="badge bg-secondary">Pending</span></td>
+                    <td id="prep-batch-status-${i}"><span class="badge bg-secondary">${escapeHtml(taskStatusLabel('pending'))}</span></td>
                 `;
                 tbody.appendChild(row);
                 const pickerArea = document.createElement('div');
@@ -1302,7 +1305,7 @@
             const task = PREPARER_TASKS[taskName];
             _applyPreparerControls(null, true);
             document.getElementById('preparer-progress-section').style.display = 'block';
-            document.getElementById('prep-status-msg').innerHTML = `<span class="text-info">${task.starting}</span>`;
+            document.getElementById('prep-status-msg').innerHTML = `<span class="text-info">${escapeHtml(taskName === 'batch_preparer' ? t('preparer.start.starting-batch', 'Starting batch…') : t('preparer.start.starting', 'Starting…'))}</span>`;
             try {
                 const res = await fetch(task.start, {method: 'POST', body: formData});
                 await API._handleError(res);
@@ -1336,7 +1339,7 @@
             if (isBatch) { return _startBatchPreparer(); }
 
             const audioFile = document.getElementById('prep-audio-file').files[0];
-            if (!audioFile) { showToast('Audio file required', 'error'); return; }
+            if (!audioFile) { showToast(t('preparer.start.no-audio', 'Audio file required'), 'error'); return; }
 
             const picker = window.preparerChannelPicker;
             const channelSelection = picker ? picker.getSelection() : {channel: 'mix', token: null};
@@ -1393,7 +1396,7 @@
         };
 
         async function _startBatchPreparer() {
-            if (!prepBatchQueue.length) { showToast('No files selected', 'warning'); return; }
+            if (!prepBatchQueue.length) { showToast(t('preparer.start.no-files', 'No files selected'), 'warning'); return; }
 
             const files = prepBatchQueue.map(t => t.audio);
             const pickers = prepBatchQueue.map(t => t.picker);
@@ -1440,12 +1443,12 @@
 
                     // Update batch queue status badges
                     if (taskName === 'batch_preparer' && state.tasks) {
-                        state.tasks.forEach((t, i) => {
+                        state.tasks.forEach((task, i) => {
                             const el = document.getElementById(`prep-batch-status-${i}`);
                             if (!el) { return; }
                             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-                            const colour = Object.prototype.hasOwnProperty.call(colours, t.status) ? colours[t.status] : 'secondary';
-                            el.innerHTML = `<span class="badge bg-${colour}">${escapeHtml(t.status)}</span>`;
+                            const colour = Object.prototype.hasOwnProperty.call(colours, task.status) ? colours[task.status] : 'secondary';
+                            el.innerHTML = `<span class="badge bg-${colour}">${escapeHtml(taskStatusLabel(task.status))}</span>`;
                         });
                     }
                 },
@@ -1454,13 +1457,15 @@
                     notifyJobDone(taskName, '', 'finished', state);
                     _applyPreparerControls(null);
                     const outcome = getTaskCompletionOutcome(state);
-                    const label = taskName === 'preparer' ? 'Preparation' : 'Batch preparation';
+                    const label = taskName === 'preparer'
+                        ? t('preparer.outcome.label', 'Preparation')
+                        : t('preparer.outcome.label-batch', 'Batch preparation');
                     const tone = outcome === 'failed' ? 'text-danger' : outcome === 'cancelled' ? 'text-warning' : 'text-success';
                     const msg = outcome === 'failed'
-                        ? `${label} failed. Review the activity log before retrying; completed datasets remain available below.`
+                        ? t('preparer.outcome.failed', '{label} failed. Review the activity log before retrying; completed datasets remain available below.', {label})
                         : outcome === 'cancelled'
-                            ? `${label} cancelled. Completed datasets remain available below.`
-                            : `${label} finished. Download completed datasets below.`;
+                            ? t('preparer.outcome.cancelled', '{label} cancelled. Completed datasets remain available below.', {label})
+                            : t('preparer.outcome.finished', '{label} finished. Download completed datasets below.', {label});
                     document.getElementById('prep-status-msg').innerHTML = `<span class="${tone}">${escapeHtml(msg)}</span>`;
                     loadPreparerOutputs();  // refresh the download list with any new ZIPs
                 }
@@ -1475,18 +1480,18 @@
                 const res = await API.get('/api/preparer/list');
                 const files = res.files || [];
                 if (!files.length) {
-                    el.innerHTML = '<div class="text-muted small">No datasets yet. Completed preparer runs will appear here.</div>';
+                    el.innerHTML = `<div class="text-muted small">${escapeHtml(t('preparer.outputs.empty-long', 'No datasets yet. Completed preparer runs will appear here.'))}</div>`;
                     return;
                 }
                 el.innerHTML = files.map(f => {
-                    const when = f.modified ? new Date(f.modified * 1000).toLocaleString() : '';
+                    const when = f.modified ? formatUiDate(new Date(f.modified * 1000)) : '';
                     return `<div class="list-group-item d-flex justify-content-between align-items-center">
                         <span class="text-truncate me-2">
                             <i class="fas fa-file-zipper me-2"></i>${escapeHtml(f.filename)}
-                            <span class="text-muted ms-1">${f.size_mb} MB${when ? ' · ' + escapeHtml(when) : ''}</span>
+                            <span class="text-muted ms-1">${f.size_mb} MB${when ? ` · ${escapeHtml(when)}` : ''}</span>
                         </span>
                         <a class="btn btn-sm btn-outline-success flex-shrink-0" href="/api/preparer/download/${encodeURIComponent(f.filename)}" download>
-                            <i class="fas fa-download me-1"></i>Download
+                            <i class="fas fa-download me-1"></i>${escapeHtml(t('preparer.outputs.download', 'Download'))}
                         </a>
                     </div>`;
                 }).join('');

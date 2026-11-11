@@ -2569,27 +2569,27 @@
         <div id="designer-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h4>Designer</h4>
+                    <h4 data-i18n="designer.header.title">Designer</h4>
                 </div>
                 <div class="card-body">
-                    <p>Design new voices from text descriptions. Generated voices can be saved and used as clone sources in the Voices tab.</p>
+                    <p data-i18n="designer.intro">Design new voices from text descriptions. Generated voices can be saved and used as clone sources in the Voices tab.</p>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold" for="design-description">Voice Description</label>
-                            <textarea class="form-control" id="design-description" rows="3" placeholder="A warm, mature female voice with a British accent. Speaks clearly with gentle authority."></textarea>
-                            <div class="form-text">Describe the voice characteristics you want</div>
+                            <label class="form-label fw-bold" for="design-description" data-i18n="designer.description.label">Voice Description</label>
+                            <textarea class="form-control" id="design-description" rows="3" data-i18n-attr="placeholder:designer.description.placeholder" placeholder="A warm, mature female voice with a British accent. Speaks clearly with gentle authority."></textarea>
+                            <div class="form-text" data-i18n="designer.description.help">Describe the voice characteristics you want</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold" for="design-sample-text">Sample Text</label>
-                            <textarea class="form-control" id="design-sample-text" rows="3" placeholder="The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy.">The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy that had been growing for centuries.</textarea>
-                            <div class="form-text">Text to synthesize with the designed voice</div>
+                            <label class="form-label fw-bold" for="design-sample-text" data-i18n="designer.sample.label">Sample Text</label>
+                            <textarea class="form-control" id="design-sample-text" rows="3" data-i18n="designer.sample.default" data-i18n-attr="placeholder:designer.sample.placeholder" placeholder="The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy.">The ancient library stood at the crossroads of two forgotten paths, its weathered stone walls covered in ivy that had been growing for centuries.</textarea>
+                            <div class="form-text" data-i18n="designer.sample.help">Text to synthesize with the designed voice</div>
                         </div>
                     </div>
 
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <button class="btn btn-primary" id="btn-design-preview" onclick="generateDesignPreview()">
-                            <i class="fas fa-magic me-1"></i>Generate Preview
+                            <i class="fas fa-magic me-1"></i><span data-i18n="designer.preview.generate">Generate Preview</span>
                         </button>
                         <span id="design-status" class="text-muted"></span>
                     </div>
@@ -2597,24 +2597,24 @@
                     <div id="design-preview-container" style="display:none;">
                         <div class="card bg-light mb-3">
                             <div class="card-body py-2">
-                                <label class="form-label fw-bold mb-1">Preview</label>
+                                <label class="form-label fw-bold mb-1" data-i18n="designer.preview.title">Preview</label>
                                 <audio id="design-preview-audio" controls class="w-100" onplay="stopDesignedVoicePlayback(this)"></audio>
                             </div>
                         </div>
 
                         <div class="row g-2 align-items-end">
                             <div class="col-md-4">
-                                <label class="form-label" for="design-voice-name">Voice Name</label>
-                                <input type="text" class="form-control" id="design-voice-name" placeholder="e.g. Lady Narrator">
+                                <label class="form-label" for="design-voice-name" data-i18n="designer.voice-name.label">Voice Name</label>
+                                <input type="text" class="form-control" id="design-voice-name" data-i18n-attr="placeholder:designer.voice-name.placeholder" placeholder="e.g. Lady Narrator">
                                 <input type="hidden" id="design-source-name" value="">
-                                <label class="form-label small mt-2" for="design-alias-select">Alias of</label>
+                                <label class="form-label small mt-2" for="design-alias-select" data-i18n="designer.alias.label">Alias of</label>
                                 <select id="design-alias-select" class="form-select form-select-sm">
                                     <option value="">-- None --</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
                                 <button id="btn-design-save" type="button" class="btn btn-success w-100" onclick="saveDesignedVoice()">
-                                    <i class="fas fa-save me-1"></i>Save Voice
+                                    <i class="fas fa-save me-1"></i><span data-i18n="designer.save">Save Voice</span>
                                 </button>
                                 <div id="design-save-status" class="small mt-1" role="status" aria-live="polite"></div>
                             </div>
@@ -2625,14 +2625,14 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="m-0">Saved Voices</h5>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="stopDesignedVoicePlayback()">Stop Preview</button>
-                    <button class="btn btn-sm btn-outline-primary" onclick="loadDesignedVoices()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                    <h5 class="m-0" data-i18n="designer.saved.title">Saved Voices</h5>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="stopDesignedVoicePlayback()" data-i18n="designer.saved.stop">Stop Preview</button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadDesignedVoices()"><i class="fas fa-sync me-1"></i><span data-i18n="designer.saved.refresh">Refresh</span></button>
                 </div>
                 <div class="card-body">
                     <div id="designed-voices-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
                     <div id="designed-voices-list">
-                        <p class="text-muted mb-0">No designed voices yet. Generate and save a preview above.</p>
+                        <p class="text-muted mb-0" data-i18n="designer.saved.empty">No designed voices yet. Generate and save a preview above.</p>
                     </div>
                 </div>
             </div>
@@ -2762,14 +2762,14 @@
         <div id="preparer-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h4>Preparer</h4>
+                    <h4 data-i18n="preparer.header.title">Preparer</h4>
                 </div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <p class="mb-0">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into <code>metadata.jsonl</code> + WAV chunks ready for training.</p>
+                        <p class="mb-0"><span data-i18n="preparer.intro">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into</span> <code data-i18n-skip>metadata.jsonl</code> <span data-i18n="preparer.intro.suffix">+ WAV chunks ready for training.</span></p>
                         <div class="form-check form-switch ms-3 flex-shrink-0">
                             <input class="form-check-input" type="checkbox" id="prep-batch-mode" onchange="togglePrepBatchMode()">
-                            <label class="form-check-label" for="prep-batch-mode">Batch Mode</label>
+                            <label class="form-check-label" for="prep-batch-mode" data-i18n="preparer.batch.toggle">Batch Mode</label>
                         </div>
                     </div>
 
@@ -2777,7 +2777,7 @@
                     <div id="prep-single-area">
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label" for="prep-audio-file">Select Audio File (WAV/MP3)</label>
+                                <label class="form-label" for="prep-audio-file" data-i18n="preparer.audio.label">Select Audio File (WAV/MP3)</label>
                                 <input type="file" class="form-control" id="prep-audio-file" accept=".wav,.mp3">
                                 <div id="prep-channel-picker" class="mt-2"></div>
                             </div>
@@ -2788,72 +2788,72 @@
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button"
                                             data-bs-toggle="collapse" data-bs-target="#prep-advanced">
-                                        <i class="fas fa-sliders-h me-2"></i>Advanced (source alignment &amp; LLM enrichment)
+                                        <i class="fas fa-sliders-h me-2"></i><span data-i18n="preparer.advanced.title">Advanced (source alignment &amp; LLM enrichment)</span>
                                     </button>
                                 </h2>
                                 <div id="prep-advanced" class="accordion-collapse collapse" data-bs-parent="#prep-advanced-acc">
                                     <div class="accordion-body">
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
-                                                <label class="form-label" for="prep-model">Primary GGUF Model (optional, default from Setup)</label>
-                                                <input type="text" class="form-control" id="prep-model" placeholder="Path to primary GGUF model for annotation">
+                                                <label class="form-label" for="prep-model" data-i18n="preparer.model.label">Primary GGUF Model (optional, default from Setup)</label>
+                                                <input type="text" class="form-control" id="prep-model" data-i18n-attr="placeholder:preparer.model.placeholder" placeholder="Path to primary GGUF model for annotation">
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label" for="prep-fallback-model">Fallback GGUF Model (optional)</label>
-                                                <input type="text" class="form-control" id="prep-fallback-model" placeholder="Path to fallback GGUF model">
+                                                <label class="form-label" for="prep-fallback-model" data-i18n="preparer.fallback-model.label">Fallback GGUF Model (optional)</label>
+                                                <input type="text" class="form-control" id="prep-fallback-model" data-i18n-attr="placeholder:preparer.fallback-model.placeholder" placeholder="Path to fallback GGUF model">
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-6">
-                                                <label class="form-label" for="prep-source-file">Source Text (EPUB/TXT, optional)</label>
+                                                <label class="form-label" for="prep-source-file" data-i18n="preparer.source.label">Source Text (EPUB/TXT, optional)</label>
                                                 <input type="file" class="form-control" id="prep-source-file" accept=".epub,.txt">
-                                                <div class="form-text">Enables source-guided chunking and alignment recovery.</div>
+                                                <div class="form-text" data-i18n="preparer.source.help">Enables source-guided chunking and alignment recovery.</div>
                                             </div>
                                             <div class="col-md-3">
-                                                <label class="form-label" for="prep-source-threshold">Source Threshold</label>
+                                                <label class="form-label" for="prep-source-threshold" data-i18n="preparer.source-threshold.label">Source Threshold</label>
                                                 <input type="number" class="form-control" id="prep-source-threshold" value="0.65" step="0.01" min="0" max="1" aria-describedby="prep-source-threshold-help">
-                                                <div class="form-text" id="prep-source-threshold-help">Minimum source-match ratio (0–1). Matching chunks use the source text’s spelling; chunks below this threshold are dropped unless Keep unaligned chunks is enabled. Higher values require a closer match.</div>
+                                                <div class="form-text" id="prep-source-threshold-help" data-i18n="preparer.source-threshold.help">Minimum source-match ratio (0–1). Matching chunks use the source text’s spelling; chunks below this threshold are dropped unless Keep unaligned chunks is enabled. Higher values require a closer match.</div>
                                             </div>
                                             <div class="col-md-3 d-flex align-items-end">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="prep-keep-unaligned">
-                                                    <label class="form-check-label" for="prep-keep-unaligned">Keep unaligned chunks</label>
+                                                    <label class="form-check-label" for="prep-keep-unaligned" data-i18n="preparer.keep-unaligned.label">Keep unaligned chunks</label>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-3">
-                                                <label class="form-label" for="prep-source-start">Source Start Word</label>
+                                                <label class="form-label" for="prep-source-start" data-i18n="preparer.source-start.label">Source Start Word</label>
                                                 <input type="number" class="form-control" id="prep-source-start" min="0">
                                             </div>
                                             <div class="col-md-5">
-                                                <label class="form-label" for="prep-source-start-text">Source Start Text</label>
-                                                <input type="text" class="form-control" id="prep-source-start-text" placeholder="Search source for this text and start there">
+                                                <label class="form-label" for="prep-source-start-text" data-i18n="preparer.source-start-text.label">Source Start Text</label>
+                                                <input type="text" class="form-control" id="prep-source-start-text" data-i18n-attr="placeholder:preparer.source-start-text.placeholder" placeholder="Search source for this text and start there">
                                             </div>
                                             <div class="col-md-4 d-flex align-items-end">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="prep-no-auto-anchor">
-                                                    <label class="form-check-label" for="prep-no-auto-anchor">Disable auto-anchor</label>
+                                                    <label class="form-check-label" for="prep-no-auto-anchor" data-i18n="preparer.no-auto-anchor.label">Disable auto-anchor</label>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="row g-3 mb-3">
                                             <div class="col-md-3">
-                                                <label class="form-label" for="prep-chunk-size">Chunk Size (s)</label>
+                                                <label class="form-label" for="prep-chunk-size" data-i18n="preparer.chunk-size.label">Chunk Size (s)</label>
                                                 <input type="number" class="form-control" id="prep-chunk-size" value="10" step="0.5" min="1">
                                             </div>
                                             <div class="col-md-3">
-                                                <label class="form-label" for="prep-min-chunk-duration">Min Chunk Duration (s)</label>
+                                                <label class="form-label" for="prep-min-chunk-duration" data-i18n="preparer.min-chunk.label">Min Chunk Duration (s)</label>
                                                 <input type="number" class="form-control" id="prep-min-chunk-duration" value="2" step="0.5" min="0">
                                             </div>
                                             <div class="col-md-2">
-                                                <label class="form-label" for="prep-batch-size">LLM Batch Size</label>
+                                                <label class="form-label" for="prep-batch-size" data-i18n="preparer.llm-batch-size.label">LLM Batch Size</label>
                                                 <input type="number" class="form-control" id="prep-batch-size" value="1" min="1">
                                             </div>
                                             <div class="col-md-4 d-flex align-items-end">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="prep-resume">
-                                                    <label class="form-check-label" for="prep-resume">Resume from dataset_temp/</label>
+                                                    <label class="form-check-label" for="prep-resume" data-i18n="preparer.resume.label">Resume from dataset_temp/</label>
                                                 </div>
                                             </div>
                                         </div>
@@ -2861,32 +2861,32 @@
                                             <div class="col-md-3 d-flex align-items-end">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="prep-enrich-with-llm" onchange="document.getElementById('prep-enrich-options').style.display = this.checked ? '' : 'none';">
-                                                    <label class="form-check-label" for="prep-enrich-with-llm">LLM enrichment</label>
+                                                    <label class="form-check-label" for="prep-enrich-with-llm" data-i18n="preparer.enrich.label">LLM enrichment</label>
                                                 </div>
                                             </div>
                                         </div>
                                         <div id="prep-enrich-options" style="display:none;">
                                             <div class="form-check mb-2">
                                                 <input class="form-check-input" type="checkbox" id="prep-allow-cpu-fallback">
-                                                <label class="form-check-label" for="prep-allow-cpu-fallback">Allow CPU enrichment if GPU support is unavailable (can be much slower)</label>
+                                                <label class="form-check-label" for="prep-allow-cpu-fallback" data-i18n="preparer.enrich.cpu.label">Allow CPU enrichment if GPU support is unavailable (can be much slower)</label>
                                             </div>
                                             <div class="row g-3">
                                                 <div class="col-md-6">
-                                                    <label class="form-label" for="prep-llm-model-path">Enrichment LLM Model Path</label>
-                                                    <input type="text" class="form-control" id="prep-llm-model-path" placeholder="Path to GGUF model for enrichment">
+                                                    <label class="form-label" for="prep-llm-model-path" data-i18n="preparer.enrich.model.label">Enrichment LLM Model Path</label>
+                                                    <input type="text" class="form-control" id="prep-llm-model-path" data-i18n-attr="placeholder:preparer.enrich.model.placeholder" placeholder="Path to GGUF model for enrichment">
                                                 </div>
                                                 <div class="col-md-6 d-flex align-items-end gap-3">
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="checkbox" id="prep-enrich-speaker">
-                                                        <label class="form-check-label" for="prep-enrich-speaker">Speaker attribution</label>
+                                                        <label class="form-check-label" for="prep-enrich-speaker" data-i18n="preparer.enrich.speaker.label">Speaker attribution</label>
                                                     </div>
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="checkbox" id="prep-enrich-narration">
-                                                        <label class="form-check-label" for="prep-enrich-narration">Narration style</label>
+                                                        <label class="form-check-label" for="prep-enrich-narration" data-i18n="preparer.enrich.narration.label">Narration style</label>
                                                     </div>
                                                     <div class="form-check">
                                                         <input class="form-check-input" type="checkbox" id="prep-enrich-emotion">
-                                                        <label class="form-check-label" for="prep-enrich-emotion">Emotional tone</label>
+                                                        <label class="form-check-label" for="prep-enrich-emotion" data-i18n="preparer.enrich.emotion.label">Emotional tone</label>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2900,19 +2900,19 @@
                     <!-- Batch Mode -->
                     <div id="prep-batch-area" style="display:none;">
                         <div class="alert alert-info py-2 small mb-3">
-                            <i class="fas fa-info-circle me-1"></i><strong>Batch Mode:</strong>
-                            Select multiple audio files you have the rights to process. Each will be transcribed and packaged into a separate training dataset ZIP.
+                            <i class="fas fa-info-circle me-1"></i><strong data-i18n="preparer.batch.badge">Batch Mode:</strong>
+                            <span data-i18n="preparer.batch.intro">Select multiple audio files you have the rights to process. Each will be transcribed and packaged into a separate training dataset ZIP.</span>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="prep-batch-files">Select Audio Files (WAV/MP3)</label>
+                            <label class="form-label" for="prep-batch-files" data-i18n="preparer.batch.audio.label">Select Audio Files (WAV/MP3)</label>
                             <input type="file" class="form-control" id="prep-batch-files" accept=".wav,.mp3" multiple onchange="onPrepBatchFilesChange()">
                         </div>
                         <div id="prep-batch-queue-container" class="mb-4" style="display:none;">
-                            <h6>Processing Queue</h6>
+                            <h6 data-i18n="preparer.batch.queue.title">Processing Queue</h6>
                             <div class="table-responsive border rounded bg-white">
                                 <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
                                     <thead class="table-light">
-                                        <tr><th>Audio File</th><th>Status</th></tr>
+                                        <tr><th data-i18n="preparer.batch.queue.audio">Audio File</th><th data-i18n="preparer.batch.queue.status">Status</th></tr>
                                     </thead>
                                     <tbody id="prep-batch-queue-body"></tbody>
                                 </table>
@@ -2920,75 +2920,75 @@
                         </div>
                     </div>
 
-                    <h5 class="mb-3">Configuration</h5>
+                    <h5 class="mb-3" data-i18n="preparer.config.title">Configuration</h5>
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
-                            <label class="form-label" for="prep-output">Output Filename</label>
+                            <label class="form-label" for="prep-output" data-i18n="preparer.output.label">Output Filename</label>
                             <input type="text" class="form-control" id="prep-output" value="my_dataset.zip">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="prep-lang">Language</label>
+                            <label class="form-label" for="prep-lang" data-i18n="preparer.lang.label">Language</label>
                             <select class="form-select" id="prep-lang">
-                                <option value="en">English</option>
-                                <option value="zh">Chinese</option>
-                                <option value="fr">French</option>
-                                <option value="de">German</option>
-                                <option value="ja">Japanese</option>
+                                <option value="en" data-i18n="language.english">English</option>
+                                <option value="zh" data-i18n="language.chinese">Chinese</option>
+                                <option value="fr" data-i18n="language.french">French</option>
+                                <option value="de" data-i18n="language.german">German</option>
+                                <option value="ja" data-i18n="language.japanese">Japanese</option>
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="prep-confidence">Minimum word confidence (0–1)</label>
+                            <label class="form-label" for="prep-confidence" data-i18n="preparer.confidence.label">Minimum word confidence (0–1)</label>
                             <input type="number" class="form-control" id="prep-confidence" value="0.85" step="0.01" min="0" max="1" aria-describedby="prep-confidence-help">
-                            <div class="form-text" id="prep-confidence-help">Keep chunks whose average word-alignment confidence meets this threshold. Higher values reject more chunks.</div>
+                            <div class="form-text" id="prep-confidence-help" data-i18n="preparer.confidence.help">Keep chunks whose average word-alignment confidence meets this threshold. Higher values reject more chunks.</div>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="prep-snr">Minimum signal-to-noise ratio (dB)</label>
+                            <label class="form-label" for="prep-snr" data-i18n="preparer.snr.label">Minimum signal-to-noise ratio (dB)</label>
                             <input type="number" class="form-control" id="prep-snr" value="25" min="0" aria-describedby="prep-snr-help">
-                            <div class="form-text" id="prep-snr-help">Keep chunks whose signal-to-noise ratio meets this threshold. Higher values reject noisier audio.</div>
+                            <div class="form-text" id="prep-snr-help" data-i18n="preparer.snr.help">Keep chunks whose signal-to-noise ratio meets this threshold. Higher values reject noisier audio.</div>
                         </div>
                     </div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label" for="prep-diarization-mode">Speaker Diarization</label>
+                            <label class="form-label" for="prep-diarization-mode" data-i18n="preparer.diarization.label">Speaker Diarization</label>
                             <select class="form-select" id="prep-diarization-mode">
-                                <option value="off">Off</option>
-                                <option value="auto">Auto-detect multiple speakers</option>
-                                <option value="full">Always diarize</option>
+                                <option value="off" data-i18n="preparer.diarization.off">Off</option>
+                                <option value="auto" data-i18n="preparer.diarization.auto">Auto-detect multiple speakers</option>
+                                <option value="full" data-i18n="preparer.diarization.full">Always diarize</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="prep-hf-token">Hugging Face Token</label>
+                            <label class="form-label" for="prep-hf-token" data-i18n="preparer.hf.label">Hugging Face Token</label>
                             <input type="password" class="form-control" id="prep-hf-token"
-                                   autocomplete="off" placeholder="Token with Community-1 access">
-                            <div class="form-text">Used only for this run and not saved.</div>
+                                   autocomplete="off" data-i18n-attr="placeholder:preparer.hf.placeholder" placeholder="Token with Community-1 access">
+                            <div class="form-text" data-i18n="preparer.hf.help">Used only for this run and not saved.</div>
                         </div>
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex mb-2">
                         <button class="btn btn-success btn-lg flex-grow-1" id="btn-prep-start" onclick="startPreparer()">
-                            <i class="fas fa-cogs me-2"></i>Start Preparation
+                            <i class="fas fa-cogs me-2"></i><span data-i18n="preparer.start">Start Preparation</span>
                         </button>
                         <button class="btn btn-outline-danger" id="btn-prep-cancel" style="display:none;" onclick="cancelPreparer()">
-                            <i class="fas fa-stop me-1"></i>Cancel
+                            <i class="fas fa-stop me-1"></i><span data-i18n="preparer.cancel">Cancel</span>
                         </button>
                     </div>
                     <div id="prep-status-msg" class="text-center text-muted small"></div>
 
                     <div id="preparer-progress-section" class="mt-4" style="display:none;">
                         <hr>
-                        <h5 class="mb-2">Execution Logs</h5>
+                        <h5 class="mb-2" data-i18n="preparer.logs.title">Execution Logs</h5>
                         <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
                     </div>
 
                     <div class="mt-4">
                         <hr>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="m-0"><i class="fas fa-box-archive me-2"></i>Completed Datasets</h5>
-                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadPreparerOutputs()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            <h5 class="m-0"><i class="fas fa-box-archive me-2"></i><span data-i18n="preparer.outputs.title">Completed Datasets</span></h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadPreparerOutputs()"><i class="fas fa-sync me-1"></i><span data-i18n="preparer.outputs.refresh">Refresh</span></button>
                         </div>
-                        <small class="text-muted d-block mb-2">Dataset ZIPs produced by finished preparer runs. Click to download.</small>
+                        <small class="text-muted d-block mb-2" data-i18n="preparer.outputs.help">Dataset ZIPs produced by finished preparer runs. Click to download.</small>
                         <div id="preparer-outputs" class="list-group small">
-                            <div class="text-muted small">No datasets yet.</div>
+                            <div class="text-muted small" data-i18n="preparer.outputs.empty">No datasets yet.</div>
                         </div>
                     </div>
                 </div>
@@ -2999,15 +2999,15 @@
         <div id="voicelab-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="m-0"><i class="fas fa-flask me-2"></i>Voice Lab</h4>
+                    <h4 class="m-0"><i class="fas fa-flask me-2"></i><span data-i18n="voicelab.header.title">Voice Lab</span></h4>
                     <span id="voicelab-status" class="text-muted small" role="status" aria-live="polite"></span>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted mb-3">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs <strong>Quality → Dedup → Train → Evaluate → Profile → Name</strong> in sequence. Heavy stages run on the ROCm ML environment configured below.</p>
+                    <p class="small text-muted mb-3"><span data-i18n="voicelab.intro">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. Runs</span> <strong data-i18n="voicelab.intro.stages">Quality → Dedup → Train → Evaluate → Profile → Name</strong> <span data-i18n="voicelab.intro.tail">in sequence. Heavy stages run on the ROCm ML environment configured below.</span></p>
 
                     <!-- Pipeline health dashboard (read-only; fed by tab open + run poller) -->
                     <div id="vl-health" class="border rounded p-2 mb-3 small">
-                        <div id="vl-health-body" class="text-muted">Loading pipeline health…</div>
+                        <div id="vl-health-body" class="text-muted" data-i18n="voicelab.health.loading">Loading pipeline health…</div>
                     </div>
 
                     <!-- Pipeline settings (paths) -->
@@ -3015,7 +3015,7 @@
                         <div class="accordion-item">
                             <h2 class="accordion-header">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#voicelab-settings">
-                                    <i class="fas fa-gears me-2"></i>Pipeline settings &amp; environment&nbsp;<span id="voicelab-readiness" class="ms-2"></span>
+                                    <i class="fas fa-gears me-2"></i><span data-i18n="voicelab.settings.title">Pipeline settings &amp; environment</span>&nbsp;<span id="voicelab-readiness" class="ms-2"></span>
                                 </button>
                             </h2>
                             <p id="voicelab-readiness-help" class="form-text px-3 mt-2" role="status" aria-live="polite" hidden></p>
@@ -3023,25 +3023,25 @@
                                 <div class="accordion-body">
                                     <div class="row g-2">
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-0" for="vl-rocm_python">ROCm Python <span id="chk-rocm_python" class="vl-chk"></span></label>
-                                            <input type="text" class="form-control form-control-sm" id="vl-rocm_python" placeholder="/path/to/ml-env/bin/python">
-                                            <div class="form-text small">Interpreter with torch/librosa/speechbrain. The web app’s environment can be used if it has these dependencies.</div>
+                                            <label class="form-label small mb-0" for="vl-rocm_python"><span data-i18n="voicelab.settings.rocm.label">ROCm Python</span> <span id="chk-rocm_python" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-rocm_python" data-i18n-skip placeholder="/path/to/ml-env/bin/python">
+                                            <div class="form-text small" data-i18n="voicelab.settings.rocm.help">Interpreter with torch/librosa/speechbrain. The web app’s environment can be used if it has these dependencies.</div>
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-0" for="vl-profiler_model">Profiler model (GGUF, optional) <span id="chk-profiler_model" class="vl-chk"></span></label>
-                                            <input type="text" class="form-control form-control-sm" id="vl-profiler_model" placeholder="(use voice_profiler.py default)">
+                                            <label class="form-label small mb-0" for="vl-profiler_model"><span data-i18n="voicelab.settings.profiler.label">Profiler model (GGUF, optional)</span> <span id="chk-profiler_model" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-profiler_model" data-i18n-attr="placeholder:voicelab.settings.profiler.placeholder" placeholder="(use voice_profiler.py default)">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-0" for="vl-zips_dir_cfg">Default input folder <span id="chk-zips_dir" class="vl-chk"></span></label>
-                                            <input type="text" class="form-control form-control-sm" id="vl-zips_dir_cfg" placeholder="/path/to/zips2">
+                                            <label class="form-label small mb-0" for="vl-zips_dir_cfg"><span data-i18n="voicelab.settings.zips.label">Default input folder</span> <span id="chk-zips_dir" class="vl-chk"></span></label>
+                                            <input type="text" class="form-control form-control-sm" id="vl-zips_dir_cfg" data-i18n-skip placeholder="/path/to/zips2">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-0" for="vl-epub_dirs">EPUB search folders (optional) <span id="chk-epub_dirs" class="vl-chk"></span></label>
-                                            <textarea class="form-control form-control-sm" id="vl-epub_dirs" rows="2" placeholder="One folder per line"></textarea>
-                                            <div class="form-text small">Adds book prose context to generated voice descriptions.</div>
+                                            <label class="form-label small mb-0" for="vl-epub_dirs"><span data-i18n="voicelab.settings.epub.label">EPUB search folders (optional)</span> <span id="chk-epub_dirs" class="vl-chk"></span></label>
+                                            <textarea class="form-control form-control-sm" id="vl-epub_dirs" rows="2" data-i18n-attr="placeholder:voicelab.settings.epub.placeholder" placeholder="One folder per line"></textarea>
+                                            <div class="form-text small" data-i18n="voicelab.settings.epub.help">Adds book prose context to generated voice descriptions.</div>
                                         </div>
                                     </div>
-                                    <button class="btn btn-sm btn-outline-primary mt-2" type="button" onclick="saveVoicelabConfig()"><i class="fas fa-save me-1"></i>Save settings</button>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" type="button" onclick="saveVoicelabConfig()"><i class="fas fa-save me-1"></i><span data-i18n="voicelab.settings.save">Save settings</span></button>
                                 </div>
                             </div>
                         </div>
@@ -3050,54 +3050,54 @@
                     <!-- Input folder + inspect -->
                     <div class="d-flex align-items-end gap-2 mb-2 flex-wrap">
                         <div class="flex-grow-1">
-                            <label class="form-label small mb-0" for="vl-zips_dir">Input folder (narrator subfolders)</label>
-                            <input type="text" class="form-control" id="vl-zips_dir" placeholder="/path/to/zips2">
+                            <label class="form-label small mb-0" for="vl-zips_dir" data-i18n="voicelab.input.label">Input folder (narrator subfolders)</label>
+                            <input type="text" class="form-control" id="vl-zips_dir" data-i18n-skip placeholder="/path/to/zips2">
                         </div>
-                        <button class="btn btn-outline-secondary" type="button" onclick="voicelabInspect()"><i class="fas fa-magnifying-glass me-1"></i>Inspect</button>
+                        <button class="btn btn-outline-secondary" type="button" onclick="voicelabInspect()"><i class="fas fa-magnifying-glass me-1"></i><span data-i18n="voicelab.inspect">Inspect</span></button>
                     </div>
                     <div id="vl-inspect" class="small text-muted mb-3"></div>
 
                     <!-- Stages + parameters -->
                     <div class="row g-3 mb-3">
                         <div class="col-md-5">
-                            <div class="fw-bold small mb-1">Stages to run</div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-quality" value="quality" checked><label class="form-check-label small" for="vl-stage-quality"><strong>Quality</strong> — warning-only clip health and duplicate audit</label></div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-dedup" value="dedup" checked><label class="form-check-label small" for="vl-stage-dedup"><strong>Dedup</strong> — cluster voices, merge confirmed matches, and remove exact duplicate clips</label></div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-train" value="train" checked><label class="form-check-label small" for="vl-stage-train"><strong>Train</strong> — train a LoRA per deduped voice</label></div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-evaluate" value="evaluate" checked><label class="form-check-label small" for="vl-stage-evaluate"><strong>Evaluate</strong> — fixed probes, speaker similarity, silence, and clipping warnings</label></div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-profile" value="profile" checked><label class="form-check-label small" for="vl-stage-profile"><strong>Profile</strong> — acoustic + LLM voice descriptions</label></div>
-                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-name" value="name" checked><label class="form-check-label small" for="vl-stage-name"><strong>Name</strong> — descriptive slug + rename adapters</label></div>
+                            <div class="fw-bold small mb-1" data-i18n="voicelab.stages.title">Stages to run</div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-quality" value="quality" checked><label class="form-check-label small" for="vl-stage-quality"><strong data-i18n="voicelab.stage.quality">Quality</strong> <span data-i18n="voicelab.stage.quality.help">— warning-only clip health and duplicate audit</span></label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-dedup" value="dedup" checked><label class="form-check-label small" for="vl-stage-dedup"><strong data-i18n="voicelab.stage.dedup">Dedup</strong> <span data-i18n="voicelab.stage.dedup.help">— cluster voices, merge confirmed matches, and remove exact duplicate clips</span></label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-train" value="train" checked><label class="form-check-label small" for="vl-stage-train"><strong data-i18n="voicelab.stage.train">Train</strong> <span data-i18n="voicelab.stage.train.help">— train a LoRA per deduped voice</span></label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-evaluate" value="evaluate" checked><label class="form-check-label small" for="vl-stage-evaluate"><strong data-i18n="voicelab.stage.evaluate">Evaluate</strong> <span data-i18n="voicelab.stage.evaluate.help">— fixed probes, speaker similarity, silence, and clipping warnings</span></label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-profile" value="profile" checked><label class="form-check-label small" for="vl-stage-profile"><strong data-i18n="voicelab.stage.profile">Profile</strong> <span data-i18n="voicelab.stage.profile.help">— acoustic + LLM voice descriptions</span></label></div>
+                            <div class="form-check"><input class="form-check-input vl-stage" type="checkbox" id="vl-stage-name" value="name" checked><label class="form-check-label small" for="vl-stage-name"><strong data-i18n="voicelab.stage.name">Name</strong> <span data-i18n="voicelab.stage.name.help">— descriptive slug + rename adapters</span></label></div>
                         </div>
                         <div class="col-md-7">
-                            <details id="voicelab-tuning" class="workflow-disclosure mb-2"><summary>Training &amp; evaluation tuning</summary><p class="small mt-2">These values apply to the selected stages even when collapsed.</p>
+                            <details id="voicelab-tuning" class="workflow-disclosure mb-2"><summary data-i18n="voicelab.tuning.title">Training &amp; evaluation tuning</summary><p class="small mt-2" data-i18n="voicelab.tuning.intro">These values apply to the selected stages even when collapsed.</p>
                             <div class="row g-2">
                                 <div class="col-6 col-lg-3">
-                                    <label class="form-label small mb-0" for="vl-device">Device</label>
+                                    <label class="form-label small mb-0" for="vl-device" data-i18n="voicelab.device.label">Device</label>
                                     <select class="form-select form-select-sm" id="vl-device">
                                         <option value="">auto</option><option value="cuda">cuda</option><option value="cpu">cpu</option>
                                     </select>
                                 </div>
                                 <div class="col-6 col-lg-3">
-                                    <label class="form-label small mb-0" title="Early-stop target loss" for="vl-target-loss">Target loss</label>
+                                    <label class="form-label small mb-0" data-i18n-attr="title:voicelab.target-loss.title" title="Early-stop target loss" for="vl-target-loss" data-i18n="voicelab.target-loss.label">Target loss</label>
                                     <input type="number" step="0.01" class="form-control form-control-sm" id="vl-target-loss" value="4.15" aria-describedby="vl-target-loss-help">
-                                                <div class="form-text" id="vl-target-loss-help">Training stops early when the average training loss reaches this target or lower.</div>
+                                                <div class="form-text" id="vl-target-loss-help" data-i18n="voicelab.target-loss.help">Training stops early when the average training loss reaches this target or lower.</div>
                                 </div>
                                 <div class="col-6 col-lg-3">
-                                    <label class="form-label small mb-0" for="vl-max-epochs">Max epochs</label>
+                                    <label class="form-label small mb-0" for="vl-max-epochs" data-i18n="voicelab.max-epochs.label">Max epochs</label>
                                     <input type="number" class="form-control form-control-sm" id="vl-max-epochs" value="6" min="1">
                                 </div>
                                 <div class="col-6 col-lg-3">
-                                    <label class="form-label small mb-0" for="vl-lora-r">LoRA rank</label>
+                                    <label class="form-label small mb-0" for="vl-lora-r" data-i18n="voicelab.lora-rank.label">LoRA rank</label>
                                     <input type="number" class="form-control form-control-sm" id="vl-lora-r" value="64" min="1">
                                 </div>
                                 <div class="col-6 col-lg-3">
-                                    <label class="form-label small mb-0" for="vl-candidate-checkpoints">Eval candidates</label>
+                                    <label class="form-label small mb-0" for="vl-candidate-checkpoints" data-i18n="voicelab.candidates.label">Eval candidates</label>
                                     <input type="number" class="form-control form-control-sm" id="vl-candidate-checkpoints" value="2" min="0" max="2">
                                 </div>
                             </div>
                             </details>
-                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="vl-name-apply" checked><label class="form-check-label small" for="vl-name-apply">Name stage: actually rename (uncheck for a dry-run preview)</label></div>
-                            <div class="form-check"><input class="form-check-input" type="checkbox" id="vl-name-overwrite"><label class="form-check-label small" for="vl-name-overwrite">Re-name adapters that already have a descriptive name</label></div>
+                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="vl-name-apply" checked><label class="form-check-label small" for="vl-name-apply" data-i18n="voicelab.name.apply.label">Name stage: actually rename (uncheck for a dry-run preview)</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="vl-name-overwrite"><label class="form-check-label small" for="vl-name-overwrite" data-i18n="voicelab.name.overwrite.label">Re-name adapters that already have a descriptive name</label></div>
                         </div>
                     </div>
 
@@ -3105,9 +3105,9 @@
 
                     <!-- Run controls -->
                     <div class="d-flex gap-2 mb-2">
-                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-vl-start" onclick="startVoicelab()"><i class="fas fa-play me-2"></i>Run Pipeline</button>
-                        <button class="btn btn-outline-warning" id="btn-vl-pause" style="display:none;" onclick="pauseResumeVoicelab()"><i class="fas fa-pause me-1"></i>Pause</button>
-                        <button class="btn btn-outline-danger" id="btn-vl-cancel" style="display:none;" onclick="cancelVoicelab()"><i class="fas fa-stop me-1"></i>Cancel</button>
+                        <button class="btn btn-success btn-lg flex-grow-1" id="btn-vl-start" onclick="startVoicelab()"><i class="fas fa-play me-2"></i><span data-i18n="voicelab.run">Run Pipeline</span></button>
+                        <button class="btn btn-outline-warning" id="btn-vl-pause" style="display:none;" onclick="pauseResumeVoicelab()"><i class="fas fa-pause me-1"></i><span data-i18n="voicelab.pause">Pause</span></button>
+                        <button class="btn btn-outline-danger" id="btn-vl-cancel" style="display:none;" onclick="cancelVoicelab()"><i class="fas fa-stop me-1"></i><span data-i18n="voicelab.cancel">Cancel</span></button>
                     </div>
 
                     <!-- Stage progress -->
@@ -3117,11 +3117,11 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Voice Lab Logs</span>
+                    <span data-i18n="voicelab.logs.title">Voice Lab Logs</span>
                     <span class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="copyVoicelabDiagnostics()" title="Copy a sanitized diagnostics summary (secrets redacted) for support"><i class="fas fa-clipboard me-1"></i>Copy diagnostics</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="downloadVoicelabDiagnostics()" title="Download the sanitized diagnostics summary as JSON"><i class="fas fa-file-arrow-down me-1"></i>Download diagnostics</button>
-                        <a href="/api/logs/voicelab?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Download the complete Voice Lab log"><i class="fas fa-download me-1"></i>Full log</a>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="copyVoicelabDiagnostics()" data-i18n-attr="title:voicelab.diagnostics.copy.title" title="Copy a sanitized diagnostics summary (secrets redacted) for support"><i class="fas fa-clipboard me-1"></i><span data-i18n="voicelab.diagnostics.copy">Copy diagnostics</span></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="downloadVoicelabDiagnostics()" data-i18n-attr="title:voicelab.diagnostics.download.title" title="Download the sanitized diagnostics summary as JSON"><i class="fas fa-file-arrow-down me-1"></i><span data-i18n="voicelab.diagnostics.download">Download diagnostics</span></button>
+                        <a href="/api/logs/voicelab?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:voicelab.logs.full.title" title="Download the complete Voice Lab log"><i class="fas fa-download me-1"></i><span data-i18n="voicelab.logs.full">Full log</span></a>
                     </span>
                 </div>
                 <div class="card-body p-0">
@@ -3134,27 +3134,27 @@
         <div id="training-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h4>Training</h4>
+                    <h4 data-i18n="training.header.title">Training</h4>
                 </div>
                 <div class="card-body">
-                    <p>Train LoRA adapters on the Base model to create custom voice identities. Upload a dataset (ZIP with WAV files + metadata.jsonl), configure training, and run.</p>
+                    <p data-i18n="training.intro">Train LoRA adapters on the Base model to create custom voice identities. Upload a dataset (ZIP with WAV files + metadata.jsonl), configure training, and run.</p>
 
                     <!-- Dataset Upload -->
-                    <h5 class="mb-3">Dataset</h5>
+                    <h5 class="mb-3" data-i18n="training.dataset.title">Dataset</h5>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
                             <div class="input-group">
-                                <input type="file" class="form-control" id="lora-dataset-file" accept=".zip" aria-label="Training dataset ZIP">
-                                <button id="btn-lora-upload" class="btn btn-outline-primary" onclick="uploadLoraDataset()"><i class="fas fa-upload me-1"></i>Upload ZIP</button>
+                                <input type="file" class="form-control" id="lora-dataset-file" accept=".zip" data-i18n-attr="aria-label:training.dataset.aria" aria-label="Training dataset ZIP">
+                                <button id="btn-lora-upload" class="btn btn-outline-primary" onclick="uploadLoraDataset()"><i class="fas fa-upload me-1"></i><span data-i18n="training.dataset.upload">Upload ZIP</span></button>
                                 <div id="lora-upload-status" class="form-text" role="status" aria-live="polite"></div>
                             </div>
-                            <div class="form-text">ZIP containing WAV files (24kHz mono) and metadata.jsonl with audio_filepath and text fields</div>
+                            <div class="form-text" data-i18n="training.dataset.help">ZIP containing WAV files (24kHz mono) and metadata.jsonl with audio_filepath and text fields</div>
                         </div>
                         <div class="col-md-6">
                             <div id="lora-datasets-refresh-status" class="small text-warning mb-1" role="status" aria-live="polite" aria-atomic="true"></div>
-                    <button type="button" id="lora-datasets-refresh-retry" class="btn btn-sm btn-outline-primary mb-2" onclick="loadLoraDatasets()" hidden>Retry datasets refresh</button>
+                    <button type="button" id="lora-datasets-refresh-retry" class="btn btn-sm btn-outline-primary mb-2" onclick="loadLoraDatasets()" hidden data-i18n="training.dataset.retry">Retry datasets refresh</button>
                     <div id="lora-datasets-list" class="border rounded p-2" style="min-height: 60px;">
-                                <span class="text-muted">No datasets uploaded yet.</span>
+                                <span class="text-muted" data-i18n="training.dataset.empty">No datasets uploaded yet.</span>
                             </div>
                         </div>
                     </div>
@@ -3162,78 +3162,78 @@
                     <!-- Build New Dataset -->
                     <div class="mb-3">
                         <button class="btn btn-outline-primary" onclick="document.querySelector('[data-tab=dataset-builder]').click();">
-                            <i class="fas fa-flask me-1"></i>Build New Dataset
+                            <i class="fas fa-flask me-1"></i><span data-i18n="training.dataset.build">Build New Dataset</span>
                         </button>
-                        <span class="text-muted small ms-2">Open the Dataset Builder to create training datasets with per-line preview and generation.</span>
+                        <span class="text-muted small ms-2" data-i18n="training.dataset.build-help">Open the Dataset Builder to create training datasets with per-line preview and generation.</span>
                     </div>
 
                     <hr>
 
                     <!-- Training Config -->
-                    <h5 class="mb-3">Training Configuration</h5>
+                    <h5 class="mb-3" data-i18n="training.config.title">Training Configuration</h5>
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
-                            <label class="form-label" for="lora-adapter-name">Adapter Name</label>
-                            <input type="text" class="form-control" id="lora-adapter-name" placeholder="e.g. narrator_warm">
+                            <label class="form-label" for="lora-adapter-name" data-i18n="training.adapter-name.label">Adapter Name</label>
+                            <input type="text" class="form-control" id="lora-adapter-name" data-i18n-attr="placeholder:training.adapter-name.placeholder" placeholder="e.g. narrator_warm">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label" for="lora-dataset-select">Dataset</label>
+                            <label class="form-label" for="lora-dataset-select" data-i18n="training.dataset.label">Dataset</label>
                             <select class="form-select" id="lora-dataset-select">
-                                <option value="">-- Select dataset --</option>
+                                <option value="" data-i18n="training.dataset.select-empty">-- Select dataset --</option>
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-epochs">Epochs</label>
+                            <label class="form-label" for="lora-epochs" data-i18n="training.epochs.label">Epochs</label>
                             <input type="number" class="form-control" id="lora-epochs" value="5" min="1">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-language">Language</label>
+                            <label class="form-label" for="lora-language" data-i18n="training.language.label">Language</label>
                             <select class="form-select" id="lora-language">
-                                <option value="english" selected>English</option>
-                                <option value="chinese">Chinese</option>
-                                <option value="german">German</option>
-                                <option value="italian">Italian</option>
-                                <option value="portuguese">Portuguese</option>
-                                <option value="spanish">Spanish</option>
-                                <option value="japanese">Japanese</option>
-                                <option value="korean">Korean</option>
-                                <option value="french">French</option>
-                                <option value="russian">Russian</option>
+                                <option value="english" selected data-i18n="language.english">English</option>
+                                <option value="chinese" data-i18n="language.chinese">Chinese</option>
+                                <option value="german" data-i18n="language.german">German</option>
+                                <option value="italian" data-i18n="language.italian">Italian</option>
+                                <option value="portuguese" data-i18n="language.portuguese">Portuguese</option>
+                                <option value="spanish" data-i18n="language.spanish">Spanish</option>
+                                <option value="japanese" data-i18n="language.japanese">Japanese</option>
+                                <option value="korean" data-i18n="language.korean">Korean</option>
+                                <option value="french" data-i18n="language.french">French</option>
+                                <option value="russian" data-i18n="language.russian">Russian</option>
                             </select>
                         </div>
                     </div>
                     <details id="training-tuning" class="workflow-disclosure mb-3">
-                        <summary>Training tuning</summary>
-                        <p class="small mt-2">These values still apply when this section is collapsed. Check them before starting a run.</p>
+                        <summary data-i18n="training.tuning.title">Training tuning</summary>
+                        <p class="small mt-2" data-i18n="training.tuning.intro">These values still apply when this section is collapsed. Check them before starting a run.</p>
                         <div class="row g-3">
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-lr">Learning Rate</label>
+                            <label class="form-label" for="lora-lr" data-i18n="training.lr.label">Learning Rate</label>
                             <input type="text" class="form-control" id="lora-lr" value="1e-6">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-batch-size">Batch Size</label>
+                            <label class="form-label" for="lora-batch-size" data-i18n="training.batch-size.label">Batch Size</label>
                             <input type="number" class="form-control" id="lora-batch-size" value="1" min="1">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-rank">LoRA Rank</label>
+                            <label class="form-label" for="lora-rank" data-i18n="training.rank.label">LoRA Rank</label>
                             <input type="number" class="form-control" id="lora-rank" value="32" min="1">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-alpha">LoRA Alpha</label>
+                            <label class="form-label" for="lora-alpha" data-i18n="training.alpha.label">LoRA Alpha</label>
                             <input type="number" class="form-control" id="lora-alpha" value="128" min="1">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label" for="lora-grad-accum">Grad Accum Steps</label>
+                            <label class="form-label" for="lora-grad-accum" data-i18n="training.grad-accum.label">Grad Accum Steps</label>
                             <input type="number" class="form-control" id="lora-grad-accum" value="8" min="1">
                         </div>
                         </div>
                     </details>
                     <div class="workflow-actions d-flex align-items-center gap-2 flex-wrap mb-3">
                             <button class="btn btn-success btn-lg" id="btn-lora-train" onclick="startLoraTraining()">
-                                <i class="fas fa-dumbbell me-1"></i>Start Training
+                                <i class="fas fa-dumbbell me-1"></i><span data-i18n="training.start">Start Training</span>
                             </button>
                             <button class="btn btn-danger btn-lg ms-2" id="btn-lora-cancel" style="display:none" onclick="cancelLoraTraining()">
-                                <i class="fas fa-stop me-1"></i>Cancel
+                                <i class="fas fa-stop me-1"></i><span data-i18n="training.cancel">Cancel</span>
                             </button>
                             <span id="lora-train-status" class="ms-3 text-muted"></span>
                     </div>
@@ -3241,43 +3241,43 @@
                     <!-- Settings Info Panel -->
                     <details class="card mb-3 border-info">
                         <summary class="card-header py-2 bg-info bg-opacity-10 d-flex justify-content-between align-items-center" style="cursor:pointer;">
-                            <strong><i class="fas fa-info-circle me-1"></i>How Settings Affect LoRA Voice Quality</strong>
+                            <strong><i class="fas fa-info-circle me-1"></i><span data-i18n="training.help.title">How Settings Affect LoRA Voice Quality</span></strong>
                             <i class="fas fa-chevron-down" aria-hidden="true"></i>
                         </summary>
                         <div class="card-body small">
                             <dl class="row mb-0">
-                                <dt class="col-sm-3">LoRA Rank</dt>
-                                <dd class="col-sm-9">Controls adapter capacity. <strong>High rank (64+)</strong> captures voice identity strongly but can override the model's ability to follow instruct/style prompts, producing flat delivery. <strong>Low rank (8-16)</strong> preserves expressiveness and instruct-following but captures less voice detail. Start with 16-32 for a balance.</dd>
-                                <dt class="col-sm-3">LoRA Alpha</dt>
-                                <dd class="col-sm-9">Scaling factor for LoRA weights. Effective strength = alpha / rank. Higher alpha relative to rank means the adapter has more influence. A common starting point is alpha = 2x rank.</dd>
-                                <dt class="col-sm-3">Epochs</dt>
-                                <dd class="col-sm-9">Number of full passes over the dataset. Too many can overfit; too few can underfit, but the experiments did not establish a universal range. Use retained checkpoint evaluation and blind listening rather than sample count or training loss alone.</dd>
-                                <dt class="col-sm-3">Learning Rate</dt>
-                                <dd class="col-sm-9">Step size for weight updates. Default 1e-6 is conservative. Higher rates (5e-6 or 1e-5) train faster but risk instability.</dd>
-                                <dt class="col-sm-3">Batch Size</dt>
-                                <dd class="col-sm-9">Samples processed per step. Limited by VRAM. Batch 1 with gradient accumulation is typical for 24GB cards.</dd>
-                                <dt class="col-sm-3">Grad Accum Steps</dt>
-                                <dd class="col-sm-9">Simulates larger batches by accumulating gradients over N steps before updating. Effective batch = batch_size x grad_accum. Higher values give smoother training at the cost of speed.</dd>
-                                <dt class="col-sm-3">Language</dt>
-                                <dd class="col-sm-9">Sets the codec language prefix token used during training. Must match the language of your training audio. For unsupported languages, try "english" as a proxy.</dd>
+                                <dt class="col-sm-3" data-i18n="training.rank.label">LoRA Rank</dt>
+                                <dd class="col-sm-9"><span data-i18n="training.help.rank.intro">Controls adapter capacity.</span> <strong data-i18n="training.help.rank.high">High rank (64+)</strong> <span data-i18n="training.help.rank.high-tail">captures voice identity strongly but can override the model's ability to follow instruct/style prompts, producing flat delivery.</span> <strong data-i18n="training.help.rank.low">Low rank (8-16)</strong> <span data-i18n="training.help.rank.low-tail">preserves expressiveness and instruct-following but captures less voice detail. Start with 16-32 for a balance.</span></dd>
+                                <dt class="col-sm-3" data-i18n="training.alpha.label">LoRA Alpha</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.alpha">Scaling factor for LoRA weights. Effective strength = alpha / rank. Higher alpha relative to rank means the adapter has more influence. A common starting point is alpha = 2x rank.</dd>
+                                <dt class="col-sm-3" data-i18n="training.epochs.label">Epochs</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.epochs">Number of full passes over the dataset. Too many can overfit; too few can underfit, but the experiments did not establish a universal range. Use retained checkpoint evaluation and blind listening rather than sample count or training loss alone.</dd>
+                                <dt class="col-sm-3" data-i18n="training.lr.label">Learning Rate</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.lr">Step size for weight updates. Default 1e-6 is conservative. Higher rates (5e-6 or 1e-5) train faster but risk instability.</dd>
+                                <dt class="col-sm-3" data-i18n="training.batch-size.label">Batch Size</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.batch-size">Samples processed per step. Limited by VRAM. Batch 1 with gradient accumulation is typical for 24GB cards.</dd>
+                                <dt class="col-sm-3" data-i18n="training.grad-accum.label">Grad Accum Steps</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.grad-accum">Simulates larger batches by accumulating gradients over N steps before updating. Effective batch = batch_size x grad_accum. Higher values give smoother training at the cost of speed.</dd>
+                                <dt class="col-sm-3" data-i18n="training.language.label">Language</dt>
+                                <dd class="col-sm-9" data-i18n="training.help.language">Sets the codec language prefix token used during training. Must match the language of your training audio. For unsupported languages, try "english" as a proxy.</dd>
                             </dl>
                             <hr class="my-2">
-                            <p class="mb-0"><strong>Training data:</strong> Sample count is inventory, not a quality score. Inspect recording consistency and the retained evaluation probes; compare Clone and LoRA by listening because neither mode won consistently across tested voices.</p>
+                            <p class="mb-0"><strong data-i18n="training.help.data.title">Training data:</strong> <span data-i18n="training.help.data">Sample count is inventory, not a quality score. Inspect recording consistency and the retained evaluation probes; compare Clone and LoRA by listening because neither mode won consistently across tested voices.</span></p>
                         </div>
                     </details>
 
                     <!-- Training Progress -->
                     <div id="lora-progress-section" style="display:none;">
                         <hr>
-                        <h5 class="mb-2">Training Progress</h5>
+                        <h5 class="mb-2" data-i18n="training.progress.title">Training Progress</h5>
                         <div class="row g-3 mb-2">
                             <div class="col-md-4">
                                 <div class="d-flex justify-content-between">
-                                    <span>Epoch: <strong id="lora-epoch-display">0/0</strong></span>
-                                    <span>Loss: <strong id="lora-loss-display">--</strong></span>
+                                    <span><span data-i18n="training.progress.epoch">Epoch:</span> <strong id="lora-epoch-display">0/0</strong></span>
+                                    <span><span data-i18n="training.progress.loss">Loss:</span> <strong id="lora-loss-display">--</strong></span>
                                 </div>
                                 <div class="progress mt-1" style="height: 20px;">
-                                    <div id="lora-progress-bar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%">0%</div>
+                                    <div id="lora-progress-bar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" data-i18n-attr="aria-valuetext:training.progress.not-started" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%">0%</div>
                                 </div>
                             </div>
                             <div class="col-md-8">
@@ -3291,36 +3291,36 @@
             <!-- Trained Adapters -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="m-0">Trained Adapters</h5>
-                    <button class="btn btn-sm btn-outline-primary" onclick="loadLoraModels()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                    <h5 class="m-0" data-i18n="training.adapters.title">Trained Adapters</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadLoraModels()"><i class="fas fa-sync me-1"></i><span data-i18n="training.adapters.refresh">Refresh</span></button>
                 </div>
                 <div class="card-body">
                     <div id="lora-models-refresh-status" class="small text-warning mb-1" role="status" aria-live="polite" aria-atomic="true"></div>
-                    <button type="button" id="lora-models-refresh-retry" class="btn btn-sm btn-outline-primary mb-2" onclick="loadLoraModels()" hidden>Retry models refresh</button>
+                    <button type="button" id="lora-models-refresh-retry" class="btn btn-sm btn-outline-primary mb-2" onclick="loadLoraModels()" hidden data-i18n="training.adapters.retry">Retry models refresh</button>
                     <div id="lora-models-list">
-                        <p class="text-muted mb-0">No trained adapters yet.</p>
+                        <p class="text-muted mb-0" data-i18n="training.adapters.empty">No trained adapters yet.</p>
                     </div>
                     <div id="lora-comparison-panel" class="mt-3" style="display:none;"></div>
 
                     <!-- Test Voice Form -->
                     <div id="lora-test-form" class="mt-3 pt-3 border-top" style="display:none;">
-                        <h6>Test Voice</h6>
+                        <h6 data-i18n="training.test.title">Test Voice</h6>
                         <div class="row g-2 mb-2">
                             <div class="col-md-4">
-                                <label class="form-label small" for="lora-test-adapter">Adapter</label>
+                                <label class="form-label small" for="lora-test-adapter" data-i18n="training.test.adapter">Adapter</label>
                                 <select id="lora-test-adapter" class="form-select form-select-sm"></select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small" for="lora-test-text">Text</label>
+                                <label class="form-label small" for="lora-test-text" data-i18n="training.test.text">Text</label>
                                 <input type="text" id="lora-test-text" class="form-control form-control-sm" value="The ancient library stood at the crossroads of two forgotten paths.">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small" for="lora-test-instruct">Instruct</label>
-                                <input type="text" id="lora-test-instruct" class="form-control form-control-sm" placeholder="e.g. Warm, gentle narration">
+                                <label class="form-label small" for="lora-test-instruct" data-i18n="training.test.instruct">Instruct</label>
+                                <input type="text" id="lora-test-instruct" class="form-control form-control-sm" data-i18n-attr="placeholder:training.test.instruct-placeholder" placeholder="e.g. Warm, gentle narration">
                             </div>
                         </div>
                         <div class="d-flex align-items-center gap-2">
-                            <button id="btn-lora-test-generate" type="button" class="btn btn-sm btn-primary" onclick="runLoraTest()"><i class="fas fa-play me-1"></i>Generate</button>
+                            <button id="btn-lora-test-generate" type="button" class="btn btn-sm btn-primary" onclick="runLoraTest()"><i class="fas fa-play me-1"></i><span data-i18n="training.test.generate">Generate</span></button>
                             <span id="lora-test-status" class="text-muted small" role="status" aria-live="polite"></span>
                         </div>
                         <div id="lora-test-audio" class="mt-2"></div>
@@ -3333,17 +3333,17 @@
         <div id="dataset-builder-tab" class="tab-content" style="display:none;">
             <div class="card">
                 <div class="card-header">
-                    <h4>Dataset</h4>
-                    <p class="text-muted mb-0">Build LoRA training datasets with per-sample generation, preview, and re-generation.</p>
+                    <h4 data-i18n="dataset.header.title">Dataset</h4>
+                    <p class="text-muted mb-0" data-i18n="dataset.intro">Build LoRA training datasets with per-sample generation, preview, and re-generation.</p>
                 </div>
                 <div class="card-body">
                     <!-- Project Selector -->
                     <div class="d-flex align-items-center gap-2 mb-3">
-                        <select class="form-select" id="dsb-project-select" style="max-width: 300px;" onchange="dsbOnProjectChange()" aria-label="Dataset project">
-                            <option value="">-- Select project --</option>
+                        <select class="form-select" id="dsb-project-select" style="max-width: 300px;" onchange="dsbOnProjectChange()" data-i18n-attr="aria-label:dataset.project.aria" aria-label="Dataset project">
+                            <option value="" data-i18n="workbench.projects.select-empty">-- Select project --</option>
                         </select>
-                        <button class="btn btn-primary btn-sm" onclick="dsbCreateProject()"><i class="fas fa-plus me-1"></i>New Dataset</button>
-                        <button class="btn btn-outline-danger btn-sm" id="dsb-btn-delete-project" onclick="dsbDeleteProject()" style="display:none;"><i class="fas fa-trash me-1"></i>Delete</button>
+                        <button class="btn btn-primary btn-sm" onclick="dsbCreateProject()"><i class="fas fa-plus me-1"></i><span data-i18n="dataset.project.new">New Dataset</span></button>
+                        <button class="btn btn-outline-danger btn-sm" id="dsb-btn-delete-project" onclick="dsbDeleteProject()" style="display:none;"><i class="fas fa-trash me-1"></i><span data-i18n="dataset.project.delete">Delete</span></button>
                     </div>
 
                     <div id="dsb-project-list-status" role="status" aria-live="polite"></div>
@@ -3352,26 +3352,26 @@
                     <div id="dsb-form-area" style="display:none;">
                     <div class="row g-3 mb-3">
                         <div class="col-md-9">
-                            <label class="form-label" for="dsb-description">Root Voice Description</label>
-                            <input type="text" class="form-control" id="dsb-description" placeholder="e.g. A male tenor with a steady, clean tone, light nasal resonance, and even delivery">
+                            <label class="form-label" for="dsb-description" data-i18n="dataset.description.label">Root Voice Description</label>
+                            <input type="text" class="form-control" id="dsb-description" data-i18n-attr="placeholder:dataset.description.placeholder" placeholder="e.g. A male tenor with a steady, clean tone, light nasal resonance, and even delivery">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label" for="dsb-global-seed">Global Seed</label>
-                            <input type="number" class="form-control" id="dsb-global-seed" placeholder="Random" min="-1" value="">
-                            <div class="text-muted" style="font-size: 0.7rem;">Blank or -1 = server-selected seed. A sample seed of 0 or higher overrides this global seed.</div>
+                            <label class="form-label" for="dsb-global-seed" data-i18n="dataset.seed.label">Global Seed</label>
+                            <input type="number" class="form-control" id="dsb-global-seed" data-i18n-attr="placeholder:dataset.seed.placeholder" placeholder="Random" min="-1" value="">
+                            <div class="text-muted" style="font-size: 0.7rem;" data-i18n="dataset.seed.help">Blank or -1 = server-selected seed. A sample seed of 0 or higher overrides this global seed.</div>
                         </div>
                     </div>
 
                     <!-- Toolbar -->
                     <div class="d-flex align-items-center gap-2 mb-3">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="dsbAddRow()"><i class="fas fa-plus me-1"></i>Add Row</button>
-                        <button class="btn btn-sm btn-outline-info" type="button" id="dsb-import-button" onclick="document.getElementById('dsb-json-file').click()"><i class="fas fa-file-import me-1"></i>Import JSON</button>
-                        <input type="file" id="dsb-json-file" aria-label="Dataset samples JSON file" accept=".json" onchange="dsbImport(event)" style="display:none;">
-                        <button class="btn btn-sm btn-outline-info" onclick="dsbExport()"><i class="fas fa-file-export me-1"></i>Export JSON</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="dsbAddRow()"><i class="fas fa-plus me-1"></i><span data-i18n="dataset.row.add">Add Row</span></button>
+                        <button class="btn btn-sm btn-outline-info" type="button" id="dsb-import-button" onclick="document.getElementById('dsb-json-file').click()"><i class="fas fa-file-import me-1"></i><span data-i18n="dataset.json.import">Import JSON</span></button>
+                        <input type="file" id="dsb-json-file" data-i18n-attr="aria-label:dataset.json.aria" aria-label="Dataset samples JSON file" accept=".json" onchange="dsbImport(event)" style="display:none;">
+                        <button class="btn btn-sm btn-outline-info" onclick="dsbExport()"><i class="fas fa-file-export me-1"></i><span data-i18n="dataset.json.export">Export JSON</span></button>
                         <div class="ms-auto d-flex gap-2">
-                            <button class="btn btn-sm btn-success" id="dsb-btn-gen-all" onclick="dsbGenerateAll(false)"><i class="fas fa-play me-1"></i>Generate Pending</button>
-                            <button class="btn btn-sm btn-outline-success" id="dsb-btn-regen-all" onclick="dsbGenerateAll(true)"><i class="fas fa-redo me-1"></i>Regen All</button>
-                            <button class="btn btn-sm btn-danger" id="dsb-btn-cancel" onclick="dsbCancel()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                            <button class="btn btn-sm btn-success" id="dsb-btn-gen-all" onclick="dsbGenerateAll(false)"><i class="fas fa-play me-1"></i><span data-i18n="dataset.generate.pending">Generate Pending</span></button>
+                            <button class="btn btn-sm btn-outline-success" id="dsb-btn-regen-all" onclick="dsbGenerateAll(true)"><i class="fas fa-redo me-1"></i><span data-i18n="dataset.generate.regen-all">Regen All</span></button>
+                            <button class="btn btn-sm btn-danger" id="dsb-btn-cancel" onclick="dsbCancel()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="dataset.cancel">Cancel</span></button>
                         </div>
                     </div>
 
@@ -3386,11 +3386,11 @@
                             <thead class="table-light">
                                 <tr>
                                     <th width="4%">#</th>
-                                    <th width="16%">Emotion / Style</th>
-                                    <th width="34%">Text</th>
-                                    <th width="7%" title="Blank or -1 uses the global seed; 0 or higher overrides it">Seed</th>
-                                    <th width="7%">Status</th>
-                                    <th width="32%">Audio / Actions</th>
+                                    <th width="16%" data-i18n="dataset.table.emotion">Emotion / Style</th>
+                                    <th width="34%" data-i18n="dataset.table.text">Text</th>
+                                    <th width="7%" data-i18n-attr="title:dataset.table.seed-title" title="Blank or -1 uses the global seed; 0 or higher overrides it" data-i18n="dataset.table.seed">Seed</th>
+                                    <th width="7%" data-i18n="dataset.table.status">Status</th>
+                                    <th width="32%" data-i18n="dataset.table.audio">Audio / Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="dsb-table-body">
@@ -3401,16 +3401,16 @@
                     <!-- Save section -->
                     <div class="card mt-3">
                         <div class="card-body d-flex align-items-center gap-3">
-                            <button class="btn btn-primary" id="dsb-btn-save" onclick="dsbSave()"><i class="fas fa-save me-1"></i>Save as Training Dataset</button>
+                            <button class="btn btn-primary" id="dsb-btn-save" onclick="dsbSave()"><i class="fas fa-save me-1"></i><span data-i18n="dataset.save">Save as Training Dataset</span></button>
                             <div>
-                                <label class="form-label mb-0 me-2" for="dsb-ref-select">Reference Sample:</label>
+                                <label class="form-label mb-0 me-2" for="dsb-ref-select" data-i18n="dataset.ref.label">Reference Sample:</label>
                                 <select class="form-select form-select-sm d-inline-block" id="dsb-ref-select" style="width: auto;">
-                                    <option value="0">First completed sample</option>
+                                    <option value="0" data-i18n="dataset.ref.first">First completed sample</option>
                                 </select>
                             </div>
                             <span id="dsb-save-status" class="text-muted small" role="status" aria-live="polite"></span>
                         </div>
-                        <div class="text-muted small px-3 pb-2"><i class="fas fa-info-circle me-1"></i>The reference sample is used as the speaker embedding (<code>ref.wav</code>) during LoRA training. Pick a clear, representative line.</div>
+                        <div class="text-muted small px-3 pb-2"><i class="fas fa-info-circle me-1"></i><span data-i18n="dataset.ref.intro">The reference sample is used as the speaker embedding (</span><code data-i18n-skip>ref.wav</code><span data-i18n="dataset.ref.suffix">) during LoRA training. Pick a clear, representative line.</span></div>
                     </div>
 
                     <!-- Logs -->

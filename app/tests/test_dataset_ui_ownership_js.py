@@ -506,6 +506,7 @@ const context = {
     // behaviour under test is unchanged while the source keeps its literal English.
     t: (key, english, values = {}) => english.replace(/\{(\w+)\}/g, (match, name) => Object.hasOwn(values, name) ? String(values[name]) : match),
     formatUiSafetyText: (key, english) => english,
+    taskStatusLabel:status=>status,formatUiDate:value=>String(value),
     setTimeout(callback) { const id = nextTimer++; timers.set(id, callback); return id; },
     clearTimeout(id) { timers.delete(id); }
 };

@@ -46,7 +46,7 @@ const fields={
  ...JSON.parse(process.argv[2])};
 const elements=Object.fromEntries(Object.entries(fields).map(([id,value])=>[id,{value,style:{},disabled:false}]));
 const posts=[],toasts=[],polls=[];
-const context={window:{},document:{getElementById(id){return elements[id]||(elements[id]={style:{},innerHTML:'',disabled:false});}},
+const context={window:{},t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),escapeHtml:value=>String(value),document:{getElementById(id){return elements[id]||(elements[id]={style:{},innerHTML:'',disabled:false});}},
  API:{post:async(path,data)=>{posts.push({path,data:JSON.parse(JSON.stringify(data))});return{};}},
  showToast(message,kind){toasts.push({message,kind});},pollLoraTraining(value){polls.push(value);}};
 vm.runInNewContext(handler,context);
@@ -113,7 +113,7 @@ const file={name:mode},input={files:[file],value:mode};
 const button={innerHTML:'Play',disabled:false,title:'Generate preview',classList:{replace(a,b){posts.push([a,b]);}}};
 let refreshes=0,resolvePlay,rejectPlay;
 const played=new Promise((resolve,reject)=>{resolvePlay=resolve;rejectPlay=reject;});
-const context={window:{},document:{getElementById(id){return id==='lora-dataset-file'?input:button;}},
+const context={window:{},t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),escapeHtml:value=>String(value),document:{getElementById(id){return id==='lora-dataset-file'?input:button;}},
  FormData:class{constructor(){this.fields=[];}append(key,value){this.fields.push([key,value]);}},
  fetch:async(path,options)=>{assert.strictEqual(options.body.fields[0][1],file);posts.push({path,method:options.method});return{ok:true,json:async()=>({dataset_id:'fixture',sample_count:3})};},
  loadLoraDatasets(){refreshes++;},showToast(message,kind){toasts.push({message,kind});},
@@ -175,6 +175,7 @@ const context = {
  console, document:{getElementById:id => elements[id] || (elements[id]={value:'',innerHTML:''})},
  FormData:class {constructor(){this.parts=[];} append(name,file){this.parts.push({name,file});}},
  showToast:(...args)=>messages.push(args), escapeHtml:value=>value,
+ t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
  API:{get:async url=>{refreshes.push(url);return[];}},
  fetch:async (url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({dataset_id:'MixedCase',sample_count:1})};}
 };

@@ -54,6 +54,8 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
  pollLogs:task=>calls.push(task),refreshBenchmarkStatus:()=>calls.push('benchmark'),
  pollExport:task=>calls.push(task),dsbLoadProjects:async name=>calls.push('dataset_builder:'+name),loadVoices:async()=>{},loadDesignedVoices:async()=>{},refreshLmStudioStatus:async()=>{},loadChunks:async()=>{},notifyJobDone:()=>{},
   attachEditorOutlierCheck:()=>calls.push('outlier_check'),
+  t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
+  escapeHtml:value=>String(value),
   _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
 vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);
 (async()=>{

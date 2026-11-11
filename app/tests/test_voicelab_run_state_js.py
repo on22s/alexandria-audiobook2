@@ -11,6 +11,7 @@ function element(id){return elements[id]||(elements[id]={value:'',checked:false,
 const ctx={window:null,document:{getElementById:element,querySelectorAll:()=>[{value:'name'}]},
  API:{},_makePauseResumeHandler:()=>()=>{},_resetPauseBtn:()=>{},showToast:()=>{},
  showConfirm:async()=>true,escapeHtml:x=>String(x),cancelTask:()=>{},notifyJobDone:()=>{},
+ t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiDate:value=>String(value),taskStatusLabel:status=>status,
  _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};},console,Date};ctx.window=ctx;
 element('vl-zips_dir').value='A';
 for(const [id,value] of Object.entries({'vl-target-loss':'4.15','vl-max-epochs':'6','vl-lora-r':'64','vl-candidate-checkpoints':'2'})){element(id).value=value;}

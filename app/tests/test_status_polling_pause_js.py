@@ -18,7 +18,7 @@ class StatusPollingPauseJsTests(unittest.TestCase):
     def test_pending_poll_bounds_independence_release_and_rendering(self):
         self.run_js(r'''const source=fs.readFileSync(process.argv[1]+'/app-workbench.js','utf8');
 const elements={},calls=[];for(const id of ['sys-gpu-val','sys-build-val','sys-build','sys-gpu','sys-disk-val','sys-disk','sys-eta','sys-eta-val','stale-build-banner']){elements[id]={style:{},textContent:'',title:'',classList:classes()};}
-const context={document:{getElementById:id=>elements[id],querySelector:()=>({content:'old123'})},API:{get:url=>{const d=deferred();calls.push({url,...d});return d.promise;}},console:{error(){}}};
+const context={t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),document:{getElementById:id=>elements[id],querySelector:()=>({content:'old123'})},API:{get:url=>{const d=deferred();calls.push({url,...d});return d.promise;}},console:{error(){}}};
 vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);vm.runInContext(source.slice(source.indexOf('const PAGE_BUILD ='),source.indexOf('async function refreshLmStudioStatus()')),context);
 const stats={runtime:{short_revision:'new456',revision:'new456full',branch:'main',python:'3.10',packages:{torch:'cpu',missing:null}},gpu:{reserved_gb:2,total_gb:8,allocated_percent:95},disk:{free_gb:12,low_space:true}};
 (async()=>{
@@ -48,7 +48,7 @@ const stats={runtime:{short_revision:'new456',revision:'new456full',branch:'main
         self.run_js(r'''const source=fs.readFileSync(process.argv[1]+'/app-workbench.js','utf8');
 let writes=0,fail=false;const elements={};const el=id=>elements[id]||(elements[id]=(()=>{let value='';return{style:{},title:'',classList:classes(),get textContent(){return value;},set textContent(v){writes++;value=v;}};})());
 let stats={runtime:{short_revision:'abc'},gpu:{reserved_gb:2,total_gb:8,allocated_percent:95},disk:{free_gb:1,low_space:true}};
-const c={document:{getElementById:el},checkStaleBuild(){},API:{get:async()=>{if(fail)throw Error('offline');return stats;}},console:{error(){}}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),c);
+const c={t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),document:{getElementById:el},checkStaleBuild(){},API:{get:async()=>{if(fail)throw Error('offline');return stats;}},console:{error(){}}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),c);
 const a=source.indexOf('function applySystemStatusText(');vm.runInContext(source.slice(a,source.indexOf('// Format a duration',a)),c);
 (async()=>{await c.updateSystemStats();assert(el('sys-gpu-warning').textContent.includes('High'));assert(el('sys-disk-warning').textContent.includes('Low'));const initial=writes;
 for(let i=0;i<10;i++)await c.updateSystemStats();assert.strictEqual(writes,initial,'unchanged poll must not rewrite live text');
@@ -99,7 +99,7 @@ const cases=[['script','btn-pause-script','pauseResumeScript','/api/generate_scr
  ['nicknames','btn-pause-nick','pauseResumeNicknames','/api/find_nicknames'],['voicelab','btn-vl-pause','pauseResumeVoicelab','/api/voicelab']];
 function setup(serverPaused,btnId){
  const btn={disabled:false,innerHTML:'original',classList:classes(serverPaused?['btn-outline-warning']:['btn-outline-success'])};const gets=[],posts=[],timers=[],toasts=[];
- const context={window:{},document:{getElementById:id=>{assert.strictEqual(id,btnId);return btn;}},
+ const context={window:{},t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),document:{getElementById:id=>{assert.strictEqual(id,btnId);return btn;}},
  API:{get:url=>{const d=deferred();gets.push({url,...d});return d.promise;},post:async url=>{posts.push(url);return {}; }},
  setTimeout:(fn,ms)=>{timers.push(ms);fn();},showToast:(...args)=>toasts.push(args)};
  vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);vm.runInContext(factory+mapping+declarations+exports+vlStart,context);return {context,btn,gets,posts,timers,toasts};
