@@ -15271,6 +15271,8 @@
   ],
   "test_ui_catalog_parity": [
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_dropped_placeholder_is_rejected",
+    "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_help_source_may_stay_english_but_a_message_may_not",
+    "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_key_with_uppercase_or_spaces_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_missing_key_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_translated_api_path_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_translated_protected_token_is_rejected",
@@ -15366,6 +15368,7 @@
   "test_ui_markup_gate": [
     "tests.test_ui_markup_gate.CounterFixtureTests.test_js_counter_ignores_the_english_argument_of_t_and_create",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_markup_counter_counts_only_unkeyed_display_text",
+    "tests.test_ui_markup_gate.CounterFixtureTests.test_the_help_map_exclusion_stops_at_the_maps",
     "tests.test_ui_markup_gate.RatchetTests.test_js_baseline_covers_every_file_and_never_grows",
     "tests.test_ui_markup_gate.RatchetTests.test_markup_baseline_covers_every_page_and_never_grows",
     "tests.test_ui_markup_gate.RatchetTests.test_the_p1_surfaces_are_actually_keyed"
