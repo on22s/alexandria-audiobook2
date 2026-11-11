@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -53,8 +54,36 @@ def reset_stuck_chunks():
     return reset_count
 
 
+def is_benign_connection_reset(context):
+    """A browser dropped a connection that asyncio then tried to shut down (#1909).
+
+    On Windows the proactor transport calls ``socket.shutdown`` after the
+    peer has already reset the connection and logs the resulting
+    ConnectionResetError as "Exception in callback ... _call_connection_lost"
+    (CPython issue 83191). Nothing failed; only this exact case is matched.
+    """
+    return (isinstance(context.get("exception"), ConnectionResetError)
+            and "_call_connection_lost" in str(context.get("message", "")))
+
+
+def apply_connection_reset_filter(loop):
+    """Drop only the benign reset log on ``loop``; everything else is reported as before."""
+    previous = loop.get_exception_handler()
+
+    def handler(handler_loop, context):
+        if is_benign_connection_reset(context):
+            return
+        if previous is not None:
+            previous(handler_loop, context)
+        else:
+            handler_loop.default_exception_handler(context)
+
+    loop.set_exception_handler(handler)
+
+
 @asynccontextmanager
 async def lifespan(_app):
+    apply_connection_reset_filter(asyncio.get_running_loop())
     with ensure_startup_recovery(DATA_DIR) as recovery_allowed:
         if recovery_allowed:
             with ensure_book_state(DATA_DIR):

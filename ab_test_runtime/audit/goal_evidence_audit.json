@@ -1050,19 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T11:03:56",
+  "written": "2026-11-11T11:36:09",
   "host": "RealMitch",
   "git": {
-   "commit": "bddec60ec9c7c51b15113bac0b3d23ce8b6bc802",
-   "branch": "fix/readaloud-1844-split-container",
+   "commit": "b3489dc82ba8f0fe45a11b48e5762b9fa81fc61b",
+   "branch": "fix/windows-connection-reset-1909",
    "dirty": true,
-   "source_state": "dirty:7ded5f2abfa4",
+   "source_state": "dirty:fc0fb9938af4",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/epub_readaloud.py",
-    "M  app/routers/editor.py",
-    "M  app/tests/test_epub_readaloud_span_groups.py",
-    "A  app/tests/test_readaloud_build_log.py",
+    "M  app/app.py",
+    "A  app/tests/test_connection_reset_filter.py",
     "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
