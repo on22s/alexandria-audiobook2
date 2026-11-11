@@ -31,9 +31,19 @@ const BLOB = { kind: 'blob' };
 function setup() {
     const state = {
         toasts: [], downloads: [], revoked: [], blobsRead: [], timers: [],
-        fetchCalls: 0, blobCalls: 0, handler: null,
+        fetchCalls: 0, blobCalls: 0, aborted: 0, nativeDownloads: 0, handler: null,
     };
-    const link = { href: '/api/readaloud_epub', download: 'book.epub', dataset: {} };
+    const link = {
+        href: '/api/readaloud_epub', download: 'book.epub', dataset: {},
+        // Models the browser: a synthetic click re-enters the listener and
+        // the native download happens only if it is not prevented.
+        click() {
+            const ev = { target: { closest: () => link }, defaultPrevented: false,
+                         preventDefault() { this.defaultPrevented = true; } };
+            state.handler(ev);
+            if (!ev.defaultPrevented) { state.nativeDownloads += 1; }
+        },
+    };
     const anchor = {
         href: '', download: '',
         click() { state.downloads.push({ href: this.href, download: this.download }); },
@@ -49,7 +59,16 @@ function setup() {
             createObjectURL: (blob) => { state.blobsRead.push(blob); return OBJECT_URL; },
             revokeObjectURL: (url) => { state.revoked.push(url); },
         },
-        fetch: (url, options) => { state.fetchCalls += 1; return context.fetchImpl(url, options); },
+        fetch: async (url, options) => {
+            state.fetchCalls += 1;
+            const response = await context.fetchImpl(url, options);
+            if (response && !response.headers) {
+                response.headers = { get: (name) => name === 'Content-Length' ? String(context.length) : null };
+            }
+            return response;
+        },
+        length: 1000, isSecureContext: true,
+        AbortController: class { constructor() { this.signal = {}; } abort() { state.aborted += 1; } },
         showToast: (message, type) => state.toasts.push([message, type]),
         t: (key, english, values = {}) => english.replace(/\{(\w+)\}/g, (_m, name) => values[name]),
         setTimeout: (fn) => { state.timers.push(fn); },
@@ -74,10 +93,24 @@ function snapshot(s, ev, extra) {
         revoked: s.state.revoked,
         blobsRead: s.state.blobsRead,
         fetchCalls: s.state.fetchCalls,
+        aborted: s.state.aborted,
+        nativeDownloads: s.state.nativeDownloads,
         blobCalls: s.state.blobCalls,
         prevented: ev.defaultPrevented,
         leftMarked: 'downloadChecked' in s.link.dataset,
     }, extra || {});
+}
+
+// A 200 whose body must not be buffered: the check request is cancelled and
+// the browser downloads the link itself.
+async function nativeCase(configure) {
+    const s = setup();
+    configure(s.context);
+    s.context.fetchImpl = async () => ({ ok: true, status: 200,
+        blob: async () => { s.state.blobCalls += 1; return BLOB; } });
+    const ev = s.event();
+    await s.state.handler(ev);
+    return snapshot(s, ev);
 }
 
 (async () => {
@@ -135,6 +168,7 @@ function snapshot(s, ev, extra) {
     const markedDuringFlight = 'downloadChecked' in double.link.dataset;
     const evDouble2 = double.event();
     await double.state.handler(evDouble2);
+    const secondPrevented = evDouble2.defaultPrevented;
     resolveFetch({ ok: true, status: 200,
         blob: async () => { double.state.blobCalls += 1; return BLOB; } });
     await first;
@@ -147,7 +181,10 @@ function snapshot(s, ev, extra) {
         down: snapshot(down, evDown),
         noJson: snapshot(noJson, evNoJson),
         blobRejects: snapshot(blobRejects, evBlobRejects),
-        double: snapshot(double, evDouble, { markedDuringFlight }),
+        double: snapshot(double, evDouble, { markedDuringFlight, secondPrevented }),
+        big: await nativeCase((c) => { c.length = 300 * 1024 * 1024; }),
+        noLength: await nativeCase((c) => { c.length = ''; }),
+        insecure: await nativeCase((c) => { c.isSecureContext = false; }),
     }));
 })().catch(error => { console.error(error); process.exit(1); });
 '''
@@ -211,9 +248,32 @@ class CheckedDownloadTests(unittest.TestCase):
     def test_a_second_click_while_pending_makes_no_second_fetch(self):
         double = self.results['double']
         self.assertTrue(double['markedDuringFlight'])
+        # The guarded click is still prevented, so the browser does not start
+        # its own download (and a second server validation) meanwhile.
+        self.assertTrue(double['secondPrevented'])
+        self.assertEqual(0, double['nativeDownloads'])
         self.assertEqual(1, double['fetchCalls'])
         self.assertEqual(1, len(double['downloads']))
         self.assertFalse(double['leftMarked'])
+
+    def test_success_buffers_nothing_else(self):
+        ok = self.results['ok']
+        self.assertEqual(0, ok['aborted'])
+        self.assertEqual(0, ok['nativeDownloads'])
+
+    def test_large_unknown_or_insecure_bodies_use_the_browser_download(self):
+        # Over the in-memory limit, no Content-Length, or a plain-HTTP LAN
+        # page: one check request, cancelled, then exactly one native download
+        # of the link; the body is never read into a blob.
+        for name in ('big', 'noLength', 'insecure'):
+            with self.subTest(case=name):
+                result = self.results[name]
+                self.assertEqual(1, result['fetchCalls'])
+                self.assertEqual(1, result['aborted'])
+                self.assertEqual(0, result['blobCalls'])
+                self.assertEqual([], result['downloads'])
+                self.assertEqual(1, result['nativeDownloads'])
+                self.assertFalse(result['leftMarked'])
 
     def test_every_read_along_export_link_is_checked(self):
         html = (STATIC / 'index.html').read_text(encoding='utf-8')
