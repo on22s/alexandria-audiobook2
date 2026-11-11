@@ -31,7 +31,7 @@ function resetTranslatedEditionBook() {
     translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
-    translatedEditionElement('feedback').textContent = 'Panel cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book.';
+    translatedEditionElement('feedback').textContent = t('translation.panel-cleared', 'Panel cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book.');
     updateTranslatedEditionControls();
 }
 
@@ -85,7 +85,7 @@ function refreshTranslatedEditionPairs() {
         const busyId = ++translatedEditionBusyId;
         translatedEditionBusy = true;
         updateTranslatedEditionControls();
-        translatedEditionElement('feedback').textContent = 'Checking installed language pairs...';
+        translatedEditionElement('feedback').textContent = t('translation.checking-pairs', 'Checking installed language pairs...');
         try {
             const pairs = await API.get('/api/translated_edition/pairs');
             if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
@@ -94,20 +94,20 @@ function refreshTranslatedEditionPairs() {
             const select = translatedEditionElement('pair');
             select.replaceChildren();
             if (!pairs.available) {
-                const note = 'Translation package is unavailable on this machine. Install it separately to build a preview; nothing was downloaded.';
+                const note = t('translation.package-unavailable', 'Translation package is unavailable on this machine. Install it separately to build a preview; nothing was downloaded.');
                 translatedEditionElement('feedback').textContent = note;
                 updateTranslatedEditionControls();
                 return note;
             }
             if (!pairs.pairs.length) {
-                const note = 'No language pair is installed. Install one separately; nothing was downloaded.';
+                const note = t('translation.no-pairs', 'No language pair is installed. Install one separately; nothing was downloaded.');
                 translatedEditionElement('feedback').textContent = note;
                 updateTranslatedEditionControls();
                 return note;
             }
             const placeholder = document.createElement('option');
             placeholder.value = '';
-            placeholder.textContent = 'Choose one installed pair';
+            placeholder.textContent = t('translation.choose-pair', 'Choose one installed pair');
             select.appendChild(placeholder);
             for (const pair of pairs.pairs) {
                 const option = document.createElement('option');
@@ -116,7 +116,7 @@ function refreshTranslatedEditionPairs() {
                 select.appendChild(option);
             }
             select.value = '';
-            translatedEditionElement('feedback').textContent = `${pairs.pairs.length} installed pairs listed. Choosing one does not change any language setting.`;
+            translatedEditionElement('feedback').textContent = t('translation.pairs-listed', '{count} installed pairs listed. Choosing one does not change any language setting.', {count: pairs.pairs.length});
             return null;
         } catch (error) {
             if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
@@ -151,13 +151,13 @@ async function loadTranslatedEditionLatestProposal() {
             translatedEditionProposal = proposal;
             renderTranslatedEditionProposal(proposal);
             translatedEditionElement('feedback').textContent = (proposal.stale
-                ? 'This preview is stale: rebuild it from the current saved Script.'
-                : 'This preview still matches the saved Script. It remains a proposal, not an approved translation.')
-                + (malformed.length ? ` ${malformed.length} saved proposal file(s) could not be read and were skipped.` : '');
+                ? t('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
+                : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.'))
+                + (malformed.length ? ' ' + t('translation.malformed', '{count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}) : '');
         } else if (malformed.length) {
-            translatedEditionElement('feedback').textContent = `No readable saved preview for this book. ${malformed.length} saved proposal file(s) could not be read and were skipped.`;
+            translatedEditionElement('feedback').textContent = t('translation.no-readable-proposal', 'No readable saved preview for this book. {count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length});
         } else {
-            translatedEditionElement('feedback').textContent = 'No saved translation preview for this book yet.';
+            translatedEditionElement('feedback').textContent = t('translation.no-proposal', 'No saved translation preview for this book yet.');
         }
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
@@ -182,8 +182,8 @@ async function refreshTranslatedEditionProposal() {
         translatedEditionProposal = proposal;
         renderTranslatedEditionProposal(proposal);
         translatedEditionElement('feedback').textContent = proposal.stale
-            ? 'This preview is stale: rebuild it from the current saved Script.'
-            : 'This preview still matches the saved Script. It remains a proposal, not an approved translation.';
+            ? t('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
+            : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.');
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest
             && translatedEditionProposal && translatedEditionProposal.proposal_id === known.proposal_id) {
@@ -198,31 +198,43 @@ function renderTranslatedEditionProposal(proposal) {
     const status = String(proposal.status).replace(/_/g, ' ');
     const heading = document.createElement('p');
     heading.className = 'small';
-    heading.textContent = `Proposal, not approved. Status: ${status}. ${proposal.counts.translated} translated, ${proposal.counts.flagged} flagged, ${proposal.counts.unsupported} unsupported, ${proposal.counts.failed} failed of ${proposal.excerpt.row_count} excerpt rows (script SHA ${proposal.source_script_sha256.slice(0, 12)}...). Target ${proposal.target_language}.`;
+    heading.textContent = t('translation.proposal.heading', 'Proposal, not approved. Status: {status}. {translated} translated, {flagged} flagged, {unsupported} unsupported, {failed} failed of {rows} excerpt rows (script SHA {sha}...). Target {target}.', {
+        status,
+        translated: proposal.counts.translated,
+        flagged: proposal.counts.flagged,
+        unsupported: proposal.counts.unsupported,
+        failed: proposal.counts.failed,
+        rows: proposal.excerpt.row_count,
+        sha: proposal.source_script_sha256.slice(0, 12),
+        target: proposal.target_language,
+    });
     review.appendChild(heading);
     if (proposal.excerpt.total_rows > proposal.excerpt.row_count) {
         const excerptNote = document.createElement('p');
         excerptNote.className = 'small';
-        excerptNote.textContent = `Excerpt only: the first ${proposal.excerpt.row_count} of ${proposal.excerpt.total_rows} Script rows. The rest of the book was not translated.`;
+        excerptNote.textContent = t('translation.excerpt-only', 'Excerpt only: the first {shown} of {total} Script rows. The rest of the book was not translated.', {
+            shown: proposal.excerpt.row_count,
+            total: proposal.excerpt.total_rows,
+        });
         review.appendChild(excerptNote);
     }
     const reasons = [];
-    if (proposal.counts.flagged) reasons.push(`${proposal.counts.flagged} flagged for review`);
-    if (proposal.counts.unsupported) reasons.push(`${proposal.counts.unsupported} unsupported`);
-    if (proposal.counts.failed) reasons.push(`${proposal.counts.failed} failed`);
-    if (proposal.counts.skipped) reasons.push(`${proposal.counts.skipped} skipped`);
-    if (proposal.counts.cancelled) reasons.push(`${proposal.counts.cancelled} cancelled`);
+    if (proposal.counts.flagged) reasons.push(t('translation.reason.flagged', '{count} flagged for review', {count: proposal.counts.flagged}));
+    if (proposal.counts.unsupported) reasons.push(t('translation.reason.unsupported', '{count} unsupported', {count: proposal.counts.unsupported}));
+    if (proposal.counts.failed) reasons.push(t('translation.reason.failed', '{count} failed', {count: proposal.counts.failed}));
+    if (proposal.counts.skipped) reasons.push(t('translation.reason.skipped', '{count} skipped', {count: proposal.counts.skipped}));
+    if (proposal.counts.cancelled) reasons.push(t('translation.reason.cancelled', '{count} cancelled', {count: proposal.counts.cancelled}));
     if (reasons.length) {
         const reasonNote = document.createElement('p');
         reasonNote.className = 'small';
-        reasonNote.textContent = `Why this is not complete: ${reasons.join(', ')}.`;
+        reasonNote.textContent = t('translation.incomplete', 'Why this is not complete: {reasons}.', {reasons: reasons.join(', ')});
         review.appendChild(reasonNote);
     }
     if (proposal.stale) {
         const stale = document.createElement('p');
         stale.id = 'translated-edition-stale';
         stale.className = 'small text-warning';
-        stale.textContent = 'Stale: the saved Script changed after this preview was built. Build a new preview.';
+        stale.textContent = formatUiSafetyText('safety.translation.preview.stale', 'Stale: the saved Script changed after this preview was built. Build a new preview.');
         review.appendChild(stale);
     }
     for (const row of proposal.rows) {
@@ -230,15 +242,20 @@ function renderTranslatedEditionProposal(proposal) {
         item.className = 'border rounded p-2 mb-2';
         const meta = document.createElement('p');
         meta.className = 'small mb-1';
-        meta.textContent = `#${row.index + 1} ${row.speaker || ''} [${row.status}${row.flags.length ? `, review: ${row.flags.join(', ')}` : ''}]`;
+        meta.textContent = t('translation.row.meta', '#{index} {speaker} [{status}{flags}]', {
+            index: row.index + 1,
+            speaker: row.speaker || '',
+            status: row.status,
+            flags: row.flags.length ? t('translation.row.flags', ', review: {flags}', {flags: row.flags.join(', ')}) : '',
+        });
         item.appendChild(meta);
         const source = document.createElement('p');
         source.className = 'mb-1';
-        source.textContent = `Source: ${row.source_text}`;
+        source.textContent = t('translation.row.source', 'Source: {text}', {text: row.source_text});
         item.appendChild(source);
         const translated = document.createElement('p');
         translated.className = 'mb-0';
-        translated.textContent = `Proposal: ${row.translated_text || '(no translation)'}`;
+        translated.textContent = t('translation.row.proposal', 'Proposal: {text}', {text: row.translated_text || t('translation.row.no-translation', '(no translation)')});
         if (row.error) {
             translated.textContent += ` (${row.error})`;
         }
@@ -263,7 +280,7 @@ async function createTranslatedEditionProposal() {
     translatedEditionCancelToken = cancelToken;
     translatedEditionBusy = true;
     updateTranslatedEditionControls();
-    translatedEditionElement('feedback').textContent = 'Building translation preview...';
+    translatedEditionElement('feedback').textContent = t('translation.building', 'Building translation preview...');
     try {
         const proposal = await API.post('/api/translated_edition/proposals',
             {source_language: sourceLanguage, target_language: targetLanguage,
@@ -272,7 +289,10 @@ async function createTranslatedEditionProposal() {
             return;
         }
         translatedEditionProposal = proposal;
-        translatedEditionElement('feedback').textContent = `Proposal ${proposal.proposal_id.slice(0, 12)} built (status ${String(proposal.status).replace(/_/g, ' ')}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.`;
+        translatedEditionElement('feedback').textContent = t('translation.built', 'Proposal {id} built (status {status}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.', {
+            id: proposal.proposal_id.slice(0, 12),
+            status: String(proposal.status).replace(/_/g, ' '),
+        });
         renderTranslatedEditionProposal(proposal);
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
@@ -303,8 +323,8 @@ async function cancelTranslatedEditionProposal() {
             return;
         }
         translatedEditionElement('feedback').textContent = result.cancelled
-            ? 'Cancel requested. If the preview was still building, it stops after the current row and is saved as cancelled; if it had already finished before the request arrived, its finished status stands.'
-            : 'No preview was running when the cancel request arrived.';
+            ? formatUiSafetyText('safety.translation.cancel-requested', 'Cancel requested. If the preview was still building, it stops after the current row and is saved as cancelled; if it had already finished before the request arrived, its finished status stands.')
+            : t('translation.cancel.nothing-running', 'No preview was running when the cancel request arrived.');
     } catch (error) {
         if (epoch === translatedEditionEpoch) {
             translatedEditionElement('feedback').textContent = error.message;
