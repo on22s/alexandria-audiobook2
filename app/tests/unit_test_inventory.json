@@ -15281,16 +15281,19 @@
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_added_placeholder_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_english_copy_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_extra_key_is_rejected",
+    "tests.test_ui_catalog_parity.CheckerFixtureTests.test_an_html_key_must_keep_its_tags",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_chinese_plural_forms_that_differ_are_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_empty_padded_and_interpolated_values_are_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_markup_in_a_plain_text_value_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_unreviewed_safety_text_in_a_draft_locale_is_allowed_but_visible",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_unreviewed_safety_text_in_a_reviewed_locale_is_rejected",
+    "tests.test_ui_catalog_parity.FileExtensionTokenTests.test_abbreviations_are_not_extensions_but_real_extensions_are",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_every_locale_carries_exactly_the_english_key_set",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_every_real_catalog_passes_every_rule",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_no_locale_claims_a_review_it_does_not_have",
     "tests.test_ui_catalog_parity.RealCatalogTests.test_the_catalogs_are_utf8_json_without_a_bom",
-    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source"
+    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source",
+    "tests.test_ui_catalog_parity.RealCatalogTests.test_the_html_allowlist_is_small_and_named"
   ],
   "test_ui_contract": [
     "tests.test_ui_contract.UIContractTests.test_error_toasts_are_assertive_but_other_toasts_are_polite",
