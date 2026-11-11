@@ -91,21 +91,31 @@ MARKUP_BASELINE = {
 # the same kind of counted non-copy it always was: template HTML, element ids,
 # CSS classes, API paths, task-log transcripts, prompt/persona text and the
 # English task-label map that app-workspace.js also reads.
+# P9b lowered app-core.js 1805 -> 1793 (the two prompt-preset save-dialog
+# titles, the built-in-prompt name refusal and the preset save statuses),
+# app-scripts.js 329 -> 291 (the Designer's saved-voice table, play/edit/delete,
+# preview and save status), and the Export quality, Mastering, M4B publication,
+# repair, word-timing, speech-recheck, narration-markup, synthesis-window and
+# audio-channel modules. app-calibre.js 269 -> 86: every user-facing string of
+# the OPDS flow is keyed, and the 86 left are element ids, HTTP verbs, element
+# state tokens and the server's capture status vocabulary. The remaining counts
+# in the other converted files are element ids, CSS classes, HTTP methods and
+# server field names.
 JS_BASELINE = {
-    'app-audio-channels.js': 26, 'app-audiobookshelf.js': 65, 'app-calibre.js': 269,
+    'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
-    'app-core.js': 1805, 'app-editor-repair.js': 32, 'app-editor-review.js': 98,
-    'app-export-quality.js': 38, 'app-guides.js': 48, 'app-help.js': 75,
-    'app-i18n.js': 25, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
+    'app-core.js': 1793, 'app-editor-repair.js': 16, 'app-editor-review.js': 98,
+    'app-export-quality.js': 12, 'app-guides.js': 48, 'app-help.js': 75,
+    'app-i18n.js': 25, 'app-mastering.js': 11, 'app-narration-markup.js': 14,
     'app-project-scope.js': 33, 'app-pronunciation.js': 74,
-    'app-publication-validation.js': 2, 'app-publication.js': 45, 'app-readalong.js': 29,
-    'app-reports.js': 55, 'app-scripts.js': 329, 'app-settings.js': 53,
+    'app-publication-validation.js': 2, 'app-publication.js': 17, 'app-readalong.js': 29,
+    'app-reports.js': 55, 'app-scripts.js': 291, 'app-settings.js': 53,
     'app-single-voice.js': 96, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
     'app-sound-mix-cover.js': 4, 'app-sound-mixes.js': 34, 'app-sound-renditions.js': 50,
-    'app-speaker-review.js': 107, 'app-speech-verification.js': 29,
-    'app-synthesis-windows.js': 42, 'app-take-history.js': 28, 'app-training.js': 249,
+    'app-speaker-review.js': 107, 'app-speech-verification.js': 14,
+    'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 249,
     'app-translated-edition.js': 37, 'app-tts-capabilities.js': 56,
-    'app-tts-diagnostics.js': 33, 'app-voicelab.js': 128, 'app-word-timing.js': 68,
+    'app-tts-diagnostics.js': 33, 'app-voicelab.js': 128, 'app-word-timing.js': 23,
     'app-workbench.js': 282, 'app-workspace.js': 86,
 }
 

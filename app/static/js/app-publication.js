@@ -5,6 +5,8 @@ const m4bPublicationEdited = new Set(), m4bPublicationApplied = new Map();
 const m4bPublicationFields = ['title', 'author', 'narrator', 'year', 'description'];
 const m4bPub = id => document.getElementById('m4b-publication-' + id);
 const m4bField = name => document.getElementById('m4b-' + name);
+const m4bFieldLabel = name => name === 'title'
+    ? t('audio.m4b.publication.field.title', 'title') : t('audio.m4b.publication.field.author', 'author');
 
 function getM4bPublicationRow() {
     return m4bPublicationPreview?.candidates.find(row => row.id === m4bPub('origin').value) || null;
@@ -41,7 +43,9 @@ function updateM4bPublicationControls() {
         || (isM4bPublicationReviewRequired(row) && !m4bPub('reviewed').checked);
     m4bPub('clear-cover').disabled = !m4bPublicationCover && !cover.checked;
     m4bPub('clear').disabled = m4bPublicationBusy || (!m4bPublicationApplied.size && !m4bPublicationCover);
-    m4bPub('cover-status').textContent = m4bPublicationCover ? 'Source cover selected for export.' : 'No source cover selected.';
+    m4bPub('cover-status').textContent = m4bPublicationCover
+        ? t('audio.m4b.publication.cover-status-selected', 'Source cover selected for export.')
+        : t('audio.m4b.publication.cover-status', 'No source cover selected.');
 }
 function clearM4bPublicationOwnedFields() {
     for (const [name, value] of m4bPublicationApplied) {
@@ -53,29 +57,29 @@ function resetM4bPublicationBook() {
     m4bPublicationEpoch += 1; m4bPublicationEdit += 1; m4bPublicationPreview = null;
     clearM4bPublicationOwnedFields();
     m4bPub('info').replaceChildren(); m4bPub('image').hidden = true; m4bPub('image').removeAttribute('src');
-    m4bPub('feedback').textContent = 'Book changed. Review source suggestions again.'; updateM4bPublicationControls();
+    m4bPub('feedback').textContent = formatUiSafetyText('safety.m4b.publication.book-changed', 'Book changed. Review source suggestions again.'); updateM4bPublicationControls();
 }
 function invalidateM4bPublicationCover() {
     m4bPublicationEpoch += 1; m4bPublicationEdit += 1; m4bPublicationPreview = null; m4bPublicationCover = null;
     if (!m4bPublicationApplied.size) { m4bPublicationBook = null; }
     m4bPub('info').replaceChildren(); m4bPub('image').hidden = true; m4bPub('image').removeAttribute('src');
-    m4bPub('feedback').textContent = 'Cover options changed. Review source suggestions again.'; updateM4bPublicationControls();
+    m4bPub('feedback').textContent = formatUiSafetyText('safety.m4b.publication.cover-options-changed', 'Cover options changed. Review source suggestions again.'); updateM4bPublicationControls();
 }
 function clearM4bSourceCover() {
     m4bPublicationEdit += 1; m4bPublicationCover = null; m4bPub('cover-choice').checked = false;
     if (!m4bPublicationApplied.size) { m4bPublicationBook = null; }
-    m4bPub('feedback').textContent = 'Source-cover choice cleared.'; updateM4bPublicationControls();
+    m4bPub('feedback').textContent = t('audio.m4b.publication.cover-cleared', 'Source-cover choice cleared.'); updateM4bPublicationControls();
 }
 function clearM4bAppliedSuggestions() {
     m4bPublicationEdit += 1; clearM4bPublicationOwnedFields(); renderM4bPublicationCandidate();
-    m4bPub('feedback').textContent = 'Source-applied suggestions cleared. Entered values were kept.';
+    m4bPub('feedback').textContent = t('audio.m4b.publication.suggestions-cleared', 'Source-applied suggestions cleared. Entered values were kept.');
 }
 function renderM4bPublicationCandidate() {
     const row = getM4bPublicationRow(), info = m4bPub('info'); info.replaceChildren();
     const line = text => { const node = document.createElement('p'); node.className = 'small mb-1'; node.textContent = text; info.appendChild(node); };
     for (const name of ['title', 'author']) {
         const select = m4bPub(name + '-choice'); select.replaceChildren();
-        const keep = document.createElement('option'); keep.value = ''; keep.textContent = 'Keep current ' + name; select.appendChild(keep);
+        const keep = document.createElement('option'); keep.value = ''; keep.textContent = t('audio.m4b.publication.keep-current', 'Keep current {field}', {field: m4bFieldLabel(name)}); select.appendChild(keep);
         for (const [index, value] of (row?.fields[name] || []).entries()) {
             const option = document.createElement('option'); option.value = String(index); option.textContent = value; select.appendChild(option);
         }
@@ -86,28 +90,32 @@ function renderM4bPublicationCandidate() {
     m4bPub('cover-choice').checked = sameCover; m4bPub('reviewed').checked = sameCover && m4bPublicationCover.reviewed;
     const image = m4bPub('image'); image.hidden = true; image.removeAttribute('src');
     if (row) {
-        line('Captured from ' + row.origin.filename + ' · ' + row.origin.sha256);
-        line('Selected input: ' + m4bPublicationPreview.source_name + '. '
-            + (m4bPublicationPreview.binding_status === 'current' ? 'Capture matches this input.' : 'Capture is from an earlier input; review it before use.'));
-        for (const name of ['title', 'author']) { line('Source ' + name + ': ' + (row.fields[name].join(' / ') || 'Not provided')); }
-        for (const creator of row.other_creators) { line('Other creator: ' + creator.name + ' (' + creator.roles.join(', ') + ')'); }
+        line(t('audio.m4b.publication.captured-from', 'Captured from {file} · {sha}', {file: row.origin.filename, sha: row.origin.sha256}));
+        const state = m4bPublicationPreview.binding_status === 'current'
+            ? t('audio.m4b.publication.capture-current', 'Capture matches this input.')
+            : formatUiSafetyText('safety.m4b.publication.capture-stale', 'Capture is from an earlier input; review it before use.');
+        line(t('audio.m4b.publication.selected-input', 'Selected input: {source}. {state}', {source: m4bPublicationPreview.source_name, state}));
+        for (const name of ['title', 'author']) {
+            line(t('audio.m4b.publication.source-field', 'Source {field}: {values}', {field: m4bFieldLabel(name), values: row.fields[name].join(' / ') || t('audio.m4b.publication.not-provided', 'Not provided')}));
+        }
+        for (const creator of row.other_creators) { line(t('audio.m4b.publication.other-creator', 'Other creator: {name} ({roles})', {name: creator.name, roles: creator.roles.join(', ')})); }
         for (const warning of row.warnings) { line(warning); }
         if (hasM4bPublicationImage(row)) { image.setAttribute('src', row.cover.preview_data_url); image.hidden = false; }
-        if (m4bPublicationPreview.uploaded_cover.present) { line('An uploaded cover has priority. Remove it and review again to choose a source cover.'); }
+        if (m4bPublicationPreview.uploaded_cover.present) { line(formatUiSafetyText('safety.m4b.publication.uploaded-cover-priority', 'An uploaded cover has priority. Remove it and review again to choose a source cover.')); }
     }
     updateM4bPublicationControls();
 }
 
 async function previewM4bPublication() {
     if (m4bPublicationBusy) { return; }
-    if (window._existingUploadSelectionPending) { m4bPub('feedback').textContent = 'Wait for book selection to finish.'; return; }
+    if (window._existingUploadSelectionPending) { m4bPub('feedback').textContent = t('audio.m4b.publication.wait-selection', 'Wait for book selection to finish.'); return; }
     const epoch = ++m4bPublicationEpoch, selection = window._existingUploadSelectionRequest;
     m4bPublicationBusy = true;
-    m4bPub('feedback').textContent = 'Reading captured source suggestions…'; updateM4bPublicationControls();
+    m4bPub('feedback').textContent = t('audio.m4b.publication.reading', 'Reading captured source suggestions…'); updateM4bPublicationControls();
     try {
         const data = await API.get('/api/m4b_publication');
         if (epoch !== m4bPublicationEpoch || selection !== window._existingUploadSelectionRequest) { return; }
-        if (!isM4bPublicationPreviewValid(data)) { throw Error('Source suggestions were incomplete. Review again.'); }
+        if (!isM4bPublicationPreviewValid(data)) { throw Error(formatUiSafetyText('safety.m4b.publication.incomplete', 'Source suggestions were incomplete. Review again.')); }
         if (m4bPublicationBook && m4bPublicationBook !== data.book_token) { clearM4bPublicationOwnedFields(); }
         if (m4bPublicationCover && (m4bPublicationCover.expected_revision !== data.revision
                 || !data.candidates.some(row => row.id === m4bPublicationCover.origin_id))) {
@@ -115,12 +123,14 @@ async function previewM4bPublication() {
             if (!m4bPublicationApplied.size) { m4bPublicationBook = null; }
         }
         m4bPublicationPreview = data; const origins = m4bPub('origin'); origins.replaceChildren();
-        const choose = document.createElement('option'); choose.value = ''; choose.textContent = 'Choose a captured origin'; origins.appendChild(choose);
+        const choose = document.createElement('option'); choose.value = ''; choose.textContent = t('audio.m4b.publication.choose-origin', 'Choose a captured origin'); origins.appendChild(choose);
         for (const row of data.candidates) { const option = document.createElement('option'); option.value = row.id; option.textContent = row.origin.filename + ' · ' + row.origin.sha256.slice(0, 12); origins.appendChild(option); }
         origins.value = m4bPublicationCover?.origin_id || (data.candidates.length === 1 ? data.candidates[0].id : ''); renderM4bPublicationCandidate();
-        m4bPub('feedback').textContent = data.candidates.length ? 'Choose the suggestions to apply. Entered or cleared fields are kept.' : 'No captured EPUB suggestions. Import an EPUB or enter metadata manually.';
+        m4bPub('feedback').textContent = data.candidates.length
+            ? t('audio.m4b.publication.choose-suggestions', 'Choose the suggestions to apply. Entered or cleared fields are kept.')
+            : t('audio.m4b.publication.no-suggestions', 'No captured EPUB suggestions. Import an EPUB or enter metadata manually.');
     } catch (error) {
-        if (epoch === m4bPublicationEpoch && selection === window._existingUploadSelectionRequest) { m4bPub('feedback').textContent = 'Could not refresh suggestions; any displayed review is from an earlier reading. ' + error.message; }
+        if (epoch === m4bPublicationEpoch && selection === window._existingUploadSelectionRequest) { m4bPub('feedback').textContent = formatUiSafetyText('safety.m4b.publication.refresh-stale', 'Could not refresh suggestions; any displayed review is from an earlier reading. {detail}', {detail: error.message}); }
     } finally { m4bPublicationBusy = false; updateM4bPublicationControls(); }
 }
 async function applyM4bPublication() {
@@ -135,23 +145,23 @@ async function applyM4bPublication() {
     try {
         const resolved = await API.post('/api/m4b_publication/resolve', request);
         if (epoch !== m4bPublicationEpoch || selection !== window._existingUploadSelectionRequest) { return; }
-        if (edit !== m4bPublicationEdit || m4bPublicationFields.some(name => m4bField(name).value !== values[name])) { throw Error('Values changed while resolving. Review and apply choices again.'); }
+        if (edit !== m4bPublicationEdit || m4bPublicationFields.some(name => m4bField(name).value !== values[name])) { throw Error(formatUiSafetyText('safety.m4b.publication.values-changed', 'Values changed while resolving. Review and apply choices again.')); }
         const wanted = ['title', 'author'].filter(name => request[name + '_index'] !== null);
         if (resolved.book_token !== preview.book_token || resolved.revision !== preview.revision || resolved.origin_id !== row.id
                 || !resolved.fields || Object.keys(resolved.fields).length !== wanted.length
                 || wanted.some(name => resolved.fields[name] !== row.fields[name][request[name + '_index']])
                 || (request.select_cover ? !resolved.cover_selection || Object.keys(resolved.cover_selection).length !== 4 || ['expected_book_token', 'expected_revision', 'origin_id', 'reviewed'].some(key => resolved.cover_selection[key] !== request[key]) : resolved.cover_selection !== null)) {
-            throw Error('Source choices were incomplete. Review again.');
+            throw Error(formatUiSafetyText('safety.m4b.publication.choices-incomplete', 'Source choices were incomplete. Review again.'));
         }
         for (const name of wanted) { m4bField(name).value = resolved.fields[name]; m4bPublicationApplied.set(name, resolved.fields[name]); }
         if (request.select_cover) { m4bPublicationCover = {...resolved.cover_selection}; }
-        m4bPublicationBook = preview.book_token; m4bPub('feedback').textContent = 'Choices applied to editable fields and the source-cover selection.';
+        m4bPublicationBook = preview.book_token; m4bPub('feedback').textContent = t('audio.m4b.publication.applied', 'Choices applied to editable fields and the source-cover selection.');
     } catch (error) {
         if (epoch === m4bPublicationEpoch && selection === window._existingUploadSelectionRequest) { m4bPub('feedback').textContent = error.message; }
     } finally { m4bPublicationBusy = false; updateM4bPublicationControls(); }
 }
 async function getM4bPublicationPayload() {
-    if (m4bPublicationBusy || window._existingUploadSelectionPending) { throw Error('Wait for source review or book selection to finish.'); }
+    if (m4bPublicationBusy || window._existingUploadSelectionPending) { throw Error(t('audio.m4b.publication.wait-review', 'Wait for source review or book selection to finish.')); }
     const epoch = m4bPublicationEpoch, edit = m4bPublicationEdit, selection = window._existingUploadSelectionRequest;
     const values = Object.fromEntries(m4bPublicationFields.map(name => [name, m4bField(name).value]));
     const payload = Object.fromEntries(m4bPublicationFields.map(name => [name,
@@ -162,8 +172,8 @@ async function getM4bPublicationPayload() {
         const current = await API.get('/api/workspace');
         if (epoch !== m4bPublicationEpoch || edit !== m4bPublicationEdit || selection !== window._existingUploadSelectionRequest
                 || m4bPublicationFields.some(name => m4bField(name).value !== values[name])
-                || flags.some(([id, checked]) => document.getElementById(id)?.checked !== checked)) { throw Error('M4B options changed. Export again.'); }
-        if (current?.book_token !== book) { throw Error('Selected book changed. Review source suggestions again.'); }
+                || flags.some(([id, checked]) => document.getElementById(id)?.checked !== checked)) { throw Error(formatUiSafetyText('safety.m4b.publication.options-changed', 'M4B options changed. Export again.')); }
+        if (current?.book_token !== book) { throw Error(formatUiSafetyText('safety.m4b.publication.book-switched', 'Selected book changed. Review source suggestions again.')); }
         payload.expected_book_token = book;
         if (cover) { payload.source_cover = {...cover}; }
     }

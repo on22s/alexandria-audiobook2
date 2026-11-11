@@ -84,7 +84,7 @@ function calibreMarkUnknownCaptureStart(job, errorText, label) {
     job.status = 'unknown';
     job.unknownStart = true;
     job.error = errorText || '';
-    job.message = `${label} outcome is UNKNOWN: the start response was lost or invalid, so the capture may have been accepted by the backend. No retry was sent and this attempt is not claimed failed or cancelled. Capture is disabled while this outcome is unknown; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save. Saving does not claim the capture never ran or was cancelled, and a backend slot may still block a new capture until its worker cleans up.`;
+    job.message = formatUiSafetyText('safety.calibre.capture-start-unknown', '{label} outcome is UNKNOWN: the start response was lost or invalid, so the capture may have been accepted by the backend. No retry was sent and this attempt is not claimed failed or cancelled. Capture is disabled while this outcome is unknown; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save. Saving does not claim the capture never ran or was cancelled, and a backend slot may still block a new capture until its worker cleans up.', {label});
     calibreSetJobStatus(job.message);
     renderCalibreJobPanel();
 }
@@ -96,7 +96,7 @@ function calibreMarkUnknownImport(job, errorText) {
     job.importOutcomeUnknown = true;
     job.status = 'unknown';
     job.error = errorText || '';
-    job.message = 'Import outcome is UNKNOWN: the import response was lost or invalid, so the authority may already have published the book. This is not claimed failed or imported, and no retry was sent. Cancel and discard are disabled until the actual status is safe; use Check status to reconcile this job token. A server status of captured means the import never reserved, imported confirms publication, and a terminal status is shown truthfully.';
+    job.message = formatUiSafetyText('safety.calibre.import-unknown', 'Import outcome is UNKNOWN: the import response was lost or invalid, so the authority may already have published the book. This is not claimed failed or imported, and no retry was sent. Cancel and discard are disabled until the actual status is safe; use Check status to reconcile this job token. A server status of captured means the import never reserved, imported confirms publication, and a terminal status is shown truthfully.');
     calibreSetJobStatus(job.message);
     renderCalibreJobPanel();
 }
@@ -107,7 +107,11 @@ function calibreProviderText(provider) {
     }
     const authors = Array.isArray(provider.authors) ? provider.authors.join(', ') : '';
     const series = provider.series ? `${provider.series}${provider.series_index != null ? ` #${provider.series_index}` : ''}` : '';
-    return [`Title: ${provider.title || ''}`, `Authors: ${authors}`, `Series: ${series}`, `Subtitle: ${provider.subtitle || ''}`, `Format: ${provider.format || ''}`].join('\n');
+    return [t('calibre.provider.title', 'Title: {value}', {value: provider.title || ''}),
+        t('calibre.provider.authors', 'Authors: {value}', {value: authors}),
+        t('calibre.provider.series', 'Series: {value}', {value: series}),
+        t('calibre.provider.subtitle', 'Subtitle: {value}', {value: provider.subtitle || ''}),
+        t('calibre.provider.format', 'Format: {value}', {value: provider.format || ''})].join('\n');
 }
 
 function calibreCopyProvider(provider) {
@@ -215,39 +219,39 @@ function renderCalibreJobPanel() {
     }
     panel.hidden = false;
     const lines = [];
-    lines.push(`Status: ${job.status || 'starting'}`);
+    lines.push(t('calibre.job.status', 'Status: {status}', {status: job.status || 'starting'}));
     if (job.jobToken) {
-        lines.push(`Job token: ${job.jobToken}`);
+        lines.push(t('calibre.job.token', 'Job token: {token}', {token: job.jobToken}));
     }
     if (job.candidate) {
         lines.push(calibreProviderText(job.candidate.provider));
-        lines.push(`Stable ID: ${job.candidate.stable_id || ''}`);
-        lines.push(`Source: ${job.candidate.source_url || ''}`);
-        lines.push(`Config revision: ${job.configRevision != null ? job.configRevision : ''}`);
+        lines.push(t('calibre.job.stable-id', 'Stable ID: {value}', {value: job.candidate.stable_id || ''}));
+        lines.push(t('calibre.job.source', 'Source: {value}', {value: job.candidate.source_url || ''}));
+        lines.push(t('calibre.job.config-revision', 'Config revision: {value}', {value: job.configRevision != null ? job.configRevision : ''}));
     }
     if (job.provider) {
-        lines.push('Captured provider (read-only):');
+        lines.push(t('calibre.job.captured-provider', 'Captured provider (read-only):'));
         lines.push(calibreProviderText(job.provider));
     }
     if (job.sourceIdentity) {
-        lines.push(`Stable ID: ${job.sourceIdentity.stable_id || ''}`);
-        lines.push(`Source: ${job.sourceIdentity.source_url || ''}`);
-        lines.push(`Final URL: ${job.sourceIdentity.final_url || ''}`);
+        lines.push(t('calibre.job.stable-id', 'Stable ID: {value}', {value: job.sourceIdentity.stable_id || ''}));
+        lines.push(t('calibre.job.source', 'Source: {value}', {value: job.sourceIdentity.source_url || ''}));
+        lines.push(t('calibre.job.final-url', 'Final URL: {value}', {value: job.sourceIdentity.final_url || ''}));
     }
     if (job.sha256) {
-        lines.push(`SHA-256: ${job.sha256}`);
+        lines.push(t('calibre.job.sha', 'SHA-256: {value}', {value: job.sha256}));
     }
     if (job.sizeBytes != null) {
-        lines.push(`Size: ${job.sizeBytes} bytes`);
+        lines.push(t('calibre.job.size', 'Size: {value} bytes', {value: job.sizeBytes}));
     }
     if (job.error) {
-        lines.push(`Error: ${job.error}`);
+        lines.push(t('calibre.job.error', 'Error: {value}', {value: job.error}));
     }
     if (job.validationError) {
-        lines.push(`Import blocked: ${job.validationError}`);
+        lines.push(t('calibre.job.import-blocked', 'Import blocked: {value}', {value: job.validationError}));
     }
     if (job.reviewToken) {
-        lines.push(`Pending review destination: ${job.reviewUrl || ''} (${job.reviewOperation || ''})`);
+        lines.push(t('calibre.job.pending-review', 'Pending review destination: {url} ({operation})', {url: job.reviewUrl || '', operation: job.reviewOperation || ''}));
     }
     if (job.message) {
         lines.push(job.message);
@@ -258,18 +262,18 @@ function renderCalibreJobPanel() {
         if (job.receipt && job.receipt.upload) {
             const upload = job.receipt.upload;
             const receiptLines = [];
-            receiptLines.push(`Imported: ${upload.stored_filename || ''}`);
-            receiptLines.push(`SHA-256: ${job.receipt.sha256 || ''}`);
-            receiptLines.push(`Size: ${job.receipt.size_bytes != null ? job.receipt.size_bytes : ''} bytes`);
+            receiptLines.push(t('calibre.receipt.imported', 'Imported: {file}', {file: upload.stored_filename || ''}));
+            receiptLines.push(t('calibre.job.sha', 'SHA-256: {value}', {value: job.receipt.sha256 || ''}));
+            receiptLines.push(t('calibre.job.size', 'Size: {value} bytes', {value: job.receipt.size_bytes != null ? job.receipt.size_bytes : ''}));
             if (job.receipt.provider) {
                 receiptLines.push(calibreProviderText(job.receipt.provider));
             }
             if (job.receipt.source_identity) {
-                receiptLines.push(`Stable ID: ${job.receipt.source_identity.stable_id || ''}`);
-                receiptLines.push(`Source: ${job.receipt.source_identity.source_url || ''}`);
-                receiptLines.push(`Final URL: ${job.receipt.source_identity.final_url || ''}`);
+                receiptLines.push(t('calibre.job.stable-id', 'Stable ID: {value}', {value: job.receipt.source_identity.stable_id || ''}));
+                receiptLines.push(t('calibre.job.source', 'Source: {value}', {value: job.receipt.source_identity.source_url || ''}));
+                receiptLines.push(t('calibre.job.final-url', 'Final URL: {value}', {value: job.receipt.source_identity.final_url || ''}));
             }
-            receiptLines.push('Import did not select a book. Choose the file above from existing uploads to select it.');
+            receiptLines.push(t('calibre.receipt.no-selection', 'Import did not select a book. Choose the file above from existing uploads to select it.'));
             receiptEl.textContent = receiptLines.join('\n');
         } else {
             receiptEl.textContent = '';
@@ -280,11 +284,11 @@ function renderCalibreJobPanel() {
         if (calibreCanImport(job)) {
             confirmationPanel.hidden = false;
             calibreEl('calibre-confirmation-provider').textContent = calibreProviderText(job.provider);
-            calibreEl('calibre-confirmation-stable-id').textContent = `Stable ID: ${job.sourceIdentity.stable_id || ''}`;
-            calibreEl('calibre-confirmation-source').textContent = `Source: ${job.sourceIdentity.source_url || ''}`;
-            calibreEl('calibre-confirmation-final').textContent = `Final URL: ${job.sourceIdentity.final_url || ''}`;
-            calibreEl('calibre-confirmation-sha256').textContent = `SHA-256: ${job.sha256}`;
-            calibreEl('calibre-confirmation-size').textContent = `Size: ${job.sizeBytes} bytes`;
+            calibreEl('calibre-confirmation-stable-id').textContent = t('calibre.job.stable-id', 'Stable ID: {value}', {value: job.sourceIdentity.stable_id || ''});
+            calibreEl('calibre-confirmation-source').textContent = t('calibre.job.source', 'Source: {value}', {value: job.sourceIdentity.source_url || ''});
+            calibreEl('calibre-confirmation-final').textContent = t('calibre.job.final-url', 'Final URL: {value}', {value: job.sourceIdentity.final_url || ''});
+            calibreEl('calibre-confirmation-sha256').textContent = t('calibre.job.sha', 'SHA-256: {value}', {value: job.sha256});
+            calibreEl('calibre-confirmation-size').textContent = t('calibre.job.size', 'Size: {value} bytes', {value: job.sizeBytes});
         } else {
             confirmationPanel.hidden = true;
             calibreEl('calibre-confirmation-provider').textContent = '';
@@ -321,11 +325,11 @@ function retireCalibreAuthority() {
     if (job.importInFlight) {
         job.retired = true;
         if (job.importOutcomeUnknown || job.status === 'unknown') {
-            job.message = 'View reset while an import with UNKNOWN outcome is in flight. The outcome is still UNKNOWN and not claimed failed or imported; use Check status to reconcile it. It will not select a book or restore this view.';
-            calibreSetJobStatus('View reset while import outcome is UNKNOWN. Use Check status to reconcile it.');
+            job.message = formatUiSafetyText('safety.calibre.reset.import-unknown', 'View reset while an import with UNKNOWN outcome is in flight. The outcome is still UNKNOWN and not claimed failed or imported; use Check status to reconcile it. It will not select a book or restore this view.');
+            calibreSetJobStatus(t('safety.calibre.reset.import-unknown.status', 'View reset while import outcome is UNKNOWN. Use Check status to reconcile it.'));
         } else {
-            job.message = 'View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane. It will not select a book or restore this view.';
-            calibreSetJobStatus('View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane.');
+            job.message = formatUiSafetyText('safety.calibre.reset.import-inflight', 'View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane. It will not select a book or restore this view.');
+            calibreSetJobStatus(t('safety.calibre.reset.import-inflight.status', 'View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane.'));
         }
         renderCalibreJobPanel();
         return;
@@ -333,14 +337,14 @@ function retireCalibreAuthority() {
     if (job.status === 'unknown' && !job.importInFlight) {
         if (job.unknownRecoveredByConfigSave) {
             job.status = 'stale';
-            job.message = 'An explicit successful catalog settings save retired this local view after a capture start with UNKNOWN outcome. This does not claim the capture never ran or was cancelled; a backend slot may still block a new capture until its worker cleans up.';
-            calibreSetJobStatus('An explicit catalog settings save retired the unknown capture-start view. Browse and preview again before capturing.');
+            job.message = formatUiSafetyText('safety.calibre.reset.config-saved', 'An explicit successful catalog settings save retired this local view after a capture start with UNKNOWN outcome. This does not claim the capture never ran or was cancelled; a backend slot may still block a new capture until its worker cleans up.');
+            calibreSetJobStatus(t('safety.calibre.reset.config-saved.status', 'An explicit catalog settings save retired the unknown capture-start view. Browse and preview again before capturing.'));
             renderCalibreJobPanel();
             return;
         }
         job.retired = true;
-        job.message = 'View reset does not free a capture start with UNKNOWN outcome. No retry was sent and this attempt is not claimed failed or cancelled. Explicitly save the catalog settings to retire this local view after a successful save.';
-        calibreSetJobStatus('Capture start outcome is UNKNOWN. Explicitly save the catalog settings to retire this local view; a view reset alone does not free it.');
+        job.message = formatUiSafetyText('safety.calibre.reset.unknown-kept', 'View reset does not free a capture start with UNKNOWN outcome. No retry was sent and this attempt is not claimed failed or cancelled. Explicitly save the catalog settings to retire this local view after a successful save.');
+        calibreSetJobStatus(t('safety.calibre.reset.unknown-kept.status', 'Capture start outcome is UNKNOWN. Explicitly save the catalog settings to retire this local view; a view reset alone does not free it.'));
         renderCalibreJobPanel();
         return;
     }
@@ -354,23 +358,23 @@ function retireCalibreAuthority() {
         job.cancelRequested = true;
         if (job.jobToken && !calibreCancelAlreadySent(job, job.jobToken)) {
             calibreNoteCancelSent(job, job.jobToken);
-            job.message = 'View reset during capture start. Cancelling the known job token now; a late replay token for this start will also be cancelled when it arrives, then checked.';
-            calibreSetJobStatus('View reset during capture start. Cancelling the known token and any late replay token.');
+            job.message = formatUiSafetyText('safety.calibre.reset.cancel-known', 'View reset during capture start. Cancelling the known job token now; a late replay token for this start will also be cancelled when it arrives, then checked.');
+            calibreSetJobStatus(t('safety.calibre.reset.cancel-known.status', 'View reset during capture start. Cancelling the known token and any late replay token.'));
             renderCalibreJobPanel();
             void cancelCalibreCaptureInternal(job);
             startCalibrePoll(job);
             return;
         }
-        job.message = 'View reset during capture start. The late job token will be bound to this original start and cancelled, then checked.';
-        calibreSetJobStatus('View reset during capture start. Waiting for the job token to cancel it.');
+        job.message = formatUiSafetyText('safety.calibre.reset.cancel-late', 'View reset during capture start. The late job token will be bound to this original start and cancelled, then checked.');
+        calibreSetJobStatus(t('safety.calibre.reset.cancel-late.status', 'View reset during capture start. Waiting for the job token to cancel it.'));
         renderCalibreJobPanel();
         return;
     }
     if (job.confirmationToken && job.status === 'captured') {
         if (!job.discardSent) {
             job.discardSent = job.confirmationToken;
-            job.message = 'View reset retired this captured source. Discarding its confirmation; import is not available for the retired view.';
-            calibreSetJobStatus('View reset retired the captured source. Discarding its confirmation.');
+            job.message = formatUiSafetyText('safety.calibre.reset.discard-captured', 'View reset retired this captured source. Discarding its confirmation; import is not available for the retired view.');
+            calibreSetJobStatus(t('safety.calibre.reset.discard-captured.status', 'View reset retired the captured source. Discarding its confirmation.'));
             renderCalibreJobPanel();
             void discardCalibreCaptureInternal(job);
             return;
@@ -380,8 +384,8 @@ function retireCalibreAuthority() {
         if (!calibreCancelAlreadySent(job, job.jobToken)) {
             calibreNoteCancelSent(job, job.jobToken);
             job.cancelRequested = true;
-            job.message = 'View reset retired this capture. Cancel requested; this pane stays until the job reaches a terminal status.';
-            calibreSetJobStatus('View reset retired this capture. Cancel requested.');
+            job.message = formatUiSafetyText('safety.calibre.reset.cancel-retired', 'View reset retired this capture. Cancel requested; this pane stays until the job reaches a terminal status.');
+            calibreSetJobStatus(t('safety.calibre.reset.cancel-retired.status', 'View reset retired this capture. Cancel requested.'));
             renderCalibreJobPanel();
             void cancelCalibreCaptureInternal(job);
             startCalibrePoll(job);
@@ -392,8 +396,8 @@ function retireCalibreAuthority() {
         return;
     }
     job.status = 'stale';
-    job.message = 'Capture review was retired by the view reset. No capture job was started, so nothing is downloading.';
-    calibreSetJobStatus('Capture review was retired by the view reset. No capture job was started.');
+    job.message = formatUiSafetyText('safety.calibre.reset.review-retired', 'Capture review was retired by the view reset. No capture job was started, so nothing is downloading.');
+    calibreSetJobStatus(t('safety.calibre.reset.review-retired.status', 'Capture review was retired by the view reset. No capture job was started.'));
     stopCalibrePoll(job);
     renderCalibreJobPanel();
 }
@@ -424,19 +428,19 @@ function clearCalibreView() {
 
 function resetCalibreSourceView() {
     clearCalibreView();
-    calibreSetStatus('Source changed. Catalog browse and preview cleared.');
+    calibreSetStatus(t('calibre.status.source-changed', 'Source changed. Catalog browse and preview cleared.'));
 }
 
 function onCalibreConfigChange() {
     calibreConfigReady = false;
     clearCalibreView();
-    calibreSetStatus('Catalog settings changed but are not saved. Save, then browse.');
+    calibreSetStatus(t('calibre.status.settings-dirty', 'Catalog settings changed but are not saved. Save, then browse.'));
 }
 
 function calibreErrorText(error) {
-    const message = error && error.message ? error.message : 'Request failed.';
+    const message = error && error.message ? error.message : t('calibre.error.request-failed', 'Request failed.');
     if ((error && error.status === 410) || /Browse the catalog again/i.test(message)) {
-        return /Browse the catalog again/i.test(message) ? message : `${message} Browse the catalog again.`;
+        return /Browse the catalog again/i.test(message) ? message : t('calibre.error.rebrowse', '{message} Browse the catalog again.', {message});
     }
     return message;
 }
@@ -448,7 +452,7 @@ async function loadCalibreConfig() {
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Loading saved catalog settings (local read only)…');
+    calibreSetStatus(t('calibre.status.loading-config', 'Loading saved catalog settings (local read only)…'));
     try {
         const result = await API.get('/api/calibre/config');
         if (!calibreIsCurrent(epoch)) { return; }
@@ -457,10 +461,10 @@ async function loadCalibreConfig() {
         calibreEl('calibre-password').value = '';
         if (result.recovery_required) {
             calibreConfigReady = false;
-            calibreSetStatus('Recovery required: enter the password again and save the catalog settings to recover. Browsing is disabled until then.');
+            calibreSetStatus(t('calibre.status.recovery-required', 'Recovery required: enter the password again and save the catalog settings to recover. Browsing is disabled until then.'));
         } else {
             calibreConfigReady = result.configured === true;
-            calibreSetStatus(result.configured ? 'Saved catalog settings loaded. Save again before browsing if you edit them.' : 'No catalog is saved yet. Enter a root URL, save, then browse.');
+            calibreSetStatus(result.configured ? t('calibre.status.config-loaded', 'Saved catalog settings loaded. Save again before browsing if you edit them.') : t('calibre.status.config-missing', 'No catalog is saved yet. Enter a root URL, save, then browse.'));
         }
     } catch (error) {
         if (!calibreIsCurrent(epoch)) { return; }
@@ -488,7 +492,7 @@ async function saveCalibreConfig() {
     calibreEl('calibre-clear-password').checked = false;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Saving catalog settings…');
+    calibreSetStatus(t('calibre.status.saving-config', 'Saving catalog settings…'));
     try {
         const result = await API.post('/api/calibre/config', {
             root_url: rootUrl,
@@ -509,7 +513,7 @@ async function saveCalibreConfig() {
         clearCalibreView();
         calibreEl('calibre-root-url').value = result.root_url || '';
         calibreEl('calibre-username').value = result.username || '';
-        calibreSetStatus(calibreConfigReady ? 'Catalog settings saved. Browse the catalog root when ready.' : 'Catalog disabled. Enter a root URL and save before browsing.');
+        calibreSetStatus(calibreConfigReady ? t('calibre.status.config-saved', 'Catalog settings saved. Browse the catalog root when ready.') : t('calibre.status.config-disabled', 'Catalog disabled. Enter a root URL and save before browsing.'));
     } catch (error) {
         if (!calibreIsCurrent(epoch)) { return; }
         calibreSetStatus(calibreErrorText(error));
@@ -552,7 +556,7 @@ function renderCalibreEntries(entries) {
     for (const entry of entries || []) {
         const row = document.createElement('div');
         const heading = document.createElement('p');
-        heading.textContent = entry.title || entry.stable_id || 'Untitled entry';
+        heading.textContent = entry.title || entry.stable_id || t('calibre.entry.untitled', 'Untitled entry');
         row.appendChild(heading);
         const details = document.createElement('p');
         const authors = Array.isArray(entry.authors) ? entry.authors.join(', ') : '';
@@ -561,7 +565,7 @@ function renderCalibreEntries(entries) {
         row.appendChild(details);
         if (entry.rejected_reason) {
             const reason = document.createElement('p');
-            reason.textContent = `Not available: ${entry.rejected_reason}`;
+            reason.textContent = t('calibre.entry.not-available', 'Not available: {reason}', {reason: entry.rejected_reason});
             row.appendChild(reason);
         }
         const navigation = Array.isArray(entry.navigation) ? entry.navigation : [];
@@ -569,7 +573,7 @@ function renderCalibreEntries(entries) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'btn btn-outline-primary btn-sm';
-            button.textContent = `Open category: ${nav.title || 'Untitled category'}`;
+            button.textContent = t('calibre.entry.open-category', 'Open category: {title}', {title: nav.title || t('calibre.entry.untitled-category', 'Untitled category')});
             button.setAttribute('data-help-key', 'openCalibreNav');
             if (!nav.nav_token || nav.loop_refused) {
                 button.disabled = true;
@@ -582,7 +586,7 @@ function renderCalibreEntries(entries) {
         const previewButton = document.createElement('button');
         previewButton.type = 'button';
         previewButton.className = 'btn btn-outline-secondary btn-sm';
-        previewButton.textContent = 'Preview metadata';
+        previewButton.textContent = t('calibre.entry.preview', 'Preview metadata');
         previewButton.setAttribute('data-help-key', 'previewCalibreBook');
         if (!entry.preview_token || entry.rejected_reason || !entry.has_acquisition) {
             previewButton.disabled = true;
@@ -598,15 +602,15 @@ function renderCalibreEntries(entries) {
 function handleCalibreBrowseResponse(result, epoch) {
     if (result && result.review_required) {
         renderCalibreReview(result, epoch);
-        calibreSetStatus('Cross-origin destination requires your exact review before browsing continues.');
+        calibreSetStatus(t('safety.calibre.review.browse', 'Cross-origin destination requires your exact review before browsing continues.'));
         return;
     }
     calibreNextToken = result.next_token || null;
     calibreStartToken = result.start_token || null;
     calibreEl('calibre-page-title').textContent = result.title || '';
-    calibreEl('calibre-page-info').textContent = `${result.feed_url || ''} · Page ${result.pages_fetched || ''} · ${result.entries_total || 0} entries shown`.trim();
+    calibreEl('calibre-page-info').textContent = t('calibre.page.info', '{feed} · Page {page} · {total} entries shown', {feed: result.feed_url || '', page: result.pages_fetched || '', total: result.entries_total || 0}).trim();
     renderCalibreEntries(result.entries);
-    calibreSetStatus('Catalog page loaded. Choose a category, or preview a book. Nothing has been downloaded.');
+    calibreSetStatus(t('calibre.status.page-loaded', 'Catalog page loaded. Choose a category, or preview a book. Nothing has been downloaded.'));
     updateCalibreControls();
 }
 
@@ -629,14 +633,14 @@ async function requestCalibreBrowse(url, body, epoch) {
 async function browseCalibreRoot() {
     if (calibreBusy) { return; }
     if (!calibreConfigReady) {
-        calibreSetStatus('Load or save the catalog settings first, then browse.');
+        calibreSetStatus(t('calibre.status.config-first', 'Load or save the catalog settings first, then browse.'));
         return;
     }
     clearCalibreView();
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Browsing the saved catalog root (explicit request)…');
+    calibreSetStatus(t('calibre.status.browsing-root', 'Browsing the saved catalog root (explicit request)…'));
     await requestCalibreBrowse('/api/calibre/browse-root', {}, epoch);
 }
 
@@ -647,7 +651,7 @@ async function browseCalibreNextPage() {
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Loading the next catalog page (explicit request)…');
+    calibreSetStatus(t('calibre.status.next-page', 'Loading the next catalog page (explicit request)…'));
     await requestCalibreBrowse('/api/calibre/browse-next', { token }, epoch);
 }
 
@@ -658,7 +662,7 @@ async function browseCalibreStartPage() {
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Returning to the first catalog page (explicit request)…');
+    calibreSetStatus(t('calibre.status.first-page', 'Returning to the first catalog page (explicit request)…'));
     await requestCalibreBrowse('/api/calibre/browse-next', { token }, epoch);
 }
 
@@ -668,7 +672,7 @@ async function openCalibreNav(token) {
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Opening the selected category (explicit request)…');
+    calibreSetStatus(t('calibre.status.opening-category', 'Opening the selected category (explicit request)…'));
     await requestCalibreBrowse('/api/calibre/browse-next', { token }, epoch);
 }
 
@@ -706,48 +710,48 @@ function startCalibrePoll(job) {
 
 function calibreValidateCaptured(job, result) {
     if (!calibreIsHex32(result.confirmation_token)) {
-        return 'Confirmation token is missing or invalid.';
+        return formatUiSafetyText('safety.calibre.validation.confirmation-token', 'Confirmation token is missing or invalid.');
     }
     if (!calibreIsHex64(result.sha256)) {
-        return 'Captured SHA-256 is missing or invalid.';
+        return formatUiSafetyText('safety.calibre.validation.sha', 'Captured SHA-256 is missing or invalid.');
     }
     if (!Number.isInteger(result.size_bytes) || result.size_bytes < 0) {
-        return 'Captured size is missing or invalid.';
+        return formatUiSafetyText('safety.calibre.validation.size', 'Captured size is missing or invalid.');
     }
     if (!result.provider || typeof result.provider !== 'object') {
-        return 'Captured provider is missing.';
+        return formatUiSafetyText('safety.calibre.validation.provider', 'Captured provider is missing.');
     }
     const candidateProvider = job.candidate ? job.candidate.provider : null;
     if (candidateProvider) {
         if ((result.provider.title || '') !== (candidateProvider.title || '')) {
-            return 'Captured provider title does not match the previewed book.';
+            return formatUiSafetyText('safety.calibre.validation.title-mismatch', 'Captured provider title does not match the previewed book.');
         }
         const capturedAuthors = Array.isArray(result.provider.authors) ? result.provider.authors.join(', ') : '';
         const candidateAuthors = Array.isArray(candidateProvider.authors) ? candidateProvider.authors.join(', ') : '';
         if (capturedAuthors !== candidateAuthors) {
-            return 'Captured provider authors do not match the previewed book.';
+            return formatUiSafetyText('safety.calibre.validation.authors-mismatch', 'Captured provider authors do not match the previewed book.');
         }
     }
     if (!result.source_identity || typeof result.source_identity !== 'object') {
-        return 'Captured source identity is missing.';
+        return formatUiSafetyText('safety.calibre.validation.identity', 'Captured source identity is missing.');
     }
     if (job.candidate) {
         if ((result.source_identity.stable_id || '') !== (job.candidate.stable_id || '')) {
-            return 'Captured stable ID does not match the previewed book.';
+            return formatUiSafetyText('safety.calibre.validation.stable-id-mismatch', 'Captured stable ID does not match the previewed book.');
         }
         if ((result.source_identity.source_url || '') !== (job.candidate.source_url || '')) {
-            return 'Captured source URL does not match the previewed book.';
+            return formatUiSafetyText('safety.calibre.validation.url-mismatch', 'Captured source URL does not match the previewed book.');
         }
     }
     if (result.config_revision != null && job.configRevision != null && result.config_revision !== job.configRevision) {
-        return 'Captured config revision does not match the preview.';
+        return formatUiSafetyText('safety.calibre.validation.revision-mismatch', 'Captured config revision does not match the preview.');
     }
     return '';
 }
 
 function handleCalibreCaptureStatus(job, result) {
     if (!result || result.job_token !== job.jobToken) {
-        job.message = 'Status response did not match this job token. The job token is kept; use Check status or Cancel capture.';
+        job.message = formatUiSafetyText('safety.calibre.status.mismatch', 'Status response did not match this job token. The job token is kept; use Check status or Cancel capture.');
         calibreSetJobStatus(job.message);
         renderCalibreJobPanel();
         return;
@@ -769,14 +773,14 @@ function handleCalibreCaptureStatus(job, result) {
                 destination_origin: '',
                 operation: job.reviewOperation || 'capture',
             }, calibreEpoch);
-            job.message = 'Capture paused for an exact review of the redirect destination. Approve that destination to replay capture once.';
-            calibreSetStatus('Capture redirect requires your exact review before capture continues.');
-            calibreSetJobStatus('Capture paused for exact redirect review. Approval replays capture once for this preview.');
+            job.message = formatUiSafetyText('safety.calibre.review.paused', 'Capture paused for an exact review of the redirect destination. Approve that destination to replay capture once.');
+            calibreSetStatus(t('safety.calibre.review.paused.status', 'Capture redirect requires your exact review before capture continues.'));
+            calibreSetJobStatus(t('safety.calibre.review.paused.job', 'Capture paused for exact redirect review. Approval replays capture once for this preview.'));
         } else {
             calibreEl('calibre-review-panel').hidden = true;
             calibreReview = null;
-            job.message = 'Capture is waiting for a redirect review that was retired by the view reset. Approve is not available; use Cancel or Check status.';
-            calibreSetJobStatus('Capture redirect review was retired by the view reset. Use Cancel or Check status.');
+            job.message = formatUiSafetyText('safety.calibre.review.retired', 'Capture is waiting for a redirect review that was retired by the view reset. Approve is not available; use Cancel or Check status.');
+            calibreSetJobStatus(t('safety.calibre.review.retired.status', 'Capture redirect review was retired by the view reset. Use Cancel or Check status.'));
             if (job.retired && !calibreCancelAlreadySent(job, job.jobToken)) {
                 calibreNoteCancelSent(job, job.jobToken);
                 job.cancelRequested = true;
@@ -806,11 +810,11 @@ function handleCalibreCaptureStatus(job, result) {
         const isCurrentCapture = !job.retired && !job.cancelRequested && job.epoch === calibreEpoch && calibreCandidate && job.candidate && calibreCandidate.preview_token === job.candidate.preview_token;
         if (!isCurrentCapture) {
             if (job.retired || job.epoch !== calibreEpoch) {
-                job.message = 'Capture finished after the view reset. Its confirmation will be discarded; import is not available for the retired view.';
-                calibreSetJobStatus('Capture finished after the view reset. Discarding its confirmation; import is not available.');
+                job.message = formatUiSafetyText('safety.calibre.captured.reset', 'Capture finished after the view reset. Its confirmation will be discarded; import is not available for the retired view.');
+                calibreSetJobStatus(t('safety.calibre.captured.reset.status', 'Capture finished after the view reset. Discarding its confirmation; import is not available.'));
             } else {
-                job.message = 'Capture completed after cancel was requested. Its confirmation will be discarded; import is not available.';
-                calibreSetJobStatus('Capture completed after cancel was requested. Discarding its confirmation.');
+                job.message = formatUiSafetyText('safety.calibre.captured.cancelled', 'Capture completed after cancel was requested. Its confirmation will be discarded; import is not available.');
+                calibreSetJobStatus(t('safety.calibre.captured.cancelled.status', 'Capture completed after cancel was requested. Discarding its confirmation.'));
             }
             renderCalibreJobPanel();
             if (calibreIsHex32(job.confirmationToken) && job.discardSent !== job.confirmationToken) {
@@ -820,12 +824,12 @@ function handleCalibreCaptureStatus(job, result) {
             return;
         }
         if (job.validationError) {
-            job.message = 'Captured source did not pass validation. Import is blocked; discard or check status.';
-            calibreSetJobStatus('Captured source did not pass validation. Import is blocked.');
+            job.message = formatUiSafetyText('safety.calibre.captured.invalid', 'Captured source did not pass validation. Import is blocked; discard or check status.');
+            calibreSetJobStatus(t('safety.calibre.captured.invalid.status', 'Captured source did not pass validation. Import is blocked.'));
         } else {
-            job.message = 'Capture finished. Review the exact captured source, then import explicitly or discard it.';
-            calibreSetStatus('Capture finished. Review the captured source before importing. Nothing is imported yet.');
-            calibreSetJobStatus('Capture finished. Review the captured source before importing.');
+            job.message = formatUiSafetyText('safety.calibre.capture.review', 'Capture finished. Review the exact captured source, then import explicitly or discard it.');
+            calibreSetStatus(t('safety.calibre.capture.review.status', 'Capture finished. Review the captured source before importing. Nothing is imported yet.'));
+            calibreSetJobStatus(t('safety.calibre.capture.review.job', 'Capture finished. Review the captured source before importing.'));
         }
         renderCalibreJobPanel();
         return;
@@ -836,19 +840,19 @@ function handleCalibreCaptureStatus(job, result) {
         job.importInFlight = false;
         job.unknownStart = false;
         if (job.status === 'imported' && !job.receipt) {
-            job.message = 'Job reports imported. The import receipt is shown only from the explicit import response.';
-            calibreSetJobStatus('Job reports imported.');
+            job.message = formatUiSafetyText('safety.calibre.imported.no-receipt', 'Job reports imported. The import receipt is shown only from the explicit import response.');
+            calibreSetJobStatus(t('safety.calibre.imported.no-receipt.status', 'Job reports imported.'));
         } else if (job.status === 'failed') {
-            job.message = `Capture failed: ${job.error || 'see status'}. Use Check status or Cancel capture; no automatic retry will start.`;
+            job.message = formatUiSafetyText('safety.calibre.capture.failed', 'Capture failed: {error}. Use Check status or Cancel capture; no automatic retry will start.', {error: job.error || t('calibre.capture.failed-fallback', 'see status')});
             calibreSetJobStatus(job.message);
         } else {
-            job.message = `Capture ended with status ${job.status}.`;
+            job.message = t('calibre.status.capture-ended', 'Capture ended with status {status}.', {status: job.status});
             calibreSetJobStatus(job.message);
         }
         renderCalibreJobPanel();
         return;
     }
-    job.message = `Capture status: ${job.status}. No byte progress is reported by the backend.`;
+    job.message = t('calibre.status.capture-status', 'Capture status: {status}. No byte progress is reported by the backend.', {status: job.status});
     calibreSetJobStatus(job.message);
     renderCalibreJobPanel();
 }
@@ -874,7 +878,7 @@ async function pollCalibreCapture(job) {
             return;
         }
         stopCalibrePoll(job);
-        job.message = `Status check failed: ${calibreErrorText(error)}. The job token is kept. Use Check status to retry or Cancel capture; capture will not retry automatically.`;
+        job.message = formatUiSafetyText('safety.calibre.status.check-failed', 'Status check failed: {detail}. The job token is kept. Use Check status to retry or Cancel capture; capture will not retry automatically.', {detail: calibreErrorText(error)});
         calibreSetJobStatus(job.message);
         renderCalibreJobPanel();
     } finally {
@@ -911,7 +915,7 @@ async function cancelCalibreCaptureInternal(job) {
             return;
         }
         if (!result || result.job_token !== token) {
-            job.message = 'Cancel response did not match this job token. The job token is kept; use Check status.';
+            job.message = formatUiSafetyText('safety.calibre.cancel.mismatch', 'Cancel response did not match this job token. The job token is kept; use Check status.');
             calibreSetJobStatus(job.message);
             renderCalibreJobPanel();
             return;
@@ -922,20 +926,20 @@ async function cancelCalibreCaptureInternal(job) {
         if (calibreIsTerminalCaptureStatus(job.status)) {
             stopCalibrePoll(job);
             if (job.status === 'cancelled') {
-                job.error = 'Capture cancelled.';
-                job.message = 'Capture cancelled. This terminal status came from the cancel response; local ownership is freed.';
+                job.error = t('calibre.cancel.cancelled', 'Capture cancelled.');
+                job.message = t('calibre.cancel.terminal', 'Capture cancelled. This terminal status came from the cancel response; local ownership is freed.');
             } else {
-                job.message = `Cancel returned terminal status ${job.status}; local ownership is freed.`;
+                job.message = t('calibre.cancel.terminal-status', 'Cancel returned terminal status {status}; local ownership is freed.', {status: job.status});
             }
             calibreSetJobStatus(job.message);
             renderCalibreJobPanel();
             return;
         }
         if (result.cancelling) {
-            job.message = 'Cancel accepted (cancelling). This is not yet cancelled; status will confirm.';
-            calibreSetJobStatus('Cancel accepted (cancelling). Waiting for status to confirm cancellation.');
+            job.message = formatUiSafetyText('safety.calibre.cancel.pending', 'Cancel accepted (cancelling). This is not yet cancelled; status will confirm.');
+            calibreSetJobStatus(t('safety.calibre.cancel.pending.status', 'Cancel accepted (cancelling). Waiting for status to confirm cancellation.'));
         } else {
-            job.message = `Cancel returned status ${result.status || 'unknown'}; cancellation is not claimed until status says cancelled.`;
+            job.message = formatUiSafetyText('safety.calibre.cancel.unconfirmed', 'Cancel returned status {status}; cancellation is not claimed until status says cancelled.', {status: result.status || 'unknown'});
             calibreSetJobStatus(job.message);
         }
         renderCalibreJobPanel();
@@ -947,13 +951,13 @@ async function cancelCalibreCaptureInternal(job) {
             return;
         }
         if (error && (error.status === 409 || /discard/i.test(error.message || ''))) {
-            job.message = 'Backend says to discard this capture instead of cancelling. Checking status to confirm.';
-            calibreSetJobStatus('Backend says discard instead. Checking status.');
+            job.message = formatUiSafetyText('safety.calibre.cancel.discard-instead', 'Backend says to discard this capture instead of cancelling. Checking status to confirm.');
+            calibreSetJobStatus(t('safety.calibre.cancel.discard-instead.status', 'Backend says discard instead. Checking status.'));
             renderCalibreJobPanel();
             await pollCalibreCapture(job);
             return;
         }
-        job.message = `Cancel failed: ${calibreErrorText(error)}. The job token is kept; use Check status or try Cancel again.`;
+        job.message = formatUiSafetyText('safety.calibre.cancel.failed', 'Cancel failed: {detail}. The job token is kept; use Check status or try Cancel again.', {detail: calibreErrorText(error)});
         calibreSetJobStatus(job.message);
         renderCalibreJobPanel();
     }
@@ -965,31 +969,31 @@ async function cancelCalibreCapture() {
         return;
     }
     if (job.status === 'unknown') {
-        calibreSetJobStatus('Capture outcome is UNKNOWN. Cancel is not available until Check status (or an explicit catalog settings save for a tokenless start) confirms the actual status.');
+        calibreSetJobStatus(t('safety.calibre.cancel.unknown', 'Capture outcome is UNKNOWN. Cancel is not available until Check status (or an explicit catalog settings save for a tokenless start) confirms the actual status.'));
         return;
     }
     if (job.importInFlight) {
-        calibreSetJobStatus('Import is in flight. Cancel is not available and the confirmed import will not be deleted.');
+        calibreSetJobStatus(t('safety.calibre.cancel.import-inflight', 'Import is in flight. Cancel is not available and the confirmed import will not be deleted.'));
         return;
     }
     if (job.startPending) {
         job.cancelRequested = true;
         if (job.jobToken && !calibreCancelAlreadySent(job, job.jobToken)) {
             calibreNoteCancelSent(job, job.jobToken);
-            job.message = 'Cancel requested for the known job token during a pending capture replay. A late replay token will also be cancelled when it arrives.';
-            calibreSetJobStatus('Cancel requested during pending capture replay.');
+            job.message = formatUiSafetyText('safety.calibre.cancel.replay-known', 'Cancel requested for the known job token during a pending capture replay. A late replay token will also be cancelled when it arrives.');
+            calibreSetJobStatus(t('safety.calibre.cancel.replay-known.status', 'Cancel requested during pending capture replay.'));
             renderCalibreJobPanel();
             void cancelCalibreCaptureInternal(job);
             startCalibrePoll(job);
             return;
         }
-        job.message = 'Cancel remembered for the pending capture start. The late job token will be cancelled when it arrives.';
-        calibreSetJobStatus('Cancel remembered for the pending capture start.');
+        job.message = formatUiSafetyText('safety.calibre.cancel.remembered', 'Cancel remembered for the pending capture start. The late job token will be cancelled when it arrives.');
+        calibreSetJobStatus(t('safety.calibre.cancel.remembered.status', 'Cancel remembered for the pending capture start.'));
         renderCalibreJobPanel();
         return;
     }
     if (!job.jobToken) {
-        calibreSetJobStatus('No capture job token yet. Nothing to cancel.');
+        calibreSetJobStatus(t('calibre.cancel.none', 'No capture job token yet. Nothing to cancel.'));
         return;
     }
     await cancelCalibreCaptureInternal(job);
@@ -1008,21 +1012,21 @@ async function discardCalibreCaptureInternal(job) {
             return;
         }
         if (!result || result.discarded !== true) {
-            throw new Error('Discard was not confirmed.');
+            throw new Error(t('safety.calibre.discard.unconfirmed', 'Discard was not confirmed.'));
         }
         stopCalibrePoll(job);
         job.status = 'discarded';
         job.confirmationToken = null;
         job.validationError = '';
-        job.message = 'Discarded the captured staged file. No published book was deleted.';
-        calibreSetJobStatus('Discarded the captured staged file.');
+        job.message = t('calibre.discard.done', 'Discarded the captured staged file. No published book was deleted.');
+        calibreSetJobStatus(t('calibre.discard.done.status', 'Discarded the captured staged file.'));
         clearCalibreConfirmationPanel();
         renderCalibreJobPanel();
     } catch (error) {
         if (job !== calibreCaptureJob || job.confirmationToken !== token) {
             return;
         }
-        job.message = `Discard failed: ${calibreErrorText(error)}. The confirmation is kept; use Discard, Check status, or Cancel capture.`;
+        job.message = formatUiSafetyText('safety.calibre.discard.failed', 'Discard failed: {detail}. The confirmation is kept; use Discard, Check status, or Cancel capture.', {detail: calibreErrorText(error)});
         calibreSetJobStatus(job.message);
         renderCalibreJobPanel();
     } finally {
@@ -1042,15 +1046,15 @@ async function discardCalibreCapture() {
         return;
     }
     if (job.status === 'unknown') {
-        calibreSetJobStatus('Capture outcome is UNKNOWN. Discard is disabled until Check status confirms the actual status is safe to discard.');
+        calibreSetJobStatus(t('safety.calibre.discard.unknown', 'Capture outcome is UNKNOWN. Discard is disabled until Check status confirms the actual status is safe to discard.'));
         return;
     }
     if (job.importInFlight) {
-        calibreSetJobStatus('Import is in flight. Discard is disabled while importing.');
+        calibreSetJobStatus(t('safety.calibre.discard.import-inflight', 'Import is in flight. Discard is disabled while importing.'));
         return;
     }
     if (!calibreIsHex32(job.confirmationToken)) {
-        calibreSetJobStatus('No captured confirmation to discard.');
+        calibreSetJobStatus(t('calibre.discard.none', 'No captured confirmation to discard.'));
         return;
     }
     job.discardSent = job.confirmationToken;
@@ -1067,23 +1071,23 @@ async function handleCalibreCaptureStartResult(job, result) {
         stopCalibrePoll(job);
         if (job.retired || job.epoch !== calibreEpoch || !calibreCandidate) {
             job.status = 'stale';
-            job.message = 'Capture review arrived after the view reset and was retired. No capture started.';
+            job.message = formatUiSafetyText('safety.calibre.capture-review.retired', 'Capture review arrived after the view reset and was retired. No capture started.');
             calibreEl('calibre-review-panel').hidden = true;
             calibreReview = null;
-            calibreSetJobStatus('Capture review arrived after the view reset and was retired. No capture started.');
+            calibreSetJobStatus(t('safety.calibre.capture-review.retired.status', 'Capture review arrived after the view reset and was retired. No capture started.'));
             renderCalibreJobPanel();
             return;
         }
         renderCalibreReview(result, job.epoch);
-        job.message = 'Cross-origin capture destination requires your exact review before capture starts.';
-        calibreSetStatus('Cross-origin capture destination requires your exact review before capture starts.');
-        calibreSetJobStatus('Capture waiting for exact cross-origin review.');
+        job.message = formatUiSafetyText('safety.calibre.review.capture', 'Cross-origin capture destination requires your exact review before capture starts.');
+        calibreSetStatus(t('safety.calibre.review.capture.status', 'Cross-origin capture destination requires your exact review before capture starts.'));
+        calibreSetJobStatus(t('safety.calibre.review.capture.job', 'Capture waiting for exact cross-origin review.'));
         renderCalibreJobPanel();
         return;
     }
     const token = result && result.job_token;
     if (!calibreIsHex32(token)) {
-        calibreMarkUnknownCaptureStart(job, 'Capture start did not return a valid job token.', 'Capture start');
+        calibreMarkUnknownCaptureStart(job, t('safety.calibre.capture.invalid-token', 'Capture start did not return a valid job token.'), t('calibre.capture.start-label', 'Capture start'));
         return;
     }
     stopCalibrePoll(job);
@@ -1101,10 +1105,10 @@ async function handleCalibreCaptureStartResult(job, result) {
     job.validationError = '';
     job.receipt = null;
     if (job.retired || job.cancelRequested || job.epoch !== calibreEpoch) {
-        job.message = 'Late capture job token arrived after the view reset. Cancelling this original capture and checking its status; it will not attach to the new view.';
+        job.message = formatUiSafetyText('safety.calibre.capture.late-token', 'Late capture job token arrived after the view reset. Cancelling this original capture and checking its status; it will not attach to the new view.');
         calibreEl('calibre-review-panel').hidden = true;
         calibreReview = null;
-        calibreSetJobStatus('Late capture job token arrived after the view reset. Cancelling and checking it.');
+        calibreSetJobStatus(t('safety.calibre.capture.late-token.status', 'Late capture job token arrived after the view reset. Cancelling and checking it.'));
         job.cancelRequested = true;
         if (!calibreCancelAlreadySent(job, token)) {
             calibreNoteCancelSent(job, token);
@@ -1117,9 +1121,9 @@ async function handleCalibreCaptureStartResult(job, result) {
         renderCalibreJobPanel();
         return;
     }
-    job.message = 'Capture started. Checking status; nothing is imported yet.';
-    calibreSetStatus('Capture started. Checking status; nothing is imported yet.');
-    calibreSetJobStatus('Capture started. Checking status.');
+    job.message = t('calibre.status.capture-started', 'Capture started. Checking status; nothing is imported yet.');
+    calibreSetStatus(t('calibre.status.capture-started', 'Capture started. Checking status; nothing is imported yet.'));
+    calibreSetJobStatus(t('calibre.status.capture-started.job', 'Capture started. Checking status.'));
     renderCalibreJobPanel();
     startCalibrePoll(job);
 }
@@ -1127,14 +1131,14 @@ async function handleCalibreCaptureStartResult(job, result) {
 async function startCalibreCapture() {
     if (calibreBusy) { return; }
     if (!calibreCandidate) {
-        calibreSetStatus('Preview a book first, then capture that exact source.');
+        calibreSetStatus(t('calibre.capture.preview-first', 'Preview a book first, then capture that exact source.'));
         return;
     }
     if (calibreCaptureJob && calibreJobIsLive(calibreCaptureJob)) {
         if (calibreCaptureJob.status === 'unknown') {
-            calibreSetJobStatus('Capture outcome is UNKNOWN. Do not start another capture; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save.');
+            calibreSetJobStatus(t('safety.calibre.capture.unknown-start', 'Capture outcome is UNKNOWN. Do not start another capture; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save.'));
         } else {
-            calibreSetJobStatus('A capture is already in progress. Wait for it, cancel it, or discard it before starting another.');
+            calibreSetJobStatus(t('safety.calibre.capture.in-progress', 'A capture is already in progress. Wait for it, cancel it, or discard it before starting another.'));
         }
         return;
     }
@@ -1151,7 +1155,7 @@ async function startCalibreCapture() {
         epoch: calibreEpoch,
     };
     if (!calibreIsHex32(candidate.preview_token) || !candidate.provider) {
-        calibreSetStatus('Preview identity is invalid. Preview the book again before capturing.');
+        calibreSetStatus(t('safety.calibre.capture.invalid-preview', 'Preview identity is invalid. Preview the book again before capturing.'));
         return;
     }
     const job = {
@@ -1162,13 +1166,13 @@ async function startCalibreCapture() {
         pollInFlight: false, timer: null, importInFlight: false, importConsumed: false,
         importEpoch: null, cancelRequested: false, cancelSent: false, cancelSentTokens: {},
         discardSent: null, discardInFlight: false, retired: false,
-        receipt: null, error: '', validationError: '', message: 'Starting explicit capture for the previewed source…',
+        receipt: null, error: '', validationError: '', message: t('calibre.status.starting-capture', 'Starting explicit capture for the previewed source…'),
     };
     calibreCaptureJob = job;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Starting explicit capture for the previewed source…');
-    calibreSetJobStatus('Starting explicit capture for the previewed source…');
+    calibreSetStatus(t('calibre.status.starting-capture', 'Starting explicit capture for the previewed source…'));
+    calibreSetJobStatus(t('calibre.status.starting-capture', 'Starting explicit capture for the previewed source…'));
     renderCalibreJobPanel();
     try {
         const result = await API.post('/api/calibre/capture', { token: candidate.preview_token });
@@ -1184,11 +1188,11 @@ async function startCalibreCapture() {
             job.startPending = false;
             job.status = 'failed';
             job.error = calibreErrorText(error);
-            job.message = `Capture start failed: ${job.error}. This rejection was confirmed before a job started. No automatic retry will start.`;
+            job.message = formatUiSafetyText('safety.calibre.capture.start-failed', 'Capture start failed: {detail}. This rejection was confirmed before a job started. No automatic retry will start.', {detail: job.error});
             calibreSetJobStatus(job.message);
             renderCalibreJobPanel();
         } else {
-            calibreMarkUnknownCaptureStart(job, calibreErrorText(error), 'Capture start');
+            calibreMarkUnknownCaptureStart(job, calibreErrorText(error), t('calibre.capture.start-label', 'Capture start'));
         }
     } finally {
         if (calibreIsCurrent(job.epoch)) {
@@ -1204,7 +1208,7 @@ async function importCalibreCapture() {
         return;
     }
     if (!calibreCanImport(job)) {
-        calibreSetJobStatus('Import is not available until this capture is bound to the current preview and has a valid hash and confirmation.');
+        calibreSetJobStatus(t('safety.calibre.import.unavailable', 'Import is not available until this capture is bound to the current preview and has a valid hash and confirmation.'));
         return;
     }
     job.importInFlight = true;
@@ -1214,8 +1218,8 @@ async function importCalibreCapture() {
     const sha = job.sha256;
     const isImportCurrent = () => job === calibreCaptureJob && !job.retired && job.importEpoch === calibreEpoch && Boolean(calibreCandidate) && Boolean(job.candidate) && calibreCandidate.preview_token === job.candidate.preview_token;
     updateCalibreControls();
-    calibreSetStatus('Importing the captured source exactly once…');
-    calibreSetJobStatus('Importing the captured source exactly once…');
+    calibreSetStatus(t('calibre.status.importing', 'Importing the captured source exactly once…'));
+    calibreSetJobStatus(t('calibre.status.importing', 'Importing the captured source exactly once…'));
     renderCalibreJobPanel();
     try {
         const result = await API.post('/api/calibre/import', { confirmation_token: confirmation, sha256: sha });
@@ -1223,21 +1227,21 @@ async function importCalibreCapture() {
             return;
         }
         if (!result || !result.upload || typeof result.upload.stored_filename !== 'string' || !result.upload.stored_filename) {
-            throw new Error('Import receipt is missing the stored filename.');
+            throw new Error(formatUiSafetyText('safety.calibre.import.missing-filename', 'Import receipt is missing the stored filename.'));
         }
         if (result.sha256 !== sha) {
-            throw new Error('Import receipt SHA-256 did not match the captured source.');
+            throw new Error(formatUiSafetyText('safety.calibre.import.sha-mismatch', 'Import receipt SHA-256 did not match the captured source.'));
         }
         if (result.size_bytes != null && job.sizeBytes != null && result.size_bytes !== job.sizeBytes) {
-            throw new Error('Import receipt size did not match the captured source.');
+            throw new Error(formatUiSafetyText('safety.calibre.import.size-mismatch', 'Import receipt size did not match the captured source.'));
         }
         if (!result.provider || !result.source_identity) {
-            throw new Error('Import receipt is missing provider or source identity.');
+            throw new Error(formatUiSafetyText('safety.calibre.import.missing-identity', 'Import receipt is missing provider or source identity.'));
         }
         job.status = 'imported';
         job.receipt = result;
         job.error = '';
-        job.message = 'Imported. The receipt below is the finished outcome; importing did not select a book.';
+        job.message = t('calibre.import.done', 'Imported. The receipt below is the finished outcome; importing did not select a book.');
         stopCalibrePoll(job);
         // Keep importInFlight true through the inventory refresh so a new
         // capture cannot replace this job while completion is still
@@ -1254,19 +1258,19 @@ async function importCalibreCapture() {
         job.importInFlight = false;
         if (isImportCurrent()) {
             if (refreshError) {
-                job.message = `Imported as ${result.upload.stored_filename}, but existing uploads could not be refreshed: ${calibreErrorText(refreshError)}. Choose the file from existing uploads after refreshing.`;
+                job.message = formatUiSafetyText('safety.calibre.import.refresh-failed', 'Imported as {file}, but existing uploads could not be refreshed: {detail}. Choose the file from existing uploads after refreshing.', {file: result.upload.stored_filename, detail: calibreErrorText(refreshError)});
                 calibreSetJobStatus(job.message);
                 renderCalibreJobPanel();
             }
             if (typeof renderEpubExtractionReport === 'function' && result.upload.extraction_report) {
                 renderEpubExtractionReport(result.upload.extraction_report);
             }
-            calibreSetStatus(`Imported ${result.upload.stored_filename}. Choose it from existing uploads to select it; importing did not select a book.`);
+            calibreSetStatus(t('calibre.status.imported', 'Imported {file}. Choose it from existing uploads to select it; importing did not select a book.', {file: result.upload.stored_filename}));
             clearCalibreConfirmationPanel();
             renderCalibreJobPanel();
         } else {
-            job.message = 'Import finished after a view reset. The receipt stays in this pane; the new view was not changed and no book was selected.'
-                + (refreshError ? ` Existing uploads could not be refreshed: ${calibreErrorText(refreshError)}.` : '');
+            job.message = formatUiSafetyText('safety.calibre.import.after-reset', 'Import finished after a view reset. The receipt stays in this pane; the new view was not changed and no book was selected.')
+                + (refreshError ? ' ' + formatUiSafetyText('safety.calibre.import.after-reset-refresh', 'Existing uploads could not be refreshed: {detail}.', {detail: calibreErrorText(refreshError)}) : '');
             if (job === calibreCaptureJob) {
                 calibreSetJobStatus(job.message);
                 renderCalibreJobPanel();
@@ -1296,9 +1300,9 @@ async function approveCalibreReview() {
     calibreEl('calibre-review-panel').hidden = true;
     updateCalibreControls();
     if (review.operation === 'capture') {
-        calibreSetStatus('Approved exactly the reviewed destination. Replaying capture for the same preview…');
+        calibreSetStatus(t('calibre.review.approved-capture', 'Approved exactly the reviewed destination. Replaying capture for the same preview…'));
     } else {
-        calibreSetStatus('Approved exactly the reviewed destination. Replaying the pending browse step…');
+        calibreSetStatus(t('calibre.review.approved-browse', 'Approved exactly the reviewed destination. Replaying the pending browse step…'));
     }
     try {
         const result = await API.post('/api/calibre/review/approve', { token: review.review_token });
@@ -1306,7 +1310,7 @@ async function approveCalibreReview() {
             if (review.operation === 'capture') {
                 const job = calibreCaptureJob;
                 if (job) {
-                    job.message = 'Capture approval arrived after the view reset and was not replayed. No capture was started from that approval.';
+                    job.message = formatUiSafetyText('safety.calibre.review.approval-retired', 'Capture approval arrived after the view reset and was not replayed. No capture was started from that approval.');
                     calibreSetJobStatus(job.message);
                     renderCalibreJobPanel();
                 }
@@ -1318,9 +1322,9 @@ async function approveCalibreReview() {
             const job = calibreCaptureJob;
             const expected = (job && job.candidate && job.candidate.preview_token) || (calibreCandidate && calibreCandidate.preview_token);
             if (!calibreIsHex32(previewToken) || previewToken !== expected || !calibreCandidate || calibreCandidate.preview_token !== previewToken || !job || job.retired || job.epoch !== epoch) {
-                calibreSetStatus('Capture approval did not match the current preview. Capture again after previewing the book.');
+                calibreSetStatus(t('safety.calibre.review.approval-mismatch', 'Capture approval did not match the current preview. Capture again after previewing the book.'));
                 if (job) {
-                    job.message = 'Capture approval was not bound to the current candidate; no capture was replayed.';
+                    job.message = formatUiSafetyText('safety.calibre.review.approval-unbound', 'Capture approval was not bound to the current candidate; no capture was replayed.');
                     calibreSetJobStatus(job.message);
                     renderCalibreJobPanel();
                 }
@@ -1347,11 +1351,11 @@ async function approveCalibreReview() {
                     job.startPending = false;
                     job.status = 'failed';
                     job.error = calibreErrorText(replayError);
-                    job.message = `Capture replay failed: ${job.error}. This rejection was confirmed before a new job started. No automatic retry will start.`;
+                    job.message = formatUiSafetyText('safety.calibre.capture.replay-failed', 'Capture replay failed: {detail}. This rejection was confirmed before a new job started. No automatic retry will start.', {detail: job.error});
                     calibreSetJobStatus(job.message);
                     renderCalibreJobPanel();
                 } else {
-                    calibreMarkUnknownCaptureStart(job, calibreErrorText(replayError), 'Capture replay');
+                    calibreMarkUnknownCaptureStart(job, calibreErrorText(replayError), t('calibre.capture.replay-label', 'Capture replay'));
                 }
                 return;
             }
@@ -1377,7 +1381,7 @@ async function approveCalibreReview() {
         }
         const navToken = result.nav_token;
         if (!navToken) {
-            calibreSetStatus('Approval did not return a browse token. Browse the catalog again.');
+            calibreSetStatus(t('calibre.review.no-token', 'Approval did not return a browse token. Browse the catalog again.'));
             return;
         }
         await requestCalibreBrowse('/api/calibre/browse-next', { token: navToken }, epoch);
@@ -1385,7 +1389,7 @@ async function approveCalibreReview() {
         if (!calibreIsCurrent(epoch)) { return; }
         calibreSetStatus(calibreErrorText(error));
         if (review.operation === 'capture' && calibreCaptureJob) {
-            calibreCaptureJob.message = `Capture approval failed: ${calibreErrorText(error)}. No capture was replayed from that approval.`;
+            calibreCaptureJob.message = formatUiSafetyText('safety.calibre.review.approval-failed', 'Capture approval failed: {detail}. No capture was replayed from that approval.', {detail: calibreErrorText(error)});
             calibreSetJobStatus(calibreCaptureJob.message);
             renderCalibreJobPanel();
         }
@@ -1399,7 +1403,7 @@ async function approveCalibreReview() {
 
 function cancelCalibreReview() {
     clearCalibreView();
-    calibreSetStatus('Cross-origin review cancelled. Browse the catalog again to continue.');
+    calibreSetStatus(t('calibre.review.cancelled', 'Cross-origin review cancelled. Browse the catalog again to continue.'));
 }
 
 async function previewCalibreBook(previewToken) {
@@ -1409,7 +1413,7 @@ async function previewCalibreBook(previewToken) {
     const epoch = calibreEpoch;
     calibreBusy = true;
     updateCalibreControls();
-    calibreSetStatus('Loading the pure metadata preview (explicit request)…');
+    calibreSetStatus(t('calibre.status.loading-preview', 'Loading the pure metadata preview (explicit request)…'));
     try {
         const result = await API.get(`/api/calibre/preview?preview_token=${encodeURIComponent(previewToken)}`);
         if (!calibreIsCurrent(epoch)) { return; }
@@ -1417,15 +1421,15 @@ async function previewCalibreBook(previewToken) {
         const authors = Array.isArray(provider.authors) ? provider.authors.join(', ') : '';
         const series = provider.series ? `${provider.series}${provider.series_index != null ? ` #${provider.series_index}` : ''}` : '';
         calibreEl('calibre-preview-out').textContent = [
-            `Title: ${provider.title || ''}`,
-            `Authors: ${authors}`,
-            `Series: ${series}`,
-            `Subtitle: ${provider.subtitle || ''}`,
-            `Format: ${provider.format || ''}`,
-            `Stable ID: ${result.stable_id || ''}`,
-            `Feed: ${result.feed_url || ''}`,
-            `Source: ${result.source_url || ''}`,
-            'Read-only preview. This is not permission to download, capture, import, or synthesize.',
+            t('calibre.provider.title', 'Title: {value}', {value: provider.title || ''}),
+            t('calibre.provider.authors', 'Authors: {value}', {value: authors}),
+            t('calibre.provider.series', 'Series: {value}', {value: series}),
+            t('calibre.provider.subtitle', 'Subtitle: {value}', {value: provider.subtitle || ''}),
+            t('calibre.provider.format', 'Format: {value}', {value: provider.format || ''}),
+            t('calibre.preview.stable-id', 'Stable ID: {value}', {value: result.stable_id || ''}),
+            t('calibre.preview.feed', 'Feed: {value}', {value: result.feed_url || ''}),
+            t('calibre.preview.source', 'Source: {value}', {value: result.source_url || ''}),
+            formatUiSafetyText('safety.calibre.preview.readonly', 'Read-only preview. This is not permission to download, capture, import, or synthesize.'),
         ].join('\n');
         calibreEl('calibre-preview-panel').hidden = false;
         if (calibreIsHex32(result.preview_token) && result.provider && typeof result.provider === 'object') {
@@ -1441,7 +1445,7 @@ async function previewCalibreBook(previewToken) {
         } else {
             calibreCandidate = null;
         }
-        calibreSetStatus('Metadata preview loaded. Nothing has been downloaded. Capture is available only as an explicit next step.');
+        calibreSetStatus(t('calibre.status.preview-loaded', 'Metadata preview loaded. Nothing has been downloaded. Capture is available only as an explicit next step.'));
     } catch (error) {
         if (!calibreIsCurrent(epoch)) { return; }
         calibreSetStatus(calibreErrorText(error));

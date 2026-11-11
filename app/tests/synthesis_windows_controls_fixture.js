@@ -12,6 +12,9 @@ const form=new E('form');form.id='config-form';
 for(const [id,tag] of [['synthesis-window-budgets','tbody'],['synthesis-windows-enabled','input'],['synthesis-window-options','fieldset'],['synthesis-window-status','p'],['synthesis-sentence-gap','input'],['synthesis-clause-gap','input'],['synthesis-paragraph-gap','input'],['synthesis-edge-trim','input'],['synthesis-fade','input'],['synthesis-crossfade','input'],['synthesis-quiet-threshold','input']]){const e=new E(tag);e.id=id;form.appendChild(e);}
 const document={createElement:tag=>new E(tag),getElementById:id=>form.descendants().find(n=>n.id===id)||null};
 const c={document};c.window=c;vm.createContext(c);
+c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
+c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values));
+c.tSafety=c.tSafety||((key,english,values=Object())=>({primary:c.t(key,english,values),secondary:null}));
 const core=fs.readFileSync(process.argv[4],'utf8');
 vm.runInContext(core.slice(core.indexOf('function getConfigValidationError('),core.indexOf('function openConfigField(')),c);
 vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),c);

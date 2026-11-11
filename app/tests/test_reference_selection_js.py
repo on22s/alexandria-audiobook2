@@ -11,7 +11,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const toasts=[],saves=[];
 const ctx={window:null,showToast:(...args)=>toasts.push(args),saveVoicesDebounced:()=>saves.push({audio:audio.value,text:text.value})};ctx.window=ctx;
 ctx._cloneVoicesCache=[{id:'old',filename:'old #?.wav',ref_text:'original words'},{id:'new',filename:'new.wav'}];ctx._designedVoicesCache=[{id:'design',filename:'design.wav',sample_text:'designed words'}];
-vm.createContext(ctx);const a=core.indexOf('function getLibraryVoiceReference(');vm.runInContext(core.slice(a,core.indexOf('function createVoiceCard(',a)),ctx);
+vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));const a=core.indexOf('function getLibraryVoiceReference(');vm.runInContext(core.slice(a,core.indexOf('function createVoiceCard(',a)),ctx);
 const b=source.indexOf('window.onDesignedVoiceSelect =');vm.runInContext(source.slice(b,source.indexOf('// --- Clone Voice Upload Handlers ---',b)),ctx);
 const audio={value:'clone_voices/old #?.wav',readOnly:true,focus(){}},text={value:'original words'},play={style:{}},remove={style:{}};
 const card={querySelector:selector=>({'.ref-audio':audio,'.ref-text':text,'.clone-play-btn':play,'.clone-delete-btn':remove}[selector])};
