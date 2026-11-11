@@ -135,7 +135,8 @@ def split_sentences(text):
             end += 1
         while end < length and text[end] in CLOSERS:
             end += 1
-        if char == "." and _is_abbreviation(text, index):
+        if char == "." and _is_abbreviation(text, index) \
+                and not _is_terminal_acronym(text, index, end):
             index = end
             continue
         if end >= length or text[end].isspace() or char in "。！？":
@@ -168,6 +169,37 @@ def cover_ranges(text, ranges):
         covered[index][1] = covered[index + 1][0]
     covered[-1][1] = len(text)
     return [(start, end) for start, end in covered if end > start]
+
+
+# Words that, capitalized, open a new sentence far more often than they
+# continue a name (#1872). A dotted acronym ("U.S.") followed by one of
+# them ends its sentence: "in the U.S. He works" splits, while "the U.S.
+# Army" or "U.S. Senator" stays one sentence. Closed and conservative on
+# purpose: a missed split only coarsens highlighting, a wrong one would
+# cut a sentence in two.
+_SENTENCE_STARTERS = frozenset((
+    "I", "He", "She", "It", "We", "They", "You", "His", "Her", "Its", "Our",
+    "Their", "My", "Your", "The", "A", "An", "This", "That", "These",
+    "Those", "There", "Here", "But", "And", "So", "Then", "When", "While",
+    "After", "Before", "Later", "Now", "Yet", "Still", "However", "Meanwhile",
+    "If", "As", "In", "On", "At", "What", "Why", "How", "Who", "Where",
+    "No", "Yes", "Not"))
+
+
+def _is_terminal_acronym(text, dot_index, end):
+    """True when a dotted acronym (U.S., U.K.) ends its sentence (#1872).
+
+    Only capital dotted acronyms of two or more letters qualify; single
+    initials ("J. Smith"), lowercase forms ("e.g.") and listed
+    abbreviations ("Dr. Who") never end a sentence here.
+    """
+    start = dot_index - 1
+    while start >= 0 and (text[start].isalpha() or text[start] == "."):
+        start -= 1
+    if not re.fullmatch(r"(?:[A-Z]\.){2,}", text[start + 1:dot_index + 1]):
+        return False
+    match = re.match(r"\s+([A-Za-z]+)\b", text[end:])
+    return bool(match) and match.group(1) in _SENTENCE_STARTERS
 
 
 def _is_abbreviation(text, dot_index):
