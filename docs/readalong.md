@@ -99,16 +99,24 @@ snapshot separately guards the original TXT identity.
   (chunk bounds only), `missing`, `ambiguous` (no word spans).
   Without true trim coordinates the transform is `ambiguous`, never
   proportionally stretched.
-- EPUB mapping normalizes source XHTML text and script prepared text
-  (`get_speech_preparation`) with exact normalized token coverage as
-  the authority; similarity is only a hint. Normalization is NFKC +
-  casefold + word tokens (case/punctuation intentionally ignored; no
-  pronunciation or text-parity claim). Sustained mismatch, a
-  changed word at high ratio, a missing interior/leading chunk, or a
-  split beyond exact coverage fails closed. Many chunks may form one
-  segment when coverage is exact; one chunk spanning multiple segments
-  has no segment boundary and is refused explicitly (no invented
-  sub-paragraph timing). Every `body` text node (excluding
+- EPUB mapping compares source XHTML text and script text after the
+  same speech preparation (`get_speech_preparation`, via
+  `epub_readaloud.get_spoken_text`), so a verbalized symbol (`50%` is
+  spoken `50 percent`) or a pronunciation respelling matches the book it
+  came from. Exact normalized token coverage is the authority; similarity
+  is only a hint. Normalization is NFKC + casefold + word tokens
+  (case/punctuation intentionally ignored). Sustained mismatch, a changed
+  word at high ratio, a missing interior/leading chunk, or a split beyond
+  exact coverage fails closed, and the refusal names the first differing
+  word (EPUB vs spoken) and the audio chunk. Many chunks may form one
+  segment when coverage is exact. When chunks and blocks share no
+  boundary (a chunk runs on into the next block, first or later in the
+  run), the smallest run of blocks and chunks that ends together becomes
+  one span group (#1844): chunk-timed mode highlights the group as one
+  block, Qwen mode times each block from its own aligned tokens. A block
+  whose words speech preparation rewrote is highlighted whole in Qwen
+  mode rather than split into sentences inside a rewritten word. No
+  sub-paragraph timing is invented. Every `body` text node (excluding
   `head`/`script`/`style`) is counted once in source order — block
   leaves plus container coarsening for mixed direct/block content —
   while markup and existing stable ids are preserved. EPUB2 input is
@@ -295,10 +303,17 @@ real model inference behind this build's admission — no proportional,
 fake, or word-count timing exists in the production path.
 
 Sentence boundaries use text heuristics rather than semantic sentence
-recognition. A terminal acronym can merge with the following sentence:
-`He lives in the U.S. He works there.` may produce one sentence span and
-one clip envelope. Dotted acronyms within a sentence remain intact, but
-sentence-level timing does not guarantee one span per semantic sentence.
+recognition. Terminal-acronym policy (#1872): a capital dotted acronym of
+two or more letters (`U.S.`, `U.K.`) ends its sentence only when the next
+word is on a short, closed list of sentence starters (pronouns, articles,
+`This`/`There`, `But`/`And`/`So`/`Then`/`When`, ... — `_SENTENCE_STARTERS`
+in `app/qwen_align.py`), so `He lives in the U.S. He works there.` gives
+two spans while `The U.S. Army marched.` stays one. Single initials
+(`J. Smith`), lowercase forms (`e.g.`) and listed abbreviations (`Dr.`)
+never end a sentence this way. The list is conservative: an acronym
+followed by any other capitalized word still merges, which only coarsens
+highlighting, and sentence-level timing does not guarantee one span per
+semantic sentence.
 
 - **Placement.** Inference never runs in the export task's thread. The
   export exact-PCMs (`combined.pcm` at the promoted bounds) are sliced

@@ -399,6 +399,35 @@ def get_normalized_words(text):
     return _WORDS_RE.findall(folded)
 
 
+def get_spoken_text(text):
+    """The text as the TTS was asked to speak it.
+
+    Script chunks are spoken after speech preparation (symbols verbalized,
+    pronunciation respellings applied, #1844), so EPUB text is compared
+    after the same preparation rather than raw. One function for both
+    sides: the renderer and this mapper must never disagree about it.
+    """
+    from speech_text import get_speech_preparation
+    return get_speech_preparation(text or "")["text"]
+
+
+def get_spoken_words(text):
+    """Normalized words of :func:`get_spoken_text` (see get_normalized_words)."""
+    return get_normalized_words(get_spoken_text(text))
+
+
+def _describe_first_difference(source_words, chunk_words):
+    """Name the first word where the EPUB and the spoken script disagree."""
+    for position, (book, spoken) in enumerate(zip(source_words, chunk_words)):
+        if book != spoken:
+            context = " ".join(source_words[max(0, position - 3):position])
+            return (f"first difference after {context!r}: EPUB {book!r}, spoken {spoken!r}"
+                    if context else f"first difference: EPUB {book!r}, spoken {spoken!r}")
+    if len(source_words) > len(chunk_words):
+        return f"the spoken script ends before EPUB word {source_words[len(chunk_words)]!r}"
+    return "the spoken script continues past the EPUB text"
+
+
 def get_word_alignment_score(source_words, script_words):
     """Simple ratio via difflib; high only when texts genuinely agree."""
     import difflib
@@ -407,31 +436,38 @@ def get_word_alignment_score(source_words, script_words):
     return difflib.SequenceMatcher(None, source_words, script_words, autojunk=False).ratio()
 
 
-def _get_span_group(spine_segments, first, script_words, cursor):
-    """Smallest segment run from ``first`` ending on a chunk boundary.
+def _get_span_group(segment_words, first, script_words, cursor):
+    """Smallest segment run from ``first`` that ends with a chunk boundary.
 
-    Returns ([(segment_index, word_start, word_end)], end_chunk) or
-    (None, cursor) when the words disagree or no boundary is reached
-    inside this spine document (a span across files stays refused).
+    Segments and chunks are consumed together until their concatenated
+    words are equal and end at the same place, whatever the shape: the
+    first chunk may overrun the first segment, or a later chunk may run
+    on into the next segment (#1844). Returns
+    ([(segment_index, word_start, word_end)], end_chunk), or
+    (None, cursor) when the words disagree or no common boundary is
+    reached inside this spine document (a span across files stays refused).
     """
-    chunk_words = []
-    end = cursor
+    book, spoken = [], []
     members = []
-    offset = 0
-    for index in range(first, len(spine_segments)):
-        words = get_normalized_words(spine_segments[index]["text"])
+    end = cursor
+    checked = 0
+    for index in range(first, len(segment_words)):
+        words = segment_words[index]
         if not words:
             continue
-        need = offset + len(words)
-        while len(chunk_words) < need and end < len(script_words):
-            chunk_words.extend(script_words[end])
+        members.append((index, len(book), len(book) + len(words)))
+        book.extend(words)
+        while len(spoken) < len(book) and end < len(script_words):
+            spoken.extend(script_words[end])
             end += 1
-        if chunk_words[offset:need] != words:
+        common = min(len(book), len(spoken))
+        if book[checked:common] != spoken[checked:common]:
             return None, cursor
-        members.append((index, offset, need))
-        offset = need
-        if offset == len(chunk_words):
+        checked = common
+        if len(spoken) == len(book):
             return (members, end) if len(members) > 1 else (None, cursor)
+        if len(spoken) < len(book):
+            return None, cursor  # the script ran out inside this segment
     return None, cursor
 
 
@@ -470,13 +506,16 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
     if not isinstance(start, int) or start < 0 or start > len(script_entries):
         raise ValueError("Spine mapping cursor is invalid.")
     script_words = [get_normalized_words(entry["prepared_text"]) for entry in script_entries]
+    # EPUB text is compared as it would be spoken (#1844), the way every
+    # script chunk was: prepared_text is already speech-prepared.
+    segment_words = [get_spoken_words(segment["text"]) for segment in spine_segments]
     mapping = []
     cursor = start
     segment_index = -1
     while segment_index + 1 < len(spine_segments):
         segment_index += 1
         segment = spine_segments[segment_index]
-        source_words = get_normalized_words(segment["text"])
+        source_words = segment_words[segment_index]
         if not source_words:
             continue
         if cursor >= len(script_entries):
@@ -493,35 +532,36 @@ def map_spine_to_chunks(spine_segments, script_entries, *, start=0, threshold=No
                 end_candidate = candidate + 1
                 break
         if end_candidate is None:
-            # One chunk spanning multiple segments: the next chunk is
-            # longer than this segment and starts with it exactly.
-            nxt = script_words[cursor] if cursor < len(script_words) else []
-            if len(nxt) > len(source_words) and nxt[:len(source_words)] == source_words:
-                members, group_end = (_get_span_group(spine_segments, segment_index, script_words, cursor)
-                                      if allow_span else (None, cursor))
-                if members:
-                    for member_index, word_start, word_end in members:
-                        member = spine_segments[member_index]
-                        mapping.append({"fragment": member["fragment"], "text": member["text"],
-                                        "segment_index": member_index,
-                                        "chunk_indexes": list(range(cursor, group_end)),
-                                        "start_frame": script_entries[cursor]["start_frame"],
-                                        "end_frame": script_entries[group_end - 1]["end_frame"],
-                                        "span_group": cursor,
-                                        "span_words": (word_start, word_end)})
-                    segment_index = members[-1][0]
-                    cursor = group_end
-                    continue
+            # A chunk runs on past this segment: the first chunk overruns
+            # it, or a later chunk carries on into the next segment.
+            members, group_end = (_get_span_group(segment_words, segment_index, script_words, cursor)
+                                  if allow_span else (None, cursor))
+            if members:
+                for member_index, word_start, word_end in members:
+                    member = spine_segments[member_index]
+                    mapping.append({"fragment": member["fragment"], "text": member["text"],
+                                    "segment_index": member_index,
+                                    "chunk_indexes": list(range(cursor, group_end)),
+                                    "start_frame": script_entries[cursor]["start_frame"],
+                                    "end_frame": script_entries[group_end - 1]["end_frame"],
+                                    "span_group": cursor,
+                                    "span_words": (word_start, word_end)})
+                segment_index = members[-1][0]
+                cursor = group_end
+                continue
+            probe = [w for words in script_words[cursor:cursor + 3] for w in words]
+            if len(probe) > len(source_words) and probe[:len(source_words)] == source_words:
                 raise ValueError(
                     f"One script chunk spans multiple spine segments "
                     f"(first spine text {segment['text'][:80]!r} continues beyond one segment); "
                     f"supported mapping is one segment per contiguous chunk range "
                     f"— re-split the chunk or re-align the script.")
-            probe = [w for words in script_words[cursor:cursor + 3] for w in words]
             hint = get_word_alignment_score(source_words, probe) if probe else 0.0
             raise ValueError(
                 f"No unambiguous synchronization for spine text: {segment['text'][:80]!r} "
-                f"(no exact contiguous normalized coverage; partial hint {hint:.2f})")
+                f"(no exact contiguous normalized coverage; partial hint {hint:.2f}; "
+                f"{_describe_first_difference(source_words, probe)}, "
+                f"at audio chunk {script_entries[cursor]['index'] + 1} in book order)")
         chunk_indexes = list(range(cursor, end_candidate))
         mapping.append({"fragment": segment["fragment"], "text": segment["text"],
                         "segment_index": segment_index,
@@ -1293,6 +1333,23 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
 
     # The segment's source stream must equal the spoken stream exactly.
     spoken = "".join(get_token_key(t.get("text")) for t, _, _, _, _ in stream_spans)
+    if spoken != segment_stream and stream_spans \
+            and spoken == get_normalized_stream(get_spoken_text(flat))[0]:
+        # #1844: speech preparation changed this segment's words (a
+        # verbalized symbol, a respelled name), so its sentences have no
+        # character mapping onto the audio. Highlight the whole segment
+        # from its first to its last aligned token instead of guessing
+        # where a sentence boundary falls inside a rewritten word.
+        frame_start = min(span[3] for span in stream_spans)
+        frame_end = max(span[4] for span in stream_spans)
+        if frame_end <= frame_start:
+            raise ValueError("Aligned segment has no positive duration.")
+        if frame_start < row["start_frame"] or frame_end > row["end_frame"]:
+            raise ValueError("Segment clip escapes its frame bounds.")
+        return [{"fragment": None, "text": segment["text"],
+                 "segment_index": row["segment_index"],
+                 "chunk_indexes": list(row["chunk_indexes"]),
+                 "start_frame": frame_start, "end_frame": frame_end}], 0
     if spoken != segment_stream:
         raise ValueError(
             "Aligned tokens do not correspond to the segment text; the "
