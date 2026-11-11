@@ -780,6 +780,11 @@ var API = {
   post: function () { return Promise.resolve({}); },
 };
 var ok = function (cond, msg) { if (!cond) { console.error('FAIL: ' + msg); process.exit(1); } };
+var t = function (key, english, values) { values = values || {}; return String(english).replace(/\{(\w+)\}/g, function (m, n) { return Object.prototype.hasOwnProperty.call(values, n) ? String(values[n]) : m; }); };
+var formatUiSafetyText = t;
+var tSafety = function (key, english, values) { return {primary: t(key, english, values), secondary: null}; };
+var renderUiSafety = function (target, key, english, values) { target.textContent = t(key, english, values); };
+var getIntlUiLocale = function () { return 'en'; };
 """
 
 

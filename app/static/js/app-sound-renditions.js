@@ -29,7 +29,7 @@ const SoundRenditions = (() => {
             || !integer(c.bytes, 1, 1024 ** 3) || !text(c.conversion, 128) || !text(c.codec, 64)
             || !['wav', 'flac', 'mp3', 'ogg'].includes(c.format)
             || !integer(value.offset_frames, rate === null ? 0 : -rate * 86400, rate === null ? 0 : rate * 86400)) {
-            throw new Error('Invalid recorded media facts.');
+            throw new Error(t('sound.renditions.invalid-media', 'Invalid recorded media facts.'));
         }
     }
     function record(value, bookId) {
@@ -40,19 +40,19 @@ const SoundRenditions = (() => {
             || !(value.composition.family_id === null || text(value.composition.family_id, 128))
             || !value.origin || !['imported_audio', 'declared_external_render'].includes(value.origin.kind)
             || !value.derivation || !['import', 'render', 'revoice', 'mixdown', 'processing'].includes(value.derivation.kind)
-            || !Array.isArray(value.stems) || value.stems.length > 16) { throw new Error('Invalid rendition history.'); }
+            || !Array.isArray(value.stems) || value.stems.length > 16) { throw new Error(t('sound.renditions.invalid-history', 'Invalid rendition history.')); }
         const origin = value.origin, d = value.derivation, renderer = origin.renderer;
         if (origin.kind === 'imported_audio' ? renderer !== null : !renderer || !text(renderer.component_id, 256)
             || !text(renderer.component_revision, 512) || !digest(renderer.request_sha256) || !digest(renderer.result_sha256)) {
-            throw new Error('Invalid declared renderer.');
+            throw new Error(t('sound.renditions.invalid-renderer', 'Invalid declared renderer.'));
         }
         if (['import', 'render'].includes(d.kind) ? d.parent !== null || origin.kind !== (d.kind === 'import' ? 'imported_audio' : 'declared_external_render') : !digest(d.parent)) {
-            throw new Error('Invalid rendition ancestry.');
+            throw new Error(t('sound.renditions.invalid-ancestry', 'Invalid rendition ancestry.'));
         }
         artifact(value.master);
         const ids = new Set();
         for (const stem of value.stems) {
-            if (!stem || !text(stem.stem_id, 128) || ids.has(stem.stem_id) || !text(stem.label, 256)) { throw new Error('Invalid recorded stem.'); }
+            if (!stem || !text(stem.stem_id, 128) || ids.has(stem.stem_id) || !text(stem.label, 256)) { throw new Error(t('sound.renditions.invalid-stem', 'Invalid recorded stem.')); }
             ids.add(stem.stem_id); artifact(stem.artifact, value.master.canonical.frame_rate);
         }
     }
@@ -63,16 +63,16 @@ const SoundRenditions = (() => {
             || data.records.length > 0 && (data.ledger_revision === null || page + data.records.length > data.total_records)
             || !(data.next_offset === null || integer(data.next_offset, page + 1, data.total_records - 1))
             || !Array.isArray(data.keep) || data.keep.length > 1024 || !Array.isArray(data.draft_selected) || data.draft_selected.length > 128) {
-            throw new Error('Invalid rendition history response.');
+            throw new Error(t('sound.renditions.invalid-response', 'Invalid rendition history response.'));
         }
         const ids = new Set();
         for (const item of data.records) {
             record(item, data.book_id);
-            if (ids.has(item.rendition_id)) { throw new Error('Repeated rendition identity.'); }
+            if (ids.has(item.rendition_id)) { throw new Error(t('sound.renditions.repeated-id', 'Repeated rendition identity.')); }
             ids.add(item.rendition_id);
         }
         for (const values of [data.keep, data.draft_selected]) {
-            if (values.some(value => !digest(value)) || new Set(values).size !== values.length) { throw new Error('Invalid rendition selection.'); }
+            if (values.some(value => !digest(value)) || new Set(values).size !== values.length) { throw new Error(t('sound.renditions.invalid-selection', 'Invalid rendition selection.')); }
         }
         return data;
     }
@@ -80,7 +80,7 @@ const SoundRenditions = (() => {
         let options = {};
         if (body !== undefined) {
             const encoded = JSON.stringify(body);
-            if (new TextEncoder().encode(encoded).byteLength > 16384) { throw new Error('This record exceeds 16 KiB. Shorten labels or select fewer stems.'); }
+            if (new TextEncoder().encode(encoded).byteLength > 16384) { throw new Error(t('sound.renditions.too-large', 'This record exceeds 16 KiB. Shorten labels or select fewer stems.')); }
             options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: encoded};
         }
         const response = await fetch(url, options); await API._handleError(response); return response.json();
@@ -89,7 +89,7 @@ const SoundRenditions = (() => {
     async function refresh(page = 0, cueId = filter) {
         if (busy || !integer(page, 0, 1024) || !(cueId === null || text(cueId, 128))) { return; }
         const expected = ++sequence; offset = page; filter = cueId; view = null; preview = null; selected = new Set();
-        el('sound-renditions-content').replaceChildren(); message('Loading recorded renditions…');
+        el('sound-renditions-content').replaceChildren(); message(t('sound.renditions.loading', 'Loading recorded renditions…'));
         const query = `offset=${page}&limit=100${cueId === null ? '' : `&cue_id=${encodeURIComponent(cueId)}`}`;
         const results = await Promise.allSettled([json(`/api/sound_design/renditions?${query}`), json('/api/sound_design/assets')]);
         if (expected !== sequence) { return; }
@@ -99,7 +99,7 @@ const SoundRenditions = (() => {
             if (results[1].status === 'fulfilled') {
                 try { assets = SoundAssets.validate(results[1].value).filter(row => row.state === 'ready'); } catch (_error) { assets = []; }
             }
-            render(); message(assets.length ? 'History loaded. Recording and keep flags do not approve a mix.' : 'History loaded. Import or repair audio assets before recording or using a master.');
+            render(); message(assets.length ? t('sound.renditions.loaded', 'History loaded. Recording and keep flags do not approve a mix.') : t('sound.renditions.loaded-no-assets', 'History loaded. Import or repair audio assets before recording or using a master.'));
         } catch (error) { view = null; el('sound-renditions-content').replaceChildren(); message(error.message); }
     }
     async function action(work) {
@@ -107,7 +107,7 @@ const SoundRenditions = (() => {
         const captured = view, expected = sequence; setBusy(true);
         try { await work(captured, expected); }
         catch (error) {
-            if (expected === sequence) { view = null; preview = null; el('sound-renditions-content').replaceChildren(); message(`${error.message} Refresh history to inspect saved state.`); }
+            if (expected === sequence) { view = null; preview = null; el('sound-renditions-content').replaceChildren(); message(t('sound.renditions.refresh-after-error', '{detail} Refresh history to inspect saved state.', {detail: error.message})); }
         } finally { setBusy(false); }
     }
     async function mutate(path, body, captured, expected, identity = null) {
@@ -118,77 +118,77 @@ const SoundRenditions = (() => {
             || result.refresh_required !== true || identity !== null && result.rendition_id !== identity
             || path === 'record' && !digest(result.rendition_id) || path === 'keep' && result.keep !== body.keep
             || path === 'cleanup' && JSON.stringify(result.removed_ids) !== JSON.stringify(body.rendition_ids)) {
-            throw new Error('Rendition operation could not be confirmed.');
+            throw new Error(t('safety.sound.renditions.unconfirmed', 'Rendition operation could not be confirmed.'));
         }
         if (typeof SoundMixes !== 'undefined') { SoundMixes.invalidate(); }
         setBusy(false); await refresh(offset, filter);
-        if (sequence === expected + 1 && view?.book_token === captured.book_token) { message('History saved. Refresh cues and review the full mix before approval.'); }
+        if (sequence === expected + 1 && view?.book_token === captured.book_token) { message(t('sound.renditions.saved', 'History saved. Refresh cues and review the full mix before approval.')); }
     }
     function render() {
         const box = el('sound-renditions-content'); box.replaceChildren();
-        box.append(make('p', `Book: ${view.book_id} · ${view.total_records} recorded renditions${filter ? ` for ${filter}` : ''}`));
+        box.append(make('p', t('sound.renditions.header', 'Book: {book} · {count} recorded renditions{filtered}', {book: view.book_id, count: view.total_records, filtered: filter ? ' ' + t('sound.renditions.for-cue', 'for {cue}', {cue: filter}) : ''})));
         const paging = make('div');
-        if (offset > 0) { paging.append(button('Previous records', () => refresh(Math.max(0, offset - 100)), 'Show the previous page.')); }
-        if (view.next_offset !== null) { paging.append(button('Next records', () => refresh(view.next_offset), 'Show the next page.')); }
-        if (filter !== null) { paging.append(button('All cue histories', () => refresh(0, null), 'Show this book’s recorded renditions across cues.')); }
-        box.append(paging, make('p', 'To record a file, choose an exact source revision in Sound cues. Imported files, declared external renders and derived files remain distinguishable.'));
+        if (offset > 0) { paging.append(button(t('sound.renditions.previous', 'Previous records'), () => refresh(Math.max(0, offset - 100)), t('sound.renditions.previous-title', 'Show the previous page.'))); }
+        if (view.next_offset !== null) { paging.append(button(t('sound.renditions.next', 'Next records'), () => refresh(view.next_offset), t('sound.renditions.next-title', 'Show the next page.'))); }
+        if (filter !== null) { paging.append(button(t('sound.renditions.all', 'All cue histories'), () => refresh(0, null), t('sound.renditions.all-title', 'Show this book’s recorded renditions across cues.'))); }
+        box.append(paging, make('p', t('sound.renditions.intro', 'To record a file, choose an exact source revision in Sound cues. Imported files, declared external renders and derived files remain distinguishable.')));
         const form = make('div'); form.id = 'sound-renditions-form'; form.setAttribute('id', 'sound-renditions-form'); box.append(form);
         for (const item of view.records) {
             const card = make('div'); card.className = 'border rounded p-2 my-2';
             card.append(make('strong', `${item.source.cue_id} · ${item.rendition_id.slice(0, 12)}`));
-            const origin = item.origin.kind === 'imported_audio' ? 'Imported audio' : `Declared external render · ${item.origin.renderer.component_id} ${item.origin.renderer.component_revision} (unverified declaration)`;
-            card.append(make('p', `${origin} · ${item.derivation.kind}${item.derivation.parent ? ` from ${item.derivation.parent.slice(0, 12)}` : ''}`));
-            card.append(make('p', `Source revision ${item.source.version.slice(0, 12)} · ${item.stems.length} stems · master ${item.master.canonical.frame_rate} frames/sec`));
-            const masterName = assets.find(row => row.asset_id === item.master.asset_id)?.display_name || 'Recorded master';
-            card.append(make('p', `${masterName} · ${(item.master.canonical.frames / item.master.canonical.frame_rate).toFixed(2)} seconds · family: ${item.composition.family_id || 'not specified'}`));
-            const facts = make('details'); facts.append(make('summary', 'Source and composition fingerprints'));
-            for (const [label, value] of [['Rendition', item.rendition_id], ['Original master', item.master.source.sha256],
-                ['Canonical master', item.master.canonical.sha256], ['Score sketch', item.composition.scaffold_sha256], ['Arrangement', item.composition.arrangement_sha256]]) {
-                facts.append(make('p', `${label}: ${value || 'not provided'}`));
+            const origin = item.origin.kind === 'imported_audio' ? t('sound.renditions.origin.imported', 'Imported audio') : t('sound.renditions.origin.external', 'Declared external render · {component} {revision} (unverified declaration)', {component: item.origin.renderer.component_id, revision: item.origin.renderer.component_revision});
+            card.append(make('p', t('sound.renditions.origin-line', '{origin} · {kind}{parent}', {origin, kind: item.derivation.kind, parent: item.derivation.parent ? ' ' + t('sound.renditions.from-parent', 'from {parent}', {parent: item.derivation.parent.slice(0, 12)}) : ''})));
+            card.append(make('p', t('sound.renditions.source-line', 'Source revision {revision} · {stems} stems · master {rate} frames/sec', {revision: item.source.version.slice(0, 12), stems: item.stems.length, rate: item.master.canonical.frame_rate})));
+            const masterName = assets.find(row => row.asset_id === item.master.asset_id)?.display_name || t('sound.renditions.master', 'Recorded master');
+            card.append(make('p', t('sound.renditions.master-line', '{master} · {seconds} seconds · family: {family}', {master: masterName, seconds: (item.master.canonical.frames / item.master.canonical.frame_rate).toFixed(2), family: item.composition.family_id || t('sound.renditions.not-specified', 'not specified')})));
+            const facts = make('details'); facts.append(make('summary', t('sound.renditions.fingerprints', 'Source and composition fingerprints')));
+            for (const [label, value] of [[t('sound.renditions.fact.rendition', 'Rendition'), item.rendition_id], [t('sound.renditions.fact.original', 'Original master'), item.master.source.sha256],
+                [t('sound.renditions.fact.canonical', 'Canonical master'), item.master.canonical.sha256], [t('sound.renditions.fact.sketch', 'Score sketch'), item.composition.scaffold_sha256], [t('sound.renditions.fact.arrangement', 'Arrangement'), item.composition.arrangement_sha256]]) {
+                facts.append(make('p', t('sound.renditions.fact-line', '{label}: {value}', {label, value: value || t('sound.renditions.not-provided', 'not provided')})));
             }
             card.append(facts);
-            card.append(make('p', `${view.draft_selected.includes(item.rendition_id) ? 'Selected in a draft cue. ' : ''}${view.keep.includes(item.rendition_id) ? 'Kept from cleanup. ' : ''}Approval is checked separately in Mixed audio review.`));
-            for (const stem of item.stems) { card.append(make('p', `${stem.label} · offset ${stem.artifact.offset_frames} master frames · asset ${stem.artifact.asset_id.slice(0, 12)}`)); }
-            card.append(button('Use master in cue', () => SoundCues.useRendition(item, view), 'Review current dialogue and timing before selecting this recorded master.'));
-            card.append(button(view.keep.includes(item.rendition_id) ? 'Remove keep flag' : 'Keep this record', () => action((captured, expected) => mutate('keep', {rendition_id: item.rendition_id, keep: !captured.keep.includes(item.rendition_id)}, captured, expected, item.rendition_id)), 'Change cleanup protection; this does not approve audio.'));
-            card.append(button('Record derived file', () => action(async (captured, expected) => {
+            card.append(make('p', t('sound.renditions.approval-note', '{draft}{kept}Approval is checked separately in Mixed audio review.', {draft: view.draft_selected.includes(item.rendition_id) ? t('sound.renditions.draft-selected', 'Selected in a draft cue.') + ' ' : '', kept: view.keep.includes(item.rendition_id) ? t('sound.renditions.kept', 'Kept from cleanup.') + ' ' : ''})));
+            for (const stem of item.stems) { card.append(make('p', t('sound.renditions.stem-line', '{label} · offset {offset} master frames · asset {asset}', {label: stem.label, offset: stem.artifact.offset_frames, asset: stem.artifact.asset_id.slice(0, 12)}))); }
+            card.append(button(t('sound.renditions.use-master', 'Use master in cue'), () => SoundCues.useRendition(item, view), t('sound.renditions.use-master-title', 'Review current dialogue and timing before selecting this recorded master.')));
+            card.append(button(view.keep.includes(item.rendition_id) ? t('sound.renditions.remove-keep', 'Remove keep flag') : t('sound.renditions.keep', 'Keep this record'), () => action((captured, expected) => mutate('keep', {rendition_id: item.rendition_id, keep: !captured.keep.includes(item.rendition_id)}, captured, expected, item.rendition_id)), t('sound.renditions.keep-title', 'Change cleanup protection; this does not approve audio.')));
+            card.append(button(t('sound.renditions.record-derived', 'Record derived file'), () => action(async (captured, expected) => {
                 const cues = SoundCues.validate(await json('/api/sound_design/cues?offset=0&limit=100'), 0);
                 if (expected !== sequence) { return; }
-                if (cues.context_revision !== captured.context_revision || cues.book_token !== captured.book_token) { throw new Error('Source history changed.'); }
+                if (cues.context_revision !== captured.context_revision || cues.book_token !== captured.book_token) { throw new Error(t('safety.sound.renditions.source-changed', 'Source history changed.')); }
                 const source = cues.registry.versions.find(row => row.version === item.source.version && row.cue_id === item.source.cue_id);
-                if (!source || !sameBook(source.recipe.book, item.source.book)) { throw new Error('Retained source revision is unavailable.'); }
+                if (!source || !sameBook(source.recipe.book, item.source.book)) { throw new Error(t('safety.sound.renditions.source-unavailable', 'Retained source revision is unavailable.')); }
                 recordForm(source, item);
-            }), 'Document a separately imported revoice, mixdown or processing result. No generation or processing runs here.'));
-            const label = make('label', ' Select for cleanup review '), check = make('input'); check.type = 'checkbox';
+            }), t('sound.renditions.record-derived-title', 'Document a separately imported revoice, mixdown or processing result. No generation or processing runs here.')));
+            const label = make('label', t('sound.renditions.select-cleanup', 'Select for cleanup review')), check = make('input'); check.type = 'checkbox';
             check.setAttribute('data-rendition-cleanup', item.rendition_id);
             check.onchange = () => { if (check.checked) { selected.add(item.rendition_id); } else { selected.delete(item.rendition_id); } preview = null; el('sound-renditions-cleanup').replaceChildren(); };
             label.prepend(check); card.append(label); box.append(card);
         }
-        box.append(button('Preview selected cleanup', () => action(previewCleanup), 'Inspect protected records and exact removal impact before deleting metadata.'));
+        box.append(button(t('sound.renditions.preview-cleanup', 'Preview selected cleanup'), () => action(previewCleanup), t('sound.renditions.preview-cleanup-title', 'Inspect protected records and exact removal impact before deleting metadata.')));
         const cleanup = make('div'); cleanup.id = 'sound-renditions-cleanup'; cleanup.setAttribute('id', 'sound-renditions-cleanup'); box.append(cleanup);
     }
     async function previewCleanup(captured, expected) {
         const ids = [...selected];
-        if (!ids.length || ids.length > 128) { throw new Error('Select between one and 128 records for cleanup review.'); }
+        if (!ids.length || ids.length > 128) { throw new Error(t('sound.renditions.error.select-range', 'Select between one and 128 records for cleanup review.')); }
         const result = await json('/api/sound_design/renditions/cleanup_preview', {...common(captured), rendition_ids: ids});
         if (expected !== sequence) { return; }
         const reasons = ['retained_cue_history', 'draft_selected', 'kept', 'retained_child', 'retained_candidate', 'retained_approval'];
         if (!result || result.context_revision !== captured.context_revision || result.registry_revision !== captured.registry_revision
             || result.ledger_revision !== captured.ledger_revision || result.book_token !== captured.book_token || !digest(result.impact_revision)
-            || !Array.isArray(result.rows) || result.rows.length !== ids.length || !Array.isArray(result.removable_ids)) { throw new Error('Invalid cleanup impact.'); }
+            || !Array.isArray(result.rows) || result.rows.length !== ids.length || !Array.isArray(result.removable_ids)) { throw new Error(t('sound.renditions.invalid-cleanup', 'Invalid cleanup impact.')); }
         result.rows.forEach((row, index) => {
             if (row.rendition_id !== ids[index] || typeof row.protected !== 'boolean' || !Array.isArray(row.reasons)
-                || row.reasons.some(reason => !reasons.includes(reason)) || row.protected !== (row.reasons.length > 0)) { throw new Error('Invalid cleanup protection.'); }
+                || row.reasons.some(reason => !reasons.includes(reason)) || row.protected !== (row.reasons.length > 0)) { throw new Error(t('sound.renditions.invalid-protection', 'Invalid cleanup protection.')); }
         });
         const removable = result.rows.filter(row => !row.protected).map(row => row.rendition_id);
-        if (JSON.stringify(removable) !== JSON.stringify(result.removable_ids)) { throw new Error('Invalid cleanup selection.'); }
+        if (JSON.stringify(removable) !== JSON.stringify(result.removable_ids)) { throw new Error(t('sound.renditions.invalid-cleanup-selection', 'Invalid cleanup selection.')); }
         preview = {ids, impact: result.impact_revision, allRemovable: removable.length === ids.length};
         const box = el('sound-renditions-cleanup'); box.replaceChildren();
-        for (const row of result.rows) { box.append(make('p', `${row.rendition_id.slice(0, 12)} · ${row.protected ? `Protected: ${row.reasons.join(', ')}` : 'Record metadata may be removed'}`)); }
-        const remove = button('Delete reviewed record metadata', () => action((current, currentSequence) => {
-            if (!preview || !preview.allRemovable || JSON.stringify([...selected]) !== JSON.stringify(preview.ids)) { throw new Error('Cleanup selection changed. Preview again.'); }
+        for (const row of result.rows) { box.append(make('p', t('sound.renditions.cleanup-row', '{id} · {status}', {id: row.rendition_id.slice(0, 12), status: row.protected ? t('sound.renditions.cleanup-protected', 'Protected: {reasons}', {reasons: row.reasons.join(', ')}) : t('sound.renditions.cleanup-removable', 'Record metadata may be removed')}))); }
+        const remove = button(t('sound.renditions.delete-metadata', 'Delete reviewed record metadata'), () => action((current, currentSequence) => {
+            if (!preview || !preview.allRemovable || JSON.stringify([...selected]) !== JSON.stringify(preview.ids)) { throw new Error(t('safety.sound.renditions.cleanup-changed', 'Cleanup selection changed. Preview again.')); }
             return mutate('cleanup', {rendition_ids: preview.ids, impact_revision: preview.impact}, current, currentSequence);
-        }), 'Remove only the reviewed record metadata. Ready audio assets remain retained.');
+        }), t('sound.renditions.delete-metadata-title', 'Remove only the reviewed record metadata. Ready audio assets remain retained.'));
         remove.setAttribute('data-locked', String(removable.length !== ids.length)); remove.disabled = removable.length !== ids.length; box.append(remove);
     }
     function field(box, key, label, value = '', choices = null, max = 512) {
@@ -201,59 +201,59 @@ const SoundRenditions = (() => {
     }
     function recordForm(source, parent = null) {
         const box = el('sound-renditions-form'); box.replaceChildren();
-        box.append(make('h5', `Record a file for ${source.cue_id} · source ${source.version.slice(0, 12)}`));
-        box.append(make('p', 'This records how existing audio was made. It does not generate, revoice, mix or process audio. External renderer details remain unverified declarations.'));
+        box.append(make('h5', t('sound.renditions.form.title', 'Record a file for {cue} · source {revision}', {cue: source.cue_id, revision: source.version.slice(0, 12)})));
+        box.append(make('p', t('sound.renditions.form.intro', 'This records how existing audio was made. It does not generate, revoice, mix or process audio. External renderer details remain unverified declarations.')));
         const choices = assets.map(row => [row.asset_id, row.display_name || row.asset_id.slice(0, 12)]);
         const fields = {}, add = (key, label, value, options = null, max = 512) => (fields[key] = field(box, key, label, value, options, max));
-        add('master', 'Imported master audio', parent?.master.asset_id || source.recipe.asset.asset_id, choices);
+        add('master', t('sound.renditions.field.master', 'Imported master audio'), parent?.master.asset_id || source.recipe.asset.asset_id, choices);
         const clock = make('p'); box.append(clock);
         const updateClock = () => {
             const master = assets.find(row => row.asset_id === fields.master.value);
-            clock.textContent = master ? `Master clock: ${master.canonical.frame_rate} frames/sec. Positive stem offsets start later; negative offsets start earlier.` : 'Choose an available master to review its frame clock.';
+            clock.textContent = master ? t('sound.renditions.form.clock', 'Master clock: {rate} frames/sec. Positive stem offsets start later; negative offsets start earlier.', {rate: master.canonical.frame_rate}) : t('sound.renditions.form.choose-master', 'Choose an available master to review its frame clock.');
         };
         fields.master.onchange = updateClock; updateClock();
-        add('origin', 'Origin', 'imported_audio', [['imported_audio', 'Audio import'], ['declared_external_render', 'Declared external render']]);
-        add('derivation', 'Derivation', parent ? 'processing' : 'new', [['new', 'New file'], ['revoice', 'Revoice result'], ['mixdown', 'Mixdown result'], ['processing', 'Processing result']]);
+        add('origin', t('sound.renditions.field.origin', 'Origin'), 'imported_audio', [['imported_audio', t('sound.renditions.origin.import-option', 'Audio import')], ['declared_external_render', t('sound.renditions.origin.external-option', 'Declared external render')]]);
+        add('derivation', t('sound.renditions.field.derivation', 'Derivation'), parent ? 'processing' : 'new', [['new', t('sound.renditions.derivation.new', 'New file')], ['revoice', t('sound.renditions.derivation.revoice', 'Revoice result')], ['mixdown', t('sound.renditions.derivation.mixdown', 'Mixdown result')], ['processing', t('sound.renditions.derivation.processing', 'Processing result')]]);
         const parents = view.records.filter(row => row.source.version === source.version && sameBook(row.source.book, source.recipe.book));
         if (parent && !parents.some(row => row.rendition_id === parent.rendition_id)) { parents.push(parent); }
-        add('parent', 'Earlier parent (required for a derived file)', parent?.rendition_id || '', [['', 'Choose a parent'], ...parents.map(row => [row.rendition_id, row.rendition_id.slice(0, 12)])]);
-        add('family', 'Family label (optional)', '', null, 128);
-        add('scaffold', 'Score sketch SHA-256 (optional)', '', null, 64);
-        add('arrangement', 'Arrangement SHA-256 (optional)', '', null, 64);
-        const renderer = make('details'); renderer.append(make('summary', 'External renderer declaration')); box.append(renderer);
+        add('parent', t('sound.renditions.field.parent', 'Earlier parent (required for a derived file)'), parent?.rendition_id || '', [['', t('sound.renditions.choose-parent', 'Choose a parent')], ...parents.map(row => [row.rendition_id, row.rendition_id.slice(0, 12)])]);
+        add('family', t('sound.renditions.field.family', 'Family label (optional)'), '', null, 128);
+        add('scaffold', t('sound.renditions.field.scaffold', 'Score sketch SHA-256 (optional)'), '', null, 64);
+        add('arrangement', t('sound.renditions.field.arrangement', 'Arrangement SHA-256 (optional)'), '', null, 64);
+        const renderer = make('details'); renderer.append(make('summary', t('sound.renditions.form.renderer', 'External renderer declaration'))); box.append(renderer);
         fields.origin.onchange = () => { renderer.open = fields.origin.value === 'declared_external_render'; };
-        for (const [key, label, max] of [['component', 'Tool name', 256], ['revision', 'Tool version', 512], ['request', 'Request SHA-256', 64], ['result', 'Result SHA-256', 64]]) {
+        for (const [key, label, max] of [['component', t('sound.renditions.field.tool-name', 'Tool name'), 256], ['revision', t('sound.renditions.field.tool-version', 'Tool version'), 512], ['request', t('sound.renditions.field.request-sha', 'Request SHA-256'), 64], ['result', t('sound.renditions.field.result-sha', 'Result SHA-256'), 64]]) {
             fields[key] = field(renderer, key, label, '', null, max);
         }
         const stemsBox = make('div'); box.append(stemsBox); const stems = []; let stemSequence = 0;
-        box.append(button('Add stem', () => {
+        box.append(button(t('sound.renditions.add-stem', 'Add stem'), () => {
             if (busy || stems.length >= 16) { return; }
             const card = make('div'); card.className = 'border rounded p-2 my-2'; const id = `stem-${++stemSequence}`;
-            const row = {id, card, label: field(card, `${id}-label`, 'Stem label', '', null, 256),
-                asset: field(card, `${id}-asset`, 'Imported stem audio', assets[0]?.asset_id || '', choices),
-                offset: field(card, `${id}-offset`, 'Offset in master frames (signed integer)', '0')};
+            const row = {id, card, label: field(card, `${id}-label`, t('sound.renditions.field.stem-label', 'Stem label'), '', null, 256),
+                asset: field(card, `${id}-asset`, t('sound.renditions.field.stem-audio', 'Imported stem audio'), assets[0]?.asset_id || '', choices),
+                offset: field(card, `${id}-offset`, t('sound.renditions.field.stem-offset', 'Offset in master frames (signed integer)'), '0')};
             row.offset.type = 'number'; row.offset.step = '1'; stems.push(row);
-            card.append(button('Remove stem', () => { if (!busy) { stems.splice(stems.indexOf(row), 1); card.remove(); } }, 'Remove this stem from the unsaved record.'));
+            card.append(button(t('sound.renditions.remove-stem', 'Remove stem'), () => { if (!busy) { stems.splice(stems.indexOf(row), 1); card.remove(); } }, t('sound.renditions.remove-stem-title', 'Remove this stem from the unsaved record.')));
             stemsBox.append(card);
-        }, 'Add up to sixteen imported stems with explicit offsets on the master clock.'));
-        box.append(button('Record immutable rendition', () => {
+        }, t('sound.renditions.add-stem-title', 'Add up to sixteen imported stems with explicit offsets on the master clock.')));
+        box.append(button(t('sound.renditions.record', 'Record immutable rendition'), () => {
             let payload;
             try {
-                const chosen = id => { const row = assets.find(item => item.asset_id === id); if (!row || !digest(row.source?.sha256)) { throw new Error('Choose an available imported audio asset.'); } return row; };
+                const chosen = id => { const row = assets.find(item => item.asset_id === id); if (!row || !digest(row.source?.sha256)) { throw new Error(t('sound.renditions.error.asset', 'Choose an available imported audio asset.')); } return row; };
                 const selection = row => ({asset_id: row.asset_id, source_sha256: row.source.sha256, canonical_sha256: row.canonical.sha256});
-                const master = chosen(fields.master.value), optional = input => { const value = input.value.trim(); if (value && !digest(value)) { throw new Error('Fingerprints must be full lowercase SHA-256 values.'); } return value || null; };
-                const family = fields.family.value.trim(); if (family && !text(family, 128)) { throw new Error('Use a family label of at most 128 characters.'); }
+                const master = chosen(fields.master.value), optional = input => { const value = input.value.trim(); if (value && !digest(value)) { throw new Error(t('sound.renditions.error.fingerprint', 'Fingerprints must be full lowercase SHA-256 values.')); } return value || null; };
+                const family = fields.family.value.trim(); if (family && !text(family, 128)) { throw new Error(t('sound.renditions.error.family', 'Use a family label of at most 128 characters.')); }
                 const kind = fields.derivation.value;
                 const derivation = kind === 'new' ? {kind: fields.origin.value === 'imported_audio' ? 'import' : 'render', parent: null} : {kind, parent: fields.parent.value};
-                if (kind !== 'new' && !digest(derivation.parent)) { throw new Error('Choose an earlier parent from this exact source revision.'); }
+                if (kind !== 'new' && !digest(derivation.parent)) { throw new Error(t('sound.renditions.error.parent', 'Choose an earlier parent from this exact source revision.')); }
                 let declaration = null;
                 if (fields.origin.value === 'declared_external_render') {
-                    if (!text(fields.component.value, 256) || !text(fields.revision.value, 512) || !digest(fields.request.value) || !digest(fields.result.value)) { throw new Error('Complete the external renderer declaration.'); }
+                    if (!text(fields.component.value, 256) || !text(fields.revision.value, 512) || !digest(fields.request.value) || !digest(fields.result.value)) { throw new Error(t('sound.renditions.error.declaration', 'Complete the external renderer declaration.')); }
                     declaration = {component_id: fields.component.value, component_revision: fields.revision.value, request_sha256: fields.request.value, result_sha256: fields.result.value};
                 }
                 const stemFacts = stems.map(row => {
                     const raw = row.offset.value, number = Number(raw);
-                    if (!text(row.label.value, 256) || !raw.trim() || !integer(number, -master.canonical.frame_rate * 86400, master.canonical.frame_rate * 86400)) { throw new Error('Each stem needs a label and bounded integer offset in master frames.'); }
+                    if (!text(row.label.value, 256) || !raw.trim() || !integer(number, -master.canonical.frame_rate * 86400, master.canonical.frame_rate * 86400)) { throw new Error(t('sound.renditions.error.stem', 'Each stem needs a label and bounded integer offset in master frames.')); }
                     return {stem_id: row.id, label: row.label.value, ...selection(chosen(row.asset.value)), offset_frames: number};
                 });
                 payload = {source: {cue_id: source.cue_id, version: source.version}, master: selection(master), stems: stemFacts,
@@ -261,7 +261,7 @@ const SoundRenditions = (() => {
                     origin: {kind: fields.origin.value, renderer: declaration}, derivation};
             } catch (error) { message(error.message); return; }
             return action((captured, expected) => mutate('record', payload, captured, expected));
-        }, 'Retain one immutable record using verified imported source/master/stem identities.'));
+        }, t('sound.renditions.record-title', 'Retain one immutable record using verified imported source/master/stem identities.')));
     }
     function openPanel() {
         const panel = el('sound-renditions-content').closest?.('details');
@@ -286,7 +286,7 @@ const SoundRenditions = (() => {
         const expected = sequence + 1; await refresh(0, source.cue_id);
         if (invocation !== bridgeSequence || sequence !== expected) { return; }
         if (!view || view.context_revision !== cueView.context_revision || view.registry_revision !== cueView.registry_revision
-            || view.book_token !== cueView.book_token) { message('Cue history changed. Refresh Sound cues before recording.'); return; }
+            || view.book_token !== cueView.book_token) { message(t('safety.sound.renditions.cue-history-changed', 'Cue history changed. Refresh Sound cues before recording.')); return; }
         recordForm(source);
     }
     return {refresh, showHistory, recordFromCue, validate};

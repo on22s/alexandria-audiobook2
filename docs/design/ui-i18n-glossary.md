@@ -55,6 +55,18 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   rows keep the English `action` identifiers the server stores — the same
   transcript boundary as the task log — while the row's shape and labels are
   translated. All three locales remain machine drafts.
+- P7 adds 1,200 keys: 340 for the `editor` pane, 144 for `audio`, 74 for
+  `reports` and 84 for the home workspace (text nodes and
+  `title`/`placeholder`/`aria-label`/`alt` attributes), plus the user-facing
+  text of `app-reports.js` (74), `app-workspace.js` (84), `app-take-history.js`
+  (74), `app-editor-review.js` (98 plus label keys), `app-readalong.js`,
+  `app-audiobookshelf.js`, the five sound modules and the Editor/Audio strings
+  in `app-core.js` (chunk rows, batch render, merge and export status). The
+  Audiobookshelf API-key field keeps its technical placeholder under
+  `data-i18n-skip` only where it is a URL. `app-calibre.js` is deliberately
+  left for a later pass: its UNKNOWN-outcome state machine is not part of
+  these panes. All three locales remain machine drafts.
+
 
 ## P2 server-refusal keys
 
@@ -234,6 +246,25 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Pronunciation | 发音 | 発音 | Pronunciación | The shared lexicon and per-line rules. |
 | Line rule | 行规则 | 行ルール | Regla de línea | One occurrence rule for one line. |
 | Unseeded | 未设置种子 | シード未設定 | sin semilla | A voice setting with no saved seed. |
+| Audio (stage) | 音频 | 音声 | Audio | The stage label in Home. `Audio` is the Spanish word, so it is allowed to equal the English (KEEP_ENGLISH). |
+| Take snapshot | 录音快照 | テイクのスナップショット | Instantánea de toma | A saved immutable copy of one take. |
+| Purge | 永久删除 | 完全に削除 | Eliminar permanentemente | Removes an archive copy; never 删除 only. |
+| Restore (a take) | 恢复 | 復元 | Restaurar | Explicit, dependency-checked selection of saved bytes. |
+| Audition | 试听 | 試聴 | Escuchar | Listening without changing the selection. |
+| Speech evidence | 语音证据 | 音声証拠 | Evidencia de voz | ASR/speech checks recorded for a take. |
+| Drift | 漂移 | ドリフト | Deriva | Voice identity drift. |
+| Delivery | 投递 | 配信 | Entrega | Sending an export to Audiobookshelf. |
+| Upload | 上传 | アップロード | Carga | The HTTP upload step; the button stays 上传/アップロード/Enviar. |
+| Verify (delivery) | 验证 | 検証 | Verificar | Byte-level comparison of the remote file. |
+| Benchmark | 基准 | ベンチマーク | Comparativa de rendimiento | The Reports benchmark panel. |
+| Export integrity | 导出完整性 | 書き出しの整合性 | Integridad de la exportación | The audio checks before publication. |
+| Chapter-by-chapter export | 逐章导出 | 章ごとの書き出し | Exportación capítulo por capítulo | |
+| Master | 母带 | マスター | Máster | A recorded master audio file. |
+| Stem | 分轨 | ステム | Pista | A per-part recorded stem. |
+| Rendition | 版本 | レンディション | Versión | One recorded master/stem provenance record. |
+| Cue | 提示 | キュー | Señal | A sound placed at a dialogue anchor. |
+| Mix | 混音 | ミックス | Mezcla | A full mixed-audio candidate. |
+| Approval | 批准 | 承認 | Aprobación | Full-mix review approval, separate from delivery. |
 
 ## Voice and address rules
 
@@ -328,6 +359,38 @@ seed repair, a missing gender match, an unsupported homograph scan, and a
 privacy/accuracy note in the Casting view. They also show the English beneath
 the translation, because the risk they describe is a user who cannot read the
 translation.
+
+## P7 safety keys
+
+P7 adds the Editor, Audio, Export, Publication, Reports and Home safety text.
+Destructive confirms render through `formatUiSafetyText()` (JS confirms and the
+native window confirm) or `renderUiSafety()` (markup and the home recovery
+panel), so the authored English stays on screen beneath the translation.
+
+| Key | English source |
+| --- | --- |
+| `safety.take.purge` / `.title` / `.action` | Permanently remove this snapshot? This frees its archive storage and cannot be undone. The selected line audio is kept. |
+| `safety.core.editor.regenerate-all` / `.title` | Regenerate all {count} non-empty chunks? This will replace existing audio. |
+| `safety.core.editor.regenerate-selection` / `.title` | Regenerate these {count} selected lines? Existing audio for this selection will be replaced. |
+| `safety.core.editor.apply-gap` / `.title` | Set pause after this line to {pause} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged. |
+| `safety.core.export.preset.replace` / `.title` | Replace chapter filename preset "{name}"? Its saved template, padding and chapter selection will be replaced. |
+| `safety.core.export.preset.delete` / `.title` | Delete chapter filename preset "{name}"? This cannot be undone unless you exported your presets. |
+| `safety.sound.mixes.discard` / `.discard-confirm` | Permanently discard this saved mix and its approval? Original dialogue takes and imported sounds are kept. |
+| `safety.sound.mixes.delivery-unverified` | Delivery response could not be verified. Check the saved output before retrying. |
+| `safety.sound.mixes.source-required` | Source review is required; no delivery was published. |
+| `safety.sound.mixes.consent` / `.consent-unavailable` | I reviewed all {pages} pages of this source comparison and want to deliver this exact text. |
+| `safety.abs.rights` | I confirm this export uses only content and voices I have rights to share with my Audiobookshelf server |
+| `safety.abs.send-outcome.accepted` / `.sent` / `.failed` / `.unknown` | Upload accepted; verify delivery. … Local export unchanged ({bytes} bytes, SHA-256 {sha}). |
+| `safety.abs.verify` | After sending, choose Verify delivery to compare the remote file with this export. Until its bytes match, delivery stays unconfirmed and duplicate sends stay blocked. Rights confirmation does not override that check. |
+| `safety.readalong.book-changed` | The book changed during this build. Nothing was downloaded; build again for the current book. |
+| `safety.readalong.start-unconfirmed` | The build was not confirmed as started. Check the Result status before starting again. |
+| `safety.home.recovery.*` | The interrupted-save and unreadable-recovery leads, with and without the terminal command `{steps}`. |
+| `safety.home.status.*`, `safety.home.library.unavailable`, `safety.home.task.*`, `safety.home.collection.*` | Stale or partial home-workspace reads: displayed facts are from an earlier reading, nothing was loaded or switched. |
+
+The remaining P7 `safety.*` keys are warnings rather than confirms: a changed
+book during a render, a previous book's render finishing, an unconfirmed
+Audacity export or outlier scan, an incomplete cleanup selection, a stale cue
+or source revision, and a mix/cue history invalidated by a book switch.
 
 ## Do not translate
 

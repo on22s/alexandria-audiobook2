@@ -46,7 +46,7 @@
       },
       cancelUrl: '/api/readalong/sidecar/cancel',
       downloadUrl: '/api/readalong/sidecar', downloadName: 'readalong.sidecar.json',
-      doneMessage: 'Read-along sidecar is ready. Download it below and open it in the player with the matching MP3.',
+      doneMessage: function () { return t('readalong.done.sidecar', 'Read-along sidecar is ready. Download it below and open it in the player with the matching MP3.'); },
     }),
     epub: createChannel({
       taskName: 'readaloud_epub', statusId: 'readaloud-status',
@@ -73,7 +73,7 @@
       },
       cancelUrl: '/api/readaloud_epub/cancel',
       downloadUrl: '/api/readaloud_epub', downloadName: 'readaloud.epub',
-      doneMessage: 'EPUB read-aloud is ready. Download it below.',
+      doneMessage: function () { return t('readalong.done.epub', 'EPUB read-aloud is ready. Download it below.'); },
     }),
   };
 
@@ -118,7 +118,7 @@
       if (!found && value) {
         var option = document.createElement('option');
         option.value = value;
-        option.textContent = value + ' (' + missingLabel + ')';
+        option.textContent = t('readalong.timing.missing-option', '{value} ({label})', {value, label: missingLabel});
         option.disabled = true;
         option._aa2MissingTimingChoice = true;
         el.appendChild(option);
@@ -133,8 +133,8 @@
     var deviceEl = document.getElementById('readaloud-timing-device');
     var languageEl = document.getElementById('readaloud-timing-language');
     if (modeEl && !timingDirty.mode) { modeEl.value = preference.timing_mode || 'auto'; }
-    if (deviceEl && !timingDirty.device) { setTimingSelectValue(deviceEl, preference.timing_device || 'auto', 'unavailable'); }
-    if (languageEl && !timingDirty.language) { setTimingSelectValue(languageEl, preference.timing_language || '', 'saved choice'); }
+    if (deviceEl && !timingDirty.device) { setTimingSelectValue(deviceEl, preference.timing_device || 'auto', t('readalong.timing.unavailable', 'unavailable')); }
+    if (languageEl && !timingDirty.language) { setTimingSelectValue(languageEl, preference.timing_language || '', t('readalong.timing.saved-choice', 'saved choice')); }
   }
 
   function markTimingDevicesUnknown() {
@@ -144,15 +144,17 @@
       var option = deviceEl.options[i];
       if (!['auto', 'cpu'].includes(option.value)) {
         option.disabled = true;
-        option.textContent = option.value + ' (availability unknown)';
+        option.textContent = t('readalong.timing.device-unknown', '{device} (availability unknown)', {device: option.value});
       }
     }
   }
 
   function renderTimingUnknown(el, error) {
     markTimingDevicesUnknown();
-    var detail = error && typeof error.message === 'string' ? ' ' + error.message.slice(0, 512) : '';
-    el.textContent = 'Timing: capability unknown.' + detail + ' Chunk timing uses CPU; Qwen needs the isolated environment (see help).';
+    var detail = error && typeof error.message === 'string' ? error.message.slice(0, 512) : '';
+    el.textContent = detail
+      ? t('readalong.timing.unknown-detail', 'Timing: capability unknown. {detail} Chunk timing uses CPU; Qwen needs the isolated environment (see help).', {detail})
+      : t('readalong.timing.unknown', 'Timing: capability unknown. Chunk timing uses CPU; Qwen needs the isolated environment (see help).');
   }
 
   function finishTimingStatus() {
@@ -168,7 +170,7 @@
     var el = document.getElementById('readaloud-timing-status');
     if (!el) { return; }
     var generation = ++timingGeneration;
-    el.textContent = 'Timing: checking what this machine can run…';
+    el.textContent = t('audio.readaloud.timing-status', 'Timing: checking what this machine can run…');
     markTimingDevicesUnknown();
     if (timingStatusPending) {
       timingStatusQueued = true;
@@ -179,7 +181,7 @@
     try {
       request = API.get('/api/readaloud_epub/capability', {
         timeoutMs: 150000,
-        timeoutMessage: 'The capability check timed out. Qwen readiness is unknown; chunk timing remains available.',
+        timeoutMessage: t('readalong.timing.timeout', 'The capability check timed out. Qwen readiness is unknown; chunk timing remains available.'),
       });
     } catch (error) {
       renderTimingUnknown(el, error);
@@ -213,7 +215,7 @@
           option.textContent = name;
           deviceEl.appendChild(option);
         });
-        setTimingSelectValue(deviceEl, desired, 'unavailable');
+        setTimingSelectValue(deviceEl, desired, t('readalong.timing.unavailable', 'unavailable'));
       }
       // Untouched controls follow this book's actual saved preference.
       applyTimingPreference(info.preference);
@@ -221,9 +223,9 @@
         // Truthful readiness: name the effective pinned policy
         // device, not every probed device string.
         var pinned = info.policy.device || (deviceNames.length ? deviceNames.join(', ') : 'CPU');
-        el.textContent = 'Timing: Qwen3 ready (' + pinned + '). ' + info.policy.reason;
+        el.textContent = t('readalong.timing.ready', 'Timing: Qwen3 ready ({device}). {reason}', {device: pinned, reason: info.policy.reason});
       } else {
-        el.textContent = 'Timing: Qwen3 not ready (' + (info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : 'unknown')) + '). Chunk timing uses CPU; see help for the isolated Qwen install.';
+        el.textContent = t('readalong.timing.not-ready', 'Timing: Qwen3 not ready ({reason}). Chunk timing uses CPU; see help for the isolated Qwen install.', {reason: info.policy && info.policy.reason ? info.policy.reason : (info.capability && info.capability.reason ? info.capability.reason : t('readalong.timing.reason-unknown', 'unknown'))});
       }
     }).catch(function (error) {
       if (generation !== timingGeneration) { return; }
@@ -261,7 +263,7 @@
     }
     if (pollCount >= MAX_POLLS) {
       channel.pollingPaused = true;
-      statusEl(channel).textContent = 'Stopped checking this build after the status request limit. The export is not confirmed. Cancel remains available and resumes status checks.';
+      statusEl(channel).textContent = t('readalong.status.poll-limit', 'Stopped checking this build after the status request limit. The export is not confirmed. Cancel remains available and resumes status checks.');
       return;
     }
     API.get('/api/status/' + channel.taskName).then(function (status) {
@@ -272,13 +274,13 @@
       if (channel.claimId && status.task_claim_id
           && status.task_claim_id !== channel.claimId) {
         setBusy(channel, false);
-        statusEl(channel).textContent = 'A newer build is running now; this view stopped following the older one.';
+        statusEl(channel).textContent = t('safety.readalong.newer-build', 'A newer build is running now; this view stopped following the older one.');
         return;
       }
       if (channel.bookToken && status.readalong_book_token
           && status.readalong_book_token !== channel.bookToken) {
         setBusy(channel, false);
-        statusEl(channel).textContent = 'The book changed during this build. Nothing was downloaded; build again for the current book.';
+        renderUiSafety(statusEl(channel), 'safety.readalong.book-changed', 'The book changed during this build. Nothing was downloaded; build again for the current book.');
         return;
       }
       var logs = Array.isArray(status.logs) ? status.logs : [];
@@ -290,7 +292,7 @@
         var message = typeof result.message === 'string' ? result.message : '';
         setBusy(channel, false);
         if (result.status === 'done') {
-          statusEl(channel).textContent = channel.doneMessage;
+          statusEl(channel).textContent = channel.doneMessage();
           if (channel.downloadUrl) {
             var anchor = document.createElement('a');
             anchor.href = channel.downloadUrl;
@@ -298,14 +300,14 @@
             anchor.click();
           }
         } else if (result.status === 'cancelled') {
-          statusEl(channel).textContent = 'Build cancelled: ' + (message || last) + ' Start again when you are ready.';
+          statusEl(channel).textContent = t('readalong.status.cancelled', 'Build cancelled: {detail} Start again when you are ready.', {detail: message || last});
         } else {
-          statusEl(channel).textContent = 'Build failed: ' + (message || last) + ' Fix the cause, then start again.';
+          statusEl(channel).textContent = t('readalong.status.failed', 'Build failed: {detail} Fix the cause, then start again.', {detail: message || last});
         }
         return;
       }
       if (status.running) {
-        statusEl(channel).textContent = last || 'Working...';
+        statusEl(channel).textContent = last || t('readalong.status.working', 'Working...');
         channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); },
           pollCount < FAST_POLLS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
         return;
@@ -314,10 +316,10 @@
       // outcome (malformed). Count it against the error budget.
       if (errorCount + 1 >= ERROR_BUDGET) {
         setBusy(channel, false);
-        statusEl(channel).textContent = 'No usable result came back for this build. Check the Result status, then try again.';
+        statusEl(channel).textContent = t('readalong.status.no-result', 'No usable result came back for this build. Check the Result status, then try again.');
         return;
       }
-      statusEl(channel).textContent = 'Still running: ' + last;
+      statusEl(channel).textContent = t('readalong.status.still-running', 'Still running: {detail}', {detail: last});
       channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, errorCount + 1); }, 1500);
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) {
@@ -325,7 +327,7 @@
       }
       if (errorCount + 1 >= ERROR_BUDGET) {
         setBusy(channel, false);
-        statusEl(channel).textContent = 'Could not check the build status: ' + (e && e.message ? e.message : 'network error') + ' Start again when the app is reachable.';
+        statusEl(channel).textContent = t('readalong.status.check-failed', 'Could not check the build status: {detail} Start again when the app is reachable.', {detail: e && e.message ? e.message : t('readalong.status.network-error', 'network error')});
         return;
       }
       channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, errorCount + 1); }, 1500);
@@ -337,20 +339,20 @@
     var taskId = ++channel.taskId;
     stopTimer(channel);
     var el = statusEl(channel);
-    el.textContent = 'Checking the source text before starting...';
+    el.textContent = t('readalong.start.checking', 'Checking the source text before starting...');
     setBusy(channel, true);
     var approve = window.ensureReadalongIntegrityApproval;
     var approval = typeof approve === 'function'
       ? approve(actionLabel)
-      : Promise.reject(new Error('Text integrity is unavailable. Reload the Editor and try again.'));
+      : Promise.reject(new Error(t('readalong.start.integrity-unavailable', 'Text integrity is unavailable. Reload the Editor and try again.')));
     Promise.resolve(approval).then(function (confirmation) {
       if (!isCurrent(channel, taskId)) { return; }
       if (confirmation === null) {
         setBusy(channel, false);
-        el.textContent = 'Not started. Review the source text in Text integrity, then build again.';
+        el.textContent = t('readalong.start.not-started', 'Not started. Review the source text in Text integrity, then build again.');
         return;
       }
-      el.textContent = 'Starting build...';
+      el.textContent = t('readalong.start.starting', 'Starting build...');
       var body = { integrity_confirmation: confirmation };
       var submittedEdits = Object.assign({}, timingDirty);
       Object.assign(body, channel.startBody());
@@ -359,7 +361,7 @@
         if (!res || res.status !== 'started' || typeof res.claim_id !== 'string'
             || typeof res.book_token !== 'string') {
           setBusy(channel, false);
-          el.textContent = 'The build was not confirmed as started. Check the Result status before starting again.';
+          renderUiSafety(el, 'safety.readalong.start-unconfirmed', 'The build was not confirmed as started. Check the Result status before starting again.');
           return;
         }
         if (channel === channels.epub) {
@@ -375,7 +377,7 @@
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) { return; }
       setBusy(channel, false);
-      el.textContent = 'Could not start the build: ' + (e && e.message ? e.message : 'unknown error');
+      el.textContent = t('readalong.start.failed', 'Could not start the build: {detail}', {detail: e && e.message ? e.message : t('readalong.timing.reason-unknown', 'unknown')});
     });
   }
 
@@ -386,14 +388,14 @@
     if (channel.bookToken) { body.book_token = channel.bookToken; }
     API.post(channel.cancelUrl, body).then(function () {
       if (!isCurrent(channel, taskId)) { return; }
-      statusEl(channel).textContent = 'Cancel requested. Waiting for the build to stop...';
+      statusEl(channel).textContent = t('readalong.cancel.requested', 'Cancel requested. Waiting for the build to stop...');
       if (channel.pollingPaused) {
         channel.pollingPaused = false;
         poll(channel, taskId, 0, 0);
       }
     }).catch(function (e) {
       if (!isCurrent(channel, taskId)) { return; }
-      statusEl(channel).textContent = 'Cancel was not accepted: ' + (e && e.message ? e.message : 'unknown error');
+      statusEl(channel).textContent = t('readalong.cancel.refused', 'Cancel was not accepted: {detail}', {detail: e && e.message ? e.message : t('readalong.timing.reason-unknown', 'unknown')});
       if (channel.pollingPaused) {
         channel.pollingPaused = false;
         poll(channel, taskId, 0, 0);
@@ -417,9 +419,9 @@
       var el = statusEl(channel);
       if (el) {
         if (channel.statusId === 'readalong-status') {
-          el.textContent = 'Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.';
+          el.textContent = t('audio.readalong.status-default', 'Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.');
         } else {
-          el.textContent = 'Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).';
+          el.textContent = t('audio.readaloud.status-default', 'Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).');
         }
       }
       // Clears channel.busy too: the fenced old callbacks can no longer
@@ -430,9 +432,9 @@
 
   refreshTimingStatus();
 
-  window.buildReadalongSidecar = function () { startBuild(channels.sidecar, 'Build read-along sidecar'); };
+  window.buildReadalongSidecar = function () { startBuild(channels.sidecar, t('readalong.action.sidecar', 'Build read-along sidecar')); };
   window.cancelReadalongSidecar = function () { cancelBuild(channels.sidecar); };
-  window.buildReadaloudEpub = function () { startBuild(channels.epub, 'Build EPUB read-aloud'); };
+  window.buildReadaloudEpub = function () { startBuild(channels.epub, t('readalong.action.epub', 'Build EPUB read-aloud')); };
   window.cancelReadaloudEpub = function () { cancelBuild(channels.epub); };
   window.resetReadalongViews = resetReadalongViews;
 })();

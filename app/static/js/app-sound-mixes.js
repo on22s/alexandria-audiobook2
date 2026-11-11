@@ -26,9 +26,9 @@ const SoundMixes = (() => {
         const limit = 65536, declared = response.headers.get('Content-Length');
         if (declared !== null && (!/^\d+$/.test(declared) || !integer(Number(declared), 0, limit))) {
             await response.body?.cancel();
-            throw new Error('Source comparison response exceeds its limit.');
+            throw new Error(t('sound.mixes.source-too-large', 'Source comparison response exceeds its limit.'));
         }
-        if (!response.body) { throw new Error('Source comparison response is unavailable.'); }
+        if (!response.body) { throw new Error(t('sound.mixes.source-unavailable-response', 'Source comparison response is unavailable.')); }
         const reader = response.body.getReader(), parts = []; let bytes = 0, reads = 0;
         try {
             while (true) {
@@ -37,7 +37,7 @@ const SoundMixes = (() => {
                 reads += 1;
                 if (reads > limit || !(value instanceof Uint8Array) || value.byteLength > limit - bytes) {
                     await reader.cancel();
-                    throw new Error('Source comparison response exceeds its limit.');
+                    throw new Error(t('sound.mixes.source-too-large', 'Source comparison response exceeds its limit.'));
                 }
                 bytes += value.byteLength;
                 if (value.byteLength) { parts.push(value.slice()); }
@@ -56,54 +56,54 @@ const SoundMixes = (() => {
             || Array.from(report.page).length !== Math.min(8192, report.total - offset)
             || report.next_offset !== (offset + 8192 < report.total ? offset + 8192 : null)
             || (expected && (report.snapshot !== expected.snapshot || report.total !== expected.total || report.status !== expected.status))) {
-            throw new Error('Source comparison changed or could not be verified.');
+            throw new Error(t('safety.sound.mixes.source-changed', 'Source comparison changed or could not be verified.'));
         }
         return report;
     }
     function validate(data) {
-        if (!data || !Array.isArray(data.candidates) || data.candidates.length > 16) { throw new Error('Invalid candidate inventory.'); }
-        if (!data.delivery_profiles || Object.keys(data.delivery_profiles).sort().join(',') !== 'm4b,mp3,wav') { throw new Error('Invalid delivery profiles.'); }
+        if (!data || !Array.isArray(data.candidates) || data.candidates.length > 16) { throw new Error(t('sound.mixes.invalid-inventory', 'Invalid candidate inventory.')); }
+        if (!data.delivery_profiles || Object.keys(data.delivery_profiles).sort().join(',') !== 'm4b,mp3,wav') { throw new Error(t('sound.mixes.invalid-profiles', 'Invalid delivery profiles.')); }
         for (const profile of Object.values(data.delivery_profiles)) {
             if (!profile || typeof profile.available !== 'boolean'
                 || (profile.available ? !digest(profile.revision) : profile.revision !== null)
-                || typeof profile.summary !== 'string' || !profile.summary.length || profile.summary.length > 1024) { throw new Error('Invalid delivery profile.'); }
+                || typeof profile.summary !== 'string' || !profile.summary.length || profile.summary.length > 1024) { throw new Error(t('sound.mixes.invalid-profile', 'Invalid delivery profile.')); }
         }
         const seen = new Set();
         for (const row of data.candidates) {
             if (!row || typeof row.stage !== 'string' || !/^render-[A-Za-z0-9_-]{1,128}$/.test(row.stage) || seen.has(row.stage)
                 || !digest(row.recovery_revision) || !integer(row.bytes, 0, 4 * 1024 ** 3) || row.media_verified !== false
                 || !['incomplete', 'invalid_metadata', 'metadata_ready'].includes(row.status)
-                || !['absent', 'invalid', 'recorded'].includes(row.approval_status)) { throw new Error('Invalid candidate inventory.'); }
+                || !['absent', 'invalid', 'recorded'].includes(row.approval_status)) { throw new Error(t('sound.mixes.invalid-inventory', 'Invalid candidate inventory.')); }
             seen.add(row.stage);
             if (row.status === 'metadata_ready' && (!digest(row.candidate_revision) || !digest(row.context_revision)
                 || typeof row.book_id !== 'string' || row.book_id.length > 2048
-                || !integer(row.frame_rate, 1, 192000) || !integer(row.frames, 1, row.frame_rate * 86400))) { throw new Error('Invalid candidate timing.'); }
-            if (row.approval_status === 'recorded' && (!digest(row.approval_revision) || !row.delivery || !['mp3','wav','m4b'].includes(row.delivery.format))) { throw new Error('Invalid approval record.'); }
+                || !integer(row.frame_rate, 1, 192000) || !integer(row.frames, 1, row.frame_rate * 86400))) { throw new Error(t('sound.mixes.invalid-timing', 'Invalid candidate timing.')); }
+            if (row.approval_status === 'recorded' && (!digest(row.approval_revision) || !row.delivery || !['mp3','wav','m4b'].includes(row.delivery.format))) { throw new Error(t('sound.mixes.invalid-approval', 'Invalid approval record.')); }
         }
         return data.candidates;
     }
     async function refresh() {
         if (busy) { return; }
-        const token = ++sequence; context = null; profiles = null; stopAudio(); box().replaceChildren(); message('Loading saved mixes…');
+        const token = ++sequence; context = null; profiles = null; stopAudio(); box().replaceChildren(); message(t('sound.mixes.loading', 'Loading saved mixes…'));
         try {
             // The cue snapshot needs idle admission; do not race it with the
             // candidate listing's audio task claim.
             let snapshot = null;
             try { snapshot = await json('/api/sound_design/cues?offset=0&limit=1'); } catch (_) { /* Saved candidates remain recoverable without an active book. */ }
             if (token !== sequence) { return; }
-            if (snapshot !== null && !digest(snapshot?.context_revision)) { throw new Error('Invalid current book context.'); }
+            if (snapshot !== null && !digest(snapshot?.context_revision)) { throw new Error(t('sound.mixes.invalid-context', 'Invalid current book context.')); }
             const inventory = await json('/api/sound_design/candidates');
             const rows = validate(inventory);
             if (token !== sequence) { return; }
             context = snapshot?.context_revision || null;
             profiles = inventory.delivery_profiles;
             if (context) {
-                box().append(button('Render full mix', () => action(async () => {
+                box().append(button(t('sound.mixes.render', 'Render full mix'), () => action(async () => {
                     await json('/api/sound_design/candidates/render', {context_revision: context});
                 })));
             }
             for (const row of rows) { renderRow(row, token); }
-            message('Saved mixes loaded. Playback verifies audio; approval rechecks current sources and takes.');
+            message(t('sound.mixes.loaded', 'Saved mixes loaded. Playback verifies audio; approval rechecks current sources and takes.'));
         } catch (error) {
             if (token === sequence) { context = null; box().replaceChildren(); message(error.message); }
         }
@@ -117,7 +117,7 @@ const SoundMixes = (() => {
             const loading = refresh(), refreshToken = sequence;
             await loading;
             if (refreshToken !== sequence) { return; }
-            if (failure) { message(`${failure} Refresh saved mixes before retrying.`); }
+            if (failure) { message(t('sound.mixes.retry-after-error', '{detail} Refresh saved mixes before retrying.', {detail: failure})); }
             else if (onSuccess) { onSuccess(result); }
         }
     }
@@ -135,36 +135,38 @@ const SoundMixes = (() => {
             || result.candidate_revision !== row.candidate_revision || result.approval_revision !== row.approval_revision
             || !Array.isArray(result.warnings) || result.warnings.length > 20 || result.warnings.some(w => typeof w !== 'string' || w.length > 2048)
             || (quality !== null && (!quality || quality.status !== 'verified' || !digest(quality.sha256)
-                || !integer(quality.output_bytes, 1, 4 * 1024 ** 3)))) { throw new Error('Delivery response could not be verified. Check the saved output before retrying.'); }
+                || !integer(quality.output_bytes, 1, 4 * 1024 ** 3)))) { throw new Error(t('safety.sound.mixes.delivery-unverified', 'Delivery response could not be verified. Check the saved output before retrying.')); }
         return result;
     }
     function showSourceReview(row, first) {
         const token = sequence, expected = {snapshot: first.snapshot, total: first.total, status: first.status};
         const pages = Math.ceil(first.total / first.page_size), panel = make('div'); panel.className = 'border rounded p-2 my-2';
-        panel.append(make('strong', first.status === 'unavailable' ? 'Original source comparison is unavailable' : 'Review source text before delivery'));
+        panel.append(make('strong', first.status === 'unavailable' ? t('safety.sound.mixes.source-unavailable', 'Original source comparison is unavailable') : t('safety.sound.mixes.review-source', 'Review source text before delivery')));
         const range = make('p'), text = make('pre');
         text.style.whiteSpace = 'pre-wrap'; text.style.maxHeight = '40vh'; text.style.overflow = 'auto';
         const consent = make('input'); consent.type = 'checkbox'; consent.checked = false;
         const label = make('label', first.status === 'unavailable'
-            ? ` I reviewed all ${pages} page${pages === 1 ? '' : 's'} of this explanation and want to deliver without an original-source comparison. `
-            : ` I reviewed all ${pages} page${pages === 1 ? '' : 's'} of this source comparison and want to deliver this exact text. `);
+            ? t('safety.sound.mixes.consent-unavailable', 'I reviewed all {pages} pages of this explanation and want to deliver without an original-source comparison.', {pages})
+            : t('safety.sound.mixes.consent', 'I reviewed all {pages} pages of this source comparison and want to deliver this exact text.', {pages}));
         label.append(consent);
         let current = 0, next = null;
-        const previous = button('Previous source page', () => loadPage(current - 8192));
-        const following = button('Next source page', () => { if (next !== null) { return loadPage(next); } });
+        const previous = button(t('sound.mixes.source-previous', 'Previous source page'), () => loadPage(current - 8192));
+        const following = button(t('sound.mixes.source-next', 'Next source page'), () => { if (next !== null) { return loadPage(next); } });
         const jump = make('input'); jump.type = 'number'; jump.min = '1'; jump.max = String(pages); jump.step = '1';
         jump.oninput = () => { consent.checked = false; };
-        const jumpLabel = make('label', 'Source page '); jumpLabel.append(jump);
-        const go = button('Go to source page', () => {
+        const jumpLabel = make('label', t('sound.mixes.source-page', 'Source page')); jumpLabel.append(jump);
+        const go = button(t('sound.mixes.source-go', 'Go to source page'), () => {
             const number = Number(jump.value);
-            if (!jump.value.trim() || !integer(number, 1, pages)) { message(`Choose a source page from 1 to ${pages}.`); return; }
+            if (!jump.value.trim() || !integer(number, 1, pages)) { message(t('sound.mixes.source-range', 'Choose a source page from 1 to {pages}.', {pages})); return; }
             return loadPage((number - 1) * 8192);
         });
         function present(page) {
             current = page.offset; next = page.next_offset;
             text.textContent = page.page; consent.checked = false;
             jump.value = String(Math.floor(current / 8192) + 1);
-            range.textContent = `Page ${jump.value} of ${pages}. ${pages === 1 ? 'Entire report shown.' : 'This is part of the report; use the page controls to inspect the complete report.'} Delivery rechecks the current text and audio.`;
+            range.textContent = pages === 1
+                ? t('sound.mixes.source-range-one', 'Page {page} of {pages}. Entire report shown. Delivery rechecks the current text and audio.', {page: jump.value, pages})
+                : t('sound.mixes.source-range-many', 'Page {page} of {pages}. This is part of the report; use the page controls to inspect the complete report. Delivery rechecks the current text and audio.', {page: jump.value, pages});
             previous.disabled = current === 0; following.disabled = next === null;
         }
         async function loadPage(offset) {
@@ -176,88 +178,90 @@ const SoundMixes = (() => {
                         candidate_revision: row.candidate_revision, approval_revision: row.approval_revision,
                         expected_snapshot: expected.snapshot, offset})});
                 const value = await sourceJson(response);
-                if (response.status !== 200) { throw new Error('Source comparison is stale or unavailable.'); }
+                if (response.status !== 200) { throw new Error(t('safety.sound.mixes.source-stale', 'Source comparison is stale or unavailable.')); }
                 page = sourcePage(value, row, offset, expected);
             } catch (error) { failure = error.message; }
             finally { setBusy(false); }
             // Invalidation drops the panel but retains busy until the current
             // request exits. Do not abort it early and lose worker ownership.
             if (token !== sequence || !panel.isConnected) { return; }
-            if (failure) { panel.remove(); message(`${failure} Refresh saved mixes before retrying.`); return; }
+            if (failure) { panel.remove(); message(t('sound.mixes.retry-after-error', '{detail} Refresh saved mixes before retrying.', {detail: failure})); return; }
             present(page);
         }
         panel.append(range, previous, following, jumpLabel, go, text, label);
-        panel.append(button('Confirm source text and deliver', () => {
+        panel.append(button(t('safety.sound.mixes.confirm-deliver', 'Confirm source text and deliver'), () => {
             if (busy || token !== sequence || !panel.isConnected) { return; }
-            if (!consent.checked) { message('Review the complete source comparison and check its confirmation.'); return; }
+            if (!consent.checked) { message(t('safety.sound.mixes.consent-required', 'Review the complete source comparison and check its confirmation.')); return; }
             consent.checked = false;
             return action(() => deliver(row, expected.snapshot), result => showDelivery(row, result));
         }));
         box().append(panel); present(first);
-        message('Source review is required; no delivery was published.');
+        message(t('safety.sound.mixes.source-required', 'Source review is required; no delivery was published.'));
     }
     function showDelivery(row, result) {
         if (result.sourceReport) {
             showSourceReview(row, result.sourceReport); return;
         }
-        message(`Published ${result.file}.${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}`);
+        message(t('sound.mixes.published', 'Published {file}.{warnings}', {file: result.file, warnings: result.warnings.length ? ' ' + result.warnings.join(' ') : ''}));
         if (result.quality !== null) {
-            const link = make('a', `Download ${row.delivery.format.toUpperCase()} mixed audiobook`);
+            const link = make('a', t('sound.mixes.download', 'Download {format} mixed audiobook', {format: row.delivery.format.toUpperCase()}));
             link.href = `/api/sound_design/delivery/${row.delivery.format}/download?sha256=${result.quality.sha256}`;
             link.download = result.file; link.className = 'btn btn-sm btn-primary my-2'; box().append(link);
         }
     }
     function renderRow(row, token) {
         const card = make('div'); card.className = 'border rounded p-2 my-2';
-        card.append(make('strong', row.status === 'metadata_ready' ? `Book: ${row.book_id}` : 'Incomplete or damaged mix'));
-        card.append(make('p', `${(row.bytes / 1024 ** 2).toFixed(1)} MiB. ${row.approval_status === 'recorded' ? 'Approval recorded; delivery must recheck current sources and settings.' : 'No valid approval recorded.'}`));
+        card.append(make('strong', row.status === 'metadata_ready' ? t('sound.mixes.book', 'Book: {book}', {book: row.book_id}) : t('sound.mixes.incomplete', 'Incomplete or damaged mix')));
+        card.append(make('p', row.approval_status === 'recorded'
+            ? t('sound.mixes.approved', '{size} MiB. Approval recorded; delivery must recheck current sources and settings.', {size: (row.bytes / 1024 ** 2).toFixed(1)})
+            : t('sound.mixes.not-approved', '{size} MiB. No valid approval recorded.', {size: (row.bytes / 1024 ** 2).toFixed(1)})));
         if (row.status === 'metadata_ready') {
             if (row.approval_status === 'recorded') {
-                card.append(button(`Deliver saved ${row.delivery.format.toUpperCase()} approval`, () => action(
+                card.append(button(t('sound.mixes.deliver', 'Deliver saved {format} approval', {format: row.delivery.format.toUpperCase()}), () => action(
                     () => deliver(row), result => showDelivery(row, result))));
             }
             const duration = row.frames / row.frame_rate;
-            card.append(make('p', `Duration: ${duration.toFixed(2)} seconds. Playback continues in verified sections of up to 30 seconds.`));
-            const label = make('label', 'Start listening at seconds '), start = make('input');
+            card.append(make('p', t('sound.mixes.duration', 'Duration: {seconds} seconds. Playback continues in verified sections of up to 30 seconds.', {seconds: duration.toFixed(2)})));
+            const label = make('label', t('sound.mixes.start-at', 'Start listening at seconds')), start = make('input');
             start.type = 'number'; start.min = '0'; start.max = String(duration); start.step = 'any'; start.value = '0'; label.append(start); card.append(label);
             const audio = make('audio'); audio.controls = true; audio.preload = 'none'; let next = 0;
             function playFrame(first) {
                 if (token !== sequence || busy) { return; }
                 const last = Math.min(row.frames, first + row.frame_rate * 30); next = last;
                 audio.src = `/api/sound_design/candidates/${row.stage}/audition?candidate_revision=${row.candidate_revision}&start_frame=${first}&end_frame=${last}`;
-                audio.play().catch(() => { if (token === sequence) { message('Use the audio play control to begin listening.'); } });
+                audio.play().catch(() => { if (token === sequence) { message(t('sound.mixes.use-play', 'Use the audio play control to begin listening.')); } });
             }
             audio.onended = () => { if (next < row.frames) { playFrame(next); } };
-            audio.onerror = () => { if (token === sequence) { message('Playback could not be verified. Refresh before retrying.'); } };
-            card.append(button('Listen', () => {
+            audio.onerror = () => { if (token === sequence) { message(t('sound.mixes.playback-unverified', 'Playback could not be verified. Refresh before retrying.')); } };
+            card.append(button(t('sound.mixes.listen', 'Listen'), () => {
                 const seconds = Number(start.value);
-                if (!start.value.trim() || !Number.isFinite(seconds) || seconds < 0 || seconds >= duration) { message('Choose a start within the mix.'); return; }
+                if (!start.value.trim() || !Number.isFinite(seconds) || seconds < 0 || seconds >= duration) { message(t('sound.mixes.start-range', 'Choose a start within the mix.')); return; }
                 playFrame(Math.floor(seconds * row.frame_rate));
             }), audio);
-            const formatLabel = make('label', 'Delivery format '), format = make('select');
+            const formatLabel = make('label', t('sound.mixes.format', 'Delivery format')), format = make('select');
             for (const name of ['mp3', 'wav', 'm4b']) {
-                const option = make('option', name.toUpperCase() + (profiles[name].available ? '' : ' (unavailable)'));
+                const option = make('option', profiles[name].available ? name.toUpperCase() : t('sound.mixes.format-unavailable', '{format} (unavailable)', {format: name.toUpperCase()}));
                 option.value = name; option.disabled = !profiles[name].available; format.append(option);
             }
             format.value = ['mp3', 'wav', 'm4b'].find(name => profiles[name].available) || 'mp3'; formatLabel.append(format); card.append(formatLabel);
             const profile = make('p', profiles[format.value].summary); card.append(profile);
-            card.append(make('p', 'Approval uses default output-quality checks and no loudness mastering. Changing delivery settings requires a new approval.'));
-            const reviewLabel = make('label', ' I reviewed the full mixed candidate and approve it with these settings.'), reviewed = make('input');
+            card.append(make('p', t('sound.mixes.approval-note', 'Approval uses default output-quality checks and no loudness mastering. Changing delivery settings requires a new approval.')));
+            const reviewLabel = make('label', t('safety.sound.mixes.review-approve', 'I reviewed the full mixed candidate and approve it with these settings.')), reviewed = make('input');
             reviewed.type = 'checkbox'; reviewed.checked = false; reviewLabel.append(reviewed); card.append(reviewLabel);
             const metadata = make('div'); metadata.style.display = 'none'; metadata.className = 'border rounded p-2 my-2';
             const fields = {};
-            for (const [key, label] of [['title', 'Title'], ['author', 'Author'], ['narrator', 'Narrator'], ['year', 'Year'], ['description', 'Description']]) {
-                const wrapper = make('label', `${label} `), input = make(key === 'description' ? 'textarea' : 'input');
+            for (const [key, label] of [['title', t('sound.mixes.field.title', 'Title')], ['author', t('sound.mixes.field.author', 'Author')], ['narrator', t('sound.mixes.field.narrator', 'Narrator')], ['year', t('sound.mixes.field.year', 'Year')], ['description', t('sound.mixes.field.description', 'Description')]]) {
+                const wrapper = make('label', label), input = make(key === 'description' ? 'textarea' : 'input');
                 wrapper.className = 'd-block my-1'; input.className = 'form-control form-control-sm';
                 if (key === 'description') { input.rows = 3; } else { input.type = 'text'; }
                 input.maxLength = 20000; input.value = key === 'title' ? 'Audiobook' : '';
                 input.setAttribute('data-m4b-field', key); input.oninput = () => { reviewed.checked = false; };
                 fields[key] = input; wrapper.append(input); metadata.append(wrapper);
             }
-            const chaptersLabel = make('label', ' Make each dialogue chunk a chapter '), perChunk = make('input');
+            const chaptersLabel = make('label', t('sound.mixes.per-chunk', 'Make each dialogue chunk a chapter')), perChunk = make('input');
             perChunk.type = 'checkbox'; perChunk.checked = false; perChunk.onchange = () => { reviewed.checked = false; };
             perChunk.setAttribute('data-m4b-field', 'per_chunk_chapters'); chaptersLabel.append(perChunk); metadata.append(chaptersLabel);
-            metadata.append(make('p', 'Chapter boundaries use the approved mix timeline. These entered tags are part of this approval.'));
+            metadata.append(make('p', t('sound.mixes.chapter-note', 'Chapter boundaries use the approved mix timeline. These entered tags are part of this approval.')));
             const cover = createSoundMixCoverControls(() => { reviewed.checked = false; }, () => token === sequence && !busy);
             metadata.append(cover.element);
             card.append(metadata);
@@ -265,9 +269,9 @@ const SoundMixes = (() => {
                 profile.textContent = profiles[format.value].summary; reviewed.checked = false;
                 metadata.style.display = format.value === 'm4b' ? '' : 'none';
             };
-            card.append(button('Record full-mix approval', () => {
-                if (!profiles[format.value]?.available) { message('Choose an available delivery format before approval.'); return; }
-                if (!reviewed.checked) { message('Review the full mix and check the confirmation before approval.'); return; }
+            card.append(button(t('safety.sound.mixes.record-approval', 'Record full-mix approval'), () => {
+                if (!profiles[format.value]?.available) { message(t('sound.mixes.format-required', 'Choose an available delivery format before approval.')); return; }
+                if (!reviewed.checked) { message(t('safety.sound.mixes.review-required', 'Review the full mix and check the confirmation before approval.')); return; }
                 const delivery = {format: format.value, export_quality: null, mastering: null};
                 if (format.value === 'm4b') {
                     delivery.m4b = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
@@ -281,8 +285,8 @@ const SoundMixes = (() => {
                     full_mix_reviewed: true, delivery}));
             }));
         }
-        card.append(button('Discard saved mix', () => {
-            if (!confirm('Permanently discard this saved mix and its approval? Original dialogue takes and imported sounds are kept.')) { return; }
+        card.append(button(t('safety.sound.mixes.discard', 'Discard saved mix'), () => {
+            if (!confirm(formatUiSafetyText('safety.sound.mixes.discard-confirm', 'Permanently discard this saved mix and its approval? Original dialogue takes and imported sounds are kept.'))) { return; }
             return action(() => json(`/api/sound_design/candidates/${row.stage}/discard?recovery_revision=${row.recovery_revision}`, {}));
         }));
         box().append(card);
@@ -290,7 +294,7 @@ const SoundMixes = (() => {
     function invalidate() {
         sequence += 1; context = null; profiles = null;
         stopAudio(); box().replaceChildren();
-        message('Book or cue history changed. Refresh saved mixes and verify the full mix before delivery.');
+        message(t('safety.sound.mixes.invalidated', 'Book or cue history changed. Refresh saved mixes and verify the full mix before delivery.'));
     }
     return {refresh, invalidate};
 })();

@@ -19,7 +19,7 @@ const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
 const code = source.slice(source.indexOf('let _benchmarkPreflightId ='), source.indexOf('async function onBenchmarkStart()'));
 const field = {value:''}, button = {disabled:true}, out = {}, posts = [], toasts = [];
-const context = {document:{getElementById:id=>({'benchmark-manifest':field,'btn-benchmark-start':button,'benchmark-output':out}[id])},
+const context = {t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en',document:{getElementById:id=>({'benchmark-manifest':field,'btn-benchmark-start':button,'benchmark-output':out}[id])},
  API:{post:async(path,data)=>{posts.push({path,data});return {preflight_id:'valid'};}},
  showToast(message,kind){toasts.push({message,kind});}};
 vm.runInNewContext(code,context);
@@ -48,7 +48,7 @@ const source = fs.readFileSync(process.argv[1], 'utf8');
 const code = source.slice(source.indexOf('let _benchmarkPreflightId ='));
 const status = {}, output = {}, cancel = {style:{}}, intervals = [], cleared = [];
 let response;
-const context = {_benchmarkPoll:null,_benchmarkStatusPending:false,document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':output,'btn-benchmark-cancel':cancel}[id])},
+const context = {t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en',_benchmarkPoll:null,_benchmarkStatusPending:false,document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':output,'btn-benchmark-cancel':cancel}[id])},
  API:{get:async path=>{assert.strictEqual(path,'/api/benchmark/status');return response;}},
  setTimeout(fn,ms){assert.strictEqual(ms,3000);if (!intervals.length) { intervals.push(99); } return 99;},
  clearTimeout(id){cleared.push(id);}};
@@ -75,7 +75,7 @@ const source = fs.readFileSync(process.argv[1], 'utf8');
 const code = source.slice(source.indexOf('let _benchmarkPreflightId ='));
 const status = {}, output = {textContent:'previous logs'}, cancel = {style:{display:''}}, callbacks = [], cleared = [];
 let failure = true, calls = 0, running = true;
-const context = {_benchmarkPoll:null,_benchmarkStatusPending:false, document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':output,'btn-benchmark-cancel':cancel}[id])},
+const context = {t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en',_benchmarkPoll:null,_benchmarkStatusPending:false, document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':output,'btn-benchmark-cancel':cancel}[id])},
  API:{get:async()=>{calls++;if(failure){throw new Error('HTTP 503');}return {running,status:'idle',tasks:[{status:'done'}]};}},
  setTimeout(fn,ms){assert.strictEqual(ms,3000);callbacks[0] = fn;return 99;}, clearTimeout(id){cleared.push(id);}};
 vm.runInNewContext(code,context);
@@ -101,7 +101,7 @@ const source=fs.readFileSync(process.argv[1],'utf8');
 const code=source.slice(source.indexOf('let _benchmarkPreflightId ='));
 const status={},out={textContent:'previous'},cancel={style:{display:'none'}};
 const requests=[],timers=[],cleared=[];
-const context={document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':out,'btn-benchmark-cancel':cancel}[id])},
+const context={t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en',document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':out,'btn-benchmark-cancel':cancel}[id])},
  API:{get:path=>{assert.strictEqual(path,'/api/benchmark/status');return new Promise((resolve,reject)=>requests.push({resolve,reject}));}},
  setTimeout(fn,ms){assert.strictEqual(ms,3000);timers[0] = fn;return 99;},
  clearTimeout(id){cleared.push(id);}};

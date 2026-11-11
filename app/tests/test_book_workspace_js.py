@@ -20,6 +20,9 @@ for(const id of ['workspace-book-name','workspace-next-reason','workspace-contin
 const elements=id=>document.getElementById(id);
 const requests=[],activated=[],timers=[],actionErrors=[];let responses={},fail=false;
 context.window=context;context.currentTabName='home';document.visibilityState='visible';
+context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.renderUiSafety=(target,key,english,values={})=>{target.textContent=context.t(key,english,values);};
+context.formatUiSafetyText=context.t;context.getIntlUiLocale=()=> 'en';
 context.TASK_LABELS={script:'Script generation'};
 context.API={get:async path=>{requests.push(path);if(fail){throw Error('Offline');}const result=responses[path];if(result instanceof Error){throw result;}return typeof result==='function'?result():result;}};
 context.activateTab=name=>{activated.push(name);context.currentTabName=name;};

@@ -37,7 +37,8 @@ PROTECTED = {
 # names a repository artifact, PR or RECIPES.md section, which the glossary
 # forbids translating, so those are exempt in validate().
 KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria',
-                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor', 'LLM'})
+                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor', 'LLM',
+                          'Audio'})
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 TAG = re.compile(r'</?([a-z]+)[^>]*>')
 
@@ -293,7 +294,8 @@ class RealCatalogTests(unittest.TestCase):
                           'setup.strategy.three-steps.help',
                           'setup.strategy.tp-pass1-format.help',
                           'setup.strategy.tp-segmentation.help',
-                          'setup.tts.tts-external-urls.help'}, set(HTML_KEYS))
+                          'setup.tts.tts-external-urls.help',
+                          'editor.markup.intro'}, set(HTML_KEYS))
 
 
 

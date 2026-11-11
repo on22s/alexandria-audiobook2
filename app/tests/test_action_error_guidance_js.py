@@ -12,7 +12,7 @@ const toggle={checked:true,disabled:false},badge={};let messages=[],refreshes=0,
 let failure=new TypeError('Failed to fetch');
 const c={document:{getElementById:id=>id==='lmstudio-optimize-toggle'?toggle:badge},
 API:{post:async()=>{if(failure){throw failure;}}},showToast:(...a)=>messages.push(a),
-refreshLmStudioStatus:async()=>refreshes++};vm.createContext(c);
+refreshLmStudioStatus:async()=>refreshes++};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 const start=s.indexOf('async function toggleLmStudioOptimize()');
 vm.runInContext(s.slice(start,s.indexOf('\n        //',start)),c);
@@ -37,7 +37,7 @@ const fields={'vl-rocm_python':{value:'/python'},'vl-profiler_model':{value:'mod
 'vl-zips_dir_cfg':{value:'/zips'},'vl-epub_dirs':{value:'/epubs 日本語'}};
 let messages=[],loads=0,done=false,failure=new TypeError('Failed to fetch');
 const c={window:{},document:{getElementById:id=>fields[id]},showToast:(...a)=>messages.push(a),
-API:{post:async()=>{if(failure){throw failure;}}},loadVoicelabConfig:async()=>loads++};vm.createContext(c);
+API:{post:async()=>{if(failure){throw failure;}}},loadVoicelabConfig:async()=>loads++};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.saveVoicelabConfig ='),s.indexOf('let _voicelabInspectRequest')),c);
 (async()=>{
@@ -62,7 +62,7 @@ const core=fs.readFileSync(process.argv[1],'utf8'),s=fs.readFileSync(process.arg
 const button={disabled:false},status={innerHTML:'Training in progress'};let messages=[],done=false;
 let failure=new TypeError('Failed to fetch');
 const c={window:{},document:{getElementById:id=>id==='btn-lora-cancel'?button:status},
-showToast:(...a)=>messages.push(a),API:{post:async()=>{if(failure){throw failure;}}}};vm.createContext(c);
+showToast:(...a)=>messages.push(a),API:{post:async()=>{if(failure){throw failure;}}}};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.cancelLoraTraining ='),s.indexOf('async function onToggleFavoriteAdapter')),c);
 (async()=>{
@@ -86,7 +86,7 @@ process.on('beforeExit',()=>assert(done,'training cancellation checks must compl
 const core=fs.readFileSync(process.argv[1],'utf8'),s=fs.readFileSync(process.argv[2],'utf8');
 const list={};let failure=new TypeError('Failed to fetch'),done=false;
 const c={document:{getElementById:()=>list},API:{get:async()=>{if(failure){throw failure;}return [];}},
-escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);
+escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(0,s.indexOf('async function loadCheckpoints()')),c);
 (async()=>{
@@ -109,7 +109,7 @@ const s=fs.readFileSync(process.argv[1],'utf8');let messages=[],posts=[],refresh
 let failure=new TypeError('Failed to fetch');
 const c={window:{},showToast:(...a)=>messages.push(a),API:{post:async(p,b)=>{posts.push(p);if(failure){throw failure;}}},
 loadChunks:async()=>refreshes++, URLSearchParams, currentBookFilename:"book-a", chunkSnapshotBook:"book-a",
-chunkSnapshotBookToken:"book-token-a", cachedChunks:[{id:7,uid:"row-7"}]};vm.createContext(c);
+chunkSnapshotBookToken:"book-token-a", cachedChunks:[{id:7,uid:"row-7"}]};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(s.slice(s.indexOf("function captureChunkMutation("),s.indexOf("window.insertChunkAfter =")),c);
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.insertChunkAfter ='),s.indexOf('window.deleteChunk =')),c);
@@ -135,7 +135,7 @@ const status={},fields={'audacity-status':status};let failure=new TypeError('Fai
 const c={window:{},document:{getElementById:id=>fields[id]},claimTaskStart:()=>true,
 releaseTaskStart:t=>releases.push(t),pollExport:t=>polls.push(t),
 API:{post:async()=>{if(failure){throw failure;}}},
-escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);
+escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.exportAudacity ='),s.indexOf('// --- Chapter-by-chapter export ---')),c);
 (async()=>{
@@ -162,7 +162,7 @@ let failure=new TypeError('Failed to fetch'),done=false;
 const c={window:{},document:{getElementById:id=>fields[id]},
 API:{post:async()=>{throw failure;}},showToast:()=>{},stopDesignedVoicePlayback:()=>{},
 isDesignerGenerationCurrent:()=>true,
-escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);
+escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('function getDesignerSynthesisInputs()'),s.indexOf('function getDesignerSaveSnapshot()')),c);
 (async()=>{
@@ -219,7 +219,7 @@ const s=fs.readFileSync(process.argv[1],'utf8');let messages=[],posts=[],reloads
 let failure=new TypeError('Failed to fetch');
 const c={window:{},API:{post:async(...args)=>{posts.push(args);if(failure){throw failure;}}},
 showToast:(...args)=>messages.push(args),loadVoices:async()=>{reloads++;}};
-vm.createContext(c);
+vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('function getVoiceCardMetadata('),s.indexOf('function createVoiceCard(')),c);
 vm.runInContext(s.slice(s.indexOf('window.setVoiceApproval ='),s.indexOf('window.editPersonaVoiceAudit =')),c);
@@ -245,6 +245,6 @@ process.on('beforeExit',()=>{assert(done,'async approval checks must complete');
 
     def test_transport_recovery_and_validation_details(self):
         source=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
-        code=r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');const s=fs.readFileSync(process.argv[1],'utf8');let messages=[];const c={showToast:(...args)=>messages.push(args)};vm.createContext(c);vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);for(const detail of ['Failed to fetch','NetworkError when attempting to fetch resource.','Load failed']){c.showActionError('Save failed',new Error(detail),'Check required fields.');const [text,type]=messages.at(-1);assert(text.includes('Could not reach Alexandria'));assert(text.includes('Review the current status before retrying'));assert(text.includes(detail));assert(text.includes('Check required fields.'));assert.strictEqual(type,'error');}for(const detail of ['Field X must be positive.','NetworkError is not an allowed model name']){const error=new Error(detail);error.status=422;c.showActionError('Save refused',error,'Check required fields.');const text=messages.at(-1)[0];assert(text.includes('Check required fields.'));assert(text.includes(detail));assert(!text.includes('Could not reach Alexandria'));}c.showActionError('Action failed',new Error('missing module'),'Repair installation.');assert(messages.at(-1)[0].includes('Repair installation.'));assert(messages.at(-1)[0].includes('missing module'));'''
+        code=r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');const s=fs.readFileSync(process.argv[1],'utf8');let messages=[];const c={showToast:(...args)=>messages.push(args)};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);for(const detail of ['Failed to fetch','NetworkError when attempting to fetch resource.','Load failed']){c.showActionError('Save failed',new Error(detail),'Check required fields.');const [text,type]=messages.at(-1);assert(text.includes('Could not reach Alexandria'));assert(text.includes('Review the current status before retrying'));assert(text.includes(detail));assert(text.includes('Check required fields.'));assert.strictEqual(type,'error');}for(const detail of ['Field X must be positive.','NetworkError is not an allowed model name']){const error=new Error(detail);error.status=422;c.showActionError('Save refused',error,'Check required fields.');const text=messages.at(-1)[0];assert(text.includes('Check required fields.'));assert(text.includes(detail));assert(!text.includes('Could not reach Alexandria'));}c.showActionError('Action failed',new Error('missing module'),'Repair installation.');assert(messages.at(-1)[0].includes('Repair installation.'));assert(messages.at(-1)[0].includes('missing module'));'''
         result=subprocess.run(['node','-e',code,str(source)],capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)

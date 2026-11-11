@@ -7803,6 +7803,14 @@
             }
         };
 
+        function chunkStatusLabel(status) {
+            return {
+                done: t('core.editor.status.done', 'done'), generating: t('core.editor.status.generating', 'generating'),
+                error: t('core.editor.status.error', 'error'), pending: t('core.editor.status.pending', 'pending'),
+                skipped: t('core.editor.status.skipped', 'skipped'),
+            }[status] || status;
+        }
+
         async function loadChunks(forceFullRedraw = false) {
             invalidateEditorIntegrity();
             ++deliveryReviewView;
@@ -7821,7 +7829,7 @@
                 window.markEditorReviewStale?.();
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
-                    status.innerHTML = '<span class="text-warning">Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">Retry chunks</button>';
+                    status.innerHTML = `<span class="text-warning">${escapeHtml(t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.'))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`;
                 }
             }
         }
@@ -7844,7 +7852,7 @@
 
             // Show loading only if empty
             if (tbody.children.length === 0 || (tbody.children.length === 1 && tbody.children[0].children.length === 1)) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading chunks...</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.loading', 'Loading chunks...'))}</td></tr>`;
                 forceFullRedraw = true;
             }
 
@@ -7856,7 +7864,7 @@
                     || !Array.isArray(snapshot.chunks) || !Array.isArray(snapshot.changed_ids)
                     || !Number.isInteger(snapshot.total) || snapshot.total < 0) {
                 chunkSnapshotRevision = null;
-                throw new Error('Editor snapshot is unavailable.');
+                throw new Error(t('core.editor.snapshot-unavailable', 'Editor snapshot is unavailable.'));
             }
             if (chunkSnapshotBookToken !== snapshot.book_token) { window.resetExportQualityView?.(); window.resetAbsPreview?.(); }
             chunkSnapshotBookToken = snapshot.book_token;
@@ -7869,16 +7877,16 @@
                 if (snapshot.total !== cachedChunks.length || changed.size !== snapshot.chunks.length
                         || snapshot.chunks.some(chunk => !previous.has(chunk.id) || previous.get(chunk.id).uid !== chunk.uid)) {
                     chunkSnapshotRevision = null;
-                    throw new Error('Editor snapshot changed; refresh required.');
+                    throw new Error(t('core.editor.snapshot-changed', 'Editor snapshot changed; refresh required.'));
                 }
                 chunks = cachedChunks.map(chunk => changed.get(chunk.id) || chunk);
             }
             if (chunks.length !== snapshot.total) {
                 chunkSnapshotRevision = null;
-                throw new Error('Editor snapshot is incomplete.');
+                throw new Error(t('core.editor.snapshot-incomplete', 'Editor snapshot is incomplete.'));
             }
             if (chunks.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center">No chunks found. Please generate script first.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
                 cachedChunks = [];
                 chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
@@ -7969,30 +7977,30 @@
 
                     const audioPlayer = chunk.audio_path ?
                         `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
-                        '<span class="text-muted small">No audio</span>';
+                        `<span class="text-muted small">${escapeHtml(t('core.editor.no-audio', 'No audio'))}</span>`;
 
                     const actionArea = chunk.status === 'generating' ?
                         `<div class="progress" style="width: 100px; height: 20px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
                          </div>` :
-                        `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> Gen</button>`;
+                        `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${escapeHtml(t('core.editor.generate-short', 'Gen'))}</button>`;
 
                     return `
                         <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" class="chunk-row">
                             <td class="text-center align-middle" style="white-space:nowrap;">
-                                <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="Inspect line ${chunk.id + 1}" aria-label="Inspect line ${chunk.id + 1}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="Expand/collapse"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="Insert line below"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="Delete line"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="Voice changes here: from this line on, this character sounds different (time skip, older)"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="Different take: render this line again with a new seed"><i class="fas fa-dice"></i></button>` : ''}
+                                <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
                             </td>
                             <td>${buildSpeakerSelect(chunk)}</td>
                             <td><textarea class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
                             <td>
-                                <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="Delivery instruction (3-8 words)">${escapeHtml(chunk.instruct || '')}</textarea>
+                                <textarea class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="${escapeHtml(t('core.editor.delivery-title', 'Delivery instruction (3-8 words)'))}">${escapeHtml(chunk.instruct || '')}</textarea>
                                 <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
-                                    <small class="text-muted text-nowrap">Pause after (ms):</small>
-                                    <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="default" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.">Suggest gap</button>
+                                    <small class="text-muted text-nowrap">${escapeHtml(t('core.editor.pause-after', 'Pause after (ms):'))}</small>
+                                    <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="${escapeHtml(t('core.editor.pause-default', 'default'))}" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="${escapeHtml(t('core.editor.suggest-gap-title', 'Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.'))}">${escapeHtml(t('core.editor.suggest-gap', 'Suggest gap'))}</button>
                                 </div>
                             </td>
-                            <td><span class="badge bg-${statusColor}">${escapeHtml(chunk.status)}</span>${_driftBadge(chunk)}</td>
+                            <td><span class="badge bg-${statusColor}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
                             <td>
                                 <div class="chunk-actions d-flex align-items-center gap-2">
                                     ${actionArea}
@@ -8592,20 +8600,20 @@
                 const target = captureChunkMutation(id);
                 const url = `/api/chunks/${id}/gap_suggestion?${target.query}`;
                 const suggestion = await API.get(url);
-                if (!target.isCurrent()) { throw new Error('Active book changed; request a new suggestion.'); }
+                if (!target.isCurrent()) { throw new Error(t('safety.core.editor.book-changed', 'Active book changed; request a new suggestion.')); }
                 if (suggestion.pause_after === null) {
-                    showToast('No suggested gap here. Existing explicit pauses are kept.', 'info');
+                    showToast(t('core.editor.no-gap', 'No suggested gap here. Existing explicit pauses are kept.'), 'info');
                     return;
                 }
-                if (!await showConfirm(`Set pause after this line to ${suggestion.pause_after} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged.`, {title: 'Apply suggested gap?', actionLabel: 'Apply gap'})) { return; }
+                if (!await showConfirm(formatUiSafetyText('safety.core.editor.apply-gap', 'Set pause after this line to {pause} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged.', {pause: suggestion.pause_after}), {title: t('safety.core.editor.apply-gap.title', 'Apply suggested gap?'), actionLabel: t('core.editor.apply-gap', 'Apply gap')})) { return; }
                 await flushChunkEdits();
-                if (!target.isCurrent()) { throw new Error('Active book changed; request a new suggestion.'); }
+                if (!target.isCurrent()) { throw new Error(t('safety.core.editor.book-changed', 'Active book changed; request a new suggestion.')); }
                 await API.post(url, {expected_revision: suggestion.revision});
                 if (!target.isCurrent()) { return; }
                 await loadChunks();
-                showToast('Gap saved. Re-export to update joined audio; no speech regeneration needed.', 'success');
+                showToast(t('core.editor.gap-saved', 'Gap saved. Re-export to update joined audio; no speech regeneration needed.'), 'success');
             } catch (error) {
-                showActionError('Suggest gap', error);
+                showActionError(t('core.editor.suggest-gap-action', 'Suggest gap'), error);
             } finally {
                 button.disabled = false;
             }
@@ -8620,7 +8628,7 @@
                 // For now, next loadChunks will show updated status (pending)
             } catch (e) {
                 console.error("Update failed", e);
-                showToast("Failed to update chunk", 'error');
+                showToast(t('core.editor.update-failed', 'Failed to update chunk'), 'error');
             }
         };
 
@@ -8671,14 +8679,14 @@
                 const context = captureChunkMutation(id);
                 // First, save any pending edits in this row
                 await saveRowEdits(id);
-                if (!context.isCurrent()) { throw new Error('Active book changed; restart rendering for the current book.'); }
+                if (!context.isCurrent()) { throw new Error(t('safety.core.editor.restart-render', 'Active book changed; restart rendering for the current book.')); }
 
                 // Skip empty lines
                 const tr = document.querySelector(`tr[data-id="${id}"]`);
                 if (tr) {
                     const textArea = tr.querySelector('.chunk-text');
                     if (textArea && !textArea.value.trim()) {
-                        showToast('Cannot generate audio for an empty line', 'error');
+                        showToast(t('core.editor.empty-line', 'Cannot generate audio for an empty line'), 'error');
                         return;
                     }
                 }
@@ -8687,7 +8695,7 @@
                 if (tr) {
                     const statusBadge = tr.querySelector('.badge');
                     statusBadge.className = 'badge bg-warning';
-                    statusBadge.innerText = 'generating';
+                    statusBadge.innerText = t('core.editor.status.generating', 'generating');
 
                     // Replace button with progress bar
                     const container = tr.querySelector('.d-flex');
@@ -8697,7 +8705,7 @@
                          progressBar.className = 'progress';
                          progressBar.style.width = '100px';
                          progressBar.style.height = '20px';
-                         progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>';
+                         progressBar.innerHTML = `<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>`;
                          container.replaceChild(progressBar, btn);
                     }
                 }
@@ -8707,7 +8715,7 @@
                 // Start polling with incremental updates (no full redraw)
                 setTimeout(() => loadChunks(false), 1000);
             } catch (e) {
-                showActionError("Failed to start generation", e, "Check the audio task status and the line audio before starting again. If refused, review the selected voice and TTS configuration.", "error");
+                showActionError(t('core.editor.generate-failed', 'Failed to start generation'), e, t('core.editor.generate-recovery', 'Check the audio task status and the line audio before starting again. If refused, review the selected voice and TTS configuration.'), "error");
                 loadChunks(true); // Revert UI with full redraw
             }
         };
@@ -8753,7 +8761,7 @@
             document.getElementById('btn-cancel-render').style.display = 'inline-block';
 
             try {
-                if (!batchToken || chunkSnapshotBook !== batchBook) { throw new Error('Reload the Editor before rendering.'); }
+                if (!batchToken || chunkSnapshotBook !== batchBook) { throw new Error(t('core.editor.reload-before-render', 'Reload the Editor before rendering.')); }
                 const chunks = await ensureEditorRenderSnapshot();
                 await refreshDeliveryReview();
                 const selectRows = rows => repairPreview ? getEditorRepairSelection(rows, repairPreview)
@@ -8762,13 +8770,16 @@
                     .filter(c => c.text && c.text.trim());
 
                 if (toProcess.length === 0) {
-                    showToast("No non-empty chunks to render!", 'warning');
+                    showToast(t('core.editor.no-renderable', 'No non-empty chunks to render!'), 'warning');
                     cancelRender(true);
                     return;
                 }
 
                 if (regenerateAll) {
-                    if (!await showConfirm(repairPreview ? `Regenerate these ${toProcess.length} selected lines? Existing audio for this selection will be replaced.` : `Regenerate all ${toProcess.length} non-empty chunks? This will replace existing audio.`, {title: repairPreview ? 'Replace selected audio?' : 'Replace all rendered audio?', actionLabel: repairPreview ? 'Regenerate selection' : 'Regenerate all', danger: true})) {
+                    const confirmBody = repairPreview
+                        ? formatUiSafetyText('safety.core.editor.regenerate-selection', 'Regenerate these {count} selected lines? Existing audio for this selection will be replaced.', {count: toProcess.length})
+                        : formatUiSafetyText('safety.core.editor.regenerate-all', 'Regenerate all {count} non-empty chunks? This will replace existing audio.', {count: toProcess.length});
+                    if (!await showConfirm(confirmBody, {title: repairPreview ? t('safety.core.editor.regenerate-selection.title', 'Replace selected audio?') : t('safety.core.editor.regenerate-all.title', 'Replace all rendered audio?'), actionLabel: repairPreview ? t('core.editor.regenerate-selection', 'Regenerate selection') : t('core.editor.regenerate-all', 'Regenerate all'), danger: true})) {
                         cancelRender(true);
                         return;
                     }
@@ -8782,7 +8793,7 @@
                 }
 
                 if (batchBook !== currentBookFilename || batchToken !== chunkSnapshotBookToken) {
-                    throw new Error('Active book changed; restart rendering for the current book.');
+                    throw new Error(t('safety.core.editor.restart-render', 'Active book changed; restart rendering for the current book.'));
                 }
                 rowsMarked = true;
                 // Mark all chunks as generating in UI
@@ -8795,7 +8806,7 @@
                         const badge = tr.querySelector('.badge');
                         if (badge) {
                             badge.className = 'badge bg-warning';
-                            badge.innerText = 'generating';
+                            badge.innerText = t('core.editor.status.generating', 'generating');
                         }
                     }
                 }
@@ -8813,7 +8824,7 @@
                 // bespoke setInterval loop with console-only error handling.
                 _startPolling('render_batch', async () => {
                     const audio = await API.get('/api/status/audio');
-                    if (typeof audio.running !== 'boolean') { throw new Error('Audio task status is unavailable.'); }
+                    if (typeof audio.running !== 'boolean') { throw new Error(t('core.audio.status-unavailable', 'Audio task status is unavailable.')); }
                     const chunks = await ensureChunkRefresh(false);
                     return { audio, chunks };
                 }, {
@@ -8825,15 +8836,16 @@
                         cancelRender(true);
 
                         if (batchBook !== currentBookFilename || batchToken !== chunkSnapshotBookToken) {
-                            showToast('Render finished for a previous book. Open that book to check its audio.', 'warning');
+                            showToast(t('safety.core.editor.previous-book', 'Render finished for a previous book. Open that book to check its audio.'), 'warning');
                             return;
                         }
                         const selected = updated.chunks.filter(chunk => indices.includes(chunk.id)
                             && selectedUids.get(chunk.id) === chunk.uid);
                         const outcome = getBatchOutcome(selected, indices.length);
-                        const label = outcome.complete ? 'complete' : 'incomplete';
-                        showToast(`Batch ${label}: ${outcome.completed} succeeded, ${outcome.failed} failed, ${outcome.cancelled} cancelled, ${outcome.unfinished} unfinished`,
-                            outcome.complete ? 'success' : 'warning');
+                        const message = outcome.complete
+                            ? t('core.editor.batch.complete', 'Batch complete: {completed} succeeded, {failed} failed, {cancelled} cancelled, {unfinished} unfinished', {completed: outcome.completed, failed: outcome.failed, cancelled: outcome.cancelled, unfinished: outcome.unfinished})
+                            : t('core.editor.batch.incomplete', 'Batch incomplete: {completed} succeeded, {failed} failed, {cancelled} cancelled, {unfinished} unfinished', {completed: outcome.completed, failed: outcome.failed, cancelled: outcome.cancelled, unfinished: outcome.unfinished});
+                        showToast(message, outcome.complete ? 'success' : 'warning');
                         if (outcome.completed > 0) {
                             runDriftCheck(selected.filter(chunk => chunk.status === 'done').map(chunk => chunk.id));
                         }
@@ -8842,7 +8854,7 @@
 
             } catch (e) {
                 console.error(`${label} error:`, e);
-                showActionError("Error during batch rendering", e, "Check the audio task status and refreshed chunks before starting another render; some audio may already have been generated.", "error");
+                showActionError(t('core.editor.batch-failed', 'Error during batch rendering'), e, t('core.editor.batch-recovery', 'Check the audio task status and refreshed chunks before starting another render; some audio may already have been generated.'), "error");
                 cancelRender(true);
                 if (rowsMarked) { await loadChunks(true); }
             }
@@ -8872,7 +8884,7 @@
                  cancelBtn.style.display = '';
                  pollLogs('audio', 'audio-logs', () => { cancelBtn.style.display = 'none'; window.resetExportMasteringView?.(); window.resetExportQualityView?.(); });
              } catch (e) {
-                 showActionError("Merge failed", e, "Check the audio task status and Result output before merging again. Review any source-match refusal below.", "error");
+                 showActionError(t('core.audio.merge-failed', 'Merge failed'), e, t('core.audio.merge-recovery', 'Check the audio task status and Result output before merging again. Review any source-match refusal below.'), "error");
              }
         });
         document.getElementById('btn-cancel-merge').addEventListener('click', async () => {
@@ -8892,13 +8904,13 @@
                 chapter_export: { statusId: 'chapter-status', cancelId: 'chapter-cancel-btn' },
             };
             const config = exports[taskName];
-            if (!config) { throw new Error('Unknown export task'); }
+            if (!config) { throw new Error(t('core.export.unknown-task', 'Unknown export task')); }
             claimTaskStart(taskName);
             const generation = (exportStatusGenerations.get(taskName) || 0) + 1;
             exportStatusGenerations.set(taskName, generation);
             const statusEl = document.getElementById(config.statusId);
             const cancelBtn = config.cancelId ? document.getElementById(config.cancelId) : null;
-            statusEl.textContent = 'Exporting...';
+            statusEl.textContent = t('core.export.in-progress', 'Exporting...');
             if (cancelBtn) { cancelBtn.style.display = ''; }
             _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
                 doneCheck: status => !status.running,
@@ -8912,7 +8924,7 @@
                     if (taskName === 'm4b_export' || taskName === 'chapter_export') { window.resetExportMasteringView?.(); }
                     if (cancelBtn) { cancelBtn.style.display = 'none'; }
                     const result = status.result;
-                    const message = typeof result?.message === 'string' ? result.message : 'Export result unavailable. Check the logs before downloading.';
+                    const message = typeof result?.message === 'string' ? result.message : t('core.export.result-unavailable', 'Export result unavailable. Check the logs before downloading.');
                     const complete = isExportComplete(status);
                     if (!complete) {
                         statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(message)}</span>`;
@@ -8920,7 +8932,7 @@
                         statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(message)}</span>`;
                         loadChapterExports();
                     } else {
-                        statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check me-1"></i>Done!</span>';
+                        statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(t('core.export.done', 'Done!'))}</span>`;
                         const a = document.createElement('a');
                         a.href = `${config.url}?t=${Date.now()}`;
                         a.download = config.filename;
@@ -8940,7 +8952,7 @@
         window.exportAudacity = async () => {
             if (!claimTaskStart('audacity_export')) { return; }
             const statusEl = document.getElementById('audacity-status');
-            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting...</span>';
+            statusEl.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${escapeHtml(t('core.export.in-progress', 'Exporting...'))}</span>`;
 
             try {
                 window.resetExportQualityView?.();
@@ -8949,7 +8961,7 @@
                 pollExport('audacity_export');
             } catch (e) {
                 releaseTaskStart('audacity_export');
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Audacity export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('safety.core.export.audacity-unconfirmed', 'Audacity export start is unconfirmed'), e, t('safety.core.export.audacity-recovery', 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.')))}</span>`;
             }
         };
 
@@ -8972,7 +8984,7 @@
             const select = document.getElementById('chapter-template-preset');
             if (!select) { return; }
             const current = select.value;
-            select.innerHTML = '<option value="">Saved presets</option>';
+            select.innerHTML = `<option value="">${escapeHtml(t('audio.chapters.saved-presets', 'Saved presets'))}</option>`;
             Object.keys(getChapterTemplatePresets()).sort().forEach(name => {
                 const option = document.createElement('option');
                 option.value = name;
@@ -8996,18 +9008,18 @@
                 padding: document.getElementById('chapter-padding').value,
                 selection: document.getElementById('chapter-selection').value});
             const snapshot = getSnapshot();
-            const values = await showPresetEditor({title: 'Save chapter filename preset', includeDescription: false});
+            const values = await showPresetEditor({title: t('core.export.preset.save-title', 'Save chapter filename preset'), includeDescription: false});
             if (!values) { return; }
             if (getSnapshot() !== snapshot) {
-                showToast('The chapter settings or presets changed. Review them before saving.', 'warning');
+                showToast(t('safety.core.export.preset.changed', 'The chapter settings or presets changed. Review them before saving.'), 'warning');
                 return;
             }
             const {name} = values;
             const presets = getChapterTemplatePresets();
             if (Object.hasOwn(presets, name.trim())) {
-                if (!await showConfirm(`Replace chapter filename preset "${name.trim()}"? Its saved template, padding and chapter selection will be replaced.`, {title: 'Replace chapter filename preset?', actionLabel: 'Replace preset', danger: true})) { return; }
+                if (!await showConfirm(formatUiSafetyText('safety.core.export.preset.replace', 'Replace chapter filename preset "{name}"? Its saved template, padding and chapter selection will be replaced.', {name: name.trim()}), {title: t('safety.core.export.preset.replace-title', 'Replace chapter filename preset?'), actionLabel: t('core.export.preset.replace-action', 'Replace preset'), danger: true})) { return; }
                 if (getSnapshot() !== snapshot) {
-                    showToast('The chapter settings or presets changed. Review them before saving.', 'warning');
+                    showToast(t('safety.core.export.preset.changed', 'The chapter settings or presets changed. Review them before saving.'), 'warning');
                     return;
                 }
             }
@@ -9019,8 +9031,8 @@
             if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
                 renderChapterTemplatePresets();
                 document.getElementById('chapter-template-preset').value = name.trim();
-                showToast('Chapter filename preset saved.', 'success');
-            } else { showToast('Could not save preset: browser storage is unavailable.', 'error'); }
+                showToast(t('core.export.preset.saved', 'Chapter filename preset saved.'), 'success');
+            } else { showToast(t('core.export.preset.save-failed', 'Could not save preset: browser storage is unavailable.'), 'error'); }
         };
         let chapterPresetDeletePending = false;
         window.deleteChapterTemplatePreset = async function deleteChapterTemplatePreset() {
@@ -9033,16 +9045,16 @@
             const snapshot = JSON.stringify(presets);
             chapterPresetDeletePending = true;
             try {
-                if (!await showConfirm(`Delete chapter filename preset "${name}"? This cannot be undone unless you exported your presets.`, {title: 'Delete chapter filename preset?', actionLabel: 'Delete preset', danger: true})) { return; }
+                if (!await showConfirm(formatUiSafetyText('safety.core.export.preset.delete', 'Delete chapter filename preset "{name}"? This cannot be undone unless you exported your presets.', {name}), {title: t('safety.core.export.preset.delete-title', 'Delete chapter filename preset?'), actionLabel: t('core.export.preset.delete-action', 'Delete preset'), danger: true})) { return; }
                 if (select.value !== name || JSON.stringify(getChapterTemplatePresets()) !== snapshot) {
-                    showToast('The presets changed. Review the current selection before deleting.', 'warning');
+                    showToast(t('safety.core.export.preset.delete-changed', 'The presets changed. Review the current selection before deleting.'), 'warning');
                     return;
                 }
                 delete presets[name];
                 if (setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(presets))) {
                     renderChapterTemplatePresets();
-                    showToast('Chapter filename preset deleted.', 'success');
-                } else { showToast('Could not delete preset: browser storage is unavailable.', 'error'); }
+                    showToast(t('core.export.preset.deleted', 'Chapter filename preset deleted.'), 'success');
+                } else { showToast(t('core.export.preset.delete-failed', 'Could not delete preset: browser storage is unavailable.'), 'error'); }
             } finally {
                 chapterPresetDeletePending = false;
             }
@@ -9176,7 +9188,7 @@
             chapterPreviewRequest += 1;
             const statusEl = document.getElementById('chapter-status');
             const cancelBtn = document.getElementById('chapter-cancel-btn');
-            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting...</span>';
+            statusEl.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${escapeHtml(t('core.export.in-progress', 'Exporting...'))}</span>`;
             cancelBtn.style.display = '';
             try {
                 const book = currentBookFilename;
