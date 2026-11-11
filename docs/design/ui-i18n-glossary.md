@@ -246,7 +246,7 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Pronunciation | 发音 | 発音 | Pronunciación | The shared lexicon and per-line rules. |
 | Line rule | 行规则 | 行ルール | Regla de línea | One occurrence rule for one line. |
 | Unseeded | 未设置种子 | シード未設定 | sin semilla | A voice setting with no saved seed. |
-| Audio (stage) | 音频 | 音声 | Sonido | The stage label in Home; Spanish uses `Sonido` so the card is not an untranslated copy. Other "audio" compounds use `audio`. |
+| Audio (stage) | 音频 | 音声 | Audio | The stage label in Home. `Audio` is the Spanish word, so it is allowed to equal the English (KEEP_ENGLISH). |
 | Take snapshot | 录音快照 | テイクのスナップショット | Instantánea de toma | A saved immutable copy of one take. |
 | Purge | 永久删除 | 完全に削除 | Eliminar permanentemente | Removes an archive copy; never 删除 only. |
 | Restore (a take) | 恢复 | 復元 | Restaurar | Explicit, dependency-checked selection of saved bytes. |
@@ -257,7 +257,7 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Upload | 上传 | アップロード | Carga | The HTTP upload step; the button stays 上传/アップロード/Enviar. |
 | Verify (delivery) | 验证 | 検証 | Verificar | Byte-level comparison of the remote file. |
 | Benchmark | 基准 | ベンチマーク | Comparativa de rendimiento | The Reports benchmark panel. |
-| Export integrity | 导出完整性 | エクスポート整合性 | Integridad de la exportación | The audio checks before publication. |
+| Export integrity | 导出完整性 | 書き出しの整合性 | Integridad de la exportación | The audio checks before publication. |
 | Chapter-by-chapter export | 逐章导出 | 章ごとの書き出し | Exportación capítulo por capítulo | |
 | Master | 母带 | マスター | Máster | A recorded master audio file. |
 | Stem | 分轨 | ステム | Pista | A per-part recorded stem. |

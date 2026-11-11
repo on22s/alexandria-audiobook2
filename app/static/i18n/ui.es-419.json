@@ -1683,7 +1683,7 @@
   "home.workspace.saved-books-help": "Cargar un libro guardado usa la confirmación existente antes de reemplazar el libro activo. El estado de audio y salida de arriba se refiere al libro seleccionado.",
   "home.workspace.script.entries": "Entradas guardadas: {count}",
   "home.workspace.script.saved": "Anotaciones guardadas del libro seleccionado.",
-  "home.workspace.stage.audio": "Sonido",
+  "home.workspace.stage.audio": "Audio",
   "home.workspace.stage.cast": "Reparto",
   "home.workspace.stage.export": "Exportación",
   "home.workspace.stage.render": "Renderizado/exportación",
