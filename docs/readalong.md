@@ -118,7 +118,23 @@ snapshot separately guards the original TXT identity.
   block, Qwen mode times each block from its own aligned tokens. A block
   whose words speech preparation rewrote is highlighted whole in Qwen
   mode rather than split into sentences inside a rewritten word. No
-  sub-paragraph timing is invented. Every `body` text node (excluding
+  sub-paragraph timing is invented.
+- Ruby (`<ruby>漢字<rt>かんじ</rt></ruby>`) is narrated by one rule shared
+  with script extraction (`app/ruby_text.py`): a kana reading is spoken in
+  place of its base, any other reading is dropped, `<rp>` is never spoken.
+  A paragraph whose spoken ruby differs from its characters is highlighted
+  whole in Qwen mode.
+- A TOC title that script extraction inserted (the chapter body has no
+  heading matching it) is spoken but has no element to highlight: when the
+  text at that point fails to match and the chunk there is exactly that
+  label, the chunk plays without a clip. A heading really in the text
+  always maps first.
+- A chapter split across XHTML files (Calibre-style `split_000.xhtml`)
+  often ends one file and starts the next inside one narration chunk.
+  The span group stays open across the file boundary; Qwen mode times each
+  file's blocks from their own aligned words. Chunk-timed (CPU) mode has
+  no timing inside a chunk to split its audio between files and refuses,
+  naming the file and pointing to Qwen mode. Every `body` text node (excluding
   `head`/`script`/`style`) is counted once in source order — block
   leaves plus container coarsening for mixed direct/block content —
   while markup and existing stable ids are preserved. EPUB2 input is

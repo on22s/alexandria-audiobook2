@@ -10610,6 +10610,17 @@
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_word_map_without_true_trim_is_ambiguous",
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_wrong_audio_rejected"
   ],
+  "test_readaloud_extraction_followups": [
+    "tests.test_readaloud_extraction_followups.ChapterSplitAcrossFilesTests.test_chunk_timed_mode_refuses_with_the_reason",
+    "tests.test_readaloud_extraction_followups.ChapterSplitAcrossFilesTests.test_next_file_with_different_words_refuses",
+    "tests.test_readaloud_extraction_followups.ChapterSplitAcrossFilesTests.test_one_chunk_really_crosses_the_files",
+    "tests.test_readaloud_extraction_followups.ChapterSplitAcrossFilesTests.test_qwen_times_each_file_from_its_own_words",
+    "tests.test_readaloud_extraction_followups.InsertedTocTitleTests.test_heading_in_the_text_still_gets_its_clip",
+    "tests.test_readaloud_extraction_followups.InsertedTocTitleTests.test_title_is_spoken_but_not_highlighted",
+    "tests.test_readaloud_extraction_followups.RubyTests.test_extraction_reads_the_kana_once",
+    "tests.test_readaloud_extraction_followups.RubyTests.test_read_aloud_builds_in_both_modes",
+    "tests.test_readaloud_extraction_followups.RubyTests.test_spoken_form_rule"
+  ],
   "test_readaloud_sync_followups": [
     "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_changed_character_still_refuses",
     "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_cut_inside_a_run_maps",
