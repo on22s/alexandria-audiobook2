@@ -72,6 +72,7 @@ from pass_quality import (split_outer_quote_regions, validate_attribution,
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
+from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import validate_epub_archive
 from epub_package import get_epub_package
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
@@ -436,9 +437,19 @@ class _HTMLTextExtractor(HTMLParser):
         self._skip_stack = []
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
+        # Ruby is narrated by ruby_text's rule (a kana reading replaces its
+        # base), the same rule the read-aloud mapper applies.
+        self._ruby = None
+        self._ruby_fallback_depth = 0
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
+        if tag == RUBY_TAG and self._ruby is None and not self._skip_stack:
+            self._ruby = RubyCollector()
+        elif tag == RUBY_READING_TAG and self._ruby is not None:
+            self._ruby.start_reading()
+        elif tag == RUBY_FALLBACK_TAG and self._ruby is not None:
+            self._ruby_fallback_depth += 1
         if tag in self.SKIP_TAGS:
             self._skip_stack.append(tag)
         elif tag in self.BLOCK_TAGS:
@@ -456,10 +467,25 @@ class _HTMLTextExtractor(HTMLParser):
         tag = tag.lower()
         if tag in self.SKIP_TAGS and self._skip_stack:
             self._skip_stack.pop()
+        if self._ruby is not None:
+            if tag == RUBY_READING_TAG:
+                self._ruby.end_reading()
+            elif tag == RUBY_FALLBACK_TAG and self._ruby_fallback_depth:
+                self._ruby_fallback_depth -= 1
+            elif tag == RUBY_TAG:
+                spoken, self._ruby, self._ruby_fallback_depth = self._ruby.get_spoken_text(), None, 0
+                if spoken:
+                    self._append_text(spoken)
 
     def handle_data(self, data):
-        if self._skip_stack:
+        if self._skip_stack or self._ruby_fallback_depth:
             return
+        if self._ruby is not None:
+            self._ruby.add(data)
+            return
+        self._append_text(data)
+
+    def _append_text(self, data):
         if self._pending_newline and self.parts:
             self.parts.append('\n' * self._pending_newline)
         self._pending_newline = 0
