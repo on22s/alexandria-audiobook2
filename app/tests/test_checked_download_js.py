@@ -6,7 +6,6 @@ under Node with stubbed fetch/showToast; nothing is re-implemented here.
 """
 import json
 import re
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -68,7 +67,6 @@ async function run(fetchImpl) {
 '''
 
 
-@unittest.skipUnless(shutil.which('node'), 'node is required for the UI harness')
 class CheckedDownloadTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
