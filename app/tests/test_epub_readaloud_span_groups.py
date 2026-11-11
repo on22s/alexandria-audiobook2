@@ -167,6 +167,35 @@ class SpanBuildTests(unittest.TestCase):
                       message)
         self.assertNotIn("Before it all", message)
         self.assertNotIn("The test began", message)
+        # The foreign block is named by its tag, so the next report pinpoints it.
+        self.assertIn("outside this chunk (p)", message)
+
+    def test_cpu_mode_wraps_unspoken_dividers_inside_the_chunk(self):
+        # Reported layout (#1844), synthetic text: narration paragraphs, a
+        # status box (title + paragraph) and a divider with no spoken words,
+        # all in one chunk inside the chapter container. The divider never
+        # maps to a chunk, so it is not another chunk's text.
+        for divider in ("* * *", "———", "◇◇◇"):
+            with self.subTest(divider=divider):
+                body = ('<div class="novel-content">'
+                        '<p class="narration">Alpha one.</p>'
+                        f'<p class="separator">{divider}</p>'
+                        '<div class="blue-box"><div class="blue-title">Status</div>'
+                        '<p>Level two.</p></div>'
+                        '<p class="narration">Beta three.</p>'
+                        '<p class="narration">Gamma four.</p></div>')
+                entries = [{"index": 0,
+                            "prepared_text": "Alpha one. Status. Level two. Beta three.",
+                            "start_frame": 0, "end_frame": 96000, "sample_rate": 24000},
+                           {"index": 1, "prepared_text": "Gamma four.", "start_frame": 96000,
+                            "end_frame": 120000, "sample_rate": 24000}]
+                wrappers, clips = self._cpu_wrappers(body, entries)
+                self.assertEqual(1, len(wrappers))
+                self.assertEqual(["p", "p", "div", "p"],
+                                 [child.tag.split("}")[1] for child in wrappers[0]])
+                self.assertEqual(divider, wrappers[0][1].text)
+                self.assertEqual(2, len(clips), clips)
+                self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
 
     def test_cpu_mode_refuses_list_items(self):
         body = '<ul><li>Chapter 3: River Survey (2)</li><li>The test began at dawn.</li></ul>'

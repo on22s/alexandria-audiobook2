@@ -5149,6 +5149,7 @@
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_list_items",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_splits_a_container_holding_the_whole_chapter",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_splits_a_container_whose_last_block_opens_the_chunk",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_wraps_unspoken_dividers_inside_the_chunk",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_book_and_script_apostrophe_styles_may_differ",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_times_each_block_from_its_own_tokens",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_underscore_word_keeps_block_windows",
