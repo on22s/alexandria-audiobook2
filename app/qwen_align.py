@@ -229,7 +229,16 @@ def _is_abbreviation(text, dot_index):
 # may use different apostrophe styles, so apostrophes of every kind are
 # left out of BOTH the expected stream and the token key: letters and
 # digits must still match exactly, only "it's" vs "its" become equal.
+# The underscore is a word character to the regex but not a letter or
+# number to the aligner ("Dark_Knight" reaches us as "DarkKnight"), so it
+# is left out the same way.
 _AA2_WORDS_RE = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
+_STREAM_DROPPED = str.maketrans("", "", "'_")
+
+
+def get_stream_chars(word):
+    """A normalized word as it appears in the aligner stream."""
+    return word.translate(_STREAM_DROPPED)
 
 
 def count_units(text):
@@ -321,7 +330,7 @@ def _get_normalized_stream_detailed(text):
     out_chars, out_starts, out_ends = [], [], []
     for match in _AA2_WORDS_RE.finditer(folded):
         for pos in range(match.start(), match.end()):
-            if folded[pos] == "'":
+            if not get_stream_chars(folded[pos]):
                 continue
             out_chars.append(folded[pos])
             out_starts.append(starts[pos])
@@ -349,7 +358,7 @@ def get_token_key(token_text):
         return ""
     folded = unicodedata.normalize("NFKC", token_text)
     folded = folded.casefold().replace("’", "'").replace("‘", "'")
-    return "".join(_AA2_WORDS_RE.findall(folded)).replace("'", "")
+    return get_stream_chars("".join(_AA2_WORDS_RE.findall(folded)))
 
 
 def _map_tokens_internal(text, tokens):

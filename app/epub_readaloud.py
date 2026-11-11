@@ -51,7 +51,7 @@ import xml.etree.ElementTree as ET
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from epub_package import get_epub_package
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
-from qwen_align import (get_normalized_stream,
+from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
                         require_exact_coverage, split_sentences,
                         cover_ranges)
@@ -1512,8 +1512,8 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         # #1844: this segment is one member of a chunk span group; keep
         # only the aligned tokens inside its word window. A token that
         # straddles the window edge has no honest owner and refuses.
-        # Stream lengths: qwen_align leaves apostrophes out of the stream.
-        group_words = [w.replace("'", "") for i in row["chunk_indexes"]
+        # Stream lengths: qwen_align leaves apostrophes and underscores out.
+        group_words = [get_stream_chars(w) for i in row["chunk_indexes"]
                        for w in get_normalized_words(script_entries[i]["prepared_text"])]
         word_start, word_end = row["span_words"]
         window_start = sum(len(w) for w in group_words[:word_start])
