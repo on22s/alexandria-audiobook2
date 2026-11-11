@@ -153,7 +153,14 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   `test_ui_catalog_parity.KEEP_ENGLISH` with that reason. All three locales
   remain machine drafts.
 
-
+- P10 closes the phased translation: code that composes separately translated
+  sentences now joins them through `joinUiSentences()` in `app-i18n.js`, and its
+  markup counterpart `applyUiSentenceJoins()` collapses the whitespace between
+  two adjacent translated inline elements for zh-CN and ja (English and Spanish
+  keep the space). The README language-selector paragraph is rewritten for the
+  finished coverage, and the native-review procedure is in
+  [ui-i18n-review.md](ui-i18n-review.md). No `_meta.review_status` was flipped:
+  all three locales remain machine drafts.
 
 ## P2 server-refusal keys
 

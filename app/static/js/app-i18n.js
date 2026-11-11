@@ -74,6 +74,71 @@ function getIntlUiLocale(locale = getUiLocale()) {
     return locale === UI_LOCALE_PSEUDO ? UI_LOCALE_DEFAULT : locale;
 }
 
+const UI_CJK_LOCALES = Object.freeze(['zh-CN', 'ja']);
+// A full-width mark already separates an idea from what follows: a closing
+// sentence mark ends one, and an opening bracket starts the next. No ASCII
+// space belongs after the former or before the latter.
+const UI_CJK_SENTENCE_END = /[。！？；：、，．）〕］｝〉》」』】”’〟…‥・]$/;
+const UI_CJK_SENTENCE_START = /^[（〔［｛〈《「『【“‘]/;
+// The authored whitespace between two translated inline elements, kept so a
+// switch back to English restores the rendered space.
+const uiJoinWhitespace = new WeakMap();
+
+function uiSentenceSeparator(left, right, locale = getUiLocale()) {
+    if (!UI_CJK_LOCALES.includes(locale)) {
+        return ' ';
+    }
+    return UI_CJK_SENTENCE_END.test(left) || UI_CJK_SENTENCE_START.test(right) ? '' : ' ';
+}
+
+// The one join rule for separately translated sentences. Chinese and Japanese
+// set a full-width mark tight against the next sentence; English and Latin
+// American Spanish separate sentences with one ASCII space. Empty pieces are
+// dropped, so an optional sentence never leaves a leading or double space.
+function joinUiSentences(parts, locale = getUiLocale()) {
+    const pieces = (Array.isArray(parts) ? parts : [])
+        .filter(part => typeof part === 'string' && part.trim() !== '')
+        .map(part => part.trim());
+    if (pieces.length === 0) {
+        return '';
+    }
+    let text = pieces[0];
+    for (const piece of pieces.slice(1)) {
+        text += uiSentenceSeparator(text, piece, locale) + piece;
+    }
+    return text;
+}
+
+// The markup counterpart of joinUiSentences: two adjacent translated inline
+// elements are separated by a whitespace text node, which renders as a space.
+// Markup splits one sentence into emphasis and label fragments, so punctuation
+// is often absent (a bold label followed by its explanation): for zh-CN and ja
+// the space is collapsed whenever either fragment is written in CJK. An English
+// fallback (a missing catalog) keeps its space, so a failed load cannot glue
+// English words together. Only inline phrase elements are joined; buttons,
+// links and inputs keep their whitespace so unrelated controls never touch.
+const UI_JOINED_TAGS = Object.freeze(['b', 'em', 'i', 'label', 'small', 'span', 'strong']);
+const UI_CJK_SCRIPT = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+
+function applyUiSentenceJoins(root, locale = getUiLocale()) {
+    for (const node of root.querySelectorAll('[data-i18n]')) {
+        if (!UI_JOINED_TAGS.includes(node.tagName.toLowerCase())) { continue; }
+        const gap = node.nextSibling;
+        if (!gap || gap.nodeType !== 3) { continue; }
+        const authored = uiJoinWhitespace.has(gap) ? uiJoinWhitespace.get(gap) : gap.textContent;
+        if (authored.trim() !== '') { continue; }
+        const next = gap.nextSibling;
+        if (!next || next.nodeType !== 1 || !next.hasAttribute('data-i18n')) { continue; }
+        if (!UI_JOINED_TAGS.includes(next.tagName.toLowerCase())) { continue; }
+        if (!uiJoinWhitespace.has(gap)) {
+            uiJoinWhitespace.set(gap, authored);
+        }
+        const cjk = UI_CJK_LOCALES.includes(locale)
+            && (UI_CJK_SCRIPT.test(node.textContent) || UI_CJK_SCRIPT.test(next.textContent));
+        gap.textContent = cjk ? '' : authored;
+    }
+}
+
 function pluralForm(count, locale = getUiLocale()) {
     if (locale === 'zh-CN' || locale === 'ja') {
         return 'many';
@@ -309,6 +374,7 @@ function applyUiCatalog(root = document) {
             node.setAttribute(attribute, t(key, authored.get(attribute), readUiMessageValues(node, authored.get(attribute)), locale));
         }
     }
+    applyUiSentenceJoins(root, locale);
 }
 
 // A keyed node created by JS (preview headings). The English is registered

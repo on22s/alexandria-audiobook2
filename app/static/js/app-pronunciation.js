@@ -305,9 +305,9 @@ function showOccurrencePronunciationPreview(result, prefix) {
         return labels[item.reason] ?? t('pron.decision.needs-review', 'Bypassed: rule needs review');
     });
     const source = {active: t('pron.context.active', 'active engine'), configured: t('pron.context.saved', 'saved settings'), unknown: t('pron.context.unavailable', 'unavailable engine settings')}[result.context_source] ?? t('pron.context.current', 'current settings');
-    setOccurrencePronunciationStatus((decisions.length
+    setOccurrencePronunciationStatus(joinUiSentences([(decisions.length
         ? t('pron.status.preview-result', '{prefix} Preview uses {source}. {decisions}.', {prefix, source, decisions: decisions.join('; ')})
-        : t('pron.status.preview-result-empty', '{prefix} Preview uses {source}.', {prefix, source})) + (result.audio_will_be_detached ? ' ' + t('safety.pron.line_will_detach', 'Saving will make this line pending; any previous audio file is retained.') : ''));
+        : t('pron.status.preview-result-empty', '{prefix} Preview uses {source}.', {prefix, source})), result.audio_will_be_detached ? t('safety.pron.line_will_detach', 'Saving will make this line pending; any previous audio file is retained.') : '']));
 }
 
 async function loadOccurrencePronunciation() {

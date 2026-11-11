@@ -242,10 +242,12 @@
                 status(t('speaker_review.report.running', 'Review in progress. {progress} {phase}', {progress, phase}), 'info');
             }
         } else if (report.status === 'completed') {
-            status(t('speaker_review.report.completed', 'Review finished. {progress} {phase}', {progress, phase})
-                + (errors ? ' ' + t('speaker_review.report.missing', 'Some judgments are missing; inspect each result.') : '')
-                + (Number(report.attempts) >= 40 ? ' ' + t('speaker_review.report.budget', 'The attempt budget is exhausted.') : '')
-                + ' ' + t('speaker_review.report.no-aliases', 'No aliases have been applied automatically.'), errors ? 'warning' : 'success');
+            status(joinUiSentences([
+                t('speaker_review.report.completed', 'Review finished. {progress} {phase}', {progress, phase}),
+                errors ? t('speaker_review.report.missing', 'Some judgments are missing; inspect each result.') : '',
+                Number(report.attempts) >= 40 ? t('speaker_review.report.budget', 'The attempt budget is exhausted.') : '',
+                t('speaker_review.report.no-aliases', 'No aliases have been applied automatically.')
+            ]), errors ? 'warning' : 'success');
         } else {
             status(t('speaker_review.report.unknown', 'Review {status}. {progress} {phase} {error} No aliases have been applied automatically.', {
                 status: report.status || t('speaker_review.report.state-unknown', 'state unknown'),

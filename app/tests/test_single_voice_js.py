@@ -73,7 +73,8 @@ const context={currentBookFilename:'book.txt',_bookSelectionEpoch:1,document,ele
      serverRevision++;return {book_token:snapshotBookToken,revision:revision(serverRevision)};}
    throw new Error('unexpected POST '+url);}}};
 vm.createContext(context);
-context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
+context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
 vm.runInContext(helper+saves+refresh+literalSlice+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+voice,context);
 context.elements=elements;context.document=document;
 context.voiceSaveQueue=vm.runInContext('voiceSaveQueue',context);

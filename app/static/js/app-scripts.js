@@ -926,7 +926,7 @@
                 difference: verification.max_abs_difference ?? '?',
             });
             const original = data.measures || {};
-            summary.textContent += ' ' + t('clone.cleanup.original', 'Original: {duration} s, peak {peak}, clipping {clipping}, silence {silence}. Candidate clipping {cclipping}, silence {csilence}. Original SHA256: {osha}. Candidate SHA256: {csha}. Plan SHA256: {psha}.', {
+            summary.textContent = joinUiSentences([summary.textContent, t('clone.cleanup.original', 'Original: {duration} s, peak {peak}, clipping {clipping}, silence {silence}. Candidate clipping {cclipping}, silence {csilence}. Original SHA256: {osha}. Candidate SHA256: {csha}. Plan SHA256: {psha}.', {
                 duration: original.duration_s ?? '?',
                 peak: original.peak ?? '?',
                 clipping: original.clipping_ratio ?? '?',
@@ -936,7 +936,7 @@
                 osha: data.normalized_original_sha256 ?? '?',
                 csha: data.candidate_sha256 ?? '?',
                 psha: data.plan_digest ?? '?',
-            });
+            })]);
         }
         document.getElementById('clone-cleanup-prepare').onclick = async () => {
             if (_cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }

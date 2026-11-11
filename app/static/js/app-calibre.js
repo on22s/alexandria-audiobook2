@@ -1269,8 +1269,8 @@ async function importCalibreCapture() {
             clearCalibreConfirmationPanel();
             renderCalibreJobPanel();
         } else {
-            job.message = formatUiSafetyText('safety.calibre.import.after-reset', 'Import finished after a view reset. The receipt stays in this pane; the new view was not changed and no book was selected.')
-                + (refreshError ? ' ' + formatUiSafetyText('safety.calibre.import.after-reset-refresh', 'Existing uploads could not be refreshed: {detail}.', {detail: calibreErrorText(refreshError)}) : '');
+            job.message = joinUiSentences([formatUiSafetyText('safety.calibre.import.after-reset', 'Import finished after a view reset. The receipt stays in this pane; the new view was not changed and no book was selected.'),
+                refreshError ? formatUiSafetyText('safety.calibre.import.after-reset-refresh', 'Existing uploads could not be refreshed: {detail}.', {detail: calibreErrorText(refreshError)}) : '']);
             if (job === calibreCaptureJob) {
                 calibreSetJobStatus(job.message);
                 renderCalibreJobPanel();

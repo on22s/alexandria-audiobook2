@@ -328,7 +328,7 @@ assert(first >= 0 && last > first, 'actual formatters must be loaded');
 const totals = {style: {}, innerHTML: ''};
 const ctx = {document: {getElementById: () => totals}, escapeHtml: s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')};
-vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]])); vm.runInContext(source.slice(first, last), ctx);
+vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.joinUiSentences=ctx.joinUiSentences||((parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ')),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]])); vm.runInContext(source.slice(first, last), ctx);
 const stats = JSON.parse(process.argv[2]);
 assert(ctx._formatBookStats(stats).includes(stats.accounting_warning));
 assert(ctx._formatTotalsLine('Totals', stats).includes(stats.accounting_warning));

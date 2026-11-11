@@ -281,6 +281,79 @@ await pending;
 assert.strictEqual(label.textContent,'設定を検索');
 ''')
 
+    def test_sentences_join_without_a_space_after_cjk_punctuation(self):
+        self.run_js(r'''
+context.applyUiLocale('zh-CN');
+assert.strictEqual(context.joinUiSentences(['已保存。','重试导出。']),'已保存。重试导出。');
+assert.strictEqual(context.joinUiSentences(['说明','（可选）']),'说明（可选）');
+assert.strictEqual(context.joinUiSentences(['标题','后文']),'标题 后文');
+assert.strictEqual(context.joinUiSentences(['','已保存。','']),'已保存。');
+context.applyUiLocale('ja');
+assert.strictEqual(context.joinUiSentences(['保存しました。','もう一度お試しください。']),'保存しました。もう一度お試しください。');
+assert.strictEqual(context.joinUiSentences(['タイトル','本文']),'タイトル 本文');
+for(const locale of ['es-419','en']){
+ assert.strictEqual(context.joinUiSentences(['Guardado.','Vuelve a intentarlo.'],locale),'Guardado. Vuelve a intentarlo.');
+ assert.strictEqual(context.joinUiSentences(['Saved.','Try again.'],locale),'Saved. Try again.');
+}
+''')
+
+    def test_a_server_english_fragment_after_a_cjk_sentence_is_also_tight(self):
+        """The full-width stop already ends the sentence, so no ASCII space is
+        inserted before the English fragment; English keeps its own space."""
+        self.run_js(r'''
+context.applyUiLocale('zh-CN');
+assert.strictEqual(context.joinUiSentences(['已保存。','Retry the export.']),'已保存。Retry the export.');
+context.applyUiLocale('ja');
+assert.strictEqual(context.joinUiSentences(['保存しました。','Retry the export.']),'保存しました。Retry the export.');
+context.applyUiLocale('en');
+assert.strictEqual(context.joinUiSentences(['Saved.','Retry the export.']),'Saved. Retry the export.');
+''')
+
+    def test_markup_sentence_joins_collapse_only_for_cjk_and_restore(self):
+        self.run_js(r'''
+const wrap=body.appendChild(new Element('div'));
+const first=wrap.appendChild(new Element('span',{'data-i18n':'setup.finder.label'}));
+first.textContent='Find a setting';
+const gap={nodeType:3,textContent:' ',nextSibling:null};
+const second=wrap.appendChild(new Element('span',{'data-i18n':'setup.finder.opened'}));
+second.textContent='Showing the original setting.';
+first.nextSibling=gap;gap.nextSibling=second;
+const control=wrap.appendChild(new Element('span',{'data-i18n':'setup.finder.label'}));
+control.textContent='Find a setting';
+const controlGap={nodeType:3,textContent:' ',nextSibling:null};
+const button=wrap.appendChild(new Element('button',{'data-i18n':'setup.finder.clear'}));
+button.textContent='Clear';
+control.nextSibling=controlGap;controlGap.nextSibling=button;
+const label=wrap.appendChild(new Element('strong',{'data-i18n':'stage.label'}));
+label.textContent='Quality';
+const labelGap={nodeType:3,textContent:' ',nextSibling:null};
+const help=wrap.appendChild(new Element('span',{'data-i18n':'stage.help'}));
+help.textContent='warning-only clip health';
+label.nextSibling=labelGap;labelGap.nextSibling=help;
+const missingLeft=wrap.appendChild(new Element('span',{'data-i18n':'missing.left'}));
+missingLeft.textContent='Missing left sentence.';
+const missingGap={nodeType:3,textContent:' ',nextSibling:null};
+const missingRight=wrap.appendChild(new Element('span',{'data-i18n':'missing.right'}));
+missingRight.textContent='Missing right sentence.';
+missingLeft.nextSibling=missingGap;missingGap.nextSibling=missingRight;
+setUiCatalog('zh-CN',catalog({'setup.finder.label':'查找设置','setup.finder.opened':'已定位到原始设置。','setup.finder.clear':'清除','stage.label':'质检','stage.help':'——仅警告的检查'}));
+context.applyUiLocale('zh-CN');
+assert.strictEqual(gap.textContent,'');
+assert.strictEqual(labelGap.textContent,'');
+assert.strictEqual(missingGap.textContent,' ');
+assert.strictEqual(controlGap.textContent,' ');
+assert.strictEqual(first.textContent,'查找设置');
+setUiCatalog('ja',catalog({'setup.finder.label':'設定を検索','setup.finder.opened':'元の設定を表示しています。','setup.finder.clear':'クリア','stage.label':'品質チェック','stage.help':'— 警告のみのチェック'}));
+context.applyUiLocale('ja');
+assert.strictEqual(gap.textContent,'');
+assert.strictEqual(labelGap.textContent,'');
+context.applyUiLocale('es-419');
+assert.strictEqual(gap.textContent,' ');
+context.applyUiLocale('en');
+assert.strictEqual(gap.textContent,' ');
+assert.strictEqual(first.textContent,'Find a setting');
+''')
+
     def test_the_locale_storage_key_is_read_in_exactly_one_module(self):
         readers = []
         for path in sorted((STATIC / 'js').glob('*.js')):

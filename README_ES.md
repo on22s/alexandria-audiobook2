@@ -216,20 +216,18 @@ en busca de líneas faltantes y hablantes incorrectos.
 
 ### Paso 1 — Setup
 
-La barra lateral de Setup tiene un selector **Setup UI language (partial coverage)** encima
-del buscador de ajustes. El texto del buscador, incluida su retroalimentación de búsqueda, la acción **Preview changes**,
-el título de la vista previa, la acción **Close preview**, el resumen de valores por defecto y los encabezados de columna
-**Saved**/**Would save** usan el catálogo de mensajes en inglés. Los recuentos
-se conservan. El modo opcional **Pseudo-English** expande esos mensajes para probar el diseño; no es
-una traducción revisada. Los nombres de ajuste, los valores de comparación, los marcadores de valor por defecto,
-la ayuda contextual y las advertencias de seguridad siguen en inglés. La preferencia es local del navegador, se sincroniza entre pestañas
-del mismo origen cuando hay almacenamiento disponible, y nunca cambia el idioma del libro, del TTS ni de la transcripción,
-los valores de configuración ni los identificadores técnicos enviados. Las configuraciones regionales no admitidas
-(incluidos los códigos de idioma RTL) recurren al inglés sin cambiar la dirección del diseño.
-El marcado sin catalogar conserva su texto en inglés o su marcador de posición en lugar de mostrar una clave de mensaje.
-No se promete ninguna configuración regional RTL ni una traducción completa de la interfaz. La base acotada del catálogo
-pedida en el #1732 está completa; las traducciones revisadas y los flujos adicionales son trabajo futuro.
-Consulta [el registro de aceptación](docs/setup-ui-catalog.md) para el alcance, las pruebas y los límites exactos.
+La barra lateral de **Configuración (Setup)** tiene un selector **Idioma de la interfaz** encima
+del buscador de ajustes. Toda la interfaz está traducida al chino simplificado (`zh-CN`),
+al japonés (`ja`) y al español de Latinoamérica (`es-419`); el inglés sigue siendo el idioma predeterminado
+y el texto original. Todos los catálogos son borradores automáticos, así que el selector los marca como
+**(draft)** hasta que un revisor nativo apruebe ese idioma, y un mensaje de seguridad
+traducido conserva el inglés original debajo. **Los registros de tareas y la salida de los subprocesos
+permanecen en inglés en todos los idiomas**: son un registro de depuración que debe seguir siendo fácil de
+buscar con grep (`logs/api/*.log`). El modo opcional **Pseudo-English** expande cada mensaje para probar el
+diseño y no es una traducción. La preferencia es local del navegador, se sincroniza entre pestañas del mismo
+origen cuando hay almacenamiento disponible, y nunca cambia el idioma del libro, del TTS ni de la transcripción,
+ni los valores de configuración ni los identificadores técnicos enviados. Las configuraciones regionales no admitidas,
+incluidos los códigos de idioma RTL, recurren al inglés sin cambiar la dirección del diseño.
 
 Para la solución de problemas, **Setup > Speech engine > Refresh report** muestra el JSON exacto
 del informe de soporte local antes de la descarga. Nada se sube automáticamente. Consulta

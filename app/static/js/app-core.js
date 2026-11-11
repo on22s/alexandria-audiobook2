@@ -4219,8 +4219,8 @@
 
         // One-line "N changes: X text, Y speaker, ..." breakdown for a finished book's badge tooltip.
         function _formatBookStats(stats) {
-            let txt = stats.partial ? t('script.review.stats.partial', '(partial — not every pass completed)') + ' ' : '';
-            txt += t('script.review.stats.changes', '{changes} changes: {text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries', {changes: stats.total_changes, text: stats.text_changed, speaker: stats.speaker_changed, instruct: stats.instruct_changed, added: stats.entries_added, removed: stats.entries_removed});
+            const changes = t('script.review.stats.changes', '{changes} changes: {text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries', {changes: stats.total_changes, text: stats.text_changed, speaker: stats.speaker_changed, instruct: stats.instruct_changed, added: stats.entries_added, removed: stats.entries_removed});
+            let txt = stats.partial ? joinUiSentences([t('script.review.stats.partial', '(partial — not every pass completed)'), changes]) : changes;
             if (stats.narrators_merged) { txt += t('script.review.stats.narrators-merged', ', {count} narrators merged', {count: stats.narrators_merged}); }
             if (stats.speakers_merged) { txt += t('script.review.stats.speakers-merged', ', {count} speakers merged', {count: stats.speakers_merged}); }
             if (stats.batches_failed) { txt += t('script.review.stats.batches-failed', ', {count} batch(es) failed', {count: stats.batches_failed}); }
@@ -4232,7 +4232,7 @@
         function _formatTotalsLine(label, totals) {
             if (!totals || !totals.books_done) { return t('script.review.totals.none', '{label}: no books finished yet', {label}); }
             let txt = t('script.review.totals.line', '{label}: {books} book(s), {changes} total change(s) ({text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries)', {label, books: totals.books_done, changes: totals.total_changes, text: totals.text_changed, speaker: totals.speaker_changed, instruct: totals.instruct_changed, added: totals.entries_added, removed: totals.entries_removed});
-            if (totals.batches_failed) { txt += ' ' + t('script.review.totals.batches-failed', '— {count} batch(es) failed', {count: totals.batches_failed}); }
+            if (totals.batches_failed) { txt = joinUiSentences([txt, t('script.review.totals.batches-failed', '— {count} batch(es) failed', {count: totals.batches_failed})]); }
             if (totals.accounting_warning) { txt += ` — ${totals.accounting_warning}`; }
             return txt;
         }
@@ -4854,7 +4854,7 @@
                                 </div>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${t('voice.card.recover', 'Recover persona')}</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${t('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
-                                <div class="small text-muted">${voice.version_id && voice.state_stale ? t('voice.card.state-needs-generation', 'State persona needs generation for the current script.') + ' ' : ''}${escapeHtml(t('voice.card.review-line', 'Persona review: {persona} · Voice review: {voice}', {persona: config.persona_status || t('voice.card.review-unreviewed', 'unreviewed'), voice: config.voice_status || t('voice.card.review-unassigned', 'unassigned')}))}</div>
+                                <div class="small text-muted">${escapeHtml(joinUiSentences([voice.version_id && voice.state_stale ? t('voice.card.state-needs-generation', 'State persona needs generation for the current script.') : '', t('voice.card.review-line', 'Persona review: {persona} · Voice review: {voice}', {persona: config.persona_status || t('voice.card.review-unreviewed', 'unreviewed'), voice: config.voice_status || t('voice.card.review-unassigned', 'unassigned')})]))}</div>
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${escapeHtml(t('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')}))} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${t('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
                                 <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help">
                                     <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${t('voice.card.approve-persona', 'Approve persona')}</button>
@@ -6169,7 +6169,7 @@
                         <span class="d-block"><strong>${escapeHtml(t('voice.suggest.trait_match', 'Trait match:'))}</strong> ${escapeHtml(traitText)} <span class="text-muted">${escapeHtml(t('voice.suggest.confidence', '(gender {gender}, age {age})', {gender: sugg.gender_confidence || 'unknown', age: sugg.age_confidence || 'unknown'}))}</span></span>
                         ${sugg.trait_evidence ? `<span class="text-muted d-block">${escapeHtml(sugg.trait_evidence)}</span>` : ''}
                         ${traitWarning ? `<span class="text-warning d-block">${escapeHtml(traitWarning)}</span>` : ''}
-                        <span class="d-block ${sugg.reused ? 'text-warning' : 'text-success'}">${escapeHtml(reuseText)}${sugg.forced_reuse ? ' ' + escapeHtml(t('voice.suggest.exhausted', '(candidate pool exhausted)')) : ''}</span>
+                        <span class="d-block ${sugg.reused ? 'text-warning' : 'text-success'}">${escapeHtml(joinUiSentences([reuseText, sugg.forced_reuse ? t('voice.suggest.exhausted', '(candidate pool exhausted)') : '']))}</span>
                         ${sugg.reason ? `<span class="text-muted d-block">${escapeHtml(sugg.reason)}</span>` : ''}
                     </div>
                     <button class="btn btn-sm btn-success flex-shrink-0" data-voice="${escapeHtml(name)}" onclick="applyVoiceSuggestion(this.dataset.voice)"><i class="fas fa-check me-1"></i>${escapeHtml(t('voice.suggest.apply', 'Apply'))}</button>
@@ -6536,7 +6536,7 @@
                 const skipped = characters.length - nc - ns;
                 let msg = t('voice.cast.saved', 'Saved {count} to cast', {count: nc});
                 if (ns) { msg += ns === 1 ? t('voice.cast.saved-shared.one', ', {count} shared', {count: ns}) : t('voice.cast.saved-shared.many', ', {count} shared', {count: ns}); }
-                if (skipped > 0) { msg += ' ' + t('voice.cast.saved-skipped', '({count} skipped — not configured)', {count: skipped}); }
+                if (skipped > 0) { msg = joinUiSentences([msg, t('voice.cast.saved-skipped', '({count} skipped — not configured)', {count: skipped})]); }
                 setCastStatus(`<i class="fas fa-check text-success me-1"></i>${msg}`);
             } catch (e) { setCastStatus(escapeHtml(getActionErrorMessage(t('voice.cast.save_failed', 'Saving voices to the cast failed'), e, t('safety.voice.cast_save_recovery', 'Refresh the cast library and check the saved voices before saving them again.'))), true); }
         }

@@ -105,9 +105,9 @@ function renderEditorTakeSnapshots(result, book, identity) {
                 : t('take.evidence.historical-no-reason', 'Historical speech evidence: {label}. Not a current quality approval.', {label: speechLabel || t('take.evidence.unknown-status', 'Unknown status')}))
             : speech?.state === 'unavailable' ? t('take.evidence.invalid', 'Saved speech evidence is invalid or does not bind to this archived audio; unavailable, not clean.')
                 : t('take.evidence.none', 'No recorded speech evidence; not checked, not clean.');
-        evidence.textContent = archive + ' ' + speechText + ' ' + (record.has_restore_evidence
+        evidence.textContent = joinUiSentences([archive, speechText, (record.has_restore_evidence
             ? t('take.evidence.restore-present', 'Restoration metadata exists; current compatibility is checked only on explicit restore.')
-            : t('take.evidence.restore-missing', 'Restoration evidence is unavailable; audition only.'));
+            : t('take.evidence.restore-missing', 'Restoration evidence is unavailable; audition only.'))]);
         if (record.state !== 'ready') {
             evidence.textContent = t('take.evidence.unavailable', 'Archive {version} · {state}. Not available for audition or restoration. Recorded metadata does not verify that a complete audio copy is present.', {version: record.version, state: takeStateLabel(record.state)});
         }

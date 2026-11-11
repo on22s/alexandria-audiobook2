@@ -28,10 +28,11 @@ async function loadExportMasteringReports() {
             card.textContent = t('audio.mastering.card', '{file}: before {before}; after {after}. {mode} processing. Targets: {loudness} LUFS, {peak} dBTP. SHA-256 {sha}.', {file: report.file, before: show(report.before), after: show(report.after), mode: report.mode, loudness: report.settings.loudness, peak: report.settings.true_peak, sha: report.sha256});
             document.getElementById('export-mastering-reports').appendChild(card);
         }
-        document.getElementById('export-mastering-status').textContent = result.reports.length
+        const status = document.getElementById('export-mastering-status');
+        status.textContent = result.reports.length
             ? t('audio.mastering.verified', '{count} verified export measurement(s). These are measured results, not a distribution compliance certificate.', {count: result.reports.length})
             : t('audio.mastering.none', 'No verified measurements for this book. Export with mastering enabled, wait for completion and retry. Reports are retained for this app session.');
-        if (result.unavailable) { document.getElementById('export-mastering-status').textContent += ' ' + t('audio.mastering.omitted', '{count} report(s) omitted because output files changed or are unavailable.', {count: result.unavailable}); }
+        if (result.unavailable) { status.textContent = joinUiSentences([status.textContent, t('audio.mastering.omitted', '{count} report(s) omitted because output files changed or are unavailable.', {count: result.unavailable})]); }
     } catch (error) {
         if (epoch === exportMasteringEpoch) {
             document.getElementById('export-mastering-status').textContent = t('audio.mastering.unavailable', 'Measurements unavailable. Existing audio has not been changed.');

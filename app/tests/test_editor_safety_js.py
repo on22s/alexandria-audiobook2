@@ -506,7 +506,8 @@ const context = {
     localStorage:{getItem(){return null;},setItem(){},removeItem(){}}
 };
 context.window = context;
-vm.createContext(context);context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);
+vm.createContext(context);context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);
 const run = code => vm.runInContext(code, context);
 function load(startMarker, endMarker) {
     const start = source.indexOf(startMarker);

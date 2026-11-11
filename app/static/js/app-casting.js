@@ -450,8 +450,8 @@
         const modeList = getModeVoices();
         const reviewed = modeList.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
         const unknown = parseQuery(el('search').value).unknown;
-        status((modeList.length === 1 ? t('casting.summary.showing.one', 'Showing {shown} of {total} ({voices} voice, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed}) : t('casting.summary.showing.many', 'Showing {shown} of {total} ({voices} voices, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed}))
-               + (unknown.length ? ' ' + t('casting.summary.unknown-field', 'Unknown field: {fields}', {fields: unknown.join(', ')}) : ''));
+        status(joinUiSentences([(modeList.length === 1 ? t('casting.summary.showing.one', 'Showing {shown} of {total} ({voices} voice, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed}) : t('casting.summary.showing.many', 'Showing {shown} of {total} ({voices} voices, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed})),
+               unknown.length ? t('casting.summary.unknown-field', 'Unknown field: {fields}', {fields: unknown.join(', ')}) : '']));
         if (!modeList.length) {
             el('results').replaceChildren(node('p', s.mode === 'trashed' ? t('casting.results.trash-empty', 'Trash is empty.')
                 : t('casting.results.no-active', 'No active voices. Check Trash, generate personas in the Voices step, or save voices in the Designer.'), 'text-muted mb-0'));

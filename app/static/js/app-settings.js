@@ -34,7 +34,7 @@ function applyUiLocaleAndSearchStatus(locale) {
 }
 
 function renderSetupSearchStatus() {
-    const text = setupSearchStatus.map(message => getSetupFinderMessage(message.form, message.values)).join(' ');
+    const text = joinUiSentences(setupSearchStatus.map(message => getSetupFinderMessage(message.form, message.values)));
     applySystemStatusText('setup-settings-search-status', text);
 }
 
@@ -230,11 +230,11 @@ async function previewSetupChanges() {
         if (JSON.stringify(getConfigPreviewProposal()) !== captured) { invalidateSetupPreview(); return; }
         if (!isSetupPreviewValid(data)) { throw new Error(t('setup.preview.incomplete', 'Incomplete settings preview')); }
         const baseline = data.baseline === 'read' && !data.warning_count ? ''
-            : data.baseline === 'missing' ? t('setup.preview.baseline_missing', 'No saved configuration was found.') + ' '
-            : t('setup.preview.baseline_damaged', 'Saved configuration is damaged or incomplete; recovered/default values are shown.') + ' ';
-        applySystemStatusText('setup-preview-status', baseline + t('setup.preview.summary',
+            : data.baseline === 'missing' ? t('setup.preview.baseline_missing', 'No saved configuration was found.')
+            : t('setup.preview.baseline_damaged', 'Saved configuration is damaged or incomplete; recovered/default values are shown.');
+        applySystemStatusText('setup-preview-status', joinUiSentences([baseline, t('setup.preview.summary',
             '{changes} supported settings would change; {defaults} missing settings would be filled with defaults. No settings were applied.',
-            {changes: data.changes.length, defaults: data.defaults.length}));
+            {changes: data.changes.length, defaults: data.defaults.length})]));
         document.getElementById('setup-preview-active').textContent = t('setup.preview.active', 'Active model after Save: {model}', {
             model: data.active_after === 'local' ? t('setup.preview.local', 'Local') : t('setup.preview.remote', 'Remote')});
         document.getElementById('setup-preview-notice').textContent = data.notice;
