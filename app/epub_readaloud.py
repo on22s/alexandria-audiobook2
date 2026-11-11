@@ -51,7 +51,7 @@ import xml.etree.ElementTree as ET
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
 from epub_package import get_epub_package
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
-from qwen_align import (get_normalized_stream,
+from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
                         require_exact_coverage, split_sentences,
                         cover_ranges)
@@ -1343,6 +1343,9 @@ def _validated_aligned_row(aligned_rows, index):
 
 _SPAN_WRAP_REFUSED_TAGS = {'li', 'dt', 'dd', 'tr', 'td', 'th', 'caption', 'thead', 'tbody',
                            'tfoot', 'figcaption', 'summary', 'legend', 'option'}
+# Containers whose content model accepts a <div> wrapper.
+_SPAN_WRAP_PARENT_TAGS = {'body', 'div', 'section', 'article', 'main', 'header', 'footer',
+                          'aside', 'blockquote', 'figure', 'nav', 'fieldset'}
 
 
 def _apply_span_group_wrappers(root, segments, mapping, assigned):
@@ -1351,10 +1354,23 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
     CPU (chunk-timed) mode only (#1844): the group's blocks are
     highlighted together for the group's real chunk frames; nothing
     inside the group is timed. Mutates ``root`` (wrapper insertion) and
-    reserves the wrapper id in ``assigned``. Blocks that are not
-    consecutive siblings, or that cannot legally sit in a div, refuse.
+    reserves the wrapper id in ``assigned``. The wrapper goes inside the
+    blocks' nearest common container, around the consecutive children
+    that hold them (so a heading nested in its own div still groups with
+    the next paragraph). It refuses when that range would also hold text
+    from outside the group, or the container cannot take a div.
     """
     parents = {child: parent for parent in root.iter() for child in parent}
+    segment_elements = {id(segment["element"]) for segment in segments}
+
+    def _chain(el):
+        chain = [el]
+        while chain[-1] in parents:
+            chain.append(parents[chain[-1]])
+        return chain[::-1]
+
+    def _segment_ids_under(el):
+        return {id(node) for node in el.iter() if id(node) in segment_elements}
     out = []
     index = 0
     while index < len(mapping):
@@ -1368,14 +1384,26 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
             group.append(mapping[index + len(group)])
         index += len(group)
         elements = [segments[member["segment_index"]]["element"] for member in group]
-        parent = parents.get(elements[0])
+        chains = [_chain(el) for el in elements]
+        depth = 0
+        while (all(len(chain) > depth + 1 for chain in chains)
+               and len({id(chain[depth]) for chain in chains}) == 1):
+            depth += 1
+        parent = chains[0][depth - 1] if depth else None
         children = list(parent) if parent is not None else []
-        positions = [children.index(el) if el in children else -1 for el in elements]
+        tops = [chain[depth] for chain in chains]
+        positions = [children.index(top) if top in children else -1 for top in tops]
+        wrapped = set()
+        if parent is not None and -1 not in positions:
+            for child in children[positions[0]:positions[-1] + 1]:
+                wrapped |= _segment_ids_under(child)
         if (parent is None or -1 in positions
                 or positions != sorted(positions)
-                or any(_local(el.tag) in _SPAN_WRAP_REFUSED_TAGS for el in elements)):
+                or _local(parent.tag) not in _SPAN_WRAP_PARENT_TAGS
+                or wrapped != {id(el) for el in elements}
+                or any(_local(top.tag) in _SPAN_WRAP_REFUSED_TAGS for top in tops)):
             raise ValueError(
-                f"One script chunk spans multiple spine segments that are not sibling blocks "
+                f"One script chunk spans multiple spine segments that cannot be grouped under one wrapper "
                 f"(first spine text {row['text'][:80]!r}); re-split the chunk or use Qwen mode.")
         n = 1
         while f"aa2-g-{n:04d}" in assigned:
@@ -1484,8 +1512,8 @@ def _sentence_rows_for_segment(segment, row, script_entries, aligned_rows,
         # #1844: this segment is one member of a chunk span group; keep
         # only the aligned tokens inside its word window. A token that
         # straddles the window edge has no honest owner and refuses.
-        # Stream lengths: qwen_align leaves apostrophes out of the stream.
-        group_words = [w.replace("'", "") for i in row["chunk_indexes"]
+        # Stream lengths: qwen_align leaves apostrophes and underscores out.
+        group_words = [get_stream_chars(w) for i in row["chunk_indexes"]
                        for w in get_normalized_words(script_entries[i]["prepared_text"])]
         word_start, word_end = row["span_words"]
         window_start = sum(len(w) for w in group_words[:word_start])

@@ -130,9 +130,10 @@ class TokenValidationTests(unittest.TestCase):
         # slicing converts word offsets to stream offsets this way.
         from epub_readaloud import get_normalized_words
         for text in ("Hello Synthetic World.", "Dr. Smith's 3.50 euros!",
-                     "Dr. Smith’s turn", "你好世界。", "Café — naïve test"):
+                     "Dr. Smith’s turn", "你好世界。", "Café — naïve test",
+                     "Her handle was Dark_Knight."):
             self.assertEqual(
-                "".join(get_normalized_words(text)).replace("'", ""),
+                "".join(get_normalized_words(text)).replace("'", "").replace("_", ""),
                 qa.get_normalized_stream(text)[0])
 
     def test_curly_apostrophe_matches_aligner_drop(self):
@@ -151,6 +152,26 @@ class TokenValidationTests(unittest.TestCase):
         # The dropped apostrophe is shared by the stream and the token key.
         self.assertEqual("ones", qa.get_normalized_stream(text)[0])
         self.assertEqual("ones", qa.get_token_key("ones"))
+
+    def test_underscore_words_match_aligner_drop(self):
+        # The upstream is_kept_char keeps letters (L*), numbers (N*) and the
+        # ASCII apostrophe only, so "Dark_Knight" reaches us as "DarkKnight"
+        # and a "____" blank vanishes. Speech preparation leaves underscores
+        # in the spoken text, so the stream must leave them out too.
+        import unicodedata
+
+        def upstream_clean(word):
+            return "".join(ch for ch in word
+                           if ch == "'" or unicodedata.category(ch)[0] in "LN")
+
+        for text in ("Her handle was Dark_Knight.", "[Skill_Lv_3] gained.",
+                     "Name: ____ said hi.", "snake_case."):
+            with self.subTest(text=text):
+                words = [upstream_clean(w) for w in text.split()]
+                tokens = [{"text": w, "start_time": i * 0.4, "end_time": (i + 1) * 0.4}
+                          for i, w in enumerate(word for word in words if word)]
+                spans = qa.require_exact_coverage(text, tokens)
+                self.assertEqual(len(tokens), len(spans))
 
     def test_ascii_apostrophe_token_matches_either_text_style(self):
         # The aligner keeps an ASCII apostrophe ("one's") but drops a curly

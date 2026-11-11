@@ -1823,7 +1823,7 @@ class DeepSeekV3Tests(_FixtureMixin):
             words = _WORDS_RE.findall(folded)
             # Apostrophes are left out of the stream (#1844: the aligner
             # drops curly ones and keeps ASCII ones).
-            self.assertEqual("".join(words).casefold().replace("'", ""), stream,
+            self.assertEqual("".join(words).casefold().replace("'", "").replace("_", ""), stream,
                              "stream disagrees with AA2 words for %r" % text)
 
     def test_decoder_first_tie_oracle(self):
@@ -1848,7 +1848,7 @@ class NormalizationFollowupTests(_FixtureMixin):
         import unicodedata as _ud
         folded = _ud.normalize("NFKC", text or "").casefold()
         folded = folded.replace("’", "'").replace("‘", "'")
-        return "".join(_re.findall(r"\w+(?:['’]\w+)*", folded)).replace("'", "")
+        return "".join(_re.findall(r"\w+(?:['’]\w+)*", folded)).replace("'", "").replace("_", "")
 
     def test_contraction_key_equals_stream(self):
         import qwen_align as qa

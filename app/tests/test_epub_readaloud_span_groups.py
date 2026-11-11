@@ -87,11 +87,45 @@ class SpanBuildTests(unittest.TestCase):
         self.assertEqual(1, len(clips))
         self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
 
-    def test_cpu_mode_refuses_non_sibling_blocks(self):
-        body = '<header><h2>Chapter 3: River Survey (2)</h2></header><p>The test began at dawn.</p>'
-        with self.assertRaisesRegex(ValueError, "not sibling blocks"):
-            build_epub_readaloud(retained_epub_bytes=_source_epub(body), audio_bytes=b'\xff\xfbmp3',
-                                 audio_filename='audiobook.mp3', script_entries=SPANNING)
+    def _cpu_wrappers(self, body, entries=SPANNING):
+        result, _report = build_epub_readaloud(
+            retained_epub_bytes=_source_epub(body), audio_bytes=b'\xff\xfbmp3',
+            audio_filename='audiobook.mp3', script_entries=entries)
+        validate_epub_readaloud(result)
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            document = ET.fromstring(archive.read('OEBPS/ch1.xhtml'))
+            smil = ET.fromstring(archive.read('OEBPS/ch1.smil'))
+        wrappers = [div for div in document.iter(XHTML + "div") if div.get("id", "").startswith("aa2-g-")]
+        return wrappers, _par_clips(smil)
+
+    def test_cpu_mode_groups_heading_nested_in_its_own_container(self):
+        # Reported layout shape (#1844): the heading sits in a wrapper of
+        # its own, so heading and paragraph are cousins, not siblings.
+        for wrap in ("header", "div"):
+            with self.subTest(wrap=wrap):
+                body = (f'<{wrap} class="t"><h2>Chapter 3: River Survey (2)</h2></{wrap}>'
+                        '<p>The test began at dawn.</p>')
+                wrappers, clips = self._cpu_wrappers(body)
+                self.assertEqual(1, len(wrappers))
+                self.assertEqual([wrap, "p"], [child.tag.split("}")[1] for child in wrappers[0]])
+                self.assertEqual(1, len(clips))
+                self.assertTrue(clips[0][0].endswith("#" + wrappers[0].get("id")), clips)
+
+    def test_cpu_mode_refuses_when_wrapper_would_take_other_text(self):
+        # The heading's container also holds the previous chunk's text, so
+        # no wrapper can cover only this chunk's blocks.
+        body = ('<div><p>Before it all.</p><h2>Chapter 3: River Survey (2)</h2></div>'
+                '<p>The test began at dawn.</p>')
+        entries = [{"index": 0, "prepared_text": "Before it all.", "start_frame": 0,
+                    "end_frame": 24000, "sample_rate": 24000},
+                   dict(SPANNING[0], index=1, start_frame=24000, end_frame=120000)]
+        with self.assertRaisesRegex(ValueError, "cannot be grouped under one wrapper"):
+            self._cpu_wrappers(body, entries)
+
+    def test_cpu_mode_refuses_list_items(self):
+        body = '<ul><li>Chapter 3: River Survey (2)</li><li>The test began at dawn.</li></ul>'
+        with self.assertRaisesRegex(ValueError, "cannot be grouped under one wrapper"):
+            self._cpu_wrappers(body)
 
     def test_qwen_mode_times_each_block_from_its_own_tokens(self):
         words = ["Chapter", "3", "River", "Survey", "2", "The", "test", "began", "at", "dawn"]
@@ -129,6 +163,29 @@ class SpanBuildTests(unittest.TestCase):
         clips = _par_clips(smil)
         self.assertEqual(2, len(clips), clips)
         self.assertEqual(clips[0][2], clips[1][1], clips)
+
+    def test_qwen_mode_underscore_word_keeps_block_windows(self):
+        # The aligner drops "_" ("Lv_3" -> "Lv3"); if the block windows
+        # counted it, the heading would claim the paragraph's first token.
+        body = '<h2>Skill Lv_3</h2><p>The test began.</p>'
+        entries = [{"index": 0, "prepared_text": "Skill Lv_3. The test began.",
+                    "start_frame": 0, "end_frame": 72000, "sample_rate": 24000}]
+        words = ["Skill", "Lv3", "The", "test", "began"]
+        tokens = [{"text": w, "start_time": i * 0.5, "end_time": (i + 1) * 0.5}
+                  for i, w in enumerate(words)]
+        result, _report = build_epub_readaloud(
+            retained_epub_bytes=_source_epub(body), audio_bytes=b'\xff\xfbmp3',
+            audio_filename='audiobook.mp3', script_entries=entries,
+            aligned_rows=[{"tokens": tokens}])
+        validate_epub_readaloud(result)
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            smil = ET.fromstring(archive.read('OEBPS/ch1.smil'))
+        clips = _par_clips(smil)
+        self.assertEqual(2, len(clips), clips)
+        # Heading is tokens 0-1 (ends 1.0 s); paragraph starts there.
+        self.assertEqual(clips[0][2], clips[1][1], clips)
+        self.assertNotEqual(clips[0][1], clips[1][1], clips)
+
 
 if __name__ == "__main__":
     unittest.main()
