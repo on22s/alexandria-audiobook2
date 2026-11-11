@@ -10065,7 +10065,12 @@
     "tests.test_qwen_align.TokenValidationTests.test_overlap_and_saturation_rejected",
     "tests.test_qwen_align.TokenValidationTests.test_partial_coverage_still_rejected_with_apostrophes",
     "tests.test_qwen_align.TokenValidationTests.test_punctuation_and_case_insensitive",
-    "tests.test_qwen_align.TokenValidationTests.test_reversed_and_zero_length_rejected",
+    "tests.test_qwen_align.TokenValidationTests.test_reversed_rejected",
+    "tests.test_qwen_align.TokenValidationTests.test_sentence_of_only_zero_length_words_still_refuses",
+    "tests.test_qwen_align.TokenValidationTests.test_upstream_zero_length_patterns_accepted",
+    "tests.test_qwen_align.TokenValidationTests.test_zero_length_does_not_excuse_other_faults",
+    "tests.test_qwen_align.TokenValidationTests.test_zero_length_kept_as_a_point",
+    "tests.test_qwen_align.TokenValidationTests.test_zero_length_word_inside_a_sentence_keeps_real_bounds",
     "tests.test_qwen_align.WindowPlannerTests.test_bool_duration_rejected",
     "tests.test_qwen_align.WindowPlannerTests.test_long_row_windows_stay_within_limit",
     "tests.test_qwen_align.WindowPlannerTests.test_oversized_single_sentence_refused",
@@ -10635,7 +10640,8 @@
     "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_acronym_then_sentence_starter_splits",
     "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_existing_boundaries_unchanged",
     "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_nonterminal_forms_stay_whole",
-    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_split_reaches_the_packaged_smil"
+    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_split_reaches_the_packaged_smil",
+    "tests.test_readaloud_sync_followups.ZeroLengthTokenBuildTests.test_book_builds_with_zero_length_words"
   ],
   "test_reasoning_budget": [
     "tests.test_reasoning_budget.NullContentTest.test_a_null_content_response_does_not_raise",
