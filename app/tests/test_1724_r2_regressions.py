@@ -363,7 +363,7 @@ function el(id){return els[id]||(els[id]={id,style:{display:'none'},hidden:false
   replaceChildren(){},appendChild(){},append(){},addEventListener(){},
   matches:()=>false,setAttribute(){},focus(){},scrollIntoView(){},querySelector(){return null;},querySelectorAll:()=>[],closest:()=>null});}
 const ctx={document:{getElementById:el,createElement:()=>el('x-'+Math.random())},currentTabName:'home',showToast(){},isEditorEditPending:()=>false,activateTab(name){ctx.currentTabName=name;
-  for(const id of ['script-tab','voices-tab','editor-tab']){els[id].style.display=(id===name+'-tab')?'block':'none';}},openConfigField(){},console};
+  for(const id of ['script-tab','voices-tab','editor-tab']){els[id].style.display=(id===name+'-tab')?'block':'none';}},openConfigField(){},console,t:(key,english)=>english};
 els['script-tab']=el('script-tab');els['voices-tab']=el('voices-tab');els['editor-tab']=el('editor-tab');
 els['script-tab'].style.display='none';els['voices-tab'].style.display='none';els['editor-tab'].style.display='none';
 els['task-guide-feedback']=el('task-guide-feedback');

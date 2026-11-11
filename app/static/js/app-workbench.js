@@ -36,19 +36,19 @@
                 const select = document.getElementById('dsb-project-select');
                 const selected = selectName || select.value;
                 const missing = selected && !projects.some(project => project.name === selected);
-                select.innerHTML = '<option value="">-- Select project --</option>' +
+                select.innerHTML = '<option value="">' + t('workbench.projects.select-empty', '-- Select project --') + '</option>' +
                     projects.map(p => getEscapedHtml`<option value="${p.name}">${p.name} (${p.done_count}/${p.sample_count})</option>`).join('') +
-                    (missing ? getEscapedHtml`<option value="${selected}">${selected} (not in current list)</option>` : '');
+                    (missing ? getEscapedHtml`<option value="${selected}">${selected} (${t('workbench.projects.not-in-list', 'not in current list')})</option>` : '');
                 select.value = selected;
                 document.getElementById('dsb-project-list-status').textContent = missing
-                    ? 'The selected dataset is not in the latest project list. Its loaded rows have been kept; check the project before saving.' : '';
+                    ? t('workbench.projects.not-in-latest', 'The selected dataset is not in the latest project list. Its loaded rows have been kept; check the project before saving.') : '';
                 if (selectName) {
                     select.value = selectName;
                     await dsbOnProjectChange();
                 }
             } catch (e) {
                 if (sequence !== dsbProjectListSequence) { return; }
-                document.getElementById('dsb-project-list-status').innerHTML = '<span>Dataset project list could not be refreshed. Showing the last available list. Check that Alexandria is running, then </span><button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbLoadProjects()">Retry project list</button>';
+                document.getElementById('dsb-project-list-status').innerHTML = '<span>' + t('workbench.projects.refresh-failed', 'Dataset project list could not be refreshed. Showing the last available list. Check that Alexandria is running, then ') + '</span><button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbLoadProjects()">' + t('workbench.projects.retry', 'Retry project list') + '</button>';
                 console.error('Failed to load projects:', e);
             }
         }
@@ -57,7 +57,7 @@
             const select = document.getElementById('dsb-project-select');
             if (dsbBatchRunning && select.value !== dsbCurrentProject) {
                 select.value = dsbCurrentProject;
-                showToast(`A batch is running in project "${dsbCurrentProject}". Wait for it to finish or cancel it before changing projects.`, 'warning');
+                showToast(t('workbench.projects.batch-running', 'A batch is running in project "{project}". Wait for it to finish or cancel it before changing projects.', {project: dsbCurrentProject}), 'warning');
                 return false;
             }
             return true;
@@ -105,7 +105,7 @@
                 if (loadSequence !== dsbProjectLoadSequence) { return; }
                 if (dsbPendingProjectLoad === loadSequence) { dsbPendingProjectLoad = null; }
                 document.getElementById('dsb-form-area').style.display = '';
-                showActionError('Pending dataset edits could not be saved', error, 'Keep the current project open. Resolve the row-save error before reloading or switching projects.');
+                showActionError(t('workbench.project.save-pending', 'Pending dataset edits could not be saved'), error, t('workbench.project.save-pending.guidance', 'Keep the current project open. Resolve the row-save error before reloading or switching projects.'));
                 return;
             }
             try {
@@ -141,7 +141,7 @@
                 // real samples on disk with an empty row, and do NOT dsbAddRow.
                 console.error('Failed to load project:', e);
                 const retained = dsbLoadedProject === name;
-                document.getElementById('dsb-project-load-status').innerHTML = getEscapedHtml`<div class="alert alert-warning small py-2">${retained ? 'Could not refresh dataset "' + name + '". Showing the last loaded version.' : 'Could not load dataset "' + name + '". Check that Alexandria is still running, then try again.'} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbOnProjectChange()">Retry</button></div>`;
+                document.getElementById('dsb-project-load-status').innerHTML = getEscapedHtml`<div class="alert alert-warning small py-2">${retained ? t('workbench.project.refresh-failed', 'Could not refresh dataset "{project}". Showing the last loaded version.', {project: name}) : t('workbench.project.load-failed', 'Could not load dataset "{project}". Check that Alexandria is still running, then try again.', {project: name})} <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dsbOnProjectChange()">${t('workbench.project.retry', 'Retry')}</button></div>`;
                 if (retained) { document.getElementById('dsb-form-area').style.display = ''; return; }
                 dsbCurrentProject = '';
                 dsbLoadedProject = '';
@@ -149,7 +149,7 @@
                 dsbRenderTable();
                 document.getElementById('dsb-form-area').style.display = 'none';
                 document.getElementById('dsb-btn-delete-project').style.display = 'none';
-                showActionError('Could not load dataset "' + name + '"', e, 'Check the selected dataset and app connection, then use Retry to load it again.');
+                showActionError(t('workbench.project.load-failed.title', 'Could not load dataset "{project}"', {project: name}), e, t('workbench.project.load-failed.guidance', 'Check the selected dataset and app connection, then use Retry to load it again.'));
             } finally {
                 if (dsbPendingProjectLoad === loadSequence) { dsbPendingProjectLoad = null; }
             }
@@ -157,21 +157,21 @@
 
         window.dsbCreateProject = async () => {
             const project = dsbCurrentProject;
-            const values = await showPresetEditor({title: 'Create dataset', nameLabel: 'Dataset name', includeDescription: false,
-                actionLabel: 'Create', helperText: 'Use a short name you will recognize later, such as “The Hobbit — narration”.',
+            const values = await showPresetEditor({title: t('workbench.create.title', 'Create dataset'), nameLabel: t('workbench.create.name.label', 'Dataset name'), includeDescription: false,
+                actionLabel: t('workbench.create.submit', 'Create'), helperText: t('workbench.create.helper', 'Use a short name you will recognize later, such as “The Hobbit — narration”.'),
                 submitValues: async ({name}) => {
-                    if (project !== dsbCurrentProject) { throw new Error('The selected project changed. Close this dialog and review it before creating a dataset.'); }
+                    if (project !== dsbCurrentProject) { throw new Error(t('workbench.create.project-changed', 'The selected project changed. Close this dialog and review it before creating a dataset.')); }
                     try {
                         return await API.post('/api/dataset_builder/create', {name});
                     } catch (error) {
                         console.error('Dataset creation failed', error);
                         if (error.status === 400 || error.status === 409) { throw error; }
-                        throw new Error('Creation was not confirmed. Check that Alexandria is running, then refresh the project list before trying again.');
+                        throw new Error(t('workbench.create.unconfirmed', 'Creation was not confirmed. Check that Alexandria is running, then refresh the project list before trying again.'));
                     }
                 }});
             if (!values) { return; }
             if (project !== dsbCurrentProject) {
-                showToast(`Dataset “${values.receipt.name}” was created. Your later project selection was kept. Refresh the list to see it.`, 'success'); return;
+                showToast(t('workbench.create.created', 'Dataset “{project}” was created. Your later project selection was kept. Refresh the list to see it.', {project: values.receipt.name}), 'success'); return;
             }
             await dsbLoadProjects(values.receipt.name);
         };
@@ -180,7 +180,7 @@
             if (!dsbCurrentProject || !ensureDatasetRowsEditable()) { return; }
             const project = dsbCurrentProject;
             const loadSequence = dsbProjectLoadSequence;
-            if (!await showConfirm(`Delete project "${project}" and all its samples?`, {title: 'Delete project?', actionLabel: 'Delete project', danger: true})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.workbench.project.delete', 'Delete project "{project}" and all its samples?', {project}), {title: t('workbench.project.delete.title', 'Delete project?'), actionLabel: t('workbench.project.delete.action', 'Delete project'), danger: true})) { return; }
             if (!ensureDatasetRowsEditable() || project !== dsbCurrentProject || loadSequence !== dsbProjectLoadSequence) { return; }
             try {
                 const res = await fetch(`/api/dataset_builder/${encodeURIComponent(project)}`, { method: 'DELETE' });
@@ -197,7 +197,7 @@
                 dsbRenderTable();
                 await dsbLoadProjects();
             } catch (e) {
-                showActionError('Dataset project deletion failed', e, 'Refresh the project list to check whether the project was deleted before trying again.');
+                showActionError(t('workbench.project.delete-failed', 'Dataset project deletion failed'), e, t('workbench.project.delete-failed.guidance', 'Refresh the project list to check whether the project was deleted before trying again.'));
             }
         };
 
@@ -210,7 +210,7 @@
             if (value == null || String(value).trim() === '') { return -1; }
             const number = Number(value);
             if (!['string', 'number'].includes(typeof value) || !Number.isSafeInteger(number) || number < -1) {
-                throw new Error('Seeds must be safe whole numbers: -1 for fallback/random, or 0 or higher.');
+                throw new Error(t('workbench.rows.seed-invalid', 'Seeds must be safe whole numbers: -1 for fallback/random, or 0 or higher.'));
             }
             return number;
         }
@@ -309,11 +309,11 @@
 
         function ensureDatasetRowsEditable() {
             if (isDatasetProjectLoading()) {
-                showToast('Wait for the selected dataset to load before editing samples.', 'warning');
+                showToast(t('workbench.rows.wait-load', 'Wait for the selected dataset to load before editing samples.'), 'warning');
                 return false;
             }
             if (isDatasetRowGenerationRunning()) {
-                showToast('Wait for sample generation to finish before editing samples.', 'warning');
+                showToast(t('workbench.rows.wait-generation', 'Wait for sample generation to finish before editing samples.'), 'warning');
                 return false;
             }
             return true;
@@ -337,7 +337,7 @@
             const project = dsbCurrentProject;
             const row = dsbRows[index];
             if (!row) { return; }
-            if (!await showConfirm(`Delete sample ${index + 1}? This removes its text and generated audio link and cannot be undone.`, {title: 'Delete sample?', actionLabel: 'Delete sample', danger: true})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.workbench.sample.delete', 'Delete sample {index}? This removes its text and generated audio link and cannot be undone.', {index: index + 1}), {title: t('workbench.sample.delete.title', 'Delete sample?'), actionLabel: t('workbench.sample.delete.action', 'Delete sample'), danger: true})) { return; }
             if (!isDatasetProjectSelected(project) || dsbRows[index] !== row || !ensureDatasetRowsEditable()) { return; }
             dsbRows.splice(index, 1);
             dsbRenderTable();
@@ -345,19 +345,26 @@
             dsbUpdateRefDropdown();
         }
 
+        function datasetRowStatusLabel(status) {
+            if (status === 'done') { return t('workbench.row.status.done', 'done'); }
+            if (status === 'generating') { return t('workbench.row.status.generating', 'generating'); }
+            if (status === 'error') { return t('workbench.row.status.error', 'error'); }
+            return t('workbench.row.status.pending', 'pending');
+        }
+
         function dsbBuildRowHtml(row, i) {
             const disabled = isDatasetRowGenerationRunning() ? 'disabled' : '';
             const statusColor = row.status === 'done' ? 'success' :
                                 row.status === 'generating' ? 'warning' :
                                 row.status === 'error' ? 'danger' : 'secondary';
-            const statusLabel = row.status || 'pending';
+            const statusLabel = datasetRowStatusLabel(row.status);
 
             let actionHtml = '';
             if (row.status === 'generating') {
                 actionHtml = '<div class="progress" style="width:80px;height:20px;"><div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" style="width:100%"></div></div>';
             } else {
                 const genLabel = row.status === 'done' ? '<i class="fas fa-redo"></i>' : '<i class="fas fa-play"></i>';
-                actionHtml = getEscapedHtml`<button class="btn btn-sm btn-primary" ${disabled} onclick="dsbGenSample(${i})" title="${row.status === 'done' ? 'Regenerate' : 'Generate'}">` + genLabel + '</button>';
+                actionHtml = getEscapedHtml`<button class="btn btn-sm btn-primary" ${disabled} onclick="dsbGenSample(${i})" title="${row.status === 'done' ? t('workbench.row.regenerate', 'Regenerate') : t('workbench.row.generate', 'Generate')}">` + genLabel + '</button>';
             }
 
             let audioHtml = '';
@@ -367,14 +374,14 @@
 
             return getEscapedHtml`<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
                 <td class="text-center align-middle">${i + 1}</td>
-                <td><input type="text" class="form-control form-control-sm" aria-label="Emotion or delivery style for sample ${i + 1}" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="e.g. Savagely sarcastic"></td>
-                <td><textarea class="form-control form-control-sm" aria-label="Sample text for sample ${i + 1}" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="Sample text...">${row.text || ''}</textarea></td>
-                <td><input type="number" class="form-control form-control-sm" aria-label="Seed for sample ${i + 1}; blank or -1 uses the global seed; 0 or higher overrides it" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
+                <td><input type="text" class="form-control form-control-sm" aria-label="${t('workbench.row.emotion.aria-label', 'Emotion or delivery style for sample {index}', {index: i + 1})}" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="${t('workbench.row.emotion.placeholder', 'e.g. Savagely sarcastic')}"></td>
+                <td><textarea class="form-control form-control-sm" aria-label="${t('workbench.row.text.aria-label', 'Sample text for sample {index}', {index: i + 1})}" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="${t('workbench.row.text.placeholder', 'Sample text...')}">${row.text || ''}</textarea></td>
+                <td><input type="number" class="form-control form-control-sm" aria-label="${t('workbench.row.seed.aria-label', 'Seed for sample {index}; blank or -1 uses the global seed; 0 or higher overrides it', {index: i + 1})}" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
                 <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span>${row.status === 'error' ? row.error || '' : ''}</td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
                     ` + actionHtml + audioHtml + getEscapedHtml`
-                        <button class="btn btn-sm btn-outline-danger ms-auto" aria-label="Delete sample ${i + 1}" ${disabled} onclick="dsbRemoveRow(${i})" title="Delete row"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-danger ms-auto" aria-label="${t('workbench.row.delete.aria-label', 'Delete sample {index}', {index: i + 1})}" ${disabled} onclick="dsbRemoveRow(${i})" title="${t('workbench.row.delete.title', 'Delete row')}"><i class="fas fa-trash"></i></button>
                     </div>
                 </td>
             </tr>`;
@@ -388,9 +395,11 @@
             }
             if (dsbTrainingSaved.snapshot !== JSON.stringify(dsbRows)) { dsbTrainingSaved.stale = true; }
             if (dsbTrainingSaved.stale) {
-                status.textContent = 'Training dataset saved before these changes. Save again to include them.';
+                status.textContent = t('workbench.training.stale', 'Training dataset saved before these changes. Save again to include them.');
             } else {
-                status.textContent = `Saved! ${dsbTrainingSaved.count} samples.`;
+                status.textContent = dsbTrainingSaved.count === 1
+                    ? t('workbench.training.saved.one', 'Saved! {count} sample.', {count: dsbTrainingSaved.count})
+                    : t('workbench.training.saved.many', 'Saved! {count} samples.', {count: dsbTrainingSaved.count});
             }
         }
 
@@ -469,7 +478,7 @@
             const select = document.getElementById('dsb-ref-select');
             const doneSamples = dsbRows.map((r, i) => ({ index: i, row: r })).filter(x => x.row.status === 'done');
             select.innerHTML = doneSamples.length === 0
-                ? '<option value="0">No completed samples yet</option>'
+                ? '<option value="0">' + t('workbench.refs.none', 'No completed samples yet') + '</option>'
                 : doneSamples.map(x => {
                     const emotion = x.row.emotion || 'neutral';
                     const text = x.row.text || '';
@@ -482,11 +491,11 @@
             if (!ensureDatasetRowsEditable()) { return; }
             const name = dsbCurrentProject;
             const rootDesc = document.getElementById('dsb-description').value.trim();
-            if (!name) { showToast('Select or create a project first.', 'warning'); return; }
-            if (!rootDesc) { showToast('Enter a root voice description first.', 'warning'); return; }
+            if (!name) { showToast(t('workbench.error.no-project', 'Select or create a project first.'), 'warning'); return; }
+            if (!rootDesc) { showToast(t('workbench.error.no-root-description', 'Enter a root voice description first.'), 'warning'); return; }
 
             const row = dsbRows[index];
-            if (!row || !row.text.trim()) { showToast('This row has no text.', 'warning'); return; }
+            if (!row || !row.text.trim()) { showToast(t('workbench.error.row-no-text', 'This row has no text.'), 'warning'); return; }
             const definition = JSON.stringify(getDatasetRowDefinition(row));
             const isCurrent = () => isDatasetProjectSelected(name) && dsbRows[index] === row
                 && JSON.stringify(getDatasetRowDefinition(row)) === definition;
@@ -523,7 +532,7 @@
             } catch (e) {
                 if (!isCurrent()) { return; }
                 dsbRows[index].status = 'error';
-                dsbRows[index].error = getActionErrorMessage('Sample generation failed', e, 'Check the sample audio and dataset task status before generating again. Review the voice description and TTS configuration if the request was refused.');
+                dsbRows[index].error = getActionErrorMessage(t('workbench.sample.generate-failed', 'Sample generation failed'), e, t('workbench.sample.generate-failed.guidance', 'Check the sample audio and dataset task status before generating again. Review the voice description and TTS configuration if the request was refused.'));
                 showToast(dsbRows[index].error, 'error', 10000);
                 console.error('Sample generation failed:', e);
             }
@@ -536,18 +545,18 @@
             const rows = dsbRows;
             const name = dsbCurrentProject;
             const rootDesc = document.getElementById('dsb-description').value.trim();
-            if (!name) { showToast('Select or create a project first.', 'warning'); return; }
-            if (!rootDesc) { showToast('Enter a root voice description first.', 'warning'); return; }
+            if (!name) { showToast(t('workbench.error.no-project', 'Select or create a project first.'), 'warning'); return; }
+            if (!rootDesc) { showToast(t('workbench.error.no-root-description', 'Enter a root voice description first.'), 'warning'); return; }
 
             const samples = dsbRows.filter(r => r.text.trim());
-            if (samples.length === 0) { showToast('Add at least one sample with text.', 'warning'); return; }
+            if (samples.length === 0) { showToast(t('workbench.batch.no-samples', 'Add at least one sample with text.'), 'warning'); return; }
 
             const indices = regenAll
                 ? dsbRows.map((_, i) => i).filter(i => dsbRows[i].text.trim())
                 : dsbRows.map((r, i) => i).filter(i => dsbRows[i].text.trim() && dsbRows[i].status !== 'done');
 
-            if (indices.length === 0) { showToast('All samples are already generated.', 'warning'); return; }
-            if (regenAll && !await showConfirm(`Regenerate all ${indices.length} samples?`, {title: 'Replace all sample audio?', actionLabel: 'Regenerate all', danger: true})) { return; }
+            if (indices.length === 0) { showToast(t('workbench.batch.all-generated', 'All samples are already generated.'), 'warning'); return; }
+            if (regenAll && !await showConfirm(formatUiSafetyText('safety.workbench.batch.regenerate', 'Regenerate all {count} samples?', {count: indices.length}), {title: t('workbench.batch.regenerate.title', 'Replace all sample audio?'), actionLabel: t('workbench.batch.regenerate.action', 'Regenerate all'), danger: true})) { return; }
             if (dsbBatchRunning || !isDatasetProjectSelected(name) || dsbRows !== rows) { return; }
             let globalSeed, perSeeds;
             try {
@@ -586,7 +595,7 @@
                 previous.forEach(({ index, row, status }) => {
                     if (dsbRows[index] === row && row.status === 'generating') { row.status = status; }
                 });
-                showActionError('Dataset batch generation is unconfirmed', e, 'Check dataset task status and the saved samples before starting again; some samples may already have completed.');
+                showActionError(t('workbench.batch.unconfirmed', 'Dataset batch generation is unconfirmed'), e, t('workbench.batch.unconfirmed.guidance', 'Check dataset task status and the saved samples before starting again; some samples may already have completed.'));
                 applyDatasetBatchState(false, true);
                 dsbRenderTable();
                 // A lost response can follow accepted work. Keep edits blocked
@@ -681,18 +690,18 @@
                 if (!ensureDatasetRowsEditable()) { return; }
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) { throw new Error('Expected JSON array'); }
+                    if (!Array.isArray(data)) { throw new Error(t('workbench.import.not-array', 'Expected JSON array')); }
                     const importedRows = data.map((item, index) => {
                         if (!item || typeof item !== 'object' || Array.isArray(item)) {
-                            throw new Error(`Sample ${index + 1} must be an object`);
+                            throw new Error(t('workbench.import.not-object', 'Sample {index} must be an object', {index: index + 1}));
                         }
                         for (const field of ['text', 'emotion', 'instruct']) {
                             if (item[field] != null && typeof item[field] !== 'string') {
-                                throw new Error(`Sample ${index + 1} ${field} must be a string`);
+                                throw new Error(t('workbench.import.field-string', 'Sample {index} {field} must be a string', {index: index + 1, field}));
                             }
                         }
                         if (item.seed != null && typeof item.seed !== 'number' && typeof item.seed !== 'string') {
-                            throw new Error(`Sample ${index + 1} seed must be a number or string`);
+                            throw new Error(t('workbench.import.seed-type', 'Sample {index} seed must be a number or string', {index: index + 1}));
                         }
                         return {
                             emotion: item.emotion || item.instruct || '',
@@ -702,17 +711,17 @@
                             audio_url: null,
                         };
                     });
-                    if (dsbRows.length && !await showConfirm(`Import ${importedRows.length} samples into "${project}"? This will replace the ${dsbRows.length} rows and their generated audio links in this project. Continue?`, {title: 'Replace project samples?', actionLabel: 'Import samples', danger: true})) { return; }
+                    if (dsbRows.length && !await showConfirm(formatUiSafetyText('safety.workbench.import.replace', 'Import {count} samples into "{project}"? This will replace the {rows} rows and their generated audio links in this project. Continue?', {count: importedRows.length, project, rows: dsbRows.length}), {title: t('workbench.import.replace.title', 'Replace project samples?'), actionLabel: t('workbench.import.replace.action', 'Import samples'), danger: true})) { return; }
                     if (!isDatasetProjectSelected(project) || dsbRows !== rows || !ensureDatasetRowsEditable()) { return; }
                     if (JSON.stringify(dsbRows) !== snapshot) {
-                        showToast('The samples changed while importing. Select the file again to review the replacement.', 'warning');
+                        showToast(t('workbench.import.changed', 'The samples changed while importing. Select the file again to review the replacement.'), 'warning');
                         return;
                     }
                     dsbRows = importedRows;
                     dsbRenderTable();
                     dsbSaveRows();
                 } catch (err) {
-                    showToast('Import failed: ' + err.message, 'error');
+                    showToast(t('workbench.import.failed', 'Import failed: {detail}', {detail: err.message}), 'error');
                 }
             };
             reader.readAsText(file);
@@ -740,28 +749,30 @@
         window.dsbSave = async () => {
             if (dsbTrainingSavePending) { return; }
             const name = dsbCurrentProject;
-            if (!name) { showToast('Select or create a project first.', 'warning'); return; }
+            if (!name) { showToast(t('workbench.error.no-project', 'Select or create a project first.'), 'warning'); return; }
             if (!ensureDatasetRowsEditable()) { return; }
             const doneSamples = dsbRows.filter(row => row.status === 'done');
-            if (!doneSamples.length) { showToast('No completed samples to save. Generate some first.', 'warning'); return; }
+            if (!doneSamples.length) { showToast(t('workbench.training.no-completed', 'No completed samples to save. Generate some first.'), 'warning'); return; }
             const snapshot = JSON.stringify(dsbRows);
             const refIdx = parseInt(document.getElementById('dsb-ref-select').value) || 0;
             const status = document.getElementById('dsb-save-status');
             dsbTrainingSavePending = true;
             try {
-                if (!await showConfirm(`Save "${name}" as training dataset with ${doneSamples.length} samples?`, {title: 'Save training dataset?', actionLabel: 'Save dataset', danger: false})) { return; }
+                if (!await showConfirm(doneSamples.length === 1
+                    ? t('workbench.training.save.one', 'Save "{project}" as training dataset with {count} sample?', {project: name, count: doneSamples.length})
+                    : t('workbench.training.save.many', 'Save "{project}" as training dataset with {count} samples?', {project: name, count: doneSamples.length}), {title: t('workbench.training.save.title', 'Save training dataset?'), actionLabel: t('workbench.training.save.action', 'Save dataset'), danger: false})) { return; }
                 const isCurrent = () => isDatasetProjectSelected(name) && snapshot === JSON.stringify(dsbRows)
                     && refIdx === (parseInt(document.getElementById('dsb-ref-select').value) || 0) && !dsbBatchRunning;
-                if (!isCurrent()) { showToast('The dataset changed. Review the current samples before saving.', 'warning'); return; }
+                if (!isCurrent()) { showToast(t('workbench.training.changed', 'The dataset changed. Review the current samples before saving.'), 'warning'); return; }
                 await Promise.all([dsbSaveMetaQueue?.flush(), dsbSaveRowsQueue?.flush()]);
-                if (!isCurrent()) { showToast('The dataset changed while saving edits. Review it before saving the training dataset.', 'warning'); return; }
-                status.textContent = 'Saving training dataset…';
+                if (!isCurrent()) { showToast(t('workbench.training.changed-while-saving', 'The dataset changed while saving edits. Review it before saving the training dataset.'), 'warning'); return; }
+                status.textContent = t('workbench.training.saving', 'Saving training dataset…');
                 const result = await API.post('/api/dataset_builder/save', { name, ref_index: refIdx });
                 dsbTrainingSaved = { name, snapshot, count: result.sample_count, stale: !isCurrent() };
                 if (isDatasetProjectSelected(name)) { applyDatasetTrainingSaveFeedback(); }
             } catch (e) {
                 if (isDatasetProjectSelected(name)) {
-                    status.textContent = 'Training dataset save could not be confirmed. Check the Training dataset list before retrying. Your project rows are still here.';
+                    status.textContent = t('workbench.training.save-unconfirmed', 'Training dataset save could not be confirmed. Check the Training dataset list before retrying. Your project rows are still here.');
                 }
                 console.error('Training dataset save failed:', e);
             } finally {

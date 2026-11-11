@@ -137,7 +137,7 @@ for(const operation of ['saveVoiceDraftRecord','removeVoiceDraftRecord']){
     def test_dataset_delete_checks_the_response(self):
         with open(os.path.join(STATIC, "js", "app-workbench.js"), encoding="utf-8") as handle:
             src = handle.read()
-        body = src[src.index("window.dsbDeleteProject"):src.index("window.dsbDeleteProject") + 800]
+        body = src[src.index("window.dsbDeleteProject"):src.index("const dsbRowSaveStates", src.index("window.dsbDeleteProject"))]
         self.assertIn("API._handleError(res)", body)
 
 

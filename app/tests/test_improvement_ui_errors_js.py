@@ -70,13 +70,13 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('p
 const core=fs.readFileSync(path.join(process.argv[1],'app-core.js'),'utf8');
 const source=fs.readFileSync(path.join(process.argv[1],'app-workbench.js'),'utf8');
 const row={text:'Original line.',emotion:'calm',seed:'',status:'pending'},toasts=[];let fail=true,stale=false;
-const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,
+const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,t:(key,english)=>english,
  document:{getElementById:id=>({value:id==='dsb-description'?'Fixture voice':'-1'})},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}},dsbRenderTable:()=>{},
  isDatasetProjectLoading:()=>false,isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
 vm.createContext(ctx);{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
-vm.runInContext(source.slice(source.indexOf('function dsbBuildRowHtml('),source.indexOf('function dsbRenderTable(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function datasetRowStatusLabel('),source.indexOf('function dsbRenderTable(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('function ensureDatasetRowSaveState(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function isDatasetRowGenerationRunning('),source.indexOf('function dsbAddRow(')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.dsbGenSample ='),source.indexOf('// Batch generation')),ctx);

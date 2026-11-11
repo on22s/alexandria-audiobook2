@@ -34,6 +34,16 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   text. The help texts that named **Save Configuration** now name the label as
   it appears, English in parentheses on first mention. All three locales remain
   machine drafts.
+- P5 adds 377 keys: 193 for the `script` pane (text nodes,
+  `placeholder`/`title`/`aria-label` attributes, and the four safety refusals),
+  78 for the Dataset Builder surface in `app-workbench.js` (the P5 "Workbench"
+  surface; four of these are `safety.*` destructive confirms) and 106 for the
+  task guides in `app-guides.js`. The guides are built by `buildTaskGuides()` on
+  every render, so their English stays a literal argument of `t()` while a
+  locale switch re-paints them. Destructive JS confirms keep the authored
+  English on the line beneath the translation through
+  `formatUiSafetyText()`, the string form of `tSafety()` (the confirm body's
+  existing `white-space: pre-line`). All three locales remain machine drafts.
 
 ## P2 server-refusal keys
 
@@ -180,6 +190,26 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Timeline | 时间线 | タイムライン | Línea de tiempo | Voice-change and state timeline. |
 | State (character) | 状态 | 状態 | Estado | Per-state voices. |
 | Version | 版本 | バージョン | Versión | Saved voice/script version. |
+| Workbench | 工作台 | ワークベンチ | Banco de trabajo | The P5 collective name for the Dataset Builder surface; the tab and screen are labelled **Dataset** (`数据集` / `データセット` / **Conjunto de datos**). |
+| Dataset project | 数据集项目 | データセットプロジェクト | Proyecto de conjunto de datos | A saved Dataset Builder project. |
+| Sample | 样本 | サンプル | Muestra | One Dataset Builder row; a synthetic snippet. |
+| Status | 状态 | ステータス | Estado | Task or row state. Character **State** uses 状态 / 状態 for a per-state voice. |
+| Generation log | 生成日志 | 生成ログ | Registro de generación | The Script pane's log download links. The transcript itself stays English. |
+| Source scope | 来源范围 | ソース範囲 | Alcance del texto fuente | The "keep a later part of this book" panel. |
+| Annotated script | 标注脚本 | 注釈付き台本 | Guion anotado | Pass output with speaker labels and directions. |
+| First-person narrator | 第一人称旁白 | 一人称のナレーター | Narrador en primera persona | The optional narrator name. |
+| Context window | 上下文窗口 | コンテキストウィンドウ | Ventana de contexto | Neighbouring entries used by contextual review. |
+| Nickname | 昵称 | ニックネーム | Apodo | Alias detection. |
+| Alias | 别名 | 別名 | Alias | A second name for a character. |
+| Speaker label | 说话人标签 | 話者ラベル | Etiqueta de hablante | The label before a line of dialogue. |
+| Provisional reference | 临时参考 | 暫定リファレンス | Referencia provisional | The saved script compared against for speaker-label suggestions. |
+| Capture | 捕获 | 取得 | Captura | OPDS: explicitly downloading one source before import. |
+| Catalog (OPDS) | 目录 | カタログ | Catálogo | The OPDS catalog, distinct from the Scripts library (`库`). |
+| Translation proposal | 翻译提案 | 翻訳提案 | Propuesta de traducción | The translated-edition preview; never an approved translation. |
+| Guide | 指南 | ガイド | Guía | A Home task guide. |
+| Step | 步骤 | 手順 | Paso | One guide step. |
+| Checklist | 检查清单 | チェックリスト | Lista de comprobación | A guide's status: steps are a checklist, not progress. |
+| Retire (a character) | 停用 | 無効にする | Retirar | Removes a character from the active roster; never 引退. |
 
 ## Voice and address rules
 
@@ -213,6 +243,32 @@ untranslated copy.
 All four render through `tSafety`/`renderUiSafety`, so the translated line shows
 with the authored English beneath it. The markup path reaches the same helper
 because `applyUiCatalog` sends every `safety.*` key to `renderUiSafety`.
+
+## P5 safety keys
+
+| Key | English source |
+| --- | --- |
+| `safety.script.scope.discard` | Discard undo; keep current scope |
+| `safety.script.roster.discard-undo` | Discard saved undo |
+| `safety.script.roster.restore-draft` | Restore previous unsaved draft |
+| `safety.script.roster.retire` | Retire selected |
+| `safety.script.run.start-over` | Start over |
+| `safety.script.run.start-over.title` | Discard saved progress for this text and begin again at chunk 1. |
+| `safety.script.run.resume-failed` | Resume failed run |
+| `safety.script.opds.discard` | Discard captured source |
+| `safety.script.batch.collision.replace` | Back up and replace it |
+| `safety.workbench.project.delete` | Delete project "{project}" and all its samples? |
+| `safety.workbench.sample.delete` | Delete sample {index}? This removes its text and generated audio link and cannot be undone. |
+| `safety.workbench.batch.regenerate` | Regenerate all {count} samples? |
+| `safety.workbench.import.replace` | Import {count} samples into "{project}"? This will replace the {rows} rows and their generated audio links in this project. Continue? |
+
+Markup safety keys render through `renderUiSafety`; the four Dataset Builder
+confirms are JS `showConfirm()` calls and render through
+`formatUiSafetyText()`, which is the same `tSafety()` contract in one string
+because the confirm body is already `white-space: pre-line`. Confirm **titles**
+and **action labels** stay plain translated keys: they name the control the
+reader is choosing, not the consequence, and a two-line button label would be
+unreadable. Every caller keeps `danger: true`.
 
 ## Do not translate
 

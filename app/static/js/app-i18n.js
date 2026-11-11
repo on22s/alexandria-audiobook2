@@ -156,6 +156,14 @@ function tSafety(key, english, values = {}, locale = getUiLocale()) {
     return {primary, secondary: primary === original ? null : original};
 }
 
+// A string sink (a confirm body, which keeps its own pre-line CSS) cannot hold
+// two spans, so this is the same tSafety contract in the one line it can show:
+// the translation first, the authored English on the next line when it differs.
+function formatUiSafetyText(key, english, values = {}, locale = getUiLocale()) {
+    const {primary, secondary} = tSafety(key, english, values, locale);
+    return secondary === null ? primary : primary + '\n' + secondary;
+}
+
 function renderUiSafety(target, key, english, values = {}) {
     const {primary, secondary} = tSafety(key, english, values);
     const translated = document.createElement('span');

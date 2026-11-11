@@ -15,8 +15,10 @@ SOURCES.
   * app-settings.js and later-phase files: t('key', 'English', ...) calls whose
     first two arguments are string literals;
   * createUiMessageNode('tag', 'key', 'English') for nodes built in JS;
-  * renderUiSafety(target, 'key', 'English') for the authored safety nodes; an
-    inline safety warning is a catalog source exactly like a plain message.
+  * renderUiSafety(target, 'key', 'English') for the authored safety nodes, and
+    formatUiSafetyText('key', 'English') for the same contract in a string sink
+    (a confirm body); an inline safety warning is a catalog source exactly like
+    a plain message.
   * app-help.js: every entry of its seven help maps becomes
     help.<kind>.<slug>[.what|.recommend|.source], plus the literal t('help.*')
     calls that key getItemHelpText's inline fallbacks;
@@ -219,6 +221,11 @@ def harvest_js(path, messages):
         arguments = _call_arguments_after_first(text, match.end())
         if len(arguments) < 2 or arguments[0] is None or arguments[1] is None:
             raise HarvestError(f"{name}: renderUiSafety needs literal key and English text")
+        _record(messages, arguments[0], arguments[1], name)
+    for match in re.finditer(r"\bformatUiSafetyText\s*\(", text):
+        arguments = _call_arguments(text, match.end())
+        if len(arguments) < 2 or arguments[0] is None or arguments[1] is None:
+            raise HarvestError(f"{name}: formatUiSafetyText needs literal key and English text")
         _record(messages, arguments[0], arguments[1], name)
     for match in re.finditer(r"\bt\s*\(", text):
         arguments = _call_arguments(text, match.end())
