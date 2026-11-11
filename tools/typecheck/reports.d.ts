@@ -32,6 +32,12 @@ declare const API:APIContract;
 declare const marked:{parse(markdown:string):string};
 declare const DOMPurify:{sanitize(html:string):string};
 declare function escapeHtml(text:string):string;
+// UI translation (app-i18n.js): English is always passed and is the fallback.
+declare function t(key:string, english:string, values?:Record<string, string|number>):string;
+declare function formatUiSafetyText(key:string, english:string, values?:Record<string, string|number>):string;
+declare function tSafety(key:string, english:string, values?:Record<string, string|number>):{primary:string; secondary:string|null};
+declare function renderUiSafety(target:Element, key:string, english:string, values?:Record<string, string|number>):void;
+declare function getIntlUiLocale():string;
 declare function getActionErrorMessage(label:string,error:unknown,help:string):string;
 declare function showActionError(label:string,error:unknown,help:string):void;
 declare function confirmIfRemote(label:string):Promise<boolean>;

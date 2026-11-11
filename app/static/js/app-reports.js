@@ -9,19 +9,20 @@
 
         // ── Reports ────────────────────────────────────────────────────
         // Icon and label per report type from /api/reports; anything unknown shows as a review.
-        /** @type {Record<string, [string, string]>} */
+        /** @type {Record<string, string>} */
         const REPORT_KIND_ICONS = {
             batch: 'fa-layer-group',
             pauses: 'fa-wave-square',
             review: 'fa-file-lines',
         };
 
+        /** @param {string} type */
         function reportKindLabel(type) {
-            return {
+            return /** @type {Record<string, string>} */ ({
                 batch: t('reports.kind.batch', 'Batch review'),
                 pauses: t('reports.kind.pauses', 'Comma pauses'),
                 review: t('reports.kind.review', 'Review'),
-            }[type] || t('reports.kind.review', 'Review');
+            })[type] || t('reports.kind.review', 'Review');
         }
 
         async function loadReports() {
@@ -72,8 +73,8 @@
                     const passLabel = L.bidirectional
                         ? (L.current_pass === 'bwd' ? t('reports.checkpoint.pass.backward', 'backward pass (2/2)') : t('reports.checkpoint.pass.forward', 'forward pass (1/2)'))
                         : t('reports.checkpoint.pass.single', 'single pass');
-                    const items = (L.tasks || []).map((t, i) =>
-                        `${i + 1}. ${escapeHtml(t.name || '')} — ${escapeHtml(taskStatusLabel(t.status || 'pending'))}`).join('<br>');
+                    const items = (L.tasks || []).map((task, i) =>
+                        `${i + 1}. ${escapeHtml(task.name || '')} — ${escapeHtml(taskStatusLabel(task.status || 'pending'))}`).join('<br>');
                     html += `<div class="list-group-item">
                         <div><span class="badge bg-primary">${escapeHtml(t('reports.checkpoint.status.running', 'running'))}</span> <strong>${escapeHtml(passLabel)}</strong></div>
                         <div class="text-muted small mt-1">${items}</div>
@@ -195,21 +196,23 @@
         }
         loadBuildBadge();
 
-        /** @param {RunStatus} status */
+        /** @param {string} status A checkpoint task status: pending, running, done or failed. */
         function taskStatusLabel(status) {
-            return { pending: t('reports.task.status.pending', 'pending'), running: t('reports.task.status.running', 'running'),
-                     done: t('reports.task.status.done', 'done'), failed: t('reports.task.status.failed', 'failed') }[status] || status;
+            return /** @type {Record<string, string>} */ ({ pending: t('reports.task.status.pending', 'pending'), running: t('reports.task.status.running', 'running'),
+                     done: t('reports.task.status.done', 'done'), failed: t('reports.task.status.failed', 'failed') })[status] || status;
         }
 
+        /** @param {RunStatus | null | undefined} status */
         function runStatusLabel(status) {
-            return { running: t('reports.run.status.running', 'running'), completed: t('reports.run.status.completed', 'completed'),
+            return (status && /** @type {Record<string, string>} */ ({ running: t('reports.run.status.running', 'running'), completed: t('reports.run.status.completed', 'completed'),
                      failed: t('reports.run.status.failed', 'failed'), interrupted: t('reports.run.status.interrupted', 'interrupted'),
-                     cancelled: t('reports.run.status.cancelled', 'cancelled') }[status] || status || t('reports.run.status.unknown', 'unknown');
+                     cancelled: t('reports.run.status.cancelled', 'cancelled') })[status]) || status || t('reports.run.status.unknown', 'unknown');
         }
 
+        /** @param {RunStatus} status */
         function runStatusBadge(status) {
-            const cls = { running: 'bg-primary', completed: 'bg-success', failed: 'bg-danger',
-                          interrupted: 'bg-warning text-dark', cancelled: 'bg-secondary' }[status] || 'bg-secondary';
+            const cls = /** @type {Record<string, string>} */ ({ running: 'bg-primary', completed: 'bg-success', failed: 'bg-danger',
+                          interrupted: 'bg-warning text-dark', cancelled: 'bg-secondary' })[status] || 'bg-secondary';
             return `<span class="badge ${cls}">${escapeHtml(runStatusLabel(status))}</span>`;
         }
 
