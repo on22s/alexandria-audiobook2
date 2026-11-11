@@ -96,8 +96,8 @@
         // server accepts, saves that same body, so the server's heavy validation
         // runs once. Two cases keep the browser's own download instead (the
         // check request is cancelled and the link clicked again, which validates
-        // a second time): a body too large to hold in memory, and a page that is
-        // not a secure context (plain HTTP on a LAN address), where browsers may
+        // a second time): a body too large to hold in memory or of unknown size,
+        // and a page that is not a secure context (plain HTTP on a LAN address), where browsers may
         // block a download from a blob URL.
         const CHECKED_DOWNLOAD_MAX_BLOB_BYTES = 256 * 1024 * 1024;
         // A blob URL must outlive a "where to save" dialog left open a while.
