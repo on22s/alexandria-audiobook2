@@ -89,6 +89,48 @@
         }
         // End voice roster dropdowns.
 
+        // Export links the server may refuse (a stale build answers 409 with
+        // its reason). A plain <a download> turns that into the browser
+        // message Failed - Unknown server error and the reason is lost (#1906), so
+        // a marked link checks the response status first, cancels the body,
+        // and only then lets the browser download it as usual.
+        async function onCheckedDownloadClick(event) {
+            const link = event.target.closest?.('[data-checked-download]');
+            if (!link || link.dataset.downloadChecked === '1') { return; }
+            event.preventDefault();
+            const controller = new AbortController();
+            let response;
+            try {
+                response = await fetch(link.href, {signal: controller.signal});
+            } catch (_error) {
+                showToast(t('core.download.unreachable', 'Download failed: Alexandria did not respond. Check that it is still running, then try again.'), 'error');
+                return;
+            }
+            if (!response.ok) {
+                let detail = '';
+                try {
+                    const body = await response.json();
+                    detail = typeof body?.detail === 'string' ? body.detail : '';
+                } catch (_error) {
+                    detail = '';
+                }
+                showToast(detail
+                    ? t('core.download.refused', 'Download refused: {detail}', {detail})
+                    : t('core.download.refused-status', 'Download refused by the server (status {status}).', {status: String(response.status)}), 'error');
+                return;
+            }
+            controller.abort();
+            link.dataset.downloadChecked = '1';
+            try {
+                link.click();
+            } finally {
+                delete link.dataset.downloadChecked;
+            }
+        }
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+            document.addEventListener('click', onCheckedDownloadClick);
+        }
+
         // --- Toast & Confirm utilities ---
         let toastSequence = 0;
         let confirmQueue = Promise.resolve();
