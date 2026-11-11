@@ -105,7 +105,7 @@ assert.strictEqual(posts.length,0);completed=true;
     def test_save_dialog_cancel_or_changed_prompt_cannot_write(self):
         self.run_case(r'''
 mode='success';for(const pass of ['attribution','pass1','pass3']){for(const change of ['cancel','editor','selection','cache']){
-seed();let answer,options;context.showPresetEditor=value=>{options=value;return new Promise(resolve=>answer=resolve);};const count=posts.length;const save=pass==='attribution'?context.window.savePromptPreset():context.window.savePassPromptPreset(pass);assert(options.title.includes(pass));assert.strictEqual(options.name,'mine');
+seed();let answer,options;context.showPresetEditor=value=>{options=value;return new Promise(resolve=>answer=resolve);};const count=posts.length;const save=pass==='attribution'?context.window.savePromptPreset():context.window.savePassPromptPreset(pass);assert(options.title.includes(pass==='attribution'?'attribution':pass==='pass1'?'Step 1':'Step 3'));assert.strictEqual(options.name,'mine');
 if(change==='editor'){element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value='later edit';}else if(change==='selection'){if(pass==='attribution'){element('prompt-preset-select').value='0';run('applyPromptPreset(0)');}else{run(`applyPassPromptPreset('${pass}',-1)`);}}else if(change==='cache'){run(pass==='attribution'?'promptPresets.push({name:"added"})':`passPromptPresets.${pass}.push({name:'added'})`);}
 const after=snapshot();answer(change==='cancel'?null:{name:'new',description:'description'});await save;assert.strictEqual(posts.length,count);assert.strictEqual(snapshot(),after);if(change==='editor'){assert.strictEqual(element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value,'later edit');}
 }}
