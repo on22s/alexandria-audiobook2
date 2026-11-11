@@ -8572,8 +8572,7 @@
   "test_normalization_scan_cost": [
     "tests.test_normalization_scan_cost.NormalizationScanCostTests.test_caption_locations_use_pre_removal_coordinates_after_known_repairs",
     "tests.test_normalization_scan_cost.NormalizationScanCostTests.test_homoglyph_locations_preserve_unicode_offsets",
-    "tests.test_normalization_scan_cost.NormalizationScanCostTests.test_known_edits_keep_each_original_line_column_without_repeated_prefix_scans",
-    "tests.test_normalization_scan_cost.NormalizationScanCostTests.test_long_replacement_run_is_scanned_once_and_keeps_known_inference"
+    "tests.test_normalization_scan_cost.NormalizationScanCostTests.test_known_edits_keep_each_original_line_column_without_repeated_prefix_scans"
   ],
   "test_normalize_for_speech": [
     "tests.test_normalize_for_speech.SpeechControlAndRiskTests.test_dotted_numbers_and_versions_are_not_urls_but_real_url_forms_remain_risks",
@@ -13059,17 +13058,8 @@
     "tests.test_source_mapping_admission.SourceMappingAdmissionTests.test_unmatched_requires_explicit_option"
   ],
   "test_source_normalization_lossy": [
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_apostrophe_between_letters",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_clean_text_is_untouched",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_close_quote_after_sentence_punctuation",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_copyright_before_year",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_em_dash_before_capital",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_en_dash_after_digit",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_multi_run_is_several_characters",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_neutralize_is_noop_on_clean_text",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_open_quote_after_newline",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_residual_uses_canonical_fallback",
-    "tests.test_source_normalization_lossy.RepairLossyReplacementsTest.test_triple_run_is_quoted_ellipsis"
+    "tests.test_source_normalization_lossy.NeutralizeLossyResidueTest.test_neutralize_is_noop_on_clean_text",
+    "tests.test_source_normalization_lossy.NeutralizeLossyResidueTest.test_residue_no_rule_can_restore_is_neutralized_and_counted"
   ],
   "test_source_phrase_index": [
     "tests.test_source_phrase_index.SourcePhraseIndexTests.test_index_is_lazy_reused_and_bound_to_each_source",
