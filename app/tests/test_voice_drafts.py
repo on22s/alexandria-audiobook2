@@ -33,7 +33,7 @@ function client(storage,API,value={ALICE:{type:'design',description:'pending',se
  setTimeout:()=>1,clearTimeout(){},AbortController,console:{error(){}},Date,Math,API,fetch:(url,options)=>fetch(new URL(url,process.argv[3]),options),
  collectVoiceConfig:()=>value,escapeHtml:text=>String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),
  showToast:message=>errors.push(message),showConfirm:async text=>{confirmations.push(text);return true;}};
- vm.createContext(context);vm.runInContext(helper+(API?'':api)+saves+refresh+'function isDirty(){return voiceSaveQueue.isDirty();}',context);
+ (vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context);vm.runInContext(helper+(API?'':api)+saves+refresh+'function isDirty(){return voiceSaveQueue.isDirty();}',context);
  context.loadVoices=()=>context.refreshVoiceMetadata();
  return {context,status,panel,events,errors,confirmations,setValue:newValue=>value=newValue};
 }

@@ -15393,6 +15393,18 @@
     "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_app_shell_paints_its_translation_in_each_locale",
     "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_setup_pane_paints_its_translation_in_each_locale"
   ],
+  "test_ui_i18n_voices_casting": [
+    "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_missing_catalog_key_keeps_its_english",
+    "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_safety_node_keeps_english_below_each_translation",
+    "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_casting_notes_placeholder_follows_the_locale",
+    "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_voices_and_casting_nodes_paint_each_locale_and_restore_english",
+    "tests.test_ui_i18n_voices_casting.RealRendererTests.test_casting_status_bar_renders_translated_labels",
+    "tests.test_ui_i18n_voices_casting.RealRendererTests.test_pronunciation_preview_renders_translated_decisions",
+    "tests.test_ui_i18n_voices_casting.RealRendererTests.test_roster_combine_refusal_carries_a_translated_message",
+    "tests.test_ui_i18n_voices_casting.SafetyConfirmTests.test_each_destructive_confirm_keeps_english_beneath_the_translation",
+    "tests.test_ui_i18n_voices_casting.VoicesCastingKeyingTests.test_each_module_keys_its_safety_confirms",
+    "tests.test_ui_i18n_voices_casting.VoicesCastingKeyingTests.test_voices_and_casting_markup_is_keyed"
+  ],
   "test_ui_markup_gate": [
     "tests.test_ui_markup_gate.CounterFixtureTests.test_js_counter_ignores_the_english_argument_of_t_and_create",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_markup_counter_counts_only_unkeyed_display_text",

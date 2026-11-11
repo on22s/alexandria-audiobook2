@@ -5,11 +5,11 @@
                              blue: 'bg-primary text-white', purple: 'casting-tag-purple text-white'};
     const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const SHAPES = ['stars', 'circles'];
-    const SHAPE_LABEL = {stars: 'Star', circles: 'Circle'};
-    const COLOR_LABEL = {red: 'red', amber: 'amber', green: 'green', blue: 'blue', purple: 'purple'};
+    function shapeLabel(shape) { return {stars: t('research.shape.star', 'Star'), circles: t('research.shape.circle', 'Circle')}[shape]; }
+    function colorLabel(color) { return {red: t('research.color.red', 'red'), amber: t('research.color.amber', 'amber'), green: t('research.color.green', 'green'), blue: t('research.color.blue', 'blue'), purple: t('research.color.purple', 'purple')}[color]; }
     const FILTER_FIELDS = ['tone', 'texture', 'tag', 'collection', 'star', 'circle'];
-    const FIELD_LABEL = {tone: 'tone', texture: 'texture', tag: 'tag', collection: 'research collection',
-                         star: 'star', circle: 'circle'};
+    function fieldLabel(field) { return {tone: t('research.field.tone', 'tone'), texture: t('research.field.texture', 'texture'), tag: t('research.field.tag', 'tag'), collection: t('research.field.collection', 'research collection'),
+                         star: t('research.field.star', 'star'), circle: t('research.field.circle', 'circle')}[field]; }
     const MAX_TAGS = 20, MAX_TAG_LENGTH = 40, MAX_COLLECTIONS = 20, MAX_COLLECTION_LENGTH = 40;
     const MAX_SELECTION = 1000, MAX_VIEWS = 100, MAX_UNDO = 20, MAX_ACTION = 100;
     const PAGE_SIZES = [24, 48, 96], DEFAULT_PAGE = 48, DEFAULT_SECONDS = 8;
@@ -84,7 +84,7 @@
             return null;
         }
     }
-    const stateNames = {off: 'Off', include: 'Include', exclude: 'Exclude'};
+    function stateLabel(stateName) { return {off: t('research.state.off', 'Off'), include: t('research.state.include', 'Include'), exclude: t('research.state.exclude', 'Exclude')}[stateName]; }
     const chipClasses = {off: 'btn-outline-secondary', include: 'btn-secondary', exclude: 'btn-danger'};
     const chipIcons = {off: 'fa-circle-notch', include: 'fa-check', exclude: 'fa-ban'};
 
@@ -132,6 +132,8 @@
         const confirmAction = typeof options.confirm === 'function' ? options.confirm
             : (typeof showConfirm === 'function' ? showConfirm : null);
         const playback = options.playback || {};
+        const statusLabel = (options.labels && options.labels.status) || (value => value);
+        const priorityLabel = (options.labels && options.labels.priority) || (value => value);
         const prefs = readPrefs();
 
         const st = {
@@ -157,7 +159,7 @@
             return prefs;
         }
         function savePrefs() {
-            if (!writeStored(PREFS_KEY, prefs)) { notify('info', 'Browser storage is unavailable; this preference lasts for this page only.'); }
+            if (!writeStored(PREFS_KEY, prefs)) { notify('info', t('research.error.storage-unavailable', 'Browser storage is unavailable; this preference lasts for this page only.')); }
         }
         function applyWorkspacePrefs() {
             const wrapper = workspace();
@@ -262,10 +264,10 @@
                 || libraryVoices().some(voice => (getMark(voice.id).circles || []).includes(color)
                     !== Boolean(st.circleSnapshots.get(color)?.has(voice.id))));
             if (changed) {
-                return 'Circle exclusions staged: ' + [...staged].sort().join(', ') + '. Refresh results to apply.';
+                return t('research.circles.staged', 'Circle exclusions staged: {colors}. Refresh results to apply.', {colors: [...staged].sort().join(', ')});
             }
             if (st.circleCommitted.size) {
-                return 'Circle exclusions active: ' + [...st.circleCommitted].sort().join(', ') + '.';
+                return t('research.circles.active', 'Circle exclusions active: {colors}.', {colors: [...st.circleCommitted].sort().join(', ')});
             }
             return '';
         }
@@ -278,8 +280,9 @@
             chip.dataset.state = stateName;
             chip.dataset.castingFocus = 'chip:' + chipKey(field, value);
             chip.append(node('i', undefined, 'fas ' + chipIcons[stateName] + ' me-1'), node('span', value + ' ' + count));
-            const label = stateNames[stateName] + ' ' + FIELD_LABEL[field] + ' ' + value
-                + (count === 1 ? ' (1 voice)' : ' (' + count + ' voices)');
+            const label = count === 1
+                ? t('research.chip.label.one', '{state} {field} {value} ({count} voice)', {state: stateLabel(stateName), field: fieldLabel(field), value, count})
+                : t('research.chip.label.many', '{state} {field} {value} ({count} voices)', {state: stateLabel(stateName), field: fieldLabel(field), value, count});
             chip.setAttribute('aria-label', label);
             chip.setAttribute('title', label);
             chip.setAttribute('aria-pressed', String(stateName === 'include'));
@@ -329,7 +332,7 @@
             restoreFocus(focus);
         }
         function renderFilters(list) {
-            const defs = [['tone', 'tones', 'Tone', MAX_TONE_CHIPS], ['texture', 'textures', 'Texture', MAX_TEXTURE_CHIPS]];
+            const defs = [['tone', 'tones', t('casting.filter.tone', 'Tone'), MAX_TONE_CHIPS], ['texture', 'textures', t('casting.filter.texture', 'Texture'), MAX_TEXTURE_CHIPS]];
             for (const [field, id, title, limit] of defs) {
                 const external = document.getElementById('casting-' + id);
                 const host = external || null;
@@ -346,9 +349,9 @@
                 }
             }
             if (!ui.filterHost) { return; }
-            for (const [field, title, limit] of [['tag', 'Custom tags', MAX_VALUE_CHIPS],
-                                                 ['collection', 'Research collections', MAX_VALUE_CHIPS],
-                                                 ['star', 'Stars', COLORS.length]]) {
+            for (const [field, title, limit] of [['tag', t('research.filter.custom-tags', 'Custom tags'), MAX_VALUE_CHIPS],
+                                                 ['collection', t('research.filter.collections', 'Research collections'), MAX_VALUE_CHIPS],
+                                                 ['star', t('research.filter.stars', 'Stars'), COLORS.length]]) {
                 let group = document.getElementById('casting-research-filter-' + field);
                 if (!group) {
                     group = node('div');
@@ -363,7 +366,7 @@
                 circles.id = 'casting-research-filter-circle';
                 ui.filterHost.append(circles);
             }
-            renderGroup(circles, 'circle', 'Circles (exclude is staged)', list, COLORS.length);
+            renderGroup(circles, 'circle', t('research.filter.circles', 'Circles (exclude is staged)'), list, COLORS.length);
             let pending = document.getElementById('casting-research-circle-pending');
             if (!pending) {
                 pending = node('p', undefined, 'small text-warning mb-2');
@@ -386,9 +389,9 @@
                 box.id = 'casting-research-circle-' + color;
                 box.checked = st.circlePending.has(color);
                 box.dataset.castingFocus = 'circle-exclude:' + color;
-                box.setAttribute('aria-label', 'Exclude ' + color + ' circles (takes effect after Refresh results)');
+                box.setAttribute('aria-label', t('research.circles.exclude-aria', 'Exclude {color} circles (takes effect after Refresh results)', {color: colorLabel(color)}));
                 box.addEventListener('change', () => setCircleExclusion(color, box.checked));
-                label.append(box, node('span', 'Exclude ' + color, 'ms-1'));
+                label.append(box, node('span', t('research.circles.exclude', 'Exclude {color}', {color: colorLabel(color)}), 'ms-1'));
                 return label;
             }));
             restoreFocus(focus);
@@ -417,7 +420,7 @@
             const want = checked === undefined ? !st.selection.has(id) : Boolean(checked);
             if (want) {
                 if (st.selection.size >= MAX_SELECTION) {
-                    notify('warning', 'Up to ' + MAX_SELECTION + ' voices can be selected at once.');
+                    notify('warning', t('research.error.selection-max', 'Up to {max} voices can be selected at once.', {max: MAX_SELECTION}));
                     return false;
                 }
                 st.selection.add(id);
@@ -430,8 +433,7 @@
         function selectFiltered() {
             const list = visible();
             if (list.length > MAX_SELECTION) {
-                notify('warning', 'Selecting ' + list.length + ' filtered voices is over the ' + MAX_SELECTION
-                    + '-voice limit. Narrow the filters.');
+                notify('warning', t('research.error.select-filtered', 'Selecting {count} filtered voices is over the {max}-voice limit. Narrow the filters.', {count: list.length, max: MAX_SELECTION}));
                 return false;
             }
             st.selection = new Set(list.map(voice => voice.id));
@@ -443,7 +445,7 @@
             const next = new Set(st.selection);
             for (const voice of page) { next.add(voice.id); }
             if (next.size > MAX_SELECTION) {
-                notify('warning', 'Selecting this page would exceed ' + MAX_SELECTION + ' voices. Clear some selections first.');
+                notify('warning', t('research.error.select-page', 'Selecting this page would exceed {max} voices. Clear some selections first.', {max: MAX_SELECTION}));
                 return false;
             }
             st.selection = next;
@@ -453,7 +455,7 @@
             const list = visible();
             const next = new Set(list.filter(voice => !st.selection.has(voice.id)).map(voice => voice.id));
             if (next.size > MAX_SELECTION) {
-                notify('warning', 'Inverting would select more than ' + MAX_SELECTION + ' voices. Narrow the filters.');
+                notify('warning', t('research.error.invert', 'Inverting would select more than {max} voices. Narrow the filters.', {max: MAX_SELECTION}));
                 return false;
             }
             st.selection = next;
@@ -470,7 +472,7 @@
             const guarded = () => {
                 if (state().epoch !== epoch) { return {ok: false, stale: true}; }
                 if (st.needsReload) {
-                    notify('warning', 'A queued casting change was not saved. Reload the casting library to reconcile before trying again.');
+                    notify('warning', t('safety.research.queued_not_saved', 'A queued casting change was not saved. Reload the casting library to reconcile before trying again.'));
                     return {ok: false, stale: true};
                 }
                 return task();
@@ -530,20 +532,20 @@
         function handleWriteError(action, error) {
             st.needsReload = true;
             if (isConflict(error)) {
-                notify('warning', action + ' was refused because the library changed elsewhere. Reload the casting library to reconcile.');
+                notify('warning', t('safety.research.refused', '{action} was refused because the library changed elsewhere. Reload the casting library to reconcile.', {action}));
                 return;
             }
             st.needsReload = true;
-            notify('warning', action + ' may not have been saved. Reload the casting library to reconcile before trying again.');
-            actionFailure(action, error, 'The casting library may be out of date. Reload it before saving again.');
+            notify('warning', t('safety.research.maybe_unsaved', '{action} may not have been saved. Reload the casting library to reconcile before trying again.', {action}));
+            actionFailure(action, error, t('safety.research.recovery', 'The casting library may be out of date. Reload it before saving again.'));
         }
         function applyBulk(action, ids, patchFactory, opts = {}) {
             if (!ids.length) {
-                notify('info', 'Select at least one voice first.');
+                notify('info', t('research.error.select-one', 'Select at least one voice first.'));
                 return Promise.resolve({ok: false});
             }
             if (st.needsReload) {
-                notify('warning', 'Reload the casting library to reconcile before saving again.');
+                notify('warning', t('research.error.reload-before-saving', 'Reload the casting library to reconcile before saving again.'));
                 return Promise.resolve({ok: false});
             }
             const epoch = state().epoch;
@@ -556,13 +558,13 @@
                     const keys = Object.keys(patch);
                     if (!keys.length) { continue; }
                     if (keys.some(field => SHAPES.includes(field) && shapeLocked(field))) {
-                        notify('info', 'Unlock the affected marks before changing them.');
+                        notify('info', t('research.error.unlock-marks', 'Unlock the affected marks before changing them.'));
                         return {ok: false, locked: true};
                     }
                     changes.push({voice_id: id, patch: {...patch}, expected: expectedFor(id, keys), expected_lifecycle: lifecycleOfId(id)});
                 }
                 if (!changes.length) {
-                    notify('info', 'Nothing would change for the selected voices.');
+                    notify('info', t('research.info.nothing-changed', 'Nothing would change for the selected voices.'));
                     return {ok: false, empty: true};
                 }
                 st.saving = true;
@@ -581,7 +583,7 @@
                     return {ok: true};
                 } catch (error) {
                     if (state().epoch !== epoch) { return {ok: false, stale: true}; }
-                    handleWriteError('Save casting marks', error);
+                    handleWriteError(t('research.action.save-marks', 'Save casting marks'), error);
                     return {ok: false, error};
                 } finally {
                     if (state().epoch === epoch) {
@@ -599,7 +601,7 @@
         }
         function requireReconciliation() {
             st.needsReload = true;
-            notify('warning', 'A save finished after the library reloaded. Reload again to reconcile before editing.');
+            notify('warning', t('safety.research.save_after_reload', 'A save finished after the library reloaded. Reload again to reconcile before editing.'));
             syncToolbar(visible());
         }
         function undoMove(direction) {
@@ -611,7 +613,7 @@
                 const entry = from[from.length - 1];
                 if (!entry) { return; }
                 if (entry.changes.some(change => SHAPES.some(shape => Object.hasOwn(change.patch, shape) && shapeLocked(shape)))) {
-                    notify('info', 'Unlock the affected marks before undoing or redoing this change.');
+                    notify('info', t('research.error.unlock-undo', 'Unlock the affected marks before undoing or redoing this change.'));
                     return;
                 }
                 const changes = entry.changes.map(change => {
@@ -635,7 +637,7 @@
                     render();
                 } catch (error) {
                     if (state().epoch !== epoch) { return; }
-                    handleWriteError(direction === 'undo' ? 'Undo casting change' : 'Redo casting change', error);
+                    handleWriteError(direction === 'undo' ? t('research.action.undo', 'Undo casting change') : t('research.action.redo', 'Redo casting change'), error);
                 } finally {
                     if (state().epoch === epoch) {
                         st.saving = false;
@@ -647,16 +649,16 @@
         function shapeLocked(shape) { return shape === 'stars' ? prefs.lockStars : prefs.lockCircles; }
         function writesBlocked() { return st.saving || st.needsReload; }
         function blockedNotice() {
-            if (st.needsReload) { notify('warning', 'Reload the casting library to reconcile before saving again.'); }
+            if (st.needsReload) { notify('warning', t('research.error.reload-before-saving', 'Reload the casting library to reconcile before saving again.')); }
             return true;
         }
         function toggleShapeColor(voice, shape, color) {
             if (shapeLocked(shape)) {
-                notify('info', SHAPE_LABEL[shape] + ' marks are locked. Unlock them in the research toolbar first.');
+                notify('info', t('research.error.locked', '{shape} marks are locked. Unlock them in the research toolbar first.', {shape: shapeLabel(shape)}));
                 return Promise.resolve({ok: false});
             }
             return applyBulk('Toggle ' + shape.slice(0, -1) + ' ' + color, [voice.id], mark => {
-                if (shapeLocked(shape)) { notify('info', 'Unlock these marks before changing them.'); return null; }
+                if (shapeLocked(shape)) { notify('info', t('research.error.unlock', 'Unlock these marks before changing them.')); return null; }
                 const values = mark[shape] || [];
                 return {[shape]: values.includes(color) ? values.filter(value => value !== color) : [...values, color]};
             });
@@ -697,7 +699,7 @@
                 if (adding === has) { return null; }
                 const limit = field === 'tags' ? MAX_TAGS : MAX_COLLECTIONS;
                 if (adding && values.length >= limit) {
-                    notify('info', 'This voice already has the maximum ' + limit + ' ' + field + '.');
+                    notify('info', field === 'tags' ? t('research.error.max-tags', 'This voice already has the maximum {max} tags.', {max: limit}) : t('research.error.max-collections', 'This voice already has the maximum {max} research collections.', {max: limit}));
                     return null;
                 }
                 const patch = {[field]: adding ? [...values, value] : values.filter(item => item.toLowerCase() !== value.toLowerCase())};
@@ -714,7 +716,7 @@
         }
         function setTagColor(voice, tag, color) {
             if (color && !COLORS.includes(color)) {
-                notify('info', 'That tag colour is not in the casting palette.');
+                notify('info', t('research.error.bad-colour', 'That tag colour is not in the casting palette.'));
                 return Promise.resolve({ok: false});
             }
             // One tag name has one colour: every voice carrying it changes in the same atomic write.
@@ -722,7 +724,7 @@
             return applyBulk('Set tag colour', [voice.id, ...others.map(item => item.id)], (mark, id) => {
                 const key = matchingTag(mark, tag);
                 if (!key) {
-                    if (id === voice.id) { notify('info', 'That tag is no longer on this voice.'); }
+                    if (id === voice.id) { notify('info', t('research.error.tag-gone', 'That tag is no longer on this voice.')); }
                     return null;
                 }
                 if (tagColorOf(mark, key) === (color || '')) { return null; }
@@ -775,70 +777,70 @@
         }
         function buildToolbar(host) {
             const selection = node('div', undefined, 'casting-research-row mb-2');
-            ui.selectionCount = node('span', 'No voices selected', 'small text-muted');
+            ui.selectionCount = node('span', t('research.selection.none', 'No voices selected'), 'small text-muted');
             ui.selectionCount.id = 'casting-research-selection-count';
             ui.selectionCount.setAttribute('role', 'status');
             ui.selectionCount.setAttribute('aria-live', 'polite');
-            ui.selectFiltered = makeButton('select-filtered', 'Select all filtered', 'btn btn-sm btn-outline-secondary', selectFiltered);
-            ui.selectPage = makeButton('select-page', 'Select shown page', 'btn btn-sm btn-outline-secondary', selectShownPage);
-            ui.invert = makeButton('invert', 'Invert selection', 'btn btn-sm btn-outline-secondary', invertSelection);
-            ui.clearSelection = makeButton('clear-selection', 'Clear selection', 'btn btn-sm btn-outline-secondary', clearSelection);
-            ui.viewTrash = makeButton('view-trash', 'View trash', 'btn btn-sm btn-outline-secondary', switchMode, 'View trashed voices');
-            ui.trash = makeButton('trash', 'Trash selected', 'btn btn-sm btn-outline-warning', () => lifecycleAction('trash'), 'Move selected voices to Trash');
-            ui.restore = makeButton('restore', 'Restore selected', 'btn btn-sm btn-outline-success', () => lifecycleAction('restore'), 'Restore selected voices from Trash');
-            ui.delete = makeButton('delete', 'Delete permanently', 'btn btn-sm btn-outline-danger', () => lifecycleAction('delete'), 'Permanently delete selected voices from the catalogue');
+            ui.selectFiltered = makeButton('select-filtered', t('research.selection.select-filtered', 'Select all filtered'), 'btn btn-sm btn-outline-secondary', selectFiltered);
+            ui.selectPage = makeButton('select-page', t('research.selection.select-page', 'Select shown page'), 'btn btn-sm btn-outline-secondary', selectShownPage);
+            ui.invert = makeButton('invert', t('research.selection.invert', 'Invert selection'), 'btn btn-sm btn-outline-secondary', invertSelection);
+            ui.clearSelection = makeButton('clear-selection', t('research.selection.clear', 'Clear selection'), 'btn btn-sm btn-outline-secondary', clearSelection);
+            ui.viewTrash = makeButton('view-trash', t('research.lifecycle.view-trash', 'View trash'), 'btn btn-sm btn-outline-secondary', switchMode, t('research.lifecycle.view-trash-aria', 'View trashed voices'));
+            ui.trash = makeButton('trash', t('research.lifecycle.trash', 'Trash selected'), 'btn btn-sm btn-outline-warning', () => lifecycleAction('trash'), t('research.lifecycle.trash-aria', 'Move selected voices to Trash'));
+            ui.restore = makeButton('restore', t('research.lifecycle.restore', 'Restore selected'), 'btn btn-sm btn-outline-success', () => lifecycleAction('restore'), t('research.lifecycle.restore-aria', 'Restore selected voices from Trash'));
+            ui.delete = makeButton('delete', t('research.delete.action', 'Delete permanently'), 'btn btn-sm btn-outline-danger', () => lifecycleAction('delete'), t('research.delete.aria', 'Permanently delete selected voices from the catalogue'));
             selection.append(ui.selectionCount, ui.selectFiltered, ui.selectPage, ui.invert, ui.clearSelection, ui.viewTrash, ui.trash, ui.restore, ui.delete);
             host.append(selection);
 
             const bulk = node('div', undefined, 'casting-research-row casting-bulkbar mb-2');
-            bulk.append(node('span', 'Bulk change', 'small fw-bold'));
+            bulk.append(node('span', t('research.bulk.title', 'Bulk change'), 'small fw-bold'));
             ui.bulkStatus = makeSelect('bulk-status',
-                [['', 'Status: no change'], ...['unreviewed', 'shortlist', 'callback', 'reject'].map(value => [value, value[0].toUpperCase() + value.slice(1)])],
-                '', 'Bulk review status', value => {
+                [['', t('research.bulk.status-none', 'Status: no change')], ...['unreviewed', 'shortlist', 'callback', 'reject'].map(value => [value, statusLabel(value)])],
+                '', t('research.bulk.status-aria', 'Bulk review status'), value => {
                     if (!value) { return; }
                     const action = 'Set status for selected voices';
                     applyBulk(action, [...st.selection], () => ({status: value}));
                     ui.bulkStatus.value = '';
                 });
             ui.bulkPriority = makeSelect('bulk-priority',
-                [['', 'Priority: no change'], ...['none', 'low', 'medium', 'high'].map(value => [value, value === 'none' ? 'No priority' : value[0].toUpperCase() + value.slice(1)])],
-                '', 'Bulk priority', value => {
+                [['', t('research.bulk.priority-none', 'Priority: no change')], ...['none', 'low', 'medium', 'high'].map(value => [value, priorityLabel(value)])],
+                '', t('research.bulk.priority-aria', 'Bulk priority'), value => {
                     if (!value) { return; }
                     applyBulk('Set priority for selected voices', [...st.selection], () => ({priority: value}));
                     ui.bulkPriority.value = '';
                 });
             bulk.append(ui.bulkStatus, ui.bulkPriority);
-            ui.bulkTag = makeInput('bulk-tag', 'text', 'Tag for bulk change', '', MAX_TAG_LENGTH);
-            ui.bulkTag.setAttribute('placeholder', 'Tag');
-            ui.bulkTagAdd = makeButton('bulk-tag-add', 'Add tag', 'btn btn-sm btn-outline-success', () => bulkTag('add'));
-            ui.bulkTagRemove = makeButton('bulk-tag-remove', 'Remove tag', 'btn btn-sm btn-outline-danger', () => bulkTag('remove'));
+            ui.bulkTag = makeInput('bulk-tag', 'text', t('research.bulk.tag-aria', 'Tag for bulk change'), '', MAX_TAG_LENGTH);
+            ui.bulkTag.setAttribute('placeholder', t('research.bulk.tag-placeholder', 'Tag'));
+            ui.bulkTagAdd = makeButton('bulk-tag-add', t('research.bulk.add-tag', 'Add tag'), 'btn btn-sm btn-outline-success', () => bulkTag('add'));
+            ui.bulkTagRemove = makeButton('bulk-tag-remove', t('research.bulk.remove-tag', 'Remove tag'), 'btn btn-sm btn-outline-danger', () => bulkTag('remove'));
             bulk.append(ui.bulkTag, ui.bulkTagAdd, ui.bulkTagRemove);
-            ui.bulkCollection = makeInput('bulk-collection', 'text', 'Research collection for bulk change', '', MAX_COLLECTION_LENGTH);
-            ui.bulkCollection.setAttribute('placeholder', 'Research collection');
-            ui.bulkCollectionAdd = makeButton('bulk-collection-add', 'Add to collection', 'btn btn-sm btn-outline-success', () => bulkCollection('add'));
-            ui.bulkCollectionRemove = makeButton('bulk-collection-remove', 'Remove from collection', 'btn btn-sm btn-outline-danger', () => bulkCollection('remove'));
+            ui.bulkCollection = makeInput('bulk-collection', 'text', t('research.bulk.collection-aria', 'Research collection for bulk change'), '', MAX_COLLECTION_LENGTH);
+            ui.bulkCollection.setAttribute('placeholder', t('research.bulk.collection-placeholder', 'Research collection'));
+            ui.bulkCollectionAdd = makeButton('bulk-collection-add', t('research.bulk.add-collection', 'Add to collection'), 'btn btn-sm btn-outline-success', () => bulkCollection('add'));
+            ui.bulkCollectionRemove = makeButton('bulk-collection-remove', t('research.bulk.remove-collection', 'Remove from collection'), 'btn btn-sm btn-outline-danger', () => bulkCollection('remove'));
             bulk.append(ui.bulkCollection, ui.bulkCollectionAdd, ui.bulkCollectionRemove);
             host.append(bulk);
 
             const marksBulk = node('div', undefined, 'casting-research-row mb-2');
-            marksBulk.append(node('span', 'Marks', 'small fw-bold'));
-            ui.bulkShape = makeSelect('bulk-shape', [['stars', 'Stars'], ['circles', 'Circles']], 'stars', 'Shape for bulk marks', () => syncToolbar(visible()));
-            ui.bulkColor = makeSelect('bulk-color', COLORS.map(color => [color, COLOR_LABEL[color]]), 'red', 'Colour for bulk marks', () => {});
-            ui.bulkMarkAdd = makeButton('bulk-mark-add', 'Add mark', 'btn btn-sm btn-outline-success', () => bulkMark('add'));
-            ui.bulkMarkRemove = makeButton('bulk-mark-remove', 'Remove mark', 'btn btn-sm btn-outline-danger', () => bulkMark('remove'));
+            marksBulk.append(node('span', t('research.bulk.marks', 'Marks'), 'small fw-bold'));
+            ui.bulkShape = makeSelect('bulk-shape', [['stars', t('research.shape.stars', 'Stars')], ['circles', t('research.shape.circles', 'Circles')]], 'stars', t('research.bulk.shape-aria', 'Shape for bulk marks'), () => syncToolbar(visible()));
+            ui.bulkColor = makeSelect('bulk-color', COLORS.map(color => [color, colorLabel(color)]), 'red', t('research.bulk.colour-aria', 'Colour for bulk marks'), () => {});
+            ui.bulkMarkAdd = makeButton('bulk-mark-add', t('research.bulk.add-mark', 'Add mark'), 'btn btn-sm btn-outline-success', () => bulkMark('add'));
+            ui.bulkMarkRemove = makeButton('bulk-mark-remove', t('research.bulk.remove-mark', 'Remove mark'), 'btn btn-sm btn-outline-danger', () => bulkMark('remove'));
             marksBulk.append(ui.bulkShape, ui.bulkColor, ui.bulkMarkAdd, ui.bulkMarkRemove);
-            ui.clearShape = makeSelect('clear-shape', [['stars', 'Stars'], ['circles', 'Circles'], ['both', 'Both shapes']], 'stars', 'Shape to clear', () => syncToolbar(visible()));
-            ui.clearColor = makeSelect('clear-color', [['all', 'All colours'], ...COLORS.map(color => [color, COLOR_LABEL[color]])], 'all', 'Colour to clear', () => {});
-            ui.clearMarks = makeButton('clear-marks', 'Clear marks…', 'btn btn-sm btn-outline-warning', clearMarks);
+            ui.clearShape = makeSelect('clear-shape', [['stars', t('research.shape.stars', 'Stars')], ['circles', t('research.shape.circles', 'Circles')], ['both', t('research.shape.both', 'Both shapes')]], 'stars', t('research.bulk.clear-shape-aria', 'Shape to clear'), () => syncToolbar(visible()));
+            ui.clearColor = makeSelect('clear-color', [['all', t('research.bulk.all-colours', 'All colours')], ...COLORS.map(color => [color, colorLabel(color)])], 'all', t('research.bulk.clear-colour-aria', 'Colour to clear'), () => {});
+            ui.clearMarks = makeButton('clear-marks', t('research.bulk.clear-marks', 'Clear marks…'), 'btn btn-sm btn-outline-warning', clearMarks);
             marksBulk.append(ui.clearShape, ui.clearColor, ui.clearMarks);
-            ui.undo = makeButton('undo', 'Undo', 'btn btn-sm btn-outline-secondary', () => undoMove('undo'));
-            ui.redo = makeButton('redo', 'Redo', 'btn btn-sm btn-outline-secondary', () => undoMove('redo'));
+            ui.undo = makeButton('undo', t('research.bulk.undo', 'Undo'), 'btn btn-sm btn-outline-secondary', () => undoMove('undo'));
+            ui.redo = makeButton('redo', t('research.bulk.redo', 'Redo'), 'btn btn-sm btn-outline-secondary', () => undoMove('redo'));
             marksBulk.append(ui.undo, ui.redo);
             host.append(marksBulk);
 
             const locks = node('div', undefined, 'casting-research-row mb-2');
-            ui.lockStars = makeCheck('lock-stars', 'Lock star marks', prefs.lockStars);
-            ui.lockCircles = makeCheck('lock-circles', 'Lock circle marks', prefs.lockCircles);
+            ui.lockStars = makeCheck('lock-stars', t('research.lock.stars', 'Lock star marks'), prefs.lockStars);
+            ui.lockCircles = makeCheck('lock-circles', t('research.lock.circles', 'Lock circle marks'), prefs.lockCircles);
             ui.lockStars.input.addEventListener('change', () => {
                 prefs.lockStars = Boolean(ui.lockStars.input.checked);
                 savePrefs();
@@ -855,8 +857,8 @@
             host.append(locks);
 
             const playbackRow = node('div', undefined, 'casting-research-row mb-2');
-            playbackRow.append(node('span', 'Playback', 'small fw-bold'));
-            ui.seconds = makeInput('play-seconds', 'number', 'Seconds per voice', prefs.seconds);
+            playbackRow.append(node('span', t('research.playback.title', 'Playback'), 'small fw-bold'));
+            ui.seconds = makeInput('play-seconds', 'number', t('research.playback.seconds-aria', 'Seconds per voice'), prefs.seconds);
             ui.seconds.setAttribute('min', '0');
             ui.seconds.setAttribute('max', '120');
             ui.seconds.setAttribute('step', '1');
@@ -864,7 +866,7 @@
                 const value = Number(ui.seconds.value);
                 if (!Number.isInteger(value) || value < 0 || value > 120) {
                     ui.seconds.value = prefs.full ? '0' : String(prefs.seconds);
-                    notify('info', 'Use 0 for full samples or a whole number of seconds from 1 to 120.');
+                    notify('info', t('research.playback.seconds-hint', 'Use 0 for full samples or a whole number of seconds from 1 to 120.'));
                     return;
                 }
                 if (value === 0) {
@@ -880,26 +882,26 @@
                 setPlayback(value, false);
                 syncToolbar(visible());
             });
-            ui.full = makeCheck('play-full', 'Full samples', prefs.full);
+            ui.full = makeCheck('play-full', t('research.playback.full', 'Full samples'), prefs.full);
             ui.full.input.addEventListener('change', () => {
                 prefs.full = Boolean(ui.full.input.checked);
                 savePrefs();
                 setPlayback(prefs.seconds, prefs.full);
                 syncToolbar(visible());
             });
-            ui.prev = makeButton('play-prev', 'Previous', 'btn btn-sm btn-outline-secondary', () => playback.prev && playback.prev(), 'Previous voice in the playback queue');
-            ui.next = makeButton('play-next', 'Next', 'btn btn-sm btn-outline-secondary', () => playback.next && playback.next(), 'Next voice in the playback queue');
-            ui.stop = makeButton('play-stop', 'Stop', 'btn btn-sm btn-outline-secondary', () => playback.stop && playback.stop(), 'Stop the playback queue');
-            ui.random = makeButton('play-random', 'Random', 'btn btn-sm btn-outline-secondary', () => playback.random && playback.random(), 'Play a random filtered voice with audio');
-            playbackRow.append(ui.seconds, node('span', 's per voice', 'small text-muted'), ui.full.labelNode,
+            ui.prev = makeButton('play-prev', t('research.playback.prev', 'Previous'), 'btn btn-sm btn-outline-secondary', () => playback.prev && playback.prev(), t('research.playback.prev-aria', 'Previous voice in the playback queue'));
+            ui.next = makeButton('play-next', t('research.playback.next', 'Next'), 'btn btn-sm btn-outline-secondary', () => playback.next && playback.next(), t('research.playback.next-aria', 'Next voice in the playback queue'));
+            ui.stop = makeButton('play-stop', t('research.playback.stop', 'Stop'), 'btn btn-sm btn-outline-secondary', () => playback.stop && playback.stop(), t('research.playback.stop-aria', 'Stop the playback queue'));
+            ui.random = makeButton('play-random', t('research.playback.random', 'Random'), 'btn btn-sm btn-outline-secondary', () => playback.random && playback.random(), t('research.playback.random-aria', 'Play a random filtered voice with audio'));
+            playbackRow.append(ui.seconds, node('span', ' ' + t('research.playback.seconds-suffix', 's per voice'), 'small text-muted'), ui.full.labelNode,
                                ui.prev, ui.next, ui.stop, ui.random);
             host.append(playbackRow);
 
             const viewRow = node('div', undefined, 'casting-research-row mb-2');
-            ui.showDescription = makeCheck('show-description', 'Description', prefs.description);
-            ui.showSample = makeCheck('show-sample', 'Sample line', prefs.sample);
-            ui.showTags = makeCheck('show-tags', 'Tags', prefs.tags);
-            ui.focus = makeCheck('focus', 'Focus cards', prefs.focus);
+            ui.showDescription = makeCheck('show-description', t('research.view.description', 'Description'), prefs.description);
+            ui.showSample = makeCheck('show-sample', t('research.view.sample', 'Sample line'), prefs.sample);
+            ui.showTags = makeCheck('show-tags', t('research.view.tags', 'Tags'), prefs.tags);
+            ui.focus = makeCheck('focus', t('research.view.focus', 'Focus cards'), prefs.focus);
             for (const [control, key] of [[ui.showDescription, 'description'], [ui.showSample, 'sample'],
                                           [ui.showTags, 'tags'], [ui.focus, 'focus']]) {
                 control.input.addEventListener('change', () => {
@@ -912,12 +914,12 @@
             host.append(viewRow);
 
             const viewsRow = node('div', undefined, 'casting-research-row mb-2');
-            ui.viewName = makeInput('view-name', 'text', 'Saved view name', '', 60);
-            ui.viewName.setAttribute('placeholder', 'View name');
-            ui.viewSelect = makeSelect('view', [['', 'Saved views']], '', 'Saved view', () => {});
-            ui.viewSave = makeButton('view-save', 'Save view', 'btn btn-sm btn-outline-primary', saveView);
-            ui.viewApply = makeButton('view-apply', 'Apply view', 'btn btn-sm btn-outline-secondary', () => applyView(ui.viewSelect.value));
-            ui.viewDelete = makeButton('view-delete', 'Delete view', 'btn btn-sm btn-outline-secondary', deleteView);
+            ui.viewName = makeInput('view-name', 'text', t('research.views.name-aria', 'Saved view name'), '', 60);
+            ui.viewName.setAttribute('placeholder', t('research.views.name-placeholder', 'View name'));
+            ui.viewSelect = makeSelect('view', [['', t('research.views.saved', 'Saved views')]], '', t('research.views.saved-aria', 'Saved view'), () => {});
+            ui.viewSave = makeButton('view-save', t('research.views.save', 'Save view'), 'btn btn-sm btn-outline-primary', saveView);
+            ui.viewApply = makeButton('view-apply', t('research.views.apply', 'Apply view'), 'btn btn-sm btn-outline-secondary', () => applyView(ui.viewSelect.value));
+            ui.viewDelete = makeButton('view-delete', t('research.views.delete', 'Delete view'), 'btn btn-sm btn-outline-secondary', deleteView);
             viewsRow.append(ui.viewName, ui.viewSave, ui.viewSelect, ui.viewApply, ui.viewDelete);
             host.append(viewsRow);
         }
@@ -927,10 +929,10 @@
         }
         function bulkTag(mode) {
             const raw = String(ui.bulkTag.value || '').trim();
-            if (!raw) { notify('info', 'Type a tag first.'); return; }
-            if (raw.length > MAX_TAG_LENGTH) { notify('info', 'Tags are limited to ' + MAX_TAG_LENGTH + ' characters.'); return; }
+            if (!raw) { notify('info', t('research.error.tag-required', 'Type a tag first.')); return; }
+            if (raw.length > MAX_TAG_LENGTH) { notify('info', t('research.error.tag-length', 'Tags are limited to {max} characters.', {max: MAX_TAG_LENGTH})); return; }
             const ids = [...st.selection];
-            if (!ids.length) { notify('info', 'Select at least one voice first.'); return; }
+            if (!ids.length) { notify('info', t('research.error.select-one', 'Select at least one voice first.')); return; }
             applyBulk(mode === 'add' ? 'Add tag' : 'Remove tag', ids, mark => {
                 const tags = mark.tags || [];
                 if (mode === 'add') {
@@ -949,13 +951,13 @@
         }
         function bulkCollection(mode) {
             const raw = String(ui.bulkCollection.value || '').trim();
-            if (!raw) { notify('info', 'Type a research collection name first.'); return; }
+            if (!raw) { notify('info', t('research.error.collection-required', 'Type a research collection name first.')); return; }
             if (raw.length > MAX_COLLECTION_LENGTH) {
-                notify('info', 'Research collection names are limited to ' + MAX_COLLECTION_LENGTH + ' characters.');
+                notify('info', t('research.error.collection-length', 'Research collection names are limited to {max} characters.', {max: MAX_COLLECTION_LENGTH}));
                 return;
             }
             const ids = [...st.selection];
-            if (!ids.length) { notify('info', 'Select at least one voice first.'); return; }
+            if (!ids.length) { notify('info', t('research.error.select-one', 'Select at least one voice first.')); return; }
             applyBulk(mode === 'add' ? 'Add research collection membership' : 'Remove research collection membership', ids, mark => {
                 const names = mark.collections || [];
                 if (mode === 'add') {
@@ -970,7 +972,7 @@
         function bulkMark(mode) {
             const shape = ui.bulkShape.value, color = ui.bulkColor.value;
             if (shapeLocked(shape)) {
-                notify('info', SHAPE_LABEL[shape] + ' marks are locked. Unlock them first.');
+                notify('info', t('research.error.locked-first', '{shape} marks are locked. Unlock them first.', {shape: shapeLabel(shape)}));
                 return;
             }
             applyBulk((mode === 'add' ? 'Add ' : 'Remove ') + shape.slice(0, -1) + ' ' + color, [...st.selection], mark => {
@@ -985,18 +987,18 @@
             const color = ui.clearColor.value;
             for (const shape of shapes) {
                 if (shapeLocked(shape)) {
-                    notify('info', SHAPE_LABEL[shape] + ' marks are locked. Unlock them before clearing.');
+                    notify('info', t('research.error.locked-clear', '{shape} marks are locked. Unlock them before clearing.', {shape: shapeLabel(shape)}));
                     return;
                 }
             }
             const ids = [...st.selection];
-            if (!ids.length) { notify('info', 'Select at least one voice first.'); return; }
+            if (!ids.length) { notify('info', t('research.error.select-one', 'Select at least one voice first.')); return; }
             if (!confirmAction) { return; }
-            const scope = (color === 'all' ? 'all colours' : COLOR_LABEL[color] || color) + ' of ' + shapes.map(shape => shape).join(' and ');
-            confirmAction('Clear ' + scope + ' on ' + ids.length + ' selected voice(s)? Tags, status, priority, notes and research collections are kept.',
-                {title: 'Clear marks only?', actionLabel: 'Clear marks'}).then(answer => {
+            const scope = t('research.clear.scope', '{color} of {shapes}', {color: color === 'all' ? t('research.bulk.all-colours', 'All colours') : colorLabel(color) || color, shapes: shapes.map(shape => shapeLabel(shape)).join(' ' + t('research.clear.and', 'and') + ' ')});
+            confirmAction(ids.length === 1 ? formatUiSafetyText('safety.research.clear_marks.one', 'Clear {scope} on {count} selected voice? Tags, status, priority, notes and research collections are kept.', {scope, count: ids.length}) : formatUiSafetyText('safety.research.clear_marks.many', 'Clear {scope} on {count} selected voices? Tags, status, priority, notes and research collections are kept.', {scope, count: ids.length}),
+                {title: t('research.clear.title', 'Clear marks only?'), actionLabel: t('research.clear.action', 'Clear marks')}).then(answer => {
                 if (!answer) { return; }
-                applyBulk('Clear marks (' + scope + ')', ids, mark => {
+                applyBulk('Clear marks', ids, mark => {
                     const patch = {};
                     for (const shape of shapes) {
                         const values = mark[shape] || [];
@@ -1083,32 +1085,32 @@
         }
         function saveView() {
             const name = String(ui.viewName.value || '').trim();
-            if (!name) { notify('info', 'Name the view first.'); return; }
+            if (!name) { notify('info', t('research.error.view-name', 'Name the view first.')); return; }
             const view = sanitizeView(captureView(name));
-            if (!view) { notify('info', 'That view name cannot be saved.'); return; }
+            if (!view) { notify('info', t('research.error.view-name-invalid', 'That view name cannot be saved.')); return; }
             const views = readViews();
             const at = views.findIndex(item => item.name === view.name);
             if (at >= 0) {
                 views[at] = view;
             } else {
                 if (views.length >= MAX_VIEWS) {
-                    notify('warning', 'Up to ' + MAX_VIEWS + ' saved views are supported. Delete one first.');
+                    notify('warning', t('research.error.view-max', 'Up to {max} saved views are supported. Delete one first.', {max: MAX_VIEWS}));
                     return;
                 }
                 views.push(view);
             }
             if (!writeStored(VIEWS_KEY, views)) {
-                notify('warning', 'Browser storage is unavailable; the view could not be saved.');
+                notify('warning', t('research.error.storage-save', 'Browser storage is unavailable; the view could not be saved.'));
                 return;
             }
             st.views = views;
             ui.viewName.value = '';
             syncViews();
-            notify('success', 'Saved view ' + view.name + '.');
+            notify('success', t('research.views.saved-named', 'Saved view {name}.', {name: view.name}));
         }
         function applyView(name) {
             const view = st.views.find(item => item.name === name);
-            if (!view) { notify('info', 'Choose a saved view first.'); return; }
+            if (!view) { notify('info', t('research.error.view-choose', 'Choose a saved view first.')); return; }
             if (typeof playback.stop === 'function') { playback.stop(); }
             const search = document.getElementById('casting-search');
             if (search) { search.value = view.search; }
@@ -1141,10 +1143,10 @@
         }
         function deleteView() {
             const name = ui.viewSelect.value;
-            if (!name) { notify('info', 'Choose a saved view first.'); return; }
+            if (!name) { notify('info', t('research.error.view-choose', 'Choose a saved view first.')); return; }
             const views = readViews().filter(item => item.name !== name);
             if (!writeStored(VIEWS_KEY, views)) {
-                notify('warning', 'Browser storage is unavailable; the view could not be deleted.');
+                notify('warning', t('research.error.storage-delete', 'Browser storage is unavailable; the view could not be deleted.'));
                 return;
             }
             st.views = views;
@@ -1153,7 +1155,7 @@
         function syncViews() {
             if (!ui.viewSelect) { return; }
             const current = ui.viewSelect.value;
-            const options = [['', 'Saved views'], ...st.views.map(view => [view.name, view.name])];
+            const options = [['', t('research.views.saved', 'Saved views')], ...st.views.map(view => [view.name, view.name])];
             fillOptions(ui.viewSelect, options);
             ui.viewSelect.value = st.views.some(view => view.name === current) ? current : '';
         }
@@ -1163,7 +1165,7 @@
             const page = pageSlice(list);
             const scope = st.selection.size
                 ? st.selection.size + ' selected of ' + list.length + ' filtered (' + page.length + ' shown)'
-                : 'No voices selected';
+                : t('research.selection.none', 'No voices selected');
             ui.selectionCount.textContent = scope;
             const blocked = writesBlocked();
             const count = st.selection.size;
@@ -1186,8 +1188,8 @@
             ui.redo.disabled = blocked || !st.redo.length;
             if (ui.viewTrash) {
                 ui.viewTrash.disabled = blocked;
-                ui.viewTrash.textContent = currentMode() === 'trashed' ? 'Exit trash' : 'View trash';
-                ui.viewTrash.setAttribute('aria-label', currentMode() === 'trashed' ? 'Exit trash' : 'View trash');
+                ui.viewTrash.textContent = currentMode() === 'trashed' ? t('research.lifecycle.exit-trash', 'Exit trash') : t('research.lifecycle.view-trash', 'View trash');
+                ui.viewTrash.setAttribute('aria-label', currentMode() === 'trashed' ? t('research.lifecycle.exit-trash-aria', 'Exit trash') : t('research.lifecycle.view-trash-aria', 'View trashed voices'));
             }
             if (ui.trash) {
                 ui.trash.hidden = currentMode() !== 'active';
@@ -1228,7 +1230,7 @@
             if (value === 'all') {
                 const list = visible();
                 if (list.length > MAX_SELECTION) {
-                    guard('Show all is limited to ' + MAX_SELECTION + ' voices. Narrow the filters.');
+                    guard(t('research.error.show-all', 'Show all is limited to {max} voices. Narrow the filters.', {max: MAX_SELECTION}));
                     syncPagination(list);
                     return;
                 }
@@ -1260,19 +1262,19 @@
             const list = visible();
             const cap = Math.min(list.length, MAX_SELECTION);
             if (st.loaded >= cap) {
-                if (list.length > MAX_SELECTION) { guard('More voices remain, but paging is limited to ' + MAX_SELECTION + ' at a time.'); }
+                if (list.length > MAX_SELECTION) { guard(t('research.error.paging-limit', 'More voices remain, but paging is limited to {max} at a time.', {max: MAX_SELECTION})); }
                 return;
             }
             st.loaded = Math.min(st.loaded + st.pageSize, cap);
             if (st.loaded >= MAX_SELECTION && list.length > MAX_SELECTION) {
-                guard('Showing the first ' + MAX_SELECTION + ' voices. Narrow the filters to see the rest.');
+                guard(t('research.page.first', 'Showing the first {max} voices. Narrow the filters to see the rest.', {max: MAX_SELECTION}));
             }
             render();
         }
         function showAll() {
             const list = visible();
             if (list.length > MAX_SELECTION) {
-                guard('Show all is limited to ' + MAX_SELECTION + ' voices. Narrow the filters.');
+                guard(t('research.error.show-all', 'Show all is limited to {max} voices. Narrow the filters.', {max: MAX_SELECTION}));
                 return;
             }
             st.pageMode = 'all';
@@ -1312,9 +1314,9 @@
             const total = pageCount(list);
             const start = st.pageMode === 'pages' ? st.pageIndex * st.pageSize : 0;
             ui.pageStatus.textContent = list.length
-                ? 'Showing ' + (start + 1) + '–' + (start + page.length) + ' of ' + list.length
-                    + (st.pageMode === 'pages' ? ' (page ' + (st.pageIndex + 1) + ' of ' + total + ')' : '')
-                : 'Nothing to show';
+                ? t('research.page.showing', 'Showing {start}–{end} of {total}', {start: start + 1, end: start + page.length, total: list.length})
+                    + (st.pageMode === 'pages' ? ' ' + t('research.page.of', '(page {page} of {total})', {page: st.pageIndex + 1, total}) : '')
+                : t('research.page.none', 'Nothing to show');
             const blocked = st.saving;
             ui.pagePrev.disabled = blocked || st.pageMode !== 'pages' || st.pageIndex <= 0;
             ui.pageNext.disabled = blocked || st.pageMode !== 'pages' || st.pageIndex >= total - 1;
@@ -1323,13 +1325,13 @@
             ui.showAll.hidden = st.pageMode === 'all';
             ui.showAll.disabled = blocked || list.length === 0;
             if (list.length > MAX_SELECTION) {
-                ui.showAll.setAttribute('title', 'Show all is limited to ' + MAX_SELECTION + ' voices; narrow the filters');
+                ui.showAll.setAttribute('title', t('research.error.show-all-title', 'Show all is limited to {max} voices; narrow the filters', {max: MAX_SELECTION}));
             }
             ui.pageSize.disabled = blocked;
             ui.mode.disabled = blocked;
             if (ui.mode.value !== st.pageMode) { ui.mode.value = st.pageMode; }
             if (st.pageMode === 'all' && list.length > MAX_SELECTION && ui.guard) {
-                ui.guard.textContent = 'Showing the first ' + MAX_SELECTION + ' voices. Narrow the filters to see the rest.';
+                ui.guard.textContent = t('research.page.first', 'Showing the first {max} voices. Narrow the filters to see the rest.', {max: MAX_SELECTION});
             }
             updateObserver(list);
         }
@@ -1347,12 +1349,12 @@
             if (!host) { return; }
             host.replaceChildren();
             if (!st.activity.length) {
-                host.append(node('p', 'No casting activity yet.', 'small text-muted mb-0'));
+                host.append(node('p', t('research.activity.none', 'No casting activity yet.'), 'small text-muted mb-0'));
                 return;
             }
             for (const event of [...st.activity].reverse()) {
                 const at = event.at.replace('T', ' ').slice(0, 19);
-                host.append(node('p', at + ' · ' + event.action + ' · ' + event.count + ' voice(s)', 'small mb-1'));
+                host.append(node('p', event.count === 1 ? t('research.activity.row.one', '{at} · {action} · {count} voice', {at, action: event.action, count: event.count}) : t('research.activity.row.many', '{at} · {action} · {count} voices', {at, action: event.action, count: event.count}), 'small mb-1'));
             }
         }
 
@@ -1375,7 +1377,7 @@
         function applyLifecycle(to, ids, expected, action, mode, epoch) {
             if (!ids.length || !lifecycleStillCurrent(ids, mode, epoch)) { return Promise.resolve({ok: false, stale: true}); }
             if (st.needsReload) {
-                notify('warning', 'Reload the casting library to reconcile before saving again.');
+                notify('warning', t('research.error.reload-before-saving', 'Reload the casting library to reconcile before saving again.'));
                 return Promise.resolve({ok: false});
             }
             const captured = [...ids];
@@ -1391,7 +1393,7 @@
                         || !Array.isArray(result.activity) || Object.keys(result.marks).length !== captured.length
                         || captured.some(id => !Object.prototype.hasOwnProperty.call(result.marks, id)
                             || !result.marks[id] || result.marks[id].lifecycle !== to)) {
-                        throw new Error('The lifecycle reply is incomplete. Reload the casting library to reconcile.');
+                        throw new Error(t('safety.research.lifecycle_incomplete', 'The lifecycle reply is incomplete. Reload the casting library to reconcile.'));
                     }
                     applyServerMarks(result.marks);
                     pruneUndoFor(captured);
@@ -1418,33 +1420,33 @@
         }
         function lifecycleAction(kind) {
             const ids = [...st.selection];
-            if (!ids.length) { notify('info', 'Select at least one voice first.'); return; }
+            if (!ids.length) { notify('info', t('research.error.select-one', 'Select at least one voice first.')); return; }
             if (writesBlocked()) { blockedNotice(); return; }
             const mode = currentMode(), epoch = state().epoch;
             if (kind === 'trash') {
                 if (mode !== 'active') { return; }
-                applyLifecycle('trashed', ids, 'active', 'Trash voices', mode, epoch);
+                applyLifecycle('trashed', ids, 'active', t('research.action.trash', 'Trash voices'), mode, epoch);
                 return;
             }
             if (kind === 'restore') {
                 if (mode !== 'trashed') { return; }
-                applyLifecycle('active', ids, 'trashed', 'Restore voices', mode, epoch);
+                applyLifecycle('active', ids, 'trashed', t('research.action.restore', 'Restore voices'), mode, epoch);
                 return;
             }
             if (mode !== 'trashed' || !confirmAction) { return; }
-            confirmAction('Permanently delete ' + ids.length + ' selected voice(s) from the catalogue? This removes the catalogue entry only; shared audio, files and existing assigned books are preserved. Trashed voices are kept indefinitely until you delete them here.', {title: 'Delete permanently?', actionLabel: 'Delete permanently'}).then(answer => {
+            confirmAction(ids.length === 1 ? formatUiSafetyText('safety.research.delete_permanently.one', 'Permanently delete {count} selected voice from the catalogue? This removes the catalogue entry only; shared audio, files and existing assigned books are preserved. Trashed voices are kept indefinitely until you delete them here.', {count: ids.length}) : formatUiSafetyText('safety.research.delete_permanently.many', 'Permanently delete {count} selected voices from the catalogue? This removes the catalogue entry only; shared audio, files and existing assigned books are preserved. Trashed voices are kept indefinitely until you delete them here.', {count: ids.length}), {title: t('research.delete.title', 'Delete permanently?'), actionLabel: t('research.delete.action', 'Delete permanently')}).then(answer => {
                 if (!answer) { return; }
                 if (!lifecycleStillCurrent(ids, mode, epoch)) {
-                    notify('warning', 'The selection, Trash mode or library changed. Review the selection before deleting.');
+                    notify('warning', t('safety.research.selection_changed', 'The selection, Trash mode or library changed. Review the selection before deleting.'));
                     return;
                 }
-                applyLifecycle('deleted', ids, 'trashed', 'Delete permanently', mode, epoch);
+                applyLifecycle('deleted', ids, 'trashed', t('research.delete.action', 'Delete permanently'), mode, epoch);
             });
         }
         function markButton(voice, shape, color, symbolsOnly) {
             const mark = getMark(voice.id);
             const on = (mark[shape] || []).includes(color);
-            const label = SHAPE_LABEL[shape] + ' ' + COLOR_LABEL[color] + ' for ' + voice.name + ': ' + (on ? 'on' : 'off');
+            const label = t('research.mark.aria', '{shape} {color} for {name}: {state}', {shape: shapeLabel(shape), color: colorLabel(color), name: voice.name, state: on ? t('research.mark.on', 'on') : t('research.mark.off', 'off')});
             const button = node('button', undefined, 'btn btn-sm btn-outline-secondary casting-mark');
             button.type = 'button';
             button.dataset.castingMark = voice.id;
@@ -1454,7 +1456,7 @@
             const icon = node('i', undefined, 'fas ' + (shape === 'stars' ? 'fa-star' : 'fa-circle') + (symbolsOnly ? '' : ' me-1'));
             icon.setAttribute('aria-hidden', 'true');
             button.append(icon);
-            if (!symbolsOnly) { button.append(node('span', COLOR_LABEL[color])); }
+            if (!symbolsOnly) { button.append(node('span', colorLabel(color))); }
             button.setAttribute('aria-label', label);
             button.setAttribute('title', label);
             button.setAttribute('aria-pressed', String(on));
@@ -1464,7 +1466,7 @@
         }
         function markRow(voice, shape, symbolsOnly) {
             const row = node('div', undefined, 'd-flex flex-wrap align-items-center gap-1 mb-1');
-            if (!symbolsOnly) { row.append(node('span', shape === 'stars' ? 'Stars' : 'Circles', 'small text-muted me-1')); }
+            if (!symbolsOnly) { row.append(node('span', shape === 'stars' ? t('research.shape.stars', 'Stars') : t('research.shape.circles', 'Circles'), 'small text-muted me-1')); }
             row.append(...COLORS.map(color => markButton(voice, shape, color, symbolsOnly)));
             return row;
         }
@@ -1493,14 +1495,14 @@
                 const remove = node('button', undefined, 'btn btn-sm btn-link p-0 ms-1'
                     + (color === 'amber' ? ' text-dark' : color ? ' text-white' : ''));
                 remove.type = 'button';
-                remove.setAttribute('aria-label', 'Remove tag ' + tag + ' from ' + voice.name);
+                remove.setAttribute('aria-label', t('research.tag.remove-aria', 'Remove tag {tag} from {name}', {tag, name: voice.name}));
                 remove.append(node('i', undefined, 'fas fa-times'));
                 remove.addEventListener('click', () => { changeMembership(voice, 'tags', tag, false); });
                 badge.append(remove);
                 const picker = node('select', undefined, 'form-select form-select-sm w-auto');
-                picker.setAttribute('aria-label', 'Colour for tag ' + tag + ' on ' + voice.name);
-                for (const [value, text] of [['', 'Neutral'],
-                                             ...COLORS.map(name => [name, name[0].toUpperCase() + name.slice(1)])]) {
+                picker.setAttribute('aria-label', t('research.tag.colour-aria', 'Colour for tag {tag} on {name}', {tag, name: voice.name}));
+                for (const [value, text] of [['', t('research.tag.neutral', 'Neutral')],
+                                             ...COLORS.map(name => [name, colorLabel(name)])]) {
                     const option = node('option', text);
                     option.value = value;
                     picker.append(option);
@@ -1516,25 +1518,25 @@
                 cell.append(badge, picker);
                 badges.append(cell);
             }
-            wrap.append(node('div', 'Custom tags', 'small text-muted'), badges);
+            wrap.append(node('div', t('research.filter.custom-tags', 'Custom tags'), 'small text-muted'), badges);
             const row = node('div', undefined, 'input-group input-group-sm mt-1');
             const input = node('input', undefined, 'form-control');
             input.type = 'text';
             input.maxLength = MAX_TAG_LENGTH;
             input.setAttribute('maxlength', String(MAX_TAG_LENGTH));
-            input.setAttribute('aria-label', 'New tag for ' + voice.name);
-            input.setAttribute('placeholder', 'Add tag');
+            input.setAttribute('aria-label', t('research.tag.new-aria', 'New tag for {name}', {name: voice.name}));
+            input.setAttribute('placeholder', t('research.tag.add-placeholder', 'Add tag'));
             input.dataset.castingFocus = 'tag:' + voice.id;
-            const add = node('button', 'Add tag', 'btn btn-outline-secondary');
+            const add = node('button', t('research.bulk.add-tag', 'Add tag'), 'btn btn-outline-secondary');
             add.type = 'button';
-            add.setAttribute('aria-label', 'Add tag to ' + voice.name);
+            add.setAttribute('aria-label', t('research.tag.add-aria', 'Add tag to {name}', {name: voice.name}));
             add.addEventListener('click', () => {
                 const value = String(input.value || '').trim();
-                if (!value) { notify('info', 'Type a tag first.'); return; }
-                if (value.length > MAX_TAG_LENGTH) { notify('info', 'Tags are limited to ' + MAX_TAG_LENGTH + ' characters.'); return; }
+                if (!value) { notify('info', t('research.error.tag-required', 'Type a tag first.')); return; }
+                if (value.length > MAX_TAG_LENGTH) { notify('info', t('research.error.tag-length', 'Tags are limited to {max} characters.', {max: MAX_TAG_LENGTH})); return; }
                 const tags = getMark(voice.id).tags || [];
-                if (tags.some(tag => tag.toLowerCase() === value.toLowerCase())) { notify('info', 'That tag is already on this voice.'); return; }
-                if (tags.length >= MAX_TAGS) { notify('info', 'A voice can carry up to ' + MAX_TAGS + ' tags.'); return; }
+                if (tags.some(tag => tag.toLowerCase() === value.toLowerCase())) { notify('info', t('research.error.tag-duplicate', 'That tag is already on this voice.')); return; }
+                if (tags.length >= MAX_TAGS) { notify('info', t('research.error.tag-max', 'A voice can carry up to {max} tags.', {max: MAX_TAGS})); return; }
                 changeMembership(voice, 'tags', value, true);
             });
             row.append(input, add);
@@ -1546,33 +1548,33 @@
             const badges = node('div', undefined, 'd-flex flex-wrap');
             for (const name of mark.collections || []) {
                 badges.append(removalBadge(voice, 'collections', name,
-                    'Remove ' + voice.name + ' from research collection ' + name));
+                    t('research.collection.remove-aria', 'Remove {name} from research collection {collection}', {name: voice.name, collection: name})));
             }
-            wrap.append(node('div', 'Research collections', 'small text-muted'), badges);
+            wrap.append(node('div', t('research.filter.collections', 'Research collections'), 'small text-muted'), badges);
             const row = node('div', undefined, 'input-group input-group-sm mt-1');
             const input = node('input', undefined, 'form-control');
             input.type = 'text';
             input.maxLength = MAX_COLLECTION_LENGTH;
             input.setAttribute('maxlength', String(MAX_COLLECTION_LENGTH));
-            input.setAttribute('aria-label', 'Research collection for ' + voice.name);
-            input.setAttribute('placeholder', 'Add to research collection');
+            input.setAttribute('aria-label', t('research.collection.aria', 'Research collection for {name}', {name: voice.name}));
+            input.setAttribute('placeholder', t('research.collection.add-placeholder', 'Add to research collection'));
             input.dataset.castingFocus = 'collection:' + voice.id;
-            const add = node('button', 'Add', 'btn btn-outline-secondary');
+            const add = node('button', t('research.collection.add', 'Add'), 'btn btn-outline-secondary');
             add.type = 'button';
-            add.setAttribute('aria-label', 'Add ' + voice.name + ' to a research collection');
+            add.setAttribute('aria-label', t('research.collection.add-aria', 'Add {name} to a research collection', {name: voice.name}));
             add.addEventListener('click', () => {
                 const value = String(input.value || '').trim();
-                if (!value) { notify('info', 'Type a research collection name first.'); return; }
+                if (!value) { notify('info', t('research.error.collection-required', 'Type a research collection name first.')); return; }
                 if (value.length > MAX_COLLECTION_LENGTH) {
-                    notify('info', 'Research collection names are limited to ' + MAX_COLLECTION_LENGTH + ' characters.');
+                    notify('info', t('research.error.collection-length', 'Research collection names are limited to {max} characters.', {max: MAX_COLLECTION_LENGTH}));
                     return;
                 }
                 const names = getMark(voice.id).collections || [];
                 if (names.some(name => name.toLowerCase() === value.toLowerCase())) {
-                    notify('info', 'That research collection already holds this voice.');
+                    notify('info', t('research.error.collection-duplicate', 'That research collection already holds this voice.'));
                     return;
                 }
-                if (names.length >= MAX_COLLECTIONS) { notify('info', 'A voice can be in up to ' + MAX_COLLECTIONS + ' research collections.'); return; }
+                if (names.length >= MAX_COLLECTIONS) { notify('info', t('research.error.collection-max', 'A voice can be in up to {max} research collections.', {max: MAX_COLLECTIONS})); return; }
                 changeMembership(voice, 'collections', value, true);
             });
             row.append(input, add);
@@ -1583,9 +1585,9 @@
             const wrap = node('div', undefined, 'mt-2 border-top pt-2');
             const organization = node('details', undefined, 'mt-2');
             organization.dataset.castingPanel = JSON.stringify([voice.id, 'research']);
-            const notesLabel = node('label', 'Notes', 'small d-block mt-2');
+            const notesLabel = node('label', t('research.notes', 'Notes'), 'small d-block mt-2');
             notesLabel.append(notes);
-            organization.append(node('summary', 'Tags, research collections & notes', 'small'),
+            organization.append(node('summary', t('research.organization.title', 'Tags, research collections & notes'), 'small'),
                 tagEditor(voice), collectionEditor(voice), notesLabel);
             wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true), organization);
             return wrap;
@@ -1604,7 +1606,7 @@
             box.checked = isSelected(voice.id);
             box.dataset.castingSelect = voice.id;
             box.dataset.castingFocus = 'select:' + voice.id;
-            box.setAttribute('aria-label', 'Select ' + voice.name + ' for bulk actions');
+            box.setAttribute('aria-label', t('research.selection.aria', 'Select {name} for bulk actions', {name: voice.name}));
             box.style.width = '1.5rem';
             box.style.height = '1.5rem';
             box.addEventListener('change', () => { toggleSelection(voice.id, box.checked); box.checked = isSelected(voice.id); });
@@ -1617,8 +1619,8 @@
             ui.pageStatus.id = 'casting-research-page-status';
             ui.pageStatus.setAttribute('role', 'status');
             ui.pageStatus.setAttribute('aria-live', 'polite');
-            ui.pageSize = makeSelect('page-size', PAGE_SIZES.map(size => [String(size), size + ' per page']),
-                String(st.pageSize), 'Voices per page', value => {
+            ui.pageSize = makeSelect('page-size', PAGE_SIZES.map(size => [String(size), t('research.page.per-page', '{count} per page', {count: size})]),
+                String(st.pageSize), t('research.page.voices-per-page', 'Voices per page'), value => {
                     st.pageSize = Number(value);
                     st.loaded = st.pageSize;
                     st.pageIndex = 0;
@@ -1626,12 +1628,12 @@
                     savePrefs();
                     render();
                 });
-            ui.mode = makeSelect('mode', [['load', 'Load more'], ['auto', 'Auto-load on scroll'], ['pages', 'Pages'], ['all', 'Show all']],
-                st.pageMode, 'Paging mode', value => setPageMode(value));
-            ui.pagePrev = makeButton('page-prev', 'Previous page', 'btn btn-sm btn-outline-secondary', () => changePage(-1));
-            ui.pageNext = makeButton('page-next', 'Next page', 'btn btn-sm btn-outline-secondary', () => changePage(1));
-            ui.loadMore = makeButton('load-more', 'Load more', 'btn btn-sm btn-outline-primary', loadMore);
-            ui.showAll = makeButton('show-all', 'Show all', 'btn btn-sm btn-outline-secondary', showAll);
+            ui.mode = makeSelect('mode', [['load', t('research.paging.load-more', 'Load more')], ['auto', t('research.paging.auto', 'Auto-load on scroll')], ['pages', t('research.paging.pages', 'Pages')], ['all', t('research.paging.all', 'Show all')]],
+                st.pageMode, t('research.paging.mode-aria', 'Paging mode'), value => setPageMode(value));
+            ui.pagePrev = makeButton('page-prev', t('research.paging.previous', 'Previous page'), 'btn btn-sm btn-outline-secondary', () => changePage(-1));
+            ui.pageNext = makeButton('page-next', t('research.paging.next', 'Next page'), 'btn btn-sm btn-outline-secondary', () => changePage(1));
+            ui.loadMore = makeButton('load-more', t('research.paging.load-more', 'Load more'), 'btn btn-sm btn-outline-primary', loadMore);
+            ui.showAll = makeButton('show-all', t('research.paging.all', 'Show all'), 'btn btn-sm btn-outline-secondary', showAll);
             ui.guard = node('span', undefined, 'small text-warning');
             ui.guard.id = 'casting-research-guard';
             ui.guard.setAttribute('role', 'status');
@@ -1654,8 +1656,8 @@
                 ui.filterHost = node('div', undefined, 'casting-research-filters');
                 ui.filterHost.id = 'casting-research-filters';
                 research.append(ui.filterHost);
-                const refresh = makeButton('refresh-circles', 'Refresh results', 'btn btn-sm btn-outline-primary mt-1',
-                    refreshCircles, 'Apply the staged circle exclusions');
+                const refresh = makeButton('refresh-circles', t('research.circles.refresh', 'Refresh results'), 'btn btn-sm btn-outline-primary mt-1',
+                    refreshCircles, t('research.circles.refresh-aria', 'Apply the staged circle exclusions'));
                 research.append(refresh);
             }
             const activity = document.getElementById('casting-activity');

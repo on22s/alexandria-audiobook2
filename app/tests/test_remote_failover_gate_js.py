@@ -12,11 +12,11 @@ function client(activeRemote=false,failoverRemote=true){
  const elements={},handlers={},posts=[],gets=[],prompts=[],toasts=[],polls=[];let decision=false,keepCalls=0;
  const el=id=>elements[id]||(elements[id]={value:id==='review-context-window'?'5':'',files:[],style:{},checked:false,disabled:false,innerHTML:'',classList:{add(){},remove(){}},addEventListener:(_event,callback)=>handlers[id]=callback});
  const ctx={window:null,document:{getElementById:el,querySelectorAll:()=>[]},currentIsRemote:activeRemote,failoverIsRemote:failoverRemote,currentBookFilename:'book.txt',showPresetEditor:async()=>({name:'teen'}),console,
- showConfirm:async message=>{prompts.push(message);return typeof decision==='function'?await decision():decision;},showToast:(...args)=>toasts.push(args),prompt:()=> 'teen',
+ showConfirm:async message=>{prompts.push(message);return typeof decision==='function'?await decision():decision;},showToast:(...args)=>toasts.push(args),prompt:()=> 'teen',escapeHtml:String,
  API:{post:async(url,payload)=>{posts.push({url,payload});return {suggestions:{}};},get:async url=>{gets.push(url);return[];}},
  _resetPauseBtn(){},_isStripFrontMatterChecked:()=>true,_isReviewDedupeChecked:()=>true,_disableReviewButtons(){},_showReviewControls(){},_onReviewDone(){},
  pollScriptLogs:task=>polls.push(task),pollPersonaStatus:()=>polls.push('persona'),getPersonaContextLines:()=>8,voicesScopeIsNew:()=>false,keepCurrentVoicesIfAsked:async()=>{keepCalls++;return true;},refreshVoiceMetadata:async()=>[],renderVoiceSuggestions(){}};ctx.window=ctx;
- el('upload-status').innerHTML='<span class="text-success">Loaded</span>';vm.createContext(ctx);
+ el('upload-status').innerHTML='<span class="text-success">Loaded</span>';(vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]])),ctx);
  function load(a,b){const start=source.indexOf(a),end=source.indexOf(b,start);assert(start>=0&&end>start);vm.runInContext(source.slice(start,end),ctx);}
  load('async function confirmIfRemote(', '// navigator.clipboard');load('const taskStartButtons =','// --- API Helpers ---');
  vm.runInContext('let _scriptStartOver=false;let scriptBatchPoller=null;',ctx);

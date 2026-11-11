@@ -10,12 +10,13 @@
                     'collection', 'stars', 'circles'];
     const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [],
                       circles: [], collections: []};
-    const STATUS_LABEL = {unreviewed: 'Unreviewed', shortlist: 'Shortlist', callback: 'Callback', reject: 'Reject'};
+    function statusLabel(value) { return {unreviewed: t('casting.status.unreviewed', 'Unreviewed'), shortlist: t('casting.status.shortlist', 'Shortlist'), callback: t('casting.status.callback', 'Callback'), reject: t('casting.status.reject', 'Reject')}[value]; }
     const STATUS_CLASS = {unreviewed: 'bg-secondary', shortlist: 'bg-success', callback: 'bg-warning text-dark', reject: 'bg-danger'};
-    const PRIORITY_LABEL = {none: 'No priority', low: 'Low priority', medium: 'Medium priority', high: 'High priority'};
+    function priorityLabel(value) { return {none: t('casting.priority.none', 'No priority'), low: t('casting.priority.low', 'Low priority'), medium: t('casting.priority.medium', 'Medium priority'), high: t('casting.priority.high', 'High priority')}[value]; }
     const PRIORITY_CLASS = {none: 'bg-secondary', low: 'bg-info text-dark', medium: 'bg-warning text-dark', high: 'bg-danger'};
     const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const HEALTH = {missing_audio: 'Missing audio', no_description: 'No description', duplicate_names: 'Duplicate names', no_sample: 'No sample line', skipped: 'Skipped folders'};
+    function healthLabel(key) { return {missing_audio: t('casting.health.missing-audio', 'Missing audio'), no_description: t('casting.health.no-description', 'No description'), duplicate_names: t('casting.health.duplicate-names', 'Duplicate names'), no_sample: t('casting.health.no-sample', 'No sample line'), skipped: t('casting.health.skipped', 'Skipped folders')}[key]; }
     const GENDERS = ['Male', 'Female', 'Ambiguous / mixed', 'Not specified'];
     const AGES = ['Child', 'Teen', 'Young Adult', 'Adult', 'Older / Elderly', 'Ancient / Ageless', 'Not specified'];
     const panelStates = new Map();
@@ -208,26 +209,26 @@
     }
     function renderFilters() {
         const modeList = getModeVoices();
-        fillSelect('book', [...new Set(modeList.map(v => v.book_id))].sort(), 'All books');
-        fillSelect('gender', [...new Set(modeList.map(v => v.tags.gender))], 'Any');
-        fillSelect('age', [...new Set(modeList.flatMap(v => v.tags.ages))], 'Any');
-        fillSelect('status', STATUSES, 'Any');
+        fillSelect('book', [...new Set(modeList.map(v => v.book_id))].sort(), t('casting.filter.all-books', 'All books'));
+        fillSelect('gender', [...new Set(modeList.map(v => v.tags.gender))], t('casting.filter.any', 'Any'));
+        fillSelect('age', [...new Set(modeList.flatMap(v => v.tags.ages))], t('casting.filter.any', 'Any'));
+        fillSelect('status', STATUSES, t('casting.filter.any', 'Any'));
         const selected = el('health').value;
         const counts = getHealthCounts(modeList, s.skipped);
-        el('health').replaceChildren(...[['', 'All data health'], ...Object.entries(HEALTH).map(([key, label]) =>
-            [key, label + ' (' + counts[key] + ')'])].map(([value, text]) => {
+        el('health').replaceChildren(...[['', t('casting.health.all', 'All data health')], ...Object.keys(HEALTH).map(key =>
+            [key, healthLabel(key) + ' (' + counts[key] + ')'])].map(([value, text]) => {
             const option = node('option', text); option.value = value; return option;
         }));
         el('health').value = selected;
-        el('health-counts').replaceChildren(node('span', s.mode === 'trashed' ? 'Trash: ' : 'Active library: ', 'text-muted'),
-            ...Object.entries(HEALTH).map(([key, label]) => node('span', label + ': ' + counts[key], 'badge bg-secondary me-1')));
+        el('health-counts').replaceChildren(node('span', s.mode === 'trashed' ? t('casting.health.trash', 'Trash:') + ' ' : t('casting.health.active-library', 'Active library:') + ' ', 'text-muted'),
+            ...Object.keys(HEALTH).map(key => node('span', healthLabel(key) + ': ' + counts[key], 'badge bg-secondary me-1')));
     }
     function renderCoverage(list) {
         const wrap = el('coverage'); wrap.replaceChildren();
         for (const field of ['gender', 'age']) {
             const {columns, rows} = getCoverage(list, field), table = node('table', undefined, 'table table-sm table-bordered');
             const header = node('tr');
-            for (const label of ['Book / ' + field, ...columns]) { header.append(node('th', label)); }
+            for (const label of [field === 'gender' ? t('casting.coverage.book-gender', 'Book / gender') : t('casting.coverage.book-age', 'Book / age'), ...columns]) { header.append(node('th', label)); }
             const head = node('thead'); head.append(header); table.append(head);
             const body = node('tbody'), combinations = [];
             for (const row of rows) {
@@ -239,12 +240,12 @@
             }
             table.append(body); wrap.append(table);
             combinations.sort((left, right) => left.count - right.count || left.book.localeCompare(right.book) || left.value.localeCompare(right.value));
-            wrap.append(node('p', combinations.length ? 'Thinnest combinations (up to 12):' : 'No matching voices.', 'small text-muted'));
+            wrap.append(node('p', combinations.length ? t('casting.coverage.thinnest', 'Thinnest combinations (up to 12):') : t('casting.coverage.none', 'No matching voices.'), 'small text-muted'));
             for (const combo of combinations.slice(0, 12)) {
                 wrap.append(node('span', combo.book + ' / ' + combo.value + ': ' + combo.count, 'badge bg-light text-dark border me-1 mb-2'));
             }
         }
-        wrap.append(node('p', 'Keyword tags, not audio measurements. Ages can overlap; missing combinations count as zero within books in this view.', 'small text-muted'));
+        wrap.append(node('p', formatUiSafetyText('safety.casting.coverage_note', 'Keyword tags, not audio measurements. Ages can overlap; missing combinations count as zero within books in this view.'), 'small text-muted'));
     }
     function renderChips(list) {
         if (s.research) { s.research.renderFilters(list); return; }
@@ -284,43 +285,43 @@
         const badge = node('span', tag, 'badge me-1 casting-custom-tag '
             + (color ? tagColorClass(color) : NEUTRAL_TAG_CLASS));
         badge.dataset.castingCustomTag = tag;
-        badge.setAttribute('title', color ? 'Custom tag · ' + color : 'Custom tag');
+        badge.setAttribute('title', color ? t('casting.tag.custom-with-color', 'Custom tag · {color}', {color}) : t('casting.tag.custom', 'Custom tag'));
         return badge;
     }
     function statusBar(voice, mark) {
         const bar = node('div', undefined, 'd-flex gap-1 mb-2 casting-status-bar');
         bar.dataset.castingStatusBar = voice.id;
         const status = STATUSES.includes(mark.status) ? mark.status : null;
-        const statusBadge = node('span', status ? STATUS_LABEL[status] : 'Unknown status',
+        const statusBadge = node('span', status ? statusLabel(status) : t('casting.status.unknown', 'Unknown status'),
             'badge text-center ' + (status ? STATUS_CLASS[status] : 'bg-secondary'));
         statusBadge.dataset.castingStatus = mark.status;
         const priority = PRIORITIES.includes(mark.priority) ? mark.priority : 'none';
-        const priorityBadge = node('span', PRIORITIES.includes(mark.priority) ? PRIORITY_LABEL[priority] : 'Unknown priority', 'badge text-center ' + PRIORITY_CLASS[priority]);
+        const priorityBadge = node('span', PRIORITIES.includes(mark.priority) ? priorityLabel(priority) : t('casting.priority.unknown', 'Unknown priority'), 'badge text-center ' + PRIORITY_CLASS[priority]);
         priorityBadge.dataset.castingPriority = priority;
         bar.append(statusBadge, priorityBadge);
         return bar;
     }
     function playButton(voice) {
-        const b = button('', 'btn btn-sm btn-outline-primary', () => togglePlay(voice, b), 'Play ' + voice.name);
+        const b = button('', 'btn btn-sm btn-outline-primary', () => togglePlay(voice, b), t('casting.voice.play-aria', 'Play {name}', {name: voice.name}));
         b.append(node('i', undefined, 'fas fa-play'));
         b.dataset.castingPlay = voice.id;
         b.dataset.castingFocus = 'play:' + voice.id;
-        if (!voice.audio_present) { b.disabled = true; b.setAttribute('title', 'This voice has no preview audio'); }
+        if (!voice.audio_present) { b.disabled = true; b.setAttribute('title', t('casting.voice.no-preview', 'This voice has no preview audio')); }
         return b;
     }
     function markControls(voice) {
         const mark = markOf(s.marks, voice.id), box = node('div', undefined, 'd-flex flex-wrap gap-1 align-items-center');
-        const statusSelect = select(STATUSES.map(v => [v, STATUS_LABEL[v]]), mark.status, 'Review status for ' + voice.name,
+        const statusSelect = select(STATUSES.map(v => [v, statusLabel(v)]), mark.status, t('casting.voice.status-aria', 'Review status for {name}', {name: voice.name}),
                           value => saveMark(voice, {status: value}));
         statusSelect.dataset.castingFocus = 'status:' + voice.id;
         box.append(statusSelect);
-        const prioritySelect = select(PRIORITIES.map(v => [v, PRIORITY_LABEL[v]]),
-                          mark.priority, 'Priority for ' + voice.name, value => saveMark(voice, {priority: value}));
+        const prioritySelect = select(PRIORITIES.map(v => [v, priorityLabel(v)]),
+                          mark.priority, t('casting.voice.priority-aria', 'Priority for {name}', {name: voice.name}), value => saveMark(voice, {priority: value}));
         prioritySelect.dataset.castingFocus = 'priority:' + voice.id;
         box.append(prioritySelect);
         const notes = node('textarea', mark.notes, 'form-control form-control-sm mt-1');
         notes.setAttribute('rows', '2'); notes.setAttribute('maxlength', '2000');
-        notes.setAttribute('aria-label', 'Notes for ' + voice.name); notes.setAttribute('placeholder', 'Notes');
+        notes.setAttribute('aria-label', t('casting.voice.notes-aria', 'Notes for {name}', {name: voice.name})); notes.setAttribute('placeholder', t('casting.voice.notes-placeholder', 'Notes'));
         notes.value = mark.notes;
         notes.dataset.castingFocus = 'notes:' + voice.id;
         notes.addEventListener('change', () => saveMark(voice, {notes: notes.value}));
@@ -330,13 +331,13 @@
         const box = node('div', undefined, 'input-group input-group-sm mt-2');
         const trashed = lifecycleOf(voice.id) === 'trashed';
         const sel = node('select', undefined, 'form-select');
-        sel.setAttribute('aria-label', 'Character to use ' + voice.name + ' for');
-        const first = node('option', s.speakers.length ? 'Use for character…' : 'No characters in the active book');
+        sel.setAttribute('aria-label', t('casting.voice.cast-aria', 'Character to use {name} for', {name: voice.name}));
+        const first = node('option', s.speakers.length ? t('casting.voice.use-for', 'Use for character…') : t('casting.voice.no-characters', 'No characters in the active book'));
         first.value = ''; sel.append(first);
         for (const name of s.speakers) { const o = node('option', name); o.value = name; sel.append(o); }
-        const use = button('Use', 'btn btn-outline-success', () => castVoice(voice, sel.value, use), 'Use ' + voice.name + ' for the chosen character');
+        const use = button(t('casting.voice.use', 'Use'), 'btn btn-outline-success', () => castVoice(voice, sel.value, use), t('casting.voice.use-aria', 'Use {name} for the chosen character', {name: voice.name}));
         use.disabled = !voice.audio_present || !s.speakers.length || trashed;
-        if (trashed) { use.setAttribute('title', 'Restore this voice from Trash before using it'); }
+        if (trashed) { use.setAttribute('title', t('casting.voice.restore-title', 'Restore this voice from Trash before using it')); }
         box.append(sel, use);
         return box;
     }
@@ -352,7 +353,7 @@
         const tagNode = tagBadges(voice, 'casting-tags', mark);
         tagNode.dataset.castingVisibility = 'tags';
         body.append(head, statusBar(voice, mark), tagNode);
-        const descriptionNode = node('p', voice.description || 'No description.', 'small mb-1 casting-clamp casting-description');
+        const descriptionNode = node('p', voice.description || t('casting.voice.no-description', 'No description.'), 'small mb-1 casting-clamp casting-description');
         descriptionNode.dataset.castingVisibility = 'description';
         body.append(descriptionNode);
         if (voice.ref_text) {
@@ -365,7 +366,7 @@
         }
         const foot = node('div', undefined, 'mt-auto');
         const count = (groups.get(getNameKey(voice.name)) || []).length;
-        foot.append(button(count + ' variants', 'btn btn-sm btn-outline-secondary mb-2', () => {
+        foot.append(button(count === 1 ? t('casting.voice.variants.one', '{count} variant', {count}) : t('casting.voice.variants.many', '{count} variants', {count}), 'btn btn-sm btn-outline-secondary mb-2', () => {
             el('search').value = ''; s.chips.clear();
             for (const id of ['book', 'gender', 'age', 'status', 'health']) { el(id).value = ''; }
             if (s.research) { s.research.clearFilters(); }
@@ -376,7 +377,7 @@
         if (!s.research) { foot.append(notes); }
         const assignment = node('details', undefined, 'mt-2');
         assignment.dataset.castingPanel = JSON.stringify([voice.id, 'assignment']);
-        assignment.append(node('summary', 'Use this voice', 'small'), castControls(voice), collectionControls(voice));
+        assignment.append(node('summary', t('casting.voice.use-section', 'Use this voice'), 'small'), castControls(voice), collectionControls(voice));
         foot.append(assignment);
         if (s.research) { foot.append(s.research.cardMarkControls(voice, notes)); }
         body.append(foot);
@@ -384,10 +385,10 @@
         return col;
     }
     function table(list) {
-        const wrap = node('div', undefined, 'table-responsive'), t = node('table', undefined, 'table table-sm table-hover align-middle mb-0');
+        const wrap = node('div', undefined, 'table-responsive'), tableNode = node('table', undefined, 'table table-sm table-hover align-middle mb-0');
         const head = node('thead'), hr = node('tr');
-        const headings = s.research ? ['', '', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status & prio', 'Use for', 'Marks']
-            : ['', 'Name', 'Book', 'Gender', 'Age', 'Tone', 'Status & prio', 'Use for'];
+        const headings = s.research ? ['', '', t('casting.table.name', 'Name'), t('casting.table.book', 'Book'), t('casting.table.gender', 'Gender'), t('casting.table.age', 'Age'), t('casting.table.tone', 'Tone'), t('casting.table.status-priority', 'Status & prio'), t('casting.table.use-for', 'Use for'), t('casting.table.marks', 'Marks')]
+            : ['', t('casting.table.name', 'Name'), t('casting.table.book', 'Book'), t('casting.table.gender', 'Gender'), t('casting.table.age', 'Age'), t('casting.table.tone', 'Tone'), t('casting.table.status-priority', 'Status & prio'), t('casting.table.use-for', 'Use for')];
         for (const h of headings) { hr.append(node('th', h)); }
         head.append(hr);
         const tbody = node('tbody');
@@ -400,11 +401,11 @@
             const st = node('td');
             st.dataset.castingStatusPrio = v.id;
             const controlStack = node('div', undefined, 'd-flex flex-column gap-1');
-            const statusSelect = select(STATUSES.map(x => [x, STATUS_LABEL[x]]), mark.status, 'Review status for ' + v.name,
+            const statusSelect = select(STATUSES.map(x => [x, statusLabel(x)]), mark.status, t('casting.voice.status-aria', 'Review status for {name}', {name: v.name}),
                                         value => saveMark(v, {status: value}));
             statusSelect.dataset.castingFocus = 'status:' + v.id;
-            const prioritySelect = select(PRIORITIES.map(x => [x, PRIORITY_LABEL[x]]), mark.priority,
-                                          'Priority for ' + v.name, value => saveMark(v, {priority: value}));
+            const prioritySelect = select(PRIORITIES.map(x => [x, priorityLabel(x)]), mark.priority,
+                                          t('casting.voice.priority-aria', 'Priority for {name}', {name: v.name}), value => saveMark(v, {priority: value}));
             prioritySelect.dataset.castingFocus = 'priority:' + v.id;
             controlStack.append(statusSelect, prioritySelect);
             st.append(controlStack);
@@ -413,7 +414,7 @@
             if (s.research) { const marks = node('td'); marks.append(s.research.tableMarkControls(v)); tr.append(marks); }
             tbody.append(tr);
         }
-        t.append(head, tbody); wrap.append(t);
+        tableNode.append(head, tbody); wrap.append(tableNode);
         return wrap;
     }
     function captureFocus() {
@@ -443,19 +444,19 @@
         renderCoverage(list);
         el('skipped').replaceChildren();
         if (el('health').value === 'skipped') {
-            el('skipped').append(node('p', s.skipped.length + ' skipped folders (not searchable as voices).', 'text-warning'));
+            el('skipped').append(node('p', s.skipped.length === 1 ? t('casting.skipped.one', '{count} skipped folder (not searchable as a voice).', {count: s.skipped.length}) : t('casting.skipped.many', '{count} skipped folders (not searchable as voices).', {count: s.skipped.length}), 'text-warning'));
             for (const entry of s.skipped) { el('skipped').append(node('div', entry.id + ': ' + entry.reason)); }
         }
         const modeList = getModeVoices();
         const reviewed = modeList.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
         const unknown = parseQuery(el('search').value).unknown;
-        status(`Showing ${page.length} of ${list.length} (${modeList.length} voices, ${reviewed} reviewed)`
-               + (unknown.length ? `. Unknown field: ${unknown.join(', ')}` : ''));
+        status((modeList.length === 1 ? t('casting.summary.showing.one', 'Showing {shown} of {total} ({voices} voice, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed}) : t('casting.summary.showing.many', 'Showing {shown} of {total} ({voices} voices, {reviewed} reviewed)', {shown: page.length, total: list.length, voices: modeList.length, reviewed}))
+               + (unknown.length ? ' ' + t('casting.summary.unknown-field', 'Unknown field: {fields}', {fields: unknown.join(', ')}) : ''));
         if (!modeList.length) {
-            el('results').replaceChildren(node('p', s.mode === 'trashed' ? 'Trash is empty.'
-                : 'No active voices. Check Trash, generate personas in the Voices step, or save voices in the Designer.', 'text-muted mb-0'));
+            el('results').replaceChildren(node('p', s.mode === 'trashed' ? t('casting.results.trash-empty', 'Trash is empty.')
+                : t('casting.results.no-active', 'No active voices. Check Trash, generate personas in the Voices step, or save voices in the Designer.'), 'text-muted mb-0'));
         } else if (!list.length) {
-            el('results').replaceChildren(node('p', 'No voices match these filters.', 'text-muted mb-0'));
+            el('results').replaceChildren(node('p', t('casting.results.none', 'No voices match these filters.'), 'text-muted mb-0'));
         } else if (s.view === 'table') {
             el('results').replaceChildren(table(page));
         } else {
@@ -466,7 +467,7 @@
         }
         const more = el('more');
         if (more && !s.research) { more.hidden = list.length <= s.shown; }
-        if (s.variant) { el('summary').textContent += ' | Name group: ' + s.variant; }
+        if (s.variant) { el('summary').textContent += ' ' + t('casting.summary.name-group', '| Name group: {name}', {name: s.variant}); }
         for (const panel of el('results').querySelectorAll('[data-casting-panel]')) {
             panel.open = panelStates.get(panel.dataset.castingPanel) === true;
         }
@@ -479,46 +480,46 @@
         const trashed = lifecycleOf(voice.id) === 'trashed';
         const name = node('input', undefined, 'form-control');
         name.value = voice.name; name.setAttribute('maxlength', '200');
-        name.setAttribute('aria-label', 'Saved cast member name for ' + voice.name);
-        const add = button('Add to saved cast', 'btn btn-outline-secondary', async () => {
-            if (trashed) { showToast('Restore this voice from Trash before adding it to a saved cast.', 'warning'); return; }
+        name.setAttribute('aria-label', t('casting.saved.member-aria', 'Saved cast member name for {name}', {name: voice.name}));
+        const add = button(t('casting.saved.add', 'Add to saved cast'), 'btn btn-outline-secondary', async () => {
+            if (trashed) { showToast(t('safety.casting.restore_before_cast', 'Restore this voice from Trash before adding it to a saved cast.'), 'warning'); return; }
             const cast = el('collection').value, member = name.value.trim();
-            if (!cast || !member) { showToast('Choose a saved cast and member name first.', 'info'); return; }
+            if (!cast || !member) { showToast(t('casting.saved.choose-first', 'Choose a saved cast and member name first.'), 'info'); return; }
             add.disabled = true;
             try {
                 await API.post('/api/voice_library/catalog_member', {cast, voice_id: voice.id, name: member});
-                showToast('Added ' + member + ' to ' + cast + '.', 'success');
+                showToast(t('casting.saved.added', 'Added {member} to {cast}.', {member, cast}), 'success');
                 s.collectionEpoch++; el('collection-review').replaceChildren();
-            } catch (error) { showActionError('Add catalogue voice to saved cast', error); }
+            } catch (error) { showActionError(t('casting.action.add-to-cast', 'Add catalogue voice to saved cast'), error); }
             finally { add.disabled = !voice.audio_present || lifecycleOf(voice.id) !== 'active'; }
         });
         add.disabled = !voice.audio_present || trashed;
-        if (trashed) { add.setAttribute('title', 'Restore this voice from Trash before adding it to a saved cast'); }
+        if (trashed) { add.setAttribute('title', t('casting.saved.restore-title', 'Restore this voice from Trash before adding it to a saved cast')); }
         box.append(name, add); return box;
     }
     async function loadCollections() {
         const epoch = s.epoch, library = await API.get('/api/voice_library');
         if (epoch !== s.epoch) { return; }
         s.collections = library.casts || []; s.shared = library.shared || [];
-        fillSelect('collection', s.collections.map(cast => cast.name), 'Choose a saved cast');
+        fillSelect('collection', s.collections.map(cast => cast.name), t('casting.saved.empty', 'Choose a saved cast'));
     }
     async function createCollection() {
         const name = el('collection-name').value.trim();
-        if (!name) { showToast('Enter a saved cast name.', 'info'); return; }
+        if (!name) { showToast(t('casting.saved.enter-name', 'Enter a saved cast name.'), 'info'); return; }
         el('create-collection').disabled = true;
         try {
             await API.post('/api/voice_library/casts', {name});
             await loadCollections(); el('collection').value = name; el('collection-name').value = '';
             s.collectionEpoch++; el('collection-review').replaceChildren();
-        } catch (error) { showActionError('Create saved cast', error); }
+        } catch (error) { showActionError(t('casting.saved.create', 'Create saved cast'), error); }
         finally { el('create-collection').disabled = false; }
     }
     async function reviewCollection() {
         const cast = el('collection').value;
-        if (!cast) { showToast('Choose a saved cast first.', 'info'); return; }
+        if (!cast) { showToast(t('casting.saved.choose', 'Choose a saved cast first.'), 'info'); return; }
         const epoch = ++s.collectionEpoch;
         const current = () => epoch === s.collectionEpoch && cast === el('collection').value;
-        const panel = el('collection-review'); panel.replaceChildren(node('p', 'Matching active book...'));
+        const panel = el('collection-review'); panel.replaceChildren(node('p', t('casting.saved.matching', 'Matching active book...')));
         try {
             await loadCollections();
             if (!current()) { return; }
@@ -526,40 +527,40 @@
             if (!current()) { return; }
             const snapshot = await API.get('/api/voice_config/snapshot');
             if (!current()) { return; }
-            if (snapshot.book_token !== matched.book_token) { throw new Error('The active book changed; review the saved cast again.'); }
+            if (snapshot.book_token !== matched.book_token) { throw new Error(t('safety.casting.book_changed', 'The active book changed; review the saved cast again.')); }
             const pool = new Map(s.shared.map(member => [member.key, member]));
             for (const member of (s.collections.find(item => item.name === cast)?.members || [])) {
                 if (!member.generic || member.book_id === snapshot.book_id) { pool.set(member.key, member); }
             }
             const rows = [], table = node('table', undefined, 'table table-sm');
-            const head = node('tr'); head.append(node('th', 'Character'), node('th', 'Saved cast voice (skip unless confirmed)')); table.append(head);
+            const head = node('tr'); head.append(node('th', t('casting.saved.character', 'Character')), node('th', t('casting.saved.voice-column', 'Saved cast voice (skip unless confirmed)'))); table.append(head);
             for (const proposal of matched.proposals) {
                 const row = node('tr'); row.append(node('td', proposal.character));
                 const cell = node('td');
-                const target = select([['', 'Skip'], ...[...pool].map(([key, member]) => [key, member.name])],
-                    proposal.match?.key || '', 'Saved cast voice for ' + proposal.character, () => {});
+                const target = select([['', t('casting.saved.skip', 'Skip')], ...[...pool].map(([key, member]) => [key, member.name])],
+                    proposal.match?.key || '', t('casting.saved.voice-aria', 'Saved cast voice for {character}', {character: proposal.character}), () => {});
                 rows.push({character: proposal.character, target}); cell.append(target);
-                if (proposal.match && !proposal.match.exact) { cell.append(node('span', 'Fuzzy guess: review', 'badge bg-warning text-dark')); }
+                if (proposal.match && !proposal.match.exact) { cell.append(node('span', t('safety.casting.fuzzy_guess', 'Fuzzy guess: review'), 'badge bg-warning text-dark')); }
                 row.append(cell); table.append(row);
             }
-            const apply = button('Apply reviewed mappings', 'btn btn-sm btn-success', async () => {
+            const apply = button(t('casting.saved.apply', 'Apply reviewed mappings'), 'btn btn-sm btn-success', async () => {
                 const mapping = Object.fromEntries(rows.filter(row => row.target.value).map(row => [row.character, row.target.value]));
-                if (!Object.keys(mapping).length) { showToast('Choose at least one mapping.', 'info'); return; }
+                if (!Object.keys(mapping).length) { showToast(t('casting.saved.choose-mapping', 'Choose at least one mapping.'), 'info'); return; }
                 apply.disabled = true;
                 try {
-                    if (!await showConfirm('Replace voices for the selected characters in the active book?',
-                        {title: 'Apply saved cast?', actionLabel: 'Apply reviewed mappings'})) { return; }
+                    if (!await showConfirm(formatUiSafetyText('safety.casting.replace_voices', 'Replace voices for the selected characters in the active book?'),
+                        {title: t('casting.saved.apply-title', 'Apply saved cast?'), actionLabel: t('casting.saved.apply', 'Apply reviewed mappings')})) { return; }
                     if (!current()) { return; }
                     const result = await API.post('/api/voice_library/apply', {cast, mapping, book_token: matched.book_token});
-                    if (current()) { panel.replaceChildren(node('p', 'Applied ' + result.count + ' voices.')); }
+                    if (current()) { panel.replaceChildren(node('p', result.count === 1 ? t('casting.saved.applied.one', 'Applied {count} voice.', {count: result.count}) : t('casting.saved.applied.many', 'Applied {count} voices.', {count: result.count}))); }
                     for (const warning of result.warnings || []) { showToast(warning, 'warning'); }
                     if (current() && typeof loadVoices === 'function') { await loadVoices(); }
-                } catch (error) { showActionError('Apply collection', error); }
+                } catch (error) { showActionError(t('casting.saved.apply-action', 'Apply collection'), error); }
                 finally { apply.disabled = false; }
             });
             panel.replaceChildren(table, apply);
         } catch (error) {
-            if (current()) { panel.replaceChildren(node('p', 'Could not match this collection. Try again.', 'text-warning')); showActionError('Review collection', error); }
+            if (current()) { panel.replaceChildren(node('p', t('casting.saved.match-failed', 'Could not match this collection. Try again.'), 'text-warning')); showActionError(t('casting.saved.review-action', 'Review collection'), error); }
         }
     }
 
@@ -572,7 +573,7 @@
             render();
             if (s.review) { renderReview(); }
         } catch (error) {
-            showActionError('Save casting mark', error, 'Reload the casting library and try again.');
+            showActionError(t('casting.action.save-mark', 'Save casting mark'), error, t('casting.recovery.reload', 'Reload the casting library and try again.'));
             render();
         }
     }
@@ -594,28 +595,28 @@
         }
     }
     async function castVoice(voice, speaker, control) {
-        if (!speaker) { showToast('Choose a character first.', 'info'); return; }
-        if (lifecycleOf(voice.id) === 'trashed') { showToast('Restore this voice from Trash before using it.', 'warning'); return; }
-        if (lifecycleOf(voice.id) === 'deleted') { showToast('This voice was permanently deleted from the catalogue.', 'warning'); return; }
+        if (!speaker) { showToast(t('casting.error.choose-character', 'Choose a character first.'), 'info'); return; }
+        if (lifecycleOf(voice.id) === 'trashed') { showToast(t('safety.casting.restore_before_use', 'Restore this voice from Trash before using it.'), 'warning'); return; }
+        if (lifecycleOf(voice.id) === 'deleted') { showToast(t('casting.error.deleted', 'This voice was permanently deleted from the catalogue.'), 'warning'); return; }
         control.disabled = true;
         try {
-            if (!await showConfirm(`Use ${voice.name} (${voice.book_id}) for ${speaker}? ${speaker}'s current voice is kept as a saved candidate.`,
-                                   {title: 'Use this voice?', actionLabel: 'Use voice'})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.casting.use_voice', 'Use {voice} ({book}) for {speaker}? {speaker}\'s current voice is kept as a saved candidate.', {voice: voice.name, book: voice.book_id, speaker}),
+                                   {title: t('casting.use.title', 'Use this voice?'), actionLabel: t('casting.use.action', 'Use voice')})) { return; }
             const snapshot = await loadSpeakers();
-            if (!snapshot || !s.speakers.includes(speaker)) { throw new Error(`${speaker} is no longer in the active book. Reload and try again.`); }
+            if (!snapshot || !s.speakers.includes(speaker)) { throw new Error(t('casting.error.speaker-gone', '{speaker} is no longer in the active book. Reload and try again.', {speaker})); }
             const token = snapshot.book_token;
             const built = await API.get(`/api/casting/clone_config?voice_id=${encodeURIComponent(voice.id)}&speaker=${encodeURIComponent(speaker)}`);
             if (lifecycleOf(voice.id) !== 'active') {
-                showToast('Restore this voice before using it from the casting library.', 'warning');
+                showToast(t('safety.casting.restore_before_use_library', 'Restore this voice before using it from the casting library.'), 'warning');
                 return;
             }
             const candidate = 'casting-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
             const base = `/api/voices/${encodeURIComponent(speaker)}/candidates`;
             await API.post(base, {candidate_id: candidate, config: built.config, book_token: token});
             await API.post(`${base}/${encodeURIComponent(candidate)}/select`, {book_token: token});
-            showToast(`${speaker} now uses ${voice.name}. The previous voice is kept as a saved candidate in the Voices step.`, 'success');
+            showToast(t('casting.use.done', '{speaker} now uses {voice}. The previous voice is kept as a saved candidate in the Voices step.', {speaker, voice: voice.name}), 'success');
         } catch (error) {
-            showActionError('Use voice', error, 'Reload the Voices step and the casting library, then try again.');
+            showActionError(t('casting.use.action', 'Use voice'), error, t('casting.use.recovery', 'Reload the Voices step and the casting library, then try again.'));
         } finally {
             control.disabled = lifecycleOf(voice.id) !== 'active' || !voice.audio_present || !s.speakers.length;
         }
@@ -640,7 +641,7 @@
         if (typeof stopDesignedVoicePlayback === 'function') { stopDesignedVoicePlayback(audio); }
         window._designedPlaybackAudio = audio;
         s.playing = {id: voice.id, audio, button: playButtonEl};
-        playbackStatus('Playing ' + voice.name);
+        playbackStatus(t('casting.play.playing', 'Playing {name}', {name: voice.name}));
         playButtonEl?.replaceChildren(node('i', undefined, 'fas fa-stop'));
         audio.addEventListener('ended', () => {
             if (token !== s.playToken) { return; }
@@ -648,14 +649,14 @@
         });
         audio.play().catch(error => {
             if (token !== s.playToken) { return; }
-            stopPlayback(); showActionError('Play voice', error);
+            stopPlayback(); showActionError(t('casting.play.action', 'Play voice'), error);
         });
     }
     function stopQueuePlayback() {
         s.queue = null;
         haltAudio();
         const playAllButton = el('play-all');
-        if (playAllButton) { playAllButton.textContent = 'Play all'; }
+        if (playAllButton) { playAllButton.textContent = t('casting.play-all', 'Play all'); }
     }
     function audioVoices() {
         return visible().filter(v => v.audio_present);
@@ -667,7 +668,7 @@
         if (q.index >= q.list.length) { stopQueuePlayback(); return; }
         if (typeof Audio === 'undefined') {
             stopQueuePlayback();
-            showToast('This browser cannot play preview audio.', 'info');
+            showToast(t('casting.error.no-audio-support', 'This browser cannot play preview audio.'), 'info');
             return;
         }
         const voice = q.list[q.index];
@@ -677,14 +678,14 @@
         if (typeof stopDesignedVoicePlayback === 'function') { stopDesignedVoicePlayback(audio); }
         window._designedPlaybackAudio = audio;
         s.playing = {id: voice.id, audio, button: null};
-        playbackStatus(`Playing ${voice.name} (${q.index + 1} of ${q.list.length})`);
+        playbackStatus(t('casting.play.queue', 'Playing {name} ({index} of {count})', {name: voice.name, index: q.index + 1, count: q.list.length}));
         audio.addEventListener('pause', () => {
             if (!audio.ended && token === s.playToken && s.queue === q) { stopQueuePlayback(); }
         });
         audio.addEventListener('error', () => {
             if (token !== s.playToken || s.queue !== q) { return; }
             stopQueuePlayback();
-            showToast('Preview playback failed. The queue has stopped.', 'warning');
+            showToast(t('safety.casting.playback_failed', 'Preview playback failed. The queue has stopped.'), 'warning');
         });
         audio.addEventListener('ended', () => {
             if (token !== s.playToken || s.queue !== q) { return; }
@@ -701,7 +702,7 @@
         }).catch(error => {
             if (token !== s.playToken || s.queue !== q) { return; }
             stopQueuePlayback();
-            showActionError('Play voice', error);
+            showActionError(t('casting.play.action', 'Play voice'), error);
         });
     }
     function advanceQueue(delta) {
@@ -714,19 +715,19 @@
     function playAll() {
         if (s.queue) { stopQueuePlayback(); return; }
         const list = audioVoices();
-        if (!list.length) { showToast('No voices with audio match these filters.', 'info'); return; }
+        if (!list.length) { showToast(t('casting.play.none', 'No voices with audio match these filters.'), 'info'); return; }
         s.queue = {list, index: 0};
         const playAllButton = el('play-all');
-        if (playAllButton) { playAllButton.textContent = 'Stop'; }
+        if (playAllButton) { playAllButton.textContent = t('casting.play.stop', 'Stop'); }
         startQueueItem();
     }
     function playRandom() {
         const list = audioVoices();
-        if (!list.length) { showToast('No voices with audio match these filters.', 'info'); return; }
+        if (!list.length) { showToast(t('casting.play.none', 'No voices with audio match these filters.'), 'info'); return; }
         stopQueuePlayback();
         s.queue = {list, index: Math.floor(Math.random() * list.length)};
         const playAllButton = el('play-all');
-        if (playAllButton) { playAllButton.textContent = 'Stop'; }
+        if (playAllButton) { playAllButton.textContent = t('casting.play.stop', 'Stop'); }
         startQueueItem();
     }
     function setPlaybackConfig(seconds, full) {
@@ -742,13 +743,13 @@
         if (!voice) { return; }
         const mark = markOf(s.marks, voice.id), body = el('review-body');
         const head = node('div', undefined, 'mb-2');
-        head.append(node('span', voice.book_id, 'badge bg-secondary me-2'), node('span', STATUS_LABEL[mark.status], 'badge ' + STATUS_CLASS[mark.status]));
+        head.append(node('span', voice.book_id, 'badge bg-secondary me-2'), node('span', statusLabel(mark.status), 'badge ' + STATUS_CLASS[mark.status]));
         body.replaceChildren(head, node('h3', voice.name, 'mb-2'), tagBadges(voice, '', mark),
-                             node('p', voice.description || 'No description.', 'mb-2'));
+                             node('p', voice.description || t('casting.voice.no-description', 'No description.'), 'mb-2'));
         if (voice.ref_text) { body.append(node('p', '“' + voice.ref_text + '”', 'text-muted fst-italic')); }
-        if (!voice.audio_present) { body.append(node('p', 'This voice has no preview audio.', 'text-warning small')); }
+        if (!voice.audio_present) { body.append(node('p', t('casting.voice.no-preview', 'This voice has no preview audio'), 'text-warning small')); }
         el('review-notes').value = mark.notes;
-        el('review-position').textContent = `${r.index + 1} of ${r.list.length}`;
+        el('review-position').textContent = t('casting.review.position', '{index} of {count}', {index: r.index + 1, count: r.list.length});
         const done = r.list.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
         el('review-progress').style.width = `${Math.round(100 * done / r.list.length)}%`;
         el('review-prev').disabled = r.index === 0;
@@ -769,7 +770,7 @@
     }
     function openReview() {
         const list = visible();
-        if (!list.length) { showToast('No voices match these filters.', 'info'); return; }
+        if (!list.length) { showToast(t('casting.results.none', 'No voices match these filters.'), 'info'); return; }
         const firstOpen = list.findIndex(v => markOf(s.marks, v.id).status === 'unreviewed');
         s.review = {list, index: firstOpen < 0 ? 0 : firstOpen};
         renderReview();
@@ -800,6 +801,7 @@
             visible,
             render,
             renderFilters,
+            labels: {status: statusLabel, priority: priorityLabel},
             helpers: {markOf: id => markOf(s.marks, id), fieldValues, countValues, customTagBadge},
             getMark: id => markOf(s.marks, id),
             getModeVoices,
@@ -872,21 +874,21 @@
         loadStatus('');
         try {
             const [library] = await Promise.all([API.get('/api/casting/voices'), loadSpeakers(), loadCollections().catch(error => {
-                if (epoch === s.epoch) { showActionError('Load collections', error); }
+                if (epoch === s.epoch) { showActionError(t('casting.load.collections', 'Load collections'), error); }
             })]);
             if (epoch !== s.epoch) { return; }
             s.voices = library.voices || [];
             s.marks = library.marks || {};
             if (s.mode !== 'active' && s.mode !== 'trashed') { s.mode = 'active'; }
             s.skipped = library.skipped || [];
-            if (s.skipped.length) { loadStatus(`${s.skipped.length} voice folder(s) could not be read and are not shown.`); }
+            if (s.skipped.length) { loadStatus(s.skipped.length === 1 ? t('casting.skipped.unreadable.one', '{count} voice folder could not be read and is not shown.', {count: s.skipped.length}) : t('casting.skipped.unreadable.many', '{count} voice folders could not be read and are not shown.', {count: s.skipped.length})); }
             renderFilters();
             if (s.research) { s.research.afterLoad(library); }
             render();
         } catch (error) {
             if (epoch !== s.epoch) { return; }
-            loadStatus('The casting library could not be loaded. Check that Alexandria is still running, then use Refresh.');
-            showActionError('Load casting library', error);
+            loadStatus(t('casting.load.failed', 'The casting library could not be loaded. Check that Alexandria is still running, then use Refresh.'));
+            showActionError(t('casting.load.action', 'Load casting library'), error);
         }
     };
     window.CastingLibrary = {parseQuery, filterVoices, countValues, sortVoices, markOf, previewUrl, onReviewKey, getModeVoices, lifecycleOf,

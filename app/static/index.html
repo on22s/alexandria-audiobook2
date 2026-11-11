@@ -2406,129 +2406,129 @@
         <div id="voices-tab" class="tab-content" style="display:none;">
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="m-0"><span class="step-indicator step-active">3</span>Voice Configuration</h4>
+                    <h4 class="m-0"><span class="step-indicator step-active">3</span><span data-i18n="voices.header.title">Voice Configuration</span></h4>
                     <div class="d-flex align-items-center gap-3">
                         <span id="voices-ready-count" class="text-muted small"></span>
-                        <label class="small me-2" for="voices-state-filter">Show cards</label>
+                        <label class="small me-2" for="voices-state-filter" data-i18n="voices.filter.show-cards">Show cards</label>
                         <select id="voices-state-filter" class="form-select form-select-sm w-auto" onchange="onToggleHideReady()">
-                            <option value="all">Show all</option><option value="states">Characters with state cards</option><option value="single">Characters without state cards</option>
+                            <option value="all" data-i18n="voices.filter.all">Show all</option><option value="states" data-i18n="voices.filter.states">Characters with state cards</option><option value="single" data-i18n="voices.filter.single">Characters without state cards</option>
                         </select>
                         <div class="form-check form-check-inline m-0 small">
                             <input class="form-check-input" type="checkbox" id="voices-hide-ready" onchange="onToggleHideReady()">
-                            <label class="form-check-label" for="voices-hide-ready">Hide ready</label>
+                            <label class="form-check-label" for="voices-hide-ready" data-i18n="voices.filter.hide-ready">Hide ready</label>
                         </div>
                         <span id="voice-save-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="voices-open-casting" onclick="document.querySelector('[data-tab=casting]').click();"><i class="fas fa-users me-1"></i>Casting library</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="voices-open-casting" onclick="document.querySelector('[data-tab=casting]').click();"><i class="fas fa-users me-1"></i><span data-i18n="voices.open-casting">Casting library</span></button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <p>Voices are detected from the generated script. Changes are saved automatically.</p>
+                    <p data-i18n="voices.intro">Voices are detected from the generated script. Changes are saved automatically.</p>
                     <div id="voice-save-drafts" aria-live="polite"></div>
                     <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                         <div class="input-group input-group-sm" style="width: 240px;">
-                            <label class="input-group-text" for="narrator-strategy">Narrator selection</label>
+                            <label class="input-group-text" for="narrator-strategy" data-i18n="voices.narrator.label">Narrator selection</label>
                             <select class="form-select" id="narrator-strategy" aria-describedby="narrator-selection-help" onchange="saveNarratorStrategy(this.value)">
-                                <option value="global">Global</option>
-                                <option value="focus">Scene focus</option>
-                                <option value="chapter">Chapter</option>
-                                <option value="character">Character focus</option>
-                                <option value="gender">Gender</option>
-                                <option value="age">Age</option>
-                                <option value="gender_age">Gender + age</option>
-                                <option value="character_gender">Character + gender</option>
-                                <option value="character_age">Character + age</option>
-                                <option value="character_gender_age">Character + gender + age</option>
+                                <option value="global" data-i18n="voices.narrator.global">Global</option>
+                                <option value="focus" data-i18n="voices.narrator.focus">Scene focus</option>
+                                <option value="chapter" data-i18n="voices.narrator.chapter">Chapter</option>
+                                <option value="character" data-i18n="voices.narrator.character">Character focus</option>
+                                <option value="gender" data-i18n="voices.narrator.gender">Gender</option>
+                                <option value="age" data-i18n="voices.narrator.age">Age</option>
+                                <option value="gender_age" data-i18n="voices.narrator.gender-age">Gender + age</option>
+                                <option value="character_gender" data-i18n="voices.narrator.character-gender">Character + gender</option>
+                                <option value="character_age" data-i18n="voices.narrator.character-age">Character + age</option>
+                                <option value="character_gender_age" data-i18n="voices.narrator.character-gender-age">Character + gender + age</option>
                             </select>
-                            <button class="btn btn-outline-secondary" type="button" onclick="previewNarratorSelection()">Preview</button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="previewNarratorSelection()" data-i18n="voices.narrator.preview">Preview</button>
                         </div>
                         <div class="input-group input-group-sm" id="narrator-focus-group" style="width: 190px; display:none;">
-                            <label class="input-group-text" for="narrator-focus">Preview focus</label>
+                            <label class="input-group-text" for="narrator-focus" data-i18n="voices.narrator.focus-label">Preview focus</label>
                             <select class="form-select" id="narrator-focus"></select>
                         </div>
                         <div class="input-group input-group-sm" id="narrator-version-group" style="width: 190px; display:none;">
-                            <label class="input-group-text" for="narrator-version">Preview version</label>
+                            <label class="input-group-text" for="narrator-version" data-i18n="voices.narrator.version-label">Preview version</label>
                             <select class="form-select" id="narrator-version"></select>
                         </div>
                         <span id="narrator-preview-status" class="small text-muted" role="status" aria-live="polite" aria-atomic="true"></span>
-                        <div class="input-group input-group-sm" style="width: 330px;" title="Which characters Generate Personas and Suggest LoRA Voices work on">
-                            <label class="input-group-text" for="voices-scope">Apply to</label>
+                        <div class="input-group input-group-sm" style="width: 330px;" data-i18n-attr="title:voices.scope.title" title="Which characters Generate Personas and Suggest LoRA Voices work on">
+                            <label class="input-group-text" for="voices-scope" data-i18n="voices.scope.label">Apply to</label>
                             <select class="form-select" id="voices-scope" aria-describedby="voices-scope-help" onchange="onVoicesScopeChange()">
-                                <option value="new">Only characters without a voice yet</option>
-                                <option value="all">All characters (regenerate)</option>
+                                <option value="new" data-i18n="voices.scope.new">Only characters without a voice yet</option>
+                                <option value="all" data-i18n="voices.scope.all">All characters (regenerate)</option>
                             </select>
                         </div>
                         <label class="form-check d-inline-flex align-items-center m-0 small" id="voices-keep-wrap" style="display:none;">
                             <input class="form-check-input me-1" type="checkbox" id="voices-keep-in-library" checked>
-                            <span>Save the current voices to the library first (<span id="voices-keep-cast"></span>)</span>
+                            <span><span data-i18n="voices.keep.prefix">Save the current voices to the library first — cast:</span> <span id="voices-keep-cast"></span></span>
                         </label>
-                        <p class="small text-muted w-100 mb-0" id="narrator-selection-help">Global keeps the main narrator voice. Scene/Character focus uses the script’s focus character; Chapter uses its named narrator version. Gender and age modes use matching character traits or narrator versions. Missing matches keep the main narrator. Only the mode is saved: Preview focus and Preview version check a selection here and do not change the script or rendered audio.</p>
-                        <button class="btn btn-outline-primary" id="btn-gen-personas" aria-describedby="persona-generation-help" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i>Generate Personas</button>
+                        <p class="small text-muted w-100 mb-0" id="narrator-selection-help" data-i18n="voices.narrator.help">Global keeps the main narrator voice. Scene/Character focus uses the script’s focus character; Chapter uses its named narrator version. Gender and age modes use matching character traits or narrator versions. Missing matches keep the main narrator. Only the mode is saved: Preview focus and Preview version check a selection here and do not change the script or rendered audio.</p>
+                        <button class="btn btn-outline-primary" id="btn-gen-personas" aria-describedby="persona-generation-help" onclick="generatePersonas()"><i class="fas fa-user-robot me-1"></i><span data-i18n="voices.personas.generate">Generate Personas</span></button>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="advanced-persona-toggle" onchange="toggleAdvancedPersonaOptions()">
-                            <label class="form-check-label" for="advanced-persona-toggle">Advanced</label>
+                            <label class="form-check-label" for="advanced-persona-toggle" data-i18n="voices.personas.advanced">Advanced</label>
                         </div>
                         <div class="input-group input-group-sm" id="advanced-persona-options" style="width: 135px; display:none;">
-                            <label class="input-group-text" for="persona-batch-size">Batch</label>
+                            <label class="input-group-text" for="persona-batch-size" data-i18n="voices.personas.batch">Batch</label>
                             <input class="form-control" id="persona-batch-size" type="number" min="1" max="200" value="40">
                         </div>
-                        <div class="input-group input-group-sm" style="width: auto;" title="Sample spoken lines per character fed to the persona prompt">
-                            <label class="input-group-text" for="persona-context-lines">Context</label>
+                        <div class="input-group input-group-sm" style="width: auto;" data-i18n-attr="title:voices.personas.context.title" title="Sample spoken lines per character fed to the persona prompt">
+                            <label class="input-group-text" for="persona-context-lines" data-i18n="voices.personas.context.label">Context</label>
                             <select class="form-select" id="persona-context-lines" aria-describedby="voices-scope-help" onchange="onPersonaContextChange()">
-                                <option value="10" selected>10 lines</option>
-                                <option value="25">25 lines</option>
-                                <option value="50">50 lines</option>
-                                <option value="100">100 lines</option>
-                                <option value="custom">Custom</option>
+                                <option value="10" selected data-i18n="voices.personas.context.line-10">10 lines</option>
+                                <option value="25" data-i18n="voices.personas.context.line-25">25 lines</option>
+                                <option value="50" data-i18n="voices.personas.context.line-50">50 lines</option>
+                                <option value="100" data-i18n="voices.personas.context.line-100">100 lines</option>
+                                <option value="custom" data-i18n="voices.personas.context.custom">Custom</option>
                             </select>
-                            <input class="form-control" id="persona-context-custom" type="number" min="1" max="200" value="10" style="width: 80px; display:none;" aria-label="Custom persona context line count">
+                            <input class="form-control" id="persona-context-custom" type="number" min="1" max="200" value="10" style="width: 80px; display:none;" data-i18n-attr="aria-label:voices.personas.context.custom-aria" aria-label="Custom persona context line count">
                         </div>
-                        <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                        <button class="btn btn-outline-danger" id="btn-cancel-personas" onclick="cancelPersonas()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="voices.personas.cancel">Cancel</span></button>
                         <span id="persona-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
                     </div>
-                    <p class="form-text" id="voices-scope-help">Apply to controls both Generate Personas and Suggest LoRA Voices. Context sets the number of sample spoken lines per character included in the persona prompt.</p>
-                    <p class="small text-muted" id="persona-generation-help">Generate Personas asks the configured LLM to describe the characters selected by Apply to, then uses TTS to generate voice-reference audio. Review the generated personas and references before generating the book.</p>
+                    <p class="form-text" id="voices-scope-help" data-i18n="voices.scope.help">Apply to controls both Generate Personas and Suggest LoRA Voices. Context sets the number of sample spoken lines per character included in the persona prompt.</p>
+                    <p class="small text-muted" id="persona-generation-help" data-i18n="voices.personas.help">Generate Personas asks the configured LLM to describe the characters selected by Apply to, then uses TTS to generate voice-reference audio. Review the generated personas and references before generating the book.</p>
                     <div class="small mb-2">
                         <span id="persona-refresh-status" role="status" aria-live="polite"></span>
-                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="persona-refresh-retry" onclick="refreshPersonaVoiceResources()" hidden>Retry Voices refresh</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="persona-refresh-retry" onclick="refreshPersonaVoiceResources()" hidden data-i18n="voices.personas.retry">Retry Voices refresh</button>
                     </div>
                     <details class="mb-3" id="persona-recovery-panel">
-                        <summary>Manual persona recovery</summary>
+                        <summary data-i18n="voices.recovery.title">Manual persona recovery</summary>
                         <div class="mt-2">
-                            <div class="form-text mb-2">1. Enter the speaker and optionally the dialogue samples and narrator context below. 2. Click Copy prompt and send that prompt to your chosen LLM. 3. Paste its JSON reply into Persona JSON. 4. Validate &amp; save stores this persona. Validate &amp; resume also requests continuation of the persona run.</div>
+                            <div class="form-text mb-2" data-i18n="voices.recovery.intro">1. Enter the speaker and optionally the dialogue samples and narrator context below. 2. Click Copy prompt and send that prompt to your chosen LLM. 3. Paste its JSON reply into Persona JSON. 4. Validate &amp; save stores this persona. Validate &amp; resume also requests continuation of the persona run.</div>
                             <div class="row g-2">
-                                <div class="col-md-3"><label class="visually-hidden" for="persona-recovery-speaker">Speaker name</label><input class="form-control form-control-sm" id="persona-recovery-speaker" placeholder="Speaker name" oninput="renderPersonaRecoveryTargets()"></div>
-                                <div class="col-md-7"><label class="visually-hidden" for="persona-recovery-json">Persona JSON</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-json" rows="3" placeholder='{"description":"...","ref_text":"..."}'></textarea></div>
+                                <div class="col-md-3"><label class="visually-hidden" for="persona-recovery-speaker" data-i18n="voices.recovery.speaker">Speaker name</label><input class="form-control form-control-sm" id="persona-recovery-speaker" data-i18n-attr="placeholder:voices.recovery.speaker-placeholder" placeholder="Speaker name" oninput="renderPersonaRecoveryTargets()"></div>
+                                <div class="col-md-7"><label class="visually-hidden" for="persona-recovery-json" data-i18n="voices.recovery.json">Persona JSON</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-json" rows="3" data-i18n-skip placeholder='{"description":"...","ref_text":"..."}'></textarea></div>
                                 <div class="col-md-2 d-grid gap-1">
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="copyPersonaPrompt()">Copy prompt</button>
-                                    <button class="btn btn-sm btn-outline-success" onclick="recoverPersona()">Validate &amp; save</button>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="recoverPersona(true)">Validate &amp; resume</button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="copyPersonaPrompt()" data-i18n="voices.recovery.copy">Copy prompt</button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="recoverPersona()" data-i18n="voices.recovery.save">Validate &amp; save</button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="recoverPersona(true)" data-i18n="voices.recovery.resume">Validate &amp; resume</button>
                                 </div>
                             </div>
-                            <label class="form-label small mt-2" for="persona-recovery-state">Recovery target</label>
-                            <select class="form-select form-select-sm" id="persona-recovery-state"><option value="__base__">Base character persona</option></select>
+                            <label class="form-label small mt-2" for="persona-recovery-state" data-i18n="voices.recovery.target">Recovery target</label>
+                            <select class="form-select form-select-sm" id="persona-recovery-state"><option value="__base__" data-i18n="voices.recovery.base">Base character persona</option></select>
                             <div class="row g-2 mt-1">
-                                <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-samples">Dialogue samples</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-samples" rows="2" placeholder="Dialogue samples (used by Copy prompt)"></textarea></div>
-                                <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-narration">Narrator context</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-narration" rows="2" placeholder="Narrator context (used by Copy prompt)"></textarea></div>
+                                <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-samples" data-i18n="voices.recovery.samples">Dialogue samples</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-samples" rows="2" data-i18n-attr="placeholder:voices.recovery.samples-placeholder" placeholder="Dialogue samples (used by Copy prompt)"></textarea></div>
+                                <div class="col-md-6"><label class="visually-hidden" for="persona-recovery-narration" data-i18n="voices.recovery.narration">Narrator context</label><textarea class="form-control form-control-sm font-monospace" id="persona-recovery-narration" rows="2" data-i18n-attr="placeholder:voices.recovery.narration-placeholder" placeholder="Narrator context (used by Copy prompt)"></textarea></div>
                             </div>
                             <div id="persona-recovery-context" class="alert alert-warning small mt-2 mb-0" style="display:none;"></div>
                             <div id="persona-recovery-status" class="form-text"></div>
                         </div>
                     </details>
                     <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-                        <button class="btn btn-outline-success" id="btn-suggest-voices" onclick="suggestVoices()" title="Use the configured LLM to match each character to the best-fitting downloaded LoRA voice"><i class="fas fa-wand-magic-sparkles me-1"></i>Suggest LoRA Voices</button>
-                        <button class="btn btn-success" id="btn-apply-all-suggestions" onclick="applyAllVoiceSuggestions()" style="display:none;"><i class="fas fa-check-double me-1"></i>Apply all</button>
-                        <button class="btn btn-outline-secondary" id="btn-clear-suggestions" onclick="clearVoiceSuggestions()" style="display:none;"><i class="fas fa-xmark me-1"></i>Dismiss</button>
+                        <button class="btn btn-outline-success" id="btn-suggest-voices" onclick="suggestVoices()" data-i18n-attr="title:voices.suggest.title" title="Use the configured LLM to match each character to the best-fitting downloaded LoRA voice"><i class="fas fa-wand-magic-sparkles me-1"></i><span data-i18n="voices.suggest.action">Suggest LoRA Voices</span></button>
+                        <button class="btn btn-success" id="btn-apply-all-suggestions" onclick="applyAllVoiceSuggestions()" style="display:none;"><i class="fas fa-check-double me-1"></i><span data-i18n="voices.suggest.apply-all">Apply all</span></button>
+                        <button class="btn btn-outline-secondary" id="btn-clear-suggestions" onclick="clearVoiceSuggestions()" style="display:none;"><i class="fas fa-xmark me-1"></i><span data-i18n="voices.suggest.dismiss">Dismiss</span></button>
                         <span id="suggest-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
                         <div id="suggest-catalog-status" class="text-warning small" role="status" aria-live="polite"></div>
                     </div>
-                    <p class="form-text" id="voice-approval-help">Persona means the character description; Voice means the sound assigned to the character. Reviewed records that you checked it; Approved records that you accept it; Rejected records that it needs another choice. These are separate review states for the persona and the voice.</p>
+                    <p class="form-text" id="voice-approval-help" data-i18n="voices.approval.help">Persona means the character description; Voice means the sound assigned to the character. Reviewed records that you checked it; Approved records that you accept it; Rejected records that it needs another choice. These are separate review states for the persona and the voice.</p>
                     <section id="single-voice-control" class="border rounded p-3 mb-3" aria-labelledby="single-voice-title">
-                        <h6 id="single-voice-title">Use one voice for the whole book</h6>
-                        <p class="small text-muted">Pick one existing voice on any card below (built-in, LoRA, clone or saved-designed), choose that speaker here, review every affected speaker, then confirm. Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice; confirming applies one guarded voice save. After listening to a sample, mark each speaker Ready with the existing per-card Ready controls below. Sample, render and export afterwards use the existing Editor and Result controls.</p>
+                        <h6 id="single-voice-title" data-i18n="voices.single.title">Use one voice for the whole book</h6>
+                        <p class="small text-muted" data-i18n="voices.single.intro">Pick one existing voice on any card below (built-in, LoRA, clone or saved-designed), choose that speaker here, review every affected speaker, then confirm. Preview may save your already-authorized pending card edits exactly as Voices does, but never applies the book-wide voice; confirming applies one guarded voice save. After listening to a sample, mark each speaker Ready with the existing per-card Ready controls below. Sample, render and export afterwards use the existing Editor and Result controls.</p>
                         <div class="input-group input-group-sm" style="width:auto;">
-                            <label class="input-group-text" for="single-voice-source">Use this speaker's voice for the book</label>
-                            <select class="form-select" id="single-voice-source"><option value="">Choose a speaker whose voice you picked…</option></select>
-                            <button class="btn btn-outline-primary" type="button" onclick="previewSingleVoiceBook()">Review book-wide voice</button>
+                            <label class="input-group-text" for="single-voice-source" data-i18n="voices.single.label">Use this speaker's voice for the book</label>
+                            <select class="form-select" id="single-voice-source"><option value="" data-i18n="voices.single.empty">Choose a speaker whose voice you picked…</option></select>
+                            <button class="btn btn-outline-primary" type="button" onclick="previewSingleVoiceBook()" data-i18n="voices.single.review">Review book-wide voice</button>
                         </div>
                     </section>
                     <div id="voices-list"></div>
@@ -2538,27 +2538,27 @@
             <!-- Series Cast: reuse character voices across books -->
             <details class="card mb-3 workflow-disclosure" id="series-cast-card">
                 <summary class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="m-0"><i class="fas fa-users me-2"></i>Series Cast</h5>
+                    <h5 class="m-0"><i class="fas fa-users me-2"></i><span data-i18n="voices.cast.title">Series Cast</span></h5>
                     <span id="cast-status" class="text-muted small" role="status" aria-live="polite" aria-atomic="true"></span>
                 </summary>
                 <div class="card-body">
-                    <p class="small text-muted mb-2">Save character voices to a named cast and reuse them across books in a series, so recurring characters sound the same. The <strong>narrator is shared across the whole series</strong> unless a cast saves its own.</p>
+                    <p class="small text-muted mb-2"><span data-i18n="voices.cast.intro">Save character voices to a named cast and reuse them across books in a series, so recurring characters sound the same. The</span> <strong data-i18n="voices.cast.intro-shared">narrator is shared across the whole series</strong> <span data-i18n="voices.cast.intro-unless">unless a cast saves its own.</span></p>
                     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-                        <label class="small text-muted m-0" for="cast-select">Cast:</label>
+                        <label class="small text-muted m-0" for="cast-select" data-i18n="voices.cast.label">Cast:</label>
                         <select id="cast-select" class="form-select form-select-sm" style="width:auto;min-width:160px;" onchange="onCastChange()"></select>
-                        <button class="btn btn-sm btn-outline-primary" onclick="createCast()"><i class="fas fa-plus me-1"></i>New</button>
-                        <button class="btn btn-sm btn-outline-danger" id="btn-cast-delete" onclick="deleteCast()" title="Delete selected cast"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="createCast()"><i class="fas fa-plus me-1"></i><span data-i18n="voices.cast.new">New</span></button>
+                        <button class="btn btn-sm btn-outline-danger" id="btn-cast-delete" onclick="deleteCast()" data-i18n-attr="title:voices.cast.delete-title" title="Delete selected cast"><i class="fas fa-trash"></i></button>
                         <span class="vr mx-1"></span>
-                        <button class="btn btn-sm btn-outline-success" id="btn-cast-save" onclick="openCastSave()"><i class="fas fa-floppy-disk me-1"></i>Save to cast</button>
-                        <button class="btn btn-sm btn-success" id="btn-cast-apply" onclick="openCastApply()"><i class="fas fa-wand-magic-sparkles me-1"></i>Apply cast</button>
-                        <button class="btn btn-sm btn-outline-success" id="btn-cast-apply-bulk" onclick="openCastApplyBulk()"><i class="fas fa-layer-group me-1"></i>Apply to multiple books</button>
+                        <button class="btn btn-sm btn-outline-success" id="btn-cast-save" onclick="openCastSave()"><i class="fas fa-floppy-disk me-1"></i><span data-i18n="voices.cast.save">Save to cast</span></button>
+                        <button class="btn btn-sm btn-success" id="btn-cast-apply" onclick="openCastApply()"><i class="fas fa-wand-magic-sparkles me-1"></i><span data-i18n="voices.cast.apply">Apply cast</span></button>
+                        <button class="btn btn-sm btn-outline-success" id="btn-cast-apply-bulk" onclick="openCastApplyBulk()"><i class="fas fa-layer-group me-1"></i><span data-i18n="voices.cast.apply-bulk">Apply to multiple books</span></button>
                     </div>
                     <div id="cast-panel"></div>
                 </div>
             </details>
 
              <div class="card">
-                <div class="card-header">Voice Parsing Logs</div>
+                <div class="card-header" data-i18n="voices.logs.title">Voice Parsing Logs</div>
                 <div class="card-body p-0">
                     <div id="voices-logs" class="log-window" style="height: 150px;"></div>
                 </div>
@@ -2641,56 +2641,56 @@
         <!-- Casting Tab (#1532) -->
         <div id="casting-tab" class="tab-content" style="display:none;">
             <div class="mb-3">
-                <h4>Casting library</h4>
-                <p class="text-muted mb-0">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
+                <h4 data-i18n="casting.header.title">Casting library</h4>
+                <p class="text-muted mb-0" data-i18n="casting.intro">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
             </div>
             <div id="casting-workspace" class="casting-workspace">
-            <aside class="card casting-sidebar mb-3" aria-label="Voice filters">
+            <aside class="card casting-sidebar mb-3" data-i18n-attr="aria-label:casting.filters.aria" aria-label="Voice filters">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="m-0">Find voices</h5>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="casting-refresh"><i class="fas fa-sync me-1"></i>Refresh</button>
+                    <h5 class="m-0" data-i18n="casting.find.title">Find voices</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="casting-refresh"><i class="fas fa-sync me-1"></i><span data-i18n="casting.refresh">Refresh</span></button>
                 </div>
                 <div class="card-body">
-                    <p class="small text-muted">Combine filters to narrow the library. Use Clear filters to start again.</p>
+                    <p class="small text-muted" data-i18n="casting.filters.intro">Combine filters to narrow the library. Use Clear filters to start again.</p>
                     <div class="row g-2 mb-2">
                         <div class="col-lg-6">
-                            <label class="form-label fw-bold" for="casting-search">Search</label>
-                            <input type="search" class="form-control" id="casting-search" placeholder="gender:female tone:calm -status:reject" aria-describedby="casting-search-help">
-                            <div class="form-text" id="casting-search-help">Words match name, description and sample line. Fields: book, gender, age, tone, texture, status, priority, tag, collection, stars, circles, source, name. Put - in front to exclude.</div>
+                            <label class="form-label fw-bold" for="casting-search" data-i18n="casting.search.label">Search</label>
+                            <input type="search" class="form-control" id="casting-search" data-i18n-skip placeholder="gender:female tone:calm -status:reject" aria-describedby="casting-search-help">
+                            <div class="form-text" id="casting-search-help" data-i18n="casting.search.help">Words match name, description and sample line. Fields: book, gender, age, tone, texture, status, priority, tag, collection, stars, circles, source, name. Put - in front to exclude.</div>
                         </div>
                         <div class="col-6 col-lg-2">
-                            <label class="form-label fw-bold" for="casting-book">Book</label>
-                            <select class="form-select" id="casting-book"><option value="">All books</option></select>
+                            <label class="form-label fw-bold" for="casting-book" data-i18n="casting.filter.book">Book</label>
+                            <select class="form-select" id="casting-book"><option value="" data-i18n="casting.filter.all-books">All books</option></select>
                         </div>
                         <div class="col-6 col-lg-2">
-                            <label class="form-label fw-bold" for="casting-gender">Gender</label>
-                            <select class="form-select" id="casting-gender"><option value="">Any</option></select>
+                            <label class="form-label fw-bold" for="casting-gender" data-i18n="casting.filter.gender">Gender</label>
+                            <select class="form-select" id="casting-gender"><option value="" data-i18n="casting.filter.any">Any</option></select>
                         </div>
                         <div class="col-6 col-lg-1">
-                            <label class="form-label fw-bold" for="casting-age">Age</label>
-                            <select class="form-select" id="casting-age"><option value="">Any</option></select>
+                            <label class="form-label fw-bold" for="casting-age" data-i18n="casting.filter.age">Age</label>
+                            <select class="form-select" id="casting-age"><option value="" data-i18n="casting.filter.any">Any</option></select>
                         </div>
                         <div class="col-6 col-lg-1">
-                            <label class="form-label fw-bold" for="casting-status">Status</label>
-                            <select class="form-select" id="casting-status"><option value="">Any</option></select>
+                            <label class="form-label fw-bold" for="casting-status" data-i18n="casting.filter.status">Status</label>
+                            <select class="form-select" id="casting-status"><option value="" data-i18n="casting.filter.any">Any</option></select>
                         </div>
                     </div>
                     <div class="mb-2">
-                        <div class="small text-muted mb-1">Tone</div>
+                        <div class="small text-muted mb-1" data-i18n="casting.filter.tone">Tone</div>
                         <div id="casting-tones" class="d-flex flex-wrap gap-1"></div>
-                        <div class="small text-muted mt-2 mb-1">Texture</div>
+                        <div class="small text-muted mt-2 mb-1" data-i18n="casting.filter.texture">Texture</div>
                         <div id="casting-textures" class="d-flex flex-wrap gap-1"></div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Casting view">
-                            <button type="button" class="btn btn-outline-secondary active" id="casting-view-cards" aria-pressed="true">Cards</button>
-                            <button type="button" class="btn btn-outline-secondary" id="casting-view-table" aria-pressed="false">Table</button>
+                        <div class="btn-group btn-group-sm" role="group" data-i18n-attr="aria-label:casting.view.aria" aria-label="Casting view">
+                            <button type="button" class="btn btn-outline-secondary active" id="casting-view-cards" aria-pressed="true" data-i18n="casting.view.cards">Cards</button>
+                            <button type="button" class="btn btn-outline-secondary" id="casting-view-table" aria-pressed="false" data-i18n="casting.view.table">Table</button>
                         </div>
-                        <select class="form-select form-select-sm w-auto" id="casting-sort" aria-label="Sort voices">
-                            <option value="name">Name A-Z</option><option value="book">Book</option><option value="status">Review status</option><option value="priority">Priority</option>
+                        <select class="form-select form-select-sm w-auto" id="casting-sort" data-i18n-attr="aria-label:casting.sort.aria" aria-label="Sort voices">
+                            <option value="name" data-i18n="casting.sort.name">Name A-Z</option><option value="book" data-i18n="casting.sort.book">Book</option><option value="status" data-i18n="casting.sort.status">Review status</option><option value="priority" data-i18n="casting.sort.priority">Priority</option>
                         </select>
-                        <button type="button" class="btn btn-sm btn-primary" id="casting-review"><i class="fas fa-headphones me-1"></i>Review</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="casting-clear">Clear filters</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="casting-review"><i class="fas fa-headphones me-1"></i><span data-i18n="casting.review">Review</span></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="casting-clear" data-i18n="casting.clear">Clear filters</button>
                     </div>
                     <div id="casting-research" class="mt-3"></div>
                 </div>
@@ -2698,32 +2698,32 @@
             <div class="card casting-main">
                 <div class="card-body">
                     <div class="casting-research-row mb-3">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i>Play all</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i><span data-i18n="casting.play-all">Play all</span></button>
                         <span id="casting-playback-status" class="small" role="status" aria-live="polite"></span>
                         <span id="casting-summary" class="text-muted small ms-auto" role="status" aria-live="polite"></span>
                     </div>
-                    <div id="casting-research-toolbar" class="casting-research-toolbar mb-3" aria-label="Research controls"></div>
+                    <div id="casting-research-toolbar" class="casting-research-toolbar mb-3" data-i18n-attr="aria-label:casting.research.aria" aria-label="Research controls"></div>
                     <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
                     <div class="d-flex flex-wrap gap-2 mb-2">
-                        <select id="casting-health" class="form-select form-select-sm w-auto" aria-label="Data health filter"><option value="">All data health</option></select>
+                        <select id="casting-health" class="form-select form-select-sm w-auto" data-i18n-attr="aria-label:casting.health.aria" aria-label="Data health filter"><option value="" data-i18n="casting.health.all">All data health</option></select>
                         <span id="casting-health-counts" class="small" role="status"></span>
                     </div>
                     <div id="casting-skipped" class="small mb-2"></div>
-                    <details class="mb-3"><summary>Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
+                    <details class="mb-3"><summary data-i18n="casting.coverage.title">Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
                     <details class="border rounded p-2 mb-3">
-                        <summary>Saved casts &amp; character assignment</summary>
-                        <p class="small text-muted mt-2">Saved casts map voices to named characters. Review the mappings before applying them to the active book. Research collections only organize voices.</p>
-                        <label for="casting-collection" class="small">Saved cast</label>
-                        <select id="casting-collection" class="form-select form-select-sm" aria-label="Saved cast"><option value="">Choose a saved cast</option></select>
-                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" aria-label="New saved cast name" placeholder="New saved cast name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary">Create saved cast</button></div>
-                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2">Review saved cast for active book</button>
+                        <summary data-i18n="casting.saved.title">Saved casts &amp; character assignment</summary>
+                        <p class="small text-muted mt-2" data-i18n="casting.saved.intro">Saved casts map voices to named characters. Review the mappings before applying them to the active book. Research collections only organize voices.</p>
+                        <label for="casting-collection" class="small" data-i18n="casting.saved.label">Saved cast</label>
+                        <select id="casting-collection" class="form-select form-select-sm" data-i18n-attr="aria-label:casting.saved.label" aria-label="Saved cast"><option value="" data-i18n="casting.saved.empty">Choose a saved cast</option></select>
+                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" data-i18n-attr="aria-label:casting.saved.new-name,placeholder:casting.saved.new-name" aria-label="New saved cast name" placeholder="New saved cast name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary" data-i18n="casting.saved.create">Create saved cast</button></div>
+                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2" data-i18n="casting.saved.review">Review saved cast for active book</button>
                         <div id="casting-collection-review" class="mt-2"></div>
                     </details>
-                    <div class="small text-muted mb-2">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
-                    <div id="casting-results"><p class="text-muted mb-0">Open this tab to load the casting library.</p></div>
-                    <div id="casting-pagination" class="mt-3" aria-label="Results navigation"></div>
-                    <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden>Load more</button></div>
-                    <details class="mt-3"><summary>Studio activity</summary><div id="casting-activity" class="small mt-2" aria-live="polite"></div></details>
+                    <div class="small text-muted mb-2" data-i18n="safety.casting.similarity_unavailable">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
+                    <div id="casting-results"><p class="text-muted mb-0" data-i18n="casting.results.empty">Open this tab to load the casting library.</p></div>
+                    <div id="casting-pagination" class="mt-3" data-i18n-attr="aria-label:casting.pagination.aria" aria-label="Results navigation"></div>
+                    <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden data-i18n="casting.more">Load more</button></div>
+                    <details class="mt-3"><summary data-i18n="casting.activity.title">Studio activity</summary><div id="casting-activity" class="small mt-2" aria-live="polite"></div></details>
                 </div>
             </div>
             </div>
@@ -2731,26 +2731,26 @@
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="casting-review-title">Review voices</h5>
+                            <h5 class="modal-title" id="casting-review-title" data-i18n="casting.review.title">Review voices</h5>
                             <span id="casting-review-position" class="text-muted small ms-3"></span>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" data-i18n-attr="aria-label:casting.review.close" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="progress mb-3" role="progressbar" aria-label="Review progress"><div class="progress-bar" id="casting-review-progress" style="width:0%"></div></div>
+                            <div class="progress mb-3" role="progressbar" data-i18n-attr="aria-label:casting.review.progress" aria-label="Review progress"><div class="progress-bar" id="casting-review-progress" style="width:0%"></div></div>
                             <div id="casting-review-body"></div>
-                            <label class="form-label fw-bold mt-3" for="casting-review-notes">Notes</label>
-                            <textarea class="form-control" id="casting-review-notes" rows="3" maxlength="2000" placeholder="Pronunciation, casting instinct, next action"></textarea>
-                            <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-review-save-notes">Save notes</button></div>
+                            <label class="form-label fw-bold mt-3" for="casting-review-notes" data-i18n="casting.review.notes">Notes</label>
+                            <textarea class="form-control" id="casting-review-notes" rows="3" maxlength="2000" data-i18n-attr="placeholder:casting.review.notes-placeholder" placeholder="Pronunciation, casting instinct, next action"></textarea>
+                            <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-review-save-notes" data-i18n="casting.review.save-notes">Save notes</button></div>
                         </div>
                         <div class="modal-footer justify-content-between">
-                            <div class="small text-muted">Keys: S shortlist, C callback, R reject, Space play, arrows move</div>
+                            <div class="small text-muted" data-i18n="casting.review.keys">Keys: S shortlist, C callback, R reject, Space play, arrows move</div>
                             <div class="d-flex gap-2 flex-wrap">
-                                <button type="button" class="btn btn-outline-secondary" id="casting-review-prev"><i class="fas fa-arrow-left me-1"></i>Previous</button>
-                                <button type="button" class="btn btn-outline-primary" id="casting-review-play"><i class="fas fa-play me-1"></i>Play</button>
-                                <button type="button" class="btn btn-outline-success" id="casting-review-shortlist" data-casting-status="shortlist">Shortlist</button>
-                                <button type="button" class="btn btn-outline-warning" id="casting-review-callback" data-casting-status="callback">Callback</button>
-                                <button type="button" class="btn btn-outline-danger" id="casting-review-reject" data-casting-status="reject">Reject</button>
-                                <button type="button" class="btn btn-outline-secondary" id="casting-review-next">Next<i class="fas fa-arrow-right ms-1"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" id="casting-review-prev"><i class="fas fa-arrow-left me-1"></i><span data-i18n="casting.review.previous">Previous</span></button>
+                                <button type="button" class="btn btn-outline-primary" id="casting-review-play"><i class="fas fa-play me-1"></i><span data-i18n="casting.review.play">Play</span></button>
+                                <button type="button" class="btn btn-outline-success" id="casting-review-shortlist" data-casting-status="shortlist" data-i18n="casting.review.shortlist">Shortlist</button>
+                                <button type="button" class="btn btn-outline-warning" id="casting-review-callback" data-casting-status="callback" data-i18n="casting.review.callback">Callback</button>
+                                <button type="button" class="btn btn-outline-danger" id="casting-review-reject" data-casting-status="reject" data-i18n="casting.review.reject">Reject</button>
+                                <button type="button" class="btn btn-outline-secondary" id="casting-review-next"><span data-i18n="casting.review.next">Next</span><i class="fas fa-arrow-right ms-1"></i></button>
                             </div>
                         </div>
                     </div>

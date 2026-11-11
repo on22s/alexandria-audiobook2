@@ -43,26 +43,30 @@ KEEP_ENGLISH = frozenset({
 # and safety branches. P5 lowered index.html's script 212 -> 2 (the two left are
 # live JS status lines), app-guides.js 154 -> 48 and app-workbench.js 382 -> 324
 # (the Dataset Builder surface; the Preparer and system-status sections in that
-# file belong to later phases). app-help.js's 75 counts two attribute-name
-# literals in the tooltip refresh; its 700+ help strings are catalog sources
-# (excluded by help_map_spans, and test_ui_help_i18n.py proves every one is
-# keyed in all three locales).
+# file belong to later phases). P6 lowered index.html's voices 75 -> 0 and
+# casting 61 -> 0, app-casting.js 262 -> 142, app-casting-research.js 436 -> 217,
+# app-pronunciation.js 210 -> 74, app-character-roster.js 110 -> 30 and
+# app-core.js 2215 -> 2088 (the voices/casting-only literals; the voice-card
+# template, candidate markup and state editor in that file are still English).
+# app-help.js's 75 counts two attribute-name literals in the tooltip refresh;
+# its 700+ help strings are catalog sources (excluded by help_map_spans, and
+# test_ui_help_i18n.py proves every one is keyed in all three locales).
 MARKUP_BASELINE = {
     'index.html': {
-        'audio': 153, 'casting': 61, 'dataset-builder': 30, 'designer': 19,
+        'audio': 153, 'casting': 0, 'dataset-builder': 30, 'designer': 19,
         'editor': 207, 'home': 23, 'preparer': 62, 'reports': 17, 'script': 2,
-        'setup': 0, 'shell': 0, 'training': 69, 'voicelab': 54, 'voices': 75,
+        'setup': 0, 'shell': 0, 'training': 69, 'voicelab': 54, 'voices': 0,
     },
     'readalong-player.html': {'shell': 16},
 }
 
 JS_BASELINE = {
     'app-audio-channels.js': 26, 'app-audiobookshelf.js': 88, 'app-calibre.js': 269,
-    'app-casting-research.js': 436, 'app-casting.js': 262, 'app-character-roster.js': 110,
-    'app-core.js': 2215, 'app-editor-repair.js': 32, 'app-editor-review.js': 193,
+    'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
+    'app-core.js': 2088, 'app-editor-repair.js': 32, 'app-editor-review.js': 193,
     'app-export-quality.js': 38, 'app-guides.js': 48, 'app-help.js': 75,
     'app-i18n.js': 25, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
-    'app-project-scope.js': 33, 'app-pronunciation.js': 210,
+    'app-project-scope.js': 33, 'app-pronunciation.js': 74,
     'app-publication-validation.js': 2, 'app-publication.js': 45, 'app-readalong.js': 63,
     'app-reports.js': 91, 'app-scripts.js': 329, 'app-settings.js': 53,
     'app-single-voice.js': 96, 'app-sound-assets.js': 39, 'app-sound-cues.js': 111,

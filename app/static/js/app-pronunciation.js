@@ -25,9 +25,9 @@ function onPronunciationAuditionEdit() {
 function resetPronunciationBook() {
     pronunciationEpoch++;
     pronunciationBook = null; pronunciationLines = [];
-    for (const node of document.querySelectorAll('#pronunciation-rows .pronunciation-count')) { node.textContent = 'Preview again'; }
+    for (const node of document.querySelectorAll('#pronunciation-rows .pronunciation-count')) { node.textContent = t('pron.preview-again', 'Preview again'); }
     resetPronunciationAudio();
-    document.getElementById('pronunciation-status').textContent = 'Book changed. Shared drafts are retained; preview counts and voices again.';
+    document.getElementById('pronunciation-status').textContent = formatUiSafetyText('safety.pron.book_changed', 'Book changed. Shared drafts are retained; preview counts and voices again.');
     resetOccurrencePronunciation();
     resetDateOrderBook();
 }
@@ -37,23 +37,23 @@ function onPronunciationEdit() {
     pronunciationDirty = true;
     pronunciationLines = []; pronunciationBook = null;
     resetPronunciationAudio();
-    for (const node of document.querySelectorAll('#pronunciation-rows .pronunciation-count')) { node.textContent = 'Preview again'; }
-    document.getElementById('pronunciation-status').textContent = 'Unsaved changes. Preview counts and audition before saving shared rules.';
+    for (const node of document.querySelectorAll('#pronunciation-rows .pronunciation-count')) { node.textContent = t('pron.preview-again', 'Preview again'); }
+    document.getElementById('pronunciation-status').textContent = t('pron.status.unsaved-changes', 'Unsaved changes. Preview counts and audition before saving shared rules.');
     resetOccurrencePronunciation();
 }
 
 function addPronunciationRow(original = '', spoken = '', dirty = true) {
-    if (dirty && !pronunciationRevision) { showToast('Load shared rules before adding spellings.', 'warning'); return; }
+    if (dirty && !pronunciationRevision) { showToast(t('pron.error.load-first', 'Load shared rules before adding spellings.'), 'warning'); return; }
     const row = document.createElement('tr');
     for (const [key, value, max] of [['original', original, 128], ['spoken', spoken, 256]]) {
         const cell = row.insertCell();
         const input = document.createElement('textarea'); input.rows = 2; input.className = `form-control form-control-sm pronunciation-${key}`;
-        input.title = key === 'original' ? 'Exact case-sensitive spelling to match in future speech generation.' : 'Spoken replacement for this spelling; leave blank to make this entry inactive.';
-        input.value = value; input.pronunciationLoadedValue = input.value; input.pronunciationRawValue = value; input.maxLength = max; input.setAttribute('aria-label', key === 'original' ? 'Original spelling' : 'Spoken replacement');
+        input.title = key === 'original' ? t('pron.field.original-title', 'Exact case-sensitive spelling to match in future speech generation.') : t('pron.field.spoken-title', 'Spoken replacement for this spelling; leave blank to make this entry inactive.');
+        input.value = value; input.pronunciationLoadedValue = input.value; input.pronunciationRawValue = value; input.maxLength = max; input.setAttribute('aria-label', key === 'original' ? t('pron.field.original-label', 'Original spelling') : t('pron.field.spoken-label', 'Spoken replacement'));
         input.addEventListener('input', onPronunciationEdit); cell.appendChild(input);
     }
-    const count = row.insertCell(); count.className = 'pronunciation-count'; count.textContent = 'Not measured';
-    const cell = row.insertCell(); const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-danger btn-sm'; button.textContent = 'Remove'; button.title = 'Remove this spelling from the unsaved draft; save shared rules to apply the removal.';
+    const count = row.insertCell(); count.className = 'pronunciation-count'; count.textContent = t('pron.count.not-measured', 'Not measured');
+    const cell = row.insertCell(); const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-danger btn-sm'; button.textContent = t('pron.remove', 'Remove'); button.title = t('pron.remove-title', 'Remove this spelling from the unsaved draft; save shared rules to apply the removal.');
     button.addEventListener('click', () => { row.remove(); onPronunciationEdit(); }); cell.appendChild(button);
     document.getElementById('pronunciation-rows').appendChild(row);
     if (dirty) { onPronunciationEdit(); }
@@ -68,8 +68,8 @@ function getPronunciationNames() {
     for (const row of document.getElementById('pronunciation-rows').children) {
         const original = getPronunciationFieldValue(row.querySelector('.pronunciation-original'));
         const spoken = getPronunciationFieldValue(row.querySelector('.pronunciation-spoken'));
-        if (!original.trim()) { throw new Error('Each row needs an original spelling. Remove unused rows.'); }
-        if (seen.has(original)) { throw new Error('Each original spelling must appear only once.'); }
+        if (!original.trim()) { throw new Error(t('pron.error.row-empty', 'Each row needs an original spelling. Remove unused rows.')); }
+        if (seen.has(original)) { throw new Error(t('pron.error.duplicate', 'Each original spelling must appear only once.')); }
         seen.add(original); pairs.push([original, spoken]);
     }
     return Object.fromEntries(pairs);
@@ -80,7 +80,7 @@ async function loadPronunciationPanel() {
     pronunciationBusy = true;
     const epoch = ++pronunciationEpoch;
     try {
-        if (pronunciationDirty && !await showConfirm('Discard unsaved pronunciation edits and reload shared rules?', {title: 'Reload pronunciation?', actionLabel: 'Reload'})) { return; }
+        if (pronunciationDirty && !await showConfirm(formatUiSafetyText('safety.pron.reload_discard', 'Discard unsaved pronunciation edits and reload shared rules?'), {title: t('pron.reload.title', 'Reload pronunciation?'), actionLabel: t('pron.reload.action', 'Reload')})) { return; }
         const result = await API.get('/api/pronunciation');
         if (epoch !== pronunciationEpoch) { return; }
         document.getElementById('pronunciation-rows').replaceChildren();
@@ -90,8 +90,8 @@ async function loadPronunciationPanel() {
         pronunciationDirty = false; pronunciationLines = []; pronunciationBook = null;
         resetOccurrencePronunciation();
         resetPronunciationAudio();
-        document.getElementById('pronunciation-status').textContent = 'Shared rules loaded. Matching is case-sensitive; blank replacements are inactive. Preview counts for the current book.';
-    } catch (error) { showActionError('Could not load pronunciation', error, 'Keep unsaved edits. Repair malformed files before trying again.', 'error'); }
+        document.getElementById('pronunciation-status').textContent = t('pron.status.loaded', 'Shared rules loaded. Matching is case-sensitive; blank replacements are inactive. Preview counts for the current book.');
+    } catch (error) { showActionError(t('pron.action.load', 'Could not load pronunciation'), error, t('safety.pron.load_recovery', 'Keep unsaved edits. Repair malformed files before trying again.'), 'error'); }
     finally { pronunciationBusy = false; }
 }
 
@@ -100,22 +100,22 @@ async function previewPronunciationPanel() {
     pronunciationBusy = true;
     const epoch = ++pronunciationEpoch; const book = getPronunciationBook();
     try {
-        if (!pronunciationRevision) { throw new Error('Load shared rules first.'); }
-        if (!book) { throw new Error('Refresh Editor first.'); }
+        if (!pronunciationRevision) { throw new Error(t('pron.error.rules-not-loaded', 'Load shared rules first.')); }
+        if (!book) { throw new Error(t('pron.error.editor-not-ready', 'Refresh Editor first.')); }
         const names = getPronunciationNames();
         await ensureEditorRenderSnapshot();
         const result = await API.post('/api/pronunciation/preview', {names, expected_book_token: book});
         if (epoch !== pronunciationEpoch || book !== getPronunciationBook() || result.book_token !== book) { return; }
         pronunciationLines = result.lines; pronunciationBook = book;
         const select = document.getElementById('pronunciation-line'); select.replaceChildren();
-        for (const row of result.lines) { select.add(new Option(`Line ${row.id + 1} · ${row.speaker || 'Unknown speaker'}`, String(row.id))); }
+        for (const row of result.lines) { select.add(new Option(t('pron.line.option', 'Line {line} · {speaker}', {line: row.id + 1, speaker: row.speaker || t('pron.unknown-speaker', 'Unknown speaker')}), String(row.id))); }
         resetOccurrencePronunciation();
         for (const row of document.getElementById('pronunciation-rows').children) {
             const original = getPronunciationFieldValue(row.querySelector('.pronunciation-original'));
             row.querySelector('.pronunciation-count').textContent = String(Object.hasOwn(result.counts, original) ? result.counts[original] : 0);
         }
-        document.getElementById('pronunciation-status').textContent = `${pronunciationDirty ? 'Unsaved draft' : 'Current rules'}: active substitutions counted in saved script text. Choose a line voice and enter a short spelling below to audition. Counts do not certify pronunciation.`;
-    } catch (error) { if (epoch === pronunciationEpoch) { showActionError('Could not preview pronunciation', error, 'Refresh Editor and retry the current draft.', 'error'); } }
+        document.getElementById('pronunciation-status').textContent = t('pron.status.preview', '{state}: active substitutions counted in saved script text. Choose a line voice and enter a short spelling below to audition. Counts do not certify pronunciation.', {state: pronunciationDirty ? t('pron.state.unsaved-draft', 'Unsaved draft') : t('pron.state.current-rules', 'Current rules')});
+    } catch (error) { if (epoch === pronunciationEpoch) { showActionError(t('pron.action.preview', 'Could not preview pronunciation'), error, t('pron.recovery.preview', 'Refresh Editor and retry the current draft.'), 'error'); } }
     finally { pronunciationBusy = false; }
 }
 
@@ -124,15 +124,15 @@ async function savePronunciationPanel() {
     pronunciationBusy = true;
     const epoch = pronunciationEpoch;
     try {
-        if (!pronunciationRevision) { throw new Error('Load shared rules first.'); }
+        if (!pronunciationRevision) { throw new Error(t('pron.error.rules-not-loaded', 'Load shared rules first.')); }
         const names = getPronunciationNames();
-        if (!await showConfirm('Save these pronunciation rules for all books? Future renders will use them. Existing audio stays unchanged.', {title: 'Save shared pronunciation?', actionLabel: 'Save shared rules'})) { return; }
-        if (epoch !== pronunciationEpoch) { throw new Error('The draft changed during confirmation. Review and save again.'); }
+        if (!await showConfirm(formatUiSafetyText('safety.pron.save_shared', 'Save these pronunciation rules for all books? Future renders will use them. Existing audio stays unchanged.'), {title: t('pron.save.title', 'Save shared pronunciation?'), actionLabel: t('pron.save.action', 'Save shared rules')})) { return; }
+        if (epoch !== pronunciationEpoch) { throw new Error(t('safety.pron.draft_changed', 'The draft changed during confirmation. Review and save again.')); }
         const result = await API.post('/api/pronunciation/save', {names, revision: pronunciationRevision});
         pronunciationRevision = result.revision;
         pronunciationDirty = epoch !== pronunciationEpoch;
-        document.getElementById('pronunciation-status').textContent = pronunciationDirty ? 'The earlier draft was saved. Newer edits remain unsaved.' : 'Shared rules saved. Existing audio is unchanged; regenerate selected lines when ready.';
-    } catch (error) { showActionError('Could not save pronunciation', error, 'Keep your draft. If another editor saved first, reconcile it before reloading.', 'error'); }
+        document.getElementById('pronunciation-status').textContent = pronunciationDirty ? formatUiSafetyText('safety.pron.earlier_saved', 'The earlier draft was saved. Newer edits remain unsaved.') : t('pron.status.saved', 'Shared rules saved. Existing audio is unchanged; regenerate selected lines when ready.');
+    } catch (error) { showActionError(t('pron.action.save', 'Could not save pronunciation'), error, t('safety.pron.save_recovery', 'Keep your draft. If another editor saved first, reconcile it before reloading.'), 'error'); }
     finally { pronunciationBusy = false; }
 }
 
@@ -142,23 +142,23 @@ async function auditionPronunciation(kind) {
     const epoch = pronunciationEpoch; const book = getPronunciationBook();
     try {
         const row = pronunciationLines.find(row => String(row.id) === document.getElementById('pronunciation-line').value);
-        if (!row || !book || book !== pronunciationBook) { throw new Error('Preview counts for the current book and choose a line voice first.'); }
+        if (!row || !book || book !== pronunciationBook) { throw new Error(t('pron.error.preview-line', 'Preview counts for the current book and choose a line voice first.')); }
         const text = document.getElementById('pronunciation-audition-original').value;
         const replacement = kind === 'spoken' ? document.getElementById('pronunciation-audition-spoken').value : null;
-        if (!text.trim() || (replacement !== null && !replacement.trim())) { throw new Error('Enter a short spelling or replacement to audition.'); }
+        if (!text.trim() || (replacement !== null && !replacement.trim())) { throw new Error(t('pron.error.audition-empty', 'Enter a short spelling or replacement to audition.')); }
         resetPronunciationAudio();
-        document.getElementById('pronunciation-status').textContent = 'Generating a pronunciation audition. Follow audio progress in Activity; existing book audio is unchanged.';
+        document.getElementById('pronunciation-status').textContent = t('pron.status.auditioning', 'Generating a pronunciation audition. Follow audio progress in Activity; existing book audio is unchanged.');
         const response = await fetch('/api/pronunciation/audition', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({expected_book_token: book, index: row.id, expected_uid: row.uid, text, replacement})});
-        if (!response.ok) { const data = await response.json(); throw new Error(typeof data.detail === 'string' ? data.detail : `Audition refused (${response.status}).`); }
+        if (!response.ok) { const data = await response.json(); throw new Error(typeof data.detail === 'string' ? data.detail : t('pron.error.audition-refused', 'Audition refused ({status}).', {status: response.status})); }
         const blob = await response.blob();
         if (epoch !== pronunciationEpoch || book !== getPronunciationBook()) { return; }
         pronunciationAudioUrl = URL.createObjectURL(blob);
         const player = document.getElementById('pronunciation-player'); player.src = pronunciationAudioUrl; player.hidden = false;
-        document.getElementById('pronunciation-status').textContent = `${kind === 'original' ? 'Original spelling' : 'Replacement'} audition ready. Press Play to listen; saved respellings are excluded; the proposed rule uses the same speech preparation as rendering.`;
+        document.getElementById('pronunciation-status').textContent = t('pron.status.audition-ready', '{kind} audition ready. Press Play to listen; saved respellings are excluded; the proposed rule uses the same speech preparation as rendering.', {kind: kind === 'original' ? t('pron.kind.original', 'Original spelling') : t('pron.kind.replacement', 'Replacement')});
     } catch (error) {
         if (epoch === pronunciationEpoch) {
-            document.getElementById('pronunciation-status').textContent = 'Audition failed or was refused. Check audio task status before trying again.';
-            showActionError('Could not audition pronunciation', error, 'Check assigned voice, TTS configuration and current audio task.', 'error');
+            document.getElementById('pronunciation-status').textContent = formatUiSafetyText('safety.pron.audition_failed', 'Audition failed or was refused. Check audio task status before trying again.');
+            showActionError(t('pron.action.audition', 'Could not audition pronunciation'), error, t('safety.pron.audition_recovery', 'Check assigned voice, TTS configuration and current audio task.'), 'error');
         }
     } finally { pronunciationBusy = false; }
 }
@@ -175,7 +175,7 @@ function getOccurrencePronunciationTarget() {
     const book = getPronunciationBook();
     const row = pronunciationLines.find(item => String(item.id) === document.getElementById('pronunciation-line').value);
     if (!pronunciationRevision || pronunciationDirty || !book || book !== pronunciationBook || !row) {
-        throw new Error('Load saved shared rules, preview counts for this book, and choose a line first.');
+        throw new Error(t('pron.error.target', 'Load saved shared rules, preview counts for this book, and choose a line first.'));
     }
     return {expected_book_token: book, index: row.id, expected_uid: row.uid};
 }
@@ -219,7 +219,7 @@ function resetOccurrencePronunciation() {
         occurrencePronunciationState = null; occurrencePronunciationRules = [];
         document.getElementById('pronunciation-occurrence-rules')?.replaceChildren();
     }
-    setOccurrencePronunciationStatus(occurrencePronunciationDirty ? 'Unsaved line rules retained. Return to their book and line to continue, or load another line to discard them.' : 'Preview shared counts to choose a line, then load its rules.');
+    setOccurrencePronunciationStatus(occurrencePronunciationDirty ? t('pron.status.line-retained', 'Unsaved line rules retained. Return to their book and line to continue, or load another line to discard them.') : t('pron.status.line-idle', 'Preview shared counts to choose a line, then load its rules.'));
     updateOccurrencePronunciationButtons();
 }
 
@@ -232,7 +232,7 @@ function onOccurrencePronunciationEdit() {
     occurrencePronunciationEpoch++;
     occurrencePronunciationDirty = true;
     clearOccurrencePronunciationPreview();
-    setOccurrencePronunciationStatus('Unsaved line rules. Review and approve the intended occurrences, then preview before saving.');
+    setOccurrencePronunciationStatus(t('pron.status.line-unsaved', 'Unsaved line rules. Review and approve the intended occurrences, then preview before saving.'));
     updateOccurrencePronunciationButtons();
 }
 
@@ -251,26 +251,26 @@ function renderOccurrencePronunciationRules() {
     container.replaceChildren();
     for (const rule of occurrencePronunciationRules) {
         const card = document.createElement('div'); card.className = 'border rounded p-2 mb-2';
-        const heading = document.createElement('p'); heading.className = 'small mb-1'; heading.textContent = `Occurrence: ${rule.original}`; card.appendChild(heading);
-        const stateLabel = document.createElement('label'); stateLabel.className = 'form-label small'; stateLabel.textContent = 'Review state ';
-        const state = document.createElement('select'); state.className = 'form-select form-select-sm'; state.title = 'Only approved rules change generated speech.';
-        state.setAttribute('aria-label', 'Review state');
-        for (const value of ['draft', 'approved', 'rejected']) { state.add(new Option(value[0].toUpperCase() + value.slice(1), value)); }
+        const heading = document.createElement('p'); heading.className = 'small mb-1'; heading.textContent = t('pron.rule.heading', 'Occurrence: {original}', {original: rule.original}); card.appendChild(heading);
+        const stateLabel = document.createElement('label'); stateLabel.className = 'form-label small'; stateLabel.textContent = t('pron.rule.state-label', 'Review state');
+        const state = document.createElement('select'); state.className = 'form-select form-select-sm'; state.title = t('pron.rule.state-title', 'Only approved rules change generated speech.');
+        state.setAttribute('aria-label', t('pron.rule.state-label', 'Review state'));
+        for (const [value, label] of [['draft', t('pron.rule.state.draft', 'Draft')], ['approved', t('pron.rule.state.approved', 'Approved')], ['rejected', t('pron.rule.state.rejected', 'Rejected')]]) { state.add(new Option(label, value)); }
         state.value = rule.state;
         state.addEventListener('change', () => { rule.state = state.value; onOccurrencePronunciationEdit(); });
         stateLabel.appendChild(state); card.appendChild(stateLabel);
-        const spoken = occurrencePronunciationField(card, 'Spoken replacement (or fallback for a phonetic hint)', rule.replacement ?? rule.fallback ?? '', 512, value => {
+        const spoken = occurrencePronunciationField(card, t('pron.rule.spoken', 'Spoken replacement (or fallback for a phonetic hint)'), rule.replacement ?? rule.fallback ?? '', 512, value => {
             if (rule.phonetic_hint) { if (value.trim()) { rule.fallback = value; } else { delete rule.fallback; } }
             else { rule.replacement = value; }
         });
         const details = document.createElement('details');
-        const summary = document.createElement('summary'); summary.textContent = 'Optional restrictions and review notes'; summary.title = 'Limit this occurrence to a speaker, assigned voice, language or engine mode.'; details.appendChild(summary);
-        occurrencePronunciationField(details, 'Phonetic hint (plain-text engines require a spoken fallback)', rule.phonetic_hint ?? '', 512, value => {
+        const summary = document.createElement('summary'); summary.textContent = t('pron.rule.restrictions-title', 'Optional restrictions and review notes'); summary.title = t('pron.rule.restrictions-hint', 'Limit this occurrence to a speaker, assigned voice, language or engine mode.'); details.appendChild(summary);
+        occurrencePronunciationField(details, t('pron.rule.phonetic', 'Phonetic hint (plain-text engines require a spoken fallback)'), rule.phonetic_hint ?? '', 512, value => {
             if (value.trim()) { rule.phonetic_hint = value; delete rule.replacement; if (spoken.value.trim()) { rule.fallback = spoken.value; } }
             else { delete rule.phonetic_hint; delete rule.fallback; rule.replacement = spoken.value; }
         });
-        occurrencePronunciationField(details, 'Review note (does not change speech)', rule.note ?? '', 512, value => { rule.note = value; });
-        for (const [key, label] of [['speaker', 'This source speaker'], ['voice_sha256', 'This exact assigned voice or ensemble'], ['language', 'This language'], ['engine_mode', 'This engine mode']]) {
+        occurrencePronunciationField(details, t('pron.rule.note', 'Review note (does not change speech)'), rule.note ?? '', 512, value => { rule.note = value; });
+        for (const [key, label] of [['speaker', t('pron.rule.restriction.speaker', 'This source speaker')], ['voice_sha256', t('pron.rule.restriction.voice', 'This exact assigned voice or ensemble')], ['language', t('pron.rule.restriction.language', 'This language')], ['engine_mode', t('pron.rule.restriction.engine', 'This engine mode')]]) {
             const current = occurrencePronunciationState?.context[key];
             const wrapper = document.createElement('label'); wrapper.className = 'd-block small';
             const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'form-check-input me-1'; check.title = label;
@@ -285,11 +285,11 @@ function renderOccurrencePronunciationRules() {
             });
             wrapper.appendChild(check);
             const description = document.createElement('span');
-            const updateDescription = () => { description.textContent = label + (key !== 'voice_sha256' ? `: ${rule.restrictions?.[key] ?? current ?? 'unavailable'}` : ' (including narrator grouping)'); };
+            const updateDescription = () => { const value = rule.restrictions?.[key] ?? current ?? t('pron.value.unavailable', 'unavailable'); description.textContent = label + (key !== 'voice_sha256' ? ': ' + value : ' ' + t('pron.rule.narrator-grouping', '(including narrator grouping)')); };
             updateDescription(); wrapper.appendChild(description); details.appendChild(wrapper);
         }
         card.appendChild(details);
-        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-outline-danger btn-sm mt-2'; remove.textContent = 'Remove rule'; remove.title = 'Remove this rule from the draft; save line rules to apply the removal.';
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-outline-danger btn-sm mt-2'; remove.textContent = t('pron.rule.remove', 'Remove rule'); remove.title = t('pron.rule.remove-title', 'Remove this rule from the draft; save line rules to apply the removal.');
         remove.addEventListener('click', () => { occurrencePronunciationRules = occurrencePronunciationRules.filter(item => item !== rule); onOccurrencePronunciationEdit(); renderOccurrencePronunciationRules(); }); card.appendChild(remove);
         container.appendChild(card);
     }
@@ -299,13 +299,15 @@ function showOccurrencePronunciationPreview(result, prefix) {
     const text = document.getElementById('pronunciation-occurrence-text');
     if (text) { text.textContent = result.preview.text; text.hidden = false; }
     const decisions = result.preview.decisions.map(item => {
-        if (item.applied) { return item.reason === 'applied_phonetic_fallback' ? 'Applied spoken fallback' : 'Applied respelling'; }
-        if (item.reason?.startsWith('scope_mismatch:')) { return 'Bypassed: restriction does not match'; }
-        const labels = {draft: 'Draft: not applied', rejected: 'Rejected: not applied', unsupported_phonetic_hint: 'Bypassed: no spoken fallback', overlapping_approved_spans: 'Bypassed: approved occurrences overlap', duplicate_rule_id: 'Bypassed: duplicate rule', stale_chunk_text: 'Bypassed: line text changed', stale_preparation: 'Bypassed: speech preparation changed', stale_span: 'Bypassed: occurrence changed', wrong_chunk: 'Bypassed: different line'};
-        return labels[item.reason] ?? 'Bypassed: rule needs review';
+        if (item.applied) { return item.reason === 'applied_phonetic_fallback' ? t('pron.decision.applied-fallback', 'Applied spoken fallback') : t('pron.decision.applied-respelling', 'Applied respelling'); }
+        if (item.reason?.startsWith('scope_mismatch:')) { return t('pron.decision.scope-mismatch', 'Bypassed: restriction does not match'); }
+        const labels = {draft: t('pron.decision.draft', 'Draft: not applied'), rejected: t('pron.decision.rejected', 'Rejected: not applied'), unsupported_phonetic_hint: t('pron.decision.no-fallback', 'Bypassed: no spoken fallback'), overlapping_approved_spans: t('pron.decision.overlapping', 'Bypassed: approved occurrences overlap'), duplicate_rule_id: t('pron.decision.duplicate', 'Bypassed: duplicate rule'), stale_chunk_text: t('pron.decision.stale-text', 'Bypassed: line text changed'), stale_preparation: t('pron.decision.stale-preparation', 'Bypassed: speech preparation changed'), stale_span: t('pron.decision.stale-span', 'Bypassed: occurrence changed'), wrong_chunk: t('pron.decision.wrong-line', 'Bypassed: different line')};
+        return labels[item.reason] ?? t('pron.decision.needs-review', 'Bypassed: rule needs review');
     });
-    const source = {active: 'active engine', configured: 'saved settings', unknown: 'unavailable engine settings'}[result.context_source] ?? 'current settings';
-    setOccurrencePronunciationStatus(`${prefix} Preview uses ${source}. ${decisions.join('; ')}${decisions.length ? '.' : ''}${result.audio_will_be_detached ? ' Saving will make this line pending; any previous audio file is retained.' : ''}`);
+    const source = {active: t('pron.context.active', 'active engine'), configured: t('pron.context.saved', 'saved settings'), unknown: t('pron.context.unavailable', 'unavailable engine settings')}[result.context_source] ?? t('pron.context.current', 'current settings');
+    setOccurrencePronunciationStatus((decisions.length
+        ? t('pron.status.preview-result', '{prefix} Preview uses {source}. {decisions}.', {prefix, source, decisions: decisions.join('; ')})
+        : t('pron.status.preview-result-empty', '{prefix} Preview uses {source}.', {prefix, source})) + (result.audio_will_be_detached ? ' ' + t('safety.pron.line_will_detach', 'Saving will make this line pending; any previous audio file is retained.') : ''));
 }
 
 async function loadOccurrencePronunciation() {
@@ -314,7 +316,7 @@ async function loadOccurrencePronunciation() {
     const epoch = ++occurrencePronunciationEpoch;
     try {
         const target = getOccurrencePronunciationTarget();
-        if (occurrencePronunciationDirty && !await showConfirm('Discard unsaved line rules and load the chosen line?', {title: 'Load line rules?', actionLabel: 'Load'})) { return; }
+        if (occurrencePronunciationDirty && !await showConfirm(formatUiSafetyText('safety.pron.line_discard', 'Discard unsaved line rules and load the chosen line?'), {title: t('pron.line.load-title', 'Load line rules?'), actionLabel: t('pron.line.load-action', 'Load')})) { return; }
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
         await ensureEditorRenderSnapshot();
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
@@ -322,8 +324,8 @@ async function loadOccurrencePronunciation() {
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
         occurrencePronunciationState = {...result, target}; occurrencePronunciationRules = result.rules; occurrencePronunciationDirty = false;
         document.getElementById('pronunciation-occurrence-candidates')?.replaceChildren();
-        renderOccurrencePronunciationRules(); showOccurrencePronunciationPreview(result, 'Line rules loaded.');
-    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError('Could not load line pronunciation', error, 'Keep your draft. Refresh Editor if the book or line changed.', 'error'); } }
+        renderOccurrencePronunciationRules(); showOccurrencePronunciationPreview(result, t('pron.status.line-loaded', 'Line rules loaded.'));
+    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError(t('pron.action.line-load', 'Could not load line pronunciation'), error, t('safety.pron.line_load_recovery', 'Keep your draft. Refresh Editor if the book or line changed.'), 'error'); } }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
@@ -338,25 +340,25 @@ function renderPronunciationCandidates(result, target) {
         const meanings = candidate.meanings?.length ? candidate.meanings : [''];
         let replacementInput = null;
         if (candidate.meanings?.length) {
-            const label = document.createElement('label'); label.textContent = 'Spoken replacement for this occurrence: ';
+            const label = document.createElement('label'); label.textContent = t('pron.candidate.spoken', 'Spoken replacement for this occurrence');
             replacementInput = document.createElement('input'); replacementInput.type = 'text'; replacementInput.value = ''; replacementInput.maxLength = 512;
             replacementInput.className = 'form-control form-control-sm';
-            replacementInput.title = 'Enter a spoken replacement for this occurrence; meaning choices do not select pronunciation.';
+            replacementInput.title = t('pron.candidate.spoken-title', 'Enter a spoken replacement for this occurrence; meaning choices do not select pronunciation.');
             label.appendChild(replacementInput); line.appendChild(label);
         }
         for (const meaning of meanings) {
             const add = document.createElement('button'); add.type = 'button'; add.className = 'btn btn-outline-secondary btn-sm ms-2';
-            add.textContent = meaning ? 'Draft: ' + meaning : 'Add draft';
-            add.title = 'Use the entered spoken replacement for this exact occurrence as an unapproved draft rule.';
+            add.textContent = meaning ? t('pron.candidate.draft', 'Draft: {meaning}', {meaning}) : t('pron.candidate.add-draft', 'Add draft');
+            add.title = t('pron.candidate.add-title', 'Use the entered spoken replacement for this exact occurrence as an unapproved draft rule.');
             add.addEventListener('click', () => {
                 if (!isOccurrencePronunciationTarget(target) || !isOccurrencePronunciationBound()) { return; }
                 const replacement = replacementInput ? replacementInput.value : document.getElementById('pronunciation-audition-spoken').value;
-                if (!replacement.trim()) { showToast(replacementInput ? 'Enter a spoken replacement for this occurrence first; meanings do not choose a pronunciation.' : 'Enter a spoken replacement above first.', 'warning'); return; }
+                if (!replacement.trim()) { showToast(replacementInput ? t('pron.error.candidate-no-replacement', 'Enter a spoken replacement for this occurrence first; meanings do not choose a pronunciation.') : t('pron.error.replacement-above', 'Enter a spoken replacement above first.'), 'warning'); return; }
                 if (occurrencePronunciationRules.some(rule => rule.state !== 'rejected' && ['uid', 'coordinate_space', 'offset_unit', 'text_sha256', 'prepared_sha256', 'start', 'end', 'original'].every(key => rule[key] === candidate.anchor[key]))) {
-                    showToast('This occurrence already has a draft or approved rule. Edit or remove that rule first.', 'warning'); return;
+                    showToast(t('pron.error.occurrence-rule', 'This occurrence already has a draft or approved rule. Edit or remove that rule first.'), 'warning'); return;
                 }
-                if (occurrencePronunciationRules.length >= 32) { showToast('This line already has 32 rules. Remove an unused rule first.', 'warning'); return; }
-                occurrencePronunciationRules.push({...candidate.anchor, id: crypto.randomUUID(), state: 'draft', replacement, ...(meaning ? {note: 'User-selected meaning: ' + meaning} : {})});
+                if (occurrencePronunciationRules.length >= 32) { showToast(t('pron.error.max-rules', 'This line already has 32 rules. Remove an unused rule first.'), 'warning'); return; }
+                occurrencePronunciationRules.push({...candidate.anchor, id: crypto.randomUUID(), state: 'draft', replacement, ...(meaning ? {note: t('pron.candidate.note', 'User-selected meaning: {meaning}', {meaning})} : {})});
                 onOccurrencePronunciationEdit(); renderOccurrencePronunciationRules();
             }); line.appendChild(add);
         }
@@ -370,21 +372,21 @@ async function findPronunciationHomographs() {
     document.getElementById('pronunciation-occurrence-candidates')?.replaceChildren();
     const epoch = ++occurrencePronunciationEpoch;
     try {
-        if (!isOccurrencePronunciationBound()) { throw new Error('Load rules for this line first.'); }
+        if (!isOccurrencePronunciationBound()) { throw new Error(t('pron.error.line-rules', 'Load rules for this line first.')); }
         const target = occurrencePronunciationState.target;
-        setOccurrencePronunciationStatus('Discovering exact word-list occurrences; no audio is generated.');
+        setOccurrencePronunciationStatus(t('pron.status.discovering', 'Discovering exact word-list occurrences; no audio is generated.'));
         const result = await API.post('/api/pronunciation/occurrences/homographs', {...target, revision: occurrencePronunciationState.revision}, {
-            timeoutMs: 30000, timeoutMessage: 'Homograph discovery timed out. Your drafts are retained; try again.',
+            timeoutMs: 30000, timeoutMessage: t('safety.pron.homograph_timeout', 'Homograph discovery timed out. Your drafts are retained; try again.'),
         });
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
         renderPronunciationCandidates(result, target);
         const messages = {
-            unavailable: result.context_source === 'unknown' ? 'Homograph discovery unavailable: active engine language settings cannot be read. Check the engine settings and reload line rules.' : 'Homograph discovery unavailable: choose English as the TTS language, then reload line rules.',
-            unsupported_language: 'Homograph discovery supports English only. No analysis was performed.',
-            completed: `${result.candidates.length} possible homograph occurrences (word list: ${result.word_list.join('/')}; not meaning or prose-language detection). Matches use exact-spelling word boundaries, not exhaustive linguistic analysis.${result.truncated ? ` First ${result.candidate_limit} matches shown; more occurrences exist and are not listed.` : ''} Enter a replacement beside the occurrence, then choose a meaning to add a draft. Review, approve, preview and save explicitly.`,
+            unavailable: result.context_source === 'unknown' ? t('pron.homograph.unavailable-unknown', 'Homograph discovery unavailable: active engine language settings cannot be read. Check the engine settings and reload line rules.') : t('pron.homograph.unavailable-language', 'Homograph discovery unavailable: choose English as the TTS language, then reload line rules.'),
+            unsupported_language: t('safety.pron.homograph_unsupported', 'Homograph discovery supports English only. No analysis was performed.'),
+            completed: t('pron.homograph.completed', '{count} possible homograph occurrences (word list: {words}; not meaning or prose-language detection). Matches use exact-spelling word boundaries, not exhaustive linguistic analysis.{truncated} Enter a replacement beside the occurrence, then choose a meaning to add a draft. Review, approve, preview and save explicitly.', {count: result.candidates.length, words: result.word_list.join('/'), truncated: result.truncated ? ' ' + t('pron.homograph.truncated', 'First {limit} matches shown; more occurrences exist and are not listed.', {limit: result.candidate_limit}) : ''}),
         };
-        setOccurrencePronunciationStatus(messages[result.analysis_status] || 'Homograph discovery returned an unknown analysis state.');
-    } catch (error) { if (epoch === occurrencePronunciationEpoch) { setOccurrencePronunciationStatus('Homograph discovery failed; drafts are retained.'); showActionError('Could not discover homographs', error, 'Keep your draft and check the chosen line.', 'error'); } }
+        setOccurrencePronunciationStatus(messages[result.analysis_status] || t('safety.pron.homograph_unknown_state', 'Homograph discovery returned an unknown analysis state.'));
+    } catch (error) { if (epoch === occurrencePronunciationEpoch) { setOccurrencePronunciationStatus(t('safety.pron.homograph_failed', 'Homograph discovery failed; drafts are retained.')); showActionError(t('pron.action.homograph', 'Could not discover homographs'), error, t('safety.pron.check_line_recovery', 'Keep your draft and check the chosen line.'), 'error'); } }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
@@ -393,15 +395,15 @@ async function findPronunciationOccurrences() {
     occurrencePronunciationBusy = true; updateOccurrencePronunciationButtons();
     const epoch = ++occurrencePronunciationEpoch;
     try {
-        if (!isOccurrencePronunciationBound()) { throw new Error('Load rules for this line first.'); }
+        if (!isOccurrencePronunciationBound()) { throw new Error(t('pron.error.line-rules', 'Load rules for this line first.')); }
         const target = occurrencePronunciationState.target;
         const query = document.getElementById('pronunciation-audition-original').value;
-        if (!query.trim()) { throw new Error('Enter the original spelling above.'); }
+        if (!query.trim()) { throw new Error(t('pron.error.original-required', 'Enter the original spelling above.')); }
         const result = await API.post('/api/pronunciation/occurrences/candidates', {...target, revision: occurrencePronunciationState.revision, query});
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
         renderPronunciationCandidates(result, target);
-        setOccurrencePronunciationStatus(`${result.candidates.length} exact matches.${result.truncated ? ' More matches exist; use a longer spelling to narrow the search.' : ''} Add the intended occurrence, then review and preview its rule.`);
-    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError('Could not find occurrences', error, 'Keep your draft and check the chosen line.', 'error'); } }
+        setOccurrencePronunciationStatus(t('pron.find.result', '{count} exact matches.{more} Add the intended occurrence, then review and preview its rule.', {count: result.candidates.length, more: result.truncated ? ' ' + t('pron.find.more', 'More matches exist; use a longer spelling to narrow the search.') : ''}));
+    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError(t('pron.action.find', 'Could not find occurrences'), error, t('safety.pron.check_line_recovery', 'Keep your draft and check the chosen line.'), 'error'); } }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
@@ -410,12 +412,12 @@ async function previewOccurrencePronunciation() {
     occurrencePronunciationBusy = true; updateOccurrencePronunciationButtons();
     const epoch = ++occurrencePronunciationEpoch;
     try {
-        if (!isOccurrencePronunciationBound()) { throw new Error('Load rules for this line first.'); }
+        if (!isOccurrencePronunciationBound()) { throw new Error(t('pron.error.line-rules', 'Load rules for this line first.')); }
         const target = occurrencePronunciationState.target;
         const result = await API.post('/api/pronunciation/occurrences/preview', {...target, revision: occurrencePronunciationState.revision, rules: JSON.parse(JSON.stringify(occurrencePronunciationRules))});
         if (epoch !== occurrencePronunciationEpoch || !isOccurrencePronunciationTarget(target)) { return; }
-        showOccurrencePronunciationPreview(result, 'Line preview ready.');
-    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError('Could not preview line pronunciation', error, 'Keep your draft. Remove stale or overlapping rules before saving.', 'error'); } }
+        showOccurrencePronunciationPreview(result, t('pron.status.line-preview-ready', 'Line preview ready.'));
+    } catch (error) { if (epoch === occurrencePronunciationEpoch) { showActionError(t('pron.action.line-preview', 'Could not preview line pronunciation'), error, t('safety.pron.preview_recovery', 'Keep your draft. Remove stale or overlapping rules before saving.'), 'error'); } }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
@@ -424,7 +426,7 @@ async function saveOccurrencePronunciation() {
     occurrencePronunciationBusy = true; updateOccurrencePronunciationButtons();
     const epoch = ++occurrencePronunciationEpoch;
     try {
-        if (!isOccurrencePronunciationBound()) { throw new Error('Load rules for this line first.'); }
+        if (!isOccurrencePronunciationBound()) { throw new Error(t('pron.error.line-rules', 'Load rules for this line first.')); }
         const state = occurrencePronunciationState;
         const result = await API.post('/api/pronunciation/occurrences/save', {...state.target, revision: state.revision, rules: JSON.parse(JSON.stringify(occurrencePronunciationRules))});
         // Advance the saved revision even when newer local edits must be kept.
@@ -433,10 +435,10 @@ async function saveOccurrencePronunciation() {
         if (!isOccurrencePronunciationTarget(state.target)) { return; }
         if (epoch === occurrencePronunciationEpoch) {
             occurrencePronunciationRules = result.rules; occurrencePronunciationDirty = false;
-            renderOccurrencePronunciationRules(); showOccurrencePronunciationPreview(result, result.audio_detached ? 'Saved. This line is pending; any prior audio file is retained.' : 'Saved. Attached audio is unchanged.');
-        } else { setOccurrencePronunciationStatus('The earlier line draft was saved. Newer local edits remain unsaved.'); }
+            renderOccurrencePronunciationRules(); showOccurrencePronunciationPreview(result, result.audio_detached ? formatUiSafetyText('safety.pron.line_saved_pending', 'Saved. This line is pending; any prior audio file is retained.') : t('pron.status.line-saved', 'Saved. Attached audio is unchanged.'));
+        } else { setOccurrencePronunciationStatus(formatUiSafetyText('safety.pron.line_earlier_saved', 'The earlier line draft was saved. Newer local edits remain unsaved.')); }
         if (result.audio_detached && typeof loadChunks === 'function') { await loadChunks(); }
-    } catch (error) { showActionError('Could not save line pronunciation', error, 'Your draft is retained. Finish active work, or reconcile changes in another editor before reloading.', 'error'); }
+    } catch (error) { showActionError(t('pron.action.line-save', 'Could not save line pronunciation'), error, t('safety.pron.line_save_recovery', 'Your draft is retained. Finish active work, or reconcile changes in another editor before reloading.'), 'error'); }
     finally { occurrencePronunciationBusy = false; updateOccurrencePronunciationButtons(); }
 }
 
@@ -455,7 +457,7 @@ function resetDateOrderBook() {
     dateOrderBusy = false;
     dateOrderBook = null;
     document.getElementById('date-order-choice').disabled = true;
-    document.getElementById('date-order-status').textContent = 'Book changed. Reading the date order for this book...';
+    document.getElementById('date-order-status').textContent = t('pron.date.book-changed', 'Book changed. Reading the date order for this book...');
     if (document.getElementById('pronunciation-panel')?.open) { loadDateOrder(); }
 }
 
@@ -467,15 +469,15 @@ function renderDateOrder(result) {
     const select = document.getElementById('date-order-choice');
     select.disabled = false;
     select.value = result.choice;
-    const names = {mdy: 'US order (month/day)', dmy: 'UK order (day/month)'};
-    const sources = {book_dates: "the book's own dates", spelling: "the book's spelling"};
+    const names = {mdy: t('pron.date.us', 'US order (month/day)'), dmy: t('pron.date.uk', 'UK order (day/month)')};
+    const sources = {book_dates: t('pron.date.source-book', "the book's own dates"), spelling: t('pron.date.source-spelling', "the book's spelling")};
     let text;
     if (result.choice !== 'auto') {
-        text = `Read in ${names[result.choice]}, as you chose.`;
+        text = t('pron.date.chosen', 'Read in {order}, as you chose.', {order: names[result.choice]});
     } else if (result.order) {
-        text = `Auto: read in ${names[result.order]}, judged from ${sources[result.evidence.source]}. Choose US or UK to override.`;
+        text = t('pron.date.auto', 'Auto: read in {order}, judged from {source}. Choose US or UK to override.', {order: names[result.order], source: sources[result.evidence.source]});
     } else {
-        text = `This book has ${ambiguous} date${ambiguous === 1 ? '' : 's'} like 1/2/1900 and doesn't show which order it uses. Choose US or UK; until then they are read as written.`;
+        text = ambiguous === 1 ? t('pron.date.ambiguous.one', 'This book has {count} date like 1/2/1900 and doesn\'t show which order it uses. Choose US or UK; until then they are read as written.', {count: ambiguous}) : t('pron.date.ambiguous.many', 'This book has {count} dates like 1/2/1900 and doesn\'t show which order it uses. Choose US or UK; until then they are read as written.', {count: ambiguous});
     }
     document.getElementById('date-order-status').textContent = text;
 }
@@ -496,8 +498,8 @@ async function loadDateOrder() {
         dateOrderBook = null;
         document.getElementById('date-order-choice').disabled = true;
         document.getElementById('date-order-row').hidden = false;
-        const detail = error && error.message ? ` ${error.message}` : '';
-        document.getElementById('date-order-status').textContent = `Could not read the date order for this book.${detail}`;
+        const detail = error && error.message ? ' ' + error.message : '';
+        document.getElementById('date-order-status').textContent = t('pron.date.read-failed', 'Could not read the date order for this book.{detail}', {detail});
     }
     finally { if (epoch === dateOrderEpoch) { dateOrderBusy = false; } }
 }
@@ -516,7 +518,7 @@ async function saveDateOrder() {
     catch (error) {
         if (epoch !== dateOrderEpoch) { return; }
         failed = true;
-        showActionError('Could not save the date order', error, 'Reload the book or wait for audio generation to finish, then try again.', 'error');
+        showActionError(t('pron.date.action-save', 'Could not save the date order'), error, t('safety.pron.date_save_recovery', 'Reload the book or wait for audio generation to finish, then try again.'), 'error');
     }
     finally { if (epoch === dateOrderEpoch) { dateOrderBusy = false; } }
     if (failed) { await loadDateOrder(); }

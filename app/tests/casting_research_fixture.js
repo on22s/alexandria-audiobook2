@@ -325,6 +325,7 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
         }
         emit(name) { for (const callback of this.events[name] || []) { callback(); } }
     };
+    browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     browserWindow.eval(research);
     browserWindow.eval(source);
     return env;
@@ -1287,7 +1288,7 @@ const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting
         const researchFilters = env.w.CastingLibrary.state().research.state();
         await click(env, $(env, 'research-filter-tag').querySelectorAll('button')[0]);
         ok(researchFilters.chips.size > 0, 'a research chip is active');
-        $(env, 'results').querySelectorAll('button').find(button => / variants$/.test(button.textContent)).click();
+        $(env, 'results').querySelectorAll('button').find(button => / variants?$/.test(button.textContent)).click();
         await settle();
         eq(researchFilters.chips.size, 0, 'opening variants clears research filters that would hide the group');
     }

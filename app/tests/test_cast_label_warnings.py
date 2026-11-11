@@ -73,7 +73,7 @@ const context = {window:{_selectedCast:'series'},currentBookFilename:'fixture-bo
     escapeHtml:value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),
     API:{post:async()=>response}};
 context.window._castApplyContext={cast:'series',book:'fixture-book',bookToken:'fixture-token'};
-vm.runInNewContext(guard + single + bulk, context);
+context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values));context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));vm.runInNewContext(guard + single + bulk, context);
 (async()=>{
     response = {count:1,warnings:['<script>labels busy</script>']};
     await context.submitCastApply();

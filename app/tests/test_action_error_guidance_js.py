@@ -193,7 +193,7 @@ loadVoices:async()=>refresh++,loadCastLibrary:async()=>refresh++,
 applyConfirmedVoiceRemoval:async(b,m,remove)=>remove(),
 escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;'),
 setCastStatus:(...a)=>casts.push(a)};
-vm.createContext(c);
+(vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]])),c);
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.selectVoiceVersion ='),s.indexOf('window.addVoiceVersion =')),c);
 const start=s.indexOf('async function deleteCastMember(');

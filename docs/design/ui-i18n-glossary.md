@@ -44,6 +44,17 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   English on the line beneath the translation through
   `formatUiSafetyText()`, the string form of `tSafety()` (the confirm body's
   existing `white-space: pre-line`). All three locales remain machine drafts.
+- P6 adds 891 keys: 78 for the `voices` pane and 90 for the `casting` pane
+  (text nodes and `title`/`placeholder`/`aria-label` attributes), 118 for
+  `app-pronunciation.js`, 175 for `app-casting-research.js`, 153 for
+  `app-casting.js`, 88 for `app-character-roster.js` and 189 for the
+  Voices/casting-only strings in `app-core.js` (Series Cast, voice suggestions,
+  voice draft/save messages). The Casting search placeholder
+  (`gender:female tone:calm -status:reject`) is `data-i18n-skip`: its field
+  names are the query syntax and stay English in every locale. Studio activity
+  rows keep the English `action` identifiers the server stores — the same
+  transcript boundary as the task log — while the row's shape and labels are
+  translated. All three locales remain machine drafts.
 
 ## P2 server-refusal keys
 
@@ -210,6 +221,19 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Step | 步骤 | 手順 | Paso | One guide step. |
 | Checklist | 检查清单 | チェックリスト | Lista de comprobación | A guide's status: steps are a checklist, not progress. |
 | Retire (a character) | 停用 | 無効にする | Retirar | Removes a character from the active roster; never 引退. |
+| Persona | 人物设定 | ペルソナ | Persona | The character description, separate from its voice. |
+| Review state | 审阅状态 | レビュー状態 | Estado de revisión | Draft / approved / rejected. |
+| Unreviewed | 未审阅 | 未レビュー | Sin revisar | Casting status before any review. |
+| Shortlist | 入围 | 候補 | Preseleccionar | A casting review status. |
+| Callback | 复试 | コールバック | Segunda prueba | A casting review status; not a phone call. |
+| Reject | 拒绝 | 不採用 | Rechazar | A casting review status. |
+| Trash | 回收站 | ゴミ箱 | Papelera | Where removed catalogue voices wait. |
+| Research collection | 研究收藏 | リサーチコレクション | Colección de investigación | Organizes catalogue voices; it never changes assignments. |
+| Tone | 语调 | トーン | Tono | A voice keyword. |
+| Texture | 音质 | 質感 | Textura | A voice keyword. |
+| Pronunciation | 发音 | 発音 | Pronunciación | The shared lexicon and per-line rules. |
+| Line rule | 行规则 | 行ルール | Regla de línea | One occurrence rule for one line. |
+| Unseeded | 未设置种子 | シード未設定 | sin semilla | A voice setting with no saved seed. |
 
 ## Voice and address rules
 
@@ -269,6 +293,41 @@ because the confirm body is already `white-space: pre-line`. Confirm **titles**
 and **action labels** stay plain translated keys: they name the control the
 reader is choosing, not the consequence, and a two-line button label would be
 unreadable. Every caller keeps `danger: true`.
+
+## P6 safety keys
+
+P6 carries the phase's destructive confirmations. All render through
+`formatUiSafetyText()` (JS confirms) or `renderUiSafety()` (markup), so the
+translation shows with the authored English beneath it.
+
+| Key | English source |
+| --- | --- |
+| `safety.casting.replace_voices` | Replace voices for the selected characters in the active book? |
+| `safety.casting.use_voice` | Use {voice} ({book}) for {speaker}? {speaker}'s current voice is kept as a saved candidate. |
+| `safety.research.clear_marks.one` / `.many` | Clear {scope} on {count} selected voice(s)? Tags, status, priority, notes and research collections are kept. |
+| `safety.research.delete_permanently.one` / `.many` | Permanently delete {count} selected voice(s) from the catalogue? This removes the catalogue entry only; shared audio, files and existing assigned books are preserved. Trashed voices are kept indefinitely until you delete them here. |
+| `safety.roster.discard-edits` | Discard unsaved character-review edits? |
+| `safety.roster.discard-undo` | Discard the saved exact character undo? Current characters and cast will stay. |
+| `safety.roster.import-discard` | Discard this import and changes made after it? |
+| `safety.pron.reload_discard` | Discard unsaved pronunciation edits and reload shared rules? |
+| `safety.pron.save_shared` | Save these pronunciation rules for all books? Future renders will use them. Existing audio stays unchanged. |
+| `safety.pron.line_discard` | Discard unsaved line rules and load the chosen line? |
+| `safety.voice.cast_delete` | Delete cast "{cast}"? Cast-only members will be removed; shared characters will be kept. |
+| `safety.voice.cast_member_remove` | Remove "{member}" from cast "{cast}"? |
+| `safety.voice.delete_candidate` | Delete saved candidate {candidate} for {speaker}? This cannot be undone. |
+| `safety.voice.clear_overrides` | {overrides}. Clear these so the suggested voice is used? Saved voice versions are kept. |
+| `safety.voice.style_remove` | Remove the voice-style change for {name} from line {line}? Existing rendered audio is not changed. |
+| `safety.voice.draft_recover_title` | Recover these voice edits?{content} |
+| `safety.voice.draft_discard_title` | Discard this saved voice draft?{content} |
+| `safety.voice.discard_all` | Discard all unsaved voice edits and reload the saved voices? |
+
+The remaining P6 `safety.*` keys are warnings and partial-outcome messages
+rather than confirmations: a changed book during a refresh (`book_changed_*`),
+a superseded or unconfirmed save (`*_superseded`, `*_unconfirmed`), a partial
+seed repair, a missing gender match, an unsupported homograph scan, and a
+privacy/accuracy note in the Casting view. They also show the English beneath
+the translation, because the risk they describe is a user who cannot read the
+translation.
 
 ## Do not translate
 

@@ -52,7 +52,7 @@ const cards=names.map(name=>{
   return {dataset:{voice:name},querySelector:s=>fields[s]||null};
 });
 const ctx={window:{_voicesByName:{}},document:{querySelectorAll:()=>cards},getLoraModelsById:()=>new Map()};
-vm.createContext(ctx);vm.runInContext(code,ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});vm.runInContext(code,ctx);
 const collected=ctx.collectVoiceConfig();
 const serialized=JSON.stringify(collected);
 const parsed=JSON.parse(serialized);
@@ -284,7 +284,7 @@ const code=stateHelpers+indexHelper+source.slice(source.indexOf('function collec
 const fields={'.voice-presentation':{value:''},'.alias-select':{value:''},'.voice-type:checked':{value:'lora'},'.lora-adapter-select':{value:'m1'},'.lora-character-style':{value:'Warm'},'.voice-ready':{checked:false},'.voice-seed':{value:'-1'}};
 const card={dataset:{voice:'ALICE'},querySelector:s=>fields[s]||null};
 const ctx={window:{_voicesByName:{ALICE:{config:{type:'lora',adapter_id:'m1',adapter_path:'lora_models/m1',adapter_generation_sha256:pin}}},_loraModelsCache:[{id:'m1',adapter_path:'lora_models/moved'}]},document:{querySelectorAll:()=>[card]}};
-vm.createContext(ctx);vm.runInContext(code,ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});vm.runInContext(code,ctx);
 const collected=ctx.collectVoiceConfig();
 assert.strictEqual(collected.ALICE.adapter_path,'lora_models/moved','catalog move must be reflected');
 assert.strictEqual(collected.ALICE.adapter_generation_sha256,pin,'explicit P must be retained, not cleared');
@@ -367,7 +367,7 @@ const ctx={document:{getElementById:el,createElement:()=>el('x-'+Math.random())}
 els['script-tab']=el('script-tab');els['voices-tab']=el('voices-tab');els['editor-tab']=el('editor-tab');
 els['script-tab'].style.display='none';els['voices-tab'].style.display='none';els['editor-tab'].style.display='none';
 els['task-guide-feedback']=el('task-guide-feedback');
-vm.createContext(ctx);vm.runInContext(src,ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});vm.runInContext(src,ctx);
 // Simulate guide state at voices step targeting voices-tab (tab container)
 vm.runInContext("activeTaskGuide={steps:[['t','voices','voices-tab','i','e','c']]};taskGuideStep=0;",ctx);
 ctx.openTaskGuideTarget();
@@ -387,7 +387,7 @@ assert(els['task-guide-feedback'].textContent.includes('hidden'),'batch hidden d
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync(process.argv[1],'utf8');
 const a=src.indexOf('function singleVoiceEscapeLabel');
-const ctx={console};vm.createContext(ctx);
+const ctx={console};vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 vm.runInContext(src.slice(a,src.indexOf('async function previewSingleVoiceBook',a)),ctx);
 const out=ctx.singleVoiceEscapeLabel('A\nB\tC\rD\u0001E');
 assert.strictEqual(out,'A\\nB\\tC\\rD\\u{1}E');
@@ -404,7 +404,7 @@ const core=fs.readFileSync(process.argv[1],'utf8'),voice=fs.readFileSync(process
 const ctx={currentBookFilename:'book.txt',_bookSelectionEpoch:1,document:{getElementById:()=>null},console,
   _voiceSaveSnapshot:{book_identity_token:'a'.repeat(64)},window:{_bookSelectionEpoch:1,_selectedUploadIdentity:null}};
 ctx.window._selectedUploadIdentity={token:'b'.repeat(64)};
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 // Extract only identity helpers from single-voice (avoid full file DOM deps)
 const start=voice.indexOf('function singleVoiceBookEpochCurrent');
 const end=voice.indexOf('function singleVoiceRefreshOpts');
@@ -525,7 +525,7 @@ const ctx={currentBookFilename:'bookA.txt',ensureVoiceRosterCache:()=>{},perform
  createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -575,7 +575,7 @@ const ctx={currentBookFilename:'bookA.txt',ensureVoiceRosterCache:()=>{},perform
  createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -623,7 +623,7 @@ const ctx={currentBookFilename:'bookA.txt',ensureVoiceRosterCache:()=>{},perform
  createVoiceCard:voice=>`<card>${voice.name}</card>`};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -681,7 +681,7 @@ const ctx={currentBookFilename:'book.txt',ensureVoiceRosterCache:()=>{},performa
 const selection={filename:'book.txt',token:TOKEN,request:{}};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:selection,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -733,7 +733,7 @@ const ctx={currentBookFilename:'book.txt',ensureVoiceRosterCache:()=>{},performa
  createVoiceCard:voice=>`<card>${voice.name}</card>`};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -785,7 +785,7 @@ const ctx={currentBookFilename:'book.txt',ensureVoiceRosterCache:()=>{},performa
  createVoiceCard:voice=>`<card>${voice.name}</card>`};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:{filename:'book.txt',token:null,unavailable:true,request:{}},_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');
@@ -831,7 +831,7 @@ const ctx={currentBookFilename:'book.txt',ensureVoiceRosterCache:()=>{},performa
  createVoiceCard:voice=>{draws.push(voice.name);return `<card>${voice.name}</card>`;}};
 ctx.window={_bookSelectionEpoch:1,_selectedUploadIdentity:null,_castLibraryRequest:0};
 ctx._designedVoicesCache=[];ctx._cloneVoicesCache=[];ctx._loraModelsCache=[];
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);ctx.formatUiSafetyText=(key,english,values={})=>ctx.t(key,english,values);ctx.tSafety=(key,english,values={})=>({primary:ctx.t(key,english,values),secondary:null});
 const load=(a,b)=>{const first=source.indexOf(a);const second=source.indexOf(b,first);assert(first>=0&&second>first,'extraction boundary must be valid for '+a);vm.runInContext(source.slice(first,second),ctx);};
 load('function getVoiceCardMetadata(', 'function createVoiceCard(');
 load('async function refreshVoiceMetadata()', 'window.selectVoiceVersion =');load('async function flushVoiceSaves(', 'async function discardVoiceEditsAndReload()');

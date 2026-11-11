@@ -67,6 +67,7 @@ function fresh() {
             throw Error('Unexpected fixture POST: ' + url);
         }
     };
+    w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     w.eval(book + source); w.applyCurrentBookFilename('book-a.txt'); return w;
 }
 async function load(w) { await press(w, 'load'); check(!get(w, 'fields').disabled, 'loaded draft is editable'); }
