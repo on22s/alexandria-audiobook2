@@ -15401,6 +15401,21 @@
     "tests.test_ui_i18n_panels_calibre.SafetyTextTests.test_every_new_safety_string_keeps_english_beneath_the_translation",
     "tests.test_ui_i18n_panels_calibre.SafetyTextTests.test_the_modules_render_safety_text_through_the_safety_helper"
   ],
+  "test_ui_i18n_remaining_flows": [
+    "tests.test_ui_i18n_remaining_flows.FallbackTests.test_a_missing_catalog_key_keeps_its_english",
+    "tests.test_ui_i18n_remaining_flows.KeyingTests.test_each_flow_keys_its_user_facing_text",
+    "tests.test_ui_i18n_remaining_flows.KeyingTests.test_no_spanish_count_takes_a_plural_noun",
+    "tests.test_ui_i18n_remaining_flows.KeyingTests.test_the_binding_consistency_terms_hold_in_the_new_values",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_saved_script_row_and_audit_panel_translate",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_single_voice_source_preview_translates",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_source_scope_preview_translates",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_speaker_review_reset_notice_translates",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_translated_edition_proposal_translates",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_tts_capability_report_translates",
+    "tests.test_ui_i18n_remaining_flows.RealRendererTests.test_the_tts_diagnostics_list_translates",
+    "tests.test_ui_i18n_remaining_flows.SafetyTextTests.test_every_new_safety_string_keeps_english_beneath_the_translation",
+    "tests.test_ui_i18n_remaining_flows.SafetyTextTests.test_the_flows_render_safety_text_through_the_safety_helper"
+  ],
   "test_ui_i18n_script_workbench_guides": [
     "tests.test_ui_i18n_script_workbench_guides.GuideRenderTests.test_the_guides_fall_back_to_authored_english_without_a_catalog",
     "tests.test_ui_i18n_script_workbench_guides.GuideRenderTests.test_the_guides_paint_their_translation_and_restore_english",
