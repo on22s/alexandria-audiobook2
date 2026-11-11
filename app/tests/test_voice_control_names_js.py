@@ -52,7 +52,7 @@ console.log(JSON.stringify(c.createVoiceCard({name:JSON.parse(process.argv[2]),c
         name = 'RUDY "< & 日本語'
         script = r'''const fs=require('fs'),vm=require('vm');const s=fs.readFileSync(process.argv[1],'utf8');
 const name=JSON.parse(process.argv[2]),panel={innerHTML:''};const c={window:{_selectedCast:'CAST',_voiceLibrary:{current_characters:[{name:'NARRATOR',line_count:2},{name,line_count:30}]},_voicesNames:[name,'GROUP']},document:{getElementById:()=>panel},_castMatchBadge:()=>'',suggestEnsembleMembers:()=>[]};
-vm.createContext(c);function load(a,b){a=s.indexOf(a);vm.runInContext(s.slice(a,s.indexOf(b,a)),c);}
+(vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]])),c);function load(a,b){a=s.indexOf(a);vm.runInContext(s.slice(a,s.indexOf(b,a)),c);}
 load('function escapeHtml(','// Parse a numeric input');load('function openCastSave()','function reapplyCastSaveThreshold()');
 load('function _renderCastMatchRows(','// Apply a cast to the current book');load('function ensembleMembersMarkup(','window.toggleVoiceType =');
 c.openCastSave();const save=panel.innerHTML;const apply=c._renderCastMatchRows([{character:name,line_count:30,match:{key:'member',exact:true}}],[{key:'member',name,source:'cast'}]);

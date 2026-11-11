@@ -109,7 +109,7 @@ for (const [method, label] of [['mixed', 'LLM + heuristic'], ['llm', 'LLM'], ['h
         refreshVoiceMetadata:async()=>{}, getVoiceCandidateMarkup:()=>'', renderVoiceSuggestions:()=>{},
         voicesScopeIsNew:()=>true, keepCurrentVoicesIfAsked:async()=>true, console,
         escapeHtml:value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')};
-    context.window=context;vm.createContext(context);
+    context.window=context;(vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context);
     for(const [a,b] of [['async function confirmIfRemote(', '// navigator.clipboard'],['const taskStartButtons =','// --- API Helpers ---'],['function getLoraModelsById(', 'async function suggestVoices(']]){
         const first=source.indexOf(a);vm.runInContext(source.slice(first,source.indexOf(b,first)),context);
     }

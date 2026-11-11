@@ -35,7 +35,7 @@ const container={contains:node=>node===input,querySelectorAll:()=>cards.slice(),
  cards.splice(cards.indexOf(row),1);cards.push(row);if(row===alice){document.activeElement=body;input.selectionStart=0;input.selectionEnd=0;}}};
 document={activeElement:input,body,getElementById:()=>container,querySelectorAll:()=>cards.slice()};
 const c={document,currentBookFilename:'book-A',escapeHtml:String,window:{_lineCounts:{Alice:100,Bob:1},_voiceSuggestions:{Alice:{adapter_name:'Synthetic',type:'lora',line_count:100}}}};
-vm.createContext(c);let a=s.indexOf('function getVoiceListFocusSnapshot(');
+(vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]])),c);let a=s.indexOf('function getVoiceListFocusSnapshot(');
 vm.runInContext(s.slice(a,s.indexOf('async function loadVoices(',a)),c);
 a=s.indexOf('function renderVoiceSuggestions(');vm.runInContext(s.slice(a,s.indexOf('function applySuggestionToCard(',a)),c);
 const panel=alice.panel;c.renderVoiceSuggestions();assert.deepStrictEqual(cards.map(row=>row.dataset.voice),['Alice','Bob']);

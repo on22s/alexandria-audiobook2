@@ -9,7 +9,7 @@ class CastBulkOutcomeJsTests(unittest.TestCase):
     def test_all_failed_partial_success_and_empty_results_have_honest_headings(self):
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');const panel={innerHTML:''},statuses=[];let reply;
-const c={window:{_selectedCast:'A'},document:{getElementById:()=>panel},_collectCastApplyMapping:()=>({Alice:'role'}),API:{post:async()=>reply},setCastStatus:(text,error)=>statuses.push({text,error}),getCastApplyWarningsHtml:()=>'',escapeHtml:String};vm.createContext(c);const a=source.indexOf('let castApplyBulkPending =');vm.runInContext(source.slice(a,source.indexOf('// Identity anchors that take over',a)),c);
+const c={window:{_selectedCast:'A'},document:{getElementById:()=>panel},_collectCastApplyMapping:()=>({Alice:'role'}),API:{post:async()=>reply},setCastStatus:(text,error)=>statuses.push({text,error}),getCastApplyWarningsHtml:()=>'',escapeHtml:String};(vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]])),c);const a=source.indexOf('let castApplyBulkPending =');vm.runInContext(source.slice(a,source.indexOf('// Identity anchors that take over',a)),c);
 (async()=>{
 for(const [results,expected,isError] of [
  [[{name:'Missing A',count:0,error:'Saved script not found'},{name:'Missing B',count:0,error:'Saved script not found'}],'No books updated; 2 failed',true],
@@ -30,7 +30,7 @@ const c={window:{_selectedCast:'series'},document:{getElementById:id=>id==='cast
 querySelectorAll:()=>[{dataset:{name:'one'}},{dataset:{name:'two'}}]},API:{post:async(path,body)=>{posts.push({path,body});return{book_count:2,proposals:[{character:'Hero',match:{key:'hero'}}]};}},
 _getCastMatchPool:()=>[],_renderCastMatchRows:rows=>rows.map(row=>row.character).join(','),escapeHtml:String,
 submitCastApplyBulk:names=>posts.push(names),setCastStatus(){throw Error('unexpected status');}};
-vm.createContext(c);const a=source.indexOf('async function openCastApplyBulkMatch()');
+(vm.createContext(c),c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]])),c);const a=source.indexOf('async function openCastApplyBulkMatch()');
 vm.runInContext(source.slice(a,source.indexOf('let castApplyBulkPending',a)),c);
 (async()=>{await c.openCastApplyBulkMatch();assert(panel.innerHTML.includes('2 selected books'));assert(panel.innerHTML.includes('Hero'));
 assert.strictEqual(posts[0].path,'/api/voice_library/match_bulk');assert.deepStrictEqual(JSON.parse(JSON.stringify(posts[0].body)),{name:'series',script_names:['one','two']});
