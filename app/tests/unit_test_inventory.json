@@ -10610,6 +10610,19 @@
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_word_map_without_true_trim_is_ambiguous",
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_wrong_audio_rejected"
   ],
+  "test_readaloud_sync_followups": [
+    "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_changed_word_in_the_overrun_still_refuses",
+    "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_maps_as_one_group_with_exact_word_windows",
+    "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_still_refused_without_span_opt_in",
+    "tests.test_readaloud_sync_followups.SpokenTextTests.test_different_word_refuses_and_names_it",
+    "tests.test_readaloud_sync_followups.SpokenTextTests.test_qwen_highlights_a_rewritten_block_whole_and_others_by_sentence",
+    "tests.test_readaloud_sync_followups.SpokenTextTests.test_rewritten_symbol_maps_exactly",
+    "tests.test_readaloud_sync_followups.SpokenTextTests.test_speech_preparation_changes_the_words",
+    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_acronym_then_sentence_starter_splits",
+    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_existing_boundaries_unchanged",
+    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_nonterminal_forms_stay_whole",
+    "tests.test_readaloud_sync_followups.TerminalAcronymTests.test_split_reaches_the_packaged_smil"
+  ],
   "test_reasoning_budget": [
     "tests.test_reasoning_budget.NullContentTest.test_a_null_content_response_does_not_raise",
     "tests.test_reasoning_budget.NullContentTest.test_null_content_classifies_as_escalate_then_overflow",
