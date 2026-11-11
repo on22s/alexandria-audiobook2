@@ -34,7 +34,9 @@ class ReportFilenameHandlerTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),app=process.argv[1],names=JSON.parse(process.argv[2]);
 const core=fs.readFileSync(app+'/static/js/app-core.js','utf8');
 const escape=core.slice(core.indexOf('function escapeHtml('),core.indexOf('\n        }',core.indexOf('function escapeHtml('))+10);
-const list={};const context={document:{getElementById:()=>list},restoreTab(){},
+const t=(key,english,values)=>Object.keys(values||Object()).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english));
+const list={};const context={t,formatUiSafetyText:t,tSafety:(key,english,values)=>({primary:t(key,english,values),secondary:null}),
+ document:{getElementById:()=>list},restoreTab(){},
  API:{get:async()=>names.map((filename,i)=>({filename,type:i%2?'batch':'single',mtime:1}))}};
 vm.runInNewContext(escape,context);
 vm.runInNewContext(fs.readFileSync(app+'/static/js/app-reports.js','utf8'),context);
@@ -47,7 +49,8 @@ vm.runInNewContext(fs.readFileSync(app+'/static/js/app-reports.js','utf8'),conte
 const fs=require('fs'),vm=require('vm'),app=process.argv[1],links=JSON.parse(process.argv[2]);
 const title={},content={},explainButton={style:{}},requests=[],sanitized=[],active=[];
 const elements=links.map(link=>({dataset:{filename:link['data-filename']},classList:{toggle:(key,on)=>active.push({key,on})}}));
-const context={restoreTab(){},document:{getElementById:id=>id==='report-view-title'?title:id==='btn-report-explain'?explainButton:content,querySelectorAll:()=>elements},
+const t=(key,english,values)=>Object.keys(values||Object()).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english));
+const context={t,escapeHtml:String,formatUiSafetyText:t,tSafety:(key,english,values)=>({primary:t(key,english,values),secondary:null}),restoreTab(){},document:{getElementById:id=>id==='report-view-title'?title:id==='btn-report-explain'?explainButton:content,querySelectorAll:()=>elements},
  fetch:async url=>{requests.push(url);return {ok:true,text:async()=>'<unsafe report>'};},
  marked:{parse:text=>text},DOMPurify:{sanitize:html=>{sanitized.push(html);return 'sanitized report';}}};
 vm.runInNewContext(fs.readFileSync(app+'/static/js/app-reports.js','utf8'),context);

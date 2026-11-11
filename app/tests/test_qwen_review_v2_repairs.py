@@ -2554,6 +2554,11 @@ var API = { get: function(url) { _capabilityDeferred = _deferred(); return _capa
             post: function() { return Promise.resolve({}); } };
 function flush() { return new Promise(function(r) { setTimeout(r, 0); }); }
 function ok(c, m) { if (!c) { console.error('FAIL: ' + m); process.exit(1); } }
+var t = function (key, english, values) { values = values || Object(); return Object.keys(values).reduce(function (text, name) { return text.split(String.fromCharCode(123) + name + String.fromCharCode(125)).join(String(values[name])); }, String(english)); };
+var formatUiSafetyText = function (key, english, values) { return t(key, english, values); };
+var tSafety = function (key, english, values) { return Object.fromEntries([['primary', t(key, english, values)], ['secondary', null]]); };
+var renderUiSafety = function (target, key, english, values) { target.textContent = t(key, english, values); };
+var getIntlUiLocale = function () { return 'en'; };
 """
         shared_api = ""
         if actual_api:
