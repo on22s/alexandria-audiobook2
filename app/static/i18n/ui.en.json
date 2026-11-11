@@ -531,6 +531,7 @@
   "core.design.range": "{label} must be a whole number from 1 to 500.",
   "core.design.text-max": "Voice Design text maximum",
   "core.design.text-min": "Voice Design text minimum",
+  "core.download.preparing": "Preparing download…",
   "core.download.refused": "Download refused: {detail}",
   "core.download.refused-status": "Download refused by the server (status {status}).",
   "core.download.unreachable": "Download failed: Alexandria did not respond. Check that it is still running, then try again.",
