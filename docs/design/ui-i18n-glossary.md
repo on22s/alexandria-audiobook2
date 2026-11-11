@@ -86,18 +86,20 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   (`语音实验室 (Voice Lab)` / `ボイスラボ (Voice Lab)` / `Laboratorio de voz`,
   `设计器 (Designer)` / `デザイナー (Designer)` / `Diseñador`), and the Chinese
   `流程` entries that meant "pipeline" are now `流水线`.
-- P9a adds 450 keys for the `app-core.js` surfaces phases 4-8 deliberately left
+- P9a adds 469 keys for the `app-core.js` surfaces phases 4-8 deliberately left
   English because their strings are shared: the voice card (104 keys,
   `voice.card.*` - voice-type radios, per-type options, aliases, Ready,
   versions, the approval/review labels, the state seed, and the
   clone/LoRA/design/ensemble sections), the candidate list and trait badge (17),
-  the voice-states editor (`voice.states.*`, 33), the ensemble members and
-  state-card labels (4), and the Script-area strings P5 left (`script.recovery.*`
-  45, `script.cast_list.*` 35, `script.review.*` 33, `script.batch.*` 31,
+  the voice-states editor (`voice.states.*`, 33), the four voice-version, audit,
+  age-version and change-point dialogs (`voice.version.*`, `voice.audit.*`,
+  `voice.age.*`, `voice.change.*`), the ensemble members and state-card labels
+  (4), and the Script-area strings P5 left (`script.recovery.*` 45,
+  `script.cast_list.*` 35, `script.review.*` 33, `script.batch.*` 31,
   `script.aliases.*` 19, plus `script.nicknames.*`, `script.saved.*`,
   `script.snapshot.*`, `script.cancel.*` and `script.task.*`), the shared
   defaults (`core.*`: showConfirm, copy/toast glue, confirmIfRemote sentences,
-  the task-label map, the field validators) and 28 `safety.*` keys listed below.
+  the task-label map, the field validators) and 30 `safety.*` keys listed below.
   `TASK_LABELS` is still the English map `app-workspace.js` reads; notifications
   translate at use time through `getTaskLabel()`, and this module's test pins
   each `t()` literal equal to its map entry. Prompt and persona text stays
@@ -502,6 +504,7 @@ plain translated keys: they name the control, not the consequence.
 | `safety.script.legacy_checkpoint.title` | Confirm older checkpoint |
 | `safety.script.recovery_changed_review` | The book or recovery section changed. Review the latest recovery details before continuing. |
 | `safety.script.snapshot_book_changed` | The book changed. Review it before saving a snapshot. |
+| `safety.voice.age_book_changed` | The book or voice changed. Review it before generating an age version. |
 | `safety.voice.clear_states` | Clear all saved voice changes for {speaker}? Affected lines will become pending and need regeneration; previous audio files remain on disk. |
 | `safety.voice.clear_states.action` | Clear voice changes |
 | `safety.voice.clear_states.book_changed` | The book changed. Review the current voice changes before saving. |
@@ -510,6 +513,7 @@ plain translated keys: they name the control, not the consequence.
 | `safety.voice.clear_states.book_changed_timeline` | The book changed; the voice timeline was not saved. |
 | `safety.voice.clear_states.title` | Replace voice changes? |
 | `safety.voice.states_not_applied` | Not applied (no safe Editor boundary): {ages}. Rebuild chunks, then apply again. |
+| `safety.voice.version_book_changed` | The book changed. Review it before adding a voice version. |
 
 ## Do not translate
 

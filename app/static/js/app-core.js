@@ -5644,12 +5644,12 @@
             const book = currentBookFilename;
             button.disabled = true;
             try {
-                const values = await showPresetEditor({title: `Add voice version for ${speaker}`, nameLabel: 'Version ID',
-                    descriptionLabel: 'Age group', description: 'adult', descriptionPlaceholder: '', actionLabel: 'Add version',
-                    helperText: 'Use a version ID such as teen or elderly. The new version starts from this character’s current voice settings. Leave Age group empty to use adult.'});
+                const values = await showPresetEditor({title: t('voice.version.add-title', 'Add voice version for {speaker}', {speaker}), nameLabel: t('voice.version.id-label', 'Version ID'),
+                    descriptionLabel: t('voice.version.age-label', 'Age group'), description: 'adult', descriptionPlaceholder: '', actionLabel: t('voice.version.add-action', 'Add version'),
+                    helperText: t('voice.version.add-help', 'Use a version ID such as teen or elderly. The new version starts from this character’s current voice settings. Leave Age group empty to use adult.')});
                 if (!values) { return; }
                 if (book !== currentBookFilename || card?.isConnected === false) {
-                    showToast('The book changed. Review it before adding a voice version.', 'warning'); return;
+                    showToast(t('safety.voice.version_book_changed', 'The book changed. Review it before adding a voice version.'), 'warning'); return;
                 }
                 await flushVoiceSaves();
                 if (book !== currentBookFilename || card?.isConnected === false) {
@@ -5776,11 +5776,11 @@
             const current = getVoiceCardMetadata(card).persona_voice_audit || {};
             button.disabled = true;
             try {
-                const values = await showPresetEditor({title: `Edit voice audit for ${speaker}`,
-                    nameLabel: 'Suggestion reason (optional)', name: current.suggestion_reason || '', allowEmptyName: true,
-                    descriptionLabel: 'Voice adapter ID (optional)', description: current.voice_adapter_id || '',
-                    descriptionPlaceholder: '', actionLabel: 'Save audit',
-                    helperText: 'Correct the assignment notes. Empty fields leave existing saved values unchanged.'});
+                const values = await showPresetEditor({title: t('voice.audit.edit-title', 'Edit voice audit for {speaker}', {speaker}),
+                    nameLabel: t('voice.audit.reason-label', 'Suggestion reason (optional)'), name: current.suggestion_reason || '', allowEmptyName: true,
+                    descriptionLabel: t('voice.audit.adapter-label', 'Voice adapter ID (optional)'), description: current.voice_adapter_id || '',
+                    descriptionPlaceholder: '', actionLabel: t('voice.audit.save-action', 'Save audit'),
+                    helperText: t('voice.audit.help', 'Correct the assignment notes. Empty fields leave existing saved values unchanged.')});
                 if (!values) { return; }
                 if (book !== currentBookFilename || card?.isConnected === false || card?.dataset.voice !== speaker) {
                     showToast('The book or voice changed. Review it before saving the audit.', 'warning'); return;
@@ -5899,12 +5899,12 @@
             const isCurrent = () => book === currentBookFilename && card?.isConnected !== false && card?.dataset.voice === speaker;
             button.disabled = true;
             try {
-                const values = await showPresetEditor({title: `Generate age version for ${speaker}`, nameLabel: 'Age profile',
-                    name: presetAge || '', includeDescription: false, actionLabel: 'Generate age version',
-                    helperText: 'Use infant, toddler, young_child, child, teen, young_adult, adult, middle_aged or elderly.'});
+                const values = await showPresetEditor({title: t('voice.age.edit-title', 'Generate age version for {speaker}', {speaker}), nameLabel: t('voice.age.profile-label', 'Age profile'),
+                    name: presetAge || '', includeDescription: false, actionLabel: t('voice.card.age-version', 'Generate age version'),
+                    helperText: t('voice.age.help', 'Use infant, toddler, young_child, child, teen, young_adult, adult, middle_aged or elderly.')});
                 if (!values) { return; }
                 if (!isCurrent()) {
-                    showToast('The book or voice changed. Review it before generating an age version.', 'warning'); return;
+                    showToast(t('safety.voice.age_book_changed', 'The book or voice changed. Review it before generating an age version.'), 'warning'); return;
                 }
                 if (!(await confirmIfRemote('this age-version generation', true))) { return; }
                 if (!isCurrent()) {
@@ -7036,10 +7036,10 @@
             const book = currentBookFilename;
             const current = (window._voicesByName && window._voicesByName[speaker])?.config || {};
             try {
-                const values = await showPresetEditor({title: `Voice change from line ${chunkId + 1} for ${speaker}`,
-                    nameLabel: 'Character style', name: current.character_style || current.default_style || '',
-                    allowEmptyName: true, includeDescription: false, actionLabel: 'Save change point',
-                    helperText: 'Describe how the character sounds from this line on. Leave empty to remove this change point. Regenerate later lines to hear the change.'});
+                const values = await showPresetEditor({title: t('voice.change.edit-title', 'Voice change from line {line} for {speaker}', {line: chunkId + 1, speaker}),
+                    nameLabel: t('voice.change.style-label', 'Character style'), name: current.character_style || current.default_style || '',
+                    allowEmptyName: true, includeDescription: false, actionLabel: t('voice.change.save-action', 'Save change point'),
+                    helperText: t('voice.change.help', 'Describe how the character sounds from this line on. Leave empty to remove this change point. Regenerate later lines to hear the change.')});
                 if (!values) { return; }
                 if (book !== currentBookFilename || row?.isConnected === false || getSpeaker() !== speaker) {
                     showToast('The book or line speaker changed. Review it before saving the change point.', 'warning'); return;
