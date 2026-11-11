@@ -2772,7 +2772,7 @@
   "safety.calibre.discard.import-inflight": "导入正在进行中。导入期间放弃被禁用。",
   "safety.calibre.discard.unconfirmed": "放弃未确认。",
   "safety.calibre.discard.unknown": "捕获结果未知。在检查状态确认实际状态可以安全放弃之前，放弃被禁用。",
-  "safety.calibre.import-unknown": "导入结果未知：导入响应丢失或无效，因此权威方可能已发布此书。这不视为失败或已导入，也未发送重试。在确认实际状态安全之前，取消和放弃被禁用；请使用检查状态来核对这个任务令牌。服务器状态为 captured 表示导入从未预留，imported 表示已确认发布，其他终态会如实显示。",
+  "safety.calibre.import-unknown": "导入结果未知：导入响应丢失或无效，因此应用可能已经发布了此书。这不视为失败或已导入，也未发送重试。在确认实际状态安全之前，取消和放弃被禁用；请使用检查状态来核对这个任务令牌。服务器状态为 captured 表示导入从未预留，imported 表示已确认发布，其他终态会如实显示。",
   "safety.calibre.import.after-reset": "视图重置后导入已完成。收据保留在此窗格中；新视图未被更改，也未选择图书。",
   "safety.calibre.import.after-reset-refresh": "无法刷新现有上传：{detail}。",
   "safety.calibre.import.missing-filename": "导入收据缺少存储文件名。",
