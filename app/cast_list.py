@@ -44,6 +44,44 @@ def parse_cast_list(content):
             for x in data]
 
 
+def get_cast_without_refused_aliases(cast):
+    """(cast, dropped): the model's list minus the aliases generation would refuse (#1913).
+
+    A model told to list "every other name" for a character also offers labels
+    that must stay separate speakers - NARRATOR for a first-person narrator,
+    THE CROWD for a group - and one refused alias used to throw away the whole
+    list. An alias only ever merges two speakers, so removing one cannot
+    attribute a line wrongly; it is dropped and reported, never guessed at.
+    Dropped: a protected alias, an alias that is another character's name, and
+    an alias two characters both claim. Everything else (names, entry shape) is
+    still checked by save_cast_list. ``dropped`` is [(alias, name, reason)].
+    """
+    from three_pass_generate import is_cast_alias_allowed
+    names = {item["name"] for item in cast}
+    owners = {}
+    for item in cast:
+        for alias in set(item["aliases"]) - {item["name"]}:
+            owners.setdefault(alias, set()).add(item["name"])
+    kept_cast, dropped = [], []
+    for item in cast:
+        kept = []
+        for alias in item["aliases"]:
+            if alias == item["name"] or alias in kept:
+                continue
+            if not is_cast_alias_allowed(alias, item["name"]):
+                reason = "narration, UNKNOWN and groups stay separate speakers"
+            elif alias in names:
+                reason = "it is another character's name"
+            elif len(owners[alias]) > 1:
+                reason = "more than one character claims it"
+            else:
+                kept.append(alias)
+                continue
+            dropped.append((alias, item["name"], reason))
+        kept_cast.append({**item, "aliases": kept})
+    return kept_cast, dropped
+
+
 def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS):
     """(cast, response, attempts) from one call, retried when the reply ran to the token cap.
 
@@ -153,6 +191,12 @@ def main(argv=None):
         "usage": {"prompt_tokens": getattr(usage, "prompt_tokens", None),
                   "completion_tokens": getattr(usage, "completion_tokens", None)},
         "elapsed_s": round(time.time() - started, 1)}
+    cast, dropped = get_cast_without_refused_aliases(cast)
+    for alias, name, reason in dropped:
+        print(f"Dropped alias {alias} from {name}: {reason}.")
+    if dropped:
+        provenance["dropped_aliases"] = [
+            {"alias": alias, "name": name, "reason": reason} for alias, name, reason in dropped]
     try:
         save_cast_list(args.out, cast, provenance)
     except ValueError as exc:

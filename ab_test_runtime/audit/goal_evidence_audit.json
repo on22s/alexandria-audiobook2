@@ -1050,18 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T11:36:09",
+  "written": "2026-11-11T13:07:13",
   "host": "RealMitch",
   "git": {
-   "commit": "b3489dc82ba8f0fe45a11b48e5762b9fa81fc61b",
-   "branch": "fix/windows-connection-reset-1909",
+   "commit": "93defb2148a93ed8e9ed12afe0bca07a9183984e",
+   "branch": "fix/cast-list-protected-aliases-1913",
    "dirty": true,
-   "source_state": "dirty:fc0fb9938af4",
+   "source_state": "dirty:cc4e86214e94",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/app.py",
-    "A  app/tests/test_connection_reset_filter.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/cast_list.py",
+    "M  app/tests/test_cast_list.py",
+    "M  app/three_pass_generate.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
