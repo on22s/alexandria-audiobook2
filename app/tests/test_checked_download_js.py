@@ -63,7 +63,7 @@ function setup() {
             state.fetchCalls += 1;
             const response = await context.fetchImpl(url, options);
             if (response && !response.headers) {
-                response.headers = { get: (name) => name === 'Content-Length' ? String(context.length) : null };
+                response.headers = { get: (name) => name.toLowerCase() === 'content-length' ? String(context.length) : null };
             }
             return response;
         },

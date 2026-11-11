@@ -100,7 +100,7 @@
         // and a page that is not a secure context (plain HTTP on a LAN address), where browsers may
         // block a download from a blob URL.
         const CHECKED_DOWNLOAD_MAX_BLOB_BYTES = 256 * 1024 * 1024;
-        // A blob URL must outlive a "where to save" dialog left open a while.
+        // A blob URL must outlive a where-to-save dialog left open a while.
         const CHECKED_DOWNLOAD_REVOKE_MS = 10 * 60 * 1000;
         async function onCheckedDownloadClick(event) {
             const link = event.target.closest?.('[data-checked-download]');
@@ -132,7 +132,7 @@
                         : t('core.download.refused-status', 'Download refused by the server (status {status}).', {status: String(response.status)}), 'error');
                     return;
                 }
-                const length = Number(response.headers?.get?.('Content-Length'));
+                const length = Number(response.headers?.get?.('content-length'));
                 const fitsInMemory = Number.isFinite(length) && length > 0 && length <= CHECKED_DOWNLOAD_MAX_BLOB_BYTES;
                 if (!fitsInMemory || globalThis.isSecureContext === false) {
                     controller.abort();

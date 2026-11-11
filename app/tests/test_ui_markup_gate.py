@@ -37,6 +37,8 @@ KEEP_ENGLISH = frozenset({
     # Locale tags are identifiers, not copy: the counter sees several of them
     # in app-i18n.js and would read a new one as a display literal.
     'zh-CN', 'ja',
+    # HTTP header names are identifiers too (app-core.js checked downloads).
+    'content-length',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that
