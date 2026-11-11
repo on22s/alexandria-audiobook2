@@ -19,6 +19,13 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   test enforces the review rule.
 - The task log transcript (`process_state[...]["logs"]`) and subprocess output
   stay English in every locale. The UI chrome around them is translated.
+- P3 adds 746 `help.*` keys: every entry of the seven maps in
+  `app/static/js/app-help.js`, the `recommended` framing message, and the inline
+  `getItemHelpText` fallbacks. Keys are derived from the stable help ids
+  (`help.field.llm-context-length.what`), so an English typo cannot invalidate a
+  translation; `recommend` and `source` are separate keys, and a `source` value
+  stays English because it names a PR, a `RECIPES.md` section or a measurement.
+  All three locales remain machine drafts.
 
 ## P2 server-refusal keys
 
@@ -130,6 +137,29 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Clone | 克隆 | クローン | Clonación | |
 | Voice Design | 声音设计 | ボイスデザイン | Diseño de voz | |
 | Draft | 草稿 | 下書き | Borrador | Review status, not a UI label. |
+| Profile | 配置档案 | プロファイル | Perfil | An LLM connection profile, not `Configuration`. |
+| Seed | 随机种子 | シード | Semilla | |
+| Adapter | 适配器 | アダプター | Adaptador | LoRA / built-in / trained. |
+| Checkpoint | 检查点 | チェックポイント | Punto de control | Attribution and training recovery points. |
+| Batch | 批处理 | バッチ | Lote | Plural `.one`/`.many` keys are unaffected. |
+| Candidate | 候选 | 候補 | Candidato | Voice or checkpoint candidate. |
+| Silence | 静音 | 無音 | Silencio | Inserted pause or detected quiet audio. |
+| Sentence | 句子 | 文 | Oración | |
+| Clause | 从句 | 節 | Cláusula | |
+| Paragraph | 段落 | 段落 | Párrafo | |
+| Fade | 淡入淡出 | フェード | Fundido | |
+| Crossfade | 交叉淡化 | クロスフェード | Fundido cruzado | |
+| Loudness | 响度 | ラウドネス | Sonoridad | Mastered integrated loudness. |
+| True peak | 真峰值 | トゥルーピーク | Pico real | |
+| Mastering | 母带处理 | マスタリング | Masterización | |
+| Sidecar | sidecar 文件 | サイドカー | Archivo sidecar | The read-along time file. `sidecar` stays when naming the format. |
+| Reference | 参考 | リファレンス | Referencia | Cloning reference, reference voice, reference take. |
+| Alignment | 对齐 | アラインメント | Alineación | ASR word/source alignment. |
+| Diarization | 说话人分离 | ダイアライゼーション | Diarización | |
+| Segmentation | 切分 | セグメンテーション | Segmentación | Pass 1 output. |
+| Timeline | 时间线 | タイムライン | Línea de tiempo | Voice-change and state timeline. |
+| State (character) | 状态 | 状態 | Estado | Per-state voices. |
+| Version | 版本 | バージョン | Versión | Saved voice/script version. |
 
 ## Do not translate
 

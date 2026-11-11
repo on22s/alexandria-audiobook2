@@ -15,6 +15,9 @@ SOURCES.
   * app-settings.js and later-phase files: t('key', 'English', ...) calls whose
     first two arguments are string literals;
   * createUiMessageNode('tag', 'key', 'English') for nodes built in JS;
+  * app-help.js: every entry of its seven help maps becomes
+    help.<kind>.<slug>[.what|.recommend|.source], plus the literal t('help.*')
+    calls that key getItemHelpText's inline fallbacks;
   * server refusals: raise AppError(status, 'English', key='...') and, for a
     dynamic message, an f-string whose interpolations map one-for-one onto the
     literal keys of values={...} in the same order. Plain HTTPException sites
@@ -42,7 +45,18 @@ OUTPUT = STATIC / "i18n" / "ui.en.json"
 HTML_SOURCES = (STATIC / "index.html", STATIC / "readalong-player.html")
 SERVER_SOURCES = ("app/*.py", "app/routers/*.py")
 # app-i18n.js owns t()/createUiMessageNode themselves and keys nothing.
-JS_EXCLUDED = {"app-i18n.js"}
+# app-help.js is harvested by harvest_help below: its English lives in the help
+# maps (data), not in the second argument of t() at a call site.
+JS_EXCLUDED = {"app-i18n.js", "app-help.js"}
+HELP_JS = STATIC / "js" / "app-help.js"
+HELP_MAP_KINDS = (
+    ("FIELD_HELP", "field"),
+    ("ACTION_HELP", "action"),
+    ("ITEM_HELP", "item"),
+    ("NAV_HELP", "nav"),
+    ("DYNAMIC_FIELD_HELP", "dynamic"),
+    ("CHANGED_FIELD_HELP", "changed"),
+)
 UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "'": "'", '"': '"', "\\": "\\"}
 
 
@@ -166,6 +180,224 @@ def _literal_string(node):
     return None
 
 
+class JsObjectReader:
+    """Read the plain object literals that hold app-help.js's help maps.
+
+    The maps are data: string keys, string values, nested objects and comments.
+    Anything else raises instead of guessing, because a silently mis-read map
+    would produce a catalog that looks complete and is wrong (Rule 21).
+    """
+
+    def __init__(self, text, index):
+        self.text = text
+        self.index = index
+
+    def _error(self, message):
+        line = self.text.count("\n", 0, self.index) + 1
+        raise HarvestError(f"app-help.js:{line}: {message}")
+
+    def _skip(self):
+        text = self.text
+        while self.index < len(text):
+            if text[self.index].isspace():
+                self.index += 1
+            elif text.startswith("//", self.index):
+                end = text.find("\n", self.index)
+                self.index = len(text) if end < 0 else end + 1
+            elif text.startswith("/*", self.index):
+                end = text.find("*/", self.index + 2)
+                if end < 0:
+                    self._error("unterminated comment")
+                self.index = end + 2
+            else:
+                return
+        self._error("unexpected end of file")
+
+    def _read_string(self):
+        text = self.text
+        quote = text[self.index]
+        self.index += 1
+        chunks = []
+        while self.index < len(text):
+            char = text[self.index]
+            if char == "\\":
+                escape = text[self.index + 1:self.index + 2]
+                chunks.append(UNESCAPE.get(escape, escape))
+                self.index += 2
+                continue
+            if char == quote:
+                self.index += 1
+                return "".join(chunks)
+            chunks.append(char)
+            self.index += 1
+        self._error("unterminated string")
+
+    def _read_key(self):
+        self._skip()
+        if self.text[self.index] in "'\"":
+            return self._read_string()
+        start = self.index
+        while self.index < len(self.text) and re.match(r"[A-Za-z0-9_$]", self.text[self.index]):
+            self.index += 1
+        if start == self.index:
+            self._error(f"expected an object key, found {self.text[self.index:self.index + 20]!r}")
+        return self.text[start:self.index]
+
+    def read_object(self):
+        self._skip()
+        if self.text[self.index] != "{":
+            self._error("expected an object literal")
+        self.index += 1
+        values = {}
+        while True:
+            self._skip()
+            if self.text[self.index] == "}":
+                self.index += 1
+                return values
+            key = self._read_key()
+            self._skip()
+            if self.text[self.index] != ":":
+                self._error(f"expected ':' after key {key!r}")
+            self.index += 1
+            values[key] = self.read_value()
+            self._skip()
+            if self.text[self.index] == ",":
+                self.index += 1
+            elif self.text[self.index] != "}":
+                self._error(f"expected ',' or '}}' after key {key!r}")
+
+    def read_value(self):
+        self._skip()
+        if self.text[self.index] in "'\"":
+            return self._read_string()
+        if self.text[self.index] == "{":
+            return self.read_object()
+        self._error(f"unsupported value {self.text[self.index:self.index + 20]!r}")
+
+
+def help_slug(identity):
+    """The catalog-key segment for one help id or CSS selector.
+
+    Mirrors getHelpCatalogKey() in app-help.js; test_ui_help_i18n.py asserts the
+    two derivations agree for every map entry, so they cannot drift silently.
+    """
+    return re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9_-]+", "-", str(identity).lower()))
+
+
+def read_help_maps(path=HELP_JS):
+    text = path.read_text(encoding="utf-8")
+    maps = {}
+    for name, _kind in HELP_MAP_KINDS:
+        match = re.search(r"\bconst\s+" + name + r"\s*=\s*", text)
+        if not match:
+            raise HarvestError(f"{path.name}: no {name} declaration")
+        maps[name] = JsObjectReader(text, match.end()).read_object()
+    return maps
+
+
+def help_messages(maps):
+    """Flatten the seven help maps into help.<kind>.<id>[.field] keys."""
+    messages = {}
+
+    def add(key, english, where):
+        if not isinstance(english, str) or not english.strip():
+            raise HarvestError(f"app-help.js: {key} has no English text")
+        _record(messages, key, english, where)
+
+    for name, kind in HELP_MAP_KINDS:
+        entries = maps.get(name)
+        if not isinstance(entries, dict) or not entries:
+            raise HarvestError(f"app-help.js: {name} is not a non-empty object")
+        if name == "CHANGED_FIELD_HELP":
+            for handler, fields in entries.items():
+                if not isinstance(fields, dict) or not fields:
+                    raise HarvestError(f"app-help.js: {name}.{handler} is not a non-empty object")
+                for field, english in fields.items():
+                    add(f"help.changed.{help_slug(handler)}.{help_slug(field)}", english, name)
+            continue
+        for identity, entry in entries.items():
+            base = f"help.{kind}.{help_slug(identity)}"
+            if name != "FIELD_HELP":
+                add(base, entry, name)
+                continue
+            if not isinstance(entry, dict):
+                raise HarvestError(f"app-help.js: {name}.{identity} is not an object")
+            unknown = sorted(set(entry) - {"what", "recommend", "source"})
+            if unknown:
+                raise HarvestError(f"app-help.js: {name}.{identity} has unknown fields {unknown}")
+            add(base + ".what", entry.get("what"), name)
+            for field in ("recommend", "source"):
+                if field in entry:
+                    add(base + "." + field, entry[field], name)
+    return messages
+
+
+def strip_js_comments(text):
+    """Blank out // and /* */ comments, keeping strings and byte offsets."""
+    out = list(text)
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char in "'\"`":
+            quote = char
+            index += 1
+            while index < len(text):
+                if text[index] == "\\":
+                    index += 2
+                    continue
+                if text[index] == quote:
+                    index += 1
+                    break
+                index += 1
+            continue
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            end = len(text) if end < 0 else end
+            for position in range(index, end):
+                out[position] = " "
+            index = end
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            end = len(text) if end < 0 else end + 2
+            for position in range(index, end):
+                if out[position] != "\n":
+                    out[position] = " "
+            index = end
+            continue
+        index += 1
+    return "".join(out)
+
+
+def harvest_help(path, messages):
+    """Harvest the help maps plus the literal help t() calls in app-help.js.
+
+    A t() whose key is computed by getHelpCatalogKey() is the map reader and is
+    skipped here because the map harvest above already recorded that key.
+    """
+    for key, english in help_messages(read_help_maps(path)).items():
+        _record(messages, key, english, path.name)
+    text = strip_js_comments(path.read_text(encoding="utf-8"))
+    for match in re.finditer(r"\bt\s*\(", text):
+        arguments = _call_arguments(text, match.end())
+        if not arguments:
+            raise HarvestError(f"{path.name}: empty t() call")
+        if arguments[0] is None:
+            window = text[match.end():match.end() + 40]
+            # Two non-literal calls are legitimate: the map reader derives its key
+            # from getHelpCatalogKey(), and formatHelpText() forwards its caller's
+            # key and English to t() after supplying literal-brace values.
+            if "getHelpCatalogKey(" in window or window.startswith("key, english, values, locale"):
+                continue
+            raise HarvestError(
+                f"{path.name}: t() must take a literal key or derive it from getHelpCatalogKey()")
+        if len(arguments) < 2 or arguments[1] is None:
+            raise HarvestError(f"{path.name}: t({arguments[0]!r}) needs literal English text")
+        if not arguments[0].startswith("help."):
+            raise HarvestError(f"{path.name}: help key {arguments[0]!r} is not under help.")
+        _record(messages, arguments[0], arguments[1], path.name)
+
+
 def _app_error_template(message, values):
     """The English template an AppError message exposes to translators.
 
@@ -235,6 +467,7 @@ def harvest(root=REPO):
         if path.name in JS_EXCLUDED:
             continue
         harvest_js(path, messages)
+    harvest_help(root / "app" / "static" / "js" / "app-help.js", messages)
     for pattern in SERVER_SOURCES:
         for path in sorted(root.glob(pattern)):
             harvest_server(path, messages)

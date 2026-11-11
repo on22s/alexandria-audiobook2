@@ -22,7 +22,7 @@ I18N = Path(__file__).resolve().parent.parent / 'static' / 'i18n'
 ENGLISH_PATH = I18N / 'ui.en.json'
 LOCALES = ('zh-CN', 'ja', 'es-419')
 
-KEY = re.compile(r'^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$')
+KEY = re.compile(r'^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+)+$')
 PLACEHOLDER = re.compile(r'\{[a-zA-Z][a-zA-Z0-9_]*\}')
 PROTECTED = {
     'backticked identifier': re.compile(r'`[^`\n]+`'),
@@ -31,7 +31,9 @@ PROTECTED = {
     'file extension': re.compile(r'\.[A-Za-z0-9]{1,5}\b'),
 }
 # Terms this UI keeps in English by design; a value equal to its English source
-# is allowed only when the whole value is one of these.
+# is allowed only when the whole value is one of these. A help `*.source` value
+# names a repository artifact, PR or RECIPES.md section, which the glossary
+# forbids translating, so those are exempt in validate().
 KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria',
                           'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS'})
 HTML_KEYS = frozenset()
@@ -82,7 +84,7 @@ def validate(payload, english, locale):
         for label, pattern in PROTECTED.items():
             if sorted(pattern.findall(value)) != sorted(pattern.findall(source)):
                 errors.append(f'{locale}: {key} changed a protected {label}')
-        if value == source and value.strip(' .:') not in KEEP_ENGLISH:
+        if value == source and not key.endswith('.source') and value.strip(' .:') not in KEEP_ENGLISH:
             errors.append(f'{locale}: {key} is untranslated English')
         if key.endswith('.one') and locale in {'zh-CN', 'ja'}:
             counterpart = messages.get(key[:-4] + '.many')
@@ -150,9 +152,23 @@ class CheckerFixtureTests(unittest.TestCase):
         broken = dict(ZH_FIXTURE, **{'setup.finder.label': 'Find a setting'})
         self.assertRejected(catalog('zh-CN', broken), ENGLISH_FIXTURE, 'zh-CN', 'untranslated English')
 
+    def test_a_help_source_may_stay_english_but_a_message_may_not(self):
+        source = dict(ENGLISH_FIXTURE, **{'help.field.x.source': 'RECIPES.md → Prompt',
+                                          'help.field.x.what': 'Explain it.'})
+        payload = dict(ZH_FIXTURE, **{'help.field.x.source': 'RECIPES.md → Prompt',
+                                      'help.field.x.what': '解释它。'})
+        self.assertEqual([], validate(catalog('zh-CN', payload), source, 'zh-CN'))
+        payload['help.field.x.what'] = 'Explain it.'
+        self.assertRejected(catalog('zh-CN', payload), source, 'zh-CN', 'untranslated English')
+
     def test_markup_in_a_plain_text_value_is_rejected(self):
         broken = dict(ZH_FIXTURE, **{'setup.finder.label': '<b>查找设置</b>'})
         self.assertRejected(catalog('zh-CN', broken), ENGLISH_FIXTURE, 'zh-CN', 'contains markup')
+
+    def test_a_key_with_uppercase_or_spaces_is_rejected(self):
+        source = dict(ENGLISH_FIXTURE, **{'help.field.Bad Key.what': 'English'})
+        broken = dict(ZH_FIXTURE, **{'help.field.Bad Key.what': '中文'})
+        self.assertRejected(catalog('zh-CN', broken), source, 'zh-CN', 'not a dotted lowercase key')
 
     def test_chinese_plural_forms_that_differ_are_rejected(self):
         broken = dict(ZH_FIXTURE, **{'setup.finder.many': '匹配到 {count} 项设置们。'})

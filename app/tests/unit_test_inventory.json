@@ -15313,6 +15313,22 @@
     "tests.test_ui_guidance_js.UiGuidanceJsTests.test_trait_estimates_remain_qualified_and_escape_model_text",
     "tests.test_ui_guidance_js.UiGuidanceJsTests.test_upload_failure_preserves_list_and_old_response_cannot_overwrite_recovery"
   ],
+  "test_ui_help_i18n": [
+    "tests.test_ui_help_i18n.HelpKeyReaderTests.test_an_entry_without_a_what_fails_loudly",
+    "tests.test_ui_help_i18n.HelpKeyReaderTests.test_slug_matches_the_runtime_rule_for_known_ids",
+    "tests.test_ui_help_i18n.HelpKeyReaderTests.test_the_flat_key_shape_is_exact",
+    "tests.test_ui_help_i18n.HelpLocaleTests.test_a_field_recommendation_frames_the_translated_parts",
+    "tests.test_ui_help_i18n.HelpLocaleTests.test_an_entry_without_a_translation_falls_back_to_the_authored_english",
+    "tests.test_ui_help_i18n.HelpLocaleTests.test_each_map_kind_and_the_item_fallbacks_show_the_selected_locale",
+    "tests.test_ui_help_i18n.HelpLocaleTests.test_the_next_tooltip_after_a_locale_change_uses_the_new_language",
+    "tests.test_ui_help_i18n.HelpParityTests.test_every_locale_translates_every_help_key",
+    "tests.test_ui_help_i18n.HelpParityTests.test_every_map_entry_has_a_key_and_the_catalog_has_no_extra_help_key",
+    "tests.test_ui_help_i18n.HelpParityTests.test_the_javascript_key_derivation_matches_the_catalog",
+    "tests.test_ui_help_i18n.HelpParityTests.test_the_python_map_reader_matches_the_javascript_maps",
+    "tests.test_ui_help_i18n.SettingFinderTests.test_full_width_input_matches_after_nfkc_normalisation",
+    "tests.test_ui_help_i18n.SettingFinderTests.test_matches_english_text_while_the_ui_is_translated",
+    "tests.test_ui_help_i18n.SettingFinderTests.test_matches_the_translated_help_and_the_english_help"
+  ],
   "test_ui_help_js": [
     "tests.test_ui_help_js.UiHelpTests.test_all_static_interactive_items_have_explanations",
     "tests.test_ui_help_js.UiHelpTests.test_cleanup_help_distinguishes_preview_accept_and_discard",

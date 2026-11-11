@@ -87,10 +87,15 @@ Tooltip.getOrCreateInstance=(target,options)=>{
 
 
 def run_help_js(body):
+    # app-help.js reads help text through app-i18n.js's t()/getUiLocale(), so the
+    # locale module is loaded into the same context before the fixture body runs.
+    # It is loaded here rather than by DOM_FIXTURE so the other sibling harnesses
+    # keep their own argv order (they pass different files as argv[2]).
+    prelude = "vm.runInContext(fs.readFileSync(%s,'utf8'),context);\n" % json.dumps(str(STATIC / 'js' / 'app-i18n.js'))
     return subprocess.run(
         ['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
          str(STATIC / 'js' / 'app-help.js')],
-        input=DOM_FIXTURE + HELP_FIXTURE + body, capture_output=True, text=True,
+        input=DOM_FIXTURE + HELP_FIXTURE + prelude + body, capture_output=True, text=True,
         encoding='utf-8', timeout=15)
 
 
