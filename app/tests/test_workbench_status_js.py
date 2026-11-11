@@ -113,7 +113,7 @@ for (const mode of ['running','idle','unavailable']) {
         assert.strictEqual(elements['voicelab-logs'].innerText,status.logs.join('\n'));
         assert.strictEqual(elements['voicelab-logs'].scrollTop,12);
         assert.strictEqual(elements['vl-stage-progress'].style.display,'flex');
-        assert.match(elements['vl-stage-progress'].innerHTML,/train: running/);
+        assert.match(elements['vl-stage-progress'].innerHTML,/Train: running/);
         assert.strictEqual(health,1,'poll responses now include health rather than issuing another GET');
     } else {
         assert.strictEqual(pollers.length,0);

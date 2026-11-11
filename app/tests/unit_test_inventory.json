@@ -15405,6 +15405,18 @@
     "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_app_shell_paints_its_translation_in_each_locale",
     "tests.test_ui_i18n_setup_shell.SetupShellRenderTests.test_the_setup_pane_paints_its_translation_in_each_locale"
   ],
+  "test_ui_i18n_training_lab": [
+    "tests.test_ui_i18n_training_lab.MarkupRenderTests.test_a_missing_catalog_key_keeps_its_english",
+    "tests.test_ui_i18n_training_lab.MarkupRenderTests.test_a_preparer_placeholder_follows_the_locale",
+    "tests.test_ui_i18n_training_lab.MarkupRenderTests.test_training_and_lab_panes_paint_each_locale_and_restore_english",
+    "tests.test_ui_i18n_training_lab.RealRendererTests.test_dataset_sample_counts_use_the_locale_forms",
+    "tests.test_ui_i18n_training_lab.RealRendererTests.test_duration_units_translate",
+    "tests.test_ui_i18n_training_lab.RealRendererTests.test_task_status_labels_translate",
+    "tests.test_ui_i18n_training_lab.RealRendererTests.test_voicelab_stage_labels_translate",
+    "tests.test_ui_i18n_training_lab.SafetyConfirmTests.test_each_destructive_training_confirm_keeps_english_beneath_the_translation",
+    "tests.test_ui_i18n_training_lab.TrainingLabKeyingTests.test_each_module_keys_its_safety_confirms",
+    "tests.test_ui_i18n_training_lab.TrainingLabKeyingTests.test_panes_are_keyed"
+  ],
   "test_ui_i18n_voices_casting": [
     "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_missing_catalog_key_keeps_its_english",
     "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_safety_node_keeps_english_below_each_translation",
