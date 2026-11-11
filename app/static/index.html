@@ -1076,17 +1076,17 @@
         <div id="home-tab" class="tab-content" style="display:none;">
             <section class="card mb-3" aria-labelledby="task-guides-heading">
                 <div class="card-body">
-                    <h4 id="task-guides-heading">What would you like to finish?</h4>
-                    <p class="text-muted">Short guides with listening checkpoints. Opening one never starts a job.</p>
+                    <h4 id="task-guides-heading" data-i18n="home.guides.title">What would you like to finish?</h4>
+                    <p class="text-muted" data-i18n="home.guides.intro">Short guides with listening checkpoints. Opening one never starts a job.</p>
                     <div id="task-guide-cards" class="task-guide-cards"></div>
                     <section id="task-guide-detail" class="border rounded p-3 mt-3" aria-labelledby="task-guide-title" hidden>
-                        <div class="d-flex justify-content-between gap-2"><h5 id="task-guide-title"></h5><button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeTaskGuide()" title="Close this guide without changing your book">Close guide</button></div>
+                        <div class="d-flex justify-content-between gap-2"><h5 id="task-guide-title"></h5><button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeTaskGuide()" data-i18n="home.guides.close" data-i18n-attr="title:home.guides.close-title" title="Close this guide without changing your book">Close guide</button></div>
                         <img id="task-guide-image" class="img-fluid mb-3" width="640" height="140" alt="">
                         <h6 id="task-guide-step-title" tabindex="-1"></h6>
                         <p id="task-guide-instruction"></p>
-                        <p><strong>Look for:</strong> <span id="task-guide-expected"></span></p>
-                        <p class="small"><strong>Time and resources:</strong> <span id="task-guide-cost"></span></p>
-                        <div class="d-flex flex-wrap gap-2"><button id="task-guide-prev" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(-1)" title="Read the previous checklist step">Previous</button><button type="button" class="btn btn-primary" onclick="openTaskGuideTarget()" title="Navigate to existing controls without starting work">Open this screen</button><button id="task-guide-next" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(1)" title="Read the next checklist step; does not mark app work complete">Next step</button></div>
+                        <p><strong data-i18n="home.guides.look-for">Look for:</strong> <span id="task-guide-expected"></span></p>
+                        <p class="small"><strong data-i18n="home.guides.cost">Time and resources:</strong> <span id="task-guide-cost"></span></p>
+                        <div class="d-flex flex-wrap gap-2"><button id="task-guide-prev" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(-1)" data-i18n="home.guides.previous" data-i18n-attr="title:home.guides.previous-title" title="Read the previous checklist step">Previous</button><button type="button" class="btn btn-primary" onclick="openTaskGuideTarget()" data-i18n="home.guides.open-screen" data-i18n-attr="title:home.guides.open-screen-title" title="Navigate to existing controls without starting work">Open this screen</button><button id="task-guide-next" type="button" class="btn btn-outline-secondary" onclick="onTaskGuideStep(1)" data-i18n="home.guides.next-step" data-i18n-attr="title:home.guides.next-step-title" title="Read the next checklist step; does not mark app work complete">Next step</button></div>
                         <p id="task-guide-feedback" class="small mt-2 mb-0" role="status" aria-live="polite"></p>
                     </section>
                 </div>
@@ -1094,29 +1094,29 @@
 
             <div class="card">
                 <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <h4 class="m-0">Book workspace</h4>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshWorkspaceView()">Refresh workspace</button>
+                    <h4 class="m-0" data-i18n="home.workspace.title">Book workspace</h4>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshWorkspaceView()" data-i18n="home.workspace.refresh">Refresh workspace</button>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">Your selected book, its saved progress and the work currently running.</p>
-                    <div id="workspace-feedback" role="status" aria-live="polite" class="small mb-3">Book status has not been checked yet.</div>
+                    <p class="text-muted" data-i18n="home.workspace.intro">Your selected book, its saved progress and the work currently running.</p>
+                    <div id="workspace-feedback" role="status" aria-live="polite" class="small mb-3" data-i18n="home.workspace.status-unchecked">Book status has not been checked yet.</div>
                     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                        <div><h5 id="workspace-book-name">Selected book</h5><p id="workspace-next-reason" class="mb-0 text-muted"></p></div>
-                        <button type="button" class="btn btn-primary" id="workspace-continue" onclick="continueBookWorkspace()" disabled>Continue</button>
+                        <div><h5 id="workspace-book-name" data-i18n="home.workspace.book-name">Selected book</h5><p id="workspace-next-reason" class="mb-0 text-muted"></p></div>
+                        <button type="button" class="btn btn-primary" id="workspace-continue" onclick="continueBookWorkspace()" disabled data-i18n="home.workspace.continue">Continue</button>
                     </div>
                     <div id="workspace-stages" class="workspace-stages mb-4"></div>
                     <div class="workspace-columns">
                         <section aria-labelledby="workspace-monitor-title">
-                            <h5 id="workspace-monitor-title" tabindex="-1">Running work</h5>
-                            <div id="workspace-monitor-feedback" role="status" aria-live="polite" class="small mb-2">Task status has not been checked yet.</div>
+                            <h5 id="workspace-monitor-title" tabindex="-1" data-i18n="home.workspace.running">Running work</h5>
+                            <div id="workspace-monitor-feedback" role="status" aria-live="polite" class="small mb-2" data-i18n="home.workspace.task-unchecked">Task status has not been checked yet.</div>
                             <div id="workspace-monitor" class="workspace-task-list"></div>
                         </section>
                         <section aria-labelledby="workspace-library-title">
-                            <h5 id="workspace-library-title">Saved books</h5>
-                            <p class="small text-muted">Loading a saved book uses the existing confirmation before replacing the active book. Audio and output status above refers to the selected book.</p>
+                            <h5 id="workspace-library-title" data-i18n="home.workspace.saved-books">Saved books</h5>
+                            <p class="small text-muted" data-i18n="home.workspace.saved-books-help">Loading a saved book uses the existing confirmation before replacing the active book. Audio and output status above refers to the selected book.</p>
                             <div id="workspace-library-feedback" role="status" aria-live="polite" class="small mb-2"></div>
                             <div id="workspace-library"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="workspace-collection-show" onclick="showCollectionOverview()">Show collection overview for selected books</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="workspace-collection-show" onclick="showCollectionOverview()" data-i18n="home.workspace.collection">Show collection overview for selected books</button>
                             <div id="workspace-collection-feedback" role="status" aria-live="polite" class="small mt-2"></div>
                             <div id="workspace-collection" class="mt-2"></div>
                         </section>
@@ -3425,53 +3425,53 @@
             <div class="card">
                 <div class="card-header editor-toolbar">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <h4 class="m-0"><span class="step-indicator step-active">4</span>Audio Editor</h4>
-                        <div class="d-flex flex-wrap gap-2" role="group" aria-label="Audio Editor actions">
-                            <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i>Play Sequence</button>
-                            <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i>Render Pending</button>
-                            <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                        <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
+                        <div class="d-flex flex-wrap gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
+                            <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>
+                            <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
+                            <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="editor.toolbar.cancel">Cancel</span></button>
                             <details class="editor-whole-book">
-                                <summary>Whole-book actions</summary>
+                                <summary data-i18n="editor.toolbar.whole-book">Whole-book actions</summary>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i>Regenerate All</button>
-                                    <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i>Merge All</button>
+                                    <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i><span data-i18n="editor.toolbar.regenerate-all">Regenerate All</span></button>
+                                    <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i><span data-i18n="editor.toolbar.merge-all">Merge All</span></button>
                                 </div>
-                                <p class="small mt-2 mb-0">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
+                                <p class="small mt-2 mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
                             </details>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
                      <details class="mb-3" ontoggle="if (this.open) SoundAssets.refresh()">
-                         <summary>Sound asset library</summary>
-                         <p class="small mt-2">Import effects and ambience to keep for your books. Listen before choosing cues. Adding an asset does not change the book audio.</p>
-                         <label for="sound-assets-file" class="form-label">Audio file</label>
+                         <summary data-i18n="editor.sound-assets.title">Sound asset library</summary>
+                         <p class="small mt-2" data-i18n="editor.sound-assets.intro">Import effects and ambience to keep for your books. Listen before choosing cues. Adding an asset does not change the book audio.</p>
+                         <label for="sound-assets-file" class="form-label" data-i18n="editor.sound-assets.file">Audio file</label>
                          <input id="sound-assets-file" type="file" accept=".wav,.flac,.mp3,.ogg" class="form-control form-control-sm mb-2">
                          <div class="d-flex flex-wrap gap-2">
-                             <button id="sound-assets-import" type="button" class="btn btn-sm btn-primary" data-help-key="soundAssetsImport" onclick="SoundAssets.importFile()">Import audio</button>
-                             <button id="sound-assets-cancel" type="button" class="btn btn-sm btn-outline-danger" data-help-key="soundAssetsCancel" onclick="SoundAssets.cancel()" hidden>Cancel import</button>
-                             <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="soundAssetsRefresh" onclick="SoundAssets.refresh()">Refresh library</button>
+                             <button id="sound-assets-import" type="button" class="btn btn-sm btn-primary" data-help-key="soundAssetsImport" onclick="SoundAssets.importFile()" data-i18n="editor.sound-assets.import">Import audio</button>
+                             <button id="sound-assets-cancel" type="button" class="btn btn-sm btn-outline-danger" data-help-key="soundAssetsCancel" onclick="SoundAssets.cancel()" hidden data-i18n="editor.sound-assets.cancel-import">Cancel import</button>
+                             <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="soundAssetsRefresh" onclick="SoundAssets.refresh()" data-i18n="editor.sound-assets.refresh">Refresh library</button>
                          </div>
                          <p id="sound-assets-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-assets-list"></div>
                      </details>
                      <details class="mb-3" ontoggle="if (this.open) { SoundCues.refresh(); }">
-                         <summary title="Place effects and ambience at stable dialogue anchors, preserve revisions, and review changed takes.">Sound cues</summary>
-                         <p class="small mt-2">Choose dialogue and imported sounds, then save explicit cue revisions. Mix audition and delivery approval are required before using cues in a finished audiobook.</p>
-                         <button id="sound-cues-refresh" type="button" class="btn btn-sm btn-outline-secondary" title="Reload current dialogue and cue history; this clears unsaved form edits." onclick="SoundCues.refresh()">Refresh cues</button>
+                         <summary data-i18n="editor.sound-cues.title" data-i18n-attr="title:editor.sound-cues.title-attr" title="Place effects and ambience at stable dialogue anchors, preserve revisions, and review changed takes.">Sound cues</summary>
+                         <p class="small mt-2" data-i18n="editor.sound-cues.intro">Choose dialogue and imported sounds, then save explicit cue revisions. Mix audition and delivery approval are required before using cues in a finished audiobook.</p>
+                         <button id="sound-cues-refresh" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="editor.sound-cues.refresh" data-i18n-attr="title:editor.sound-cues.refresh-title" title="Reload current dialogue and cue history; this clears unsaved form edits." onclick="SoundCues.refresh()">Refresh cues</button>
                          <p id="sound-cues-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-cues-content"></div>
                      </details>
                      <details class="mb-3" ontoggle="if (this.open) { SoundRenditions.refresh(); }">
-                         <summary title="Inspect immutable master/stem provenance, keep records and review cleanup protection; recording is separate from mix approval.">Recorded renditions and stems</summary>
-                         <p class="small mt-2">Preserve imported master/stem provenance and earlier source revisions. Choose Record a rendition in Sound cues, or inspect and keep existing records here. Full mixed-audio review and approval remain separate.</p>
-                         <button id="sound-renditions-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundRenditions.refresh()" title="Reload this book’s recorded renditions and clear unsaved edits.">Refresh rendition history</button>
+                         <summary data-i18n="editor.renditions.title" data-i18n-attr="title:editor.renditions.title-attr" title="Inspect immutable master/stem provenance, keep records and review cleanup protection; recording is separate from mix approval.">Recorded renditions and stems</summary>
+                         <p class="small mt-2" data-i18n="editor.renditions.intro">Preserve imported master/stem provenance and earlier source revisions. Choose Record a rendition in Sound cues, or inspect and keep existing records here. Full mixed-audio review and approval remain separate.</p>
+                         <button id="sound-renditions-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundRenditions.refresh()" data-i18n="editor.renditions.refresh" data-i18n-attr="title:editor.renditions.refresh-title" title="Reload this book’s recorded renditions and clear unsaved edits.">Refresh rendition history</button>
                          <p id="sound-renditions-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-renditions-content"></div>
                      </details>
                      <details class="mb-3" ontoggle="if (this.open) { SoundMixes.refresh(); }">
-                         <summary>Mixed audio review</summary>
-                         <button id="sound-mixes-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundMixes.refresh()" title="Reload saved mixes and available delivery formats; clears unsaved review choices.">Refresh saved mixes</button>
+                         <summary data-i18n="editor.mixes.title">Mixed audio review</summary>
+                         <button id="sound-mixes-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundMixes.refresh()" data-i18n="editor.mixes.refresh" data-i18n-attr="title:editor.mixes.refresh-title" title="Reload saved mixes and available delivery formats; clears unsaved review choices.">Refresh saved mixes</button>
                          <p id="sound-mixes-status" class="small mt-2" role="status" aria-live="polite"></p>
                          <div id="sound-mixes-content"></div>
                      </details>
@@ -3480,64 +3480,64 @@
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
                      </div>
                      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                         <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i>Text integrity</button>
-                         <span id="editor-integrity-badge" class="badge bg-secondary">Source check pending</span>
+                         <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" data-i18n-attr="title:editor.integrity.button-title" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i><span data-i18n="editor.integrity.button">Text integrity</span></button>
+                         <span id="editor-integrity-badge" class="badge bg-secondary" data-i18n="editor.integrity.pending">Source check pending</span>
                          <span id="text-diff-summary" class="small text-muted"></span>
-                         <span id="editor-runtime-estimate" class="small text-muted" title="Projected length of the finished audiobook, from the chunks rendered so far"></span>
+                         <span id="editor-runtime-estimate" class="small text-muted" data-i18n-attr="title:editor.integrity.runtime-title" title="Projected length of the finished audiobook, from the chunks rendered so far"></span>
                      </div>
                      <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
                      <details class="editor-review-panel mb-3" id="pronunciation-panel" ontoggle="if (this.open) { loadDateOrder(); }">
-                         <summary title="Edit shared spellings or one exact occurrence, and audition without replacing book audio.">Pronunciation</summary>
-                         <p class="small mt-2">Respell names for speech without changing the script. Shared rules apply to future renders of all books; saving shared rules keeps existing audio.</p>
+                         <summary data-i18n="editor.pronunciation.title" data-i18n-attr="title:editor.pronunciation.title-attr" title="Edit shared spellings or one exact occurrence, and audition without replacing book audio.">Pronunciation</summary>
+                         <p class="small mt-2" data-i18n="editor.pronunciation.intro">Respell names for speech without changing the script. Shared rules apply to future renders of all books; saving shared rules keeps existing audio.</p>
                          <div id="date-order-row" class="mb-3" hidden>
-                             <label class="form-label small mb-1" for="date-order-choice">Dates written like 1/2/1900 in this book</label>
-                             <select title="Choose how this book's ambiguous slash dates are read aloud. Auto uses the book's own dates, then its spelling." id="date-order-choice" class="form-select form-select-sm" onchange="saveDateOrder()">
-                                 <option value="auto">Auto</option>
-                                 <option value="mdy">US: month/day/year (1/2/1900 is January 2nd)</option>
-                                 <option value="dmy">UK: day/month/year (1/2/1900 is 1st February)</option>
+                             <label class="form-label small mb-1" for="date-order-choice" data-i18n="editor.pronunciation.dates-label">Dates written like 1/2/1900 in this book</label>
+                             <select data-i18n-attr="title:editor.pronunciation.dates-title" title="Choose how this book's ambiguous slash dates are read aloud. Auto uses the book's own dates, then its spelling." id="date-order-choice" class="form-select form-select-sm" onchange="saveDateOrder()">
+                                 <option value="auto" data-i18n="editor.pronunciation.dates-auto">Auto</option>
+                                 <option value="mdy" data-i18n="editor.pronunciation.dates-mdy">US: month/day/year (1/2/1900 is January 2nd)</option>
+                                 <option value="dmy" data-i18n="editor.pronunciation.dates-dmy">UK: day/month/year (1/2/1900 is 1st February)</option>
                              </select>
                              <p id="date-order-status" class="small mt-1 mb-0" role="status" aria-live="polite"></p>
                          </div>
-                         <div class="d-flex flex-wrap gap-2 mb-2"><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadPronunciationPanel()">Load shared rules</button><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-secondary btn-sm" id="pronunciation-add" onclick="addPronunciationRow()" disabled>Add spelling</button><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm" id="pronunciation-preview" onclick="previewPronunciationPanel()" disabled>Preview counts and line voices</button><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-primary btn-sm" id="pronunciation-save" onclick="savePronunciationPanel()" disabled>Save shared rules…</button></div>
-                         <div class="table-responsive"><table class="table table-sm"><thead><tr><th scope="col">Original spelling</th><th scope="col">Spoken replacement</th><th scope="col">Active matches</th><th scope="col">Action</th></tr></thead><tbody id="pronunciation-rows"></tbody></table></div>
-                         <p class="small">Matching is case-sensitive and uses the same word boundaries and longest-name priority as generation. Blank replacements are inactive.</p>
-                         <label class="form-label" for="pronunciation-line">Audition or edit an occurrence in this line</label><select title="Choose a line for its assigned audition voice and exact occurrence rules." id="pronunciation-line" class="form-select mb-2" onchange="onPronunciationLineEdit()"></select>
+                         <div class="d-flex flex-wrap gap-2 mb-2"><button data-i18n="editor.pronunciation.load" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadPronunciationPanel()">Load shared rules</button><button data-i18n="editor.pronunciation.add" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-secondary btn-sm" id="pronunciation-add" onclick="addPronunciationRow()" disabled>Add spelling</button><button data-i18n="editor.pronunciation.preview" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm" id="pronunciation-preview" onclick="previewPronunciationPanel()" disabled>Preview counts and line voices</button><button data-i18n="editor.pronunciation.save" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-primary btn-sm" id="pronunciation-save" onclick="savePronunciationPanel()" disabled>Save shared rules…</button></div>
+                         <div class="table-responsive"><table class="table table-sm"><thead><tr><th scope="col" data-i18n="editor.pronunciation.col-original">Original spelling</th><th scope="col" data-i18n="editor.pronunciation.col-spoken">Spoken replacement</th><th scope="col" data-i18n="editor.pronunciation.col-matches">Active matches</th><th scope="col" data-i18n="editor.pronunciation.col-action">Action</th></tr></thead><tbody id="pronunciation-rows"></tbody></table></div>
+                         <p class="small" data-i18n="editor.pronunciation.matching-help">Matching is case-sensitive and uses the same word boundaries and longest-name priority as generation. Blank replacements are inactive.</p>
+                         <label class="form-label" for="pronunciation-line" data-i18n="editor.pronunciation.line-label">Audition or edit an occurrence in this line</label><select data-i18n-attr="title:editor.pronunciation.line-title" title="Choose a line for its assigned audition voice and exact occurrence rules." id="pronunciation-line" class="form-select mb-2" onchange="onPronunciationLineEdit()"></select>
                          <div class="row g-2">
-                             <div class="col-md-6"><label class="form-label" for="pronunciation-audition-original">Short original spelling</label><input title="Enter an exact spelling to audition or find in the chosen line." id="pronunciation-audition-original" type="text" maxlength="128" class="form-control" oninput="onPronunciationAuditionEdit(); onOccurrenceQueryEdit()"><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="auditionPronunciation('original')">Generate original audition</button></div>
-                             <div class="col-md-6"><label class="form-label" for="pronunciation-audition-spoken">Short spoken replacement</label><input title="Enter a short literal spelling to audition with the selected assigned line voice." id="pronunciation-audition-spoken" type="text" maxlength="256" class="form-control" oninput="onPronunciationAuditionEdit()"><button title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="auditionPronunciation('spoken')">Generate replacement audition</button></div>
+                             <div class="col-md-6"><label class="form-label" for="pronunciation-audition-original" data-i18n="editor.pronunciation.original-label">Short original spelling</label><input data-i18n-attr="title:editor.pronunciation.original-title" title="Enter an exact spelling to audition or find in the chosen line." id="pronunciation-audition-original" type="text" maxlength="128" class="form-control" oninput="onPronunciationAuditionEdit(); onOccurrenceQueryEdit()"><button data-i18n="editor.pronunciation.audition-original" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="auditionPronunciation('original')">Generate original audition</button></div>
+                             <div class="col-md-6"><label class="form-label" for="pronunciation-audition-spoken" data-i18n="editor.pronunciation.spoken-label">Short spoken replacement</label><input data-i18n-attr="title:editor.pronunciation.spoken-title" title="Enter a short literal spelling to audition with the selected assigned line voice." id="pronunciation-audition-spoken" type="text" maxlength="256" class="form-control" oninput="onPronunciationAuditionEdit()"><button data-i18n="editor.pronunciation.audition-spoken" data-i18n-attr="title:editor.pronunciation.actions-title" title="Load, edit, preview or explicitly save shared rules; audition buttons generate temporary audio." type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="auditionPronunciation('spoken')">Generate replacement audition</button></div>
                          </div>
-                         <audio title="Play the most recently generated disposable pronunciation audition." id="pronunciation-player" class="w-100 mt-2" controls preload="none" hidden></audio>
-                         <p id="pronunciation-status" class="small mt-2 mb-0" role="status" aria-live="polite">Load shared rules to edit them. Auditions use the TTS engine and may take time.</p>
+                         <audio data-i18n-attr="title:editor.pronunciation.player-title" title="Play the most recently generated disposable pronunciation audition." id="pronunciation-player" class="w-100 mt-2" controls preload="none" hidden></audio>
+                         <p id="pronunciation-status" class="small mt-2 mb-0" role="status" aria-live="polite" data-i18n="editor.pronunciation.status-default">Load shared rules to edit them. Auditions use the TTS engine and may take time.</p>
                          <hr>
-                         <h6>One occurrence in the chosen line</h6>
-                         <p class="small">Choose an exact match in the text prepared for speech, after cue and symbol cleanup. Preview uses saved shared rules. Only approved rules affect future renders; changed spoken words make that line pending while retaining its audio file. Rules belong to these Editor lines; loading or rebuilding a script creates new lines.</p>
+                         <h6 data-i18n="editor.pronunciation.occurrence-title">One occurrence in the chosen line</h6>
+                         <p class="small" data-i18n="editor.pronunciation.occurrence-intro">Choose an exact match in the text prepared for speech, after cue and symbol cleanup. Preview uses saved shared rules. Only approved rules affect future renders; changed spoken words make that line pending while retaining its audio file. Rules belong to these Editor lines; loading or rebuilding a script creates new lines.</p>
                          <div class="d-flex flex-wrap gap-2 mb-2">
-                             <button id="pronunciation-occurrence-load" type="button" class="btn btn-outline-secondary btn-sm" title="Read the chosen line’s occurrence rules without generating audio." onclick="loadOccurrencePronunciation()">Load line rules</button>
-                             <button id="pronunciation-occurrence-find" type="button" class="btn btn-outline-secondary btn-sm" title="Find exact matches for the original spelling above in this line’s spoken text." onclick="findPronunciationOccurrences()" disabled>Find original spelling</button>
-                             <button id="pronunciation-occurrence-homographs" type="button" class="btn btn-outline-secondary btn-sm" title="Scan this saved English line for lead, read and wind; choose meanings and draft replacements without generation." onclick="findPronunciationHomographs()" disabled>Discover English homographs</button>
-                             <button id="pronunciation-occurrence-preview" type="button" class="btn btn-outline-primary btn-sm" title="Preview approved line rules and why each applies or is bypassed; no audio is generated." onclick="previewOccurrencePronunciation()" disabled>Preview line</button>
-                             <button id="pronunciation-occurrence-save" type="button" class="btn btn-primary btn-sm" title="Save these line rules. Wait for active work to finish or cancel it first." onclick="saveOccurrencePronunciation()" disabled>Save line rules</button>
+                             <button id="pronunciation-occurrence-load" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="editor.pronunciation.load-line" data-i18n-attr="title:editor.pronunciation.load-line-title" title="Read the chosen line’s occurrence rules without generating audio." onclick="loadOccurrencePronunciation()">Load line rules</button>
+                             <button id="pronunciation-occurrence-find" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="editor.pronunciation.find-original" data-i18n-attr="title:editor.pronunciation.find-original-title" title="Find exact matches for the original spelling above in this line’s spoken text." onclick="findPronunciationOccurrences()" disabled>Find original spelling</button>
+                             <button id="pronunciation-occurrence-homographs" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="editor.pronunciation.homographs" data-i18n-attr="title:editor.pronunciation.homographs-title" title="Scan this saved English line for lead, read and wind; choose meanings and draft replacements without generation." onclick="findPronunciationHomographs()" disabled>Discover English homographs</button>
+                             <button id="pronunciation-occurrence-preview" type="button" class="btn btn-outline-primary btn-sm" data-i18n="editor.pronunciation.preview-line" data-i18n-attr="title:editor.pronunciation.preview-line-title" title="Preview approved line rules and why each applies or is bypassed; no audio is generated." onclick="previewOccurrencePronunciation()" disabled>Preview line</button>
+                             <button id="pronunciation-occurrence-save" type="button" class="btn btn-primary btn-sm" data-i18n="editor.pronunciation.save-line" data-i18n-attr="title:editor.pronunciation.save-line-title" title="Save these line rules. Wait for active work to finish or cancel it first." onclick="saveOccurrencePronunciation()" disabled>Save line rules</button>
                          </div>
                          <div id="pronunciation-occurrence-candidates" class="mb-2"></div>
                          <div id="pronunciation-occurrence-rules" class="mb-2"></div>
                          <pre id="pronunciation-occurrence-text" class="small mb-2" style="white-space:pre-wrap;overflow-wrap:anywhere;" hidden></pre>
-                         <p id="pronunciation-occurrence-status" class="small mb-0" role="status" aria-live="polite">Preview shared counts to choose a line, then load its rules. Auditions above remain disposable.</p>
+                         <p id="pronunciation-occurrence-status" class="small mb-0" role="status" aria-live="polite" data-i18n="editor.pronunciation.occurrence-status-default">Preview shared counts to choose a line, then load its rules. Auditions above remain disposable.</p>
                      </details>
 
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
                      <details class="editor-review-panel mb-3" id="editor-repair-panel">
-                         <summary title="Choose a chapter and speakers, preview exact lines, then explicitly replace their audio.">Repair audio by chapter and speaker</summary>
-                         <p class="small mt-2">Preview the exact lines before replacing their audio. Dialogue and speaker labels stay unchanged.</p>
-                         <button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorRepairOptions()">Load current chapters and speakers</button>
+                         <summary data-i18n="editor.repair.title" data-i18n-attr="title:editor.repair.title-attr" title="Choose a chapter and speakers, preview exact lines, then explicitly replace their audio.">Repair audio by chapter and speaker</summary>
+                         <p class="small mt-2" data-i18n="editor.repair.intro">Preview the exact lines before replacing their audio. Dialogue and speaker labels stay unchanged.</p>
+                         <button data-i18n="editor.repair.load" data-i18n-attr="title:editor.repair.actions-title" title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorRepairOptions()">Load current chapters and speakers</button>
                          <div class="row g-2 mt-1">
-                             <div class="col-md-6"><label class="form-label" for="editor-repair-chapter">Chapter</label><select title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-chapter" class="form-select" onchange="resetEditorRepairPreview()"><option value="">Entire book</option></select></div>
-                             <div class="col-md-6"><label class="form-label" for="editor-repair-speakers">Speakers (select one or more)</label><select title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-speakers" class="form-select" multiple size="5" onchange="resetEditorRepairPreview()"></select></div>
+                             <div class="col-md-6"><label class="form-label" for="editor-repair-chapter" data-i18n="editor.repair.chapter">Chapter</label><select data-i18n-attr="title:editor.repair.select-title" title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-chapter" class="form-select" onchange="resetEditorRepairPreview()"><option value="" data-i18n="editor.repair.entire-book">Entire book</option></select></div>
+                             <div class="col-md-6"><label class="form-label" for="editor-repair-speakers" data-i18n="editor.repair.speakers">Speakers (select one or more)</label><select data-i18n-attr="title:editor.repair.select-title" title="Choose the chapter or speakers included in the next repair preview." id="editor-repair-speakers" class="form-select" multiple size="5" onchange="resetEditorRepairPreview()"></select></div>
                          </div>
                          <p id="editor-repair-note" class="small mt-2"></p>
-                         <div class="d-flex flex-wrap gap-2 my-2"><button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-primary btn-sm" onclick="previewEditorRepair()">Preview selected lines</button><button title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-danger btn-sm" id="editor-repair-start" onclick="generateEditorRepair()" disabled>Regenerate selection…</button></div>
-                         <p id="editor-repair-status" class="small" role="status" aria-live="polite">Load the current book to choose a selection.</p>
+                         <div class="d-flex flex-wrap gap-2 my-2"><button data-i18n="editor.repair.preview" data-i18n-attr="title:editor.repair.actions-title" title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-primary btn-sm" onclick="previewEditorRepair()">Preview selected lines</button><button data-i18n="editor.repair.regenerate" data-i18n-attr="title:editor.repair.actions-title" title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-danger btn-sm" id="editor-repair-start" onclick="generateEditorRepair()" disabled>Regenerate selection…</button></div>
+                         <p id="editor-repair-status" class="small" role="status" aria-live="polite" data-i18n="editor.repair.status-default">Load the current book to choose a selection.</p>
                          <ol id="editor-repair-lines" class="small ps-4" style="max-height: 20rem; overflow: auto; overflow-wrap: anywhere;"></ol>
                      </details>
 
@@ -3545,40 +3545,40 @@
                        <div class="editor-review-main">
                          <section class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
                              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                 <h5 id="editor-quality-title" class="m-0">Take review queue</h5>
-                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadChunks(false)">Refresh review</button>
+                                 <h5 id="editor-quality-title" class="m-0" data-i18n="editor.queue.title">Take review queue</h5>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadChunks(false)" data-i18n="editor.queue.refresh">Refresh review</button>
                              </div>
-                             <p class="small mt-2 mb-2">Saved findings and missing speech evidence, not a quality certificate. Inspect the selected take or compare retained candidates without running a model or changing audio. Listen before explicitly choosing Check &amp; restore; existing compatibility, retention and cancellation controls still apply. Historical evidence is not a current approval.</p>
+                             <p class="small mt-2 mb-2" data-i18n="editor.queue.intro">Saved findings and missing speech evidence, not a quality certificate. Inspect the selected take or compare retained candidates without running a model or changing audio. Listen before explicitly choosing Check &amp; restore; existing compatibility, retention and cancellation controls still apply. Historical evidence is not a current approval.</p>
                              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                 <label for="editor-quality-filter">Show</label>
+                                 <label for="editor-quality-filter" data-i18n="editor.queue.filter-label">Show</label>
                                  <select id="editor-quality-filter" class="form-select form-select-sm" style="width:auto;" onchange="renderEditorQualityInbox(true)">
-                                     <option value="all">All findings</option><option value="unknown">Unknown speakers</option><option value="failed">Failed renders</option><option value="missing">Missing audio files</option><option value="drift">Voice drift</option><option value="outliers">Acoustic outliers</option>
-                                     <option value="speech_rejected">Rejected speech attempts</option><option value="speech_review">Speech review needed</option><option value="speech_unavailable">Speech check unavailable</option><option value="speech_difference">Speech content differences</option><option value="speech_historical">Historical speech evidence</option>
-                                     <option value="speech_not_checked">No current speech evidence</option>
-                                     <option value="all_lines">All saved lines (including unchecked and unrendered)</option>
+                                     <option value="all" data-i18n="editor.queue.filter.all">All findings</option><option value="unknown" data-i18n="editor.queue.filter.unknown">Unknown speakers</option><option value="failed" data-i18n="editor.queue.filter.failed">Failed renders</option><option value="missing" data-i18n="editor.queue.filter.missing">Missing audio files</option><option value="drift" data-i18n="editor.queue.filter.drift">Voice drift</option><option value="outliers" data-i18n="editor.queue.filter.outliers">Acoustic outliers</option>
+                                     <option value="speech_rejected" data-i18n="editor.queue.filter.speech-rejected">Rejected speech attempts</option><option value="speech_review" data-i18n="editor.queue.filter.speech-review">Speech review needed</option><option value="speech_unavailable" data-i18n="editor.queue.filter.speech-unavailable">Speech check unavailable</option><option value="speech_difference" data-i18n="editor.queue.filter.speech-difference">Speech content differences</option><option value="speech_historical" data-i18n="editor.queue.filter.speech-historical">Historical speech evidence</option>
+                                     <option value="speech_not_checked" data-i18n="editor.queue.filter.speech-not-checked">No current speech evidence</option>
+                                     <option value="all_lines" data-i18n="editor.queue.filter.all-lines">All saved lines (including unchecked and unrendered)</option>
                                  </select>
-                                 <button class="btn btn-outline-secondary btn-sm" id="btn-drift-check" onclick="runDriftCheck()" title="Run the existing voice check against saved reference voices">Check Voices</button>
-                                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-outlier-check" onclick="runOutlierCheck()" title="Experimental CPU acoustic proxies: compare rendered takes with the same character and effective voice. No audio is changed.">Check acoustic outliers</button>
-                                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-outlier-cancel" onclick="cancelOutlierCheck()" title="Cancel this acoustic scan without publishing partial results." disabled>Cancel outlier check</button>
-                                 <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only">Show only drift in table</label></div>
+                                 <button class="btn btn-outline-secondary btn-sm" id="btn-drift-check" onclick="runDriftCheck()" data-i18n="editor.queue.check-voices" data-i18n-attr="title:editor.queue.check-voices-title" title="Run the existing voice check against saved reference voices">Check Voices</button>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-outlier-check" onclick="runOutlierCheck()" data-i18n="editor.queue.outliers" data-i18n-attr="title:editor.queue.outliers-title" title="Experimental CPU acoustic proxies: compare rendered takes with the same character and effective voice. No audio is changed.">Check acoustic outliers</button>
+                                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-outlier-cancel" onclick="cancelOutlierCheck()" data-i18n="editor.queue.cancel-outliers" data-i18n-attr="title:editor.queue.cancel-outliers-title" title="Cancel this acoustic scan without publishing partial results." disabled>Cancel outlier check</button>
+                                 <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only" data-i18n="editor.queue.drift-only">Show only drift in table</label></div>
                              </div>
-                             <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2">Review facts have not been loaded.</p>
+                             <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2" data-i18n="editor.queue.status-default">Review facts have not been loaded.</p>
                              <p id="editor-quality-binding" class="small text-break" role="status"></p>
-                             <p id="editor-outlier-caveat" class="small">Experimental acoustic proxies, not an emotion or quality judgement. At least eight comparable takes per metric are required. Unavailable is not clean. Listen before regenerating.</p>
-                             <p id="editor-outlier-status" class="small" role="status">No acoustic scan started.</p>
+                             <p id="editor-outlier-caveat" class="small" data-i18n="editor.queue.outlier-caveat">Experimental acoustic proxies, not an emotion or quality judgement. At least eight comparable takes per metric are required. Unavailable is not clean. Listen before regenerating.</p>
+                             <p id="editor-outlier-status" class="small" role="status" data-i18n="editor.queue.outlier-status-default">No acoustic scan started.</p>
                              <div id="editor-quality-list"></div>
-                             <button type="button" id="editor-quality-more" class="btn btn-outline-secondary btn-sm mt-2" onclick="showMoreEditorFindings()" hidden>Show 50 more</button>
+                             <button type="button" id="editor-quality-more" class="btn btn-outline-secondary btn-sm mt-2" onclick="showMoreEditorFindings()" hidden data-i18n="editor.queue.show-more">Show 50 more</button>
                          </section>
                      <div class="table-responsive">
                          <table class="table table-bordered table-hover">
                              <thead>
                                  <tr>
                                      <th width="8%"></th>
-                                     <th width="12%">Speaker</th>
-                                     <th width="35%">Text</th>
-                                     <th width="17%">Delivery</th>
-                                     <th width="8%">Status</th>
-                                     <th width="20%">Audio / Actions</th>
+                                     <th width="12%" data-i18n="editor.table.speaker">Speaker</th>
+                                     <th width="35%" data-i18n="editor.table.text">Text</th>
+                                     <th width="17%" data-i18n="editor.table.delivery">Delivery</th>
+                                     <th width="8%" data-i18n="editor.table.status">Status</th>
+                                     <th width="20%" data-i18n="editor.table.audio-actions">Audio / Actions</th>
                                  </tr>
                              </thead>
                              <tbody id="chunks-table-body">
@@ -3587,78 +3587,78 @@
                          </table>
                      </div>
                        </div>
-                       <aside class="editor-review-panel editor-line-inspector" aria-label="Selected line inspector">
+                       <aside class="editor-review-panel editor-line-inspector" data-i18n-attr="aria-label:editor.inspector.aria" aria-label="Selected line inspector">
                            <details class="mb-3">
-                               <summary>Automatic take history</summary>
-                               <p class="small mt-2">Optionally save prior performances before regenerating them. This project setting starts with selected takes and future edits. Earlier detached audio is not reconstructed. Saving stops when history is full; remove an unneeded snapshot or turn this setting off to continue. Snapshots remain available for audition.</p>
+                               <summary data-i18n="editor.take-history.title">Automatic take history</summary>
+                               <p class="small mt-2" data-i18n="editor.take-history.intro">Optionally save prior performances before regenerating them. This project setting starts with selected takes and future edits. Earlier detached audio is not reconstructed. Saving stops when history is full; remove an unneeded snapshot or turn this setting off to continue. Snapshots remain available for audition.</p>
                                <div class="d-flex flex-wrap gap-2 mb-2">
-                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-refresh" title="Read the saved automatic-history setting for this project." onclick="loadAutomaticTakePolicy()">Refresh setting</button>
-                                   <button type="button" class="btn btn-outline-primary btn-sm" id="editor-auto-take-on" title="Keep selected prior performances before future regeneration." onclick="changeAutomaticTakePolicy(true)" disabled>Turn on</button>
-                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-off" title="Stop new automatic snapshots while retaining existing copies." onclick="changeAutomaticTakePolicy(false)" disabled>Turn off</button>
+                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-refresh" data-i18n="editor.take-history.refresh" data-i18n-attr="title:editor.take-history.refresh-title" title="Read the saved automatic-history setting for this project." onclick="loadAutomaticTakePolicy()">Refresh setting</button>
+                                   <button type="button" class="btn btn-outline-primary btn-sm" id="editor-auto-take-on" data-i18n="editor.take-history.turn-on" data-i18n-attr="title:editor.take-history.turn-on-title" title="Keep selected prior performances before future regeneration." onclick="changeAutomaticTakePolicy(true)" disabled>Turn on</button>
+                                   <button type="button" class="btn btn-outline-secondary btn-sm" id="editor-auto-take-off" data-i18n="editor.take-history.turn-off" data-i18n-attr="title:editor.take-history.turn-off-title" title="Stop new automatic snapshots while retaining existing copies." onclick="changeAutomaticTakePolicy(false)" disabled>Turn off</button>
                                </div>
-                               <p class="small" id="editor-auto-take-status" role="status" aria-live="polite">Off by default. Refresh to read this project's setting.</p>
+                               <p class="small" id="editor-auto-take-status" role="status" aria-live="polite" data-i18n="editor.take-history.status-default">Off by default. Refresh to read this project's setting.</p>
                            </details>
                            <details id="editor-line-details" open>
-                               <summary><strong>Selected line</strong></summary>
-                               <p id="editor-line-empty" class="small mt-2 mb-0">Choose Inspect on a line, focus one of its fields, or open a finding.</p>
+                               <summary><strong data-i18n="editor.inspector.selected-line">Selected line</strong></summary>
+                               <p id="editor-line-empty" class="small mt-2 mb-0" data-i18n="editor.inspector.empty">Choose Inspect on a line, focus one of its fields, or open a finding.</p>
                                <div id="editor-line-content" hidden>
                                    <h5 id="editor-line-title" class="mt-3" tabindex="-1"></h5>
                                    <p id="editor-line-state" class="small" role="status" aria-live="polite"></p>
                                    <div class="editor-line-actions d-flex flex-wrap gap-2 mb-3">
-                                       <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()">Play line</button>
-                                       <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()">Generate line…</button>
+                                       <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()" data-i18n="editor.inspector.play-line">Play line</button>
+                                       <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()" data-i18n="editor.inspector.generate-line">Generate line…</button>
                                    </div>
-                                   <details class="mb-3" id="editor-take-details"><summary title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
-                                       <p class="small mt-2">Save a good performance explicitly or enable automatic history above. Audition keeps the current selection. Check &amp; restore selects a saved performance only when its original inputs, voice, settings and pronunciation still match; it retains the displaced take. Verification may load the native voice model. Other snapshots remain available for audition.</p>
+                                   <details class="mb-3" id="editor-take-details"><summary data-i18n="editor.snapshots.title" data-i18n-attr="title:editor.snapshots.title-attr" title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
+                                       <p class="small mt-2" data-i18n="editor.snapshots.intro">Save a good performance explicitly or enable automatic history above. Audition keeps the current selection. Check &amp; restore selects a saved performance only when its original inputs, voice, settings and pronunciation still match; it retains the displaced take. Verification may load the native voice model. Other snapshots remain available for audition.</p>
                                        <div class="d-flex flex-wrap gap-2 mb-2">
-                                           <button type="button" id="editor-take-save" class="btn btn-outline-primary btn-sm" onclick="saveEditorTakeSnapshot()" title="Save an immutable copy of the selected saved performance, including its recorded metadata.">Save this take</button>
-                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(false)" title="List the saved snapshots for this stable line in the current book generation.">This line's snapshots</button>
-                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(true)" title="Browse snapshots across project books and line identities, including deleted and interrupted copies.">All project snapshots</button>
+                                           <button type="button" id="editor-take-save" class="btn btn-outline-primary btn-sm" onclick="saveEditorTakeSnapshot()" data-i18n="editor.snapshots.save" data-i18n-attr="title:editor.snapshots.save-title" title="Save an immutable copy of the selected saved performance, including its recorded metadata.">Save this take</button>
+                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(false)" data-i18n="editor.snapshots.this-line" data-i18n-attr="title:editor.snapshots.this-line-title" title="List the saved snapshots for this stable line in the current book generation.">This line's snapshots</button>
+                                           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(true)" data-i18n="editor.snapshots.all" data-i18n-attr="title:editor.snapshots.all-title" title="Browse snapshots across project books and line identities, including deleted and interrupted copies.">All project snapshots</button>
                                        </div>
-                                       <button type="button" id="editor-take-cancel" class="btn btn-outline-danger btn-sm mb-2" onclick="cancelEditorTakeRestore()" title="Request cancellation of the active audio task and wait for its cleanup before starting another operation." hidden>Cancel audio task</button>
-                                       <p id="editor-take-status" class="small" role="status" aria-live="polite">No snapshots loaded. Up to 16 per line, 4,096 records and 1 GiB per project. Deleted and incomplete copies count until permanently removed.</p>
+                                       <button type="button" id="editor-take-cancel" class="btn btn-outline-danger btn-sm mb-2" onclick="cancelEditorTakeRestore()" data-i18n="editor.snapshots.cancel" data-i18n-attr="title:editor.snapshots.cancel-title" title="Request cancellation of the active audio task and wait for its cleanup before starting another operation." hidden>Cancel audio task</button>
+                                       <p id="editor-take-status" class="small" role="status" aria-live="polite" data-i18n="editor.snapshots.status-default">No snapshots loaded. Up to 16 per line, 4,096 records and 1 GiB per project. Deleted and incomplete copies count until permanently removed.</p>
                                        <div id="editor-take-list"></div>
-                                       <button type="button" id="editor-take-first" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(takeHistoryAll, 0)" title="Return to the first page of this snapshot list without changing selected audio." hidden>First page</button>
-                                       <button type="button" id="editor-take-more" class="btn btn-outline-secondary btn-sm" title="Show the next fifty snapshots in the current archive view." hidden>Next 50</button>
+                                       <button type="button" id="editor-take-first" class="btn btn-outline-secondary btn-sm" onclick="loadEditorTakeSnapshots(takeHistoryAll, 0)" data-i18n="editor.snapshots.first-page" data-i18n-attr="title:editor.snapshots.first-page-title" title="Return to the first page of this snapshot list without changing selected audio." hidden>First page</button>
+                                       <button type="button" id="editor-take-more" class="btn btn-outline-secondary btn-sm" data-i18n="editor.snapshots.next" data-i18n-attr="title:editor.snapshots.next-title" title="Show the next fifty snapshots in the current archive view." hidden>Next 50</button>
                                    </details>
-                                   <details class="mb-3"><summary>Word timing and sentence gaps (English audio)</summary>
-                                       <p class="small mt-2">Estimated ASR timing mapped to the current spoken-text preparation, including pronunciation rules. Older takes may differ. Untimed words stay plain. Timing does not certify accuracy. Use the existing line controls to edit or regenerate.</p>
-                                       <div class="d-flex flex-wrap gap-2 mb-2"><button type="button" id="editor-word-timing" class="btn btn-outline-primary btn-sm" onclick="createEditorWordTiming()" title="Time only this saved English line with an already installed CPU ASR model.">Time this line</button><button type="button" id="editor-sentence-gap-analyze" class="btn btn-outline-primary btn-sm" onclick="analyzeEditorSentenceGaps()" title="Inspect pauses inside this saved take without changing the audio.">Analyze sentence gaps</button><button type="button" id="editor-word-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorWordTiming()" disabled title="Request cancellation and retain the existing audio.">Cancel analysis</button></div>
-                                       <p id="editor-word-status" role="status" class="small">Choose a saved line with audio, then time its words or analyze its internal sentence gaps. Uses the installed English speech-recognition model; no automatic download.</p>
+                                   <details class="mb-3"><summary data-i18n="editor.word-timing.title">Word timing and sentence gaps (English audio)</summary>
+                                       <p class="small mt-2" data-i18n="editor.word-timing.intro">Estimated ASR timing mapped to the current spoken-text preparation, including pronunciation rules. Older takes may differ. Untimed words stay plain. Timing does not certify accuracy. Use the existing line controls to edit or regenerate.</p>
+                                       <div class="d-flex flex-wrap gap-2 mb-2"><button type="button" id="editor-word-timing" class="btn btn-outline-primary btn-sm" onclick="createEditorWordTiming()" data-i18n="editor.word-timing.time" data-i18n-attr="title:editor.word-timing.time-title" title="Time only this saved English line with an already installed CPU ASR model.">Time this line</button><button type="button" id="editor-sentence-gap-analyze" class="btn btn-outline-primary btn-sm" onclick="analyzeEditorSentenceGaps()" data-i18n="editor.word-timing.gaps" data-i18n-attr="title:editor.word-timing.gaps-title" title="Inspect pauses inside this saved take without changing the audio.">Analyze sentence gaps</button><button type="button" id="editor-word-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorWordTiming()" disabled data-i18n="editor.word-timing.cancel" data-i18n-attr="title:editor.word-timing.cancel-title" title="Request cancellation and retain the existing audio.">Cancel analysis</button></div>
+                                       <p id="editor-word-status" role="status" class="small" data-i18n="editor.word-timing.status-default">Choose a saved line with audio, then time its words or analyze its internal sentence gaps. Uses the installed English speech-recognition model; no automatic download.</p>
                                        <div id="editor-word-spans" class="small editor-line-text"></div>
-                                       <section id="editor-sentence-gaps" class="small mt-3" aria-label="Sentence-gap analysis results" hidden></section>
+                                       <section id="editor-sentence-gaps" class="small mt-3" data-i18n-attr="aria-label:editor.word-timing.gaps-aria" aria-label="Sentence-gap analysis results" hidden></section>
                                    </details>
                                    <dl class="mb-0">
-                                       <dt>Speaker <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('speaker')">Edit speaker</button></dt><dd id="editor-line-speaker"></dd>
-                                       <dt>Text <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('text')">Edit text</button></dt><dd id="editor-line-text" class="editor-line-text"></dd>
-                                       <dt>Delivery <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('instruct')">Edit delivery</button></dt><dd id="editor-line-instruct" class="editor-line-text"></dd>
-                                       <dt>Pause after <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('pause_after')">Edit pause</button></dt><dd id="editor-line-pause"></dd>
-                                       <dt>Pause markup</dt><dd><details id="editor-line-markup">
-                                           <summary>Opt-in pause markup</summary>
-                                           <p class="small">Ordinary text is literal. Save a line ending in <code>[[pause:250ms]]</code>, then preview here. Use integer milliseconds, 0 through 760000. Escape a literal opener as <code>\[[</code>. Internal pauses require an explicit Editor line split first; voice directives are unsupported.</p>
-                                           <button type="button" id="editor-line-markup-check" class="btn btn-outline-secondary btn-sm" onclick="previewNarrationMarkup()" title="Inspect saved text, proposed spoken words and a terminal pause without saving or starting generation.">Preview saved-line markup</button>
-                                           <label for="editor-line-markup-choice" class="visually-hidden">Resolve existing pause conflict</label>
-                                           <select id="editor-line-markup-choice" class="form-select form-select-sm mt-2" onchange="applyNarrationMarkupInspector()" title="Explicitly keep your existing saved pause or replace it with the proposed markup pause." hidden>
-                                               <option value="">Choose how to resolve the pause conflict</option>
-                                               <option value="keep">Keep my saved pause</option>
-                                               <option value="replace">Replace with the proposed pause</option>
+                                       <dt><span data-i18n="editor.field.speaker">Speaker</span> <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('speaker')" data-i18n="editor.field.edit-speaker">Edit speaker</button></dt><dd id="editor-line-speaker"></dd>
+                                       <dt><span data-i18n="editor.field.text">Text</span> <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('text')" data-i18n="editor.field.edit-text">Edit text</button></dt><dd id="editor-line-text" class="editor-line-text"></dd>
+                                       <dt><span data-i18n="editor.field.delivery">Delivery</span> <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('instruct')" data-i18n="editor.field.edit-delivery">Edit delivery</button></dt><dd id="editor-line-instruct" class="editor-line-text"></dd>
+                                       <dt><span data-i18n="editor.field.pause-after">Pause after</span> <button type="button" class="btn btn-link btn-sm" onclick="focusEditorReviewField('pause_after')" data-i18n="editor.field.edit-pause">Edit pause</button></dt><dd id="editor-line-pause"></dd>
+                                       <dt data-i18n="editor.field.pause-markup">Pause markup</dt><dd><details id="editor-line-markup">
+                                           <summary data-i18n="editor.markup.title">Opt-in pause markup</summary>
+                                           <p class="small" data-i18n-html="editor.markup.intro">Ordinary text is literal. Save a line ending in <code>[[pause:250ms]]</code>, then preview here. Use integer milliseconds, 0 through 760000. Escape a literal opener as <code>\[[</code>. Internal pauses require an explicit Editor line split first; voice directives are unsupported.</p>
+                                           <button type="button" id="editor-line-markup-check" class="btn btn-outline-secondary btn-sm" onclick="previewNarrationMarkup()" data-i18n="editor.markup.preview" data-i18n-attr="title:editor.markup.preview-title" title="Inspect saved text, proposed spoken words and a terminal pause without saving or starting generation.">Preview saved-line markup</button>
+                                           <label for="editor-line-markup-choice" class="visually-hidden" data-i18n="editor.markup.conflict-label">Resolve existing pause conflict</label>
+                                           <select id="editor-line-markup-choice" class="form-select form-select-sm mt-2" onchange="applyNarrationMarkupInspector()" data-i18n-attr="title:editor.markup.conflict-title" title="Explicitly keep your existing saved pause or replace it with the proposed markup pause." hidden>
+                                               <option value="" data-i18n="editor.markup.conflict-placeholder">Choose how to resolve the pause conflict</option>
+                                               <option value="keep" data-i18n="editor.markup.conflict-keep">Keep my saved pause</option>
+                                               <option value="replace" data-i18n="editor.markup.conflict-replace">Replace with the proposed pause</option>
                                            </select>
                                            <pre id="editor-line-markup-preview" class="small editor-line-text"></pre>
-                                           <p id="editor-line-markup-status" class="small" role="status">Preview and apply start no inference. Source and Script remain unchanged. Applied receipts retain original line text.</p>
-                                           <button type="button" id="editor-line-markup-apply" class="btn btn-outline-primary btn-sm" onclick="applyNarrationMarkup()" title="Confirm this exact preview, retaining the original text in a receipt and detaching the changed line from its old take. No audio is generated." disabled>Confirm application...</button>
-                                           <button type="button" id="editor-line-markup-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelNarrationMarkup()" title="Discard this preview without changing saved text, pauses or audio. This does not undo an application already sent.">Discard preview</button>
+                                           <p id="editor-line-markup-status" class="small" role="status" data-i18n="editor.markup.status-default">Preview and apply start no inference. Source and Script remain unchanged. Applied receipts retain original line text.</p>
+                                           <button type="button" id="editor-line-markup-apply" class="btn btn-outline-primary btn-sm" onclick="applyNarrationMarkup()" data-i18n="editor.markup.apply" data-i18n-attr="title:editor.markup.apply-title" title="Confirm this exact preview, retaining the original text in a receipt and detaching the changed line from its old take. No audio is generated." disabled>Confirm application...</button>
+                                           <button type="button" id="editor-line-markup-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelNarrationMarkup()" data-i18n="editor.markup.discard" data-i18n-attr="title:editor.markup.discard-title" title="Discard this preview without changing saved text, pauses or audio. This does not undo an application already sent.">Discard preview</button>
                                        </details></dd>
-                                       <dt>Render error</dt><dd id="editor-line-error" class="small editor-line-text"></dd>
-                                       <dt>Audio and voice check</dt><dd id="editor-line-quality" class="small"></dd><dd id="editor-line-drift-detail" class="small"></dd>
-                                       <dt>Acoustic sibling outliers (experimental)</dt><dd id="editor-line-outlier" class="small editor-line-text"></dd>
-                                       <dt>Speech content check</dt><dd id="editor-line-speech" class="small"></dd><dd id="editor-line-speech-attempt" class="small"></dd>
-                                       <dd><div class="d-flex flex-wrap gap-2"><button type="button" id="editor-line-speech-recheck" class="btn btn-outline-primary btn-sm" onclick="recheckEditorSpeech()" title="Recheck this saved take using its recorded synthesis input and cached CPU models. Existing audio is retained.">Recheck speech</button><button type="button" id="editor-line-speech-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorSpeechVerification()" title="Request cancellation of the active speech recheck and keep saved audio." disabled>Cancel recheck</button></div><p id="editor-line-speech-status" class="small mt-2" role="status">Saved takes with recorded synthesis input can be rechecked. Takes without recorded input must be regenerated with speech checks enabled.</p></dd>
-                                       <dd><details><summary>Speech input and saved evidence</summary><p id="editor-line-recorded-status" class="small" role="status"></p><p id="editor-line-recorded-binding" class="small editor-line-text"></p><p id="editor-line-speech-expected" class="small editor-line-text"></p><p class="small">Occurrence rules affect the synthesis copy, not authored Script text. Each rule applies at most once; duplicate, overlapping, stale and out-of-scope rules are not applied. Recorded decisions below are historical, not a preview of today's rules. Historical number/symbol transformations and complete engine settings are not recorded here and are not reconstructed.</p><pre id="editor-line-recorded-pronunciation" class="small editor-line-text"></pre><pre id="editor-line-speech-evidence" class="small editor-line-text"></pre></details></dd>
-                                       <dd><details><summary>Saved-line preparation preview (not historical proof)</summary><button type="button" id="editor-line-input-preview" class="btn btn-outline-secondary btn-sm" title="Inspect saved text and its preparation without loading a model or changing a take." onclick="previewEditorSpeechInput()">Preview saved line with current settings</button><p id="editor-line-input-status" class="small" role="status"></p><pre id="editor-line-input-details" class="small editor-line-text"></pre></details></dd>
-                                       <dt>Source entries</dt><dd id="editor-line-source" class="small"></dd>
+                                       <dt data-i18n="editor.field.render-error">Render error</dt><dd id="editor-line-error" class="small editor-line-text"></dd>
+                                       <dt data-i18n="editor.field.audio-check">Audio and voice check</dt><dd id="editor-line-quality" class="small"></dd><dd id="editor-line-drift-detail" class="small"></dd>
+                                       <dt data-i18n="editor.field.outliers">Acoustic sibling outliers (experimental)</dt><dd id="editor-line-outlier" class="small editor-line-text"></dd>
+                                       <dt data-i18n="editor.field.speech-check">Speech content check</dt><dd id="editor-line-speech" class="small"></dd><dd id="editor-line-speech-attempt" class="small"></dd>
+                                       <dd><div class="d-flex flex-wrap gap-2"><button type="button" id="editor-line-speech-recheck" class="btn btn-outline-primary btn-sm" onclick="recheckEditorSpeech()" data-i18n="editor.speech.recheck" data-i18n-attr="title:editor.speech.recheck-title" title="Recheck this saved take using its recorded synthesis input and cached CPU models. Existing audio is retained.">Recheck speech</button><button type="button" id="editor-line-speech-cancel" class="btn btn-outline-secondary btn-sm" onclick="cancelEditorSpeechVerification()" data-i18n="editor.speech.cancel" data-i18n-attr="title:editor.speech.cancel-title" title="Request cancellation of the active speech recheck and keep saved audio." disabled>Cancel recheck</button></div><p id="editor-line-speech-status" class="small mt-2" role="status" data-i18n="editor.speech.status-default">Saved takes with recorded synthesis input can be rechecked. Takes without recorded input must be regenerated with speech checks enabled.</p></dd>
+                                       <dd><details><summary data-i18n="editor.speech.evidence-title">Speech input and saved evidence</summary><p id="editor-line-recorded-status" class="small" role="status"></p><p id="editor-line-recorded-binding" class="small editor-line-text"></p><p id="editor-line-speech-expected" class="small editor-line-text"></p><p class="small" data-i18n="editor.speech.evidence-intro">Occurrence rules affect the synthesis copy, not authored Script text. Each rule applies at most once; duplicate, overlapping, stale and out-of-scope rules are not applied. Recorded decisions below are historical, not a preview of today's rules. Historical number/symbol transformations and complete engine settings are not recorded here and are not reconstructed.</p><pre id="editor-line-recorded-pronunciation" class="small editor-line-text"></pre><pre id="editor-line-speech-evidence" class="small editor-line-text"></pre></details></dd>
+                                       <dd><details><summary data-i18n="editor.speech.preview-title">Saved-line preparation preview (not historical proof)</summary><button type="button" id="editor-line-input-preview" class="btn btn-outline-secondary btn-sm" data-i18n="editor.speech.preview" data-i18n-attr="title:editor.speech.preview-title-attr" title="Inspect saved text and its preparation without loading a model or changing a take." onclick="previewEditorSpeechInput()">Preview saved line with current settings</button><p id="editor-line-input-status" class="small" role="status"></p><pre id="editor-line-input-details" class="small editor-line-text"></pre></details></dd>
+                                       <dt data-i18n="editor.field.source-entries">Source entries</dt><dd id="editor-line-source" class="small"></dd>
                                    </dl>
-                               </div>
-                           </details>
+                           </div>
+                               </details>
                        </aside>
                      </div>
                 </div>
@@ -3669,228 +3669,229 @@
         <div id="audio-tab" class="tab-content" style="display:none;">
             <div class="card">
                 <div class="card-header">
-                    <h4><span class="step-indicator step-active">5</span>Final Result</h4>
+                    <h4><span class="step-indicator step-active">5</span><span data-i18n="audio.header.title">Final Result</span></h4>
                 </div>
                 <div class="card-body">
-                    <p id="audio-empty-state" class="text-muted text-center" role="status">No final audiobook is loaded here yet. In Editor, choose Merge All to build the MP3.</p>
+                    <p id="audio-empty-state" class="text-muted text-center" role="status" data-i18n="audio.empty">No final audiobook is loaded here yet. In Editor, choose Merge All to build the MP3.</p>
                     <div id="audio-player-container" class="text-center" style="display:none;">
-                        <h5>Your Audiobook</h5>
+                        <h5 data-i18n="audio.player.title">Your Audiobook</h5>
                         <audio id="main-audio" controls class="w-100 mt-2">
                             <source src="" type="audio/mpeg">
-                            Your browser does not support the audio element.
+                            <span data-i18n="audio.player.unsupported">Your browser does not support the audio element.</span>
                         </audio>
                         <a id="download-link" href="#" class="btn btn-outline-dark mt-3" download="audiobook.mp3">
-                            <i class="fas fa-download me-2"></i>Download MP3
+                            <i class="fas fa-download me-2"></i><span data-i18n="audio.download-mp3">Download MP3</span>
                         </a>
                         <button class="btn btn-outline-primary mt-3 ms-2" id="btn-export-audacity" onclick="exportAudacity()">
-                            <i class="fas fa-headphones me-2"></i>Export to Audacity
+                            <i class="fas fa-headphones me-2"></i><span data-i18n="audio.export-audacity">Export to Audacity</span>
                         </button>
                         <span id="audacity-status" class="ms-2 mt-3 d-inline-block"></span>
-                        <a href="/api/export_zip" class="btn btn-outline-secondary mt-3 ms-2" download="alexandria_export.zip" title="MP3 + M4B in one zip">
-                            <i class="fas fa-file-archive me-2"></i>Download All (zip)
+                        <a href="/api/export_zip" class="btn btn-outline-secondary mt-3 ms-2" download="alexandria_export.zip" data-i18n-attr="title:audio.download-all-title" title="MP3 + M4B in one zip">
+                            <i class="fas fa-file-archive me-2"></i><span data-i18n="audio.download-all">Download All (zip)</span>
                         </a>
                         <div class="w-100 mt-3">
                             <details id="export-quality-options" class="workflow-disclosure mt-3 text-start">
-                                <summary>Export integrity checks</summary>
-                                <p class="small mt-2">Finished MP3, M4B and chapter audio is checked before publication. Long silence is advisory by default; authored pauses are excluded. These settings apply to the next export. Audacity checks archive structure and track frames.</p>
-                                <div class="row g-2"><div class="col-sm-6"><label class="form-label" for="export-quality-noise">Silence threshold (dBFS)</label><input id="export-quality-noise" type="number" class="form-control" value="-50" min="-90" max="-20" step="1" oninput="resetExportQualityView()"></div><div class="col-sm-6"><label class="form-label" for="export-quality-gap">Maximum unexpected gap (seconds)</label><input id="export-quality-gap" type="number" class="form-control" value="5" min="0.1" max="3600" step="0.1" oninput="resetExportQualityView()"></div></div>
-                                <label class="form-check mt-2"><input id="export-quality-reject" type="checkbox" class="form-check-input" onchange="resetExportQualityView()"><span class="form-check-label">Reject exports with unexpected long silence</span></label>
-                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportQualityReports()">Show checks for this book</button>
-                                <p id="export-quality-status" role="status" aria-live="polite" class="small mt-2">Completed checks and rejected attempts are retained separately for this app session.</p>
+                                <summary data-i18n="audio.export-quality.title">Export integrity checks</summary>
+                                <p class="small mt-2" data-i18n="audio.export-quality.intro">Finished MP3, M4B and chapter audio is checked before publication. Long silence is advisory by default; authored pauses are excluded. These settings apply to the next export. Audacity checks archive structure and track frames.</p>
+                                <div class="row g-2"><div class="col-sm-6"><label class="form-label" for="export-quality-noise" data-i18n="audio.export-quality.noise-label">Silence threshold (dBFS)</label><input id="export-quality-noise" type="number" class="form-control" value="-50" min="-90" max="-20" step="1" oninput="resetExportQualityView()"></div><div class="col-sm-6"><label class="form-label" for="export-quality-gap" data-i18n="audio.export-quality.gap-label">Maximum unexpected gap (seconds)</label><input id="export-quality-gap" type="number" class="form-control" value="5" min="0.1" max="3600" step="0.1" oninput="resetExportQualityView()"></div></div>
+                                <label class="form-check mt-2"><input id="export-quality-reject" type="checkbox" class="form-check-input" onchange="resetExportQualityView()"><span class="form-check-label" data-i18n="audio.export-quality.reject">Reject exports with unexpected long silence</span></label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportQualityReports()" data-i18n="audio.export-quality.show">Show checks for this book</button>
+                                <p id="export-quality-status" role="status" aria-live="polite" class="small mt-2" data-i18n="audio.export-quality.status-default">Completed checks and rejected attempts are retained separately for this app session.</p>
                                 <div id="export-quality-reports" class="small"></div>
                             </details>
                             <details id="export-mastering-options" class="workflow-disclosure mt-3 text-start">
-                                <summary title="Optional processing applied to assembled exports, with measured output results">Optional export mastering</summary>
-                                <p class="small mt-2">Applies to the next merged MP3, MP3/WAV chapters or M4B. Source clips and Audacity tracks stay unchanged. Analysis and encoding use CPU and extra disk/time. These targets do not certify distribution compliance.</p>
-                                <label class="form-check"><input type="checkbox" id="export-mastering-enabled" class="form-check-input" onchange="resetExportMasteringView()"><span class="form-check-label">Enable mastering for the next export</span></label>
-                                <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label" for="export-mastering-loudness">Integrated loudness (LUFS)</label><input id="export-mastering-loudness" type="number" class="form-control" value="-18" min="-24" max="-14" step="0.5" oninput="resetExportMasteringView()"></div><div class="col-sm-6"><label class="form-label" for="export-mastering-peak">True-peak ceiling (dBTP)</label><input id="export-mastering-peak" type="number" class="form-control" value="-2" min="-9" max="-1" step="0.5" oninput="resetExportMasteringView()"></div></div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportMasteringReports()" title="Verify output file identity and show measured results for this book">Show verified export measurements</button>
-                                <p id="export-mastering-status" role="status" aria-live="polite" class="small mt-2">Off by default. Export explicitly, then check the measured results.</p>
+                                <summary data-i18n="audio.mastering.title" data-i18n-attr="title:audio.mastering.title-attr" title="Optional processing applied to assembled exports, with measured output results">Optional export mastering</summary>
+                                <p class="small mt-2" data-i18n="audio.mastering.intro">Applies to the next merged MP3, MP3/WAV chapters or M4B. Source clips and Audacity tracks stay unchanged. Analysis and encoding use CPU and extra disk/time. These targets do not certify distribution compliance.</p>
+                                <label class="form-check"><input type="checkbox" id="export-mastering-enabled" class="form-check-input" onchange="resetExportMasteringView()"><span class="form-check-label" data-i18n="audio.mastering.enable">Enable mastering for the next export</span></label>
+                                <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label" for="export-mastering-loudness" data-i18n="audio.mastering.loudness-label">Integrated loudness (LUFS)</label><input id="export-mastering-loudness" type="number" class="form-control" value="-18" min="-24" max="-14" step="0.5" oninput="resetExportMasteringView()"></div><div class="col-sm-6"><label class="form-label" for="export-mastering-peak" data-i18n="audio.mastering.peak-label">True-peak ceiling (dBTP)</label><input id="export-mastering-peak" type="number" class="form-control" value="-2" min="-9" max="-1" step="0.5" oninput="resetExportMasteringView()"></div></div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" onclick="loadExportMasteringReports()" data-i18n="audio.mastering.show" data-i18n-attr="title:audio.mastering.show-title" title="Verify output file identity and show measured results for this book">Show verified export measurements</button>
+                                <p id="export-mastering-status" role="status" aria-live="polite" class="small mt-2" data-i18n="audio.mastering.status-default">Off by default. Export explicitly, then check the measured results.</p>
                                 <div id="export-mastering-reports" class="small"></div>
                             </details>
                             <details id="abs-delivery-options" class="workflow-disclosure mt-3 text-start">
-                                <summary>Send to Audiobookshelf (manual)</summary>
-                                <p class="small mt-2">Sends one finished, integrity-checked MP3 or M4B export to your Audiobookshelf server. Nothing leaves this machine until you preview the exact destination, bytes, and metadata below and confirm. The local export is kept on cancel or failure, and delivery status never changes export status. Review the <a href="https://api.audiobookshelf.org/" rel="noreferrer" data-help-key="audiobookshelfApiDocs">Audiobookshelf API docs</a> for the upload endpoint.</p>
+                                <summary data-i18n="audio.abs.title">Send to Audiobookshelf (manual)</summary>
+                                <p class="small mt-2" data-i18n="audio.abs.intro">Sends one finished, integrity-checked MP3 or M4B export to your Audiobookshelf server. Nothing leaves this machine until you preview the exact destination, bytes, and metadata below and confirm. The local export is kept on cancel or failure, and delivery status never changes export status.</p>
+                                <p class="small mb-0"><a href="https://api.audiobookshelf.org/" rel="noreferrer" data-help-key="audiobookshelfApiDocs" data-i18n="audio.abs.docs">Audiobookshelf API docs</a></p>
                                 <div class="row g-2">
-                                    <div class="col-md-7"><label class="form-label small" for="abs-server-url">Server URL</label><input id="abs-server-url" type="text" class="form-control form-control-sm" placeholder="http://localhost:13378" onchange="resetAbsPreview()"></div>
-                                    <div class="col-md-5"><label class="form-label small" for="abs-api-key">API key (stored in the OS credential store, never shown again)</label><input id="abs-api-key" type="password" class="form-control form-control-sm" autocomplete="off" placeholder="Leave empty to keep the stored key"></div>
-                                    <div class="col-md-3"><label class="form-label small" for="abs-export-format">Export</label><select id="abs-export-format" class="form-select form-select-sm" onchange="resetAbsPreview()"><option value="cloned_audiobook.mp3">MP3 (cloned_audiobook.mp3)</option><option value="audiobook.m4b">M4B (audiobook.m4b)</option></select></div>
-                                    <div class="col-md-5"><label class="form-label small" for="abs-title">Title (sent to Audiobookshelf)</label><input id="abs-title" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
-                                    <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="saveAbsConfig()">Save server</button></div>
-                                    <div class="col-md-3"><label class="form-label small" for="abs-library">Library</label><select id="abs-library" class="form-select form-select-sm" onchange="fillAbsFolders(); resetAbsPreview()"></select></div>
-                                    <div class="col-md-3"><label class="form-label small" for="abs-folder">Folder</label><select id="abs-folder" class="form-select form-select-sm" onchange="resetAbsPreview()"></select></div>
-                                    <div class="col-md-3"><label class="form-label small" for="abs-author">Author (optional)</label><input id="abs-author" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
-                                    <div class="col-md-3"><label class="form-label small" for="abs-series">Series (optional)</label><input id="abs-series" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-7"><label class="form-label small" for="abs-server-url" data-i18n="audio.abs.server-url">Server URL</label><input id="abs-server-url" type="text" class="form-control form-control-sm" data-i18n-skip placeholder="http://localhost:13378" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-5"><label class="form-label small" for="abs-api-key" data-i18n="audio.abs.api-key-label">API key (stored in the OS credential store, never shown again)</label><input id="abs-api-key" type="password" class="form-control form-control-sm" autocomplete="off" data-i18n-attr="placeholder:audio.abs.api-key-placeholder" placeholder="Leave empty to keep the stored key"></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-export-format" data-i18n="audio.abs.export-label">Export</label><select id="abs-export-format" class="form-select form-select-sm" onchange="resetAbsPreview()"><option value="cloned_audiobook.mp3" data-i18n="audio.abs.format-mp3">MP3 (cloned_audiobook.mp3)</option><option value="audiobook.m4b" data-i18n="audio.abs.format-m4b">M4B (audiobook.m4b)</option></select></div>
+                                    <div class="col-md-5"><label class="form-label small" for="abs-title" data-i18n="audio.abs.title-label">Title (sent to Audiobookshelf)</label><input id="abs-title" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="saveAbsConfig()" data-i18n="audio.abs.save-server">Save server</button></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-library" data-i18n="audio.abs.library-label">Library</label><select id="abs-library" class="form-select form-select-sm" onchange="fillAbsFolders(); resetAbsPreview()"></select></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-folder" data-i18n="audio.abs.folder-label">Folder</label><select id="abs-folder" class="form-select form-select-sm" onchange="resetAbsPreview()"></select></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-author" data-i18n="audio.abs.author-label">Author (optional)</label><input id="abs-author" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
+                                    <div class="col-md-3"><label class="form-label small" for="abs-series" data-i18n="audio.abs.series-label">Series (optional)</label><input id="abs-series" type="text" class="form-control form-control-sm" onchange="resetAbsPreview()"></div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="loadAbsLibraries()">Load libraries</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAbsSend()">Preview destination and file</button>
-                                    <button type="button" class="btn btn-outline-success btn-sm" id="abs-send-btn" onclick="sendAbsExport()" disabled>Send to Audiobookshelf</button>
-                                    <button type="button" class="btn btn-outline-danger btn-sm" id="abs-cancel-btn" onclick="cancelAbsSend()" style="display:none">Cancel send</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadAbsDeliveries()">Check delivery status</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="loadAbsLibraries()" data-i18n="audio.abs.load-libraries">Load libraries</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAbsSend()" data-i18n="audio.abs.preview">Preview destination and file</button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="abs-send-btn" onclick="sendAbsExport()" disabled data-i18n="audio.abs.send">Send to Audiobookshelf</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="abs-cancel-btn" onclick="cancelAbsSend()" style="display:none" data-i18n="audio.abs.cancel-send">Cancel send</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadAbsDeliveries()" data-i18n="audio.abs.check-status">Check delivery status</button>
                                 </div>
-                                <label class="form-check small mt-2"><input type="checkbox" class="form-check-input" id="abs-right-to-share" onchange="updateAbsSendEnabled()"><span class="form-check-label">I confirm this export uses only content and voices I have rights to share with my Audiobookshelf server</span></label>
-                                <p class="small">After sending, choose Verify delivery to compare the remote file with this export. Until its bytes match, delivery stays unconfirmed and duplicate sends stay blocked. Rights confirmation does not override that check.</p>
+                                <label class="form-check small mt-2"><input type="checkbox" class="form-check-input" id="abs-right-to-share" onchange="updateAbsSendEnabled()"><span class="form-check-label" data-i18n="safety.abs.rights">I confirm this export uses only content and voices I have rights to share with my Audiobookshelf server</span></label>
+                                <p class="small" data-i18n="safety.abs.verify">After sending, choose Verify delivery to compare the remote file with this export. Until its bytes match, delivery stays unconfirmed and duplicate sends stay blocked. Rights confirmation does not override that check.</p>
                                 <p id="abs-status" class="small mt-2" role="status" aria-live="polite"></p>
                                 <p id="abs-progress" class="small mt-2" role="status" aria-live="polite"></p>
                                 <pre id="abs-preview-out" class="small editor-line-text"></pre>
                                 <div id="abs-deliveries" class="small"></div>
                             </details>
                             <a class="text-decoration-none" data-bs-toggle="collapse" href="#m4b-options" role="button" aria-expanded="false">
-                                <i class="fas fa-book-reader me-1"></i>M4B Export Options <i class="fas fa-chevron-down fa-xs ms-1"></i>
+                                <i class="fas fa-book-reader me-1"></i><span data-i18n="audio.m4b.title">M4B Export Options</span> <i class="fas fa-chevron-down fa-xs ms-1"></i>
                             </a>
                             <div class="collapse mt-2" id="m4b-options">
                                 <div class="border rounded p-3" style="background: var(--bg-card-header);">
                                     <details class="mb-3" id="m4b-publication-panel">
-                                        <summary>Source metadata and cover suggestions</summary>
-                                        <p class="small text-muted mt-2">Review captured EPUB information before applying it. Entered or intentionally cleared fields are kept. Uploaded covers have priority.</p>
-                                        <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="m4b-publication-review" onclick="previewM4bPublication()">Review source suggestions</button>
-                                        <label class="form-label small" for="m4b-publication-origin">Captured origin</label>
+                                        <summary data-i18n="audio.m4b.publication.title">Source metadata and cover suggestions</summary>
+                                        <p class="small text-muted mt-2" data-i18n="audio.m4b.publication.intro">Review captured EPUB information before applying it. Entered or intentionally cleared fields are kept. Uploaded covers have priority.</p>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="m4b-publication-review" onclick="previewM4bPublication()" data-i18n="audio.m4b.publication.review">Review source suggestions</button>
+                                        <label class="form-label small" for="m4b-publication-origin" data-i18n="audio.m4b.publication.origin">Captured origin</label>
                                         <select class="form-select form-select-sm mb-2" id="m4b-publication-origin" disabled></select>
                                         <div id="m4b-publication-info" class="overflow-auto text-break" style="max-height:12rem"></div>
-                                        <img id="m4b-publication-image" alt="Captured source cover preview" class="img-thumbnail mb-2" style="max-height:160px" hidden>
+                                        <img id="m4b-publication-image" alt="Captured source cover preview" data-i18n-attr="alt:audio.m4b.publication.cover-alt" class="img-thumbnail mb-2" style="max-height:160px" hidden>
                                         <div class="row g-2 mb-2">
-                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-title-choice">Suggested title</label><select class="form-select form-select-sm" id="m4b-publication-title-choice" disabled></select></div>
-                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-author-choice">Suggested author</label><select class="form-select form-select-sm" id="m4b-publication-author-choice" disabled></select></div>
+                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-title-choice" data-i18n="audio.m4b.publication.title-choice">Suggested title</label><select class="form-select form-select-sm" id="m4b-publication-title-choice" disabled></select></div>
+                                            <div class="col-md-6"><label class="form-label small" for="m4b-publication-author-choice" data-i18n="audio.m4b.publication.author-choice">Suggested author</label><select class="form-select form-select-sm" id="m4b-publication-author-choice" disabled></select></div>
                                         </div>
-                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-cover-choice" disabled>Use this source cover for export</label>
-                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-reviewed" disabled>I reviewed the source origin and any stale or ambiguous details</label>
-                                        <div class="small text-warning" id="m4b-publication-review-required" hidden>Explicit review is required for these choices.</div>
+                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-cover-choice" disabled><span data-i18n="audio.m4b.publication.cover-choice">Use this source cover for export</span></label>
+                                        <label class="form-check small"><input class="form-check-input" type="checkbox" id="m4b-publication-reviewed" disabled><span data-i18n="audio.m4b.publication.reviewed">I reviewed the source origin and any stale or ambiguous details</span></label>
+                                        <div class="small text-warning" id="m4b-publication-review-required" hidden data-i18n="audio.m4b.publication.review-required">Explicit review is required for these choices.</div>
                                         <div class="d-flex flex-wrap gap-2 mt-2">
-                                            <button type="button" class="btn btn-outline-primary btn-sm" id="m4b-publication-apply" onclick="applyM4bPublication()" disabled>Apply choices</button>
-                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear" onclick="clearM4bAppliedSuggestions()" disabled>Clear applied suggestions</button>
-                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear-cover" onclick="clearM4bSourceCover()" disabled>Clear source-cover choice</button>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="m4b-publication-apply" onclick="applyM4bPublication()" disabled data-i18n="audio.m4b.publication.apply">Apply choices</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear" onclick="clearM4bAppliedSuggestions()" disabled data-i18n="audio.m4b.publication.clear">Clear applied suggestions</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="m4b-publication-clear-cover" onclick="clearM4bSourceCover()" disabled data-i18n="audio.m4b.publication.clear-cover">Clear source-cover choice</button>
                                         </div>
-                                        <div class="small mt-2" id="m4b-publication-cover-status">No source cover selected.</div>
+                                        <div class="small mt-2" id="m4b-publication-cover-status" data-i18n="audio.m4b.publication.cover-status">No source cover selected.</div>
                                         <div class="small mt-2" id="m4b-publication-feedback" role="status" aria-live="polite"></div>
                                     </details>
                                     <div class="row g-2">
                                         <div class="col-md-6">
                                             <div class="d-flex justify-content-between align-items-center">
-                                                <label class="form-label small mb-1" for="m4b-title">Title</label>
-                                                <button type="button" class="btn btn-link btn-sm py-0" id="m4b-title-clear" onclick="clearM4bTitle()">Leave empty</button>
+                                                <label class="form-label small mb-1" for="m4b-title" data-i18n="audio.m4b.title-label">Title</label>
+                                                <button type="button" class="btn btn-link btn-sm py-0" id="m4b-title-clear" onclick="clearM4bTitle()" data-i18n="audio.m4b.leave-empty">Leave empty</button>
                                             </div>
-                                            <input type="text" class="form-control form-control-sm" id="m4b-title" placeholder="Book title">
+                                            <input type="text" class="form-control form-control-sm" id="m4b-title" data-i18n-attr="placeholder:audio.m4b.title-placeholder" placeholder="Book title">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-1" for="m4b-author">Author</label>
-                                            <input type="text" class="form-control form-control-sm" id="m4b-author" placeholder="Author name">
+                                            <label class="form-label small mb-1" for="m4b-author" data-i18n="audio.m4b.author-label">Author</label>
+                                            <input type="text" class="form-control form-control-sm" id="m4b-author" data-i18n-attr="placeholder:audio.m4b.author-placeholder" placeholder="Author name">
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="m4b-narrator">Narrator</label>
-                                            <input type="text" class="form-control form-control-sm" id="m4b-narrator" placeholder="Narrator name">
+                                            <label class="form-label small mb-1" for="m4b-narrator" data-i18n="audio.m4b.narrator-label">Narrator</label>
+                                            <input type="text" class="form-control form-control-sm" id="m4b-narrator" data-i18n-attr="placeholder:audio.m4b.narrator-placeholder" placeholder="Narrator name">
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="m4b-year">Year</label>
+                                            <label class="form-label small mb-1" for="m4b-year" data-i18n="audio.m4b.year-label">Year</label>
                                             <input type="text" class="form-control form-control-sm" id="m4b-year" placeholder="2025">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-1" for="m4b-description">Description</label>
-                                            <input type="text" class="form-control form-control-sm" id="m4b-description" placeholder="Short description">
+                                            <label class="form-label small mb-1" for="m4b-description" data-i18n="audio.m4b.description-label">Description</label>
+                                            <input type="text" class="form-control form-control-sm" id="m4b-description" data-i18n-attr="placeholder:audio.m4b.description-placeholder" placeholder="Short description">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label small mb-1" for="m4b-cover-input">Cover Image</label>
+                                            <label class="form-label small mb-1" for="m4b-cover-input" data-i18n="audio.m4b.cover-label">Cover Image</label>
                                             <div class="d-flex align-items-center gap-2">
                                                 <input type="file" class="form-control form-control-sm" id="m4b-cover-input" accept="image/*">
-                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="removeM4bCover()" title="Remove cover image"><i class="fas fa-times"></i></button>
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" onclick="removeM4bCover()" data-i18n-attr="title:audio.m4b.remove-cover-title" title="Remove cover image"><i class="fas fa-times"></i></button>
                                                 <span id="m4b-cover-status" class="small text-muted"></span>
                                             </div>
                                         </div>
                                         <div class="col-md-6 d-flex align-items-end">
-                                            <label class="form-check d-inline-flex align-items-center mb-0" title="Creates a chapter for every chunk instead of grouping by detected headings">
+                                            <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.m4b.per-chunk-title" title="Creates a chapter for every chunk instead of grouping by detected headings">
                                                 <input type="checkbox" class="form-check-input me-1" id="m4b-per-chunk">
-                                                <small class="text-muted">Per-chunk chapters</small>
+                                                <small class="text-muted" data-i18n="audio.m4b.per-chunk">Per-chunk chapters</small>
                                             </label>
                                         </div>
                                     </div>
                                     <div class="mt-2">
                                         <button class="btn btn-outline-success btn-sm" id="btn-export-m4b" onclick="exportM4B()">
-                                            <i class="fas fa-book-reader me-1"></i>Export M4B
+                                            <i class="fas fa-book-reader me-1"></i><span data-i18n="audio.m4b.export">Export M4B</span>
                                         </button>
-                                        <button class="btn btn-outline-danger btn-sm" id="m4b-cancel-btn" onclick="cancelM4B()" style="display:none">Cancel M4B</button>
-                                        <label class="form-check d-inline-flex align-items-center ms-2 small" title="Refuse export until every speaker is marked ready">
+                                        <button class="btn btn-outline-danger btn-sm" id="m4b-cancel-btn" onclick="cancelM4B()" style="display:none" data-i18n="audio.m4b.cancel">Cancel M4B</button>
+                                        <label class="form-check d-inline-flex align-items-center ms-2 small" data-i18n-attr="title:audio.m4b.require-ready-title" title="Refuse export until every speaker is marked ready">
                                             <input type="checkbox" class="form-check-input me-1" id="m4b-require-ready">
-                                            Require ready
+                                            <span data-i18n="audio.m4b.require-ready">Require ready</span>
                                         </label>
                                         <span id="m4b-status" class="ms-2 d-inline-block"></span>
                                     </div>
                                 </div>
                             </div>
                             <a class="text-decoration-none d-block mt-3" data-bs-toggle="collapse" href="#chapter-options" role="button" aria-expanded="false">
-                                <i class="fas fa-list-ol me-1"></i>Chapter-by-Chapter Export <i class="fas fa-chevron-down fa-xs ms-1"></i>
+                                <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.title">Chapter-by-Chapter Export</span> <i class="fas fa-chevron-down fa-xs ms-1"></i>
                             </a>
                             <div class="collapse mt-2" id="chapter-options">
                                 <div class="border rounded p-3 text-start" style="background: var(--bg-card-header);">
                                     <div class="row g-2">
                                         <div class="col-md-8">
-                                            <label class="form-label small mb-1" for="chapter-template">Filename template</label>
+                                            <label class="form-label small mb-1" for="chapter-template" data-i18n="audio.chapters.template-label">Filename template</label>
                                             <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
-                                            <div class="form-text">Fields: <code>{chapter_number}</code> <code>{chapter_name}</code> <code>{book_name}</code> <code>{series_name}</code> <code>{volume_number}</code>. The extension is added for you.</div>
+                                            <div class="form-text" data-i18n="audio.chapters.fields-help">Fields: {chapter_number} {chapter_name} {book_name} {series_name} {volume_number}. The extension is added for you.</div>
                                             <div class="input-group input-group-sm mt-1">
-                                                <label class="visually-hidden" for="chapter-template-preset">Chapter filename preset</label><select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="">Saved presets</option></select>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()">Save preset</button>
-                                                <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()">Delete</button>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()">Export</button>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()">Import</button>
-                                                <input type="file" id="chapter-preset-import" aria-label="Import chapter filename presets" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
+                                                <label class="visually-hidden" for="chapter-template-preset" data-i18n="audio.chapters.preset-label">Chapter filename preset</label><select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="" data-i18n="audio.chapters.saved-presets">Saved presets</option></select>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()" data-i18n="audio.chapters.save-preset">Save preset</button>
+                                                <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()" data-i18n="audio.chapters.delete">Delete</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()" data-i18n="audio.chapters.export">Export</button>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()" data-i18n="audio.chapters.import">Import</button>
+                                                <input type="file" id="chapter-preset-import" data-i18n-attr="aria-label:audio.chapters.import-aria" aria-label="Import chapter filename presets" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
                                             </div>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-padding">Number padding</label>
+                                            <label class="form-label small mb-1" for="chapter-padding" data-i18n="audio.chapters.padding-label">Number padding</label>
                                             <select class="form-select form-select-sm" id="chapter-padding">
                                                 <option value="0">1</option><option value="2" selected>01</option><option value="3">001</option>
                                             </select>
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-format">Format</label>
+                                            <label class="form-label small mb-1" for="chapter-format" data-i18n="audio.chapters.format-label">Format</label>
                                             <select class="form-select form-select-sm" id="chapter-format">
                                                 <option value="mp3" selected>MP3</option><option value="wav">WAV</option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-book-name">Book name</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-book-name" placeholder="for {book_name}">
+                                            <label class="form-label small mb-1" for="chapter-book-name" data-i18n="audio.chapters.book-name">Book name</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-book-name" data-i18n-attr="placeholder:audio.chapters.book-name-placeholder" placeholder="for {book_name}">
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-series-name">Series name</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-series-name" placeholder="for {series_name}">
+                                            <label class="form-label small mb-1" for="chapter-series-name" data-i18n="audio.chapters.series-name">Series name</label>
+                                            <input type="text" class="form-control form-control-sm" id="chapter-series-name" data-i18n-attr="placeholder:audio.chapters.series-name-placeholder" placeholder="for {series_name}">
                                         </div>
                                         <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-volume">Volume</label>
+                                            <label class="form-label small mb-1" for="chapter-volume" data-i18n="audio.chapters.volume">Volume</label>
                                             <input type="text" class="form-control form-control-sm" id="chapter-volume" placeholder="3">
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-selection">Chapters (optional)</label>
+                                            <label class="form-label small mb-1" for="chapter-selection" data-i18n="audio.chapters.selection">Chapters (optional)</label>
                                             <input type="text" class="form-control form-control-sm" id="chapter-selection" placeholder="1, 3, 5-7">
                                         </div>
                                         <div class="col-md-2 d-flex flex-column justify-content-end">
-                                            <label class="form-check d-inline-flex align-items-center mb-1" title="Same chapter detection as the M4B export">
+                                            <label class="form-check d-inline-flex align-items-center mb-1" data-i18n-attr="title:audio.chapters.per-chunk-title" title="Same chapter detection as the M4B export">
                                                 <input type="checkbox" class="form-check-input me-1" id="chapter-per-chunk">
-                                                <small class="text-muted">Per-chunk</small>
+                                                <small class="text-muted" data-i18n="audio.chapters.per-chunk">Per-chunk</small>
                                             </label>
-                                            <label class="form-check d-inline-flex align-items-center mb-0" title="Skip chapters whose audio has not changed since they were last exported">
+                                            <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.changed-only-title" title="Skip chapters whose audio has not changed since they were last exported">
                                                 <input type="checkbox" class="form-check-input me-1" id="chapter-changed-only" aria-describedby="chapter-changed-only-help" checked>
-                                                <small class="text-muted">Changed only</small>
+                                                <small class="text-muted" data-i18n="audio.chapters.changed-only">Changed only</small>
                                             </label>
-                                            <label class="form-check d-inline-flex align-items-center mb-0" title="Refuse export until every speaker is marked ready">
+                                            <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.require-ready-title" title="Refuse export until every speaker is marked ready">
                                                 <input type="checkbox" class="form-check-input me-1" id="chapter-require-ready">
-                                                <small class="text-muted">Require ready</small>
+                                                <small class="text-muted" data-i18n="audio.chapters.require-ready">Require ready</small>
                                             </label>
                                         </div>
                                     </div>
-                                    <div class="form-text" id="chapter-changed-only-help">Changed only exports chapters whose audio changed since the last export. Turn it off for a complete set of the selected chapters. Preview filenames shows how many files would be written.</div>
+                                    <div class="form-text" id="chapter-changed-only-help" data-i18n="audio.chapters.changed-only-help">Changed only exports chapters whose audio changed since the last export. Turn it off for a complete set of the selected chapters. Preview filenames shows how many files would be written.</div>
                                     <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
                                         <button class="btn btn-outline-secondary btn-sm" type="button" id="chapter-preview-btn">
-                                            <i class="fas fa-eye me-1"></i>Preview names
+                                            <i class="fas fa-eye me-1"></i><span data-i18n="audio.chapters.preview">Preview names</span>
                                         </button>
                                         <button class="btn btn-outline-success btn-sm" type="button" id="chapter-export-btn">
-                                            <i class="fas fa-list-ol me-1"></i>Export chapters
+                                            <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.export-chapters">Export chapters</span>
                                         </button>
                                         <button class="btn btn-outline-danger btn-sm" type="button" id="chapter-cancel-btn" style="display:none;">
-                                            <i class="fas fa-stop me-1"></i>Cancel
+                                            <i class="fas fa-stop me-1"></i><span data-i18n="audio.chapters.cancel">Cancel</span>
                                         </button>
                                         <a class="btn btn-outline-dark btn-sm" id="chapter-zip-link" href="/api/chapter_exports/zip" download="chapters.zip" style="display:none;">
-                                            <i class="fas fa-file-archive me-1"></i>Download all (zip)
+                                            <i class="fas fa-file-archive me-1"></i><span data-i18n="audio.chapters.download-all">Download all (zip)</span>
                                         </a>
                                         <span id="chapter-status" class="small d-inline-block"></span>
                                     </div>
@@ -3898,57 +3899,57 @@
                                 </div>
                             </div>
                             <details id="readalong-options" class="workflow-disclosure mt-3 text-start">
-                                <summary>Read-along sidecar (synchronized text)</summary>
-                                <p class="small mt-2">Builds a JSON sidecar bound to a fresh MP3 that this build makes itself from your current Editor rows and your current settings — no Merge All needed first. It uses the existing frame-exact timeline and, when available, the same word timings as the Editor; timings it cannot qualify stay marked missing or ambiguous. Ordinary MP3 exports do not include this file. You need three downloads to listen: the sidecar, the matching MP3 below, and the player.</p>
-                                <label class="form-check small"><input class="form-check-input" type="checkbox" id="readalong-include-text"><span class="form-check-label">Include book text in the sidecar (unchecked sidecars contain timings only)</span></label>
+                                <summary data-i18n="audio.readalong.title">Read-along sidecar (synchronized text)</summary>
+                                <p class="small mt-2" data-i18n="audio.readalong.intro">Builds a JSON sidecar bound to a fresh MP3 that this build makes itself from your current Editor rows and your current settings — no Merge All needed first. It uses the existing frame-exact timeline and, when available, the same word timings as the Editor; timings it cannot qualify stay marked missing or ambiguous. Ordinary MP3 exports do not include this file. You need three downloads to listen: the sidecar, the matching MP3 below, and the player.</p>
+                                <label class="form-check small"><input class="form-check-input" type="checkbox" id="readalong-include-text"><span class="form-check-label" data-i18n="audio.readalong.include-text">Include book text in the sidecar (unchecked sidecars contain timings only)</span></label>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <button type="button" class="btn btn-outline-success btn-sm" id="readalong-build-btn" onclick="buildReadalongSidecar()">Build sidecar</button>
-                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readalong-cancel-btn" style="display:none" onclick="cancelReadalongSidecar()">Cancel</button>
-                                    <a class="btn btn-outline-dark btn-sm" href="/api/readalong/sidecar" download="readalong.sidecar.json">Download sidecar</a>
-                                    <a class="btn btn-outline-primary btn-sm" href="/api/readalong/sidecar/audio" download="audiobook.mp3">Download MP3 (matching)</a>
-                                    <a class="btn btn-outline-secondary btn-sm" href="/api/readalong/player" download="readalong-player.html">Download player</a>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="readalong-build-btn" onclick="buildReadalongSidecar()" data-i18n="audio.readalong.build">Build sidecar</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readalong-cancel-btn" style="display:none" onclick="cancelReadalongSidecar()" data-i18n="audio.readalong.cancel">Cancel</button>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readalong/sidecar" download="readalong.sidecar.json" data-i18n="audio.readalong.download-sidecar">Download sidecar</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readalong/sidecar/audio" download="audiobook.mp3" data-i18n="audio.readalong.download-mp3">Download MP3 (matching)</a>
+                                    <a class="btn btn-outline-secondary btn-sm" href="/api/readalong/player" download="readalong-player.html" data-i18n="audio.readalong.download-player">Download player</a>
                                 </div>
-                                <p id="readalong-status" class="small mt-2" role="status" aria-live="polite">Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.</p>
+                                <p id="readalong-status" class="small mt-2" role="status" aria-live="polite" data-i18n="audio.readalong.status-default">Build a read-along sidecar when you are ready. It builds its own MP3 from your current Editor rows and your current settings; no merge is needed first. Download the sidecar, the matching MP3 and the player, then open the player with the MP3 and the sidecar.</p>
                             </details>
                             <details id="readaloud-options" class="workflow-disclosure mt-3 text-start">
-                                <summary>EPUB 3 read-aloud (source-preserving)</summary>
-                                <p class="small mt-2">Builds an EPUB 3 whose text and cover come from the retained original EPUB upload, with SMIL timing from a fresh MP3 this build makes itself — no Merge All needed first. When the script text can no longer be mapped unambiguously to the source, the build fails with the reason instead of substituting a text-only book. The EPUB includes its audio for compatible read-aloud readers. The matching MP3 download below is optional.</p>
-                                <p class="small mt-2" id="readaloud-timing-status" role="status" aria-live="polite">Timing: checking what this machine can run…</p>
+                                <summary data-i18n="audio.readaloud.title">EPUB 3 read-aloud (source-preserving)</summary>
+                                <p class="small mt-2" data-i18n="audio.readaloud.intro">Builds an EPUB 3 whose text and cover come from the retained original EPUB upload, with SMIL timing from a fresh MP3 this build makes itself — no Merge All needed first. When the script text can no longer be mapped unambiguously to the source, the build fails with the reason instead of substituting a text-only book. The EPUB includes its audio for compatible read-aloud readers. The matching MP3 download below is optional.</p>
+                                <p class="small mt-2" id="readaloud-timing-status" role="status" aria-live="polite" data-i18n="audio.readaloud.timing-status">Timing: checking what this machine can run…</p>
                                 <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
-                                    <label class="form-label small mb-0" for="readaloud-timing-mode">Alignment</label>
+                                    <label class="form-label small mb-0" for="readaloud-timing-mode" data-i18n="audio.readaloud.alignment">Alignment</label>
                                     <select class="form-select form-select-sm w-auto" id="readaloud-timing-mode">
-                                        <option value="auto">Auto (Qwen when ready)</option>
-                                        <option value="qwen">Qwen3 forced aligner</option>
-                                        <option value="chunk">Chunk timing (CPU)</option>
+                                        <option value="auto" data-i18n="audio.readaloud.mode-auto">Auto (Qwen when ready)</option>
+                                        <option value="qwen" data-i18n="audio.readaloud.mode-qwen">Qwen3 forced aligner</option>
+                                        <option value="chunk" data-i18n="audio.readaloud.mode-chunk">Chunk timing (CPU)</option>
                                     </select>
-                                    <label class="form-label small mb-0" for="readaloud-timing-device">Device</label>
+                                    <label class="form-label small mb-0" for="readaloud-timing-device" data-i18n="audio.readaloud.device">Device</label>
                                     <select class="form-select form-select-sm w-auto" id="readaloud-timing-device">
-                                        <option value="auto">Auto</option>
+                                        <option value="auto" data-i18n="audio.readaloud.device-auto">Auto</option>
                                         <option value="cpu">CPU</option>
                                     </select>
-                                    <label class="form-label small mb-0" for="readaloud-timing-language">Language</label>
+                                    <label class="form-label small mb-0" for="readaloud-timing-language" data-i18n="audio.readaloud.language">Language</label>
                                     <select class="form-select form-select-sm w-auto" id="readaloud-timing-language">
-                                        <option value="">EPUB language</option>
-                                        <option value="English">English</option>
-                                        <option value="Chinese">Chinese</option>
-                                        <option value="Cantonese">Cantonese</option>
-                                        <option value="French">French</option>
-                                        <option value="German">German</option>
-                                        <option value="Italian">Italian</option>
-                                        <option value="Japanese">Japanese</option>
-                                        <option value="Korean">Korean</option>
-                                        <option value="Portuguese">Portuguese</option>
-                                        <option value="Russian">Russian</option>
-                                        <option value="Spanish">Spanish</option>
+                                        <option value="" data-i18n="audio.readaloud.lang-epub">EPUB language</option>
+                                        <option value="English" data-i18n="audio.readaloud.lang-en">English</option>
+                                        <option value="Chinese" data-i18n="audio.readaloud.lang-zh">Chinese</option>
+                                        <option value="Cantonese" data-i18n="audio.readaloud.lang-yue">Cantonese</option>
+                                        <option value="French" data-i18n="audio.readaloud.lang-fr">French</option>
+                                        <option value="German" data-i18n="audio.readaloud.lang-de">German</option>
+                                        <option value="Italian" data-i18n="audio.readaloud.lang-it">Italian</option>
+                                        <option value="Japanese" data-i18n="audio.readaloud.lang-ja">Japanese</option>
+                                        <option value="Korean" data-i18n="audio.readaloud.lang-ko">Korean</option>
+                                        <option value="Portuguese" data-i18n="audio.readaloud.lang-pt">Portuguese</option>
+                                        <option value="Russian" data-i18n="audio.readaloud.lang-ru">Russian</option>
+                                        <option value="Spanish" data-i18n="audio.readaloud.lang-es">Spanish</option>
                                     </select>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <button type="button" class="btn btn-outline-success btn-sm" id="readaloud-build-btn" onclick="buildReadaloudEpub()">Build EPUB</button>
-                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readaloud-cancel-btn" style="display:none" onclick="cancelReadaloudEpub()">Cancel</button>
-                                    <a class="btn btn-outline-dark btn-sm" href="/api/readaloud_epub" download="readaloud.epub">Download EPUB</a>
-                                    <a class="btn btn-outline-primary btn-sm" href="/api/readaloud_epub/audio" download="audiobook.mp3">Download MP3 (matching)</a>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="readaloud-build-btn" onclick="buildReadaloudEpub()" data-i18n="audio.readaloud.build">Build EPUB</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="readaloud-cancel-btn" style="display:none" onclick="cancelReadaloudEpub()" data-i18n="audio.readaloud.cancel">Cancel</button>
+                                    <a class="btn btn-outline-dark btn-sm" href="/api/readaloud_epub" download="readaloud.epub" data-i18n="audio.readaloud.download-epub">Download EPUB</a>
+                                    <a class="btn btn-outline-primary btn-sm" href="/api/readaloud_epub/audio" download="audiobook.mp3" data-i18n="audio.readaloud.download-mp3">Download MP3 (matching)</a>
                                 </div>
-                                <p id="readaloud-status" class="small mt-2" role="status" aria-live="polite">Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).</p>
+                                <p id="readaloud-status" class="small mt-2" role="status" aria-live="polite" data-i18n="audio.readaloud.status-default">Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).</p>
                             </details>
                         </div>
                     </div>
@@ -3957,9 +3958,9 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Generation Logs</span>
+                    <span data-i18n="audio.logs.title">Generation Logs</span>
                     <button class="btn btn-sm btn-outline-danger" id="btn-cancel-merge" style="display:none;">
-                        <i class="fas fa-stop me-1"></i>Cancel Merge
+                        <i class="fas fa-stop me-1"></i><span data-i18n="audio.logs.cancel-merge">Cancel Merge</span>
                     </button>
                 </div>
                 <div class="card-body p-0">
@@ -3974,8 +3975,8 @@
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="m-0">Reports</h5>
-                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadReports()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            <h5 class="m-0" data-i18n="reports.title">Reports</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadReports()"><i class="fas fa-sync me-1"></i><span data-i18n="reports.refresh">Refresh</span></button>
                         </div>
                         <div class="card-body p-0">
                             <div id="reports-list" class="list-group list-group-flush"></div>
@@ -3983,8 +3984,8 @@
                     </div>
                     <div class="card mt-3">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="m-0">Runs</h5>
-                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadRunHistory()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            <h5 class="m-0" data-i18n="reports.runs">Runs</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadRunHistory()"><i class="fas fa-sync me-1"></i><span data-i18n="reports.refresh">Refresh</span></button>
                         </div>
                         <div class="card-body p-0" style="max-height: 40vh; overflow-y: auto;">
                             <div id="runs-list" class="list-group list-group-flush"></div>
@@ -3992,25 +3993,25 @@
                     </div>
                     <div class="card mt-3">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="m-0">Benchmark</h5>
+                            <h5 class="m-0" data-i18n="reports.benchmark.title">Benchmark</h5>
                             <span id="benchmark-status" class="small text-muted"></span>
                         </div>
                         <div class="card-body">
-                            <label class="form-label small mb-1" for="benchmark-manifest">Manifest (JSON: stage, targets, fixtures, settings)</label>
-                            <textarea class="form-control font-monospace" id="benchmark-manifest" oninput="onBenchmarkManifestChange()" rows="6" style="font-size: 0.8em;" placeholder='{"schema_version": 1, "stage": "script_generation", "targets": ["local"], "fixtures": [{"id": "chunk-1", "sha256": "..."}]}'></textarea>
+                            <label class="form-label small mb-1" for="benchmark-manifest" data-i18n="reports.benchmark.manifest-label">Manifest (JSON: stage, targets, fixtures, settings)</label>
+                            <textarea class="form-control font-monospace" id="benchmark-manifest" oninput="onBenchmarkManifestChange()" rows="6" style="font-size: 0.8em;" data-i18n-skip placeholder='{"schema_version": 1, "stage": "script_generation", "targets": ["local"], "fixtures": [{"id": "chunk-1", "sha256": "..."}]}'></textarea>
                             <div class="d-flex flex-wrap gap-2 mt-2">
-                                <button class="btn btn-sm btn-outline-primary" onclick="onBenchmarkPreflight()"><i class="fas fa-clipboard-check me-1"></i>Preflight</button>
-                                <button class="btn btn-sm btn-primary" id="btn-benchmark-start" aria-describedby="benchmark-start-help" onclick="onBenchmarkStart()" disabled><i class="fas fa-play me-1"></i>Start</button>
-                                <button class="btn btn-sm btn-outline-danger" id="btn-benchmark-cancel" onclick="onBenchmarkCancel()" style="display:none;"><i class="fas fa-stop me-1"></i>Cancel</button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="onBenchmarkPreflight()"><i class="fas fa-clipboard-check me-1"></i><span data-i18n="reports.benchmark.preflight">Preflight</span></button>
+                                <button class="btn btn-sm btn-primary" id="btn-benchmark-start" aria-describedby="benchmark-start-help" onclick="onBenchmarkStart()" disabled><i class="fas fa-play me-1"></i><span data-i18n="reports.benchmark.start">Start</span></button>
+                                <button class="btn btn-sm btn-outline-danger" id="btn-benchmark-cancel" onclick="onBenchmarkCancel()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="reports.benchmark.cancel">Cancel</span></button>
                             </div>
-                            <div id="benchmark-start-help" class="form-text" role="status" aria-live="polite">Start becomes available after a successful preflight of the current manifest. Run Preflight again after editing the manifest.</div>
+                            <div id="benchmark-start-help" class="form-text" role="status" aria-live="polite" data-i18n="reports.benchmark.start-help">Start becomes available after a successful preflight of the current manifest. Run Preflight again after editing the manifest.</div>
                             <pre id="benchmark-output" class="small mt-2 mb-0" style="max-height: 30vh; overflow: auto; white-space: pre-wrap;"></pre>
                         </div>
                     </div>
                     <div class="card mt-3">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="m-0">Review Checkpoints</h5>
-                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadCheckpoints()"><i class="fas fa-sync me-1"></i>Refresh</button>
+                            <h5 class="m-0" data-i18n="reports.checkpoints.title">Review Checkpoints</h5>
+                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadCheckpoints()"><i class="fas fa-sync me-1"></i><span data-i18n="reports.refresh">Refresh</span></button>
                         </div>
                         <div class="card-body p-0">
                             <div id="checkpoints-list" class="list-group list-group-flush"></div>
@@ -4020,13 +4021,13 @@
                 <div class="col-md-8">
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="m-0" id="report-view-title">Reports</h5>
-                            <button class="btn btn-sm btn-outline-primary mt-2" id="btn-report-explain" style="display:none;" onclick="onExplainReport()">Explain this report</button>
-                            <button class="btn btn-sm btn-outline-secondary mt-2" id="btn-report-explanation-cancel" style="display:none;" onclick="onCancelReportExplanation()">Cancel explanation</button>
+                            <h5 class="m-0" id="report-view-title" data-i18n="reports.title">Reports</h5>
+                            <button class="btn btn-sm btn-outline-primary mt-2" id="btn-report-explain" style="display:none;" onclick="onExplainReport()" data-i18n="reports.view.explain">Explain this report</button>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" id="btn-report-explanation-cancel" style="display:none;" onclick="onCancelReportExplanation()" data-i18n="reports.view.cancel-explain">Cancel explanation</button>
                         </div>
                         <div class="card-body">
                             <div id="report-view-content" class="markdown-body">
-                                <p class="text-muted">A plain-language report is generated automatically every time a script review (or batch review) finishes. Pick one from the list to view it here.</p>
+                                <p class="text-muted" data-i18n="reports.view.empty">A plain-language report is generated automatically every time a script review (or batch review) finishes. Pick one from the list to view it here.</p>
                             </div>
                         </div>
                     </div>

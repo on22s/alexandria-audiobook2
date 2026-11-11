@@ -29,6 +29,7 @@ const ctx={document:{getElementById:el},console:{error(){}},chunkSnapshotBookTok
         sha256:'s',output_bytes:42,input_revision:'r'};}
       throw new Error('unexpected '+url);}}};
 vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(source,ctx);
 (async()=>{
 el('abs-library').value='lib_1';el('abs-folder').value='fol_1';el('abs-title').value='Test Book';
@@ -77,7 +78,9 @@ let posted=null;
 const ctx={document:{getElementById:el},console:{error(){}},chunkSnapshotBookToken:'a'.repeat(64),
   showActionError(){},API:{get:async()=>{throw new Error('unexpected GET');},
     post:async (url,body)=>{posted={url,body};return{base_url:'http://abs.test:13378',has_key:true,key_store:'OS credential store'};}}};
-vm.runInContext(source,vm.createContext(ctx));
+vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
+vm.runInContext(source,ctx);
 (async()=>{
 await ctx.saveAbsConfig();
 assert.strictEqual(posted.url,'/api/abs/config');
@@ -102,7 +105,9 @@ const ctx={document:{getElementById:el,createElement:()=>mk()},console:{error(){
     {id:'lib_1',name:'Main',folders:[{id:'fol_1',fullPath:'/books'},{id:'fol_2',fullPath:'/more'}]},
     {id:'lib_2',name:'Pods',folders:[{id:'fol_3',fullPath:'/pods'}]}]};},
     post:async()=>{throw new Error('unexpected POST');}}};
-vm.runInContext(source,vm.createContext(ctx));
+vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
+vm.runInContext(source,ctx);
 (async()=>{
 await ctx.loadAbsLibraries();
 assert.ok(seenUrl.startsWith('/api/abs/libraries?base_url=http%3A%2F%2Fabs.test%3A13378'));
@@ -149,6 +154,7 @@ const ctx={document:{getElementById:el,createElement:()=>({style:{},textContent:
     if(url==='/api/abs/cancel'){cancelBody=body;return{preview_id:body.preview_id,cancelling:true};}
     throw new Error('unexpected POST '+url);}}};
 vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(source,ctx);
 (async()=>{
 await ctx.previewAbsSend();
@@ -195,6 +201,7 @@ const ctx={document:{getElementById:el,createElement:()=>({style:{},textContent:
     if(url==='/api/abs/reconcile'){assert.strictEqual(body.delivery_id,'d1');return{status:'unknown',reconciliation:'candidate only'};}
     throw new Error('unexpected POST '+url);}}};
 vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(source,ctx);
 (async()=>{
 const first=ctx.loadAbsDeliveries();
@@ -234,6 +241,7 @@ const ctx={document:{getElementById:el,createElement:()=>({style:{},textContent:
     if(url==='/api/abs/reconcile'){return{status:'sent',reconciliation:'verified by raw bytes'};}
     throw new Error('unexpected POST '+url);}}};
 vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(source,ctx);
 (async()=>{
 await ctx.loadAbsDeliveries();
@@ -277,6 +285,7 @@ const ctx={document:{getElementById:el,createElement:()=>({style:{},textContent:
     if(url==='/api/abs/reconcile'){assert.strictEqual(body.delivery_id,'d1');return{status:'sent',verification_pending:false,reconciliation:'verified by raw bytes'};}
     throw new Error('unexpected POST '+url);}}};
 vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(source,ctx);
 (async()=>{
 await ctx.previewAbsSend();

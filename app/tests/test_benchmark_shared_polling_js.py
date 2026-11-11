@@ -18,7 +18,7 @@ const context={document:{hidden:false,getElementById:id=>({
  'btn-benchmark-start':button,'benchmark-start-help':help}[id])||null},
  API:{get:async path=>{assert.strictEqual(path,'/api/benchmark/status');calls++;return {running:false,status:'idle',logs:[]};}},
  restoreTab(){restores++;pending=context.refreshBenchmarkStatus();}};
-vm.createContext(context);
+vm.createContext(context);Object.assign(context,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
 (async()=>{await pending;assert.strictEqual(restores,1);assert.strictEqual(calls,1);
  assert.strictEqual(status.textContent,'idle');assert.strictEqual(button.disabled,true);
@@ -42,7 +42,7 @@ const context={document:{hidden:false,getElementById:id=>({'benchmark-status':st
  setTimeout:(fn,ms)=>{assert.strictEqual(ms,3000);timers.push(fn);return timers.length;},
  setInterval:(fn,ms)=>{timers.push(fn);return timers.length;},clearInterval:()=>{},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}}};
-vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(code,context);
+vm.createContext(context);Object.assign(context,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);vm.runInContext(code,context);
 async function next(){assert.strictEqual(timers.length,1,'one scheduled callback');await timers.shift()();}
 let finished=false;process.on('beforeExit',()=>{if(!finished){console.error('unfinished polling fixture');process.exitCode=1;}});
 (async()=>{

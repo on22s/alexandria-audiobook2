@@ -18,6 +18,8 @@ function el(id,tag='div',parent=body){return parent.appendChild(new Element(tag,
 const html=fs.readFileSync(process.argv[2],'utf8');
 for(const match of html.matchAll(/id="(editor-(?:quality|line)[^"]*)"/g)){el(match[1]);}
 const inspector=body.appendChild(new Element('aside',{class:'editor-line-inspector'}));context.getComputedStyle=()=>({position:'sticky'});
+context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.formatUiSafetyText=context.t;context.getIntlUiLocale=()=> 'en';
 const tbody=el('chunks-table-body','tbody'),rows=new Map(),fields=new Map(),plays=[],generates=[],scrolls=[],errors=[],toasts=[];let stops=0,expands=0;
 document.querySelector=s=>s.startsWith('#chunks-table-body ')?tbody.querySelector(s.slice(19)):body.querySelector(s);
 document.querySelectorAll=s=>s.startsWith('#chunks-table-body ')?tbody.querySelectorAll(s.slice(19)):body.querySelectorAll(s);

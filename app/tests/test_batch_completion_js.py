@@ -57,7 +57,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const fields={},recovery=[],notifications=[];let poll;
 const el=id=>fields[id]||(fields[id]={style:{},disabled:true,innerHTML:''});
 const ctx={document:{getElementById:el},API:{},createTaskLogRenderer:()=>()=>{},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'batch_review');poll=options;},_showTaskRecoveryPanel:(...args)=>recovery.push(args),notifyJobDone:task=>notifications.push(task)};
-vm.createContext(ctx);const begin=source.includes('function getBatchOutcome(')?source.indexOf('function getBatchOutcome('):source.indexOf('function pollReviewBatch()');
+vm.createContext(ctx);Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});const begin=source.includes('function getBatchOutcome(')?source.indexOf('function getBatchOutcome('):source.indexOf('function pollReviewBatch()');
 vm.runInContext(source.slice(begin,source.indexOf('// --- Persona Generation ---',begin)),ctx);
 '''
         self.run_js(r'''

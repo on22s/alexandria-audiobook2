@@ -293,7 +293,8 @@ class RealCatalogTests(unittest.TestCase):
                           'setup.strategy.three-steps.help',
                           'setup.strategy.tp-pass1-format.help',
                           'setup.strategy.tp-segmentation.help',
-                          'setup.tts.tts-external-urls.help'}, set(HTML_KEYS))
+                          'setup.tts.tts-external-urls.help',
+                          'editor.markup.intro'}, set(HTML_KEYS))
 
 
 

@@ -61,6 +61,14 @@ document.listeners={};
 document.addEventListener=(name,callback)=>{(document.listeners[name]??=[]).push(callback);};
 
 vm.createContext(context);
+// P7 keyed the Editor/Audio/Reports modules. A harness that does not load
+// app-i18n.js still needs the English-fallback t() those call sites use;
+// loading the real module overrides these helpers.
+context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
+context.translateUiMessage=context.t;
+context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);
+context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
+context.getIntlUiLocale=()=> 'en';
 function load(){vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);}
 function helpFor(control){return context.getItemHelpText(control);}
 function mutation(record){observers[0].callback([record]);}

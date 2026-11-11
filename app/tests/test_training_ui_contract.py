@@ -13,7 +13,7 @@ const source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(proces
 const elements={},toasts=[];
 function element(id){return elements[id]||(elements[id]={value:'',innerHTML:'',style:{},classList:{add(){},remove(){},replace(){}}});}
 const ctx={window:null,document:{getElementById:element},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,confirm:()=>true,console,Date:{now:()=>1700000000000}};ctx.window=ctx;
-vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);
+vm.createContext(ctx);Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en'});vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);
 const a=core.indexOf('const API = {'),b=core.indexOf('// --- Setup Tab ---',a);vm.runInContext(core.slice(a,b),ctx);
 const c=core.indexOf('function escapeHtml('),d=core.indexOf('// Parse a numeric input',c);vm.runInContext(core.slice(c,d),ctx);
 const outcomeStart=core.indexOf('function isTaskFailed('),outcomeEnd=core.indexOf('// Ask for permission only',outcomeStart);vm.runInContext(core.slice(outcomeStart,outcomeEnd),ctx);
