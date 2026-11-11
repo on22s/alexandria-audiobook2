@@ -300,8 +300,10 @@ revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(re
             self.assertEqual(' '.join(text.split()), english[key], key)
         self.run_js('for(const [key,text] of Object.entries('+json.dumps(markup.messages)+')) {'
                     'const values=('+json.dumps(markup.values)+')[key]||{};'
-                    'const expected=Object.entries(values).reduce((result,[name,value])=>result.split("{"+name+"}").join(String(value)),text);'
-                    'assert.equal(context.t(key,text,values),expected);'
+                    'const literal=Object.fromEntries([...text.matchAll(/\\{([a-zA-Z][a-zA-Z0-9_]*)\\}/g)]'
+                    '.filter(match=>match[1]!="count").map(match=>[match[1],match[0]]));'
+                    'const expected=Object.entries(Object.assign(literal,values)).reduce((result,[name,value])=>result.split("{"+name+"}").join(String(value)),text);'
+                    'assert.equal(context.t(key,text,Object.assign(literal,values)),expected);'
                     'assert(!/[{}]/.test(expected));}')
 
 

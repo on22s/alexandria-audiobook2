@@ -26,6 +26,14 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   translation; `recommend` and `source` are separate keys, and a `source` value
   stays English because it names a PR, a `RECIPES.md` section or a measurement.
   All three locales remain machine drafts.
+- P4 adds 451 keys: 439 in the Setup pane and app shell (text nodes,
+  `title`/`placeholder`/`aria-label` attributes, top nav and tab names, the
+  shared modals) and 12 for the settings-search and preview text in
+  `app-settings.js`. Four of them are `safety.*` keys. Nine paragraphs that must
+  keep `<strong>`/`<code>`/`<em>` use `data-i18n-html`; everything else is plain
+  text. The help texts that named **Save Configuration** now name the label as
+  it appears, English in parentheses on first mention. All three locales remain
+  machine drafts.
 
 ## P2 server-refusal keys
 
@@ -89,7 +97,7 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | --- | --- | --- | --- | --- |
 | Setup | 设置 | セットアップ | Configuración | Numbered tab 1. Docs keep the English tab name until P9. |
 | Script | 脚本 | 台本 | Guion | Numbered tab 2. |
-| Voices | 声音 | ボイス | Voces | Numbered tab 3. |
+| Voices | 声音 | 声 | Voces | Numbered tab 3. Japanese uses 声, never ボイス for a voice. |
 | Editor | 编辑器 | エディター | Editor | Numbered tab 4. Spanish docs keep `Editor`. |
 | Result | 结果 | 結果 | Resultado | Numbered tab 5. |
 | Designer | 设计器 | デザイナー | Diseñador | Docs currently keep `Designer`. |
@@ -135,7 +143,19 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Log | 日志 | ログ | Registro | The transcript stays English; the heading is translated. |
 | Language | 语言 | 言語 | Idioma | |
 | Clone | 克隆 | クローン | Clonación | |
-| Voice Design | 声音设计 | ボイスデザイン | Diseño de voz | |
+| Casting | 试音 | キャスティング | Selección de voces | The Casting tab: designing and choosing voices, not a saved cast (`Reparto`). |
+| Workspace | 工作区 | ワークスペース | Espacio de trabajo | The home/workflow landing tab. |
+| Preset | 预设 | プリセット | Preajuste | Prompt/voice presets. |
+| Auto-Configure | 自动配置 | 自動設定 | Configuración automática | The Setup header button. |
+| Connection | 连接 | 接続 | Conexión | Setup category 1 and its heading. |
+| Limits & retries | 限制与重试 | 制限と再試行 | Límites y reintentos | Setup category 2. |
+| Speech engine | 语音引擎 | 音声エンジン | Motor de voz | Setup category 3. |
+| Audio & timing | 音频与时间 | 音声とタイミング | Audio y tiempos | Setup category 4. |
+| Generation | 生成 | 生成 | Generación | Setup category 5. |
+| Script strategy | 脚本策略 | 台本戦略 | Estrategia de guion | Setup category 6. |
+| Prompt studio | 提示词工作室 | プロンプトスタジオ | Estudio de prompts | Setup category 7. |
+| Setup UI language | 设置界面语言 | セットアップ UI の言語 | Idioma de la interfaz de Configuración | The selector under the category list. |
+| Voice Design | 声音设计 | ボイスデザイン | Diseño de voz | Product name; the Japanese stays ボイスデザイン. |
 | Draft | 草稿 | 下書き | Borrador | Review status, not a UI label. |
 | Profile | 配置档案 | プロファイル | Perfil | An LLM connection profile, not `Configuration`. |
 | Seed | 随机种子 | シード | Semilla | |
@@ -160,6 +180,39 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Timeline | 时间线 | タイムライン | Línea de tiempo | Voice-change and state timeline. |
 | State (character) | 状态 | 状態 | Estado | Per-state voices. |
 | Version | 版本 | バージョン | Versión | Saved voice/script version. |
+
+## Voice and address rules
+
+These four rules caused drift in earlier phases and are pinned here so a later
+catalog edit can be checked against them:
+
+- **Japanese "voice" is 声**, never ボイス. The product names ボイスデザイン
+  (Voice Design) and ボイスラボ (Voice Lab) keep ボイス.
+- **Chinese "voice" is 声音**, never 配音. A saved cast is 声音阵容 (or
+  配音阵容 when the sentence needs the casting sense); neither word is used for
+  an individual synthesized voice.
+- **Spanish addresses the reader with tú everywhere**, including enclitics:
+  Déjalo, Actívalo, not Déjelo/Actívelo. "Source text" is **texto fuente**.
+- **Stock/preset voices** are 预设声音 (zh), プリセットの声 (ja) and
+  **voz predefinida** (es).
+
+The Spanish Editor tab is **Editor de líneas** in the UI: the docs keep the
+English name `Editor`, and the longer UI label keeps it searchable while
+differing from the English string the parity test would otherwise flag as an
+untranslated copy.
+
+## P4 safety keys
+
+| Key | English source |
+| --- | --- |
+| `safety.shell.new_build_available` | A newer version of Alexandria is available. Save your work before reloading; reloading this page may discard unsaved changes. |
+| `safety.voice.clone_unmeasured` | ASR, speaker identity and naturalness are UNMEASURED. Accepting creates a new voice; your current selection does not change until you choose it. |
+| `safety.voice.clone_discard` | Discard preview |
+| `safety.setup.unmanaged_fields` | {count} additional saved fields are outside the supported form and would not be retained by the existing Save. Review the saved file before saving. |
+
+All four render through `tSafety`/`renderUiSafety`, so the translated line shows
+with the authored English beneath it. The markup path reaches the same helper
+because `applyUiCatalog` sends every `safety.*` key to `renderUiSafety`.
 
 ## Do not translate
 

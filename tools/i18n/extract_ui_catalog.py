@@ -15,6 +15,8 @@ SOURCES.
   * app-settings.js and later-phase files: t('key', 'English', ...) calls whose
     first two arguments are string literals;
   * createUiMessageNode('tag', 'key', 'English') for nodes built in JS;
+  * renderUiSafety(target, 'key', 'English') for the authored safety nodes; an
+    inline safety warning is a catalog source exactly like a plain message.
   * app-help.js: every entry of its seven help maps becomes
     help.<kind>.<slug>[.what|.recommend|.source], plus the literal t('help.*')
     calls that key getItemHelpText's inline fallbacks;
@@ -58,6 +60,8 @@ HELP_MAP_KINDS = (
     ("CHANGED_FIELD_HELP", "changed"),
 )
 UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "'": "'", '"': '"', "\\": "\\"}
+MARKUP_VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+               "meta", "param", "source", "track", "wbr"}
 
 
 class HarvestError(Exception):
@@ -65,23 +69,41 @@ class HarvestError(Exception):
 
 
 class MarkupHarvester(html.parser.HTMLParser):
-    def __init__(self, source):
+    def __init__(self, source, text):
         super().__init__(convert_charrefs=True)
         self.source = source
+        self.text = text
+        self.line_starts = [0]
+        for match in re.finditer("\n", text):
+            self.line_starts.append(match.end())
         self.messages = {}
         self.active = None
         self.depth = 0
+        self.html_active = None
+        self.html_depth = 0
+
+    def _pos(self):
+        line, col = self.getpos()
+        return self.line_starts[line - 1] + col
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
         keyed = attributes.get("data-i18n")
+        html_keyed = attributes.get("data-i18n-html")
         if keyed:
-            if self.active is not None:
+            if self.active is not None or self.html_active is not None:
                 raise HarvestError(f"{self.source}: nested data-i18n is not supported")
             self.active = (keyed, [])
             self.depth = 1
+        elif html_keyed:
+            if self.active is not None or self.html_active is not None:
+                raise HarvestError(f"{self.source}: nested data-i18n-html is not supported")
+            self.html_active = (html_keyed, self.text.index(">", self._pos()) + 1)
+            self.html_depth = 1
         elif self.active is not None:
             self.depth += 1
+        elif self.html_active is not None and tag not in MARKUP_VOID:
+            self.html_depth += 1
         for entry in (attributes.get("data-i18n-attr") or "").split(","):
             attribute, _, key = entry.partition(":")
             attribute, key = attribute.strip(), key.strip()
@@ -96,6 +118,13 @@ class MarkupHarvester(html.parser.HTMLParser):
             self.active[1].append(data)
 
     def handle_endtag(self, tag):
+        if self.html_active is not None:
+            self.html_depth -= 1
+            if self.html_depth <= 0:
+                key, start = self.html_active
+                self.html_active = None
+                self._record(key, " ".join(self.text[start:self._pos()].split()),
+                             f"{self.source}:<{tag}>")
         if self.active is None:
             return
         self.depth -= 1
@@ -151,6 +180,33 @@ def _call_arguments(text, start):
     return arguments
 
 
+def _call_arguments_after_first(text, start):
+    """Read the arguments after one non-literal expression (the render target)."""
+    depth = 0
+    quote = None
+    index = start
+    while index < len(text):
+        char = text[index]
+        if quote is not None:
+            if char == '\\':
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+        elif char in "'\"`":
+            quote = char
+        elif char in '([{':
+            depth += 1
+        elif char in ')]}':
+            if depth == 0:
+                return []
+            depth -= 1
+        elif char == ',' and depth == 0:
+            return _call_arguments(text, index + 1)
+        index += 1
+    return []
+
+
 def harvest_js(path, messages):
     text = path.read_text(encoding="utf-8")
     name = path.name
@@ -159,6 +215,11 @@ def harvest_js(path, messages):
         if len(arguments) < 3 or arguments[1] is None or arguments[2] is None:
             raise HarvestError(f"{name}: createUiMessageNode needs literal key and English text")
         _record(messages, arguments[1], arguments[2], name)
+    for match in re.finditer(r"\brenderUiSafety\s*\(", text):
+        arguments = _call_arguments_after_first(text, match.end())
+        if len(arguments) < 2 or arguments[0] is None or arguments[1] is None:
+            raise HarvestError(f"{name}: renderUiSafety needs literal key and English text")
+        _record(messages, arguments[0], arguments[1], name)
     for match in re.finditer(r"\bt\s*\(", text):
         arguments = _call_arguments(text, match.end())
         if not arguments or arguments[0] is None or len(arguments) < 2 or arguments[1] is None:
@@ -459,7 +520,7 @@ def harvest(root=REPO):
     for path in HTML_SOURCES:
         if not path.exists():
             continue
-        parser = MarkupHarvester(path.relative_to(root).as_posix())
+        parser = MarkupHarvester(path.relative_to(root).as_posix(), path.read_text(encoding="utf-8"))
         parser.feed(path.read_text(encoding="utf-8"))
         for key, english in parser.messages.items():
             _record(messages, key, english, path.name)

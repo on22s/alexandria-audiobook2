@@ -174,7 +174,7 @@ const d=context.previewSetupChanges();await tick();proposal.llm_mode='remote';ga
 
     def test_missing_damaged_and_defaults_are_never_called_unchanged(self):
         self.run_js(r'''
-for(const baseline of ['missing','damaged']){context.API.post=async()=>({...response(),changes:[],baseline,warning_count:1,defaults:[{path:'tts.mode',label:'Mode',scope:'Audio generation',before:'local',after:'local',was_default:true}],unmanaged_fields:2});await context.previewSetupChanges();assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);assert.strictEqual(document.getElementById('setup-preview-default-details').hidden,false);assert(document.getElementById('setup-preview-unmanaged').textContent.includes('2 additional'));assert(!document.getElementById('setup-preview-status').textContent.includes('unchanged'));}
+for(const baseline of ['missing','damaged']){context.API.post=async()=>({...response(),changes:[],baseline,warning_count:1,defaults:[{path:'tts.mode',label:'Mode',scope:'Audio generation',before:'local',after:'local',was_default:true}],unmanaged_fields:2});await context.previewSetupChanges();assert.strictEqual(document.getElementById('setup-preview-results').hidden,false);assert.strictEqual(document.getElementById('setup-preview-default-details').hidden,false);const unmanaged=document.getElementById('setup-preview-unmanaged');assert.strictEqual(unmanaged.children[0].className,'ui-safety-primary');assert(unmanaged.children[0].textContent.includes('2 additional'));assert(!document.getElementById('setup-preview-status').textContent.includes('unchanged'));}
 ''')
 
     def test_invalid_proposal_and_bad_or_failed_reply_clear_old_comparison(self):

@@ -18,6 +18,7 @@ const uiCatalogs = new Map();
 const uiCatalogLoads = new Map();
 const uiCatalogMisses = [];
 const uiAuthoredText = new WeakMap();
+const uiAuthoredHtml = new WeakMap();
 const uiAuthoredAttrs = new WeakMap();
 let uiLocale = UI_LOCALE_DEFAULT;
 
@@ -244,11 +245,22 @@ function renderUiLocaleOptions() {
     }
 }
 
-function readUiMessageValues(node) {
-    if (!node.hasAttribute('data-i18n-count')) {
-        return {};
+function readUiMessageValues(node, english) {
+    if (node.hasAttribute('data-i18n-count')) {
+        return {count: Number(node.getAttribute('data-i18n-count'))};
     }
-    return {count: Number(node.getAttribute('data-i18n-count'))};
+    // Markup braces are literal template tokens ("{roster}", "{batch}"), not
+    // runtime values: data-i18n-count is the only runtime value a markup node
+    // carries, and a missing {count} stays a throw (a real bug). Supplying the
+    // other braces as their own text keeps them on screen while formatUiMessage
+    // still validates the placeholder sets.
+    const values = {};
+    for (const match of String(english).matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)) {
+        if (match[1] !== 'count') {
+            values[match[1]] = match[0];
+        }
+    }
+    return values;
 }
 
 // One repaint function for every keyed node. The authored English is captured
@@ -260,7 +272,20 @@ function applyUiCatalog(root = document) {
         if (!uiAuthoredText.has(node)) {
             uiAuthoredText.set(node, node.textContent);
         }
-        node.textContent = t(node.getAttribute('data-i18n'), uiAuthoredText.get(node), readUiMessageValues(node), locale);
+        const key = node.getAttribute('data-i18n');
+        if (key.startsWith('safety.')) {
+            renderUiSafety(node, key, uiAuthoredText.get(node), readUiMessageValues(node, uiAuthoredText.get(node)));
+            continue;
+        }
+        node.textContent = t(key, uiAuthoredText.get(node), readUiMessageValues(node, uiAuthoredText.get(node)), locale);
+    }
+    // The allowlisted data-i18n-html nodes keep <strong>/<code>/<em>; English is
+    // the captured innerHTML, so switching back restores the original markup.
+    for (const node of root.querySelectorAll('[data-i18n-html]')) {
+        if (!uiAuthoredHtml.has(node)) {
+            uiAuthoredHtml.set(node, node.innerHTML);
+        }
+        node.innerHTML = t(node.getAttribute('data-i18n-html'), uiAuthoredHtml.get(node), readUiMessageValues(node, uiAuthoredHtml.get(node)), locale);
     }
     for (const node of root.querySelectorAll('[data-i18n-attr]')) {
         if (!uiAuthoredAttrs.has(node)) {
@@ -273,7 +298,7 @@ function applyUiCatalog(root = document) {
             if (!authored.has(attribute)) {
                 authored.set(attribute, node.getAttribute(attribute) || '');
             }
-            node.setAttribute(attribute, t(key, authored.get(attribute), readUiMessageValues(node), locale));
+            node.setAttribute(attribute, t(key, authored.get(attribute), readUiMessageValues(node, authored.get(attribute)), locale));
         }
     }
 }

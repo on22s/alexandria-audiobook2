@@ -15,7 +15,7 @@
             'roster-consent': {what: 'Confirm that you reviewed the proposed identities and exact source locations. Edits invalidate this confirmation.'},
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
-            'setup-ui-locale': {what: 'Choose English or expanded Pseudo-English for finder text/feedback, preview controls/title, default-count summary and Saved/Would save headings. Preserves counts and configuration values, book, TTS and transcription language. Pseudo-English is a layout test, not a translation.'},
+            'setup-ui-locale': {what: "Choose the language of this Setup pane and the app shell: English, Chinese, Japanese, Spanish or the layout-test Pseudo-English. Help text, task logs, safety warnings and other tabs stay English until their phase ships. Preserves counts, config values and book/TTS/transcription language."},
             'translated-edition-pair': {what: 'Choose one installed language pair for the translation preview. Only directly installed pairs are listed; nothing is downloaded and no language setting changes.'},
             // Setup: LLM connection
             'llm-mode': {what: 'Which LLM profile is active: Local (this machine) or Remote (a server elsewhere). Each profile keeps its own address, model and limits.'},
