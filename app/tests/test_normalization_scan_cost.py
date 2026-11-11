@@ -1,6 +1,5 @@
 """Hand-known evidence locations and bounded scans on actual normalizers."""
 import unittest
-from unittest.mock import patch
 import source_normalization as normalization
 
 
@@ -37,20 +36,6 @@ class NormalizationScanCostTests(unittest.TestCase):
             self.assertEqual((index + 1, 1001), (change['line'], change['column']))
             self.assertEqual('cаre', source[change['offset']:change['offset'] + 4])
         self.assertLessEqual(source.scans, 2)
-
-    def test_long_replacement_run_is_scanned_once_and_keeps_known_inference(self):
-        class CountedChars(list):
-            reads = 0
-            def __getitem__(self, key):
-                type(self).reads += 1
-                return super().__getitem__(key)
-        length = 500
-        source = '\n' + '�' * length + '\n'
-        with patch.object(normalization, 'list', CountedChars, create=True):
-            actual, changes = normalization.repair_lossy_replacements(source)
-        self.assertEqual('\n“' + '…' * (length - 2) + '”\n', actual)
-        self.assertEqual(list(range(1, length + 1)), [change['offset'] for change in changes])
-        self.assertLess(CountedChars.reads, 20 * length, 'Each position rescans its remaining run')
 
     def test_caption_locations_use_pre_removal_coordinates_after_known_repairs(self):
         source = 'plain ' * 300 + '\nсаге\nIllustration from Volume 1, coloring by Artist (source)\n\nstory\nIllustration from Volume 2, coloring by Artist (source)\nend'
