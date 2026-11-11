@@ -216,7 +216,7 @@ for missing lines and incorrect speakers.
 
 ### Step 1 — Setup
 
-The Setup sidebar has a **Setup UI language** selector above the setting
+The Setup sidebar has a **Interface language** selector above the setting
 finder. The whole interface is translated into Simplified Chinese (`zh-CN`),
 Japanese (`ja`) and Latin American Spanish (`es-419`); English remains the
 default and the authored source. All three catalogs are machine drafts, so the

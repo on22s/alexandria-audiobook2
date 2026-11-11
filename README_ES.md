@@ -216,7 +216,7 @@ en busca de líneas faltantes y hablantes incorrectos.
 
 ### Paso 1 — Setup
 
-La barra lateral de **Configuración (Setup)** tiene un selector **Idioma de la interfaz de Configuración** encima
+La barra lateral de **Configuración (Setup)** tiene un selector **Idioma de la interfaz** encima
 del buscador de ajustes. Toda la interfaz está traducida al chino simplificado (`zh-CN`),
 al japonés (`ja`) y al español de Latinoamérica (`es-419`); el inglés sigue siendo el idioma predeterminado
 y el texto original. Todos los catálogos son borradores automáticos, así que el selector los marca como
