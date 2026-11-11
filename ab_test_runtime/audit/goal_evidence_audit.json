@@ -1050,16 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T10:39:19",
+  "written": "2026-11-11T11:03:56",
   "host": "RealMitch",
   "git": {
-   "commit": "8bcb856b80f5adeb92f3c4ab6626e36bdfbe5c3c",
-   "branch": "fix/readaloud-download-1906",
+   "commit": "bddec60ec9c7c51b15113bac0b3d23ce8b6bc802",
+   "branch": "fix/readaloud-1844-split-container",
    "dirty": true,
-   "source_state": "dirty:436ed046c2b8",
+   "source_state": "dirty:7ded5f2abfa4",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_checked_download_js.py"
+    "M  app/epub_readaloud.py",
+    "M  app/routers/editor.py",
+    "M  app/tests/test_epub_readaloud_span_groups.py",
+    "A  app/tests/test_readaloud_build_log.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

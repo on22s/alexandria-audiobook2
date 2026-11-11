@@ -1343,6 +1343,8 @@ def _validated_aligned_row(aligned_rows, index):
 
 _SPAN_WRAP_REFUSED_TAGS = {'li', 'dt', 'dd', 'tr', 'td', 'th', 'caption', 'thead', 'tbody',
                            'tfoot', 'figcaption', 'summary', 'legend', 'option'}
+# Block containers that may be split in two around a chunk's blocks (#1844).
+_SPAN_SPLIT_TAGS = {'div', 'section', 'article', 'main', 'aside', 'blockquote'}
 # Containers whose content model accepts a <div> wrapper.
 _SPAN_WRAP_PARENT_TAGS = {'body', 'div', 'section', 'article', 'main', 'header', 'footer',
                           'aside', 'blockquote', 'figure', 'nav', 'fieldset'}
@@ -1353,15 +1355,21 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
 
     CPU (chunk-timed) mode only (#1844): the group's blocks are
     highlighted together for the group's real chunk frames; nothing
-    inside the group is timed. Mutates ``root`` (wrapper insertion) and
-    reserves the wrapper id in ``assigned``. The wrapper goes inside the
-    blocks' nearest common container, around the consecutive children
-    that hold them (so a heading nested in its own div still groups with
-    the next paragraph). It refuses when that range would also hold text
-    from outside the group, or the container cannot take a div.
+    inside the group is timed. Mutates ``root`` (container splits and
+    wrapper insertion) and reserves the wrapper id in ``assigned``. The
+    wrapper goes inside the blocks' nearest common container, around the
+    consecutive children that hold them (so a heading nested in its own
+    div still groups with the next paragraph). When the chunk's blocks
+    open or close a container that also holds other blocks (a heading
+    followed by one div holding the whole chapter), that container is
+    split in two first: the copy keeps its tag and attributes except the
+    id. It refuses, naming the rule and the tag outline (never book
+    text), when a wrapper would still take text from outside the group
+    or the container cannot take a div.
     """
     parents = {child: parent for parent in root.iter() for child in parent}
     segment_elements = {id(segment["element"]) for segment in segments}
+    xml_id = "{http://www.w3.org/XML/1998/namespace}id"
 
     def _chain(el):
         chain = [el]
@@ -1371,6 +1379,42 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
 
     def _segment_ids_under(el):
         return {id(node) for node in el.iter() if id(node) in segment_elements}
+
+    def _outline(el):
+        classes = (el.get("class") or "").split()
+        return _local(el.tag) + ("." + classes[0] if classes else "")
+
+    def _split_off(container, member_ids, at_start):
+        """Move the group's blocks at one end of ``container`` into a copy."""
+        if _local(container.tag) not in _SPAN_SPLIT_TAGS or container not in parents:
+            return container
+        kids = list(container)
+        held = [i for i, kid in enumerate(kids) if id(kid) in member_ids]
+        if not held:
+            return container
+        cut = held[-1] + 1 if at_start else held[0]
+        moved = kids[:cut] if at_start else kids[cut:]
+        if not moved or len(moved) == len(kids):
+            return container
+        if any(_segment_ids_under(kid) - member_ids for kid in moved):
+            return container
+        copy = ET.Element(container.tag, {key: value for key, value in container.attrib.items()
+                                          if key not in ("id", xml_id)})
+        for kid in moved:
+            container.remove(kid)
+            copy.append(kid)
+            parents[kid] = copy
+        holder = parents[container]
+        position = list(holder).index(container)
+        if at_start:
+            copy.text, container.text = container.text, None
+            holder.insert(position, copy)
+        else:
+            copy.tail, container.tail = container.tail, None
+            holder.insert(position + 1, copy)
+        parents[copy] = holder
+        return copy
+
     out = []
     index = 0
     while index < len(mapping):
@@ -1380,31 +1424,55 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
             index += 1
             continue
         group = [row]
-        while index + len(group) < len(mapping) and                 mapping[index + len(group)].get("span_group") == row["span_group"]:
+        while index + len(group) < len(mapping) and \
+                mapping[index + len(group)].get("span_group") == row["span_group"]:
             group.append(mapping[index + len(group)])
         index += len(group)
         elements = [segments[member["segment_index"]]["element"] for member in group]
+        member_ids = {id(el) for el in elements}
         chains = [_chain(el) for el in elements]
         depth = 0
         while (all(len(chain) > depth + 1 for chain in chains)
                and len({id(chain[depth]) for chain in chains}) == 1):
             depth += 1
         parent = chains[0][depth - 1] if depth else None
-        children = list(parent) if parent is not None else []
         tops = [chain[depth] for chain in chains]
+        if parent is not None and tops[0] is not tops[-1]:
+            first_top, last_top = tops[0], tops[-1]
+            new_last = _split_off(last_top, member_ids, at_start=True)
+            new_first = _split_off(first_top, member_ids, at_start=False)
+            tops = [new_first if top is first_top else new_last if top is last_top else top
+                    for top in tops]
+        children = list(parent) if parent is not None else []
         positions = [children.index(top) if top in children else -1 for top in tops]
         wrapped = set()
         if parent is not None and -1 not in positions:
             for child in children[positions[0]:positions[-1] + 1]:
                 wrapped |= _segment_ids_under(child)
-        if (parent is None or -1 in positions
-                or positions != sorted(positions)
-                or _local(parent.tag) not in _SPAN_WRAP_PARENT_TAGS
-                or wrapped != {id(el) for el in elements}
-                or any(_local(top.tag) in _SPAN_WRAP_REFUSED_TAGS for top in tops)):
+        reason = None
+        if parent is None or -1 in positions or positions != sorted(positions):
+            reason = "the blocks share no container in reading order"
+        elif _local(parent.tag) not in _SPAN_WRAP_PARENT_TAGS:
+            reason = f"their shared container <{_local(parent.tag)}> cannot hold a wrapper"
+        elif any(_local(top.tag) in _SPAN_WRAP_REFUSED_TAGS for top in tops):
+            reason = "a block is a list item or table part"
+        elif wrapped != member_ids:
+            reason = "a wrapper would also take text from outside this chunk"
+        if reason is not None:
+            layout = []
+            for top in dict.fromkeys(tops):
+                inside = [el for el in elements if el is top or top in _chain(el)]
+                path = _outline(top) if inside == [top] else \
+                    _outline(top) + " > " + "/".join(dict.fromkeys(_outline(el) for el in inside))
+                blocks = len(_segment_ids_under(top))
+                if blocks > len(inside):
+                    path += f" (holds {blocks} text blocks, {len(inside)} in this chunk)"
+                layout.append(path)
+            where = _outline(parent) if parent is not None else "?"
             raise ValueError(
                 f"One script chunk spans multiple spine segments that cannot be grouped under one wrapper "
-                f"(first spine text {row['text'][:80]!r}); re-split the chunk or use Qwen mode.")
+                f"(first spine text {row['text'][:80]!r}): {reason}. Layout inside {where}: "
+                f"{' + '.join(layout)}. Re-split the chunk or use Qwen mode.")
         n = 1
         while f"aa2-g-{n:04d}" in assigned:
             n += 1
@@ -1415,7 +1483,9 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
         for child in children[first:last + 1]:
             parent.remove(child)
             wrapper.append(child)
+            parents[child] = wrapper
         parent.insert(first, wrapper)
+        parents[wrapper] = parent
         out.append({"fragment": wrapper_id, "text": " ".join(member["text"] for member in group),
                      "segment_index": row["segment_index"],
                      "chunk_indexes": list(row["chunk_indexes"]),

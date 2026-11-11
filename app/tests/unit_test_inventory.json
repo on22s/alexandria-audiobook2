@@ -5138,8 +5138,10 @@
   "test_epub_readaloud_span_groups": [
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_groups_heading_nested_in_its_own_container",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_highlights_group_as_one_block",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refusal_names_the_rule_and_the_tag_outline",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_list_items",
-    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_refuses_when_wrapper_would_take_other_text",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_splits_a_container_holding_the_whole_chapter",
+    "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_cpu_mode_splits_a_container_whose_last_block_opens_the_chunk",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_book_and_script_apostrophe_styles_may_differ",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_times_each_block_from_its_own_tokens",
     "tests.test_epub_readaloud_span_groups.SpanBuildTests.test_qwen_mode_underscore_word_keeps_block_windows",
@@ -10627,6 +10629,10 @@
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_word_map_bounds",
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_word_map_without_true_trim_is_ambiguous",
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_wrong_audio_rejected"
+  ],
+  "test_readaloud_build_log": [
+    "tests.test_readaloud_build_log.ReadaloudBuildLogTests.test_finished_build_log_is_written_and_panel_outcome_stays_last",
+    "tests.test_readaloud_build_log.ReadaloudBuildLogTests.test_unwritable_log_does_not_raise_or_touch_the_panel"
   ],
   "test_readaloud_extraction_followups": [
     "tests.test_readaloud_extraction_followups.ChapterSplitAcrossFilesTests.test_chunk_timed_mode_refuses_with_the_reason",
