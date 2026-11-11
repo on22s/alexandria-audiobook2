@@ -206,22 +206,22 @@
                 const container = document.getElementById('designed-voices-list');
 
                 if (!voices.length) {
-                    container.innerHTML = '<p class="text-muted mb-0">No designed voices yet. Generate and save a preview above.</p>';
+                    container.innerHTML = `<p class="text-muted mb-0">${t('designer.saved.empty', 'No designed voices yet. Generate and save a preview above.')}</p>`;
                     return;
                 }
 
                 container.innerHTML = `
                     <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-                        <thead><tr><th>Name</th><th>Description</th><th style="width:120px">Actions</th></tr></thead>
+                        <thead><tr><th>${escapeHtml(t('designer.saved.column.name', 'Name'))}</th><th>${escapeHtml(t('designer.saved.column.description', 'Description'))}</th><th style="width:120px">${escapeHtml(t('designer.saved.column.actions', 'Actions'))}</th></tr></thead>
                         <tbody>
                             ${voices.map(v => `
                                 <tr>
                                     <td style="overflow-wrap:anywhere;white-space:normal;"><strong>${escapeHtml(v.name)}</strong></td>
                                     <td class="text-muted" style="max-width:400px;overflow-wrap:anywhere;white-space:normal;">${escapeHtml(v.description)}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${getInlineStringArgument(v.filename)})' title="Play" aria-label="${escapeHtml('Play designed voice ' + v.name)}"><i class="fas fa-play me-1"></i>Play</button>
-                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${getInlineStringArgument(v.id)})' title="Edit" aria-label="${escapeHtml('Edit designed voice ' + v.name)}"><i class="fas fa-edit me-1"></i>Edit</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${getInlineStringArgument(v.id)}, this)' title="Delete" aria-label="${escapeHtml('Delete designed voice ' + v.name)}"><i class="fas fa-trash me-1"></i>Delete</button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick='playDesignedVoice(${getInlineStringArgument(v.filename)})' title="${escapeHtml(t('designer.saved.play', 'Play'))}" aria-label="${escapeHtml(t('designer.saved.play-aria', 'Play designed voice {name}', {name: v.name}))}"><i class="fas fa-play me-1"></i>${escapeHtml(t('designer.saved.play', 'Play'))}</button>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick='openDesignedVoiceForEdit(${getInlineStringArgument(v.id)})' title="${escapeHtml(t('designer.saved.edit', 'Edit'))}" aria-label="${escapeHtml(t('designer.saved.edit-aria', 'Edit designed voice {name}', {name: v.name}))}"><i class="fas fa-edit me-1"></i>${escapeHtml(t('designer.saved.edit', 'Edit'))}</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick='deleteDesignedVoice(${getInlineStringArgument(v.id)}, this)' title="${escapeHtml(t('designer.saved.delete', 'Delete'))}" aria-label="${escapeHtml(t('designer.saved.delete-aria', 'Delete designed voice {name}', {name: v.name}))}"><i class="fas fa-trash me-1"></i>${escapeHtml(t('designer.saved.delete', 'Delete'))}</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -230,7 +230,7 @@
             } catch (e) {
                 console.error('Failed to load designed voices:', e);
                 if (request !== window._designedVoicesLoadRequest) { return; }
-                const message = 'Designed voices could not be loaded. The displayed list may be out of date. Check that Alexandria is still running, then use Refresh in Saved Voices.';
+                const message = t('designer.saved.load-failed', 'Designed voices could not be loaded. The displayed list may be out of date. Check that Alexandria is still running, then use Refresh in Saved Voices.');
                 document.getElementById('designed-voices-load-status').textContent = message;
                 showToast(message, 'warning');
             }
@@ -258,9 +258,9 @@
             window._designerDiscardPending = true;
             return (async () => {
                 try {
-                    if (!await showConfirm('Discard unsaved Designer edits and open another voice? Save Voice first to keep them, or Cancel to continue editing.', {title: 'Discard Designer edits?', actionLabel: 'Discard edits', danger: true})) { return false; }
+                    if (!await showConfirm(formatUiSafetyText('safety.designer.discard-edits', 'Discard unsaved Designer edits and open another voice? Save Voice first to keep them, or Cancel to continue editing.'), {title: t('safety.designer.discard-edits.title', 'Discard Designer edits?'), actionLabel: t('safety.designer.discard-edits.action', 'Discard edits'), danger: true})) { return false; }
                     if (generation !== (window._designerGeneration || 0) || snapshot !== getDesignerFormSnapshot() || preview !== window._currentPreviewFile) {
-                        showToast('The Designer changed while confirmation was open. Review your edits before switching voices.', 'warning');
+                        showToast(formatUiSafetyText('safety.designer.changed', 'The Designer changed while confirmation was open. Review your edits before switching voices.'), 'warning');
                         return false;
                     }
                     return true;
@@ -308,7 +308,7 @@
             if (sourceField.dataset) { sourceField.dataset.version = ''; }
             document.getElementById('design-description').value = '';
             document.getElementById('design-sample-text').value = '';
-            document.getElementById('design-alias-select').innerHTML = '<option value="">-- None --</option>';
+            document.getElementById('design-alias-select').innerHTML = '<option value="">' + t('designer.alias.none', '-- None --') + '</option>';
             document.getElementById('design-preview-container').style.display = 'none';
             document.getElementById('design-status').innerHTML = '';
             window._editingDesignedVoiceId = null;
@@ -316,7 +316,7 @@
             window._designerPreviewInputs = null;
             const previewButton = document.getElementById('btn-design-preview');
             if (previewButton) {
-                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Generate Preview';
+                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>' + t('designer.preview.generate', 'Generate Preview');
             }
             markDesignerFormClean();
         }
@@ -335,8 +335,8 @@
             const statusEl = document.getElementById('design-status');
             const previewContainer = document.getElementById('design-preview-container');
 
-            if (!description) { showToast('Please enter a voice description.', 'warning'); return; }
-            if (!sampleText) { showToast('Please enter sample text.', 'warning'); return; }
+            if (!description) { showToast(t('designer.preview.needs-description', 'Please enter a voice description.'), 'warning'); return; }
+            if (!sampleText) { showToast(t('designer.preview.needs-sample', 'Please enter sample text.'), 'warning'); return; }
 
             const generation = window._designerGeneration || 0;
             const request = {};
@@ -346,8 +346,8 @@
             const btn = document.getElementById('btn-design-preview');
             btn.disabled = true;
             statusEl.innerHTML = window._editingDesignedVoiceId
-                ? '<i class="fas fa-spinner fa-spin me-1"></i>Re-designing preview (this may take a moment)...'
-                : '<i class="fas fa-spinner fa-spin me-1"></i>Generating preview (this may take a moment on first run)...';
+                ? '<i class="fas fa-spinner fa-spin me-1"></i>' + t('designer.preview.regenerating', 'Re-designing preview (this may take a moment)...')
+                : '<i class="fas fa-spinner fa-spin me-1"></i>' + t('designer.preview.generating', 'Generating preview (this may take a moment on first run)...');
             stopDesignedVoicePlayback();
             previewContainer.style.display = 'none';
 
@@ -362,15 +362,15 @@
                 audio.src = result.audio_url + '?t=' + Date.now();
                 previewContainer.style.display = 'block';
                 statusEl.innerHTML = window._editingDesignedVoiceId
-                    ? '<span class="text-success"><i class="fas fa-check me-1"></i>New preview ready — click Save Voice to keep it</span>'
-                    : '<span class="text-success"><i class="fas fa-check me-1"></i>Preview ready — click Save Voice to save this voice</span>';
+                    ? '<span class="text-success"><i class="fas fa-check me-1"></i>' + t('designer.preview.ready-edit', 'New preview ready — click Save Voice to keep it') + '</span>'
+                    : '<span class="text-success"><i class="fas fa-check me-1"></i>' + t('designer.preview.ready-new', 'Preview ready — click Save Voice to save this voice') + '</span>';
 
                 // Extract filename from URL for save
                 window._currentPreviewFile = result.audio_url.split('/').pop().split('?')[0];
                 window._designerPreviewInputs = {file: window._currentPreviewFile, ...inputs};
             } catch (e) {
                 if (!isCurrent()) { return; }
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Voice preview failed', e, 'Your description and sample text are retained. Check that the TTS service and selected model are available, then generate the preview again.'))}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('designer.preview.error', 'Voice preview failed'), e, t('designer.preview.error-recovery', 'Your description and sample text are retained. Check that the TTS service and selected model are available, then generate the preview again.')))}</span>`;
             } finally {
                 if (isCurrent()) {
                     btn.disabled = false;
@@ -387,14 +387,14 @@
         window.saveDesignedVoice = async () => {
             if (window._designSavePending) { return; }
             const name = document.getElementById('design-voice-name').value.trim();
-            if (!name) { showToast('Please enter a name for the voice.', 'warning'); return; }
-            if (!window._currentPreviewFile) { showToast('Generate a preview first.', 'warning'); return; }
+            if (!name) { showToast(t('designer.save.needs-name', 'Please enter a name for the voice.'), 'warning'); return; }
+            if (!window._currentPreviewFile) { showToast(t('designer.save.needs-preview', 'Generate a preview first.'), 'warning'); return; }
 
             const inputs = getDesignerSynthesisInputs();
             const previewInputs = window._designerPreviewInputs;
             if (!previewInputs || previewInputs.file !== window._currentPreviewFile
                 || previewInputs.description !== inputs.description || previewInputs.sample_text !== inputs.sample_text) {
-                showToast('The description or sample text changed. Generate a matching preview before saving.', 'warning');
+                showToast(t('designer.save.changed', 'The description or sample text changed. Generate a matching preview before saving.'), 'warning');
                 return;
             }
 
@@ -417,8 +417,8 @@
             const wasDisabled = button?.disabled;
             const status = document.getElementById('design-save-status');
             window._designSavePending = true;
-            if (button) { button.disabled = true; button.innerHTML = 'Saving…'; }
-            if (status) { status.textContent = 'Saving voice…'; }
+            if (button) { button.disabled = true; button.innerHTML = t('designer.save.saving', 'Saving…'); }
+            if (status) { status.textContent = t('designer.save.saving-status', 'Saving voice…'); }
             try {
                 const result = await API.post('/api/voice_design/save', {
                     name,
@@ -442,22 +442,23 @@
                     }
                     if (unchanged) {
                         resetDesignerForm();
-                        if (status) { status.textContent = `Saved "${name}" to the voice library.`; }
+                        if (status) { status.textContent = t('designer.save.saved', 'Saved "{name}" to the voice library.', {name}); }
                     } else {
                         if (window._currentPreviewFile === previewFile) {
                             window._currentPreviewFile = null;
                             window._designerPreviewInputs = null;
                             window._editingDesignedVoiceId = result.voice_id || editingId;
                         }
-                        if (status) { status.textContent = `Saved "${name}". Later form edits were kept.${window._currentPreviewFile ? '' : ' Generate a preview before saving them.'}`; }
+                        const hint = window._currentPreviewFile ? '' : ' ' + t('designer.save.preview-hint', 'Generate a preview before saving them.');
+                        if (status) { status.textContent = t('designer.save.saved-edited', 'Saved "{name}". Later form edits were kept.{hint}', {name, hint}); }
                     }
                 }
-                showToast(`Saved "${name}" to the voice library.`, 'success');
+                showToast(t('designer.save.saved', 'Saved "{name}" to the voice library.', {name}), 'success');
             } catch (e) {
                 if (isDesignerGenerationCurrent(generation) && status) {
-                    status.textContent = getActionErrorMessage('Saving designed voice failed', e, 'Your form is retained. Check the voice library for the saved voice before trying again.');
+                    status.textContent = getActionErrorMessage(t('designer.save.error', 'Saving designed voice failed'), e, t('designer.save.error-recovery', 'Your form is retained. Check the voice library for the saved voice before trying again.'));
                 }
-                showActionError("Saving designed voice failed", e, "Your form is retained. Refresh the voice library and check whether the voice was saved before saving again.");
+                showActionError(t('designer.save.error', 'Saving designed voice failed'), e, t('designer.save.error-recovery-toast', 'Your form is retained. Refresh the voice library and check whether the voice was saved before saving again.'));
             } finally {
                 window._designSavePending = false;
                 if (button) { button.disabled = wasDisabled; button.innerHTML = buttonLabel; }
@@ -477,7 +478,7 @@
                 await audio.play();
             } catch (error) {
                 if (window._designedPlaybackAudio === audio) {
-                    showToast('Could not play the saved voice. Check that Alexandria is running, then try Play again.', 'warning');
+                    showToast(t('designer.play.error', 'Could not play the saved voice. Check that Alexandria is running, then try Play again.'), 'warning');
                 }
             }
         };
@@ -490,9 +491,9 @@
             const wasDisabled = button?.disabled;
             if (button) { button.disabled = true; }
             try {
-                if (!await showConfirm(message, {title: 'Remove library voice?', actionLabel: 'Remove voice', danger: true})) { return; }
+                if (!await showConfirm(message, {title: t('designer.delete.title', 'Remove library voice?'), actionLabel: t('designer.delete.action', 'Remove voice'), danger: true})) { return; }
                 if (!isCurrent()) {
-                    showToast('The selected voice changed. Review the current selection before deleting.', 'warning');
+                    showToast(formatUiSafetyText('safety.designer.selection-changed', 'The selected voice changed. Review the current selection before deleting.'), 'warning');
                     return;
                 }
                 await remove();
@@ -507,20 +508,20 @@
             const name = voice?.name || voiceId;
             try {
                 await applyLibraryVoiceRemoval(`design:${voiceId}`, button,
-                    `Delete designed voice "${name}"? This removes its saved preview from the voice library.`,
+                    formatUiSafetyText('safety.designer.delete', 'Delete designed voice "{name}"? This removes its saved preview from the voice library.', {name}),
                     () => true, async () => {
                         const res = await fetch(`/api/voice_design/${encodeURIComponent(voiceId)}`, {method: 'DELETE'});
-                        if (!res.ok) { const err = await res.json(); showActionError('Designed voice deletion refused', {message: err.detail || 'Failed to delete.', status: res.status}, 'Refresh the voice library and check the selected voice before deleting again.'); return; }
-                        showToast('Designed voice deleted. Characters that used it need a new reference.', 'warning');
+                        if (!res.ok) { const err = await res.json(); showActionError(t('designer.delete.refused', 'Designed voice deletion refused'), {message: err.detail || t('designer.delete.failed', 'Failed to delete.'), status: res.status}, t('designer.delete.refused-recovery', 'Refresh the voice library and check the selected voice before deleting again.')); return; }
+                        showToast(t('designer.delete.deleted', 'Designed voice deleted. Characters that used it need a new reference.'), 'warning');
                         try {
                             await loadDesignedVoices();
                             await loadVoices();
                         } catch (e) {
-                            showActionError('Voice deleted; list refresh failed', e, 'Reload the voice library to refresh the list. The deletion was confirmed; do not delete again.');
+                            showActionError(t('designer.delete.refresh-failed', 'Voice deleted; list refresh failed'), e, t('designer.delete.refresh-failed-recovery', 'Reload the voice library to refresh the list. The deletion was confirmed; do not delete again.'));
                         }
                     });
             } catch (e) {
-                showActionError("Deleting designed voice failed", e, "Refresh the voice library to check whether the voice was deleted before trying again.");
+                showActionError(t('designer.delete.error', 'Deleting designed voice failed'), e, t('designer.delete.error-recovery', 'Refresh the voice library to check whether the voice was deleted before trying again.'));
             }
         };
 
@@ -531,7 +532,7 @@
             try {
                 const voice = (window._designedVoicesCache || []).find(v => v.id === voiceId);
                 if (!voice) {
-                    showToast('Designed voice not found', 'error');
+                    showToast(t('designer.edit.not-found', 'Designed voice not found'), 'error');
                     return;
                 }
 
@@ -546,7 +547,7 @@
 
                 // Populate alias dropdown
                 const aliasSelect = document.getElementById('design-alias-select');
-                aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                aliasSelect.innerHTML = '<option value="">' + t('designer.alias.none', '-- None --') + '</option>';
                 aliasSelect.dataset.aliasLookupFailed = 'false';
                 aliasSelect.onchange = () => { aliasSelect.dataset.aliasLookupFailed = 'false'; };
                 const names = (window._voicesNames || []).filter(n => n !== voice.name);
@@ -566,7 +567,7 @@
                     if (!isDesignerGenerationCurrent(generation)) { return; }
                     formUnchanged = lookupSnapshot === getDesignerFormSnapshot();
                     if (formUnchanged) {
-                        aliasSelect.innerHTML = '<option value="">-- None --</option>';
+                        aliasSelect.innerHTML = '<option value="">' + t('designer.alias.none', '-- None --') + '</option>';
                         voices.filter(v => v.name !== voice.name).forEach(v => {
                             const opt = document.createElement('option');
                             opt.value = v.name;
@@ -606,16 +607,16 @@
 
                 const previewButton = document.getElementById('btn-design-preview');
                 if (previewButton) {
-                    previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+                    previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>' + t('designer.preview.regenerate', 'Re-design Voice');
                 }
 
                 if (formUnchanged) { markDesignerFormClean(); }
                 // Focus description for quick edits
                 document.getElementById('design-description').focus();
-                showToast('Loaded designed voice for editing', 'info');
+                showToast(t('designer.edit.loaded', 'Loaded designed voice for editing'), 'info');
             } catch (e) {
                 if (!isDesignerGenerationCurrent(generation)) { return; }
-                showActionError("Opening designed voice failed", e, "Refresh the voice library and check that the saved voice is available, then open it again.");
+                showActionError(t('designer.edit.error', 'Opening designed voice failed'), e, t('designer.edit.error-recovery', 'Refresh the voice library and check that the saved voice is available, then open it again.'));
             }
         };
 
@@ -628,7 +629,7 @@
             const description = card ? getVoiceCardDescription(cardRoot || card) : '';
             const cardAlias = card?.querySelector('.alias-select');
             if (cardAlias && !ensureVoiceRosterOptions(cardAlias)) {
-                showToast('The book changed. Reopen the Designer from the current voice card.', 'warning');
+                showToast(formatUiSafetyText('safety.designer.book-changed', 'The book changed. Reopen the Designer from the current voice card.'), 'warning');
                 return;
             }
 
@@ -643,7 +644,7 @@
             document.getElementById('design-description').value = description;
             document.getElementById('design-sample-text').value = card?.querySelector('.ref-text')?.value || '';
             const aliasSelect = document.getElementById('design-alias-select');
-            aliasSelect.innerHTML = cardAlias?.innerHTML || '<option value="">-- None --</option>';
+            aliasSelect.innerHTML = cardAlias?.innerHTML || '<option value="">' + t('designer.alias.none', '-- None --') + '</option>';
             aliasSelect.value = cardAlias?.value || '';
             aliasSelect.dataset.aliasLookupFailed = 'false';
             window._editingDesignedVoiceId = null;
@@ -653,12 +654,12 @@
 
             const previewButton = document.getElementById('btn-design-preview');
             if (previewButton) {
-                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>Re-design Voice';
+                previewButton.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i>' + t('designer.preview.regenerate', 'Re-design Voice');
             }
 
             const statusEl = document.getElementById('design-status');
             if (statusEl) {
-                statusEl.innerHTML = '<span class="text-muted"><i class="fas fa-info me-1"></i>Edit the description, then generate a preview.</span>';
+                statusEl.innerHTML = '<span class="text-muted"><i class="fas fa-info me-1"></i>' + t('designer.preview.intro-edit', 'Edit the description, then generate a preview.') + '</span>';
             }
             markDesignerFormClean();
         };
@@ -696,7 +697,7 @@
                 refAudio.readOnly = !!previous && select.value === previousValue;
                 if (playBtn) { playBtn.style.display = refAudio.value ? 'inline-block' : 'none'; }
                 if (deleteBtn) { deleteBtn.style.display = previous?.type === 'clone' && refAudio.readOnly ? 'inline-block' : 'none'; }
-                showToast('The selected voice reference is no longer available. Previous reference kept; refresh Voices and choose another.', 'warning');
+                showToast(formatUiSafetyText('safety.designer.reference-gone', 'The selected voice reference is no longer available. Previous reference kept; refresh Voices and choose another.'), 'warning');
                 return;
             }
             refAudio.value = `${isClone ? 'clone_voices' : 'designed_voices'}/${voice.filename}`;

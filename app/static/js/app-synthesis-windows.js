@@ -23,17 +23,18 @@ function setSynthesisWindowControls(settings, modes) {
         (capability.voice_categories || []).map(category => [mode, category]));
     enabled.disabled = options.disabled = categories.length === 0;
     if (!categories.length) {
-        status.textContent = 'Supported voices are unavailable. Saved settings are kept; reload configuration to retry.';
+        status.textContent = t('setup.audio.synthesis-window.no-voices', 'Supported voices are unavailable. Saved settings are kept; reload configuration to retry.');
         return;
     }
     settings = settings || {};
     enabled.checked = settings.enabled === true;
-    const names = {custom: 'Stock voice', clone: 'Clone', design: 'Designed voice', lora: 'LoRA', ensemble: 'Ensemble'};
+    const names = {custom: t('setup.audio.synthesis-window.voice.custom', 'Stock voice'), clone: t('setup.audio.synthesis-window.voice.clone', 'Clone'), design: t('setup.audio.synthesis-window.voice.design', 'Designed voice'), lora: t('setup.audio.synthesis-window.voice.lora', 'LoRA'), ensemble: t('setup.audio.synthesis-window.voice.ensemble', 'Ensemble')};
     for (const [mode, category] of categories) {
         const key = `${mode}.${category}`;
         const row = document.createElement('tr');
         row.dataset.budgetKey = key;
-        const label = `${mode === 'local' ? 'Local' : mode === 'external' ? 'External' : mode === 'mlx' ? 'Apple MLX' : mode} / ${names[category] || category}`;
+        const service = mode === 'local' ? t('setup.audio.synthesis-window.service.local', 'Local') : mode === 'external' ? t('setup.audio.synthesis-window.service.external', 'External') : mode === 'mlx' ? t('setup.audio.synthesis-window.service.mlx', 'Apple MLX') : mode;
+        const label = t('setup.audio.synthesis-window.row-label', '{service} / {category}', {service, category: names[category] || category});
         const heading = document.createElement('th');
         heading.scope = 'row'; heading.textContent = label; row.appendChild(heading);
         for (const [name, maximum] of [['max_chars', 1000000], ['max_words', 100000]]) {
@@ -43,13 +44,14 @@ function setSynthesisWindowControls(settings, modes) {
             input.id = `synthesis-${key.replaceAll('.', '-')}-${name}`;
             input.className = 'form-control form-control-sm'; input.dataset.limit = name;
             input.value = settings.budgets?.[key]?.[name] ?? '';
-            input.placeholder = name === 'max_chars' ? 'Keep existing rendering' : 'No word limit';
+            input.placeholder = name === 'max_chars' ? t('setup.audio.synthesis-window.placeholder.chars', 'Keep existing rendering') : t('setup.audio.synthesis-window.placeholder.words', 'No word limit');
             input.title = name === 'max_chars'
-                ? 'Maximum spoken-text characters per call. A whole word must fit. Blank keeps existing rendering for this service and voice.'
-                : 'Optional maximum whitespace-separated words per call. Set a character limit for this category as well.';
+                ? t('setup.audio.synthesis-window.title.chars', 'Maximum spoken-text characters per call. A whole word must fit. Blank keeps existing rendering for this service and voice.')
+                : t('setup.audio.synthesis-window.title.words', 'Optional maximum whitespace-separated words per call. Set a character limit for this category as well.');
             const accessible = document.createElement('label');
             accessible.htmlFor = input.id; accessible.className = 'visually-hidden';
-            accessible.textContent = `${label}: ${name === 'max_chars' ? 'maximum characters' : 'maximum words'}`;
+            const measure = name === 'max_chars' ? t('setup.audio.synthesis-window.aria.chars', 'maximum characters') : t('setup.audio.synthesis-window.aria.words', 'maximum words');
+            accessible.textContent = t('setup.audio.synthesis-window.aria', '{label}: {measure}', {label, measure});
             cell.appendChild(accessible); cell.appendChild(input); row.appendChild(cell);
         }
         body.appendChild(row);
@@ -57,7 +59,7 @@ function setSynthesisWindowControls(settings, modes) {
     for (const [key, [id, fallback]] of Object.entries(synthesisSeamFields)) {
         document.getElementById(id).value = settings.seams?.[key] ?? fallback ?? '';
     }
-    status.textContent = 'Off by default. Save Configuration to apply these choices to subsequent renders. Existing takes stay selected.';
+    status.textContent = t('setup.audio.synthesis-window.ready', 'Off by default. Save Configuration to apply these choices to subsequent renders. Existing takes stay selected.');
     synthesisWindowControlsLoaded = true;
 }
 
@@ -65,7 +67,8 @@ function getSynthesisWindowNumber(field, fallback, minimum, maximum, integer = t
     if (field.value.trim() === '') { return fallback; }
     const number = Number(field.value);
     if (!Number.isFinite(number) || (integer && !Number.isInteger(number)) || number < minimum || number > maximum) {
-        throw getConfigValidationError(field.id, `${field.labels?.[0]?.textContent || 'Internal render limit'} must be ${integer ? 'an integer' : 'a number'} from ${minimum} to ${maximum}.`);
+        const kind = integer ? t('setup.audio.synthesis-window.kind.integer', 'an integer') : t('setup.audio.synthesis-window.kind.number', 'a number');
+        throw getConfigValidationError(field.id, t('setup.audio.synthesis-window.range', '{label} must be {kind} from {minimum} to {maximum}.', {label: field.labels?.[0]?.textContent || t('setup.audio.synthesis-window.internal-limit', 'Internal render limit'), kind, minimum, maximum}));
     }
     return number;
 }
@@ -76,11 +79,11 @@ function getSynthesisWindowConfig() {
     for (const row of document.getElementById('synthesis-window-budgets').children) {
         const chars = getSynthesisWindowNumber(row.querySelector('[data-limit="max_chars"]'), null, 1, 1000000);
         const words = getSynthesisWindowNumber(row.querySelector('[data-limit="max_words"]'), null, 1, 100000);
-        if (chars === null && words !== null) { throw getConfigValidationError(row.querySelector('[data-limit="max_chars"]').id, 'A word limit also needs a character limit for that voice category.'); }
+        if (chars === null && words !== null) { throw getConfigValidationError(row.querySelector('[data-limit="max_chars"]').id, t('setup.audio.synthesis-window.word-needs-chars', 'A word limit also needs a character limit for that voice category.')); }
         if (chars !== null) { budgets[row.dataset.budgetKey] = {max_chars: chars, max_words: words}; }
     }
     const enabled = document.getElementById('synthesis-windows-enabled').checked;
-    if (enabled && !Object.keys(budgets).length) { throw getConfigValidationError('synthesis-windows-enabled', 'Set at least one character limit before enabling internal render windows.'); }
+    if (enabled && !Object.keys(budgets).length) { throw getConfigValidationError('synthesis-windows-enabled', t('setup.audio.synthesis-window.needs-limit', 'Set at least one character limit before enabling internal render windows.')); }
     const seams = {};
     for (const [key, [id, fallback, minimum, maximum]] of Object.entries(synthesisSeamFields)) {
         seams[key] = getSynthesisWindowNumber(document.getElementById(id), fallback, minimum, maximum, key !== 'quiet_threshold_db');

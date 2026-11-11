@@ -3,11 +3,11 @@ window.createAudioChannelPicker = (container, file, purpose) => {
     container.replaceChildren();
     const label = document.createElement('label');
     label.className = 'form-label small';
-    label.textContent = 'Audio channel';
+    label.textContent = t('audio.channel.label', 'Audio channel');
     const select = document.createElement('select');
     select.className = 'form-select form-select-sm mb-2';
-    select.setAttribute('aria-label', `Audio channel for ${file.name}`);
-    for (const [value, text] of [['mix', 'Mixed (default)'], ['left', 'Left'], ['right', 'Right']]) {
+    select.setAttribute('aria-label', t('audio.channel.aria-label', 'Audio channel for {file}', {file: file.name}));
+    for (const [value, text] of [['mix', t('audio.channel.mix', 'Mixed (default)')], ['left', t('audio.channel.left', 'Left')], ['right', t('audio.channel.right', 'Right')]]) {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = text;
@@ -17,17 +17,17 @@ window.createAudioChannelPicker = (container, file, purpose) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn btn-sm btn-outline-secondary';
-    button.textContent = 'Preview first 10 seconds';
+    button.textContent = t('audio.channel.preview', 'Preview first 10 seconds');
     const audio = document.createElement('audio');
     audio.controls = true;
     audio.preload = 'none';
     audio.hidden = true;
     audio.className = 'mt-2 mw-100';
-    audio.setAttribute('aria-label', `Channel preview for ${file.name}`);
+    audio.setAttribute('aria-label', t('audio.channel.preview-aria', 'Channel preview for {file}', {file: file.name}));
     const status = document.createElement('div');
     status.className = 'form-text';
     status.setAttribute('role', 'status');
-    status.textContent = 'Choose a channel, then preview. This does not start TTS or preparation.';
+    status.textContent = t('audio.channel.intro', 'Choose a channel, then preview. This does not start TTS or preparation.');
     container.append(label, button, audio, status);
     let token = null;
     let staging = null;
@@ -60,14 +60,14 @@ window.createAudioChannelPicker = (container, file, purpose) => {
                 const response = await fetch('/api/audio_channels/stage', {method: 'POST', body});
                 await API._handleError(response);
                 const result = await response.json();
-                if (closed) { await removeToken(result.token); throw new Error('Preview closed.'); }
+                if (closed) { await removeToken(result.token); throw new Error(t('audio.channel.preview-closed', 'Preview closed.')); }
                 token = result.token;
                 return token;
             })().finally(() => { staging = null; });
         }
         return staging;
     };
-    select.onchange = () => { stop(); previewActive = false; button.disabled = disabled; status.textContent = 'Channel changed. Preview again before continuing.'; };
+    select.onchange = () => { stop(); previewActive = false; button.disabled = disabled; status.textContent = t('audio.channel.changed', 'Channel changed. Preview again before continuing.'); };
     button.onclick = async () => {
         if (disabled) { return; }
         stop();
@@ -77,7 +77,7 @@ window.createAudioChannelPicker = (container, file, purpose) => {
         controller = new AbortController();
         const signal = controller.signal;
         button.disabled = true;
-        status.textContent = 'Uploading and decoding a short preview…';
+        status.textContent = t('audio.channel.uploading', 'Uploading and decoding a short preview…');
         try {
             const value = await stage();
             if (closed || expected !== sequence) { return; }
@@ -88,9 +88,9 @@ window.createAudioChannelPicker = (container, file, purpose) => {
             objectUrl = URL.createObjectURL(blob);
             audio.src = objectUrl;
             audio.hidden = false;
-            status.textContent = `${response.headers.get('X-Audio-Channels') || '?'} source channel(s). Preview uses the selected channel; full import/start remains separate.`;
+            status.textContent = t('audio.channel.source-count', '{channels} source channel(s). Preview uses the selected channel; full import/start remains separate.', {channels: response.headers.get('X-Audio-Channels') || '?'});
         } catch (error) {
-            if (!closed && expected === sequence && error.name !== 'AbortError') { status.textContent = error.message || 'Preview failed. Select the file again if it expired.'; }
+            if (!closed && expected === sequence && error.name !== 'AbortError') { status.textContent = error.message || t('audio.channel.preview-failed', 'Preview failed. Select the file again if it expired.'); }
         } finally {
             if (!closed && expected === sequence) { previewActive = false; button.disabled = disabled; }
         }

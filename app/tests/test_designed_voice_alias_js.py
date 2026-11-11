@@ -32,6 +32,7 @@ const context = {ensureVoiceRosterOptions:()=>true,showConfirm:async()=>true,sho
 };
 context.document.getElementById('design-sample-text');
 context.document.getElementById('design-alias-select');
+Object.assign(context,{t:context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),tSafety:(key,english,values=Object())=>({primary:context.t(key,english,values),secondary:null})});
 vm.runInNewContext(descriptionHelpers + reset + open, context);
 (async()=>{for (const alias of ['TARGET B', '']) {
     const card = {querySelector(selector) {
@@ -102,6 +103,7 @@ async function run(lookupFails) {
         }, post: async () => ({})},
         showToast() {}, loadDesignedVoices() {}, saveVoicesDebounced() {autosaves++;}
     };
+    Object.assign(context,{t:context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),tSafety:(key,english,values=Object())=>({primary:context.t(key,english,values),secondary:null})});
     vm.runInNewContext(aliasHelper + identity + save + open, context);
     await context.window.openDesignedVoiceForEdit('id1');
     if (lookupFails) {
@@ -153,6 +155,7 @@ async function run(name, escaped) {
         loadDesignedVoices() {}, saveVoicesDebounced() {saves++;},
         showToast(message,kind) {toasts.push({message,kind});}
     };
+    Object.assign(context,{t:context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),formatUiSafetyText:(key,english,values=Object())=>context.t(key,english,values),tSafety:(key,english,values=Object())=>({primary:context.t(key,english,values),secondary:null})});
     vm.runInNewContext(save, context);
     await context.window.saveDesignedVoice();
     assert.deepStrictEqual(toasts, [{message:`Saved "${name}" to the voice library.`,kind:'success'}]);

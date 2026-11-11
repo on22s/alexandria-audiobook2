@@ -110,6 +110,24 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   `data-i18n-html` allowlist is full, so it now reads "Download them from the
   Training tab." All three locales remain machine drafts.
 
+- P9b adds 427 keys and closes the surfaces earlier phases left: the Export
+  quality, Mastering, M4B publication, audio-channel, Editor repair,
+  word-timing, speech-recheck, narration-markup and synthesis-window modules
+  (each keeps its phase's `audio.*` / `editor.*` / `setup.audio.*` namespace);
+  the Designer's saved-voice list, play/edit/delete buttons and preview/save
+  status in `app-scripts.js` (`designer.*` plus `safety.designer.*`); the two
+  prompt-preset save-dialog titles, the built-in-prompt name refusal and the
+  preset save statuses in `app-core.js` (`setup.prompts.*`; the dialog title now
+  says `Step 1` / `Step 3` instead of the internal `pass1` / `pass3` id); and the
+  whole user-facing OPDS flow in `app-calibre.js` (`calibre.*` chrome plus 119
+  `safety.*` keys). The Calibre unknown-outcome, capture, review and
+  discard/replace text is `safety.*` because it exists to stop a duplicate
+  capture, a duplicate import or an unreadable refusal; it renders through
+  `formatUiSafetyText` or `t()`, and the markup and confirm paths keep the
+  authored English beneath the translation. Element ids, CSS classes, HTTP
+  methods, task/capture status tokens and server field names stay English. All
+  three locales remain machine drafts.
+
 
 
 ## P2 server-refusal keys
@@ -327,6 +345,30 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Profile (stage) | 画像 | プロファイル | Perfil | Voice Lab stage 5 (acoustic + LLM description). An LLM connection **Profile** keeps 配置档案. |
 | Name (stage) | 命名 | 命名 | Nombre | Voice Lab stage 6, renaming adapters. |
 
+| Audio channel | 音频声道 | 音声チャンネル | Canal de audio | The source channel of an upload; Mixed/Left/Right. |
+| Mixed (default) | 混合（默认） | ミックス（既定） | Mezcla (predeterminado) | Audio-channel picker default. |
+| Left | 左 | 左 | Izquierda | Audio channel. |
+| Right | 右 | 右 | Derecha | Audio channel. |
+| Completed check | 已完成的检查 | 完了したチェック | Comprobación completada | An export-integrity report row. |
+| Rejected attempt | 被拒绝的尝试 | 拒否された試行 | Intento rechazado | An export-integrity report row. |
+| Advisory | 提示 | 注意 | Aviso | Warning-only silence policy. |
+| Rejection | 拒绝 | 拒否 | Rechazo | Rejecting silence policy. |
+| Word timing | 词级计时 | 単語タイミング | Tiempos por palabra | ASR word timing for one saved take. |
+| Sentence gap | 句子间隔 | 文の間隔 | Intervalo entre frases | A measurable pause inside a take. |
+| Repair (audio) | 修复 | 修復 | Reparación | The Editor's chapter/speaker repair panel. |
+| Speech recheck | 语音重新检查 | 音声の再確認 | Nueva comprobación de voz | Re-running speech checks on a saved take. |
+| Markup (pause) | 标记 | マークアップ | Marcado | The opt-in `[[pause:250ms]]` line markup. |
+| Designed voice | 设计的声音 | デザインした声 | Voz diseñada | A saved Designer voice; matches the P3/P8 help entries. |
+| Save Voice | 保存声音 | 声を保存 | Guardar voz | The Designer button. |
+| Saved voices | 已保存的声音 | 保存済みの声 | Voces guardadas | The Designer list heading. |
+| Ensemble | 合声 | アンサンブル | Conjunto | The per-voice-type label (`voice.card.type.ensemble` uses the same words). |
+| Local engine | 本地 | ローカル | En este equipo | Internal render-window service column; not a translation of the `local` mode token. |
+| External engine | 外部 | 外部 | Externo | Internal render-window service column. |
+| Job token | 任务令牌 | ジョブトークン | Token del trabajo | OPDS capture job handle. |
+| Stable ID | 稳定 ID | 安定 ID | ID estable | OPDS catalogue entry identity. |
+| Captured origin | 已捕获的来源 | 取得済みのソース | Origen capturado | The OPDS entry a capture came from. |
+| Imported | 已导入 | 取り込み済み | Importado | The job/receipt label; the server's `imported` status token stays English. |
+
 ## Voice and address rules
 
 These four rules caused drift in earlier phases and are pinned here so a later
@@ -515,6 +557,138 @@ plain translated keys: they name the control, not the consequence.
 | `safety.voice.states_not_applied` | Not applied (no safe Editor boundary): {ages}. Rebuild chunks, then apply again. |
 | `safety.voice.version_book_changed` | The book changed. Review it before adding a voice version. |
 
+## P9b safety keys
+
+P9b keys the Calibre OPDS unknown-outcome/capture/review/discard flow and the
+Designer, M4B publication, narration-markup, speech-recheck and word-timing
+warnings. Every one describes an outcome that is unknown, unconfirmed or must
+be verified, or an action that discards or replaces something, so a reader who
+cannot read the translation must still see the English. The destructive
+confirms render through `formatUiSafetyText()`; the thrown status messages do
+too, so the English stays beneath the translation in the pane that shows them.
+
+| Key | English source |
+| --- | --- |
+| `safety.calibre.cancel.discard-instead` | Backend says to discard this capture instead of cancelling. Checking status to confirm. |
+| `safety.calibre.cancel.discard-instead.status` | Backend says discard instead. Checking status. |
+| `safety.calibre.cancel.failed` | Cancel failed: {detail}. The job token is kept; use Check status or try Cancel again. |
+| `safety.calibre.cancel.import-inflight` | Import is in flight. Cancel is not available and the confirmed import will not be deleted. |
+| `safety.calibre.cancel.mismatch` | Cancel response did not match this job token. The job token is kept; use Check status. |
+| `safety.calibre.cancel.pending` | Cancel accepted (cancelling). This is not yet cancelled; status will confirm. |
+| `safety.calibre.cancel.pending.status` | Cancel accepted (cancelling). Waiting for status to confirm cancellation. |
+| `safety.calibre.cancel.remembered` | Cancel remembered for the pending capture start. The late job token will be cancelled when it arrives. |
+| `safety.calibre.cancel.remembered.status` | Cancel remembered for the pending capture start. |
+| `safety.calibre.cancel.replay-known` | Cancel requested for the known job token during a pending capture replay. A late replay token will also be cancelled when it arrives. |
+| `safety.calibre.cancel.replay-known.status` | Cancel requested during pending capture replay. |
+| `safety.calibre.cancel.unconfirmed` | Cancel returned status {status}; cancellation is not claimed until status says cancelled. |
+| `safety.calibre.cancel.unknown` | Capture outcome is UNKNOWN. Cancel is not available until Check status (or an explicit catalog settings save for a tokenless start) confirms the actual status. |
+| `safety.calibre.capture-review.retired` | Capture review arrived after the view reset and was retired. No capture started. |
+| `safety.calibre.capture-review.retired.status` | Capture review arrived after the view reset and was retired. No capture started. |
+| `safety.calibre.capture-start-unknown` | {label} outcome is UNKNOWN: the start response was lost or invalid, so the capture may have been accepted by the backend. No retry was sent and this attempt is not claimed failed or cancelled. Capture is disabled while this outcome is unknown; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save. Saving does not claim the capture never ran or was cancelled, and a backend slot may still block a new capture until its worker cleans up. |
+| `safety.calibre.capture.failed` | Capture failed: {error}. Use Check status or Cancel capture; no automatic retry will start. |
+| `safety.calibre.capture.in-progress` | A capture is already in progress. Wait for it, cancel it, or discard it before starting another. |
+| `safety.calibre.capture.invalid-preview` | Preview identity is invalid. Preview the book again before capturing. |
+| `safety.calibre.capture.invalid-token` | Capture start did not return a valid job token. |
+| `safety.calibre.capture.late-token` | Late capture job token arrived after the view reset. Cancelling this original capture and checking its status; it will not attach to the new view. |
+| `safety.calibre.capture.late-token.status` | Late capture job token arrived after the view reset. Cancelling and checking it. |
+| `safety.calibre.capture.replay-failed` | Capture replay failed: {detail}. This rejection was confirmed before a new job started. No automatic retry will start. |
+| `safety.calibre.capture.review` | Capture finished. Review the exact captured source, then import explicitly or discard it. |
+| `safety.calibre.capture.review.job` | Capture finished. Review the captured source before importing. |
+| `safety.calibre.capture.review.status` | Capture finished. Review the captured source before importing. Nothing is imported yet. |
+| `safety.calibre.capture.start-failed` | Capture start failed: {detail}. This rejection was confirmed before a job started. No automatic retry will start. |
+| `safety.calibre.capture.unknown-start` | Capture outcome is UNKNOWN. Do not start another capture; use Check status if a job token is shown, or explicitly save the catalog settings to retire this local view after a successful save. |
+| `safety.calibre.captured.cancelled` | Capture completed after cancel was requested. Its confirmation will be discarded; import is not available. |
+| `safety.calibre.captured.cancelled.status` | Capture completed after cancel was requested. Discarding its confirmation. |
+| `safety.calibre.captured.invalid` | Captured source did not pass validation. Import is blocked; discard or check status. |
+| `safety.calibre.captured.invalid.status` | Captured source did not pass validation. Import is blocked. |
+| `safety.calibre.captured.reset` | Capture finished after the view reset. Its confirmation will be discarded; import is not available for the retired view. |
+| `safety.calibre.captured.reset.status` | Capture finished after the view reset. Discarding its confirmation; import is not available. |
+| `safety.calibre.discard.failed` | Discard failed: {detail}. The confirmation is kept; use Discard, Check status, or Cancel capture. |
+| `safety.calibre.discard.import-inflight` | Import is in flight. Discard is disabled while importing. |
+| `safety.calibre.discard.unconfirmed` | Discard was not confirmed. |
+| `safety.calibre.discard.unknown` | Capture outcome is UNKNOWN. Discard is disabled until Check status confirms the actual status is safe to discard. |
+| `safety.calibre.import-unknown` | Import outcome is UNKNOWN: the import response was lost or invalid, so the authority may already have published the book. This is not claimed failed or imported, and no retry was sent. Cancel and discard are disabled until the actual status is safe; use Check status to reconcile this job token. A server status of captured means the import never reserved, imported confirms publication, and a terminal status is shown truthfully. |
+| `safety.calibre.import.after-reset` | Import finished after a view reset. The receipt stays in this pane; the new view was not changed and no book was selected. |
+| `safety.calibre.import.after-reset-refresh` | Existing uploads could not be refreshed: {detail}. |
+| `safety.calibre.import.missing-filename` | Import receipt is missing the stored filename. |
+| `safety.calibre.import.missing-identity` | Import receipt is missing provider or source identity. |
+| `safety.calibre.import.refresh-failed` | Imported as {file}, but existing uploads could not be refreshed: {detail}. Choose the file from existing uploads after refreshing. |
+| `safety.calibre.import.sha-mismatch` | Import receipt SHA-256 did not match the captured source. |
+| `safety.calibre.import.size-mismatch` | Import receipt size did not match the captured source. |
+| `safety.calibre.import.unavailable` | Import is not available until this capture is bound to the current preview and has a valid hash and confirmation. |
+| `safety.calibre.imported.no-receipt` | Job reports imported. The import receipt is shown only from the explicit import response. |
+| `safety.calibre.imported.no-receipt.status` | Job reports imported. |
+| `safety.calibre.preview.readonly` | Read-only preview. This is not permission to download, capture, import, or synthesize. |
+| `safety.calibre.reset.cancel-known` | View reset during capture start. Cancelling the known job token now; a late replay token for this start will also be cancelled when it arrives, then checked. |
+| `safety.calibre.reset.cancel-known.status` | View reset during capture start. Cancelling the known token and any late replay token. |
+| `safety.calibre.reset.cancel-late` | View reset during capture start. The late job token will be bound to this original start and cancelled, then checked. |
+| `safety.calibre.reset.cancel-late.status` | View reset during capture start. Waiting for the job token to cancel it. |
+| `safety.calibre.reset.cancel-retired` | View reset retired this capture. Cancel requested; this pane stays until the job reaches a terminal status. |
+| `safety.calibre.reset.cancel-retired.status` | View reset retired this capture. Cancel requested. |
+| `safety.calibre.reset.config-saved` | An explicit successful catalog settings save retired this local view after a capture start with UNKNOWN outcome. This does not claim the capture never ran or was cancelled; a backend slot may still block a new capture until its worker cleans up. |
+| `safety.calibre.reset.config-saved.status` | An explicit catalog settings save retired the unknown capture-start view. Browse and preview again before capturing. |
+| `safety.calibre.reset.discard-captured` | View reset retired this captured source. Discarding its confirmation; import is not available for the retired view. |
+| `safety.calibre.reset.discard-captured.status` | View reset retired the captured source. Discarding its confirmation. |
+| `safety.calibre.reset.import-inflight` | View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane. It will not select a book or restore this view. |
+| `safety.calibre.reset.import-inflight.status` | View reset while import is in flight. The confirmed import may finish; its receipt stays in this pane. |
+| `safety.calibre.reset.import-unknown` | View reset while an import with UNKNOWN outcome is in flight. The outcome is still UNKNOWN and not claimed failed or imported; use Check status to reconcile it. It will not select a book or restore this view. |
+| `safety.calibre.reset.import-unknown.status` | View reset while import outcome is UNKNOWN. Use Check status to reconcile it. |
+| `safety.calibre.reset.review-retired` | Capture review was retired by the view reset. No capture job was started, so nothing is downloading. |
+| `safety.calibre.reset.review-retired.status` | Capture review was retired by the view reset. No capture job was started. |
+| `safety.calibre.reset.unknown-kept` | View reset does not free a capture start with UNKNOWN outcome. No retry was sent and this attempt is not claimed failed or cancelled. Explicitly save the catalog settings to retire this local view after a successful save. |
+| `safety.calibre.reset.unknown-kept.status` | Capture start outcome is UNKNOWN. Explicitly save the catalog settings to retire this local view; a view reset alone does not free it. |
+| `safety.calibre.review.approval-failed` | Capture approval failed: {detail}. No capture was replayed from that approval. |
+| `safety.calibre.review.approval-mismatch` | Capture approval did not match the current preview. Capture again after previewing the book. |
+| `safety.calibre.review.approval-retired` | Capture approval arrived after the view reset and was not replayed. No capture was started from that approval. |
+| `safety.calibre.review.approval-unbound` | Capture approval was not bound to the current candidate; no capture was replayed. |
+| `safety.calibre.review.browse` | Cross-origin destination requires your exact review before browsing continues. |
+| `safety.calibre.review.capture` | Cross-origin capture destination requires your exact review before capture starts. |
+| `safety.calibre.review.capture.job` | Capture waiting for exact cross-origin review. |
+| `safety.calibre.review.capture.status` | Cross-origin capture destination requires your exact review before capture starts. |
+| `safety.calibre.review.paused` | Capture paused for an exact review of the redirect destination. Approve that destination to replay capture once. |
+| `safety.calibre.review.paused.job` | Capture paused for exact redirect review. Approval replays capture once for this preview. |
+| `safety.calibre.review.paused.status` | Capture redirect requires your exact review before capture continues. |
+| `safety.calibre.review.retired` | Capture is waiting for a redirect review that was retired by the view reset. Approve is not available; use Cancel or Check status. |
+| `safety.calibre.review.retired.status` | Capture redirect review was retired by the view reset. Use Cancel or Check status. |
+| `safety.calibre.status.check-failed` | Status check failed: {detail}. The job token is kept. Use Check status to retry or Cancel capture; capture will not retry automatically. |
+| `safety.calibre.status.mismatch` | Status response did not match this job token. The job token is kept; use Check status or Cancel capture. |
+| `safety.calibre.validation.authors-mismatch` | Captured provider authors do not match the previewed book. |
+| `safety.calibre.validation.confirmation-token` | Confirmation token is missing or invalid. |
+| `safety.calibre.validation.identity` | Captured source identity is missing. |
+| `safety.calibre.validation.provider` | Captured provider is missing. |
+| `safety.calibre.validation.revision-mismatch` | Captured config revision does not match the preview. |
+| `safety.calibre.validation.sha` | Captured SHA-256 is missing or invalid. |
+| `safety.calibre.validation.size` | Captured size is missing or invalid. |
+| `safety.calibre.validation.stable-id-mismatch` | Captured stable ID does not match the previewed book. |
+| `safety.calibre.validation.title-mismatch` | Captured provider title does not match the previewed book. |
+| `safety.calibre.validation.url-mismatch` | Captured source URL does not match the previewed book. |
+| `safety.designer.book-changed` | The book changed. Reopen the Designer from the current voice card. |
+| `safety.designer.changed` | The Designer changed while confirmation was open. Review your edits before switching voices. |
+| `safety.designer.delete` | Delete designed voice "{name}"? This removes its saved preview from the voice library. |
+| `safety.designer.discard-edits` | Discard unsaved Designer edits and open another voice? Save Voice first to keep them, or Cancel to continue editing. |
+| `safety.designer.discard-edits.action` | Discard edits |
+| `safety.designer.discard-edits.title` | Discard Designer edits? |
+| `safety.designer.reference-gone` | The selected voice reference is no longer available. Previous reference kept; refresh Voices and choose another. |
+| `safety.designer.selection-changed` | The selected voice changed. Review the current selection before deleting. |
+| `safety.editor.markup.apply-confirm-keep` | Apply this preview to the saved Editor line? Keep the existing pause. The original text is retained in the application receipt. Existing take bytes stay on disk, but this changed line needs regeneration. Script and source are not rewritten. No audio is generated now. |
+| `safety.editor.markup.apply-confirm-replace` | Apply this preview to the saved Editor line? Use the proposed pause, if any. The original text is retained in the application receipt. Existing take bytes stay on disk, but this changed line needs regeneration. Script and source are not rewritten. No audio is generated now. |
+| `safety.editor.markup.apply-unconfirmed` | Application could not be confirmed. Refresh Editor and inspect the saved receipt before retrying. |
+| `safety.editor.markup.apply-unconfirmed-detail` | Application could not be confirmed. Refresh Editor and inspect the saved receipt before retrying. Details: {detail} |
+| `safety.editor.markup.conflict` | Conflict: choose whether to keep your saved pause or replace it. Nothing has changed. |
+| `safety.editor.speech.cancel-unconfirmed` | Speech-check cancellation is unconfirmed |
+| `safety.editor.speech.snapshot-changed` | Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence. |
+| `safety.editor.word-timing.cancel-unconfirmed` | Timing cancellation is unconfirmed |
+| `safety.m4b.publication.book-changed` | Book changed. Review source suggestions again. |
+| `safety.m4b.publication.book-switched` | Selected book changed. Review source suggestions again. |
+| `safety.m4b.publication.capture-stale` | Capture is from an earlier input; review it before use. |
+| `safety.m4b.publication.choices-incomplete` | Source choices were incomplete. Review again. |
+| `safety.m4b.publication.cover-options-changed` | Cover options changed. Review source suggestions again. |
+| `safety.m4b.publication.incomplete` | Source suggestions were incomplete. Review again. |
+| `safety.m4b.publication.options-changed` | M4B options changed. Export again. |
+| `safety.m4b.publication.refresh-stale` | Could not refresh suggestions; any displayed review is from an earlier reading. {detail} |
+| `safety.m4b.publication.uploaded-cover-priority` | An uploaded cover has priority. Remove it and review again to choose a source cover. |
+| `safety.m4b.publication.values-changed` | Values changed while resolving. Review and apply choices again. |
+
 ## Do not translate
 
 These are identifiers. A translation would break a request, a lookup or a
@@ -529,6 +703,7 @@ in a catalog string:
 - File and directory names (`annotated_script.json`, `voicelines/`,
   `lora_models/`).
 - `RECIPES.md`, `GOALS.md`, `RESULTS_INDEX.md` and their section names.
+- `OPDS`, the catalogue protocol name; the OPDS *label* around it is translated.
 - Anything sent to a model as a prompt. Translating it would change model
   behaviour and invalidate the measurements in `RECIPES.md`.
 

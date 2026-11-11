@@ -41,7 +41,7 @@ window.applyWordTimingInspector = () => {
             (wordTimingState?.identity || wordTimingExpectedIdentity) !== getWordTimingTargetIdentity(target)
             || isEditorEditPending() || (wordTimingAudio && target?.row.querySelector('.chunk-audio') !== wordTimingAudio))) {
         resetWordTimingListening();
-        document.getElementById('editor-word-status').textContent = 'The selected line or take changed. Request timing again.';
+        document.getElementById('editor-word-status').textContent = t('editor.word-timing.changed', 'The selected line or take changed. Request timing again.');
     }
     button.disabled = isWordTimingTaskActive() || !target?.chunk.audio_path || isEditorEditPending();
     const gapsButton = document.getElementById('editor-sentence-gap-analyze');
@@ -52,7 +52,7 @@ function applyWordTimingTaskActivity(running) {
     wordTimingReattached = running;
     document.getElementById('editor-word-cancel').disabled = !isWordTimingTaskActive();
     if (!isWordTimingTaskActive() && !wordTimingState) {
-        document.getElementById('editor-word-status').textContent = 'Timing task finished. Request timing again to load its saved result or inspect any reported failure.';
+        document.getElementById('editor-word-status').textContent = t('editor.word-timing.finished', 'Timing task finished. Request timing again to load its saved result or inspect any reported failure.');
     }
     window.applyWordTimingInspector();
 }
@@ -62,10 +62,10 @@ function analyzeEditorSentenceGaps() { return createEditorWordTiming(true); }
 async function createEditorWordTiming(analyzeSentenceGaps = false) {
     if (isWordTimingTaskActive()) { return; }
     try { await ensureEditorRenderSnapshot(); }
-    catch (error) { showActionError('Editor is not ready for word timing', error, 'Save pending edits and refresh the selected line.'); return; }
+    catch (error) { showActionError(t('editor.word-timing.not-ready', 'Editor is not ready for word timing'), error, t('editor.word-timing.not-ready-recovery', 'Save pending edits and refresh the selected line.')); return; }
     if (isWordTimingTaskActive()) { return; }
     const target = getEditorReviewTarget();
-    if (!target?.chunk.audio_path || isEditorEditPending()) { showToast('Choose a saved line with generated audio.', 'warning'); return; }
+    if (!target?.chunk.audio_path || isEditorEditPending()) { showToast(t('editor.word-timing.choose-line', 'Choose a saved line with generated audio.'), 'warning'); return; }
     resetWordTimingListening();
     const sequence = wordTimingSequence;
     const identity = getWordTimingTargetIdentity(target);
@@ -74,8 +74,8 @@ async function createEditorWordTiming(analyzeSentenceGaps = false) {
     wordTimingBusy = true;
     document.getElementById('editor-word-cancel').disabled = false;
     document.getElementById('editor-word-status').textContent = analyzeSentenceGaps
-        ? 'Analyzing sentence gaps in this saved take. Capturing English word timings if needed…'
-        : 'Timing one English line using the installed CPU ASR model…';
+        ? t('editor.word-timing.analyzing-gaps', 'Analyzing sentence gaps in this saved take. Capturing English word timings if needed…')
+        : t('editor.word-timing.timing', 'Timing one English line using the installed CPU ASR model…');
     window.applyWordTimingInspector();
     try {
         const result = await API.post(`/api/chunks/${target.chunk.id}/word_timing`, {
@@ -88,7 +88,7 @@ async function createEditorWordTiming(analyzeSentenceGaps = false) {
         if (sequence !== wordTimingSequence || identity !== getWordTimingTargetIdentity(current) || isEditorEditPending()) { return; }
         if (result.binding.book_token !== expectedBook || result.binding.uid !== target.chunk.uid
                 || (result.binding.row.audio_revision || null) !== (target.chunk.audio_revision || null)) {
-            throw new Error('Timing result belongs to another saved take.');
+            throw new Error(t('editor.word-timing.wrong-take', 'Timing result belongs to another saved take.'));
         }
         if (analyzeSentenceGaps) { validateSentenceGapReport(result); }
         wordTimingState = {identity, result};
@@ -96,8 +96,8 @@ async function createEditorWordTiming(analyzeSentenceGaps = false) {
         if (analyzeSentenceGaps) { renderSentenceGapReport(result); }
     } catch (error) {
         if (sequence === wordTimingSequence) {
-            document.getElementById('editor-word-status').textContent = 'Timing is unavailable. Existing line audio is unchanged.';
-            showActionError(analyzeSentenceGaps ? 'Could not analyze sentence gaps' : 'Could not time this line', error, 'The initial provider supports English audio and needs an already installed whisper.cpp Small.en model. No download starts automatically.');
+            document.getElementById('editor-word-status').textContent = t('editor.word-timing.unavailable', 'Timing is unavailable. Existing line audio is unchanged.');
+            showActionError(analyzeSentenceGaps ? t('editor.word-timing.gaps-error', 'Could not analyze sentence gaps') : t('editor.word-timing.timing-error', 'Could not time this line'), error, t('editor.word-timing.error-recovery', 'The initial provider supports English audio and needs an already installed whisper.cpp Small.en model. No download starts automatically.'));
         }
     } finally {
         wordTimingBusy = false;
@@ -127,7 +127,7 @@ function renderWordTimingListening(target, result) {
         button.type = 'button';
         button.className = 'btn btn-link btn-sm p-0 word-timing-span';
         button.textContent = characters.slice(span.from, span.to).join('');
-        button.setAttribute('aria-label', `Seek to ${button.textContent}, ${span.start.toFixed(1)} seconds`);
+        button.setAttribute('aria-label', t('editor.word-timing.seek', 'Seek to {word}, {seconds} seconds', {word: button.textContent, seconds: span.start.toFixed(1)}));
         button.onclick = () => {
             if (!wordTimingState || wordTimingState.identity !== getWordTimingTargetIdentity(getEditorReviewTarget()) || isEditorEditPending()) {
                 resetWordTimingListening();
@@ -155,15 +155,16 @@ function renderWordTimingListening(target, result) {
         }
     };
     for (const event of ['timeupdate', 'seeked', 'pause', 'ended']) { audio.addEventListener(event, wordTimingListener); }
-    wordTimingErrorListener = () => { resetWordTimingListening(); document.getElementById('editor-word-status').textContent = 'The timed audio could not be verified or loaded. Refresh Editor and request timing again.'; };
+    wordTimingErrorListener = () => { resetWordTimingListening(); document.getElementById('editor-word-status').textContent = t('editor.word-timing.audio-error', 'The timed audio could not be verified or loaded. Refresh Editor and request timing again.'); };
     audio.addEventListener('error', wordTimingErrorListener);
-    document.getElementById('editor-word-status').textContent = `${result.spans.length} timed span(s) · ${result.cached ? 'saved timing' : 'new timing'}. ${result.notice}`;
+    const source = result.cached ? t('editor.word-timing.saved-timing', 'saved timing') : t('editor.word-timing.new-timing', 'new timing');
+    document.getElementById('editor-word-status').textContent = t('editor.word-timing.spans', '{count} timed span(s) · {source}. {notice}', {count: result.spans.length, source, notice: result.notice});
     wordTimingListener();
 }
 
 async function cancelEditorWordTiming() {
     try { await API.post('/api/word_timing/cancel', {}); }
-    catch (error) { showActionError('Timing cancellation is unconfirmed', error, 'Check word-timing task status before retrying.'); }
+    catch (error) { showActionError(t('safety.editor.word-timing.cancel-unconfirmed', 'Timing cancellation is unconfirmed'), error, t('editor.word-timing.cancel-recovery', 'Check word-timing task status before retrying.')); }
 }
 
 // Only display reports from the verified selected take. Text is always rendered
@@ -174,7 +175,7 @@ function validateSentenceGapReport(result) {
             || report.authorizes_edit !== false || !Array.isArray(report.proposals)
             || !/^[0-9a-f]{64}$/.test(result.binding.audio_sha256)
             || report.provenance?.file_sha256 !== result.binding.audio_sha256) {
-        throw new Error('Sentence-gap report does not belong to this verified take.');
+        throw new Error(t('editor.word-timing.gaps-wrong-take', 'Sentence-gap report does not belong to this verified take.'));
     }
 }
 
@@ -186,26 +187,26 @@ function renderSentenceGapReport(result) {
         const node = document.createElement(tag); node.textContent = text; parent.appendChild(node); return node;
     };
     const suggested = report.proposals.filter(p => p.status === 'proposal').length;
-    add(area, 'h4', 'Sentence-gap suggestions').className = 'h6';
-    add(area, 'p', suggested + ' suggestion(s). Review by listening; suggestions do not edit audio or certify speech accuracy. Pauses between Editor rows are separate.');
+    add(area, 'h4', t('editor.word-timing.gaps-heading', 'Sentence-gap suggestions')).className = 'h6';
+    add(area, 'p', t('editor.word-timing.gaps-summary', '{count} suggestion(s). Review by listening; suggestions do not edit audio or certify speech accuracy. Pauses between Editor rows are separate.', {count: suggested}));
     const characters = Array.from(result.display_text);
     const reasons = {
-        explicit_user_pause: 'An explicit pause already exists here.',
-        uncertain_sentence_boundary: 'The sentence break is uncertain (for example, an abbreviation or ellipsis).',
-        ambiguous_grouped_word_timing_at_boundary: 'A timed word group crosses this sentence break.',
-        missing_asr_timing_for_neighbouring_words: 'The words beside this break could not be timed reliably.',
-        neighbouring_span_not_confined_to_sentence: 'A timed word group extends beyond this sentence.',
-        overlapping_asr_boundaries: 'Word timings overlap at this break.',
-        no_gap_in_asr_search_window: 'The word timings leave no measurable gap.',
-        unmatched_observed_speech_in_search_window: 'Unmatched speech was detected inside the gap.',
-        take_below_quiet_threshold: 'The whole take is too quiet for a reliable pause suggestion.',
-        no_quiet_interval_in_search_window: 'No quiet interval was found between these words.',
-        quiet_interval_below_minimum: 'The quiet interval is shorter than the minimum.',
-        quiet_interval_too_close_to_word_edge: 'The quiet interval is too close to a spoken word.',
-        within_word_dip: 'The quiet dip may be inside a spoken word.',
-        quiet_interval_rounds_to_zero_ms: 'The usable pause is too short to express in milliseconds.',
+        explicit_user_pause: t('editor.word-timing.reason.explicit-user-pause', 'An explicit pause already exists here.'),
+        uncertain_sentence_boundary: t('editor.word-timing.reason.uncertain-sentence-boundary', 'The sentence break is uncertain (for example, an abbreviation or ellipsis).'),
+        ambiguous_grouped_word_timing_at_boundary: t('editor.word-timing.reason.ambiguous-grouped-word-timing-at-boundary', 'A timed word group crosses this sentence break.'),
+        missing_asr_timing_for_neighbouring_words: t('editor.word-timing.reason.missing-asr-timing-for-neighbouring-words', 'The words beside this break could not be timed reliably.'),
+        neighbouring_span_not_confined_to_sentence: t('editor.word-timing.reason.neighbouring-span-not-confined-to-sentence', 'A timed word group extends beyond this sentence.'),
+        overlapping_asr_boundaries: t('editor.word-timing.reason.overlapping-asr-boundaries', 'Word timings overlap at this break.'),
+        no_gap_in_asr_search_window: t('editor.word-timing.reason.no-gap-in-asr-search-window', 'The word timings leave no measurable gap.'),
+        unmatched_observed_speech_in_search_window: t('editor.word-timing.reason.unmatched-observed-speech-in-search-window', 'Unmatched speech was detected inside the gap.'),
+        take_below_quiet_threshold: t('editor.word-timing.reason.take-below-quiet-threshold', 'The whole take is too quiet for a reliable pause suggestion.'),
+        no_quiet_interval_in_search_window: t('editor.word-timing.reason.no-quiet-interval-in-search-window', 'No quiet interval was found between these words.'),
+        quiet_interval_below_minimum: t('editor.word-timing.reason.quiet-interval-below-minimum', 'The quiet interval is shorter than the minimum.'),
+        quiet_interval_too_close_to_word_edge: t('editor.word-timing.reason.quiet-interval-too-close-to-word-edge', 'The quiet interval is too close to a spoken word.'),
+        within_word_dip: t('editor.word-timing.reason.within-word-dip', 'The quiet dip may be inside a spoken word.'),
+        quiet_interval_rounds_to_zero_ms: t('editor.word-timing.reason.quiet-interval-rounds-to-zero-ms', 'The usable pause is too short to express in milliseconds.'),
     };
-    if (!report.proposals.length) { add(area, 'p', 'No internal sentence breaks were found. Try a saved line containing two or more complete sentences.'); }
+    if (!report.proposals.length) { add(area, 'p', t('editor.word-timing.gaps-none', 'No internal sentence breaks were found. Try a saved line containing two or more complete sentences.')); }
     const list = document.createElement('ol'); area.appendChild(list);
     for (const proposal of report.proposals) {
         const item = document.createElement('li'); item.className = 'mb-3'; list.appendChild(item);
@@ -213,13 +214,12 @@ function renderSentenceGapReport(result) {
         const excerpt = side => characters.slice(side.char_start, side.char_end).join('').trim().slice(0, 180);
         add(item, 'p', excerpt(coordinates.left_sentence) + ' / ' + excerpt(coordinates.right_sentence));
         if (proposal.status === 'proposal') {
-            add(item, 'p', 'Suggested extra pause: ' + proposal.proposed_extension_ms + ' ms.');
-        } else { add(item, 'p', 'No suggestion: ' + (reasons[proposal.skip_reason] || 'This boundary needs manual listening review.')); }
+            add(item, 'p', t('editor.word-timing.gaps-suggested', 'Suggested extra pause: {ms} ms.', {ms: proposal.proposed_extension_ms}));
+        } else { add(item, 'p', t('editor.word-timing.gaps-no-suggestion', 'No suggestion: {reason}', {reason: reasons[proposal.skip_reason] || t('editor.word-timing.gaps-manual-review', 'This boundary needs manual listening review.')})); }
         const raw = proposal.measured_quiet_interval, safe = proposal.safe_quiet_interval;
-        if (raw) { add(item, 'p', 'Measured quiet: ' + raw.start.toFixed(2) + '–' + raw.end.toFixed(2) + ' seconds.'); }
-        if (safe) { add(item, 'p', 'Usable quiet after word-edge margins: ' + safe.start.toFixed(2) + '–' + safe.end.toFixed(2) + ' seconds.'); }
+        if (raw) { add(item, 'p', t('editor.word-timing.gaps-measured', 'Measured quiet: {start}–{end} seconds.', {start: raw.start.toFixed(2), end: raw.end.toFixed(2)})); }
+        if (safe) { add(item, 'p', t('editor.word-timing.gaps-usable', 'Usable quiet after word-edge margins: {start}–{end} seconds.', {start: safe.start.toFixed(2), end: safe.end.toFixed(2)})); }
     }
     area.hidden = false;
-    document.getElementById('editor-word-status').textContent = suggested + ' sentence-gap suggestion(s), '
-        + (report.proposals.length - suggested) + ' skipped boundary/boundaries. Audio unchanged. Use the timed words to listen and review.';
+    document.getElementById('editor-word-status').textContent = t('editor.word-timing.gaps-footer', '{suggested} sentence-gap suggestion(s), {skipped} skipped boundary/boundaries. Audio unchanged. Use the timed words to listen and review.', {suggested, skipped: report.proposals.length - suggested});
 }

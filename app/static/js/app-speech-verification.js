@@ -70,25 +70,25 @@ window.applySpeechVerificationInspector = () => {
 function applySpeechVerificationTaskActivity(running) {
     speechVerificationReattached=running;
     document.getElementById('editor-line-speech-status').textContent=running
-        ? 'A speech recheck is running. Cancellation waits for owned provider cleanup.'
-        : 'Speech recheck task finished. Refresh review to see current evidence or inspect task logs.';
+        ? t('editor.speech.running', 'A speech recheck is running. Cancellation waits for owned provider cleanup.')
+        : t('editor.speech.finished', 'Speech recheck task finished. Refresh review to see current evidence or inspect task logs.');
     window.applySpeechVerificationInspector();
 }
 
 async function recheckEditorSpeech() {
     if (isSpeechVerificationTaskActive()) { return; }
     try { await ensureEditorRenderSnapshot(); }
-    catch (error) { showActionError('Editor is not ready for a speech recheck',error,'Save pending edits and refresh the selected line.');return; }
+    catch (error) { showActionError(t('editor.speech.not-ready', 'Editor is not ready for a speech recheck'),error,t('editor.speech.not-ready-recovery', 'Save pending edits and refresh the selected line.'));return; }
     if (isSpeechVerificationTaskActive()) { return; }
     const target=getEditorReviewTarget();
     window.applySpeechVerificationInspector();
     if (!target || document.getElementById('editor-line-speech-recheck').disabled) {
-        showToast('Choose a saved take with recorded synthesis input. Takes without recorded input must be regenerated with speech checks enabled.','warning');return;
+        showToast(t('editor.speech.choose-take', 'Choose a saved take with recorded synthesis input. Takes without recorded input must be regenerated with speech checks enabled.'),'warning');return;
     }
     const identity=getSpeechVerificationTargetIdentity(target);
     const book=chunkSnapshotBookToken;
     speechVerificationBusy=true;window.applySpeechVerificationInspector();
-    document.getElementById('editor-line-speech-status').textContent='Rechecking this take with cached CPU models. Audio stays selected; checks can take time.';
+    document.getElementById('editor-line-speech-status').textContent=t('editor.speech.rechecking', 'Rechecking this take with cached CPU models. Audio stays selected; checks can take time.');
     try {
         const result=await API.post(`/api/chunks/${target.chunk.id}/speech_verification`,{
             expected_book_token:book,expected_uid:target.chunk.uid,expected_audio_revision:target.chunk.audio_revision,
@@ -96,7 +96,7 @@ async function recheckEditorSpeech() {
         await ensureEditorRenderSnapshot();
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget()) || isEditorEditPending()) { return; }
         if (result.book_token !== book || result.uid !== target.chunk.uid
-                || result.receipt?.audio_revision !== target.chunk.audio_revision) { throw new Error('Speech result belongs to another take.'); }
+                || result.receipt?.audio_revision !== target.chunk.audio_revision) { throw new Error(t('editor.speech.wrong-take', 'Speech result belongs to another take.')); }
         // The render barrier saves edits and returns rows; it does not install
         // a poll snapshot. Refresh the actual cached rows/revision before
         // requesting quality facts for the newly recorded evidence.
@@ -105,22 +105,22 @@ async function recheckEditorSpeech() {
         await refreshEditorReview();
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget()) || isEditorEditPending()) { return; }
         document.getElementById('editor-line-speech-status').textContent=editorReviewFresh
-            ? 'Speech recheck recorded. Review the evidence and listen before accepting the take.'
-            : 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.';
+            ? t('editor.speech.recorded', 'Speech recheck recorded. Review the evidence and listen before accepting the take.')
+            : formatUiSafetyText('safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.');
     } catch (error) {
         if (identity === getSpeechVerificationTargetIdentity(getEditorReviewTarget())) {
-            document.getElementById('editor-line-speech-status').textContent='Speech recheck unavailable or cancelled. Saved audio is retained.';
-            showActionError('Could not recheck speech',error,'Refresh review, inspect the recorded input, and check cached CPU model availability.');
+            document.getElementById('editor-line-speech-status').textContent=t('editor.speech.unavailable', 'Speech recheck unavailable or cancelled. Saved audio is retained.');
+            showActionError(t('editor.speech.error.title', 'Could not recheck speech'),error,t('editor.speech.error.recovery', 'Refresh review, inspect the recorded input, and check cached CPU model availability.'));
         }
     } finally {
         speechVerificationBusy=false;window.applySpeechVerificationInspector();
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget())) {
-            document.getElementById('editor-line-speech-status').textContent='Recheck finished for a different selection. Refresh review for current evidence.';
+            document.getElementById('editor-line-speech-status').textContent=t('editor.speech.other-selection', 'Recheck finished for a different selection. Refresh review for current evidence.');
         }
     }
 }
 
 async function cancelEditorSpeechVerification() {
     try { await API.post('/api/speech_verification/cancel',{}); }
-    catch (error) { showActionError('Speech-check cancellation is unconfirmed',error,'Inspect speech verification task status before retrying.'); }
+    catch (error) { showActionError(t('safety.editor.speech.cancel-unconfirmed', 'Speech-check cancellation is unconfirmed'),error,t('editor.speech.cancel-recovery', 'Inspect speech verification task status before retrying.')); }
 }

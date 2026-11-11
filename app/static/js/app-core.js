@@ -1491,18 +1491,20 @@
         }
 
         function getPassPromptPresetNameError(name) {
-            return name.trim() === 'default' ? 'The name "default" is reserved for the checked-in prompt.' : '';
+            return name.trim() === 'default' ? t('setup.prompts.reserved-name', 'The name "default" is reserved for the checked-in prompt.') : '';
         }
 
         window.savePassPromptPreset = async (pass) => {
             const fields = passPromptFields(pass);
             const snapshot = getPromptPresetEditorSnapshot(pass);
-            const values = await showPresetEditor({title: `Save ${pass} prompt preset`,
+            const values = await showPresetEditor({title: pass === 'pass1'
+                    ? t('setup.prompts.save-pass1-title', 'Save Step 1 prompt preset')
+                    : t('setup.prompts.save-pass3-title', 'Save Step 3 prompt preset'),
                 name: activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass],
                 validateName: getPassPromptPresetNameError});
             if (!values) { return; }
             if (getPromptPresetEditorSnapshot(pass) !== snapshot) {
-                showToast('The prompt or preset selection changed. Review it before saving a preset.', 'warning');
+                showToast(t('setup.prompts.changed', 'The prompt or preset selection changed. Review it before saving a preset.'), 'warning');
                 return;
             }
             const {name, description} = values;
@@ -1518,8 +1520,10 @@
             try {
                 await persistPromptPresets({prompts: {[`${pass}_preset`]: preset.name, [`${pass}_prompt_presets`]: presets}},
                     () => applyPromptPresetSave(pass, presets, preset.name, submitted));
-                showToast(`${pass === 'pass1' ? 'Step 1' : 'Step 3'} prompt preset saved.`, 'success');
-            } catch (e) { showActionError('Could not save prompt preset', e, 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.'); }
+                showToast(pass === 'pass1'
+                    ? t('setup.prompts.saved-pass1', 'Step 1 prompt preset saved.')
+                    : t('setup.prompts.saved-pass3', 'Step 3 prompt preset saved.'), 'success');
+            } catch (e) { showActionError(t('setup.prompts.save-error', 'Could not save prompt preset'), e, t('setup.prompts.save-error-recovery', 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.')); }
         };
 
         const pendingPromptPresetDeletions = new Set();
@@ -1764,14 +1768,14 @@
         window.savePromptPreset = async () => {
             const current = selectedPromptPreset();
             const snapshot = getPromptPresetEditorSnapshot('attribution');
-            const values = await showPresetEditor({title: 'Save attribution prompt preset',
+            const values = await showPresetEditor({title: t('setup.prompts.save-attribution-title', 'Save attribution prompt preset'),
                 name: current && !current.builtin ? current.name : '',
                 description: current?.description || '',
                 validateName: name => promptPresets.some(p => p.builtin && p.name === name)
-                    ? 'That name belongs to a built-in prompt; choose another.' : ''});
+                    ? t('setup.prompts.builtin-name-taken', 'That name belongs to a built-in prompt; choose another.') : ''});
             if (!values) { return; }
             if (getPromptPresetEditorSnapshot('attribution') !== snapshot) {
-                showToast('The prompt or preset selection changed. Review it before saving a preset.', 'warning');
+                showToast(t('setup.prompts.changed', 'The prompt or preset selection changed. Review it before saving a preset.'), 'warning');
                 return;
             }
             const {name, description} = values;
@@ -1785,8 +1789,8 @@
             try {
                 await persistPromptPresets({prompts: {attribution_preset: preset.name}, prompt_presets: presets.filter(item => !item.builtin)},
                     () => applyPromptPresetSave('attribution', presets, preset.name, submitted));
-                showToast('Prompt preset saved and selected.', 'success');
-            } catch (e) { showActionError('Could not save prompt preset', e, 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.'); }
+                showToast(t('setup.prompts.saved-attribution', 'Prompt preset saved and selected.'), 'success');
+            } catch (e) { showActionError(t('setup.prompts.save-error', 'Could not save prompt preset'), e, t('setup.prompts.save-error-recovery', 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.')); }
         };
 
         window.deletePromptPreset = async () => {
