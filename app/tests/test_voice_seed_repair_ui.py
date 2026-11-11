@@ -127,7 +127,7 @@ voiceSaveQueue:{isDirty:()=>dirty,getRevision:()=>0},escapeHtml:s=>String(s).rep
 flushVoiceSaves:async()=>{events.push('flush');if(failFlush){throw Error('pending edit failed');}},
 loadVoices:async full=>{assert.strictEqual(full,false);events.push('load');},showToast:message=>toasts.push(message),
 API:{post:async(url,data)=>{events.push('post');posts.push({url,data});return{changes:native.seed_changes,backup:'voice_config.json.bak-fixture'};}}};
-ctx.window=ctx;vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(start,end),ctx);
+ctx.window=ctx;(vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]])),ctx);vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);vm.runInContext(source.slice(start,end),ctx);
 const markup=ctx.getVoiceSeedRepairMarkup(native);
 assert(markup.includes('&lt;ALICE&gt;&amp;'));assert(!markup.includes('<ALICE>'));
 for(const change of native.seed_changes){assert(markup.includes(change.seed));}
