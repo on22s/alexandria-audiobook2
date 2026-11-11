@@ -19,6 +19,7 @@ from voice_config_store import apply_voice_config_update, get_voice_config_revis
 from project import ProjectManager
 
 from core import (
+    AppError,
     CHUNKS_PATH,
     DESIGNED_VOICES_DIR,
     CAST_MAJOR_LINE_THRESHOLD,
@@ -314,7 +315,7 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None):
         if book_token is not None:
             snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH))
             if get_book_snapshot_token(snapshot) != book_token:
-                raise HTTPException(status_code=409, detail="Active book changed; reload voices before saving")
+                raise AppError(409, 'Active book changed; reload voices before saving', key='safety.voice.book_changed_before_save')
         if speaker == "NARRATOR":
             speaker = get_script_narrator_speaker()
         _require_script_speaker(speaker)
@@ -367,7 +368,7 @@ def require_current_state_target(speaker, version_id, book_token, *, script=None
             snapshot_token = get_book_snapshot_token(
                 get_book_snapshot(data_dir, allow_missing_script=True, include_voices=False))
     if snapshot_token != book_token:
-        raise HTTPException(status_code=409, detail="Active book changed; reload voices")
+        raise AppError(409, 'Active book changed; reload voices', key='safety.voice.book_changed')
     return get_current_persona_state(speaker, version_id, script=script)
 
 
@@ -425,7 +426,7 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
     removed = set(old_versions) - set(versions)
     applied = {point.get("version_id") for point in points} | {after.get("active_version")}
     if removed & applied:
-        raise HTTPException(status_code=409, detail="Voice version is applied; select another base version or clear its timeline points first")
+        raise AppError(409, 'Voice version is applied; select another base version or clear its timeline points first', key='error.voice.version_applied')
     changed_states = [(version_id, version) for version_id, version in versions.items()
                       if isinstance(version, dict) and version != old_versions.get(version_id)
                       and ("persona_state" in version or "persona_state" in (old_versions.get(version_id) or {}))]
@@ -686,8 +687,7 @@ def _enter_read_admission(stack, *factories):
         try:
             stack.enter_context(factory())
         except TimeoutError as exc:
-            raise HTTPException(status_code=503, detail=(
-                "Book or voices are busy; please try again.")) from exc
+            raise AppError(503, 'Book or voices are busy; please try again.', key='error.voice.busy') from exc
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=(
                 "Active book could not be verified while reading voices. "
@@ -1408,9 +1408,7 @@ def _voice_adapter_identity_same(old_type, old_adapter_id, new_type, new_adapter
         resolved = get_resolved_adapter_id_mapping(
             LORA_MODELS_DIR, [str(old_adapter_id), str(new_adapter_id)])
     except (ValueError, OSError) as exc:
-        raise HTTPException(status_code=409, detail=(
-            "Adapter identity could not be verified; restore the adapter "
-            "manifest or reload voices before saving.")) from exc
+        raise AppError(409, 'Adapter identity could not be verified; restore the adapter manifest or reload voices before saving.', key='safety.voice.adapter_identity_unverified') from exc
     return (os.path.normcase(str(resolved[str(old_adapter_id)]))
             == os.path.normcase(str(resolved[str(new_adapter_id)])))
 
@@ -1508,7 +1506,7 @@ async def save_voice_config(config_data: Dict[str, VoiceConfigItem],
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Voice config is busy (locked by another operation); please try again.")
+        raise AppError(503, 'Voice config is busy (locked by another operation); please try again.', key='error.voice.config_busy')
     return {"status": "saved"}
 
 
@@ -1585,7 +1583,7 @@ async def get_guarded_voice_snapshot():
     try:
         return await asyncio.to_thread(_ensure_voice_snapshot)
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+        raise AppError(503, 'Book or voices are busy; please try again.', key='error.voice.busy')
 
 
 @router.post("/api/voice_config/save")
@@ -1598,7 +1596,7 @@ async def save_guarded_voice_config(request: GuardedVoiceSaveRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+        raise AppError(503, 'Book or voices are busy; please try again.', key='error.voice.busy')
 
 
 class SingleVoicePreviewRequest(BaseModel):
@@ -1983,7 +1981,7 @@ async def preview_single_voice(request: SingleVoicePreviewRequest):
             "Active book data is corrupt and cannot be previewed. "
             "Restore the book state or reload the script, then preview again.")) from exc
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+        raise AppError(503, 'Book or voices are busy; please try again.', key='error.voice.busy')
     except OSError as exc:
         # Filesystem admission/read failures (lock, state, voice files) are
         # honest 409 refusals matching the source-preview sibling, never
@@ -2027,7 +2025,7 @@ async def apply_voice_seed_repair(request: VoiceSeedRepairRequest):
     except VoiceConfigConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except TimeoutError:
-        raise HTTPException(status_code=503, detail="Book or voices are busy; please try again.")
+        raise AppError(503, 'Book or voices are busy; please try again.', key='error.voice.busy')
 
 
 # --- Auto-suggest best LoRA voice per character -------------------------------

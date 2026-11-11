@@ -7,17 +7,60 @@ the on-screen label and the doc label cannot drift (design section 6.3).
 
 ## Status
 
-- P1 ships the catalog infrastructure and the first 16 keys. The three locales
-  are **machine drafts** (`_meta.review_status.all = "machine-draft"`) and the
-  language picker says so; no native reviewer has signed off.
+- P1 ships the catalog infrastructure and the first 16 keys. P2 adds the 30
+  server refusal keys below. The three locales are **machine drafts**
+  (`_meta.review_status.all = "machine-draft"`) and the language picker says so;
+  no native reviewer has signed off.
 - `safety.*` keys are held to a higher bar: a locale cannot be offered as
   reviewed while its `_meta.review_status.safety` is not `"human-reviewed"`.
-  There are no `safety.*` keys in P1, so no warning text is translated yet.
-  When one is added, its translated line is shown with the authored English
-  beneath it (`tSafety` / `renderUiSafety`), and the parity test enforces the
-  review rule.
+  P2 adds eight `safety.*` keys, all still `not-reviewed`, so every translated
+  locale keeps its draft label. A safety refusal shows its translated line with
+  the authored English beneath it (`tSafety` / `renderUiSafety`), and the parity
+  test enforces the review rule.
 - The task log transcript (`process_state[...]["logs"]`) and subprocess output
   stay English in every locale. The UI chrome around them is translated.
+
+## P2 server-refusal keys
+
+These English sentences come from `raise AppError(..., key=...)` sites, are
+harvested into `app/static/i18n/ui.en.json` by
+`tools/i18n/extract_ui_catalog.py`, and are pinned byte-for-byte by
+`app/tests/fixtures/api_detail_golden.json`. `safety.*` marks the eight that
+protect user data (stale book/voice identity, an unverified adapter, a changed
+DOCX preview, and an unconfirmed book switch).
+
+| Key | English source |
+| --- | --- |
+| `error.task.already_running` | {task} is already running. |
+| `error.task.gpu_busy` | Cannot start {task}: {running} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM. |
+| `error.book.switch_tasks_running` | Cannot {operation} while tasks are running: {tasks}. Wait for them to finish or cancel them. |
+| `error.book.switch_other_process` | Cannot {operation} while another process owns a task. Wait for it to finish or cancel it. |
+| `error.book.owned_by_batch_review` | This saved book is owned by batch review. Wait for it to finish or cancel it. |
+| `error.book.owned_or_saving` | This saved book is owned by batch review or another save. Wait for it to finish or cancel it. |
+| `error.book.busy_preview` | Book state is busy; retry the preview shortly. |
+| `error.book.snapshot_busy` | Book or saved snapshot is busy; retry shortly. |
+| `error.upload.no_input_active` | No input file selected for the active book. |
+| `error.upload.source_too_large` | Source exceeds the upload storage limit. |
+| `error.upload.source_empty` | Active source is empty; import a non-empty book first. |
+| `error.upload.unsupported_format` | Supported source formats are TXT, Markdown, EPUB and confirmed single-book DOCX. |
+| `error.upload.storage_busy` | Upload storage is busy; retry shortly. |
+| `error.upload.storage_limit` | Source upload storage limit reached. |
+| `error.upload.docx_text_too_large` | Extracted DOCX text exceeds source upload limits. |
+| `error.upload.epub_empty` | No readable text content found in EPUB. |
+| `error.upload.epub_text_too_large` | Extracted EPUB text exceeds source upload storage limits. |
+| `error.generation.no_recovery` | No failed or incomplete three-pass generation is available to resume. |
+| `error.generation.no_input` | No input file selected |
+| `error.voice.version_applied` | Voice version is applied; select another base version or clear its timeline points first |
+| `error.voice.config_busy` | Voice config is busy (locked by another operation); please try again. |
+| `error.voice.busy` | Book or voices are busy; please try again. |
+| `safety.book.switch_unconfirmed` | Could not complete or confirm {operation}; check the current state before retrying. |
+| `safety.book.changed_while_preview` | Active book changed while reading the preview. |
+| `safety.upload.docx_preview_changed` | DOCX preview changed; preview and accept this exact file again. |
+| `safety.generation.source_changed_before_start` | Selected source changed before generation started. |
+| `safety.generation.recovery_changed` | Recovery checkpoint changed before start. |
+| `safety.voice.book_changed_before_save` | Active book changed; reload voices before saving |
+| `safety.voice.book_changed` | Active book changed; reload voices |
+| `safety.voice.adapter_identity_unverified` | Adapter identity could not be verified; restore the adapter manifest or reload voices before saving. |
 
 ## Doc label convention (from P9)
 

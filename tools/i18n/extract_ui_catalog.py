@@ -14,14 +14,22 @@ SOURCES.
     data-i18n-attr="attribute:key,..." (that attribute's authored value);
   * app-settings.js and later-phase files: t('key', 'English', ...) calls whose
     first two arguments are string literals;
-  * createUiMessageNode('tag', 'key', 'English') for nodes built in JS.
+  * createUiMessageNode('tag', 'key', 'English') for nodes built in JS;
+  * server refusals: raise AppError(status, 'English', key='...') and, for a
+    dynamic message, an f-string whose interpolations map one-for-one onto the
+    literal keys of values={...} in the same order. Plain HTTPException sites
+    are not keyed and are not harvested.
 
 A t() call whose first two arguments are not literals fails the harvest loudly:
 that pattern would put the fallback outside the source this file can see, and
-the English text must stay reviewable at the call site (design section 3.4).
+the English text must stay reviewable at the call site (design section 3.4). A
+dynamic AppError message fails the same way unless its values map makes the
+English template recoverable, because the client must check a translation's
+placeholders against that template rather than against the rendered sentence.
 
 Run from anywhere: python tools/i18n/extract_ui_catalog.py [--check]
 """
+import ast
 import html.parser
 import json
 from pathlib import Path
@@ -32,6 +40,7 @@ REPO = Path(__file__).resolve().parents[2]
 STATIC = REPO / "app" / "static"
 OUTPUT = STATIC / "i18n" / "ui.en.json"
 HTML_SOURCES = (STATIC / "index.html", STATIC / "readalong-player.html")
+SERVER_SOURCES = ("app/*.py", "app/routers/*.py")
 # app-i18n.js owns t()/createUiMessageNode themselves and keys nothing.
 JS_EXCLUDED = {"app-i18n.js"}
 UNESCAPE = {"n": "\n", "t": "\t", "r": "\r", "'": "'", '"': '"', "\\": "\\"}
@@ -151,6 +160,68 @@ def _record(messages, key, english, where):
     messages[key] = english
 
 
+def _literal_string(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _app_error_template(message, values):
+    """The English template an AppError message exposes to translators.
+
+    A plain string is already the template. An f-string is allowed only when
+    values={...} is a literal dict whose keys, in order, name its
+    interpolations; the result replaces each expression with ``{name}``.
+    """
+    if isinstance(message, ast.Constant) and isinstance(message.value, str):
+        return message.value
+    if not isinstance(message, ast.JoinedStr) or not isinstance(values, ast.Dict):
+        return None
+    names = []
+    for key in values.keys:
+        name = _literal_string(key) if key is not None else None
+        if not name:
+            return None
+        names.append(name)
+    formatted = [part for part in message.values if isinstance(part, ast.FormattedValue)]
+    if len(formatted) != len(names):
+        return None
+    replacements = iter(names)
+    chunks = []
+    for part in message.values:
+        if isinstance(part, ast.Constant) and isinstance(part.value, str):
+            chunks.append(part.value)
+        elif isinstance(part, ast.FormattedValue) and part.conversion == -1 and part.format_spec is None:
+            chunks.append("{" + next(replacements) + "}")
+        else:
+            return None
+    return "".join(chunks)
+
+
+def harvest_server(path, messages):
+    """Record every raise AppError(status, message, key=...) in one module."""
+    source = path.read_text(encoding="utf-8")
+    name = path.name
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Raise) or not isinstance(node.exc, ast.Call):
+            continue
+        func = node.exc.func
+        if not (isinstance(func, ast.Name) and func.id == "AppError"):
+            continue
+        if len(node.exc.args) < 2:
+            raise HarvestError(f"{name}:{node.lineno}: AppError needs a status and an English message")
+        keywords = {kw.arg: kw.value for kw in node.exc.keywords if kw.arg}
+        key = _literal_string(keywords.get("key"))
+        if not key:
+            raise HarvestError(f"{name}:{node.lineno}: AppError needs a literal key")
+        template = _app_error_template(node.exc.args[1], keywords.get("values"))
+        if template is None:
+            raise HarvestError(
+                f"{name}:{node.lineno}: AppError message {key!r} must be a literal, or an "
+                f"f-string whose values={{...}} keys match its interpolations in order")
+        _record(messages, key, template, name)
+
+
 def harvest(root=REPO):
     messages = {}
     for path in HTML_SOURCES:
@@ -164,6 +235,9 @@ def harvest(root=REPO):
         if path.name in JS_EXCLUDED:
             continue
         harvest_js(path, messages)
+    for pattern in SERVER_SOURCES:
+        for path in sorted(root.glob(pattern)):
+            harvest_server(path, messages)
     return messages
 
 
