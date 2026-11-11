@@ -43,8 +43,16 @@ function isSetupSettingAvailable(control) {
     return true;
 }
 
+// The finder indexes the displayed text and the authored English together: users
+// paste English setting names from issues and RECIPES.md, so an English query
+// must still find a translated entry (design open question 8). NFKC makes
+// full-width Japanese IME output match the half-width form.
+function normalizeSetupSearchText(text) {
+    return String(text).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
+}
+
 function getSetupSettingsMatches(query) {
-    const terms = query.trim().toLowerCase().slice(0, 120).split(/\s+/).filter(Boolean);
+    const terms = normalizeSetupSearchText(query).trim().slice(0, 120).split(' ').filter(Boolean);
     if (!terms.length) { return []; }
     const matches = [];
     for (const control of document.querySelectorAll('#config-form input, #config-form select, #config-form textarea')) {
@@ -53,7 +61,8 @@ function getSetupSettingsMatches(query) {
         if (!label) { continue; }
         const section = control.closest('[data-settings-section]')?.getAttribute('data-settings-section') || 'Setup';
         const description = getItemHelpText(control);
-        const text = `${label} ${section} ${description}`.toLowerCase();
+        const englishDescription = getItemHelpText(control, 'en');
+        const text = normalizeSetupSearchText(`${label} ${section} ${description} ${englishDescription}`);
         if (terms.every(term => text.includes(term))) { matches.push({id: control.id, label, section}); }
     }
     return matches;

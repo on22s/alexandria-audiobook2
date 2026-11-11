@@ -753,11 +753,51 @@
             }
         };
 
+        // Help ids are the stable keys of the maps above, so each catalog key is
+        // derived from its id and field, not from the English sentence: editing a
+        // typo in a `what` must not invalidate three translations (design 3.9).
+        const HELP_CATALOG_KINDS = Object.freeze({
+            FIELD_HELP: 'field',
+            ACTION_HELP: 'action',
+            ITEM_HELP: 'item',
+            NAV_HELP: 'nav',
+            DYNAMIC_FIELD_HELP: 'dynamic',
+            CHANGED_FIELD_HELP: 'changed',
+        });
+
+        function getHelpCatalogKey(kind, id, field = null) {
+            if (!Object.hasOwn(HELP_CATALOG_KINDS, kind)) {
+                throw new Error('Unknown help map: ' + kind);
+            }
+            const slug = String(id).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+            const key = 'help.' + HELP_CATALOG_KINDS[kind] + '.' + slug;
+            return field === null ? key : key + '.' + field;
+        }
+
+        // The English of every map entry is the catalog source (harvested by
+        // tools/i18n/extract_ui_catalog.py); t() only replaces it when the
+        // selected locale has a translation, so an unkeyed entry stays English.
+
+        // Help prose quotes prompt placeholders literally ({chunk}, {roster}).
+        // Feed each one back as its own text so formatting keeps it on screen
+        // instead of treating it as a missing value. Catalog parity still pins
+        // the placeholder set per locale, so a translation cannot drop one.
+        function formatHelpText(key, english, locale) {
+            const values = {};
+            for (const match of english.matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)) {
+                values[match[1]] = match[0];
+            }
+            return t(key, english, values, locale);
+        }
+
         /** The tooltip text for one entry: what it does, then any sourced recommendation. */
-        function getFieldHelpText(entry) {
-            let text = entry.what;
+        function getFieldHelpText(entry, id, locale = getUiLocale()) {
+            let text = formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'what'), entry.what, locale);
             if (entry.recommend) {
-                text += ' Recommended: ' + entry.recommend + ' (source: ' + entry.source + ')';
+                text += ' ' + t('help.field.recommended', 'Recommended: {recommend} (source: {source})', {
+                    recommend: formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'recommend'), entry.recommend, locale),
+                    source: formatHelpText(getHelpCatalogKey('FIELD_HELP', id, 'source'), entry.source, locale),
+                }, locale);
             }
             return text;
         }
@@ -770,49 +810,49 @@
             return Object.hasOwn(registry, key) ? registry[key] : null;
         }
 
-        function getItemHelpText(control) {
+        function getItemHelpText(control, locale = getUiLocale()) {
             if (control.type === 'hidden') { return ''; }
             if (control.type === 'file' && (control.hidden || control.style.display === 'none')) { return ''; }
-            if (getHelpEntry(FIELD_HELP, control.id)) { return getFieldHelpText(FIELD_HELP[control.id]); }
-            if (getHelpEntry(ITEM_HELP, control.id)) { return ITEM_HELP[control.id]; }
-            if (control.dataset.helpKey && getHelpEntry(ACTION_HELP, control.dataset.helpKey)) { return ACTION_HELP[control.dataset.helpKey]; }
-            if (control.classList.contains('nav-link') && getHelpEntry(NAV_HELP, control.dataset.tab)) { return NAV_HELP[control.dataset.tab]; }
+            if (getHelpEntry(FIELD_HELP, control.id)) { return getFieldHelpText(FIELD_HELP[control.id], control.id, locale); }
+            if (getHelpEntry(ITEM_HELP, control.id)) { return formatHelpText(getHelpCatalogKey('ITEM_HELP', control.id), ITEM_HELP[control.id], locale); }
+            if (control.dataset.helpKey && getHelpEntry(ACTION_HELP, control.dataset.helpKey)) { return formatHelpText(getHelpCatalogKey('ACTION_HELP', control.dataset.helpKey), ACTION_HELP[control.dataset.helpKey], locale); }
+            if (control.classList.contains('nav-link') && getHelpEntry(NAV_HELP, control.dataset.tab)) { return formatHelpText(getHelpCatalogKey('NAV_HELP', control.dataset.tab), NAV_HELP[control.dataset.tab], locale); }
             for (const [selector, text] of Object.entries(DYNAMIC_FIELD_HELP)) {
-                if (control.matches(selector)) { return text; }
+                if (control.matches(selector)) { return formatHelpText(getHelpCatalogKey('DYNAMIC_FIELD_HELP', selector), text, locale); }
             }
             const handler = ['onclick', 'onchange', 'oninput', 'onfocus'].map(name => control.getAttribute(name) || '').join(';');
             for (const [name, fields] of Object.entries(CHANGED_FIELD_HELP)) {
                 const match = new RegExp('\\b' + name + '\\([^,]+,\\s*[\'"]([^\'"]+)[\'"]').exec(handler);
-                if (match && getHelpEntry(fields, match[1])) { return fields[match[1]]; }
+                if (match && getHelpEntry(fields, match[1])) { return formatHelpText(getHelpCatalogKey('CHANGED_FIELD_HELP', name, match[1]), fields[match[1]], locale); }
             }
             for (const match of handler.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)) {
-                if (getHelpEntry(ACTION_HELP, match[1]) && (!control.matches('input,select,textarea') || fieldHelpHandlers.has(match[1]))) { return ACTION_HELP[match[1]]; }
+                if (getHelpEntry(ACTION_HELP, match[1]) && (!control.matches('input,select,textarea') || fieldHelpHandlers.has(match[1]))) { return formatHelpText(getHelpCatalogKey('ACTION_HELP', match[1]), ACTION_HELP[match[1]], locale); }
             }
-            if (handler.includes("closest('.cast-list-row').remove()")) { return 'Remove this cast-list row from the editor. Save the cast list to retain the edit.'; }
-            if (handler.includes("closest('.nick-alias-row').remove()")) { return 'Remove this alias row from the editor. Save the aliases to retain the edit.'; }
-            if (control.classList.contains('navbar-brand')) { return 'Return to the app’s Setup view.'; }
-            if (handler.includes("'auto-config-banner'")) { return 'Dismiss the suggested-settings notice while keeping the values shown in the form.'; }
-            if (handler.includes("'prompt-preview-panel'")) { return 'Close the prompt preview without changing the current prompt settings.'; }
-            if (handler.includes('[data-tab=dataset-builder]')) { return 'Open the Dataset tab to build a new training dataset.'; }
-            if (handler.includes("'chapter-preset-import'")) { return 'Choose a JSON file containing chapter filename presets to import.'; }
-            if (handler.includes("'lora-comparison-panel'")) { return 'Close the adapter comparison or listening-review panel.'; }
-            if (handler.includes("'stale-build-banner'")) { return 'Dismiss the notice about changed app files without reloading the page.'; }
-            if (control.hasAttribute('data-config-save-action')) { return 'Save the current app configuration.'; }
-            if (control.dataset.bsDismiss === 'modal') { return 'Close this dialog without confirming its pending action.'; }
-            if (control.dataset.bsDismiss === 'toast') { return 'Dismiss this notification.'; }
-            if (control.tagName === 'BUTTON' && control.closest('.chunk-actions')) { return 'Generate this script line’s audio using its current text, delivery and assigned voice.'; }
-            if (control.tagName === 'INPUT' && control.id.startsWith('script-batch-narrator-')) { return 'Exact character name to use as narrator for this book in the batch. Leave blank to use the normal narrator assignment.'; }
-            if (control.tagName === 'TEXTAREA' && control.hasAttribute('readonly') && control.closest('#script-recovery-panel')) { return 'Source text or batch entries for the failed chunk. Compare these with the replacement model reply.'; }
-            if (control.tagName === 'TEXTAREA' && control.closest('#manual-llm-retained-replies')) { return 'Read-only copy of an earlier model reply, retained so an unsent response is not lost.'; }
-            if (control.tagName === 'BUTTON' && control.disabled && (control.getAttribute('aria-label') || '').startsWith('Candidate ') && (control.getAttribute('aria-label') || '').endsWith(' is in use')) { return 'This saved voice candidate is already assigned to the character.'; }
-            if (control.tagName === 'A' && control.closest('.toast-body')) { return 'Undo the recently deleted script line while this undo action remains available.'; }
-            if (control.tagName === 'A' && (control.getAttribute('href') || '').startsWith('/api/logs/')) { return 'Download the full task log for troubleshooting.'; }
+            if (handler.includes("closest('.cast-list-row').remove()")) { return t('help.item.cast-row-remove', 'Remove this cast-list row from the editor. Save the cast list to retain the edit.', {}, locale); }
+            if (handler.includes("closest('.nick-alias-row').remove()")) { return t('help.item.alias-row-remove', 'Remove this alias row from the editor. Save the aliases to retain the edit.', {}, locale); }
+            if (control.classList.contains('navbar-brand')) { return t('help.item.brand', 'Return to the app’s Setup view.', {}, locale); }
+            if (handler.includes("'auto-config-banner'")) { return t('help.item.auto-config-banner', 'Dismiss the suggested-settings notice while keeping the values shown in the form.', {}, locale); }
+            if (handler.includes("'prompt-preview-panel'")) { return t('help.item.prompt-preview-close', 'Close the prompt preview without changing the current prompt settings.', {}, locale); }
+            if (handler.includes('[data-tab=dataset-builder]')) { return t('help.item.dataset-builder-link', 'Open the Dataset tab to build a new training dataset.', {}, locale); }
+            if (handler.includes("'chapter-preset-import'")) { return t('help.item.chapter-preset-import', 'Choose a JSON file containing chapter filename presets to import.', {}, locale); }
+            if (handler.includes("'lora-comparison-panel'")) { return t('help.item.lora-comparison-close', 'Close the adapter comparison or listening-review panel.', {}, locale); }
+            if (handler.includes("'stale-build-banner'")) { return t('help.item.stale-build-dismiss', 'Dismiss the notice about changed app files without reloading the page.', {}, locale); }
+            if (control.hasAttribute('data-config-save-action')) { return t('help.item.config-save-action', 'Save the current app configuration.', {}, locale); }
+            if (control.dataset.bsDismiss === 'modal') { return t('help.item.modal-dismiss', 'Close this dialog without confirming its pending action.', {}, locale); }
+            if (control.dataset.bsDismiss === 'toast') { return t('help.item.toast-dismiss', 'Dismiss this notification.', {}, locale); }
+            if (control.tagName === 'BUTTON' && control.closest('.chunk-actions')) { return t('help.item.chunk-generate', 'Generate this script line’s audio using its current text, delivery and assigned voice.', {}, locale); }
+            if (control.tagName === 'INPUT' && control.id.startsWith('script-batch-narrator-')) { return t('help.item.script-batch-narrator', 'Exact character name to use as narrator for this book in the batch. Leave blank to use the normal narrator assignment.', {}, locale); }
+            if (control.tagName === 'TEXTAREA' && control.hasAttribute('readonly') && control.closest('#script-recovery-panel')) { return t('help.item.script-recovery-compare', 'Source text or batch entries for the failed chunk. Compare these with the replacement model reply.', {}, locale); }
+            if (control.tagName === 'TEXTAREA' && control.closest('#manual-llm-retained-replies')) { return t('help.item.manual-retained-reply', 'Read-only copy of an earlier model reply, retained so an unsent response is not lost.', {}, locale); }
+            if (control.tagName === 'BUTTON' && control.disabled && (control.getAttribute('aria-label') || '').startsWith('Candidate ') && (control.getAttribute('aria-label') || '').endsWith(' is in use')) { return t('help.item.candidate-in-use', 'This saved voice candidate is already assigned to the character.', {}, locale); }
+            if (control.tagName === 'A' && control.closest('.toast-body')) { return t('help.item.toast-undo', 'Undo the recently deleted script line while this undo action remains available.', {}, locale); }
+            if (control.tagName === 'A' && (control.getAttribute('href') || '').startsWith('/api/logs/')) { return t('help.item.task-log-download', 'Download the full task log for troubleshooting.', {}, locale); }
             if (control.dataset.bsToggle === 'collapse') {
-                return control.dataset.bsTarget === '#navbarNav' ? 'Show or hide the app navigation menu.' : 'Show or hide this section’s additional settings.';
+                return control.dataset.bsTarget === '#navbarNav' ? t('help.item.navbar-collapse', 'Show or hide the app navigation menu.', {}, locale) : t('help.item.section-collapse', 'Show or hide this section’s additional settings.', {}, locale);
             }
-            if (control.tagName === 'SUMMARY') { return (control.getAttribute('title') ?? helpNativeTitles.get(control) ?? '').trim() || 'Show or hide the details described by this heading.'; }
-            if (control.matches('audio[controls],video[controls]')) { return 'Play, pause or seek through this media preview and adjust its volume. Playback does not regenerate the audio.'; }
-            if (control.hasAttribute('download')) { return 'Download this file to your computer.'; }
+            if (control.tagName === 'SUMMARY') { return (control.getAttribute('title') ?? helpNativeTitles.get(control) ?? '').trim() || t('help.item.summary-toggle', 'Show or hide the details described by this heading.', {}, locale); }
+            if (control.matches('audio[controls],video[controls]')) { return t('help.item.media-preview', 'Play, pause or seek through this media preview and adjust its volume. Playback does not regenerate the audio.', {}, locale); }
+            if (control.hasAttribute('download')) { return t('help.item.download-file', 'Download this file to your computer.', {}, locale); }
             return (control.getAttribute('title') ?? helpNativeTitles.get(control) ?? '').trim();
         }
 
@@ -957,6 +997,13 @@
         function scheduleHelp(trigger, source) {
             cancelHelp();
             if (!trigger) { return; }
+            // The tooltip text is read at display time, so a UI-locale change
+            // applies to the next tooltip without repainting every control.
+            const owner = helpTipOwners.get(trigger) || trigger;
+            const current = getItemHelpText(owner);
+            if (current && trigger.getAttribute('data-bs-title') !== current) {
+                trigger.setAttribute('data-bs-title', current);
+            }
             helpIntent = {trigger, source};
             activeHelp = trigger;
             helpTimer = setTimeout(() => {

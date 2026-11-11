@@ -31,13 +31,16 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
-    'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS',
+    'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',
     'Pseudo-English (layout test, not a translation)',
 })
 
 # Measured 2026-11-10 on the P1 tree by the counters below. A pane or file that
 # is absent here fails the test, so a new surface must declare its baseline.
+# app-help.js's 75 counts two attribute-name literals in the tooltip refresh;
+# its 700+ help strings are catalog sources (excluded by help_map_spans, and
+# test_ui_help_i18n.py proves every one is keyed in all three locales).
 MARKUP_BASELINE = {
     'index.html': {
         'audio': 153, 'casting': 61, 'dataset-builder': 30, 'designer': 19,
@@ -51,7 +54,7 @@ JS_BASELINE = {
     'app-audio-channels.js': 26, 'app-audiobookshelf.js': 88, 'app-calibre.js': 269,
     'app-casting-research.js': 436, 'app-casting.js': 262, 'app-character-roster.js': 110,
     'app-core.js': 2215, 'app-editor-repair.js': 32, 'app-editor-review.js': 193,
-    'app-export-quality.js': 38, 'app-guides.js': 154, 'app-help.js': 1179,
+    'app-export-quality.js': 38, 'app-guides.js': 154, 'app-help.js': 75,
     'app-i18n.js': 23, 'app-mastering.js': 22, 'app-narration-markup.js': 31,
     'app-project-scope.js': 33, 'app-pronunciation.js': 210,
     'app-publication-validation.js': 2, 'app-publication.js': 45, 'app-readalong.js': 63,
@@ -182,6 +185,25 @@ def _arguments(text, open_paren):
     return spans
 
 
+HELP_SOURCE = 'app-help.js'
+HELP_MAP_START = 'const FIELD_HELP = {'
+HELP_MAP_END = '/** The tooltip text'
+
+
+def help_map_spans(path):
+    """String spans inside app-help.js's help maps.
+
+    Every string there is either a map id or an English help value, and every
+    value is a catalog source that test_ui_help_i18n.py proves is keyed, so the
+    ratchet must not count it as an unkeyed display literal. A literal added
+    outside the maps still counts, which is what keeps this a ratchet.
+    """
+    text = path.read_text(encoding='utf-8')
+    start = text.index(HELP_MAP_START)
+    end = text.index(HELP_MAP_END, start)
+    return {(match.start(), match.end()) for match in STRING.finditer(text, start, end)}
+
+
 def keyed_spans(text):
     spans = set()
     for match in re.finditer(r"\bt\s*\(", text):
@@ -200,9 +222,9 @@ def keyed_spans(text):
 STRING = re.compile(r"""'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`""", re.S)
 
 
-def count_js(path):
+def count_js(path, excluded=()):
     text = path.read_text(encoding='utf-8')
-    keyed = keyed_spans(text)
+    keyed = keyed_spans(text) | set(excluded)
     count = 0
     for match in STRING.finditer(text):
         if (match.start(), match.end()) in keyed:
@@ -243,6 +265,17 @@ class CounterFixtureTests(unittest.TestCase):
         self.assertEqual(1, len(unkeyed))
         self.assertEqual("'Leave this literal alone'", text[unkeyed[0][0]:unkeyed[0][1]])
 
+    def test_the_help_map_exclusion_stops_at_the_maps(self):
+        """The maps are catalog sources; a literal after them is still counted."""
+        path = STATIC / 'js' / HELP_SOURCE
+        text = path.read_text(encoding='utf-8')
+        spans = help_map_spans(path)
+        self.assertGreater(len(spans), 700)
+        self.assertTrue(any(text[start:end] == "'roster-import'" for start, end in spans))
+        later = STRING.search(text, text.index(HELP_MAP_END))
+        self.assertIsNotNone(later)
+        self.assertNotIn((later.start(), later.end()), spans)
+
 
 class RatchetTests(unittest.TestCase):
     def test_markup_baseline_covers_every_page_and_never_grows(self):
@@ -263,7 +296,9 @@ class RatchetTests(unittest.TestCase):
         self.assertEqual(files, set(JS_BASELINE), 'every JS file must declare a baseline')
         for name, limit in JS_BASELINE.items():
             with self.subTest(file=name):
-                count = count_js(STATIC / 'js' / name)
+                path = STATIC / 'js' / name
+                excluded = help_map_spans(path) if name == HELP_SOURCE else ()
+                count = count_js(path, excluded)
                 self.assertLessEqual(count, limit,
                                      f'{name} grew from {limit} to {count} unkeyed display literals; '
                                      f'wrap keyed text in t() or add a reviewed KEEP_ENGLISH entry')
