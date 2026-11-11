@@ -78,7 +78,8 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertIn("linux_only:\n        type: boolean\n        default: false", workflow)
         self.assertIn("windows-owner:\n    if: ${{ !inputs.linux_only }}", workflow)
         self.assertNotIn('continue-on-error', workflow)
-        self.assertEqual(2, workflow.count("runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}"))
+        # unit, derived-files and test all honour the rolling-Ubuntu canary's runner.
+        self.assertEqual(3, workflow.count("runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}"))
         self.assertIn('sha256sum "$executable"', workflow)
         self.assertIn('"$executable" --version', workflow)
         self.assertIn('apt-ffmpeg-${{ steps.runner.outputs.image }}-v1', workflow)
@@ -149,6 +150,40 @@ class CiEnvParityTests(unittest.TestCase):
         canary = yaml.safe_load((Path(__file__).resolve().parents[2] /
                                  ".github/workflows/rolling-ubuntu.yml").read_text())
         self.assertIn("app/ci_timeout_probe.py", canary[True]["pull_request"]["paths"])
+
+    def test_speedups_keep_every_check(self):
+        """The faster CI must still gate on the same things.
+
+        - the final `test` job needs the derived-file job as well as every shard,
+          and fails on either;
+        - that job runs all four evidence checks the verifier owns, and shard 1
+          still runs them inside the verifier (`verify_release.py` is unchanged);
+        - the installed-package cache is keyed on every pin, the exact Python and
+          the week, and the import assertion runs on a hit as well as a miss.
+        """
+        import yaml
+        jobs = yaml.safe_load(self._workflow())["jobs"]
+        self.assertEqual(["unit", "derived-files"], jobs["test"]["needs"])
+        test_conditions = [step.get("if", "") for step in jobs["test"]["steps"]]
+        self.assertIn("needs.unit.result != 'success'", test_conditions)
+        self.assertIn("needs.derived-files.result != 'success'", test_conditions)
+        derived_runs = "\n".join(step.get("run", "") for step in jobs["derived-files"]["steps"])
+        for _gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
+                              ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
+                              ("results_index", "tools/audit/collect_results.py"),
+                              ("goal_evidence", "app/experiments/goal_evidence_audit.py")):
+            self.assertIn(f"python {script} --check", derived_runs)
+            self.assertIn(script, Path(verify_release.__file__).read_text(encoding="utf-8"))
+        steps = {step.get("name"): step for step in jobs["unit"]["steps"]}
+        key = steps["Cache installed Python packages"]["with"]["key"]
+        for part in ("hashFiles('app/requirements.txt', '.github/workflows/tests.yml')",
+                     "steps.setup-python.outputs.python-version",
+                     "steps.runner.outputs.image", "steps.env-key.outputs.week"):
+            self.assertIn(part, key)
+        install = steps["Install Python dependencies"]["run"]
+        self.assertIn("steps.env-cache.outputs.cache-hit", install)
+        # The assertion line comes after `fi`, so it is outside the skipped branch.
+        self.assertGreater(install.index("assert torch.version.cuda is None"), install.index("\nfi\n"))
 
     @unittest.skipUnless(sys.platform == "linux", "native Linux timeout qualification")
     def test_selected_timeout_real_signal_and_grace_contract(self):
