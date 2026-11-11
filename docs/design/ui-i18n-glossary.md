@@ -66,6 +66,26 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   `data-i18n-skip` only where it is a URL. `app-calibre.js` is deliberately
   left for a later pass: its UNKNOWN-outcome state machine is not part of
   these panes. All three locales remain machine drafts.
+- P8 adds 492 keys: 203 under `training.*`, 114 under `voicelab.*`, 69 under
+  `preparer.*`, 28 under `dataset.*` (the dataset-builder pane), 19 under
+  `designer.*`, 10 shared `language.*` names, 42 `core.*` labels (system
+  status/ETA strip, LM Studio badge, duration units, task-status vocabulary)
+  and 7 `safety.training.*` confirms. Pane text: text nodes and
+  `title`/`placeholder`/`aria-label` attributes; module text: the user-facing
+  strings of `app-training.js` (adapters, dataset upload, comparison, blind
+  review, history), `app-voicelab.js` (config readiness, inspect badges,
+  preflight, health) and the non-Dataset-Builder sections of `app-workbench.js`
+  (Preparer outputs, the system-status/ETA strip, the LM Studio toggle,
+  task-control restoration), plus the one shared task-status label map. With P8
+  the whole of `index.html` is keyed except two live JS status lines. The two
+  filesystem-path placeholders (`/path/to/…`) are `data-i18n-skip`: a path
+  example is a technical value, not copy. `app-scripts.js` stays English: the
+  Designer's runtime list and status messages are outside this phase's file
+  scope. All three locales remain machine drafts. The P3 help entries that
+  name the Voice Lab pipeline or the Designer now use the on-screen labels
+  (`语音实验室 (Voice Lab)` / `ボイスラボ (Voice Lab)` / `Laboratorio de voz`,
+  `设计器 (Designer)` / `デザイナー (Designer)` / `Diseñador`), and the Chinese
+  `流程` entries that meant "pipeline" are now `流水线`.
 
 
 ## P2 server-refusal keys
@@ -139,6 +159,7 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Dataset Builder | 数据集构建器 | データセットビルダー | Constructor de conjuntos de datos | |
 | Training | 训练 | トレーニング | Entrenamiento | |
 | Voice Lab | 语音实验室 | ボイスラボ | Laboratorio de voz | |
+| Pipeline | 流水线 | パイプライン | pipeline | The Spanish docs use the English loanword `pipeline`, so the catalog does too. |
 | Reports | 报告 | レポート | Informes | |
 | Settings | 设置 | 設定 | Ajustes | The settings pane, not a tab label. |
 | Configuration | 配置 | 設定 | Configuración | The saved configuration file. |
@@ -265,6 +286,22 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Cue | 提示 | キュー | Señal | A sound placed at a dialogue anchor. |
 | Mix | 混音 | ミックス | Mezcla | A full mixed-audio candidate. |
 | Approval | 批准 | 承認 | Aprobación | Full-mix review approval, separate from delivery. |
+| Epoch | 轮次 | エポック | Época | One training pass. Not a book chapter (`章`). |
+| Loss | 损失 | 損失 | Pérdida | Training loss. |
+| Learning rate | 学习率 | 学習率 | Tasa de aprendizaje | |
+| Batch size | 批大小 | バッチサイズ | Tamaño de lote | |
+| Gradient accumulation | 梯度累积 | 勾配累積 | Acumulación de gradiente | Grad accum steps. |
+| LoRA rank | LoRA 秩 | LoRA ランク | rango de LoRA | `rank`, the matrix rank of the adapter. |
+| LoRA alpha | LoRA Alpha 值 | LoRA Alpha 値 | Alpha de LoRA | Keeps the parameter name `Alpha`. |
+| Promote (a candidate) | 提升 | 昇格 | Promover | Makes a trained candidate the production checkpoint. |
+| Rollback (a promotion) | 回滚 | ロールバック | Revertir | Restores the pre-promotion checkpoint. |
+| Blind review | 盲测审阅 | ブラインドレビュー | Revisión a ciegas | A/B listening with the identities hidden until submission. |
+| Quality (stage) | 质检 | 品質チェック | Calidad | Voice Lab stage 1: warning-only clip audit. |
+| Dedup | 去重 | 重複除去 | Deduplicación | Voice Lab stage 2. |
+| Train (stage) | 训练 | トレーニング | Entrenamiento | Voice Lab stage 3; same word as the Training tab. |
+| Evaluate (stage) | 评估 | 評価 | Evaluación | Voice Lab stage 4; also the Evaluation column. |
+| Profile (stage) | 画像 | プロファイル | Perfil | Voice Lab stage 5 (acoustic + LLM description). An LLM connection **Profile** keeps 配置档案. |
+| Name (stage) | 命名 | 命名 | Nombre | Voice Lab stage 6, renaming adapters. |
 
 ## Voice and address rules
 
@@ -391,6 +428,24 @@ The remaining P7 `safety.*` keys are warnings rather than confirms: a changed
 book during a render, a previous book's render finishing, an unconfirmed
 Audacity export or outlier scan, an incomplete cleanup selection, a stale cue
 or source revision, and a mix/cue history invalidated by a book switch.
+
+## P8 safety keys
+
+P8 adds the Training and LoRA-adapter safety text. Every one is a destructive
+confirm (`danger: true` or its non-modal form) and renders through
+`formatUiSafetyText()`, so the authored English stays on screen beneath the
+translation. The action labels and confirm titles are plain translated keys:
+they name the control, not the consequence.
+
+| Key | English source |
+| --- | --- |
+| `safety.training.dataset.delete` | Delete dataset "{name}"? The uploaded ZIP and its samples are removed. This cannot be undone. |
+| `safety.training.delete-adapter` | Delete this trained adapter? This cannot be undone. |
+| `safety.training.delete-backup` | Permanently delete this rollback backup? You will no longer be able to restore the pre-promotion checkpoint. |
+| `safety.training.promote` | Promote {candidate}? The current production checkpoint will be preserved for rollback. |
+| `safety.training.rollback` | Restore the production checkpoint saved before promotion? The promoted candidate stops being production. |
+| `safety.training.recover` | Recover production from the checkpoint saved before the interrupted operation? The files written by that operation are discarded. |
+| `safety.training.review.clear` | Delete all human review history for this adapter? The decisions and notes are removed and cannot be recovered. |
 
 ## Do not translate
 

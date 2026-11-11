@@ -14,6 +14,7 @@ const code = source.slice(source.indexOf('function _vlSetCheckIcon('), source.in
 const elements = {}, errors = [];
 let fail = false,checks={rocm_python:true,profiler_model:true,zips_dir:true,epub_dirs:true},profilerErrors=[];
 const context = {
+ t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m), escapeHtml:value=>String(value),
  document:{getElementById(id){return elements[id]||(elements[id]={value:'',innerHTML:'',title:'',removeAttribute(key){delete this[key];}});}},
  console:{error(...args){errors.push(args);}},
  API:{get:async path=>{assert.strictEqual(path,'/api/voicelab/config');if(fail){throw new Error('HTTP 503');}

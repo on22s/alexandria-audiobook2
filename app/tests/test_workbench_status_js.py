@@ -16,6 +16,7 @@ assert(start>=0 && end>start);
 const badge={},toggle={checked:true,disabled:false};
 let status;
 const context={document:{getElementById:id=>({'lmstudio-status-badge':badge,'lmstudio-optimize-toggle':toggle}[id])},
+ t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
  API:{get:async url=>{assert.strictEqual(url,'/api/lmstudio/status');return status;}}};
 vm.runInNewContext(source.slice(start,end),context);
 (async()=>{
@@ -72,6 +73,9 @@ for (const mode of ['running','idle','unavailable']) {
         refreshVoicelabHealth:()=>{health++;},
         _startPolling:(key,fetchFn,options)=>{pollers.push({key,fetchFn,options});},
         escapeHtml:String,
+        t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
+        taskStatusLabel:status=>status,
+        formatUiDate:value=>String(value),
     };
     for (const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices',
                         'dsbLoadProjects','updateSystemStats','updateEtaStatus','refreshLmStudioStatus','pollLmStudioStatus']) {
@@ -109,7 +113,7 @@ for (const mode of ['running','idle','unavailable']) {
         assert.strictEqual(elements['voicelab-logs'].innerText,status.logs.join('\n'));
         assert.strictEqual(elements['voicelab-logs'].scrollTop,12);
         assert.strictEqual(elements['vl-stage-progress'].style.display,'flex');
-        assert.match(elements['vl-stage-progress'].innerHTML,/train: running/);
+        assert.match(elements['vl-stage-progress'].innerHTML,/Train: running/);
         assert.strictEqual(health,1,'poll responses now include health rather than issuing another GET');
     } else {
         assert.strictEqual(pollers.length,0);

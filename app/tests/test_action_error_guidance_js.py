@@ -62,7 +62,7 @@ const core=fs.readFileSync(process.argv[1],'utf8'),s=fs.readFileSync(process.arg
 const button={disabled:false},status={innerHTML:'Training in progress'};let messages=[],done=false;
 let failure=new TypeError('Failed to fetch');
 const c={window:{},document:{getElementById:id=>id==='btn-lora-cancel'?button:status},
-showToast:(...a)=>messages.push(a),API:{post:async()=>{if(failure){throw failure;}}}};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
+showToast:(...a)=>messages.push(a),API:{post:async()=>{if(failure){throw failure;}}}};vm.createContext(c);Object.assign(c,{escapeHtml:t=>t.replaceAll('<','&lt;').replaceAll('>','&gt;'),t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),c);
 vm.runInContext(s.slice(s.indexOf('window.cancelLoraTraining ='),s.indexOf('async function onToggleFavoriteAdapter')),c);
 (async()=>{

@@ -58,14 +58,25 @@ KEEP_ENGLISH = frozenset({
 # batch render, merge and export status; the remaining literal counts are
 # template HTML, element ids and server action identifiers, and app-calibre.js
 # stays at 269 for a later pass).
+# P8 lowered index.html's training 69 -> 0, preparer 62 -> 0, voicelab 54 -> 0,
+# dataset-builder 30 -> 0 and designer 19 -> 0 (the whole file is now keyed
+# except the two live JS status lines in script); app-training.js 311 -> 249,
+# app-voicelab.js 154 -> 128 and app-workbench.js 324 -> 282 (the Preparer,
+# system-status/ETA and LM Studio sections). app-core.js stays at 2038: its
+# remaining Training/Preparer/Voice Lab/Designer text is the voice-card
+# template, which belongs to the Voices pane; the task-label map shared by every
+# task is English in every locale by design. app-scripts.js stays at 329: the
+# Designer's runtime list and status messages are out of this phase's scope.
+# The remaining literal counts in the converted files are template HTML, element
+# ids, CSS classes and the English action/guidance strings of showActionError.
 # app-help.js's 75 counts two attribute-name literals in the tooltip refresh;
 # its 700+ help strings are catalog sources (excluded by help_map_spans, and
 # test_ui_help_i18n.py proves every one is keyed in all three locales).
 MARKUP_BASELINE = {
     'index.html': {
-        'audio': 0, 'casting': 0, 'dataset-builder': 30, 'designer': 19,
-        'editor': 0, 'home': 0, 'preparer': 62, 'reports': 0, 'script': 2,
-        'setup': 0, 'shell': 0, 'training': 69, 'voicelab': 54, 'voices': 0,
+        'audio': 0, 'casting': 0, 'dataset-builder': 0, 'designer': 0,
+        'editor': 0, 'home': 0, 'preparer': 0, 'reports': 0, 'script': 2,
+        'setup': 0, 'shell': 0, 'training': 0, 'voicelab': 0, 'voices': 0,
     },
     'readalong-player.html': {'shell': 16},
 }
@@ -82,10 +93,10 @@ JS_BASELINE = {
     'app-single-voice.js': 96, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
     'app-sound-mix-cover.js': 4, 'app-sound-mixes.js': 34, 'app-sound-renditions.js': 50,
     'app-speaker-review.js': 107, 'app-speech-verification.js': 29,
-    'app-synthesis-windows.js': 42, 'app-take-history.js': 28, 'app-training.js': 311,
+    'app-synthesis-windows.js': 42, 'app-take-history.js': 28, 'app-training.js': 249,
     'app-translated-edition.js': 37, 'app-tts-capabilities.js': 56,
-    'app-tts-diagnostics.js': 33, 'app-voicelab.js': 154, 'app-word-timing.js': 68,
-    'app-workbench.js': 324, 'app-workspace.js': 86,
+    'app-tts-diagnostics.js': 33, 'app-voicelab.js': 128, 'app-word-timing.js': 68,
+    'app-workbench.js': 282, 'app-workspace.js': 86,
 }
 
 

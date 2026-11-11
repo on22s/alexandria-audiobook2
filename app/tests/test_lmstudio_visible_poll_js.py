@@ -42,6 +42,7 @@ const elements={'setup-tab':setup,'editor-tab':editor,'lmstudio-status-badge':ba
 const doc={hidden:false,getElementById:id=>elements[id],querySelectorAll:selector=>selector==='.nav-link'?Object.values(links):[setup,editor],addEventListener:(event,fn)=>{assert(!events[event]);events[event]=fn;}};
 let failGet=false,failPost=false;const status={remote:true,optimized:true};
 const ctx={document:doc,setInterval:(fn,ms)=>{timers.push({fn,ms});},rememberTab:()=>{},
+ t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
  showToast:(...args)=>toasts.push(args),API:{get:async url=>{assert.equal(url,'/api/lmstudio/status');calls.push(url);if(failGet){throw Error('offline');}return status;},post:async(url,body)=>{assert.equal(url,'/api/lmstudio/optimize');posts.push(body);if(failPost){throw Error('rejected');}}}};
 for(const name of ['loadConfig','loadCastList','loadVoices','loadSavedScripts','loadDesignedVoices','dsbLoadProjects','updateSystemStats','updateEtaStatus','reattachRunningPollers','loadChunks']){ctx[name]=name==='loadConfig'?async()=>{}:()=>{};}
 ctx.window=ctx.window||{};ctx.window.location={hash:'#setup'};ctx.window.history={pushState:(_s,_t,hash)=>ctx.window.location.hash=hash};ctx.window.addEventListener=()=>{};

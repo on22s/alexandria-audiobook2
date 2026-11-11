@@ -631,6 +631,21 @@
             m4b_export: 'M4B export',
         };
 
+        // The one label map for the task-status vocabulary the server sends for
+        // per-stage progress (Preparer batch rows, Voice Lab stage pills). One
+        // function, so the two panes cannot drift (Rule 15).
+        function taskStatusLabel(status) {
+            if (status === 'pending') { return t('core.task-status.pending', 'pending'); }
+            if (status === 'running') { return t('core.task-status.running', 'running'); }
+            if (status === 'done') { return t('core.task-status.done', 'done'); }
+            if (status === 'finished') { return t('core.task-status.finished', 'finished'); }
+            if (status === 'failed') { return t('core.task-status.failed', 'failed'); }
+            if (status === 'cancelled') { return t('core.task-status.cancelled', 'cancelled'); }
+            if (status === 'stopped') { return t('core.task-status.stopped', 'stopped'); }
+            if (status === 'idle') { return t('core.task-status.idle', 'idle'); }
+            return status;
+        }
+
         // Notify the user that a long-running job finished, but only if they've
         // navigated away from the tab (no point popping up a notification for
         // something they're already watching).
