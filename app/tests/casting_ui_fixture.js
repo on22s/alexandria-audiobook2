@@ -57,6 +57,7 @@ function setup({snapshotVoices = [{name: 'ADAM'}, {name: 'EVE'}], confirm = true
     w.stopDesignedVoicePlayback = () => {};
     w.Audio = class { constructor(src) { this.src = src; w.played.push(src); } play() { return Promise.resolve(); } pause() {} addEventListener() {} };
     w.played = [];
+    w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     w.eval(source);
     return {w, calls, errors, toasts, get: id => w.document.getElementById('casting-' + id)};
 }
@@ -217,7 +218,7 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     ok(!env.get('collection-review').textContent.includes('OTHER BOOK GENERIC'));
     env.get('collection-review').querySelector('button').click(); await settle();
     eq(env.calls.at(-1), ['POST', '/api/voice_library/apply', {cast: 'Collection', mapping: {ADAM: 'abel'}, book_token: TOKEN}]);
-    ok(env.get('collection-review').textContent.includes('Applied 1 voices.'));
+    ok(env.get('collection-review').textContent.includes('Applied 1 voice.'));
     eq(env.errors, []);
 
     env = setup({confirm: false}); await env.w.loadCastingLibrary(); await settle();

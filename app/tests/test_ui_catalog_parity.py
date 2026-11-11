@@ -37,7 +37,7 @@ PROTECTED = {
 # names a repository artifact, PR or RECIPES.md section, which the glossary
 # forbids translating, so those are exempt in validate().
 KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria',
-                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor'})
+                          'Whisper', 'CUDA', 'ROCm', 'Qwen3-TTS', 'Editor', 'LLM'})
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 TAG = re.compile(r'</?([a-z]+)[^>]*>')
 

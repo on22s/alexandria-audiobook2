@@ -1,5 +1,6 @@
 """Draft preservation and stale audition responses, with model-free browser API doubles."""
 from pathlib import Path
+import json
 import subprocess
 import unittest
 from tests.test_ui_help_js import DOM_FIXTURE
@@ -19,6 +20,7 @@ context.URL={createObjectURL:()=> 'blob:synthetic',revokeObjectURL:value=>revoke
 const row={id:0,uid:'u0',speaker:'Hero'};let saved={names:JSON.parse('{"Rom":"Rohm","__proto__":"Literal"}'),revision:'a'.repeat(64)};
 context.API={get:async()=>saved,post:async(url,data)=>{posts.push({url,data});if(url.endsWith('/save')){saved={names:data.names,revision:'c'.repeat(64)};return saved;}return {book_token:context.chunkSnapshotBookToken,counts:JSON.parse('{"Rom":2,"__proto__":1}'),lines:[row]};}};
 context.fetch=async()=>({ok:true,blob:async()=>({})});
+vm.runInContext(fs.readFileSync(__I18N__,'utf8'),context);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);const run=s=>vm.runInContext(s,context),tick=()=>new Promise(resolve=>setImmediate(resolve));
 let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish'));
 (async()=>{
@@ -27,7 +29,8 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must fi
 
 class PronunciationPanelJsTests(unittest.TestCase):
     def run_js(self, code):
-        result=subprocess.run(['node','-e',DOM_FIXTURE+SETUP+code+'\nfinished=true;})().catch(error=>{console.error(error);process.exitCode=1;});',str(STATIC/'js/app-pronunciation.js')],capture_output=True,text=True,timeout=15)
+        setup = SETUP.replace('__I18N__', json.dumps(str(STATIC/'js/app-i18n.js')))
+        result=subprocess.run(['node','-e',DOM_FIXTURE+setup+code+'\nfinished=true;})().catch(error=>{console.error(error);process.exitCode=1;});',str(STATIC/'js/app-pronunciation.js')],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
     def test_literal_keys_counts_no_auto_generation_and_explicit_shared_save(self):

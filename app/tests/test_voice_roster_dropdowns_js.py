@@ -11,7 +11,7 @@ const handlers={};const containers=Object.fromEntries(['voices-list','chunks-tab
 const context={currentBookFilename:'',_voiceSaveSnapshot:null,window:{_voicesNames:['Zed','Alice','Alice','  Bob  '],_voiceRosterBookToken:'book-a'},
  escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'),
  document:{getElementById:id=>containers[id],createElement:()=>({value:'',textContent:''}),createDocumentFragment:()=>({children:[],appendChild(o){this.children.push(o);}})}};
-vm.createContext(context);
+vm.createContext(context);context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
 vm.runInContext(source.slice(source.indexOf('// Voice roster dropdowns:'),source.indexOf('// End voice roster dropdowns.')),context);
 const start=source.indexOf('function buildSpeakerSelect(');vm.runInContext(source.slice(start,source.indexOf('// Check if any audio',start)),context);
 function select(kind,current,self='Alice'){
