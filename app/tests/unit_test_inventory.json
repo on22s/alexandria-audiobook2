@@ -10611,6 +10611,9 @@
     "tests.test_readalong_sidecar.ReadalongSidecarTests.test_wrong_audio_rejected"
   ],
   "test_readaloud_sync_followups": [
+    "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_changed_character_still_refuses",
+    "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_cut_inside_a_run_maps",
+    "tests.test_readaloud_sync_followups.CjkCutInsideRunTests.test_qwen_build_with_a_mid_run_cut",
     "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_changed_word_in_the_overrun_still_refuses",
     "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_maps_as_one_group_with_exact_word_windows",
     "tests.test_readaloud_sync_followups.LaterChunkRunsOnTests.test_still_refused_without_span_opt_in",
