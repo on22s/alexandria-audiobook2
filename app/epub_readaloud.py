@@ -1368,7 +1368,12 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
     or the container cannot take a div.
     """
     parents = {child: parent for parent in root.iter() for child in parent}
-    segment_elements = {id(segment["element"]) for segment in segments}
+    # Only spoken blocks count as another chunk's text. A block with no
+    # spoken words (a "* * *" or "———" divider) never maps to a chunk, has
+    # no audio and no highlight of its own, so it may sit inside a wrapper.
+    segment_elements = (
+        {id(segment["element"]) for segment in segments if get_spoken_words(segment["text"])}
+        if any(row.get("span_group") is not None for row in mapping) else set())
     xml_id = "{http://www.w3.org/XML/1998/namespace}id"
 
     def _chain(el):
@@ -1457,7 +1462,10 @@ def _apply_span_group_wrappers(root, segments, mapping, assigned):
         elif any(_local(top.tag) in _SPAN_WRAP_REFUSED_TAGS for top in tops):
             reason = "a block is a list item or table part"
         elif wrapped != member_ids:
-            reason = "a wrapper would also take text from outside this chunk"
+            foreign = [node for child in children[positions[0]:positions[-1] + 1]
+                       for node in child.iter() if id(node) in wrapped - member_ids]
+            reason = ("a wrapper would also take text from outside this chunk ("
+                      + ", ".join(_outline(node) for node in foreign[:5]) + ")")
         if reason is not None:
             layout = []
             for top in dict.fromkeys(tops):
