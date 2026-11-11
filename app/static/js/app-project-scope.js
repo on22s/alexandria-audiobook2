@@ -24,7 +24,7 @@ function resetSourceScopeBook() {
     invalidateSourceScopePreview(); sourceScopeUndo = null; sourceScopeNextOffset = null;
     sourceScopeElement('entry').replaceChildren(); sourceScopeElement('entry').value = '';
     sourceScopeElement('undo-status').textContent = '';
-    sourceScopeElement('feedback').textContent = 'Book changed. Refresh the saved entries and undo status.';
+    sourceScopeElement('feedback').textContent = t('scope.book-changed', 'Book changed. Refresh the saved entries and undo status.');
     updateSourceScopeControls();
     if (sourceScopeElement('panel').open && !sourceScopeBusy) { refreshSourceScope(); }
 }
@@ -39,21 +39,25 @@ async function refreshSourceScope(offset = 1) {
     invalidateSourceScopePreview(); const epoch = sourceScopeEpoch;
     const selection = window._existingUploadSelectionRequest;
     sourceScopeBusy = true; sourceScopeUndo = null; updateSourceScopeControls();
-    sourceScopeElement('feedback').textContent = 'Reading saved entries and undo status…';
+    sourceScopeElement('feedback').textContent = t('scope.reading', 'Reading saved entries and undo status…');
     try {
         const search = encodeURIComponent(sourceScopeElement('search').value.trim());
         const [choices, undo] = await Promise.all([API.get(`/api/project/scope/entries?search=${search}&offset=${offset}`), API.get('/api/project/scope/undo')]);
         if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
         const select = sourceScopeElement('entry'); select.replaceChildren();
-        const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'Choose the first entry to keep'; select.appendChild(placeholder);
+        const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = t('scope.choose-first-entry', 'Choose the first entry to keep'); select.appendChild(placeholder);
         for (const row of choices.entries) {
             const option = document.createElement('option'); option.value = String(row.start_entry); option.textContent = row.label; select.appendChild(option);
         }
         select.value = ''; sourceScopeNextOffset = choices.next_offset; sourceScopeUndo = undo;
-        sourceScopeElement('undo-status').textContent = undo.available
-            ? (undo.can_undo ? 'An exact undo is available. Undo or discard it before applying another scope.' : `Undo is preserved but cannot apply: ${undo.reason} You can inspect the project or explicitly discard that undo record.`)
-            : 'No scope undo is stored.';
-        sourceScopeElement('feedback').textContent = `${choices.entries.length} choices shown from ${choices.total_entries} saved entries. Boundaries inside a saved chunk will be refused.`;
+        if (undo.available) {
+            sourceScopeElement('undo-status').textContent = undo.can_undo
+                ? formatUiSafetyText('safety.scope.undo.available', 'An exact undo is available. Undo or discard it before applying another scope.')
+                : formatUiSafetyText('safety.scope.undo.preserved', 'Undo is preserved but cannot apply: {reason} You can inspect the project or explicitly discard that undo record.', {reason: undo.reason});
+        } else {
+            sourceScopeElement('undo-status').textContent = t('scope.undo.none', 'No scope undo is stored.');
+        }
+        sourceScopeElement('feedback').textContent = t('scope.choices', '{shown} choices shown from {total} saved entries. Boundaries inside a saved chunk will be refused.', {shown: choices.entries.length, total: choices.total_entries});
     } catch (error) {
         sourceScopeElement('feedback').textContent = error.message;
     } finally {
@@ -67,17 +71,19 @@ function loadNextSourceScopeEntries() {
 
 function renderSourceScopeRows(label, rows, describe) {
     const details = document.createElement('details'), summary = document.createElement('summary');
-    summary.textContent = `${label} (${rows.length})`; details.appendChild(summary);
+    summary.textContent = t('scope.rows-heading', '{label} ({count})', {label, count: rows.length}); details.appendChild(summary);
     const content = document.createElement('div'), navigation = document.createElement('div');
     const previous = document.createElement('button'), next = document.createElement('button'), range = document.createElement('span');
-    previous.type = next.type = 'button'; previous.textContent = 'Previous 50'; next.textContent = 'Next 50';
+    previous.type = next.type = 'button';
+    previous.textContent = t('scope.rows.previous', 'Previous 50');
+    next.textContent = t('scope.rows.next', 'Next 50');
     previous.className = next.className = 'btn btn-sm btn-outline-secondary m-1';
     let offset = 0;
     const paint = () => {
         content.replaceChildren();
         for (const row of rows.slice(offset, offset + 50)) { const p = document.createElement('p'); p.textContent = describe(row); content.appendChild(p); }
         previous.disabled = offset === 0; next.disabled = offset + 50 >= rows.length;
-        range.textContent = rows.length ? `${offset + 1}–${Math.min(offset + 50, rows.length)}` : 'No entries';
+        range.textContent = rows.length ? `${offset + 1}–${Math.min(offset + 50, rows.length)}` : t('scope.rows.none', 'No entries');
     };
     previous.onclick = () => { offset = Math.max(0, offset - 50); paint(); };
     next.onclick = () => { offset += 50; paint(); };
@@ -89,25 +95,49 @@ function renderSourceScopeRows(label, rows, describe) {
 function renderSourceScopePreview(plan) {
     const area = sourceScopeElement('review'); area.replaceChildren();
     const append = text => { const p = document.createElement('p'); p.textContent = text; area.appendChild(p); };
-    append(`${plan.source_name}: remove words ${plan.source_range.removed_start_word + 1}–${plan.source_range.retained_start_word}; keep ${plan.source_range.retained_start_word + 1}–${plan.source_range.end_word}.`);
-    append(`${plan.removed_uids.length} chunks leave the active scope; ${plan.retained.length} stay, including ${plan.retained.filter(row => row.audio_verified).length} audio files checked for integrity and ${plan.history_versions} saved take versions. Listening and speech-content checks remain separate.`);
+    append(t('scope.preview.remove', '{source}: remove words {from}–{to}; keep {keepFrom}–{keepTo}.', {
+        source: plan.source_name,
+        from: plan.source_range.removed_start_word + 1,
+        to: plan.source_range.retained_start_word,
+        keepFrom: plan.source_range.retained_start_word + 1,
+        keepTo: plan.source_range.end_word,
+    }));
+    append(t('scope.preview.counts', '{removed} chunks leave the active scope; {retained} stay, including {audio} audio files checked for integrity and {versions} saved take versions. Listening and speech-content checks remain separate.', {
+        removed: plan.removed_uids.length,
+        retained: plan.retained.length,
+        audio: plan.retained.filter(row => row.audio_verified).length,
+        versions: plan.history_versions,
+    }));
     append(plan.notice);
-    for (const [label, rows] of [['Removed text', plan.removed_script], ['Retained text', plan.retained]]) {
-        area.appendChild(renderSourceScopeRows(label, rows, row => `${row.speaker || 'Unassigned'}${row.uid ? ' · ' + row.uid : ''}: ${row.text}`));
+    for (const [label, rows] of [[t('scope.rows.removed', 'Removed text'), plan.removed_script], [t('scope.rows.retained', 'Retained text'), plan.retained]]) {
+        area.appendChild(renderSourceScopeRows(label, rows, row => t('scope.rows.text', '{speaker}{uid}: {text}', {
+            speaker: row.speaker || t('scope.unassigned', 'Unassigned'),
+            uid: row.uid ? ' · ' + row.uid : '',
+            text: row.text,
+        })));
     }
-    area.appendChild(renderSourceScopeRows('Retained voice assignments', plan.voices, row => `${row.uid}: ${Object.entries(row.effective_voices).map(([name, voice]) => `${name}: ${voice.voice || voice.type || 'Unassigned'}${voice.character_style ? ' · ' + voice.character_style : ''}`).join('; ')}`));
-    area.appendChild(renderSourceScopeRows('Preserved files outside active scope', plan.preserved_files, row => `${row.path}: ${row.exists ? 'kept on disk' : 'already missing'}`));
+    area.appendChild(renderSourceScopeRows(t('scope.rows.voices', 'Retained voice assignments'), plan.voices, row => t('scope.rows.voice-entry', '{uid}: {assignments}', {
+        uid: row.uid,
+        assignments: Object.entries(row.effective_voices).map(([name, voice]) => t('scope.rows.voice-assignment', '{name}: {voice}{style}', {
+            name,
+            voice: voice.voice || voice.type || t('scope.unassigned', 'Unassigned'),
+            style: voice.character_style ? ' · ' + voice.character_style : '',
+        })).join('; '),
+    })));
+    area.appendChild(renderSourceScopeRows(t('scope.rows.preserved', 'Preserved files outside active scope'), plan.preserved_files, row => row.exists
+        ? t('scope.rows.file-kept', '{path}: kept on disk', {path: row.path})
+        : t('scope.rows.file-missing', '{path}: already missing', {path: row.path})));
 }
 
 async function previewSourceScope() {
     if (sourceScopeBusy || !sourceScopeElement('entry').value) { return; }
     invalidateSourceScopePreview(); const epoch = sourceScopeEpoch, selection = window._existingUploadSelectionRequest;
-    sourceScopeBusy = true; updateSourceScopeControls(); sourceScopeElement('feedback').textContent = 'Verifying source, voices, audio and history…';
+    sourceScopeBusy = true; updateSourceScopeControls(); sourceScopeElement('feedback').textContent = t('scope.verifying', 'Verifying source, voices, audio and history…');
     try {
         await flushVoiceSaves();
         const plan = await API.post('/api/project/scope/preview', {start_entry: Number(sourceScopeElement('entry').value)});
         if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
-        sourceScopePreview = plan; renderSourceScopePreview(plan); sourceScopeElement('feedback').textContent = 'Review the removed and retained text before applying.';
+        sourceScopePreview = plan; renderSourceScopePreview(plan); sourceScopeElement('feedback').textContent = t('scope.review-before-apply', 'Review the removed and retained text before applying.');
     } catch (error) { sourceScopeElement('feedback').textContent = error.message; }
     finally { sourceScopeBusy = false; updateSourceScopeControls(); }
 }
@@ -128,9 +158,16 @@ async function runSourceScopeMutation(action) {
         invalidateSourceScopePreview();
         if (selection !== window._existingUploadSelectionRequest) { return; }
         await refreshVoiceMetadata(); await loadChunks(true);
-        outcome = action === 'apply' ? 'Scope applied. Rebuild older exports before downloading.' : action === 'undo' ? 'Previous scope restored.' : 'Undo discarded; current scope kept.';
+        outcome = action === 'apply'
+            ? formatUiSafetyText('safety.scope.applied', 'Scope applied. Rebuild older exports before downloading.')
+            : action === 'undo'
+                ? t('scope.outcome.undo', 'Previous scope restored.')
+                : t('scope.outcome.discard', 'Undo discarded; current scope kept.');
     } catch (error) {
-        invalidateSourceScopePreview(); outcome = committed ? `Change saved. Refresh the book views: ${error.message}` : error.message;
+        invalidateSourceScopePreview();
+        outcome = committed
+            ? formatUiSafetyText('safety.scope.saved-unrefreshed', 'Change saved. Refresh the book views: {detail}', {detail: error.message})
+            : error.message;
     } finally { sourceScopeBusy = false; updateSourceScopeControls(); }
     if (selection === window._existingUploadSelectionRequest) {
         await refreshSourceScope();

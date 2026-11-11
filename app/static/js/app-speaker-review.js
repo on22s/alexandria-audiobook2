@@ -47,8 +47,15 @@
     }
     function sourceHelp() {
         const source = state.options?.sources?.find(item => item.id === element('source').value);
-        element('source-help').textContent = !source ? '' : !source.available ? source.reason || 'Unavailable.'
-            : `${source.entries ?? '?'} of ${source.total ?? '?'} entries. ${source.complete ? 'Complete source.' : 'Incomplete source; explicit partial consent is required.'}`;
+        element('source-help').textContent = !source ? '' : !source.available
+            ? source.reason || t('speaker_review.source.unavailable', 'Unavailable.')
+            : t('speaker_review.source.entries', '{entries} of {total} entries. {state}', {
+                entries: source.entries ?? '?',
+                total: source.total ?? '?',
+                state: source.complete
+                    ? t('speaker_review.source.complete', 'Complete source.')
+                    : t('speaker_review.source.incomplete', 'Incomplete source; explicit partial consent is required.'),
+            });
     }
     function invalidatePreview() {
         if (state.pending || active()) { return; }
@@ -59,7 +66,7 @@
         element('consent-panel').hidden = true;
         element('results').replaceChildren();
         sourceHelp();
-        status('Selection changed. Preview the evidence before starting a model review.');
+        status(t('speaker_review.selection-changed', 'Selection changed. Preview the evidence before starting a model review.'));
         syncControls();
     }
     window.resetSpeakerLabelReview = () => {
@@ -73,9 +80,11 @@
         element('consent').checked = false;
         element('results').replaceChildren();
         element('book').textContent = '';
-        status(wasRunning
-            ? 'The active book changed. Previous results are hidden; an already-sent model request may still finish. Load options to check server state before starting again.'
-            : 'Load options for this book when you are ready. Opening this panel makes no model requests.');
+        if (wasRunning) {
+            status(formatUiSafetyText('safety.speaker_review.book-changed', 'The active book changed. Previous results are hidden; an already-sent model request may still finish. Load options to check server state before starting again.'), 'warning');
+        } else {
+            status(t('speaker_review.ready', 'Load options for this book when you are ready. Opening this panel makes no model requests.'));
+        }
         syncControls();
     };
     async function loadOptions() {
@@ -83,7 +92,7 @@
         window.resetSpeakerLabelReview();
         const owner = context();
         state.pending = 'options'; syncControls();
-        status('Reading saved sources, reference scripts and model settings…');
+        status(t('speaker_review.loading-options', 'Reading saved sources, reference scripts and model settings…'));
         try {
             const result = await API.get('/api/speaker_review/options');
             if (!current(owner)) { return; }
@@ -93,12 +102,14 @@
             }
             element('source').replaceChildren();
             for (const source of result.sources || []) {
-                const option = node('option', `${source.label}${source.available ? '' : ' (unavailable)'}`);
+                const option = node('option', source.available
+                    ? source.label
+                    : t('speaker_review.source.option-unavailable', '{label} (unavailable)', {label: source.label}));
                 option.value = source.id; option.disabled = !source.available;
                 element('source').append(option);
             }
             element('source').value = result.sources?.find(source => source.available)?.id || '';
-            element('reference').replaceChildren(node('option', 'Choose a provisional reference…'));
+            element('reference').replaceChildren(node('option', t('speaker_review.choose-reference', 'Choose a provisional reference…')));
             element('reference').firstChild.value = '';
             for (const reference of result.references || []) {
                 const option = node('option', reference.name); option.value = reference.name;
@@ -106,23 +117,26 @@
             }
             element('max-pairs').value = '20'; element('partial').checked = false;
             element('options').hidden = false;
-            element('book').textContent = `Active book: ${owner.book || '(none selected)'}`;
+            element('book').textContent = t('speaker_review.active-book', 'Active book: {book}', {book: owner.book || t('speaker_review.no-book', '(none selected)')});
             sourceHelp();
             const missing = (result.sources || []).filter(source => !source.available)
-                .map(source => `${source.label}: ${source.reason || 'unavailable'}`).join(' ');
-            status(!result.profile?.available ? `Model unavailable: ${result.profile?.reason || 'Check and save your LLM settings.'} You can still preview evidence. Configure and save a supported profile, then load options again before starting a model review.`
-                : !result.references?.length ? 'No saved reference scripts found. Save a provisional reference in Saved Scripts first.'
-                : `Choose the labels and provisional reference, then preview evidence. ${missing}`,
-            !result.profile?.available || !result.references?.length ? 'warning' : 'secondary');
+                .map(source => t('speaker_review.source.missing', '{label}: {reason}', {label: source.label, reason: source.reason || t('speaker_review.source.unavailable-short', 'unavailable')})).join(' ');
+            if (!result.profile?.available) {
+                status(t('speaker_review.profile.unavailable', 'Model unavailable: {reason} You can still preview evidence. Configure and save a supported profile, then load options again before starting a model review.', {reason: result.profile?.reason || t('speaker_review.profile.check-settings', 'Check and save your LLM settings.')}), 'warning');
+            } else if (!result.references?.length) {
+                status(t('speaker_review.no-references', 'No saved reference scripts found. Save a provisional reference in Saved Scripts first.'), 'warning');
+            } else {
+                status(t('speaker_review.choose-and-preview', 'Choose the labels and provisional reference, then preview evidence. {missing}', {missing}), 'secondary');
+            }
             const recover = result.active_run?.book_id === result.book_id ? result.active_run : result.recent_run;
             if (recover?.book_id === result.book_id) {
                 state.run = recover;
-                status('Recovering the saved review status. This does not start or resume model requests…', 'info');
+                status(t('speaker_review.recovering', 'Recovering the saved review status. This does not start or resume model requests…'), 'info');
             } else if (state.previousRun) {
-                status('A previous book has a review in progress. It will stop when changed evidence is detected; an already-sent request may finish. You can request cancellation here, then reload options.', 'warning');
+                status(formatUiSafetyText('safety.speaker_review.previous-book', 'A previous book has a review in progress. It will stop when changed evidence is detected; an already-sent request may finish. You can request cancellation here, then reload options.'), 'warning');
             }
         } catch (error) {
-            if (current(owner)) { status(getActionErrorMessage('Review options could not be loaded', error, 'Retry Load review options.'), 'danger'); }
+            if (current(owner)) { status(getActionErrorMessage(t('speaker_review.options.failed', 'Review options could not be loaded'), error, t('speaker_review.options.failed-recovery', 'Retry Load review options.')), 'danger'); }
         } finally {
             if (current(owner)) {
                 state.pending = null; syncControls();
@@ -131,9 +145,21 @@
         }
     }
     function showProfile(report) {
-        element('profile').textContent = `Saved model: ${report.profile?.model || '(not configured)'}. Endpoint: ${report.profile?.endpoint || '(not configured)'}.${report.profile?.context_length ? ` Context: ${report.profile.context_length} tokens (${report.profile.context_source || 'configured'}).` : ''}`;
+        const profile = report.profile || {};
+        const model = profile.model || t('speaker_review.profile.not-configured', '(not configured)');
+        const endpoint = profile.endpoint || t('speaker_review.profile.not-configured', '(not configured)');
+        element('profile').textContent = profile.context_length
+            ? t('speaker_review.profile.saved-context', 'Saved model: {model}. Endpoint: {endpoint}. Context: {length} tokens ({source}).', {
+                model,
+                endpoint,
+                length: profile.context_length,
+                source: profile.context_source || t('speaker_review.profile.context-configured', 'configured')})
+            : t('speaker_review.profile.saved', 'Saved model: {model}. Endpoint: {endpoint}.', {model, endpoint});
         const calls = Number(report.call_count) || 0;
-        element('budget').textContent = `This preview has ${report.candidates?.length || 0} label pairs and up to ${calls} model requests: one “none” and one “low” reasoning judgment per pair. Hard limit: 20 pairs / 40 attempts. No automatic retries or aliases. Each request includes the evidence shown below.`;
+        element('budget').textContent = t('speaker_review.budget', 'This preview has {pairs} label pairs and up to {calls} model requests: one “none” and one “low” reasoning judgment per pair. Hard limit: 20 pairs / 40 attempts. No automatic retries or aliases. Each request includes the evidence shown below.', {
+            pairs: report.candidates?.length || 0,
+            calls,
+        });
         element('consent').checked = false;
         element('consent-panel').hidden = false;
     }
@@ -142,17 +168,29 @@
         invalidatePreview();
         const owner = context(), inputs = selection();
         state.pending = 'preview'; syncControls();
-        status('Checking source alignment and matching reference text. No model requests are being made…');
+        status(t('speaker_review.preview.checking', 'Checking source alignment and matching reference text. No model requests are being made…'));
         try {
             const result = await API.post('/api/speaker_review/preview', inputs);
             if (!current(owner)) { return; }
-            if (result.book_id !== state.options.book_id) { throw new Error('The active book changed. Load review options again.'); }
+            if (result.book_id !== state.options.book_id) { throw new Error(t('speaker_review.book-changed', 'The active book changed. Load review options again.')); }
             if (typeof result.profile?.available === 'boolean') { state.options.profile = result.profile; }
             state.preview = {...result, inputs};
             showProfile(result); renderResults(result);
-            status(`${result.candidates?.length || 0} pairs are ready to inspect. ${result.warning || ''} ${result.source_alignment || ''} ${result.phase === 'provisional' ? 'Partial checkpoint: results are provisional.' : 'The reference and all suggestions remain provisional.'} ${!state.options.profile?.available ? 'Save a supported model profile and load options again before starting.' : result.candidates?.length ? 'Review the excerpts, then give consent to start.' : 'No eligible differing label pairs were found.'}`, 'info');
+            status(t('speaker_review.preview.ready', '{count} pairs are ready to inspect. {warning} {alignment} {phase} {conclusion}', {
+                count: result.candidates?.length || 0,
+                warning: result.warning || '',
+                alignment: result.source_alignment || '',
+                phase: result.phase === 'provisional'
+                    ? t('speaker_review.phase.provisional', 'Partial checkpoint: results are provisional.')
+                    : t('speaker_review.phase.suggestions', 'The reference and all suggestions remain provisional.'),
+                conclusion: !state.options.profile?.available
+                    ? t('speaker_review.preview.need-profile', 'Save a supported model profile and load options again before starting.')
+                    : result.candidates?.length
+                        ? t('speaker_review.preview.consent', 'Review the excerpts, then give consent to start.')
+                        : t('speaker_review.preview.no-pairs', 'No eligible differing label pairs were found.'),
+            }), 'info');
         } catch (error) {
-            if (current(owner)) { status(getActionErrorMessage('Evidence preview failed', error, 'Review the source/reference selection. If saved data changed, load options again.'), 'danger'); }
+            if (current(owner)) { status(getActionErrorMessage(t('speaker_review.preview.failed', 'Evidence preview failed'), error, t('speaker_review.preview.failed-recovery', 'Review the source/reference selection. If saved data changed, load options again.')), 'danger'); }
         } finally {
             if (current(owner)) { state.pending = null; syncControls(); }
         }
@@ -162,12 +200,12 @@
         const owner = context(), previewed = state.preview;
         if (JSON.stringify(previewed.inputs) !== JSON.stringify(selection())) { invalidatePreview(); return; }
         state.pending = 'start'; syncControls();
-        status('Starting the explicitly approved model review…', 'info');
+        status(t('speaker_review.starting', 'Starting the explicitly approved model review…'), 'info');
         try {
             const result = await API.post('/api/speaker_review/start', {...previewed.inputs,
                 snapshot: previewed.snapshot, allow_network: true});
             if (!current(owner)) { return; }
-            if (!result.run_id) { throw new Error('The server did not return a review run ID.'); }
+            if (!result.run_id) { throw new Error(t('speaker_review.start.no-run-id', 'The server did not return a review run ID.')); }
             state.run = {...previewed, ...result, reviews: [], attempts: 0, stale: false};
             state.preview = null;
             element('consent-panel').hidden = true;
@@ -177,8 +215,8 @@
             if (!current(owner)) { return; }
             state.uncertain = true; state.reliable = false;
             element('consent').checked = false;
-            status(getActionErrorMessage('Review start was not confirmed', error,
-                'Do not immediately start another run. Load review options to check server state first.'), 'danger');
+            status(getActionErrorMessage(t('safety.speaker_review.start.unconfirmed', 'Review start was not confirmed'), error,
+                t('safety.speaker_review.start.unconfirmed-recovery', 'Do not immediately start another run. Load review options to check server state first.')), 'danger');
         } finally {
             if (current(owner)) { state.pending = null; syncControls(); }
         }
@@ -186,15 +224,33 @@
     function reportStatus(report) {
         const judged = (report.reviews || []).filter(review => review.verdict).length;
         const errors = (report.reviews || []).filter(review => review.error).length;
-        const progress = `${Number(report.attempts) || 0}/40 attempts used; ${judged} judgments received${errors ? `; ${errors} review errors` : ''}.`;
-        const phase = report.phase === 'provisional' ? ' Partial checkpoint; provisional evidence.' : ' Reference and suggestions are provisional.';
-        if (report.stale || report.status === 'stale') { status(`This report is stale. ${progress} Load options and preview again before any further Apply. ${report.error || ''}`, 'warning'); }
-        else if (report.status === 'running' || report.status === 'cancelling') {
-            status(`${report.status === 'cancelling' ? 'Cancellation requested; the current request may still finish.' : 'Review in progress.'} ${progress}${phase}`, 'info');
+        const progress = t('speaker_review.progress', '{attempts}/40 attempts used; {judged} judgments received{errors}.', {
+            attempts: Number(report.attempts) || 0,
+            judged,
+            errors: errors ? t('speaker_review.progress.errors', '; {count} review errors', {count: errors}) : '',
+        });
+        const phase = report.phase === 'provisional'
+            ? t('speaker_review.report.phase.provisional', 'Partial checkpoint; provisional evidence.')
+            : t('speaker_review.report.phase.suggestions', 'Reference and suggestions are provisional.');
+        const error = report.error || '';
+        if (report.stale || report.status === 'stale') {
+            status(formatUiSafetyText('safety.speaker_review.report.stale', 'This report is stale. {progress} Load options and preview again before any further Apply. {error}', {progress, error}), 'warning');
+        } else if (report.status === 'running' || report.status === 'cancelling') {
+            if (report.status === 'cancelling') {
+                status(formatUiSafetyText('safety.speaker_review.report.cancelling', 'Cancellation requested; the current request may still finish. {progress} {phase}', {progress, phase}), 'info');
+            } else {
+                status(t('speaker_review.report.running', 'Review in progress. {progress} {phase}', {progress, phase}), 'info');
+            }
         } else if (report.status === 'completed') {
-            status(`Review finished. ${progress}${phase}${errors ? ' Some judgments are missing; inspect each result.' : ''}${Number(report.attempts) >= 40 ? ' The attempt budget is exhausted.' : ''} No aliases have been applied automatically.`, errors ? 'warning' : 'success');
+            status(t('speaker_review.report.completed', 'Review finished. {progress} {phase}', {progress, phase})
+                + (errors ? ' ' + t('speaker_review.report.missing', 'Some judgments are missing; inspect each result.') : '')
+                + (Number(report.attempts) >= 40 ? ' ' + t('speaker_review.report.budget', 'The attempt budget is exhausted.') : '')
+                + ' ' + t('speaker_review.report.no-aliases', 'No aliases have been applied automatically.'), errors ? 'warning' : 'success');
         } else {
-            status(`Review ${report.status || 'state unknown'}. ${progress}${phase} ${report.error || ''} No aliases have been applied automatically.`, 'warning');
+            status(t('speaker_review.report.unknown', 'Review {status}. {progress} {phase} {error} No aliases have been applied automatically.', {
+                status: report.status || t('speaker_review.report.state-unknown', 'state unknown'),
+                progress, phase, error,
+            }), 'warning');
         }
     }
     async function refreshStatus() {
@@ -206,7 +262,7 @@
             if (!current(owner) || state.run?.run_id !== runId) { return; }
             if (result.run_id !== runId || result.book_id !== state.options?.book_id) {
                 state.run.stale = true;
-                throw new Error('The review belongs to a different book or run. Load review options again.');
+                throw new Error(t('speaker_review.status.wrong-run', 'The review belongs to a different book or run. Load review options again.'));
             }
             if (result.cancel_requested && result.status === 'running') { result.status = 'cancelling'; }
             state.run = result; state.reliable = true;
@@ -214,9 +270,10 @@
         } catch (error) {
             if (current(owner) && state.run?.run_id === runId) {
                 state.reliable = false;
-                status(getActionErrorMessage('Review status is unavailable', error,
-                    active() ? 'The run may still be active. Apply is disabled. Status checks will retry; use Cancel review to request a stop.'
-                        : 'Apply is disabled. Use Refresh review status to retry, or load options again.'), 'warning');
+                const title = t('speaker_review.status.unavailable', 'Review status is unavailable');
+                status(getActionErrorMessage(title, error, active()
+                    ? t('safety.speaker_review.status.active-recovery', 'The run may still be active. Apply is disabled. Status checks will retry; use Cancel review to request a stop.')
+                    : t('speaker_review.status.unavailable-recovery', 'Apply is disabled. Use Refresh review status to retry, or load options again.')), 'warning');
             }
         } finally {
             if (current(owner) && state.run?.run_id === runId) {
@@ -234,7 +291,7 @@
             if (!current(owner) || state.run?.run_id !== runId) { return; }
             state.run.status = 'cancelling'; reportStatus(state.run);
         } catch (error) {
-            if (current(owner)) { status(getActionErrorMessage('Cancellation was not confirmed', error, 'Refresh review status before trying Cancel again. The current model request may still finish.'), 'warning'); }
+            if (current(owner)) { status(getActionErrorMessage(t('safety.speaker_review.cancel.unconfirmed', 'Cancellation was not confirmed'), error, t('safety.speaker_review.cancel.unconfirmed-recovery', 'Refresh review status before trying Cancel again. The current model request may still finish.')), 'warning'); }
         } finally {
             if (current(owner)) { state.pending = null; syncControls(); await refreshStatus(); }
         }
@@ -246,9 +303,9 @@
         try {
             await API.post(`/api/speaker_review/${encodeURIComponent(runId)}/cancel`, {});
             if (!current(owner)) { return; }
-            status('Cancellation requested for the previous book. Its current model request may still finish. Load review options to check server state.', 'info');
+            status(formatUiSafetyText('safety.speaker_review.previous-cancel', 'Cancellation requested for the previous book. Its current model request may still finish. Load review options to check server state.'), 'info');
         } catch (error) {
-            if (current(owner)) { status(getActionErrorMessage('Previous review cancellation was not confirmed', error, 'Load review options to check server state before trying again.'), 'warning'); }
+            if (current(owner)) { status(getActionErrorMessage(t('safety.speaker_review.previous-cancel.unconfirmed', 'Previous review cancellation was not confirmed'), error, t('safety.speaker_review.previous-cancel.unconfirmed-recovery', 'Load review options to check server state before trying again.')), 'warning'); }
         } finally {
             if (current(owner)) { state.pending = null; syncControls(); }
         }
@@ -259,7 +316,10 @@
         const list = node('ol', undefined, 'small mt-2 mb-0');
         for (const row of rows || []) {
             const item = node('li', undefined, 'mb-2');
-            item.append(node('strong', `${row.speaker || '(unattributed)'} · ${row.type || ''}: `));
+            item.append(node('strong', t('speaker_review.context.row', '{speaker} · {type}:', {
+                speaker: row.speaker || t('speaker_review.unattributed', '(unattributed)'),
+                type: row.type || '',
+            }) + ' '));
             item.append(node('span', row.text || ''));
             item.style.whiteSpace = 'pre-wrap'; list.append(item);
         }
@@ -286,39 +346,66 @@
         const focused = document.activeElement?.id;
         container.replaceChildren();
         if (report.run_id) {
-            container.append(node('p', `Reviewed model: ${report.profile?.model || '(unavailable)'}. Endpoint: ${report.profile?.endpoint || '(unavailable)'}. Reference: ${report.reference_name || '(unavailable)'}.`, 'small text-muted'));
+            container.append(node('p', t('speaker_review.reviewed-model', 'Reviewed model: {model}. Endpoint: {endpoint}. Reference: {reference}.', {
+                model: report.profile?.model || t('speaker_review.unavailable', '(unavailable)'),
+                endpoint: report.profile?.endpoint || t('speaker_review.unavailable', '(unavailable)'),
+                reference: report.reference_name || t('speaker_review.unavailable', '(unavailable)'),
+            }), 'small text-muted'));
         }
         if (report.skipped?.length) {
             const skipped = node('details', undefined, 'small mb-2');
-            skipped.append(node('summary', `${report.skipped_count ?? report.skipped.length} entries skipped (unmatched, ambiguous or outside context limits)`));
+            skipped.append(node('summary', t('speaker_review.skipped.summary', '{count} entries skipped (unmatched, ambiguous or outside context limits)', {
+                count: report.skipped_count ?? report.skipped.length,
+            })));
             const list = node('ul');
-            for (const entry of report.skipped) { list.append(node('li', `Entry ${Number(entry.entry_index) + 1}: ${entry.reason || 'unmatched'}`)); }
-            if (report.skipped_count > report.skipped.length) { list.append(node('li', `Showing the first ${report.skipped.length} skipped entries.`)); }
+            for (const entry of report.skipped) {
+                list.append(node('li', t('speaker_review.skipped.entry', 'Entry {index}: {reason}', {
+                    index: Number(entry.entry_index) + 1,
+                    reason: entry.reason || t('speaker_review.skipped.unmatched', 'unmatched'),
+                })));
+            }
+            if (report.skipped_count > report.skipped.length) { list.append(node('li', t('speaker_review.skipped.capped', 'Showing the first {count} skipped entries.', {count: report.skipped.length}))); }
             skipped.append(list); container.append(skipped);
         }
         for (const [index, candidate] of (report.candidates || []).entries()) {
             const choices = getEligibleDirections(candidate, report);
             const card = node('section', undefined, 'border rounded p-3 mb-2');
-            const title = node('h6', `Entry ${Number(candidate.entry_index) + 1}: ${candidate.prediction_label} → ${candidate.reference_label}`);
+            const title = node('h6', t('speaker_review.card.title', 'Entry {index}: {prediction} → {reference}', {
+                index: Number(candidate.entry_index) + 1,
+                prediction: candidate.prediction_label,
+                reference: candidate.reference_label,
+            }));
             title.id = `speaker-review-pair-${index}`; card.setAttribute('aria-labelledby', title.id);
-            card.append(title, node('p', 'Current/source label → provisional reference label. Check both contexts before deciding.', 'small text-muted mb-1'));
-            appendContext(card, 'Source evidence sent to the model', candidate.context);
-            appendContext(card, 'Provisional reference evidence sent to the model', candidate.reference_context);
+            card.append(title, node('p', t('speaker_review.card.legend', 'Current/source label → provisional reference label. Check both contexts before deciding.'), 'small text-muted mb-1'));
+            appendContext(card, t('speaker_review.context.source', 'Source evidence sent to the model'), candidate.context);
+            appendContext(card, t('speaker_review.context.reference', 'Provisional reference evidence sent to the model'), candidate.reference_context);
             for (const mode of ['none', 'low']) {
                 const review = (report.reviews || []).find(row => row.candidate_id === candidate.id && row.mode === mode);
-                const label = review?.error ? `Error: ${review.error}` : !review?.verdict ? (report.run_id ? 'No judgment received.' : 'Not requested yet.')
-                    : `${review.verdict.same_identity === true ? 'Same identity suggested' : review.verdict.same_identity === false ? 'Different identities suggested' : 'Uncertain'}: ${review.verdict.reason}`;
-                card.append(node('p', `${mode} reasoning${review?.cached ? ' (cached)' : ''}: ${label}`, 'small mt-2 mb-1'));
+                const label = review?.error
+                    ? t('speaker_review.judgment.error', 'Error: {error}', {error: review.error})
+                    : !review?.verdict
+                        ? (report.run_id ? t('speaker_review.judgment.none', 'No judgment received.') : t('speaker_review.judgment.not-requested', 'Not requested yet.'))
+                        : t('speaker_review.judgment.verdict', '{verdict}: {reason}', {
+                            verdict: review.verdict.same_identity === true
+                                ? t('speaker_review.verdict.same', 'Same identity suggested')
+                                : review.verdict.same_identity === false
+                                    ? t('speaker_review.verdict.different', 'Different identities suggested')
+                                    : t('speaker_review.verdict.uncertain', 'Uncertain'),
+                            reason: review.verdict.reason,
+                        });
+                card.append(node('p', review?.cached
+                    ? t('speaker_review.judgment.line-cached', '{mode} reasoning (cached): {label}', {mode, label})
+                    : t('speaker_review.judgment.line', '{mode} reasoning: {label}', {mode, label}), 'small mt-2 mb-1'));
             }
             if ((report.applied || []).includes(candidate.id)) {
-                card.append(node('p', 'Alias saved in the shared registry. Future Review runs can use it; the script has not been rewritten here.', 'small text-success mt-2 mb-0'));
+                card.append(node('p', t('speaker_review.alias.saved', 'Alias saved in the shared registry. Future Review runs can use it; the script has not been rewritten here.'), 'small text-success mt-2 mb-0'));
             } else if (report.run_id && choices.length) {
                 const controls = node('div', undefined, 'd-flex flex-wrap gap-2 align-items-center mt-2');
                 const direction = node('select', undefined, 'form-select form-select-sm');
                 direction.style.width = 'auto'; direction.style.maxWidth = '100%'; direction.dataset.direction = 'true';
                 direction.dataset.candidateId = candidate.id;
                 direction.id = `speaker-review-direction-${index}`;
-                const label = node('label', 'Alias direction', 'small'); label.htmlFor = direction.id;
+                const label = node('label', t('speaker_review.alias.direction', 'Alias direction'), 'small'); label.htmlFor = direction.id;
                 for (const choice of choices) {
                     const option = node('option', `${choice.alias} → ${choice.canonical}`);
                     option.value = choice.direction; direction.append(option);
@@ -326,14 +413,15 @@
                 if (choices.some(choice => choice.direction === directions.get(candidate.id))) {
                     direction.value = directions.get(candidate.id);
                 }
-                const button = node('button', 'Apply alias…', 'btn btn-sm btn-outline-primary');
+                const button = node('button', t('speaker_review.alias.apply', 'Apply alias…'), 'btn btn-sm btn-outline-primary');
                 button.type = 'button'; button.dataset.apply = 'true'; button.id = `speaker-review-apply-${index}`;
-                button.setAttribute('aria-label', `Review and apply alias for entry ${Number(candidate.entry_index) + 1}`);
+                button.setAttribute('aria-label', t('speaker_review.alias.apply-aria', 'Review and apply alias for entry {index}', {index: Number(candidate.entry_index) + 1}));
                 button.addEventListener('click', () => apply(candidate.id, direction.value));
                 controls.append(label, direction, button); card.append(controls);
             } else if (report.run_id) {
-                card.append(node('p', report.stale ? 'Apply disabled: this report is stale.'
-                    : candidate.apply_refusal || 'Apply requires both reasoning modes to suggest the same identity and a safe alias pair.', 'small text-muted mt-2 mb-0'));
+                card.append(node('p', report.stale
+                    ? t('safety.speaker_review.apply.stale', 'Apply disabled: this report is stale.')
+                    : candidate.apply_refusal || t('speaker_review.apply.requires', 'Apply requires both reasoning modes to suggest the same identity and a safe alias pair.'), 'small text-muted mt-2 mb-0'));
             }
             container.append(card);
         }
@@ -351,8 +439,8 @@
         const {alias, canonical} = choice;
         state.pending = 'apply'; syncControls();
         try {
-            const confirmed = await showConfirm(`Save alias “${alias}” → “${canonical}” in the shared character registry? Later Review runs can merge these names using this registry. This does not rewrite the current script. The reference and model judgments are provisional. This single change makes the remaining report stale.`,
-                {title: 'Apply this one alias?', actionLabel: 'Save alias'});
+            const confirmed = await showConfirm(formatUiSafetyText('safety.speaker_review.apply.confirm', 'Save alias “{alias}” → “{canonical}” in the shared character registry? Later Review runs can merge these names using this registry. This does not rewrite the current script. The reference and model judgments are provisional. This single change makes the remaining report stale.', {alias, canonical}),
+                {title: t('safety.speaker_review.apply.confirm.title', 'Apply this one alias?'), actionLabel: t('safety.speaker_review.apply.confirm.action', 'Save alias')});
             if (!confirmed || !current(owner) || state.run !== run
                 || !getEligibleDirections(run.candidates?.find(item => item.id === candidateId), run)
                     .some(item => item.direction === direction
@@ -364,14 +452,14 @@
             run.applied = result.applied || [candidate.id]; run.stale = true;
             state.preview = null;
             renderResults(run);
-            status(`Saved alias “${alias}” → “${canonical}” in the shared registry. It will be used by later Review runs; this did not rewrite your script. Load options and preview again before another Apply.`, 'success');
+            status(t('speaker_review.apply.saved', 'Saved alias “{alias}” → “{canonical}” in the shared registry. It will be used by later Review runs; this did not rewrite your script. Load options and preview again before another Apply.', {alias, canonical}), 'success');
             if (typeof clearCharacterAliases === 'function') { clearCharacterAliases(); }
         } catch (error) {
             if (!current(owner)) { return; }
             // Even a lost successful response must never offer a duplicate/stale Apply.
             run.stale = true; state.reliable = false; renderResults(run);
-            status(getActionErrorMessage('Alias save was not confirmed', error,
-                'Apply is disabled. Check Edit aliases, then load options and preview again before another change.'), 'warning');
+            status(getActionErrorMessage(t('safety.speaker_review.apply.unconfirmed', 'Alias save was not confirmed'), error,
+                t('safety.speaker_review.apply.unconfirmed-recovery', 'Apply is disabled. Check Edit aliases, then load options and preview again before another change.')), 'warning');
         } finally {
             if (current(owner)) { state.pending = null; syncControls(); }
         }

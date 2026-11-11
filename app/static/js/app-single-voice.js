@@ -88,9 +88,7 @@ function singleVoiceIdentityUnavailable(identity) {
 }
 
 function singleVoiceUnavailableBookError() {
-    return new Error('The selected book identity is unavailable. Reload or reselect this book '
-        + '(load it again from Scripts, or re-upload its source) before previewing again; '
-        + 'Reload Voices cannot resolve an unavailable book identity.');
+    return new Error(t('single_voice.book-unavailable', 'The selected book identity is unavailable. Reload or reselect this book (load it again from Scripts, or re-upload its source) before previewing again; Reload Voices cannot resolve an unavailable book identity.'));
 }
 
 function singleVoiceRefreshOpts(identity) {
@@ -121,7 +119,7 @@ function singleVoiceIsNotSent(error) {
 }
 
 function singleVoiceSaveErrorDetail(error) {
-    return (error && (error.message || error.detail)) || 'Voice save failed.';
+    return (error && (error.message || error.detail)) || t('single_voice.save.failed', 'Voice save failed.');
 }
 
 function renderSingleVoiceSourcePreview() {
@@ -130,11 +128,11 @@ function renderSingleVoiceSourcePreview() {
     const confirmBox = document.getElementById('source-preview-confirm');
     if (!box || !meta) { return; }
     if (!_singleVoiceSourcePreview) {
-        box.textContent = 'No source preview loaded for this book.';
+        box.textContent = t('single_voice.source.empty', 'No source preview loaded for this book.');
         meta.textContent = '';
         if (confirmBox) { confirmBox.checked = false; }
         const emptyStatus = document.getElementById('source-preview-status');
-        if (emptyStatus) { emptyStatus.textContent = 'No source preview loaded.'; }
+        if (emptyStatus) { emptyStatus.textContent = t('single_voice.source.empty-status', 'No source preview loaded.'); }
         return;
     }
     const preview = _singleVoiceSourcePreview;
@@ -147,23 +145,36 @@ function renderSingleVoiceSourcePreview() {
     // extracted-text digest it is. Filename labels are display-escaped
     // (control/bidi) without changing raw stored/returned strings.
     const identityLabel = preview.imported_source_name
-        ? `imported document ${singleVoiceEscapeLabel(preview.imported_source_name)} · retained extracted text ${singleVoiceEscapeLabel(preview.source_name)}`
-        : `retained extracted text ${singleVoiceEscapeLabel(preview.source_name)}`;
-    meta.textContent = `${identityLabel} · encoding ${preview.encoding} · original extracted text (before annotation/preparation) · `
-        + `${preview.total_chars} chars total · excerpt ${excerptChars} shown`
-        + (preview.truncated ? ' (truncated)' : '') + ` · extracted-text sha256 ${preview.source_sha256.slice(0, 16)}…`
-        + ` · book ${(preview.book_token || '').slice(0, 12)}…`;
+        ? t('single_voice.source.identity.imported', 'imported document {imported} · retained extracted text {retained}', {
+            imported: singleVoiceEscapeLabel(preview.imported_source_name),
+            retained: singleVoiceEscapeLabel(preview.source_name)})
+        : t('single_voice.source.identity.retained', 'retained extracted text {name}', {name: singleVoiceEscapeLabel(preview.source_name)});
+    meta.textContent = preview.truncated
+        ? t('single_voice.source.meta-truncated', '{identity} · encoding {encoding} · original extracted text (before annotation/preparation) · {total} chars total · excerpt {shown} shown (truncated) · extracted-text sha256 {sha}… · book {token}…', {
+            identity: identityLabel,
+            encoding: preview.encoding,
+            total: preview.total_chars,
+            shown: excerptChars,
+            sha: preview.source_sha256.slice(0, 16),
+            token: (preview.book_token || '').slice(0, 12)})
+        : t('single_voice.source.meta', '{identity} · encoding {encoding} · original extracted text (before annotation/preparation) · {total} chars total · excerpt {shown} shown · extracted-text sha256 {sha}… · book {token}…', {
+            identity: identityLabel,
+            encoding: preview.encoding,
+            total: preview.total_chars,
+            shown: excerptChars,
+            sha: preview.source_sha256.slice(0, 16),
+            token: (preview.book_token || '').slice(0, 12)});
     const confirmed = isSingleVoiceSourceConfirmed();
     if (confirmBox) { confirmBox.checked = confirmed; }
     const status = document.getElementById('source-preview-status');
     if (status) { status.textContent = confirmed
-        ? 'Loaded excerpt snapshot confirmed in this tab. Reload the preview to check the current source.'
-        : 'Loaded excerpt snapshot not confirmed for the current book/source.'; }
+        ? t('single_voice.source.confirmed', 'Loaded excerpt snapshot confirmed in this tab. Reload the preview to check the current source.')
+        : t('single_voice.source.unconfirmed', 'Loaded excerpt snapshot not confirmed for the current book/source.'); }
 }
 
 async function loadSingleVoiceSourcePreview() {
     if (_singleVoiceBusy) {
-        showToast('A single-voice action is still running; please wait.', 'warning');
+        showToast(t('single_voice.busy', 'A single-voice action is still running; please wait.'), 'warning');
         return;
     }
     // Capture book+epoch+selection+identity before the await: a book switch
@@ -177,11 +188,11 @@ async function loadSingleVoiceSourcePreview() {
         // Shared API.get deadline (abort included) instead of a second
         // Promise.race copy that never aborted the fetch (#1724 C048).
         const preview = await API.get('/api/single-narrator/source-preview',
-            {timeoutMs: 60000, timeoutMessage: 'The source preview timed out. Check the selected book and try again.'});
+            {timeoutMs: 60000, timeoutMessage: t('single_voice.source.timeout', 'The source preview timed out. Check the selected book and try again.')});
         if (!singleVoiceIdentityCurrent(identity)) { return; }
         if (!preview || typeof preview.text_start !== 'string' || !/^[0-9a-f]{64}$/.test(preview.book_token || '')
             || !/^[0-9a-f]{64}$/.test(preview.source_sha256 || '')) {
-            throw new Error('Invalid source preview; your confirmation was not recorded.');
+            throw new Error(t('single_voice.source.invalid', 'Invalid source preview; your confirmation was not recorded.'));
         }
         // Fence BEFORE installing: the server's operation token must equal
         // the identity this tab captured. Never compare to the voice
@@ -189,13 +200,13 @@ async function loadSingleVoiceSourcePreview() {
         // fails closed: the book identity is still loading.
         if (!identity.identityToken) {
             if (singleVoiceIdentityUnavailable(identity)) { throw singleVoiceUnavailableBookError(); }
-            throw new Error('Voices are still loading for this book. Wait for Voices to finish, then reload the source preview.');
+            throw new Error(t('single_voice.source.voices-loading', 'Voices are still loading for this book. Wait for Voices to finish, then reload the source preview.'));
         }
         if (preview.book_token !== identity.identityToken) {
-            throw new Error('Active book changed while loading the source preview. Nothing was confirmed; reload the preview for the current book.');
+            throw new Error(t('single_voice.source.book-changed', 'Active book changed while loading the source preview. Nothing was confirmed; reload the preview for the current book.'));
         }
         if (!preview.text_start.trim()) {
-            throw new Error('Source excerpt is blank; import a non-blank book before confirming.');
+            throw new Error(t('single_voice.source.blank', 'Source excerpt is blank; import a non-blank book before confirming.'));
         }
         _singleVoiceSourcePreview = preview;
         if (_singleVoiceSourceBinding) {
@@ -213,7 +224,7 @@ async function loadSingleVoiceSourcePreview() {
         _singleVoiceSourcePreview = null;
         _singleVoiceSourceBinding = null;
         renderSingleVoiceSourcePreview();
-        showActionError('Source preview failed', error, 'Inspect the extracted text in Script instead. Check the selected book and source first.');
+        showActionError(t('single_voice.source.failed', 'Source preview failed'), error, t('single_voice.source.failed-recovery', 'Inspect the extracted text in Script instead. Check the selected book and source first.'));
     } finally {
         // A book switch bumps the generation and clears the busy flag for the
         // new book; only the owning generation may clear it here (#1724 C048).
@@ -230,7 +241,7 @@ function onSingleVoiceSourceConfirm() {
     }
     if (!_singleVoiceSourcePreview) {
         box.checked = false;
-        showToast('Load the source preview before confirming it.', 'warning');
+        showToast(t('single_voice.confirm-first', 'Load the source preview before confirming it.'), 'warning');
         return;
     }
     _singleVoiceSourceBinding = getSingleVoiceSourceBinding(_singleVoiceSourcePreview);
@@ -240,7 +251,7 @@ function onSingleVoiceSourceConfirm() {
 function makeSingleVoicePlaceholder(select) {
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'Choose a speaker whose voice you picked…';
+    placeholder.textContent = t('single_voice.placeholder', 'Choose a speaker whose voice you picked…');
     select.appendChild(placeholder);
 }
 
@@ -286,7 +297,7 @@ function refreshSingleVoiceSpeakers() {
     else if (current) {
         // A previously selected speaker left the roster: say so instead of
         // silently resetting the select to the placeholder (#1724 C052).
-        showToast(`Speaker '${current}' is no longer in this book's roster; choose a speaker again.`, 'warning');
+        showToast(t('single_voice.speaker-gone', "Speaker '{name}' is no longer in this book's roster; choose a speaker again.", {name: current}), 'warning');
     }
 }
 
@@ -314,39 +325,45 @@ function singleVoiceEscapeLabel(name) {
 // availability/path qualification: this only shows what consent copies.
 function singleVoiceSourceAssetLabel(preview) {
     const asset = preview && preview.voices ? preview.voices[preview.source_speaker] : null;
-    if (!asset || typeof asset !== 'object') { return 'unknown voice asset'; }
+    if (!asset || typeof asset !== 'object') { return t('single_voice.asset.unknown', 'unknown voice asset'); }
     const type = asset.type || 'custom';
     if (type === 'clone') {
-        return `clone reference ${singleVoiceEscapeLabel(asset.ref_audio || '')}`;
+        return t('single_voice.asset.clone', 'clone reference {ref}', {ref: singleVoiceEscapeLabel(asset.ref_audio || '')});
     }
     if (type === 'lora' || type === 'builtin_lora') {
-        const pin = asset.adapter_generation_sha256
-            ? ` pin ${singleVoiceEscapeLabel(String(asset.adapter_generation_sha256).slice(0, 12))}…` : '';
-        return `LoRA adapter ${singleVoiceEscapeLabel(asset.adapter_id || '')} path ${singleVoiceEscapeLabel(asset.adapter_path || '')}${pin}`;
+        if (asset.adapter_generation_sha256) {
+            return t('single_voice.asset.lora-pinned', 'LoRA adapter {adapter} path {path} pin {sha}…', {
+                adapter: singleVoiceEscapeLabel(asset.adapter_id || ''),
+                path: singleVoiceEscapeLabel(asset.adapter_path || ''),
+                sha: singleVoiceEscapeLabel(String(asset.adapter_generation_sha256).slice(0, 12))});
+        }
+        return t('single_voice.asset.lora', 'LoRA adapter {adapter} path {path}', {
+            adapter: singleVoiceEscapeLabel(asset.adapter_id || ''),
+            path: singleVoiceEscapeLabel(asset.adapter_path || '')});
     }
     if (type === 'custom') {
-        return `custom voice ${singleVoiceEscapeLabel(asset.voice || '')}`;
+        return t('single_voice.asset.custom', 'custom voice {voice}', {voice: singleVoiceEscapeLabel(asset.voice || '')});
     }
-    return `${singleVoiceEscapeLabel(type)} voice ${singleVoiceEscapeLabel(asset.voice || '')}`;
+    return t('single_voice.asset.typed', '{type} voice {voice}', {type: singleVoiceEscapeLabel(type), voice: singleVoiceEscapeLabel(asset.voice || '')});
 }
 
 async function previewSingleVoiceBook() {
     if (_singleVoiceBusy) {
-        showToast('A single-voice action is still running; please wait.', 'warning');
+        showToast(t('single_voice.busy', 'A single-voice action is still running; please wait.'), 'warning');
         return;
     }
     const select = document.getElementById('single-voice-source');
     const source = select?.value || '';
     if (!source) {
-        showToast('Choose a speaker whose voice you picked on its card first.', 'warning');
+        showToast(t('single_voice.preview.choose-first', 'Choose a speaker whose voice you picked on its card first.'), 'warning');
         return;
     }
     if (typeof _voiceSaveSnapshot === 'undefined' || !_voiceSaveSnapshot) {
-        showToast('Wait for Voices to finish loading before previewing.', 'warning');
+        showToast(t('single_voice.preview.wait-voices', 'Wait for Voices to finish loading before previewing.'), 'warning');
         return;
     }
     if (typeof isEditorEditPending === 'function' && isEditorEditPending()) {
-        showToast('Resolve pending or failed Editor edits before previewing a voice change.', 'warning');
+        showToast(t('single_voice.preview.resolve-edits', 'Resolve pending or failed Editor edits before previewing a voice change.'), 'warning');
         return;
     }
     _singleVoiceBusy = true;
@@ -373,49 +390,49 @@ async function previewSingleVoiceBook() {
             } catch (preError) {
                 const detail = singleVoiceSaveErrorDetail(preError);
                 if (singleVoiceIsNotSent(preError)) {
-                    const notSentPre = new Error(`Pending voice edits were not sent: ${detail} Nothing was sent; your edits were retained.`, {cause: preError});
+                    const notSentPre = new Error(formatUiSafetyText('safety.single_voice.pending.not-sent', 'Pending voice edits were not sent: {detail} Nothing was sent; your edits were retained.', {detail}), {cause: preError});
                     notSentPre.notSentOutcome = true;
                     notSentPre.unknownOutcome = false;
                     throw notSentPre;
                 }
                 if (singleVoiceIsDefiniteSaveRefusal(preError)) {
-                    throw new Error(`Pending voice edits were refused by the server: ${detail} Your edits were retained; fix the cause in Voices and try again.`, {cause: preError});
+                    throw new Error(formatUiSafetyText('safety.single_voice.pending.refused', 'Pending voice edits were refused by the server: {detail} Your edits were retained; fix the cause in Voices and try again.', {detail}), {cause: preError});
                 }
-                const unknownPre = new Error(`Pending voice edits could not be confirmed: ${detail} They may have been saved. Check Voices state before trying again; your edits are retained.`, {cause: preError});
+                const unknownPre = new Error(formatUiSafetyText('safety.single_voice.pending.unknown', 'Pending voice edits could not be confirmed: {detail} They may have been saved. Check Voices state before trying again; your edits are retained.', {detail}), {cause: preError});
                 unknownPre.unknownOutcome = true;
                 throw unknownPre;
             }
         }
         if (!singleVoiceIdentityCurrent(identity)) {
-            throw new Error('Active book changed while previewing. Nothing was applied; reload Voices and preview again.');
+            throw new Error(t('single_voice.preview.book-changed', 'Active book changed while previewing. Nothing was applied; reload Voices and preview again.'));
         }
         await refreshVoiceMetadata(singleVoiceRefreshOpts(identity));
         if (!singleVoiceIdentityCurrent(identity)) {
-            throw new Error('Active book changed while previewing. Nothing was applied; reload Voices and preview again.');
+            throw new Error(t('single_voice.preview.book-changed', 'Active book changed while previewing. Nothing was applied; reload Voices and preview again.'));
         }
         const snapshot = _voiceSaveSnapshot;
         if (!snapshot) {
-            throw new Error('Voices are still loading. Nothing was applied; reload Voices and preview again.');
+            throw new Error(t('single_voice.preview.voices-loading', 'Voices are still loading. Nothing was applied; reload Voices and preview again.'));
         }
         const revisionBefore = voiceSaveQueue.getRevision();
         const preview = await API.post('/api/voice_config/single-voice-preview', {
             source_speaker: source, revision: snapshot.revision, book_token: snapshot.book_token},
-            {timeoutMs: 60000, timeoutMessage: 'The single-voice preview timed out. Nothing was applied; preview again.'});
+            {timeoutMs: 60000, timeoutMessage: t('single_voice.preview.timeout', 'The single-voice preview timed out. Nothing was applied; preview again.')});
         if (!singleVoiceIdentityCurrent(identity)
             || _voiceSaveSnapshot.book_token !== preview.book_token || _voiceSaveSnapshot.revision !== preview.revision
             || (typeof voiceSaveQueue !== 'undefined' && voiceSaveQueue.getRevision() !== revisionBefore)) {
-            throw new Error('Book, voices or selection changed while previewing. Nothing was applied; preview again.');
+            throw new Error(t('single_voice.preview.changed', 'Book, voices or selection changed while previewing. Nothing was applied; preview again.'));
         }
         if (!Array.isArray(preview.speakers) || !preview.voices || typeof preview.voices !== 'object'
             || Array.isArray(preview.voices)
             || !/^[0-9a-f]{64}$/.test(preview.revision || '') || !/^[0-9a-f]{64}$/.test(preview.book_token || '')) {
-            throw new Error('Invalid voice preview; nothing was applied.');
+            throw new Error(t('single_voice.preview.invalid', 'Invalid voice preview; nothing was applied.'));
         }
         // Fail closed on an unbound preview source: the echoed source
         // must be the one captured before awaits and an OWN key of the
         // voices map (an inherited name is not a server proposal).
         if (preview.source_speaker !== source || !Object.hasOwn(preview.voices, source)) {
-            throw new Error('Invalid voice preview; nothing was applied.');
+            throw new Error(t('single_voice.preview.invalid', 'Invalid voice preview; nothing was applied.'));
         }
         // Roster consistency: the voices map must cover exactly the previewed
         // speakers, otherwise the modal could call a changing speaker
@@ -423,30 +440,37 @@ async function previewSingleVoiceBook() {
         const voiceNames = Object.keys(preview.voices).sort();
         const speakerNames = preview.speakers.map(row => {
             if (!row || typeof row.name !== 'string' || typeof row.line_count !== 'number' || !Array.isArray(row.changes)) {
-                throw new Error('Invalid voice preview; nothing was applied.');
+                throw new Error(t('single_voice.preview.invalid', 'Invalid voice preview; nothing was applied.'));
             }
             return row.name;
         }).sort();
         if (JSON.stringify(voiceNames) !== JSON.stringify(speakerNames)) {
-            throw new Error('Invalid voice preview; nothing was applied.');
+            throw new Error(t('single_voice.preview.invalid', 'Invalid voice preview; nothing was applied.'));
         }
         if (preview.affected_speakers !== preview.speakers.length
             || preview.affected_lines !== preview.speakers.reduce((sum, row) => sum + row.line_count, 0)) {
-            throw new Error('Invalid voice preview; nothing was applied.');
+            throw new Error(t('single_voice.preview.invalid', 'Invalid voice preview; nothing was applied.'));
         }
-        const lines = preview.speakers.map(row => `${singleVoiceEscapeLabel(row.name)}: ${row.line_count} lines · `
-            + (row.line_count === 0
-                ? '0 lines — voice config will still be updated'
-                : (row.changes.length ? row.changes.join(', ') : 'unchanged'))).join('\n');
+        const lines = preview.speakers.map(row => t('single_voice.preview.line', '{speaker}: {count} lines · {state}', {
+            speaker: singleVoiceEscapeLabel(row.name),
+            count: row.line_count,
+            state: row.line_count === 0
+                ? t('single_voice.preview.line-zero', '0 lines — voice config will still be updated')
+                : (row.changes.length ? row.changes.join(', ') : t('single_voice.preview.line-unchanged', 'unchanged')),
+        })).join('\n');
+        const confirmBody = formatUiSafetyText('safety.single_voice.apply-confirm', 'Use the {speaker} voice ({asset}) for all {speakers} speakers ({lines} lines)?\n{detail}\n\nReady approvals are cleared for every affected speaker on this apply. Changed-voice lines become pending for re-render; already rendered take files are retained, not deleted. Voice approvals are reset for speakers whose effective voice changes.', {
+            speaker: singleVoiceEscapeLabel(preview.source_speaker),
+            asset: singleVoiceSourceAssetLabel(preview),
+            speakers: preview.affected_speakers,
+            lines: preview.affected_lines,
+            detail: lines});
         const confirmed = await showConfirm(
-            `Use the ${singleVoiceEscapeLabel(preview.source_speaker)} voice (${singleVoiceSourceAssetLabel(preview)}) for all ${preview.affected_speakers} speakers `
-            + `(${preview.affected_lines} lines)?\n${lines}\n\nReady approvals are cleared for every affected speaker on this apply. `
-            + `Changed-voice lines become pending for re-render; already rendered take files are retained, not deleted. `
-            + `Voice approvals are reset for speakers whose effective voice changes.`,
-            {title: 'Use one voice for the book?', actionLabel: 'Use this voice for all speakers', danger: false});
+            confirmBody,
+            {title: t('safety.single_voice.apply-confirm.title', 'Use one voice for the book?'),
+             actionLabel: t('safety.single_voice.apply-confirm.action', 'Use this voice for all speakers'), danger: false});
         if (!confirmed) { return; }
         if (!singleVoiceIdentityCurrent(identity)) {
-            throw new Error('Active book changed while confirming. Nothing was applied; preview again.');
+            throw new Error(t('single_voice.preview.confirm-changed', 'Active book changed while confirming. Nothing was applied; preview again.'));
         }
         await applySingleVoicePreview(preview, identity, source);
     } catch (error) {
@@ -459,13 +483,13 @@ async function previewSingleVoiceBook() {
         // is unknown (timeout/lost response) must never claim "Nothing was
         // applied" either.
         const recovery = error?.savedApplied
-            ? 'The bulk voice was saved, but Voices could not be refreshed. Reload Voices before trying again.'
+            ? formatUiSafetyText('safety.single_voice.recovery.saved-applied', 'The bulk voice was saved, but Voices could not be refreshed. Reload Voices before trying again.')
             : (error?.unknownOutcome
-                ? 'The voice save could not be confirmed: it may have been saved. Check Voices state before trying again; your edits are retained.'
+                ? formatUiSafetyText('safety.single_voice.recovery.unknown', 'The voice save could not be confirmed: it may have been saved. Check Voices state before trying again; your edits are retained.')
                 : (flushedPending
-                    ? 'Your pending card edits were saved by this preview; the bulk voice was not applied. Check Voices state, then preview again.'
-                    : 'Nothing was applied. Check the selected book, speaker and Voices state, then preview again. Unsaved voice edits are retained.'));
-        showActionError('Single-voice preview failed', error, recovery);
+                    ? formatUiSafetyText('safety.single_voice.recovery.flushed', 'Your pending card edits were saved by this preview; the bulk voice was not applied. Check Voices state, then preview again.')
+                    : formatUiSafetyText('safety.single_voice.recovery.nothing', 'Nothing was applied. Check the selected book, speaker and Voices state, then preview again. Unsaved voice edits are retained.')));
+        showActionError(t('single_voice.preview.failed', 'Single-voice preview failed'), error, recovery);
     } finally {
         if (generation === _singleVoiceGeneration) { _singleVoiceBusy = false; }
         // refreshVoiceMetadata/loadVoices already repopulate the select; only
@@ -482,18 +506,18 @@ async function applySingleVoicePreview(preview, identity, source) {
     // Recheck everything after the modal. Newly arrived edits refuse here
     // without flushing them, so we never claim "nothing changed" falsely.
     if (!singleVoiceIdentityCurrent(identity)) {
-        throw new Error('Active book changed. Nothing was applied.');
+        throw new Error(t('single_voice.preview.apply-book-changed', 'Active book changed. Nothing was applied.'));
     }
     if (!_voiceSaveSnapshot || _voiceSaveSnapshot.book_token !== preview.book_token
         || _voiceSaveSnapshot.revision !== preview.revision) {
-        throw new Error('Voice configuration changed after preview. Nothing was applied; preview again.');
+        throw new Error(t('single_voice.preview.config-changed', 'Voice configuration changed after preview. Nothing was applied; preview again.'));
     }
     if (typeof voiceSaveQueue !== 'undefined' && voiceSaveQueue.isDirty()) {
-        throw new Error('New unsaved voice edits arrived while confirming. Nothing was applied; save or discard them in Voices first.');
+        throw new Error(t('single_voice.preview.unsaved-edits', 'New unsaved voice edits arrived while confirming. Nothing was applied; save or discard them in Voices first.'));
     }
     const select = document.getElementById('single-voice-source');
     if ((select?.value || '') !== source || preview.source_speaker !== source) {
-        throw new Error('Speaker selection changed. Nothing was applied; preview again.');
+        throw new Error(t('single_voice.preview.speaker-changed', 'Speaker selection changed. Nothing was applied; preview again.'));
     }
     // Mass-save transition: while the bulk flush and post-save reload are
     // pending, the old card DOM is still visible but the CAS revision is
@@ -536,7 +560,7 @@ async function applySingleVoicePreview(preview, identity, source) {
         if (singleVoiceIsNotSent(error)) {
             // Provably unsent: never claim a server refusal or an
             // unknown/maybe-saved outcome, and never mark persisted.
-            const notSent = new Error(`Voice save was not sent: ${detail} Nothing was sent; your edits were retained.`, {cause: error});
+            const notSent = new Error(formatUiSafetyText('safety.single_voice.save.not-sent', 'Voice save was not sent: {detail} Nothing was sent; your edits were retained.', {detail}), {cause: error});
             notSent.savedApplied = false;
             notSent.unknownOutcome = false;
             notSent.notSentOutcome = true;
@@ -544,19 +568,19 @@ async function applySingleVoicePreview(preview, identity, source) {
         }
         if (singleVoiceIsDefiniteSaveRefusal(error)) {
             // The server answered with a validation/CAS refusal: definite.
-            const refused = new Error(`Voice save refused by the server: ${detail} Your edits were retained; fix the cause in Voices and try again.`, {cause: error});
+            const refused = new Error(formatUiSafetyText('safety.single_voice.save.refused', 'Voice save refused by the server: {detail} Your edits were retained; fix the cause in Voices and try again.', {detail}), {cause: error});
             refused.savedApplied = false;
             refused.unknownOutcome = false;
             throw refused;
         }
-        const unknown = new Error(`Voice save could not be confirmed: ${detail} It may have been saved. Check Voices state before trying again; your edits are retained.`, {cause: error});
+        const unknown = new Error(formatUiSafetyText('safety.single_voice.save.unknown', 'Voice save could not be confirmed: {detail} It may have been saved. Check Voices state before trying again; your edits are retained.', {detail}), {cause: error});
         unknown.savedApplied = false;
         unknown.unknownOutcome = true;
         persistedOrUnknown = true;
         throw unknown;
     }
     if (!singleVoiceIdentityCurrent(identity)) {
-        const persistedStale = new Error('The voice was saved, but the active book changed before Voices could be refreshed. Reload Voices for the current book to see the saved state.', {cause: null});
+        const persistedStale = new Error(formatUiSafetyText('safety.single_voice.saved-book-changed', 'The voice was saved, but the active book changed before Voices could be refreshed. Reload Voices for the current book to see the saved state.'), {cause: null});
         persistedStale.savedApplied = true;
         throw persistedStale;
     }
@@ -574,21 +598,26 @@ async function applySingleVoicePreview(preview, identity, source) {
         // ANY post-save render/refresh error is a persisted save, with the
         // same identity or a changed one: never fall through with a bare
         // error that the outer catch would misreport as not applied.
-        const persisted = new Error('The voice was saved, but Voices could not be refreshed. Reload Voices to see the applied state before trying again.', {cause: error});
+        const persisted = new Error(formatUiSafetyText('safety.single_voice.saved-unrefreshed', 'The voice was saved, but Voices could not be refreshed. Reload Voices to see the applied state before trying again.'), {cause: error});
         persisted.savedApplied = true;
         throw persisted;
     }
-    showToast('One voice applied book-wide. Play a sample in Editor and mark Ready in Voices only after listening.', 'success');
+    showToast(t('single_voice.applied', 'One voice applied book-wide. Play a sample in Editor and mark Ready in Voices only after listening.'), 'success');
     const failedResources = loadReport?.failedResources || [];
     if (failedResources.length) {
         // CR2024: a failed optional catalog refresh is not an exception and
         // must not be silent. The save DID succeed (no false no-write): warn
         // visibly with plain catalog labels (no raw endpoint paths in the
         // normal guide flow); previously loaded lists remain shown.
-        const labels = {'/api/voice_design/list': 'designed voices', '/api/clone_voices/list': 'cloned voices', '/api/lora/models': 'LoRA models', '/api/voice_library': 'cast library'};
-        const names = failedResources.map(path => labels[path] || 'voice catalogs');
+        const labels = {
+            '/api/voice_design/list': t('single_voice.catalog.designed-voices', 'designed voices'),
+            '/api/clone_voices/list': t('single_voice.catalog.clone-voices', 'cloned voices'),
+            '/api/lora/models': t('single_voice.catalog.lora-models', 'LoRA models'),
+            '/api/voice_library': t('single_voice.catalog.cast-library', 'cast library'),
+        };
+        const names = failedResources.map(path => labels[path] || t('single_voice.catalog.other', 'voice catalogs'));
         console.debug('single-voice catalog refresh failed', failedResources);
-        showToast(`Voice saved, but these catalogs could not refresh: ${names.join(', ')}. Previously loaded lists are kept. Reload Voices to retry.`, 'warning');
+        showToast(formatUiSafetyText('safety.single_voice.catalogs', 'Voice saved, but these catalogs could not refresh: {names}. Previously loaded lists are kept. Reload Voices to retry.', {names: names.join(', ')}), 'warning');
     }
     } finally {
         // Release only our own ownership: a book switch (resetSingleVoiceBook)

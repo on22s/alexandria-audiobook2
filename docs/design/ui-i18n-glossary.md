@@ -128,6 +128,31 @@ the on-screen label and the doc label cannot drift (design section 6.3).
   methods, task/capture status tokens and server field names stay English. All
   three locales remain machine drafts.
 
+- P9c adds 352 keys and translates the last English-only front-end flows: the
+  guided single-narrator workflow (`single_voice.*` 50 keys, `safety.single_voice.*`
+  16: the source-preview confirmation and the book-wide bulk apply, whose save
+  outcomes are `safety.*` because a "maybe saved" claim must be readable in both
+  languages); the speaker-label review panel (`speaker_review.*` 78,
+  `safety.speaker_review.*` 18); the source-scope editor (`scope.*` 25,
+  `safety.scope.*` 4); the translated-edition preview (`translation.*` 27,
+  `safety.translation.*` 2); the TTS capability report (`setup.tts.cap.*` 25,
+  continuing the P4 namespace) and the TTS diagnostics list (`tts_diag.*` 27);
+  and, in `app-scripts.js`, the saved-script library rows and audit panel
+  (`script.*` 24, `safety.script.saved.*` 9) and the clone import / clean-up
+  flow (`clone.*` 22, `safety.clone.*` 25).
+  `clone.cleanup.dc-on` / `dc-off` / `dc-unknown` agree with the feminine
+  `eliminación de DC`; the confirm bodies and the clean-up status lines use
+  `formatUiSafetyText` so the authored English stays under the translation.
+  Spanish count-bearing reason rows are label-shaped (`fallidas: {count}`)
+  because a count of 1 is reachable, and the audit button is `Auditar` so
+  "Audit" cannot be confused with Review (`Revisión`). Element ids, CSS classes,
+  field names, HTTP methods, console diagnostics and server-backed data (pair
+  names, stage names, status tokens, the `none` / `low` reasoning modes) stay
+  English. The only format-only values that cannot differ from English
+  (`{label} ({count})`, `{speaker}{uid}: {text}` and similar) are listed in
+  `test_ui_catalog_parity.KEEP_ENGLISH` with that reason. All three locales
+  remain machine drafts.
+
 
 
 ## P2 server-refusal keys
@@ -298,6 +323,13 @@ figure is stale. The Spanish renderings below follow the merged docs.
 | Retire (a character) | 停用 | 無効にする | Retirar | Removes a character from the active roster; never 引退. |
 | Persona | 人物设定 | ペルソナ | Persona | The character description, separate from its voice. |
 | Review state | 审阅状态 | レビュー状態 | Estado de revisión | Draft / approved / rejected. |
+| Source excerpt | 来源摘录 | ソース抜粋 | Extracto del texto fuente | The saved-script source preview text. "Source" is 来源 / ソース / texto fuente here, never `origen`. |
+| Audit (saved script) | 检查 | 検査 | Auditoría | The saved-script preflight panel; its button reads "Auditar", distinct from Review (`Revisión`). |
+| Cleaned candidate | 清理后的候选 | クリーンアップした候補 | Candidato limpio | The clone clean-up preview, before it is accepted as a new voice. |
+| Speaker review | 说话人审阅 | 話者レビュー | Revisión de hablantes | The opt-in comparison of speaker labels. |
+| Fingerprint | 指纹 | フィンガープリント | Huella | A report identity hash; distinct from a SHA-256 digest. |
+| Schema | schema | スキーマ | Esquema | The external server's declared operation schema. |
+| Reasoning mode | 推理模式 | 推論モード | Modo de razonamiento | The `none` / `low` judgment modes; the mode names stay English. |
 | Unreviewed | 未审阅 | 未レビュー | Sin revisar | Casting status before any review. |
 | Shortlist | 入围 | 候補 | Preseleccionar | A casting review status. |
 | Callback | 复试 | コールバック | Segunda prueba | A casting review status; not a phone call. |

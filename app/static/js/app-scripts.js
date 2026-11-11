@@ -5,16 +5,16 @@
                 const container = document.getElementById('saved-scripts-list');
 
                 if (!scripts.length) {
-                    container.innerHTML = '<p class="text-muted mb-0">No saved scripts yet. Generate a script above, or select Save Current to keep the current script here.</p>';
+                    container.innerHTML = `<p class="text-muted mb-0">${escapeHtml(t('script.saved.list-empty', 'No saved scripts yet. Generate a script above, or select Save Current to keep the current script here.'))}</p>`;
                     return;
                 }
 
                 container.innerHTML = scripts.map(s => {
-                    const date = new Date(s.created * 1000).toLocaleDateString('en-US', {
+                    const date = new Date(s.created * 1000).toLocaleDateString(getIntlUiLocale(), {
                         month: 'short', day: 'numeric', year: 'numeric'
                     });
                     const voiceBadge = s.has_voice_config
-                        ? '<span class="badge bg-info ms-2" title="Includes voice configuration">voices</span>'
+                        ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('script.saved.badge-title', 'Includes voice configuration'))}">${escapeHtml(t('script.saved.voices-badge', 'voices'))}</span>`
                         : '';
                     return `
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 border-bottom">
@@ -23,9 +23,9 @@
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div class="flex-shrink-0">
-                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${getInlineStringArgument(s.name)})'><i class="fas fa-stethoscope me-1"></i>Audit</button>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${getInlineStringArgument(s.name)})'><i class="fas fa-upload me-1"></i>Load</button>
-                                <button class="btn btn-sm btn-outline-danger" aria-label="${escapeHtml('Delete saved script ' + s.name)}" onclick='deleteScript(${getInlineStringArgument(s.name)})'><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${getInlineStringArgument(s.name)})'><i class="fas fa-stethoscope me-1"></i>${escapeHtml(t('script.saved.audit', 'Audit'))}</button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${getInlineStringArgument(s.name)})'><i class="fas fa-upload me-1"></i>${escapeHtml(t('script.saved.load', 'Load'))}</button>
+                                <button class="btn btn-sm btn-outline-danger" aria-label="${escapeHtml(t('script.saved.delete-aria', 'Delete saved script {name}', {name: s.name}))}" onclick='deleteScript(${getInlineStringArgument(s.name)})'><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
@@ -38,7 +38,7 @@
             const panel = document.getElementById('saved-script-preflight');
             panel.style.display = 'block';
             panel.className = 'alert alert-secondary small mt-3 mb-0';
-            panel.textContent = `Auditing ${name}…`;
+            panel.textContent = t('script.audit.running', 'Auditing {name}…', {name});
             try {
                 const report = await API.post(`/api/scripts/${encodeURIComponent(name)}/preflight`, {});
                 if (requestId !== _savedScriptAuditRequest) { return; }
@@ -47,22 +47,26 @@
                 panel.className = `alert ${counts.blocking ? 'alert-danger' : findings.length ? 'alert-warning' : 'alert-success'} small mt-3 mb-0`;
                 const items = findings.map(item => {
                     const entries = (item.entry_numbers || []).join(', ');
-                    const location = entries ? `Entry ${escapeHtml(entries)}: ` : '';
-                    const message = escapeHtml(item.message || item.code || 'Review this finding.');
+                    const location = entries ? escapeHtml(t('script.audit.entry', 'Entry {entries}:', {entries})) + ' ' : '';
+                    const message = escapeHtml(item.message || item.code || t('script.audit.finding-fallback', 'Review this finding.'));
                     let detailsText = '';
                     if (item.code === 'nonprose_speech_risk') {
                         const details = item.details || {};
                         const categories = (details.categories || []).join(', ');
-                        detailsText = ` ${escapeHtml(categories)} — preview: ${escapeHtml(details.normalized_preview || '')}. Audio validation: ${escapeHtml((details.validation || {}).status || 'unknown')}.`;
+                        detailsText = ' ' + t('script.audit.details', '{categories} — preview: {preview}. Audio validation: {status}.', {
+                            categories: escapeHtml(categories),
+                            preview: escapeHtml(details.normalized_preview || ''),
+                            status: escapeHtml((details.validation || {}).status || t('script.audit.status-unknown', 'unknown')),
+                        });
                     }
                     return `<li>${location}${message}${detailsText}</li>`;
                 }).join('');
-                panel.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${counts.blocking || 0} blocking, ${counts.manual_review || 0} manual review.`
-                    + (items ? `<ul class="mt-1 mb-0">${items}</ul>` : ' No findings detected.');
+                panel.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${t('script.audit.counts', '{blocking} blocking, {manual} manual review.', {blocking: counts.blocking || 0, manual: counts.manual_review || 0})}`
+                    + (items ? `<ul class="mt-1 mb-0">${items}</ul>` : ' ' + escapeHtml(t('script.audit.no-findings', 'No findings detected.')));
             } catch (error) {
                 if (requestId !== _savedScriptAuditRequest) { return; }
                 panel.className = 'alert alert-danger small mt-3 mb-0';
-                panel.textContent = getActionErrorMessage('Saved-script audit could not finish', error, 'Check that Alexandria is running, then use Audit again. The failed audit does not establish whether this script is ready.');
+                panel.textContent = getActionErrorMessage(t('script.audit.failed', 'Saved-script audit could not finish'), error, t('script.audit.failed-recovery', 'Check that Alexandria is running, then use Audit again. The failed audit does not establish whether this script is ready.'));
             }
         }
 
@@ -70,7 +74,7 @@
             const nameInput = document.getElementById('save-script-name');
             const name = nameInput.value.trim();
             if (!name) {
-                showToast('Please enter a name for the script.', 'warning');
+                showToast(t('script.saved.name-required', 'Please enter a name for the script.'), 'warning');
                 return;
             }
             try {
@@ -78,37 +82,37 @@
                 let bookToken = _voiceSaveSnapshot?.book_identity_token;
                 const selection = window._selectedUploadIdentity;
                 if (!bookToken && !(selection && selection.filename === book && selection.token)) {
-                    throw new Error('Wait for the current book to finish loading before saving.');
+                    throw new Error(t('script.saved.wait-loading', 'Wait for the current book to finish loading before saving.'));
                 }
                 await flushVoiceSaves();
                 if (selection && selection.filename === book && selection.token !== bookToken) {
                     if (window._selectedUploadIdentity !== selection
                             || currentBookFilename !== book) {
-                        throw new Error('Active book changed; restart Save Current for the current book.');
+                        throw new Error(t('script.saved.book-changed', 'Active book changed; restart Save Current for the current book.'));
                     }
                     await refreshVoiceMetadata({ expectedSelection: selection });
                     if (window._selectedUploadIdentity !== selection
                             || currentBookFilename !== book
                             || _voiceSaveSnapshot?.book_identity_token !== selection.token) {
-                        throw new Error('Active book changed; restart Save Current for the current book.');
+                        throw new Error(t('script.saved.book-changed', 'Active book changed; restart Save Current for the current book.'));
                     }
                     bookToken = selection.token;
                 }
-                if (!bookToken) { throw new Error('Wait for the current book to finish loading before saving.'); }
+                if (!bookToken) { throw new Error(t('script.saved.wait-loading', 'Wait for the current book to finish loading before saving.')); }
                 if (book !== currentBookFilename || bookToken !== _voiceSaveSnapshot?.book_identity_token) {
-                    throw new Error('Active book changed; restart Save Current for the current book.');
+                    throw new Error(t('script.saved.book-changed', 'Active book changed; restart Save Current for the current book.'));
                 }
                 await API.post('/api/scripts/save', { name, expected_book_token: bookToken });
                 nameInput.value = '';
                 loadSavedScripts();
             } catch (e) {
                 console.error('Error saving script:', e);
-                showActionError("Error saving script", e, "Check the saved-script list for this name before saving again. Keep your current book open while checking.");
+                showActionError(t('script.saved.save-failed', 'Error saving script'), e, t('script.saved.save-failed-recovery', 'Check the saved-script list for this name before saving again. Keep your current book open while checking.'));
             }
         }
 
         async function loadScript(name, expectedRevision = null) {
-            if (!await showConfirm(`Load "${name}"? This will replace your current script and chunks.`, {title: 'Replace active book?', actionLabel: 'Load book', danger: true})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.script.saved.load-confirm', 'Load "{name}"? This will replace your current script and chunks.', {name}), {title: t('safety.script.saved.load-confirm.title', 'Replace active book?'), actionLabel: t('safety.script.saved.load-confirm.action', 'Load book'), danger: true})) { return; }
             let request;
             let loading;
             const isCurrent = () => !request || (loadScript.request === request
@@ -149,7 +153,7 @@
                     clearCastListEditor();
                     clearCharacterAliases();
                     resetDesignerForm();
-                    showToast(`Script "${name}" loaded.`, 'success');
+                    showToast(t('script.saved.loaded', 'Script "{name}" loaded.', {name}), 'success');
                     clearVoiceSuggestions();
                     await Promise.all([loadCharacterAliases(false), loadCastList(false),
                         refreshVoiceMetadata().then(() => { if (isCurrent()) { return loadChunks(true); } })]);
@@ -166,12 +170,12 @@
                 console.error('Error loading script:', e);
                 if (request?.loadedCommitted) {
                     if (window._selectedUploadIdentity?.unavailable) {
-                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded, but its identity is unavailable. Reload or reselect this book (load it again from Scripts) before trying Voices again; Reload Voices cannot resolve an unavailable book identity.');
+                        showActionError(t('script.saved.loaded-unrefreshed', 'Script loaded, but Voices could not be refreshed'), e, t('safety.script.saved.loaded-unrefreshed-unavailable', 'The book was loaded, but its identity is unavailable. Reload or reselect this book (load it again from Scripts) before trying Voices again; Reload Voices cannot resolve an unavailable book identity.'));
                     } else {
-                        showActionError('Script loaded, but Voices could not be refreshed', e, 'The book was loaded. Reload Voices to see it before trying Load again.');
+                        showActionError(t('script.saved.loaded-unrefreshed', 'Script loaded, but Voices could not be refreshed'), e, t('script.saved.loaded-unrefreshed-recovery', 'The book was loaded. Reload Voices to see it before trying Load again.'));
                     }
                 } else {
-                    showActionError("Error loading script", e, "Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.");
+                    showActionError(t('script.saved.load-error', 'Error loading script'), e, t('safety.script.saved.load-error-recovery', 'Check the currently loaded book before trying Load again; the load may have completed before its reply was lost.'));
                 }
             } finally {
                 if (loading && loadScript.pending === loading) { loadScript.pending = null; }
@@ -179,13 +183,13 @@
         }
 
         async function deleteScript(name) {
-            if (!await showConfirm(`Delete saved script "${name}"? This cannot be undone.`, {title: 'Delete saved script?', actionLabel: 'Delete script', danger: true})) { return; }
+            if (!await showConfirm(formatUiSafetyText('safety.script.saved.delete-confirm', 'Delete saved script "{name}"? This cannot be undone.', {name}), {title: t('safety.script.saved.delete-confirm.title', 'Delete saved script?'), actionLabel: t('safety.script.saved.delete-confirm.action', 'Delete script'), danger: true})) { return; }
             try {
                 await API.del(`/api/scripts/${encodeURIComponent(name)}`);
                 loadSavedScripts();
             } catch (e) {
                 console.error('Error deleting script:', e);
-                showActionError("Error deleting script", e, "Refresh the saved-script list to check whether this script was deleted before trying Delete again.");
+                showActionError(t('script.saved.delete-failed', 'Error deleting script'), e, t('safety.script.saved.delete-failed-recovery', 'Refresh the saved-script list to check whether this script was deleted before trying Delete again.'));
             }
         }
 
@@ -758,7 +762,7 @@
             const f = _cloneImportFields();
             document.getElementById('clone-import-filename').textContent = file.name;
             f.fields.disabled = false;
-            f.submit.textContent = 'Import';
+            f.submit.textContent = t('clone.import.submit', 'Import');
             document.getElementById('clone-import-status').textContent = '';
             f.refText.value = '';
             f.sourceTitle.value = '';
@@ -798,15 +802,17 @@
                 _refreshCloneImportSubmit();
                 f.fields.disabled = true;
                 f.submit.disabled = true;
-                f.submit.textContent = 'Importing…';
-                document.getElementById('clone-import-status').textContent = `Uploading and checking "${file.name}"…`;
+                f.submit.textContent = t('clone.import.importing', 'Importing…');
+                document.getElementById('clone-import-status').textContent = t('clone.import.uploading', 'Uploading and checking "{name}"…', {name: file.name});
                 try {
                     const ok = await _submitCloneImport(file, _cloneChannelPicker);
                     if (generation !== _cloneImportGeneration) { return; }
-                    document.getElementById('clone-import-status').textContent = ok ? `Imported "${file.name}".` : 'Import did not complete. Review the error, then retry.';
+                    document.getElementById('clone-import-status').textContent = ok
+                        ? t('clone.import.imported', 'Imported "{name}".', {name: file.name})
+                        : t('clone.import.incomplete', 'Import did not complete. Review the error, then retry.');
                     if (ok) {
                         f.fields.disabled = false;
-                        f.submit.textContent = 'Import';
+                        f.submit.textContent = t('clone.import.submit', 'Import');
                         f.submit.onclick = null;
                         modal.hide();
                     }
@@ -814,7 +820,7 @@
                     if (_cloneImportPendingGeneration === generation) { _cloneImportPendingGeneration = null; }
                     if (generation === _cloneImportGeneration) {
                         f.fields.disabled = false;
-                        f.submit.textContent = 'Import';
+                        f.submit.textContent = t('clone.import.submit', 'Import');
                         _refreshCloneImportSubmit();
                     }
                 }
@@ -840,7 +846,7 @@
                 const res = await fetch('/api/clone_voices/upload', { method: 'POST', body: formData });
                 if (!res.ok) {
                     const err = await res.json();
-                    showActionError('Clone import refused', {message: err.detail || 'Import failed', status: res.status}, 'Keep the selected file and import fields. Correct the transcript, source or rights details identified by the validation error before importing again.');
+                    showActionError(t('safety.clone.import.refused', 'Clone import refused'), {message: err.detail || t('clone.import.failed', 'Import failed'), status: res.status}, t('safety.clone.import.refused-recovery', 'Keep the selected file and import fields. Correct the transcript, source or rights details identified by the validation error before importing again.'));
                     return false;
                 }
                 imported = true;
@@ -848,15 +854,15 @@
                 window._cloneVoicesCache = await API.get('/api/clone_voices/list');
                 await loadVoices();
                 const m = result.measures || {};
-                showToast(`Imported "${file.name}" (${m.duration_s ?? '?'} s, 24 kHz mono)`, 'success');
+                showToast(t('clone.import.imported-measures', 'Imported "{name}" ({duration} s, 24 kHz mono)', {name: file.name, duration: m.duration_s ?? '?'}), 'success');
                 return true;
             } catch (e) {
                 if (imported) {
                     console.error('Imported clone voice refresh failed:', e);
-                    showToast(`Imported "${file.name}", but the voice list could not be refreshed. Do not import again. Check that Alexandria is running, then reopen Voices.`, 'warning');
+                    showToast(formatUiSafetyText('safety.clone.import.refresh-failed', 'Imported "{name}", but the voice list could not be refreshed. Do not import again. Check that Alexandria is running, then reopen Voices.', {name: file.name}), 'warning');
                     return true;
                 }
-                showActionError("Importing clone voice failed", e, "Your selected file and import fields are retained. Check the voice library before retrying; correct any validation details below.");
+                showActionError(t('safety.clone.import.failed', 'Importing clone voice failed'), e, t('safety.clone.import.failed-recovery', 'Your selected file and import fields are retained. Check the voice library before retrying; correct any validation details below.'));
                 return false;
             }
         }
@@ -900,12 +906,37 @@
             if (!summary) { return; }
             const gain = data.plan?.operations?.find(op => op.op === 'gain')?.value ?? '?';
             const dcEnabled = data.plan?.operations?.find(op => op.op === 'dc_offset_removal')?.enabled;
-            const dc = typeof dcEnabled === 'boolean' ? (dcEnabled ? 'on' : 'off') : 'unknown';
+            const dc = typeof dcEnabled === 'boolean'
+                ? (dcEnabled ? t('clone.cleanup.dc-on', 'on') : t('clone.cleanup.dc-off', 'off'))
+                : t('clone.cleanup.dc-unknown', 'unknown');
             const candidate = data.candidate_measures || {};
             const verification = data.verification || {};
-            summary.textContent = `Plan: gain ${gain}, DC removal ${dc}, channel ${data.audio_channel || 'mix'}. Candidate: ${candidate.duration_s ?? '?'} s, peak ${candidate.peak ?? '?'}, samples checked ${verification.samples_checked ?? '?'}, max sample difference ${verification.max_abs_difference ?? '?'}. ASR, speaker identity and naturalness are UNMEASURED.`;
+            const channel = data.audio_channel === 'left'
+                ? t('audio.channel.left', 'Left')
+                : data.audio_channel === 'right'
+                    ? t('audio.channel.right', 'Right')
+                    : t('audio.channel.mix', 'Mixed (default)');
+            summary.textContent = t('clone.cleanup.plan', 'Plan: gain {gain}, DC removal {dc}, channel {channel}. Candidate: {duration} s, peak {peak}, samples checked {samples}, max sample difference {difference}. ASR, speaker identity and naturalness are UNMEASURED.', {
+                gain,
+                dc,
+                channel,
+                duration: candidate.duration_s ?? '?',
+                peak: candidate.peak ?? '?',
+                samples: verification.samples_checked ?? '?',
+                difference: verification.max_abs_difference ?? '?',
+            });
             const original = data.measures || {};
-            summary.textContent += " Original: " + (original.duration_s ?? "?") + " s, peak " + (original.peak ?? "?") + ", clipping " + (original.clipping_ratio ?? "?") + ", silence " + (original.silence_ratio ?? "?") + ". Candidate clipping " + (candidate.clipping_ratio ?? "?") + ", silence " + (candidate.silence_ratio ?? "?") + ". Original SHA256: " + (data.normalized_original_sha256 ?? "?") + ". Candidate SHA256: " + (data.candidate_sha256 ?? "?") + ". Plan SHA256: " + (data.plan_digest ?? "?") + ".";
+            summary.textContent += ' ' + t('clone.cleanup.original', 'Original: {duration} s, peak {peak}, clipping {clipping}, silence {silence}. Candidate clipping {cclipping}, silence {csilence}. Original SHA256: {osha}. Candidate SHA256: {csha}. Plan SHA256: {psha}.', {
+                duration: original.duration_s ?? '?',
+                peak: original.peak ?? '?',
+                clipping: original.clipping_ratio ?? '?',
+                silence: original.silence_ratio ?? '?',
+                cclipping: candidate.clipping_ratio ?? '?',
+                csilence: candidate.silence_ratio ?? '?',
+                osha: data.normalized_original_sha256 ?? '?',
+                csha: data.candidate_sha256 ?? '?',
+                psha: data.plan_digest ?? '?',
+            });
         }
         document.getElementById('clone-cleanup-prepare').onclick = async () => {
             if (_cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }
@@ -913,7 +944,7 @@
             let epoch = ++_cloneCleanupEpoch;
             const f = _cloneImportFields();
             if (!f.refText.value.trim() || !f.rightsConfirmed.checked) {
-                showToast('Enter the exact transcript and confirm rights before preparing a cleaned candidate.', 'warning');
+                showToast(t('safety.clone.cleanup.rights-required', 'Enter the exact transcript and confirm rights before preparing a cleaned candidate.'), 'warning');
                 return;
             }
             const selection = _cloneChannelPicker ? _cloneChannelPicker.getSelection() : {channel: 'mix', token: null};
@@ -935,7 +966,7 @@
                         '/api/clone_voices/cleanup/' + encodeURIComponent(previous), {method: 'DELETE'});
                     if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) { return; }
                     if (!discarded.ok) {
-                        showToast('The previous preview could not be discarded. It is kept; retry before preparing another candidate.', 'warning');
+                        showToast(t('safety.clone.cleanup.previous-kept', 'The previous preview could not be discarded. It is kept; retry before preparing another candidate.'), 'warning');
                         return;
                     }
                     _resetCloneCleanup();
@@ -945,7 +976,7 @@
                 }
                 if (selection.pending) { selection.token = await selection.pending; }
                 if (generation !== _cloneImportGeneration || epoch !== _cloneCleanupEpoch) { return; }
-                if (!selection.token) { showToast('Preview the channel first so the cleaned candidate uses the same audio.', 'warning'); return; }
+                if (!selection.token) { showToast(t('clone.cleanup.preview-channel-first', 'Preview the channel first so the cleaned candidate uses the same audio.'), 'warning'); return; }
                 body.append('preview_token', selection.token);
                 _cloneCleanupController?.abort();
                 _cloneCleanupController = new AbortController();
@@ -956,7 +987,7 @@
                     if (data.cleanup_token) { fetch('/api/clone_voices/cleanup/' + encodeURIComponent(data.cleanup_token), {method: 'DELETE'}).catch(() => {}); }
                     return;
                 }
-                if (!res.ok) { showActionError('Cleanup refused', {message: data.detail || 'Prepare failed', status: res.status}, 'Your file, transcript and current selection are unchanged.'); return; }
+                if (!res.ok) { showActionError(t('safety.clone.cleanup.refused', 'Cleanup refused'), {message: data.detail || t('clone.cleanup.prepare-failed', 'Prepare failed'), status: res.status}, t('safety.clone.cleanup.refused-recovery', 'Your file, transcript and current selection are unchanged.')); return; }
                 _cloneCleanup = data;
                 document.getElementById('clone-cleanup-original').src = '/api/clone_voices/cleanup/' + data.cleanup_token + '/audio?which=original';
                 document.getElementById('clone-cleanup-candidate').src = '/api/clone_voices/cleanup/' + data.cleanup_token + '/audio?which=candidate';
@@ -964,9 +995,9 @@
                 document.getElementById('clone-cleanup-listened-original').checked = false;
                 document.getElementById('clone-cleanup-listened-candidate').checked = false;
                 _renderCleanupSummary(data);
-                document.getElementById('clone-import-status').textContent = 'Candidate prepared and verified. Listen to both before accepting; nothing has been imported yet.';
+                document.getElementById('clone-import-status').textContent = formatUiSafetyText('safety.clone.cleanup.prepared', 'Candidate prepared and verified. Listen to both before accepting; nothing has been imported yet.');
             } catch (error) {
-                if (error.name !== 'AbortError' && generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) { showToast('Cleanup preparation failed. Nothing was imported.', 'warning'); }
+                if (error.name !== 'AbortError' && generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) { showToast(formatUiSafetyText('safety.clone.cleanup.prepare-failed-toast', 'Cleanup preparation failed. Nothing was imported.'), 'warning'); }
             } finally {
                 if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
                     _cloneCleanupPreparing = false;
@@ -991,10 +1022,10 @@
             _cloneCleanupDiscarding = false;
             if (response && response.ok) {
                 _resetCloneCleanup();
-                document.getElementById('clone-import-status').textContent = 'Preview removed if present; already accepted voices remain in the library. Your current selection is unchanged.';
+                document.getElementById('clone-import-status').textContent = formatUiSafetyText('safety.clone.cleanup.rejected', 'Preview removed if present; already accepted voices remain in the library. Your current selection is unchanged.');
             } else {
                 _refreshCloneImportSubmit();
-                document.getElementById('clone-import-status').textContent = 'Preview discard failed on the server. The preview is kept so you can retry. Check the voice library if an earlier acceptance was uncertain.';
+                document.getElementById('clone-import-status').textContent = formatUiSafetyText('safety.clone.cleanup.reject-failed', 'Preview discard failed on the server. The preview is kept so you can retry. Check the voice library if an earlier acceptance was uncertain.');
             }
         };
         document.getElementById('clone-cleanup-accept').onclick = async () => {
@@ -1003,7 +1034,7 @@
             if (!_cloneCleanup || _cloneCleanupAccepting || _cloneCleanupPreparing || _cloneCleanupDiscarding || _cloneImportPendingGeneration === _cloneImportGeneration) { return; }
             const f = _cloneImportFields();
             if (!f.refText.value.trim() || !f.rightsConfirmed.checked || !document.getElementById('clone-cleanup-listened-original').checked || !document.getElementById('clone-cleanup-listened-candidate').checked) {
-                showToast('Enter the transcript, confirm rights, and listen to both Original and Candidate first.', 'warning');
+                showToast(t('safety.clone.cleanup.listen-first', 'Enter the transcript, confirm rights, and listen to both Original and Candidate first.'), 'warning');
                 return;
             }
             _cloneCleanupAccepting = true;
@@ -1026,16 +1057,18 @@
             try {
                 const res = await fetch('/api/clone_voices/cleanup/accept', {method: 'POST', body});
                 if (!res.ok) {
-                    if (res.status >= 500 && res.status !== 503) { throw new Error('Server did not confirm the publication outcome.'); }
-                    let detail = 'Accept failed';
-                    try { detail = (await res.json()).detail || detail; } catch (error) { detail = 'Accept refused without a readable explanation'; }
+                    if (res.status >= 500 && res.status !== 503) { throw new Error(t('clone.cleanup.accept-outcome-unknown', 'Server did not confirm the publication outcome.')); }
+                    let detail = t('clone.cleanup.accept-failed', 'Accept failed');
+                    try { detail = (await res.json()).detail || detail; } catch (error) { detail = t('clone.cleanup.accept-no-explanation', 'Accept refused without a readable explanation'); }
                     if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
                         const transient = res.status === 409 || res.status === 503;
                         if (!transient) {
                             _resetCloneCleanup();
-                            document.getElementById('clone-import-status').textContent = 'Candidate is no longer ready. Review the refusal and prepare a fresh preview.';
+                            document.getElementById('clone-import-status').textContent = formatUiSafetyText('safety.clone.cleanup.no-longer-ready', 'Candidate is no longer ready. Review the refusal and prepare a fresh preview.');
                         }
-                        showActionError('Cleanup acceptance refused', {message: detail, status: res.status}, transient ? 'The preview is kept for retry; your current selection is unchanged.' : 'The preview has been retired; your current selection is unchanged.');
+                        showActionError(t('safety.clone.cleanup.accept-refused', 'Cleanup acceptance refused'), {message: detail, status: res.status}, transient
+                            ? t('safety.clone.cleanup.accept-refused-retry', 'The preview is kept for retry; your current selection is unchanged.')
+                            : t('safety.clone.cleanup.accept-refused-retired', 'The preview has been retired; your current selection is unchanged.'));
                     }
                     return;
                 }
@@ -1047,10 +1080,10 @@
                 try {
                     window._cloneVoicesCache = await API.get('/api/clone_voices/list');
                     await loadVoices();
-                    showToast('Cleaned candidate accepted as a new voice. Choose it from the voice list when you are ready.', 'success');
+                    showToast(t('clone.cleanup.accepted', 'Cleaned candidate accepted as a new voice. Choose it from the voice list when you are ready.'), 'success');
                 } catch (refreshError) {
                     console.error('Accepted cleanup refresh failed:', refreshError);
-                    showToast('Cleaned candidate was accepted as a new voice, but the voice list could not be refreshed. Do not accept or import again. Check that Alexandria is running, then reopen Voices.', 'warning');
+                    showToast(formatUiSafetyText('safety.clone.cleanup.accepted-unrefreshed', 'Cleaned candidate was accepted as a new voice, but the voice list could not be refreshed. Do not accept or import again. Check that Alexandria is running, then reopen Voices.'), 'warning');
                 }
                 if (generation === _cloneImportGeneration && completedEpoch === _cloneCleanupEpoch) {
                     const modalEl = document.getElementById('cloneImportModal');
@@ -1059,7 +1092,7 @@
             } catch (error) {
                 if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
                     _resetCloneCleanup();
-                    document.getElementById('clone-import-status').textContent = 'Acceptance may have completed. Check the voice library before any new import.';
+                    document.getElementById('clone-import-status').textContent = formatUiSafetyText('safety.clone.cleanup.accept-maybe', 'Acceptance may have completed. Check the voice library before any new import.');
                 }
                 try {
                     window._cloneVoicesCache = await API.get('/api/clone_voices/list');
@@ -1067,7 +1100,7 @@
                 } catch (refreshError) {
                     console.error('Uncertain cleanup refresh failed:', refreshError);
                 }
-                showToast('Cleanup acceptance may have completed even though its reply was lost. Do not accept or import again until you check the voice library. Your current selection is unchanged.', 'warning');
+                showToast(formatUiSafetyText('safety.clone.cleanup.accept-maybe-toast', 'Cleanup acceptance may have completed even though its reply was lost. Do not accept or import again until you check the voice library. Your current selection is unchanged.'), 'warning');
             } finally {
                 if (generation === _cloneImportGeneration && epoch === _cloneCleanupEpoch) {
                     _cloneCleanupAccepting = false;
@@ -1084,7 +1117,7 @@
                     const audio = new Audio(getLocalAudioUrl(refAudio, Date.now()));
                     await audio.play();
                 } catch (error) {
-                    showToast('Could not play the clone reference. Check that Alexandria is running, then try Play again.', 'warning');
+                    showToast(t('clone.play.error', 'Could not play the clone reference. Check that Alexandria is running, then try Play again.'), 'warning');
                 }
             }
         };
@@ -1099,16 +1132,16 @@
             const name = voice?.name || voiceId;
             try {
                 await applyLibraryVoiceRemoval(val, btn,
-                    `Delete clone voice "${name}"? This removes its saved reference from the voice library.`,
+                    formatUiSafetyText('safety.clone.delete', 'Delete clone voice "{name}"? This removes its saved reference from the voice library.', {name}),
                     () => select.value === val && card.isConnected !== false, async () => {
                         const res = await fetch(`/api/clone_voices/${encodeURIComponent(voiceId)}`, { method: 'DELETE' });
-                        if (!res.ok) { const err = await res.json(); showActionError('Clone voice deletion refused', {message: err.detail || 'Failed to delete', status: res.status}, 'Refresh the voice library and check the selected clone voice before deleting again.'); return; }
+                        if (!res.ok) { const err = await res.json(); showActionError(t('safety.clone.delete.refused', 'Clone voice deletion refused'), {message: err.detail || t('clone.delete.failed', 'Failed to delete'), status: res.status}, t('safety.clone.delete.refused-recovery', 'Refresh the voice library and check the selected clone voice before deleting again.')); return; }
                         window._cloneVoicesCache = await API.get('/api/clone_voices/list');
                         await loadVoices();
-                        showToast('Clone voice deleted', 'success');
+                        showToast(t('clone.delete.deleted', 'Clone voice deleted'), 'success');
                     });
             } catch (e) {
-                showActionError("Deleting clone voice failed", e, "Refresh the voice library to check whether the clone voice was deleted before trying again.");
+                showActionError(t('clone.delete.error', 'Deleting clone voice failed'), e, t('safety.clone.delete.error-recovery', 'Refresh the voice library to check whether the clone voice was deleted before trying again.'));
             }
         };
 

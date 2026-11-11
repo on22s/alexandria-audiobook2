@@ -101,21 +101,30 @@ MARKUP_BASELINE = {
 # state tokens and the server's capture status vocabulary. The remaining counts
 # in the other converted files are element ids, CSS classes, HTTP methods and
 # server field names.
+# P9c lowered the last English-only flows: app-single-voice.js 96 -> 18,
+# app-speaker-review.js 107 -> 37, app-project-scope.js 33 -> 7,
+# app-translated-edition.js 37 -> 9, app-tts-capabilities.js 56 -> 28,
+# app-tts-diagnostics.js 33 -> 11 and app-scripts.js 291 -> 215 (the saved-script
+# rows and audit panel, the clone import/cleanup flow, plus the save/load/delete
+# actions). What is left in each of those files is element ids, CSS classes, DOM
+# event names, field names, HTTP methods, console diagnostics, one internal error
+# string that is caught before display, server-backed data (pair names, stage
+# names, status tokens) and the template HTML that embeds the keyed t() calls.
 JS_BASELINE = {
     'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
     'app-core.js': 1793, 'app-editor-repair.js': 16, 'app-editor-review.js': 98,
     'app-export-quality.js': 12, 'app-guides.js': 48, 'app-help.js': 75,
     'app-i18n.js': 25, 'app-mastering.js': 11, 'app-narration-markup.js': 14,
-    'app-project-scope.js': 33, 'app-pronunciation.js': 74,
+    'app-project-scope.js': 7, 'app-pronunciation.js': 74,
     'app-publication-validation.js': 2, 'app-publication.js': 17, 'app-readalong.js': 29,
-    'app-reports.js': 55, 'app-scripts.js': 291, 'app-settings.js': 53,
-    'app-single-voice.js': 96, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
+    'app-reports.js': 55, 'app-scripts.js': 215, 'app-settings.js': 53,
+    'app-single-voice.js': 18, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
     'app-sound-mix-cover.js': 4, 'app-sound-mixes.js': 34, 'app-sound-renditions.js': 50,
-    'app-speaker-review.js': 107, 'app-speech-verification.js': 14,
+    'app-speaker-review.js': 37, 'app-speech-verification.js': 14,
     'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 249,
-    'app-translated-edition.js': 37, 'app-tts-capabilities.js': 56,
-    'app-tts-diagnostics.js': 33, 'app-voicelab.js': 128, 'app-word-timing.js': 23,
+    'app-translated-edition.js': 9, 'app-tts-capabilities.js': 28,
+    'app-tts-diagnostics.js': 11, 'app-voicelab.js': 128, 'app-word-timing.js': 23,
     'app-workbench.js': 282, 'app-workspace.js': 86,
 }
 

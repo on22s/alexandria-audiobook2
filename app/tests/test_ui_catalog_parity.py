@@ -42,7 +42,16 @@ KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria
                           # Protocol and table abbreviations, and two Spanish words
                           # that are spelled exactly as the English source
                           # ("Error", "manual"): real words, not untranslated stubs.
-                          'HTTP', 'Error', 'manual', 'Apple MLX'})
+                          'HTTP', 'Error', 'manual', 'Apple MLX',
+                          # Format-only message VALUES (placeholders and
+                          # punctuation), so a Spanish rendering is necessarily
+                          # the same string. Listed so "identical to English"
+                          # keeps meaning "an untranslated stub", not "a template
+                          # with no words to translate".
+                          '{label} ({count})', '{speaker}{uid}: {text}',
+                          '{name}: {voice}{style}', '{uid}: {assignments}',
+                          '{speaker} · {type}', '{verdict}: {reason}',
+                          '{label}: {reason}'})
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 TAG = re.compile(r'</?([a-z]+)[^>]*>')
 
