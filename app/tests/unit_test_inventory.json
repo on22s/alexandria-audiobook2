@@ -10367,6 +10367,8 @@
     "tests.test_qwen_runtime.CapabilityTests.test_missing_model_not_ready",
     "tests.test_qwen_runtime.CapabilityTests.test_probe_compile",
     "tests.test_qwen_runtime.CapabilityTests.test_probe_error_not_ready",
+    "tests.test_qwen_runtime.CapabilityTests.test_probe_keeps_plain_reason_for_ascii_path_or_other_platform",
+    "tests.test_qwen_runtime.CapabilityTests.test_probe_names_non_ascii_install_path_on_windows",
     "tests.test_qwen_runtime.CapabilityTests.test_probe_timeout_not_ready",
     "tests.test_qwen_runtime.CapabilityTests.test_ready_cpu_only",
     "tests.test_qwen_runtime.CapabilityTests.test_ready_with_cuda",
