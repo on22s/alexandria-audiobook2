@@ -15389,6 +15389,18 @@
     "tests.test_ui_i18n_js.UiI18nJsTests.test_the_removed_setup_catalog_names_no_longer_exist_anywhere",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_untranslated_locales_are_never_marked_draft"
   ],
+  "test_ui_i18n_panels_calibre": [
+    "tests.test_ui_i18n_panels_calibre.FallbackTests.test_a_missing_catalog_key_keeps_its_english",
+    "tests.test_ui_i18n_panels_calibre.KeyingTests.test_each_module_keys_its_user_facing_text",
+    "tests.test_ui_i18n_panels_calibre.KeyingTests.test_the_pass_titles_name_the_translated_step_not_the_pass_id",
+    "tests.test_ui_i18n_panels_calibre.RealRendererTests.test_the_audio_channel_picker_translates",
+    "tests.test_ui_i18n_panels_calibre.RealRendererTests.test_the_calibre_provider_block_translates",
+    "tests.test_ui_i18n_panels_calibre.RealRendererTests.test_the_designer_saved_voice_table_translates",
+    "tests.test_ui_i18n_panels_calibre.RealRendererTests.test_the_export_quality_card_and_status_translate",
+    "tests.test_ui_i18n_panels_calibre.RealRendererTests.test_the_sentence_gap_report_translates",
+    "tests.test_ui_i18n_panels_calibre.SafetyTextTests.test_every_new_safety_string_keeps_english_beneath_the_translation",
+    "tests.test_ui_i18n_panels_calibre.SafetyTextTests.test_the_modules_render_safety_text_through_the_safety_helper"
+  ],
   "test_ui_i18n_script_workbench_guides": [
     "tests.test_ui_i18n_script_workbench_guides.GuideRenderTests.test_the_guides_fall_back_to_authored_english_without_a_catalog",
     "tests.test_ui_i18n_script_workbench_guides.GuideRenderTests.test_the_guides_paint_their_translation_and_restore_english",
