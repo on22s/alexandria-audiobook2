@@ -4802,9 +4802,7 @@
         window.toggleVoicePreviewPlayback = async function toggleVoicePreviewPlayback(button, getUrl, render, failureMessage) {
             const current = window._voicePreviewPlayback;
             if (current) {
-                current.audio.pause();
-                current.render(current.button, false);
-                window._voicePreviewPlayback = null;
+                stopVoicePreviewPlayback(current);
                 if (current.button === button) {
                     return;
                 }
@@ -4814,7 +4812,7 @@
                 return;
             }
             const audio = new Audio(url);
-            const playback = {audio, button, render};
+            const playback = {audio, button, render, stopped: false};
             window._voicePreviewPlayback = playback;
             render(button, true);
             const finish = () => {
@@ -4828,7 +4826,27 @@
                 await audio.play();
             } catch (error) {
                 finish();
-                showToast(failureMessage, 'warning');
+                // Stop pressed before the audio started aborts play(); that is
+                // the user's choice, not a failure to report.
+                if (!playback.stopped) {
+                    showToast(failureMessage, 'warning');
+                }
+            }
+        };
+
+        function stopVoicePreviewPlayback(playback) {
+            playback.stopped = true;
+            playback.audio.pause();
+            playback.render(playback.button, false);
+            window._voicePreviewPlayback = null;
+        }
+
+        // A redrawn voice list or a cleared reference removes or hides the
+        // playing button; stop its audio rather than leave it with no Stop.
+        window.stopOrphanedVoicePreview = function stopOrphanedVoicePreview() {
+            const current = window._voicePreviewPlayback;
+            if (current && (!current.button.isConnected || current.button.style.display === 'none')) {
+                stopVoicePreviewPlayback(current);
             }
         };
 
@@ -5083,7 +5101,7 @@
                                     <label class="form-label small d-block w-100">${t('voice.card.clone-persona-label', 'Persona description')}<textarea class="form-control persona-description" aria-label="${escapeHtml(t('voice.card.clone-persona-aria', 'Persona description for {name}', {name: label}))}">${escapeHtml(config.description || '')}</textarea></label>
                                     <div class="input-group">
                                         <input type="text" class="form-control ref-audio" aria-label="${escapeHtml(t('voice.card.clone-path-aria', 'Reference audio path for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-path-placeholder', 'Path to audio file'))}" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
-                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play or stop reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
                                         <button class="btn btn-sm btn-outline-danger clone-delete-btn" aria-label="${escapeHtml(t('voice.card.clone-delete-aria', 'Delete uploaded reference voice for {name}', {name: label}))}" onclick="deleteCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-delete-title', 'Delete uploaded voice'))}" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
@@ -5678,6 +5696,7 @@
                     return loadVoices.publishedResult;
                 }
                 container.innerHTML = getVoiceSeedRepairMarkup(ownSnapshot) + getStateVoiceCardsMarkup(voices);
+                window.stopOrphanedVoicePreview();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;
                 _voiceCardsBookToken = ownBookToken;

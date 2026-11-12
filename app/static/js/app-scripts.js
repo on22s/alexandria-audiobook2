@@ -684,6 +684,7 @@
                 }
                 if (playBtn) playBtn.style.display = 'none';
                 if (deleteBtn) deleteBtn.style.display = 'none';
+                window.stopOrphanedVoicePreview();
                 refAudio.focus();
                 return;
             }

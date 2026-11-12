@@ -7,7 +7,10 @@ real shared Voices-tab player from app-core.js:
 - pressing the reference button while it plays stops it instead of starting a
   second, overlapping recording (the reported bug), and the button shows Stop
   while playing and Play again after Stop or the end of the audio;
-- a reference preview and a saved-candidate preview never play at once.
+- a reference preview and a saved-candidate preview never play at once;
+- Stop pressed before play() settles is not reported as a failure, while a
+  real failure still is;
+- a redrawn or hidden button does not leave its audio playing with no Stop.
 """
 from pathlib import Path
 import subprocess
@@ -17,10 +20,10 @@ APP = Path(__file__).resolve().parent.parent
 SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const scripts=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(process.argv[2],'utf8');
-const warnings=[],played=[],unhandled=[];let mode='resolve';
+const warnings=[],played=[],unhandled=[];let mode='resolve',pending=null;
 class Audio{constructor(url){this.url=url;this.paused=true;this.listeners={};played.push(this);}
  addEventListener(name,fn){this.listeners[name]=fn;}
- play(){if(mode==='throw'){throw Error('media refused');}this.paused=false;return mode==='reject'?Promise.reject(Error('media unavailable')):Promise.resolve();}
+ play(){if(mode==='throw'){throw Error('media refused');}this.paused=false;if(mode==='pending'){return new Promise((ok,fail)=>{pending={ok,fail};});}return mode==='reject'?Promise.reject(Error('media unavailable')):Promise.resolve();}
  pause(){this.paused=true;}}
 const context={window:{},Date,Audio,getLocalAudioUrl:(path)=>'/'+path,showToast:(...args)=>warnings.push(args)};
 vm.createContext(context);context.t=(key,english,values={})=>Object.keys(values).reduce((text,name)=>text.split('{'+name+'}').join(String(values[name])),String(english));
@@ -28,7 +31,7 @@ const slice=(source,from,to)=>{const start=source.indexOf(from);assert(start>=0,
 vm.runInContext(slice(core,'window.setVoicePreviewButton =','function setCandidatePlayButton('),context);
 vm.runInContext(slice(core,'window.toggleVoicePreviewPlayback =','window.toggleCandidatePlayback ='),context);
 vm.runInContext(slice(scripts,'function setClonePlayButton(','window.deleteCloneVoice ='),context);
-const button=(value,label='Hero')=>{const classes=new Set(['btn-outline-secondary']);return {value,innerHTML:'<i class="fas fa-play"></i>',attrs:{},dataset:{label},
+const button=(value,label='Hero')=>{const classes=new Set(['btn-outline-secondary']);return {value,innerHTML:'<i class="fas fa-play"></i>',attrs:{},dataset:{label},isConnected:true,style:{},
  setAttribute(k,v){this.attrs[k]=v;},classList:{toggle:(c,on)=>{if(on){classes.add(c);}else{classes.delete(c);}},has:c=>classes.has(c)},
  closest(){return {querySelector:()=>({value})};}};};
 const listener=error=>unhandled.push(error);process.on('unhandledRejection',listener);
@@ -76,6 +79,28 @@ assert(played[0].paused,'starting a candidate stops the reference');assert(refer
 assert(!played[1].paused);assert.deepEqual(drawn,[true]);
 await context.window.playCloneVoice(reference);
 assert(played[1].paused,'starting the reference stops the candidate');assert.deepEqual(drawn,[true,false]);assert(!played[2].paused);
+''')
+
+    def test_stop_before_the_audio_starts_is_not_reported_as_a_failure(self):
+        self.run_js(r'''
+mode='pending';const b=button('clone_voices/hero.wav');
+const first=context.window.playCloneVoice(b);
+await context.window.playCloneVoice(b);
+const abort=Error('The play() request was interrupted by a call to pause()');abort.name='AbortError';
+pending.fail(abort);await first;await tick();
+assert.equal(warnings.length,0,'a deliberate Stop raises no warning');assert.equal(unhandled.length,0);
+assert(b.innerHTML.includes('fa-play'));assert.equal(context.window._voicePreviewPlayback,null);
+mode='reject';await context.window.playCloneVoice(b);assert.equal(warnings.length,1,'a real failure is still reported');
+''')
+
+    def test_a_removed_or_hidden_button_does_not_keep_playing(self):
+        self.run_js(r'''
+for(const leave of [b=>{b.isConnected=false;},b=>{b.style.display='none';}]){
+ const b=button('clone_voices/hero.wav');await context.window.playCloneVoice(b);const audio=played.at(-1);
+ context.window.stopOrphanedVoicePreview();assert(!audio.paused,'a visible playing button is left alone');
+ leave(b);context.window.stopOrphanedVoicePreview();
+ assert(audio.paused);assert.equal(context.window._voicePreviewPlayback,null);assert(b.innerHTML.includes('fa-play'));}
+assert.equal(warnings.length,0);
 ''')
 
 
