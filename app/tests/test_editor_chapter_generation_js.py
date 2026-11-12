@@ -25,7 +25,7 @@ CORE = (STATIC / 'js/app-core.js').read_text(encoding='utf-8')
 PARSER = CORE[CORE.index('function parseChapterSelection('):CORE.index('function chapterExportParams(')]
 PANEL_SETUP = r'''
 vm.runInContext(%s,context);
-for(const id of ['editor-chapter-selection','editor-chapter-regenerate','editor-chapter-status','editor-chapter-summary','editor-chapter-map']){body.appendChild(new Element('div',{id}));}
+for(const id of ['editor-chapter-selection','editor-chapter-regenerate','editor-chapter-status','editor-chapter-summary','editor-chapter-map','editor-chapter-panel']){body.appendChild(new Element('div',{id}));}
 const chapterEl=id=>document.getElementById('editor-chapter-'+id);chapterEl('regenerate').checked=false;
 const options={book_token:context.chunkSnapshotBookToken,options_revision:'f'.repeat(64),speakers:['Hero','NARRATOR'],
   chapters:[{index:0,title:'One',first:0,last:1},{index:1,title:'Two',first:2,last:3},{index:2,title:'Three',first:4,last:4}]};
@@ -49,7 +49,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(states)),[[1,'done',2,2],[2,'partial'
 chunks[3].status='error';assert.equal(context.getEditorChapterProgress(options.chapters,chunks)[1].state,'failed');
 context.renderEditorChapterMap(context.getEditorChapterProgress(options.chapters,chunks));
 assert.equal(chapterEl('map').children.length,3);assert.equal(chapterEl('map').children[1].className,'bg-danger');
-assert.match(chapterEl('summary').textContent,/^1 of 3 chapters fully generated, 0 partly generated, 1 with failed lines\.$/);
+assert.match(chapterEl('summary').textContent,/^1 of 3 chapters fully generated, 0 partly generated, 1 not started, 1 with failed lines\. Failed: 2\.$/);
 ''')
 
     def test_panel_sends_chapters_skips_done_and_regenerates_only_when_ticked(self):
@@ -63,6 +63,7 @@ chapterEl('selection').value='9';assert.deepEqual(JSON.parse(JSON.stringify(star
 previewRows=[{id:0,uid:'u0',text:'a',status:'done'}];chapterEl('selection').value='1';
 await context.generateEditorChapters();assert.equal(starts.length,1,'all lines done: nothing starts');assert.match(chapterEl('status').textContent,/already has audio/);
 chapterEl('regenerate').checked=true;await context.generateEditorChapters();assert.equal(starts.length,2);assert.equal(starts[1][0],true);
+previewRows=[];await context.generateEditorChapters();assert.equal(starts.length,2,'empty chapters: nothing starts');assert.match(chapterEl('status').textContent,/no lines to render/);
 ''')
 
     def test_out_of_range_and_empty_input_never_request_a_preview(self):
@@ -70,6 +71,15 @@ chapterEl('regenerate').checked=true;await context.generateEditorChapters();asse
 for(const value of ['4','2, 7-8','','abc']){chapterEl('selection').value=value;await context.generateEditorChapters();}
 assert.equal(previews.length,0);assert.equal(starts.length,0);assert.equal(errors.length,4);
 assert.match(errors[0][1].message,/has 3 chapters, so chapter 4 does not exist/);assert.match(errors[1][1].message,/chapter 7 does not exist/);
+''')
+
+    def test_map_refresh_loads_only_while_the_panel_is_open(self):
+        self.run_ui(r'''
+let gets=0;const get=context.API.get;context.API.get=async url=>{gets+=1;return get(url);};
+context.ensureEditorRenderSnapshot=async()=>[{id:0,text:'a',status:'done'},{id:1,text:'b',status:'done'}];
+chapterEl('panel').open=false;await context.refreshEditorChapterMap();assert.equal(gets,0);assert.equal(chapterEl('map').children.length,0);
+chapterEl('panel').open=true;await context.refreshEditorChapterMap();assert.equal(gets,1);assert.equal(chapterEl('map').children.length,3);
+assert.match(chapterEl('summary').textContent,/^1 of 3 chapters fully generated, 0 partly generated, 2 not started, 0 with failed lines\.$/);
 ''')
 
     def run_render(self, code):

@@ -113,6 +113,8 @@ const getEditorChapterElement = name => document.getElementById('editor-chapter-
 const EDITOR_CHAPTER_COLORS = {done: 'success', partial: 'warning', pending: 'secondary', failed: 'danger'};
 
 // -> one entry per chapter: lines counted are non-empty ones, as rendering counts them.
+// first/last are list positions; chunk ids equal positions (project.py renumbers
+// them on every insert/delete), the same invariant the batch renderer relies on.
 function getEditorChapterProgress(chapters, chunks) {
     const byId = new Map(chunks.map(chunk => [chunk.id, chunk]));
     return chapters.map(chapter => {
@@ -136,10 +138,13 @@ function renderEditorChapterMap(progress) {
         square.setAttribute('title', t('editor.chapters.square', 'Chapter {number}: {title} ({done} of {total} lines generated)', chapter));
         return square;
     }));
+    // The map is visual only; this text carries the same facts for screen readers.
     const count = state => progress.filter(chapter => chapter.state === state).length;
+    const failed = progress.filter(chapter => chapter.state === 'failed').map(chapter => chapter.number);
     getEditorChapterElement('summary').textContent = t('editor.chapters.summary',
-        '{done} of {total} chapters fully generated, {partial} partly generated, {failed} with failed lines.',
-        {done: count('done'), total: progress.length, partial: count('partial'), failed: count('failed')});
+        '{done} of {total} chapters fully generated, {partial} partly generated, {pending} not started, {failed} with failed lines.',
+        {done: count('done'), total: progress.length, partial: count('partial'), pending: count('pending'), failed: failed.length})
+        + (failed.length ? ' ' + t('editor.chapters.failed-list', 'Failed: {chapters}.', {chapters: failed.slice(0, 20).join(', ') + (failed.length > 20 ? ', …' : '')}) : '');
 }
 
 async function getEditorChapterOptions() {
@@ -152,6 +157,8 @@ async function getEditorChapterOptions() {
 }
 
 async function refreshEditorChapterMap() {
+    // A render's completion calls this too; a closed panel reloads on open instead.
+    if (!getEditorChapterElement('panel').open) { return; }
     const request = ++editorChapterMapRequest;
     try {
         const chunks = await ensureEditorRenderSnapshot();
@@ -190,6 +197,10 @@ async function generateEditorChapters() {
         }
         const regenerate = getEditorChapterElement('regenerate').checked;
         const pending = result.rows.filter(row => row.status !== 'done').length;
+        if (!result.rows.length) {
+            status.textContent = t('editor.chapters.empty', 'These chapters have no lines to render.');
+            return;
+        }
         if (!regenerate && !pending) {
             status.textContent = t('editor.chapters.all-done', 'Every line in these chapters already has audio. Tick Regenerate to replace it.');
             return;
