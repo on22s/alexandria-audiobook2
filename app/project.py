@@ -309,18 +309,21 @@ _NUMBER_WORD = (r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twe
 # that follows it; the splitter only knew bare "Chapter 3", so a titled heading
 # was never split out and the book lost every chapter boundary (#1921).
 TITLED_CHAPTER_HEADING_RE = re.compile(
-    r"^(?:(?:chapter|part|book|volume|act|section)\s+(?:[0-9]+|[ivxlcdm]+|"
+    r"^(?:(?:chapter|part|book|volume|act|section)\s+(?:[0-9]+|(?-i:[IVXLCDM]+)|"
     + _NUMBER_WORD + r"(?:-" + _NUMBER_WORD + r")?)"
     r"|prologue|epilogue|prelude|interlude|introduction|conclusion|afterword|foreword)"
-    r"\s*[:.\-\u2013\u2014]\s*\S", re.IGNORECASE)
+    r"\s*[:\-\u2013\u2014]\s*(\S)", re.IGNORECASE)
 
 
 def is_titled_chapter_heading(text):
     """A keyword-and-number heading followed by a title, short and not a
     sentence: "Chapter 3: The Gate". The caller requires its own paragraph."""
     label = text.strip()
-    return (len(label) <= 120 and "\n" not in label and not label.endswith(".")
-            and bool(TITLED_CHAPTER_HEADING_RE.match(label)))
+    match = TITLED_CHAPTER_HEADING_RE.match(label)
+    # A title starts with a capital, a digit, a quote or a letter without case
+    # (CJK); prose after "Section 2:" or "Part 2 -" usually starts lowercase.
+    return bool(match and len(label) <= 120 and "\n" not in label
+                and not label.endswith(".") and not match.group(1).islower())
 
 
 def is_numbered_heading(text):
@@ -435,7 +438,8 @@ def is_keyword_chapter_heading(text):
     """A heading named by a chapter keyword (English or CJK), even when it is
     framed by a bracket pair or by dashes on both ends ("【第一章】", "- Chapter 1 -")."""
     core = get_heading_core(text)
-    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core))
+    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core)
+                or is_titled_chapter_heading(core))
 
 
 def is_heading_lookalike(text):
@@ -512,10 +516,10 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
         # the entry keeps exactly what the annotator said.
         heading, rest = get_leading_heading(original_text)
         if heading:
-            first = {key: value for key, value in entry.items() if key != "pause_after"}
+            whole_entry_facts = ("source_span", "source_speaker", "dialogue_ambiguity")
+            first = {key: value for key, value in entry.items()
+                     if key not in whole_entry_facts and (rest.strip() == "" or key != "pause_after")}
             first.update(text=heading, spoken=False)
-            if not rest.strip():
-                first = dict(entry, text=heading, spoken=False)
             head_parts, head_review = split_on_unspeakable(first, scene_break_pause_ms)
             if not rest.strip():
                 return head_parts, head_review

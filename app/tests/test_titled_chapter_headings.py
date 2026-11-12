@@ -40,11 +40,15 @@ def chapters_for(entries):
 class TitledChapterHeadingTests(unittest.TestCase):
     def test_titled_heading_rule(self):
         for text in ("Chapter 3: The Gate (2)", "Chapter Five - The Gate", "Chapter twenty-one: Ash",
-                     "Part II: Rising", "Prologue: Before the Fall", "Chapter 12 — Night", "Book 1. Embers"):
+                     "Part II: Rising", "Prologue: Before the Fall", "Chapter 12 — Night",
+                     "Interlude: The Storm", "Chapter 7: 穿越"):
             with self.subTest(text=text):
                 self.assertTrue(is_titled_chapter_heading(text))
         for text in ("Chapter 3 was the hardest part of the book.", "Chapter 3: he said it was over.",
                      "Part of the problem: nobody listened", "Chapter 3: Title\nand more",
+                     "Chapter 3. He said it was over", "Part 2 - we left at dawn",
+                     "Section 2: see the appendix", "Book 3 - the one with the dragon",
+                     "Act 2: curtain rises", "Book i - the dragon",
                      "Chapter 3: " + "very long title " * 10):
             with self.subTest(text=text):
                 self.assertFalse(is_titled_chapter_heading(text))
@@ -66,6 +70,9 @@ class TitledChapterHeadingTests(unittest.TestCase):
 
     def test_lookalikes_are_not_split(self):
         cases = {
+            "sentence after a period": narrator("Chapter 3. He said it was over\n\n" + PROSE),
+            "lowercase after a dash": narrator("Part 2 - we left at dawn\n\n" + PROSE),
+            "lowercase after a colon": narrator("Section 2: see the appendix\n\n" + PROSE),
             "prose that starts with a keyword": narrator("Chapter 3: he said it was over.\n\n" + PROSE),
             "heading not its own paragraph": narrator("Chapter 3: The Gate\n" + PROSE),
             "heading inside a spoken entry": narrator(SPEECH + "\n\nChapter 3: The Gate\n\n" + PROSE, True),
@@ -74,6 +81,22 @@ class TitledChapterHeadingTests(unittest.TestCase):
             with self.subTest(case=name):
                 _, groups = chapters_for([narrator(PROSE), entry])
                 self.assertEqual([("Chapter 1", 0, groups[0][2])], groups)
+
+    def test_adjacent_titled_labels_are_both_chapters(self):
+        _, groups = chapters_for([narrator("Interlude: The Storm"), narrator("Afterword: Notes"),
+                                  narrator(PROSE)])
+        self.assertEqual(["Interlude: The Storm", "Afterword: Notes"], [title for title, _, _ in groups])
+
+    def test_split_heading_drops_facts_that_describe_the_whole_entry(self):
+        entry = dict(narrator("Chapter 1: The Gate\n\n" + PROSE + "\n\n" + SPEECH, True),
+                     source_span=[10, 200], source_speaker="HERO", dialogue_ambiguity="open", pause_after=500)
+        parts, _ = project.split_on_unspeakable(entry, 1000)
+        heading = parts[0]
+        self.assertEqual("Chapter 1: The Gate", heading["text"])
+        for key in ("source_span", "source_speaker", "dialogue_ambiguity", "pause_after"):
+            self.assertNotIn(key, heading)
+        self.assertEqual(500, parts[-1]["pause_after"])
+        self.assertEqual("HERO", parts[-1]["source_speaker"])
 
     def test_five_chapter_book_has_exact_boundaries(self):
         titles = ["Chapter 1: Into the Gate", "Chapter 2: Evaluation (1)", "Chapter 3: Evaluation (2)",
