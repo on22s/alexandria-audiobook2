@@ -181,6 +181,8 @@
             // Editor tab
             'sound-assets-file': {what: 'Choose WAV, FLAC, MP3 or OGG audio to retain in the sound asset library. Import verifies the complete file. It does not change book audio; use the library to audition it first.'},
             'editor-repair-chapter': {what: 'Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, each line is a chapter.'},
+            'editor-chapter-selection': {what: 'Chapter numbers to render, as in the Result tab’s chapter box: single numbers and ranges separated by commas, for example 1-3, 5.'},
+            'editor-chapter-regenerate': {what: 'Also replace audio for lines in these chapters that already have it. Off by default, so only missing lines are rendered. Asks before replacing.'},
             'editor-repair-speakers': {what: 'Select one or more literal speaker labels to include in the repair preview. Preview shows the exact affected lines before audio replacement.'},
             'editor-quality-filter': {what: 'Filter the take review queue by saved findings, historical speech evidence or missing checks. Compare retained candidates without changing audio; restoration requires an explicit action. Unknown evidence is not a clean result.'},
             'chk-drift-only': {what: 'Show only chunks the drift check flagged as sounding unlike their speaker’s reference voice.'},
@@ -652,6 +654,8 @@
             'speaker-review-cancel': 'Request cancellation of the current speaker-label review.',
             'speaker-review-cancel-previous': 'Request cancellation of the previous speaker-label review still running.',
             'speaker-review-refresh': 'Refresh the status and result of this speaker-label review.',
+            'editor-chapter-start': 'Render the chosen chapters with the current voices and settings. Other chapters’ audio is left as it is.',
+            'editor-chapter-refresh': 'Reload the chapter progress map from the current lines.',
             'btn-merge': 'Merge generated chunk audio into the combined output using the configured pauses.',
             'chapter-preview-btn': 'Preview chapter boundaries and filenames for the current export settings.',
             'chapter-export-btn': 'Export the selected chapters into individual audio files.',

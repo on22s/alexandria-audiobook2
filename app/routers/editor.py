@@ -368,9 +368,14 @@ class NarrationMarkupApplication(NarrationMarkupSelection):
 
 
 class AudioRepairSelection(BaseModel):
+    # Refuse the retired single `chapter` field instead of ignoring it: an
+    # ignored chapter would silently widen the selection to the whole book.
+    model_config = ConfigDict(extra="forbid")
     expected_options_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_book_token: str = Field(pattern=r"^[0-9a-f]{64}$")
-    chapter: Optional[Annotated[StrictInt, Field(ge=0)]] = None
+    # Zero-based chapter numbers from repair_options; None means the whole book.
+    chapters: Optional[List[Annotated[StrictInt, Field(ge=0)]]] = Field(
+        default=None, min_length=1, max_length=10000)
     speakers: List[Annotated[str, Field(max_length=500)]] = Field(min_length=1, max_length=10000)
 
 
@@ -422,15 +427,18 @@ def _get_audio_repair_preview_sync(request):
         if request.expected_options_revision != get_snapshot_digest(chunks):
             raise HTTPException(status_code=409, detail="Chapter options are stale. Load current chapters and speakers again.")
         options = get_audio_repair_options(chunks)
-        first, last = 0, len(chunks) - 1
-        if request.chapter is not None:
-            if request.chapter >= len(options["chapters"]):
+        chosen = None
+        if request.chapters is not None:
+            if max(request.chapters) >= len(options["chapters"]):
                 raise HTTPException(status_code=409, detail="Chapter selection changed; refresh repair options.")
-            chapter = options["chapters"][request.chapter]
-            first, last = chapter["first"], chapter["last"]
+            chosen = set()
+            for number in set(request.chapters):
+                chapter = options["chapters"][number]
+                chosen.update(range(chapter["first"], chapter["last"] + 1))
         if not set(request.speakers).issubset(options["speakers"]):
             raise HTTPException(status_code=409, detail="Speaker selection changed; refresh repair options.")
-        selected = [chunk for i, chunk in enumerate(chunks) if first <= i <= last
+        selected = [chunk for i, chunk in enumerate(chunks)
+                    if (chosen is None or i in chosen)
                     and chunk.get("text", "").strip() and get_speaker(chunk) in request.speakers]
         return {"book_token": request.expected_book_token,
                 "repair_revision": get_audio_repair_revision(chunks), "rows": selected,
