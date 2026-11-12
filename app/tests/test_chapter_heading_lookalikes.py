@@ -97,6 +97,21 @@ class HeadingLookalikeTests(unittest.TestCase):
         self.assertIn("【第一章】", titles)
         self.assertIn("[第2話]", titles)
 
+    def test_cjk_counters_in_prose_and_loose_decoration_are_not_headings(self):
+        """Re-review: 回/部 are also everyday counters, and only a matching frame
+        is stripped before the keyword check."""
+        for text in ("\u7b2c\u4e00\u56de\u76ee\u306e\u4f1a\u8b70\u306f\u59cb\u307e\u3063\u305f",
+                     "\u7b2c\u4e00\u90e8\u968a\u304c\u5230\u7740\u3057\u305f",
+                     "\u7b2c\u4e00\u7ae0\u306f\u9000\u5c48\u3060\u3063\u305f",
+                     "\u7b2c\u4e00\u56de\u306e\u8a66\u5408", "--chapter", "~chapter",
+                     "[Chapter 1"):
+            with self.subTest(text=text):
+                self.assertFalse(project.is_keyword_chapter_heading(text))
+        for text in ("\u7b2c\u4e00\u56de", "\u7b2c\u4e00\u90e8 \u59cb\u307e\u308a",
+                     "\u7b2c\uff11\u7ae0", "\u300c\u7b2c1\u7ae0\u300d", "~ Chapter 2 ~"):
+            with self.subTest(text=text):
+                self.assertTrue(project.is_keyword_chapter_heading(text))
+
     def test_readalong_sections_are_the_shared_chapters(self):
         """The sidecar used stored heading flags, so a status window became its
         own sections there alone (Rule 15). It now uses _chapter_groups."""

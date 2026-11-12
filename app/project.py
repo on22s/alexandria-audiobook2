@@ -389,15 +389,29 @@ CONTINUATION_END_RE = re.compile(r"(?:[,;:\-\u2013\u2014]|\.\.\.|\u2026)$")
 
 
 # 第一章 / 第1話 / 第十二回 ...: the CJK counterpart of the English keyword list.
+# 回 and 部 are also everyday counters, and prose continues with a particle or
+# a counted noun ("第一回目の", "第一部隊が", "第一章は"), so a heading's counter
+# must not be followed by one of those.
 CJK_CHAPTER_HEADING_RE = re.compile(
-    r"^第\s*[0-9\uff10-\uff19一二三四五六七八九十百千零〇两兩]+\s*[章話话節节回卷部幕]")
-HEADING_DECORATION = "[]\u3010\u3011\u300c\u300d\u2014\u2013-~\u301c\u30fb \t"
+    r"^第\s*[0-9\uff10-\uff19一二三四五六七八九十百千零〇两兩]+\s*[章話话節节回卷部幕]"
+    r"(?![のはがをにでともへや目次隊队分門门])")
+HEADING_BRACKETS = {"[": "]", "\u3010": "\u3011", "\u300c": "\u300d", "(": ")", "\uff08": "\uff09"}
+HEADING_RULE_RE = re.compile(r"([-~\u2013\u2014\u301c\u30fb]+)\s*(.+?)\s*([-~\u2013\u2014\u301c\u30fb]+)")
+
+
+def get_heading_core(text):
+    """Text inside a matching bracket pair or between dashes on both ends."""
+    core = text.strip()
+    while len(core) > 2 and core[0] in HEADING_BRACKETS and core[-1] == HEADING_BRACKETS[core[0]]:
+        core = core[1:-1].strip()
+    framed = HEADING_RULE_RE.fullmatch(core)
+    return framed.group(2) if framed else core
 
 
 def is_keyword_chapter_heading(text):
     """A heading named by a chapter keyword (English or CJK), even when it is
-    decorated with brackets or dashes ("【第一章】", "- Chapter 1 -")."""
-    core = text.strip().strip(HEADING_DECORATION)
+    framed by a bracket pair or by dashes on both ends ("【第一章】", "- Chapter 1 -")."""
+    core = get_heading_core(text)
     return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core))
 
 
@@ -3047,6 +3061,8 @@ class ProjectManager:
                     and source_start is not False
                     and '"' not in text
                     and (source_start is True or is_smart_chapter_text(text))
+                    # A stored source flag can predate the look-alike rule;
+                    # a keyword heading is never a look-alike.
                     and (is_keyword_chapter_heading(text) or not is_heading_lookalike(text))):
                 heading_indices.append(i)
         # Adjacent untitled candidates are a status window, a list or a table of
