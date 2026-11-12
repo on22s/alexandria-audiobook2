@@ -35,7 +35,7 @@
         .workflow-disclosure :is(label.form-label, .form-text, p) { color: var(--text-primary); }
         #series-cast-card { padding: 0; }
         #series-cast-card > summary::after { content: 'Show / hide'; font-size: .8rem; font-weight: 400; margin-left: auto; }
-        .navbar .nav-link:not(.active) { color: #c4dcff; }
+        .navbar .nav-link:not(.active):not(.dropdown-item) { color: #c4dcff; }
         html #theme-toggle, html[data-theme] body #theme-toggle { color: #edf4ff; border-color: #a5b4c8; }
         @media (max-width: 575px) {
             :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .card-header > .d-flex { flex-basis: 100%; }
@@ -485,6 +485,34 @@
         .word-timing-active { background: var(--bg-input); color: var(--text-primary) !important; outline: 2px solid var(--accent); font-weight: 700; }
         .word-timing-span { white-space: normal; color: var(--text-primary); text-decoration: underline; }
         .editor-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 23rem); gap: 1rem; align-items: start; }
+        /* The whole-book help line needs room; at the default 10rem the menu
+           becomes a tall sliver of wrapped text. */
+        .editor-batch-menu .dropdown-menu { min-width: 18rem; }
+        .editor-drawer {
+            position: fixed; top: 0; right: 0; z-index: 1045; width: min(46rem, 96vw); height: 100vh;
+            overflow-y: auto; padding: 1rem 1.1rem; background: var(--bg-card);
+            border-left: 1px solid var(--border-color); box-shadow: -8px 0 24px var(--shadow);
+        }
+        .editor-drawer[hidden] { display: none !important; }
+        .editor-drawer-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+        .editor-drawer-tabs { display: flex; flex-wrap: wrap; gap: .35rem; }
+        .editor-drawer-tabs .btn { font-size: .78rem; padding: .2rem .55rem; }
+        .editor-drawer-tabs .btn[aria-pressed="true"] { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+        .editor-drawer [data-editor-tool][hidden] { display: none !important; }
+        @media (max-width: 767.98px) { .editor-drawer { width: 100vw; } }
+        .status-pill {
+            display: inline-flex; align-items: center; gap: .9rem; padding: .18rem .65rem;
+            border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; background: rgba(255,255,255,0.06);
+            min-width: 0;
+        }
+        /* The cluster must never push the navbar onto a second row: the pill keeps
+           its own width in check and a stale-reading warning truncates instead of
+           running off the viewport. */
+        .status-cluster { min-width: 0; flex-shrink: 1; }
+        .status-cluster #sys-status-error {
+            max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        @media (max-width: 1399.98px) { .status-pill #sys-build { display: none !important; } }
         .editor-review-main { min-width: 0; }
         .editor-review-main table { min-width: 64rem; table-layout: fixed; }
         .editor-review-main .chunk-row td:first-child { white-space: normal !important; }
@@ -518,9 +546,9 @@
         .nav-link.nav-pipeline:hover { color: #7de3a1; }
         .nav-link.nav-pipeline.active { color: #fff; background-color: var(--success); border-radius: 4px; }
         /* Advanced tabs - blue */
-        .nav-link.nav-advanced { color: rgba(130, 177, 255, 0.7); }
-        .nav-link.nav-advanced:hover { color: #82b1ff; }
-        .nav-link.nav-advanced.active { color: #fff; background-color: var(--accent-fill); border-radius: 4px; }
+        .nav-link.nav-advanced:not(.dropdown-item) { color: rgba(130, 177, 255, 0.7); }
+        .nav-link.nav-advanced:hover:not(.dropdown-item) { color: #82b1ff; }
+        .nav-link.nav-advanced.active:not(.dropdown-item) { color: #fff; background-color: var(--accent-fill); border-radius: 4px; }
         .navbar .nav-link { border-radius: var(--radius-sm); margin: 2px 1px; transition: background-color var(--motion-fast), color var(--motion-fast); }
         .navbar .nav-link:focus-visible { outline-color: var(--focus-ring); }
         .navbar .nav-link:not(.active):hover { background-color: var(--accent-soft); }
@@ -903,7 +931,7 @@
             --bs-btn-active-bg: var(--accent-strong);
             --bs-btn-active-border-color: var(--accent-strong);
         }
-        html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link {
+        html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link:not(.dropdown-item) {
             color: var(--nav-accent);
         }
         html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link.active,
@@ -1087,10 +1115,12 @@
                         </button>
                     </li>
                     <li data-i18n-attr="title:shell.nav.title,aria-label:shell.nav.aria-label" class="nav-item small d-flex align-items-center status-cluster" title="System Status" aria-label="System status" role="status" aria-live="polite" aria-atomic="true">
-                        <span data-i18n-attr="title:shell.sys-build.sys-build.title" id="sys-build" class="text-light d-flex align-items-center me-3" title="Runtime build"><i class="fas fa-code-branch me-1 text-secondary"></i><span data-i18n="shell.status.build.label" class="visually-hidden">Runtime build: </span><span data-i18n-skip id="sys-build-val" style="font-family: monospace;">build ?</span></span>
+                        <span class="status-pill">
+                        <span data-i18n-attr="title:shell.sys-build.sys-build.title" id="sys-build" class="text-light d-flex align-items-center" title="Runtime build"><i class="fas fa-code-branch me-1 text-secondary"></i><span data-i18n="shell.status.build.label" class="visually-hidden">Runtime build: </span><span data-i18n-skip id="sys-build-val" style="font-family: monospace;">build ?</span></span>
                         <span id="sys-eta" class="text-light align-items-center me-3" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span data-i18n="shell.status.eta.label" class="visually-hidden">Time remaining: </span><span id="sys-eta-val" style="font-family: monospace;"></span></span>
-                        <span id="sys-gpu" class="text-light d-flex align-items-center me-3"><i class="fas fa-microchip me-1 text-secondary"></i><span data-i18n="shell.status.gpu.label" class="visually-hidden">GPU memory: </span><span data-i18n="shell.status.unavailable" id="sys-gpu-val" style="font-family: monospace;">Unavailable</span><span id="sys-gpu-warning" class="visually-hidden"></span></span>
+                        <span id="sys-gpu" class="text-light d-flex align-items-center"><i class="fas fa-microchip me-1 text-secondary"></i><span data-i18n="shell.status.gpu.label" class="visually-hidden">GPU memory: </span><span data-i18n="shell.status.unavailable" id="sys-gpu-val" style="font-family: monospace;">Unavailable</span><span id="sys-gpu-warning" class="visually-hidden"></span></span>
                         <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span data-i18n="shell.status.disk.label" class="visually-hidden">Free disk space: </span><span data-i18n="shell.status.unavailable" id="sys-disk-val" style="font-family: monospace;">Unavailable</span><span id="sys-disk-warning" class="visually-hidden"></span></span>
+                        </span>
                         <span id="sys-status-error" class="text-warning small ms-2"></span>
                     </li>
                 </ul>
@@ -3509,43 +3539,12 @@
                                     <li><p class="dropdown-item-text small text-muted mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge to MP3 combines the book after its existing checks.</p></li>
                                 </ul>
                             </div>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="editor-tools-toggle" aria-expanded="false" aria-controls="editor-tool-drawer" onclick="toggleEditorTools()"><i class="fas fa-toolbox me-1"></i><span data-i18n="editor.tools.open">Editor tools</span></button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
-                     <details class="mb-3" ontoggle="if (this.open) SoundAssets.refresh()">
-                         <summary data-i18n="editor.sound-assets.title">Sound asset library</summary>
-                         <p class="small mt-2" data-i18n="editor.sound-assets.intro">Import effects and ambience to keep for your books. Listen before choosing cues. Adding an asset does not change the book audio.</p>
-                         <label for="sound-assets-file" class="form-label" data-i18n="editor.sound-assets.file">Audio file</label>
-                         <input id="sound-assets-file" type="file" accept=".wav,.flac,.mp3,.ogg" class="form-control form-control-sm mb-2">
-                         <div class="d-flex flex-wrap gap-2">
-                             <button id="sound-assets-import" type="button" class="btn btn-sm btn-primary" data-help-key="soundAssetsImport" onclick="SoundAssets.importFile()" data-i18n="editor.sound-assets.import">Import audio</button>
-                             <button id="sound-assets-cancel" type="button" class="btn btn-sm btn-outline-danger" data-help-key="soundAssetsCancel" onclick="SoundAssets.cancel()" hidden data-i18n="editor.sound-assets.cancel-import">Cancel import</button>
-                             <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="soundAssetsRefresh" onclick="SoundAssets.refresh()" data-i18n="editor.sound-assets.refresh">Refresh library</button>
-                         </div>
-                         <p id="sound-assets-status" class="small mt-2" role="status" aria-live="polite"></p>
-                         <div id="sound-assets-list"></div>
-                     </details>
-                     <details class="mb-3" ontoggle="if (this.open) { SoundCues.refresh(); }">
-                         <summary data-i18n="editor.sound-cues.title" data-i18n-attr="title:editor.sound-cues.title-attr" title="Place effects and ambience at stable dialogue anchors, preserve revisions, and review changed takes.">Sound cues</summary>
-                         <p class="small mt-2" data-i18n="editor.sound-cues.intro">Choose dialogue and imported sounds, then save explicit cue revisions. Mix audition and delivery approval are required before using cues in a finished audiobook.</p>
-                         <button id="sound-cues-refresh" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="editor.sound-cues.refresh" data-i18n-attr="title:editor.sound-cues.refresh-title" title="Reload current dialogue and cue history; this clears unsaved form edits." onclick="SoundCues.refresh()">Refresh cues</button>
-                         <p id="sound-cues-status" class="small mt-2" role="status" aria-live="polite"></p>
-                         <div id="sound-cues-content"></div>
-                     </details>
-                     <details class="mb-3" ontoggle="if (this.open) { SoundRenditions.refresh(); }">
-                         <summary data-i18n="editor.renditions.title" data-i18n-attr="title:editor.renditions.title-attr" title="Inspect immutable master/stem provenance, keep records and review cleanup protection; recording is separate from mix approval.">Recorded renditions and stems</summary>
-                         <p class="small mt-2" data-i18n="editor.renditions.intro">Preserve imported master/stem provenance and earlier source revisions. Choose Record a rendition in Sound cues, or inspect and keep existing records here. Full mixed-audio review and approval remain separate.</p>
-                         <button id="sound-renditions-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundRenditions.refresh()" data-i18n="editor.renditions.refresh" data-i18n-attr="title:editor.renditions.refresh-title" title="Reload this book’s recorded renditions and clear unsaved edits.">Refresh rendition history</button>
-                         <p id="sound-renditions-status" class="small mt-2" role="status" aria-live="polite"></p>
-                         <div id="sound-renditions-content"></div>
-                     </details>
-                     <details class="mb-3" ontoggle="if (this.open) { SoundMixes.refresh(); }">
-                         <summary data-i18n="editor.mixes.title">Mixed audio review</summary>
-                         <button id="sound-mixes-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundMixes.refresh()" data-i18n="editor.mixes.refresh" data-i18n-attr="title:editor.mixes.refresh-title" title="Reload saved mixes and available delivery formats; clears unsaved review choices.">Refresh saved mixes</button>
-                         <p id="sound-mixes-status" class="small mt-2" role="status" aria-live="polite"></p>
-                         <div id="sound-mixes-content"></div>
-                     </details>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
@@ -3558,7 +3557,53 @@
                      </div>
                      <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
-                     <details class="editor-review-panel mb-3" id="pronunciation-panel" ontoggle="if (this.open) { loadDateOrder(); }">
+                     <section id="editor-tool-drawer" class="editor-drawer" hidden aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
+                         <div class="editor-drawer-header">
+                             <div class="editor-drawer-tabs" role="group" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="true" data-editor-tool-target="sound-assets" onclick="showEditorTool('sound-assets')"><span data-i18n="editor.sound-assets.title">Sound asset library</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="sound-cues" onclick="showEditorTool('sound-cues')"><span data-i18n="editor.sound-cues.title">Sound cues</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="renditions" onclick="showEditorTool('renditions')"><span data-i18n="editor.renditions.title">Recorded renditions and stems</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="mixes" onclick="showEditorTool('mixes')"><span data-i18n="editor.mixes.title">Mixed audio review</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="pronunciation" onclick="showEditorTool('pronunciation')"><span data-i18n="editor.pronunciation.title">Pronunciation</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="chapters" onclick="showEditorTool('chapters')"><span data-i18n="editor.chapters.title">Generate by chapter</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="repair" onclick="showEditorTool('repair')"><span data-i18n="editor.repair.title">Repair audio by chapter and speaker</span></button>
+                             </div>
+                             <button type="button" class="btn btn-sm btn-outline-secondary" id="editor-tools-close" aria-label="Close tools" data-i18n-attr="aria-label:editor.tools.close" onclick="toggleEditorTools(false)"><i class="fas fa-times"></i></button>
+                         </div>
+                     <details data-editor-tool="sound-assets" class="mb-3" ontoggle="if (this.open) SoundAssets.refresh()">
+                         <summary data-i18n="editor.sound-assets.title">Sound asset library</summary>
+                         <p class="small mt-2" data-i18n="editor.sound-assets.intro">Import effects and ambience to keep for your books. Listen before choosing cues. Adding an asset does not change the book audio.</p>
+                         <label for="sound-assets-file" class="form-label" data-i18n="editor.sound-assets.file">Audio file</label>
+                         <input id="sound-assets-file" type="file" accept=".wav,.flac,.mp3,.ogg" class="form-control form-control-sm mb-2">
+                         <div class="d-flex flex-wrap gap-2">
+                             <button id="sound-assets-import" type="button" class="btn btn-sm btn-primary" data-help-key="soundAssetsImport" onclick="SoundAssets.importFile()" data-i18n="editor.sound-assets.import">Import audio</button>
+                             <button id="sound-assets-cancel" type="button" class="btn btn-sm btn-outline-danger" data-help-key="soundAssetsCancel" onclick="SoundAssets.cancel()" hidden data-i18n="editor.sound-assets.cancel-import">Cancel import</button>
+                             <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="soundAssetsRefresh" onclick="SoundAssets.refresh()" data-i18n="editor.sound-assets.refresh">Refresh library</button>
+                         </div>
+                         <p id="sound-assets-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-assets-list"></div>
+                     </details>
+                     <details data-editor-tool="sound-cues" class="mb-3" ontoggle="if (this.open) { SoundCues.refresh(); }">
+                         <summary data-i18n="editor.sound-cues.title" data-i18n-attr="title:editor.sound-cues.title-attr" title="Place effects and ambience at stable dialogue anchors, preserve revisions, and review changed takes.">Sound cues</summary>
+                         <p class="small mt-2" data-i18n="editor.sound-cues.intro">Choose dialogue and imported sounds, then save explicit cue revisions. Mix audition and delivery approval are required before using cues in a finished audiobook.</p>
+                         <button id="sound-cues-refresh" type="button" class="btn btn-sm btn-outline-secondary" data-i18n="editor.sound-cues.refresh" data-i18n-attr="title:editor.sound-cues.refresh-title" title="Reload current dialogue and cue history; this clears unsaved form edits." onclick="SoundCues.refresh()">Refresh cues</button>
+                         <p id="sound-cues-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-cues-content"></div>
+                     </details>
+                     <details data-editor-tool="renditions" class="mb-3" ontoggle="if (this.open) { SoundRenditions.refresh(); }">
+                         <summary data-i18n="editor.renditions.title" data-i18n-attr="title:editor.renditions.title-attr" title="Inspect immutable master/stem provenance, keep records and review cleanup protection; recording is separate from mix approval.">Recorded renditions and stems</summary>
+                         <p class="small mt-2" data-i18n="editor.renditions.intro">Preserve imported master/stem provenance and earlier source revisions. Choose Record a rendition in Sound cues, or inspect and keep existing records here. Full mixed-audio review and approval remain separate.</p>
+                         <button id="sound-renditions-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundRenditions.refresh()" data-i18n="editor.renditions.refresh" data-i18n-attr="title:editor.renditions.refresh-title" title="Reload this book’s recorded renditions and clear unsaved edits.">Refresh rendition history</button>
+                         <p id="sound-renditions-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-renditions-content"></div>
+                     </details>
+                     <details data-editor-tool="mixes" class="mb-3" ontoggle="if (this.open) { SoundMixes.refresh(); }">
+                         <summary data-i18n="editor.mixes.title">Mixed audio review</summary>
+                         <button id="sound-mixes-refresh" type="button" class="btn btn-sm btn-outline-secondary" onclick="SoundMixes.refresh()" data-i18n="editor.mixes.refresh" data-i18n-attr="title:editor.mixes.refresh-title" title="Reload saved mixes and available delivery formats; clears unsaved review choices.">Refresh saved mixes</button>
+                         <p id="sound-mixes-status" class="small mt-2" role="status" aria-live="polite"></p>
+                         <div id="sound-mixes-content"></div>
+                     </details>
+                     <details data-editor-tool="pronunciation" class="editor-review-panel mb-3" id="pronunciation-panel" ontoggle="if (this.open) { loadDateOrder(); }">
                          <summary data-i18n="editor.pronunciation.title" data-i18n-attr="title:editor.pronunciation.title-attr" title="Edit shared spellings or one exact occurrence, and audition without replacing book audio.">Pronunciation</summary>
                          <p class="small mt-2" data-i18n="editor.pronunciation.intro">Respell names for speech without changing the script. Shared rules apply to future renders of all books; saving shared rules keeps existing audio.</p>
                          <div id="date-order-row" class="mb-3" hidden>
@@ -3598,7 +3643,7 @@
 
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
-                     <details class="editor-review-panel mb-3" id="editor-chapter-panel" ontoggle="if (this.open) { refreshEditorChapterMap(); }">
+                     <details data-editor-tool="chapters" class="editor-review-panel mb-3" id="editor-chapter-panel" ontoggle="if (this.open) { refreshEditorChapterMap(); }">
                          <summary data-i18n="editor.chapters.title">Generate by chapter</summary>
                          <p class="small mt-2" data-i18n="editor.chapters.intro">Render only the chapters you choose. Lines that already have audio are skipped unless you tick Regenerate.</p>
                          <div class="row g-2 align-items-end">
@@ -3611,7 +3656,7 @@
                          <p class="small mb-1" data-i18n="editor.chapters.legend">Green: fully generated. Amber: partly generated. Gray: not started. Red: has failed lines. Hover a square for its chapter.</p>
                          <div id="editor-chapter-map" class="editor-chapter-map" aria-hidden="true"></div>
                      </details>
-                     <details class="editor-review-panel mb-3" id="editor-repair-panel">
+                     <details data-editor-tool="repair" class="editor-review-panel mb-3" id="editor-repair-panel">
                          <summary data-i18n="editor.repair.title" data-i18n-attr="title:editor.repair.title-attr" title="Choose a chapter and speakers, preview exact lines, then explicitly replace their audio.">Repair audio by chapter and speaker</summary>
                          <p class="small mt-2" data-i18n="editor.repair.intro">Preview the exact lines before replacing their audio. Dialogue and speaker labels stay unchanged.</p>
                          <button data-i18n="editor.repair.load" data-i18n-attr="title:editor.repair.actions-title" title="Load options, preview lines or explicitly regenerate only the reviewed audio selection." type="button" class="btn btn-outline-secondary btn-sm" onclick="loadEditorRepairOptions()">Load current chapters and speakers</button>
@@ -3624,6 +3669,7 @@
                          <p id="editor-repair-status" class="small" role="status" aria-live="polite" data-i18n="editor.repair.status-default">Load the current book to choose a selection.</p>
                          <ol id="editor-repair-lines" class="small ps-4" style="max-height: 20rem; overflow: auto; overflow-wrap: anywhere;"></ol>
                      </details>
+                     </section>
 
                      <div class="editor-review-layout">
                        <div class="editor-review-main">

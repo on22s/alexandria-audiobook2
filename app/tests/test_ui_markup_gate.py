@@ -44,6 +44,10 @@ KEEP_ENGLISH = frozenset({
     # its advanced panels and a browser-local storage key, none of them copy.
     'setup-expert-toggle', 'settings-llm', 'data-setup-advanced-section',
     'alexandria.setupExpert',
+    # Editor tool drawer: two element ids, two ARIA attribute names and the key
+    # that closes it, all wiring rather than text.
+    'editor-tool-drawer', 'editor-tools-toggle', 'aria-pressed',
+    'aria-expanded', 'Escape',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',

@@ -621,3 +621,37 @@ document.addEventListener('keydown', event => {
         selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
     }
 });
+
+// The seven editor tools share one drawer: the take queue no longer sits under a
+// stack of collapsed sections. Panels keep their ids and ontoggle hooks, so
+// opening one still runs the same refresh the summary used to trigger.
+function getEditorToolPanels() {
+    return Array.from(document.querySelectorAll('#editor-tool-drawer [data-editor-tool]'));
+}
+
+function showEditorTool(slug) {
+    for (const panel of getEditorToolPanels()) {
+        const selected = panel.dataset.editorTool === slug;
+        panel.hidden = !selected;
+        if (selected) { panel.open = true; }
+    }
+    for (const tab of document.querySelectorAll('[data-editor-tool-target]')) {
+        tab.setAttribute('aria-pressed', String(tab.dataset.editorToolTarget === slug));
+    }
+}
+
+function toggleEditorTools(open = document.getElementById('editor-tool-drawer').hidden) {
+    const drawer = document.getElementById('editor-tool-drawer');
+    const toggle = document.getElementById('editor-tools-toggle');
+    drawer.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (!open) { return; }
+    const panels = getEditorToolPanels();
+    const current = panels.find(panel => !panel.hidden) || panels[0];
+    if (current) { showEditorTool(current.dataset.editorTool); }
+}
+
+document.addEventListener('keydown', event => {
+    const drawer = document.getElementById('editor-tool-drawer');
+    if (event.key === 'Escape' && drawer && !drawer.hidden) { toggleEditorTools(false); }
+});
