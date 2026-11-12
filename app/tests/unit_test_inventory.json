@@ -2825,6 +2825,7 @@
   "test_chapter_heading_lookalikes": [
     "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_adjacent_keyword_headings_and_a_lone_untitled_heading_are_kept",
     "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_cjk_and_decorated_keyword_headings_are_kept",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_cjk_counters_in_prose_and_loose_decoration_are_not_headings",
     "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_editor_chapter_list_agrees",
     "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_line_rules",
     "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_no_headings_is_one_chapter_and_per_chunk_still_splits",
