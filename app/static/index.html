@@ -954,6 +954,7 @@
         .settings-sidebar { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); min-width: 0; }
         .settings-sidebar-title { color: var(--text-heading); font-weight: 700; font-size: 1.05rem; }
         .settings-categories { display: grid; gap: .15rem; margin: 1rem -.4rem; }
+        [data-setup-advanced][hidden] { display: none !important; }
         .settings-category { display: flex; align-items: center; gap: .8rem; text-align: left; padding: .65rem; width: 100%; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); }
         .settings-category > i { width: 1rem; color: var(--accent); }
         .settings-category strong, .settings-category small { display: block; }
@@ -1191,13 +1192,18 @@
                     <aside class="settings-sidebar" id="setup-settings-overview">
                         <div data-i18n="setup.overview.title" class="settings-sidebar-title">Setup workspace</div>
                         <p data-i18n="setup.overview.choose-an-area-to-work-on" class="small text-muted">Choose an area to work on.</p>
+                        <label class="form-check form-switch mb-1" for="setup-expert-toggle">
+                            <input class="form-check-input" type="checkbox" role="switch" id="setup-expert-toggle" onchange="setSetupExpertMode(this.checked)">
+                            <span data-i18n="setup.expert.label" class="form-check-label small">Expert settings</span>
+                        </label>
+                        <div data-i18n="setup.expert.hint" class="form-text mt-0 mb-3">Turn on to show limits, timing, generation, strategy and prompt controls.</div>
                         <div class="settings-mobile"><label data-i18n="setup.overview.category.label" class="form-label" for="setup-settings-category">Settings category</label>
                         <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)">
                             <optgroup data-i18n-attr="label:setup.overview.essential" label="Essential Setup">
                                 <option value="settings-llm" data-i18n="setup.overview.category.option.llm">Connection</option>
                                 <option value="settings-tts" data-i18n="setup.overview.category.option.tts">Speech engine</option>
                             </optgroup>
-                            <optgroup data-i18n-attr="label:setup.overview.advanced" label="Advanced Tuning">
+                            <optgroup data-setup-advanced hidden data-i18n-attr="label:setup.overview.advanced" label="Advanced Tuning">
                                 <option value="settings-limits" data-i18n="setup.overview.category.option.limits">Limits &amp; retries</option>
                                 <option value="settings-audio" data-i18n="setup.overview.category.option.audio">Audio &amp; timing</option>
                                 <option value="settings-generation" data-i18n="setup.overview.category.option.generation">Generation</option>
@@ -1209,12 +1215,12 @@
                             <div data-i18n="setup.overview.essential" class="small text-uppercase fw-semibold text-muted px-2 pt-1 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;">Essential Setup</div>
                             <button type="button" class="settings-category" data-settings-target="settings-llm" aria-controls="settings-llm" aria-current="true" onclick="openSetupSettingsSection('settings-llm')"><i class="fas fa-plug" aria-hidden="true"></i><span><strong data-i18n="setup.overview.connection">Connection</strong><small data-i18n="setup.overview.server-model-credentials">Server, model &amp; credentials</small></span></button>
                             <button type="button" class="settings-category" data-settings-target="settings-tts" aria-controls="settings-tts" aria-current="false" onclick="openSetupSettingsSection('settings-tts')"><i class="fas fa-microphone" aria-hidden="true"></i><span><strong data-i18n="setup.overview.speech-engine">Speech engine</strong><small data-i18n="setup.overview.local-model-or-external-server">Local model or external server</small></span></button>
-                            <div data-i18n="setup.overview.advanced" class="small text-uppercase fw-semibold text-muted px-2 pt-3 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;border-top:1px solid var(--border-input);margin-top:0.5rem;">Advanced Tuning</div>
-                            <button type="button" class="settings-category" data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong data-i18n="setup.overview.limits-retries">Limits &amp; retries</strong><small data-i18n="setup.overview.context-timeouts-recovery">Context, timeouts &amp; recovery</small></span></button>
-                            <button type="button" class="settings-category" data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong data-i18n="setup.overview.audio-timing">Audio &amp; timing</strong><small data-i18n="setup.overview.batches-takes-pauses">Batches, takes &amp; pauses</small></span></button>
-                            <button type="button" class="settings-category" data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong data-i18n="setup.overview.generation">Generation</strong><small data-i18n="setup.overview.token-budgets-sampling">Token budgets &amp; sampling</small></span></button>
-                            <button type="button" class="settings-category" data-settings-target="settings-strategy" aria-controls="settings-strategy" aria-current="false" onclick="openSetupSettingsSection('settings-strategy')"><i class="fas fa-book-open" aria-hidden="true"></i><span><strong data-i18n="setup.overview.script-strategy">Script strategy</strong><small data-i18n="setup.overview.segmentation-speakers">Segmentation &amp; speakers</small></span></button>
-                            <button type="button" class="settings-category" data-settings-target="settings-prompts" aria-controls="settings-prompts" aria-current="false" onclick="openSetupSettingsSection('settings-prompts')"><i class="fas fa-code" aria-hidden="true"></i><span><strong data-i18n="setup.overview.prompt-studio">Prompt studio</strong><small data-i18n="setup.overview.advanced-instructions-presets">Advanced instructions &amp; presets</small></span></button>
+                            <div data-setup-advanced hidden data-i18n="setup.overview.advanced" class="small text-uppercase fw-semibold text-muted px-2 pt-3 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;border-top:1px solid var(--border-input);margin-top:0.5rem;">Advanced Tuning</div>
+                            <button type="button" class="settings-category" data-setup-advanced hidden data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong data-i18n="setup.overview.limits-retries">Limits &amp; retries</strong><small data-i18n="setup.overview.context-timeouts-recovery">Context, timeouts &amp; recovery</small></span></button>
+                            <button type="button" class="settings-category" data-setup-advanced hidden data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong data-i18n="setup.overview.audio-timing">Audio &amp; timing</strong><small data-i18n="setup.overview.batches-takes-pauses">Batches, takes &amp; pauses</small></span></button>
+                            <button type="button" class="settings-category" data-setup-advanced hidden data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong data-i18n="setup.overview.generation">Generation</strong><small data-i18n="setup.overview.token-budgets-sampling">Token budgets &amp; sampling</small></span></button>
+                            <button type="button" class="settings-category" data-setup-advanced hidden data-settings-target="settings-strategy" aria-controls="settings-strategy" aria-current="false" onclick="openSetupSettingsSection('settings-strategy')"><i class="fas fa-book-open" aria-hidden="true"></i><span><strong data-i18n="setup.overview.script-strategy">Script strategy</strong><small data-i18n="setup.overview.segmentation-speakers">Segmentation &amp; speakers</small></span></button>
+                            <button type="button" class="settings-category" data-setup-advanced hidden data-settings-target="settings-prompts" aria-controls="settings-prompts" aria-current="false" onclick="openSetupSettingsSection('settings-prompts')"><i class="fas fa-code" aria-hidden="true"></i><span><strong data-i18n="setup.overview.prompt-studio">Prompt studio</strong><small data-i18n="setup.overview.advanced-instructions-presets">Advanced instructions &amp; presets</small></span></button>
                         </nav>
                         <label data-i18n="setup.locale.label" class="form-label mt-3" for="setup-ui-locale">Interface language</label>
                         <select id="setup-ui-locale" class="form-select" aria-describedby="setup-ui-locale-hint setup-ui-locale-status" onchange="changeUiLocale(this.value)"><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ja">日本語</option><option value="es-419">Español (Latinoamérica)</option><option value="qps-ploc">Pseudo-English (layout test, not a translation)</option></select>
@@ -1342,7 +1348,7 @@
 
 
 </section>
-<section id="settings-limits" class="settings-section" data-settings-section="Limits &amp; retries" aria-labelledby="settings-limits-heading" hidden>
+<section id="settings-limits" class="settings-section" data-settings-section="Limits &amp; retries" aria-labelledby="settings-limits-heading" data-setup-advanced-section hidden>
 <h5 data-i18n="setup.limits.heading" id="settings-limits-heading" tabindex="-1">Limits &amp; retries</h5>
 <p data-i18n="setup.limits.intro" class="settings-intro">Control request size and recovery for the LLM location selected in Connection. Profile ceilings still work together with detected context and task safety limits.</p>
                         <div class="settings-budget">
@@ -1493,7 +1499,7 @@
                         </div>
 
 </section>
-<section id="settings-audio" class="settings-section" data-settings-section="Audio &amp; timing" aria-labelledby="settings-audio-heading" hidden>
+<section id="settings-audio" class="settings-section" data-settings-section="Audio &amp; timing" aria-labelledby="settings-audio-heading" data-setup-advanced-section hidden>
 <h5 data-i18n="setup.audio.heading-title" id="settings-audio-heading" tabindex="-1">Audio &amp; timing</h5>
 <p data-i18n="setup.audio.intro" class="settings-intro">Tune rendering, reproducible takes and the pauses used when audio is merged. Voice-design text limits apply to the next persona generation.</p>
 <details class="settings-advanced mb-3"><summary data-i18n="setup.audio.summary">Advanced local rendering and batching</summary>
@@ -1628,7 +1634,7 @@
 
 
 </section>
-<section id="settings-generation" class="settings-section" data-settings-section="Generation" aria-labelledby="settings-generation-heading" hidden>
+<section id="settings-generation" class="settings-section" data-settings-section="Generation" aria-labelledby="settings-generation-heading" data-setup-advanced-section hidden>
 <h5 data-i18n="setup.generation.heading-title" id="settings-generation-heading" tabindex="-1">Generation</h5>
 <p data-i18n="setup.generation.intro" class="settings-intro">Set shared LLM response allowances and sampling. Profile limits and task safeguards continue to apply.</p>
                             <h6 data-i18n="setup.generation.heading" class="mb-3">Generation Settings</h6>
@@ -1695,7 +1701,7 @@
                             </div>
 
 </section>
-<section id="settings-strategy" class="settings-section" data-settings-section="Script strategy" aria-labelledby="settings-strategy-heading" hidden>
+<section id="settings-strategy" class="settings-section" data-settings-section="Script strategy" aria-labelledby="settings-strategy-heading" data-setup-advanced-section hidden>
 <h5 data-i18n="setup.strategy.heading-title" id="settings-strategy-heading" tabindex="-1">Script strategy</h5>
 <p data-i18n="setup.strategy.intro" class="settings-intro">Choose segmentation, speaker context and per-pass behavior for script generation. Keep the defaults unless a book needs a different approach.</p>
                             <div class="settings-strategy">
@@ -1816,7 +1822,7 @@
                                 </div>
                             </div>
 </section>
-                        <section id="settings-prompts" class="settings-section" data-settings-section="Prompt studio" aria-labelledby="settings-prompts-heading" hidden>
+                        <section id="settings-prompts" class="settings-section" data-settings-section="Prompt studio" aria-labelledby="settings-prompts-heading" data-setup-advanced-section hidden>
                         <h5 data-i18n="setup.prompts.heading" id="settings-prompts-heading" tabindex="-1">Prompt studio</h5>
                         <p data-i18n="setup.prompts.intro" class="settings-intro">Advanced: change what the model is asked. Open a prompt family to edit its original fields. Preserve the required template placeholders.</p>
                         <div class="small mb-2">

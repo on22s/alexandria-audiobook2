@@ -3744,6 +3744,8 @@
   "setup.audio.tts-max-new-tokens.label": "Máx. de tokens nuevos",
   "setup.banner.aria-label": "Descartar el mensaje de ajustes sugeridos",
   "setup.banner.config-load-retry.button": "Reintentar la carga de la configuración",
+  "setup.expert.hint": "Actívalo para ver límites, tiempos, generación, estrategia y controles de instrucciones.",
+  "setup.expert.label": "Ajustes expertos",
   "setup.finder.clear": "Limpiar",
   "setup.finder.hint": "Busca en los nombres y la ayuda de los ajustes de tus servicios actuales.",
   "setup.finder.label": "Buscar un ajuste",

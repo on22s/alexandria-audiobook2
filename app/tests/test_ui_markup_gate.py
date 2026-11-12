@@ -40,6 +40,10 @@ KEEP_ENGLISH = frozenset({
     # CSS selector naming the controls that own their keys (app-editor-review.js
     # shortcut guard), an identifier rather than display copy.
     'button, summary, a, audio',
+    # Setup's expert switch: a control id, a section id, the marker attribute on
+    # its advanced panels and a browser-local storage key, none of them copy.
+    'setup-expert-toggle', 'settings-llm', 'data-setup-advanced-section',
+    'alexandria.setupExpert',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',

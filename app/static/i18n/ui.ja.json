@@ -3744,6 +3744,8 @@
   "setup.audio.tts-max-new-tokens.label": "最大新規トークン数",
   "setup.banner.aria-label": "提案された設定のメッセージを閉じる",
   "setup.banner.config-load-retry.button": "設定の読み込みを再試行",
+  "setup.expert.hint": "オンにすると、制限、タイミング、生成、戦略、プロンプトの設定が表示されます。",
+  "setup.expert.label": "エキスパート設定",
   "setup.finder.clear": "クリア",
   "setup.finder.hint": "現在のサービスの設定名とヘルプを検索します。",
   "setup.finder.label": "設定を検索",

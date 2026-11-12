@@ -3744,6 +3744,8 @@
   "setup.audio.tts-max-new-tokens.label": "最大新令牌数",
   "setup.banner.aria-label": "关闭建议设置消息",
   "setup.banner.config-load-retry.button": "重试加载配置",
+  "setup.expert.hint": "开启后会显示限制、时序、生成、策略和提示词控制项。",
+  "setup.expert.label": "专家设置",
   "setup.finder.clear": "清除",
   "setup.finder.hint": "在当前可用的服务中搜索设置名称和说明。",
   "setup.finder.label": "查找设置",

@@ -31,6 +31,8 @@ LOCALES = ('zh-CN', 'ja', 'es-419')
 SETUP_KEYS = (
     'setup.overview.essential',
     'setup.overview.advanced',
+    'setup.expert.label',
+    'setup.expert.hint',
     'setup.header.title',
     'setup.llm.llm-mode.label',
     'setup.llm.llm-mode.option.local',

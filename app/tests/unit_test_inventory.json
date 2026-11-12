@@ -12430,6 +12430,7 @@
   ],
   "test_settings_discovery_js": [
     "tests.test_settings_discovery_js.DarkThemeContrastTests.test_rejects_old_white_on_light_blue_and_accepts_fills_and_text",
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_advanced_categories_stay_hidden_until_expert_mode_is_switched_on",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_blocked_locale_storage_is_visible_and_preference_remains_tab_only",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_category_navigation_keeps_original_controls_and_searches_inactive_panels",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_description_matching_and_no_value_or_secret_indexing",
