@@ -472,8 +472,11 @@ def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
 
 
 def get_leading_heading(text):
-    """(heading, rest) when text opens with a keyword heading paragraph
-    ("Chapter 3: The Gate", then a blank line), else (None, text)."""
+    """(heading, rest) when text opens with a TITLED keyword heading paragraph
+    ("Chapter 3: The Gate", then a blank line), else (None, text).
+
+    Titled only: in a spoken entry a bare "Chapter 2" or "Prologue" is a phrase
+    said aloud in the story and stays speech (test_spoken_heading_intent)."""
     lines = text.split("\n")
     first = next((i for i, line in enumerate(lines) if line.strip()), None)
     if first is None:
@@ -481,7 +484,7 @@ def get_leading_heading(text):
     label = lines[first].strip()
     standalone = first + 1 == len(lines) or not lines[first + 1].strip()
     if (standalone and not any(mark in label for mark in "\"\u201c\u201d")
-            and (is_numbered_heading(label) or is_titled_chapter_heading(label))):
+            and is_titled_chapter_heading(label)):
         return label, "\n".join(lines[first + 1:])
     return None, text
 

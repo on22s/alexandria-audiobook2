@@ -1576,8 +1576,15 @@ def _accept_segment_near_miss(near_miss):
     if not near_miss:
         return []
     entries, quality = near_miss[0]
-    print("  SEGMENT accepted as trigram-only near-miss "
-          f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+    codes = {finding.get("code") for finding in quality.get("findings") or []}
+    if "missing_source_run" in codes:
+        # Accepted as before this check existed, but never silently (#1921).
+        missing = sum(span["token_count"] for span in quality.get("missing_source_spans") or [])
+        print(f"Warning: Step 1 accepted this chunk with about {missing} source words still "
+              "missing after every retry; check this passage in the Editor.", flush=True)
+    else:
+        print("  SEGMENT accepted as trigram-only near-miss "
+              f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
     return entries
 
 

@@ -3108,7 +3108,10 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None):
                 failed["source"], entries,
                 quoted_must_be_spoken=failed.get("quoted_must_be_spoken", True),
                 unquoted_must_be_narrator=failed.get("unquoted_must_be_narrator", True))
-            if not report.get("passed"):
+            # A dropped run of words (#1921) triggers retries during generation;
+            # a pasted recovery reply with only that finding is accepted as before.
+            if not report.get("passed") and {
+                    finding.get("code") for finding in report.get("findings") or []} != {"missing_source_run"}:
                 return {"accepted": False, "report": report}
             checkpoint["segmented"] = list(checkpoint.get("segmented") or []) + [
                 {"type": e["type"], "text": e["text"]} for e in entries]

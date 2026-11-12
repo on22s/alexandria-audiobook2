@@ -154,6 +154,37 @@ def validate_chunk_quality(source_text, entries, *, literal_source_preserving=Fa
     return report
 
 
+# Pass 1 (#1921): a response can keep 90% of a chunk's words yet drop a whole
+# clause. A missing run of at least MIN_MISSING_SPAN_TOKENS words with this many
+# distinct words is reported; a squashed repetition ("hello hello ...") is not.
+MIN_MISSING_RUN_DISTINCT_WORDS = 4
+
+
+def get_missing_source_runs(source_tokens, output_tokens):
+    """Missing source spans that are real content, not a squashed repetition."""
+    return [span for span in _missing_source_spans(source_tokens, output_tokens)
+            if len(set(source_tokens[span["start_token"]:span["start_token"] + span["token_count"]]))
+            >= MIN_MISSING_RUN_DISTINCT_WORDS]
+
+
+def is_segment_near_miss(quality):
+    """A failed pass-1 report that may be accepted once retries are exhausted:
+    a trigram-only near miss, and/or a dropped run of source words (#1921).
+    Accepting the latter keeps today's outcome (the chunk was accepted before
+    this check existed) but only after retries, and the caller warns."""
+    if not quality or quality.get("passed"):
+        return False
+    codes = {finding.get("code") for finding in quality.get("findings") or []}
+    if "missing_source_run" not in codes:
+        return is_trigram_only_near_miss(quality)
+    rest = codes - {"missing_source_run"}
+    if not rest:
+        return True
+    trigram = (quality.get("metrics") or {}).get("ordered_trigram_recall")
+    return (rest == {"low_ordered_trigram_recall"} and trigram is not None
+            and trigram >= ACCEPT_TRIGRAM_NEAR_MISS_FLOOR)
+
+
 def is_trigram_only_near_miss(quality):
     """True when a *failed* report's sole defect is ordered-trigram recall in
     [ACCEPT_TRIGRAM_NEAR_MISS_FLOOR, MIN_ORDERED_TRIGRAM_RECALL).

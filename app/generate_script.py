@@ -17,7 +17,8 @@ from config_settings import load_app_config, get_generation_config
 from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body, get_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
 from llm_provider import FailoverClient, RunProfileChanged, RunRequestAdmissionError
-from chunk_quality import validate_chunk_quality, is_trigram_only_near_miss, get_chunk_schema_findings
+from chunk_quality import (validate_chunk_quality, is_trigram_only_near_miss, is_segment_near_miss,
+                           get_chunk_schema_findings)
 from validation_reporting import format_validation_findings
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
@@ -1105,6 +1106,11 @@ def _build_retry_feedback_message(quality):
                 "text before stopping early. Convert the ENTIRE source chunk "
                 "from beginning to end this time - do not stop partway through "
                 "and do not summarize any part of it." + spans_hint)
+    if "missing_source_run" in codes:
+        return ("Your previous response left out part of the source text."
+                + _describe_missing_spans(quality.get("missing_source_spans"))
+                + " Convert every sentence of the chunk, in order, keeping the author's "
+                  "wording - do not drop or summarize any part of it.")
     formatted = format_validation_findings(findings)
     if formatted:
         return formatted
@@ -1639,7 +1645,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if not quality["passed"]:
                     if attempt_record is not None and (transformed or {}).get("accepted_metadata"):
                         attempt_record["quality_findings"] = quality.get("findings", [])
-                    if near_miss_sink is not None and is_trigram_only_near_miss(quality):
+                    # Same as is_trigram_only_near_miss for single-pass reports,
+                    # which never carry pass 1's missing_source_run finding.
+                    if near_miss_sink is not None and is_segment_near_miss(quality):
                         best = (near_miss_sink[0][1]["metrics"]["ordered_trigram_recall"]
                                 if near_miss_sink else -1.0)
                         if quality["metrics"]["ordered_trigram_recall"] > best:
