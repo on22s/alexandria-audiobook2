@@ -4943,6 +4943,7 @@
   "voice.card.clone-persona-aria": "{name} 的人物设定描述",
   "voice.card.clone-persona-label": "人物设定描述",
   "voice.card.clone-play-aria": "播放 {name} 的参考音频",
+  "voice.card.clone-stop-aria": "停止播放 {name} 的参考音频",
   "voice.card.clone-play-title": "播放参考音频",
   "voice.card.clone-reference-aria": "{name} 的参考声音",
   "voice.card.clone-transcript-aria": "{name} 的参考文本",

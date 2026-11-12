@@ -4943,6 +4943,7 @@
   "voice.card.clone-persona-aria": "{name} のペルソナの説明",
   "voice.card.clone-persona-label": "ペルソナの説明",
   "voice.card.clone-play-aria": "{name} の参照音声を再生",
+  "voice.card.clone-stop-aria": "{name} の参照音声を停止",
   "voice.card.clone-play-title": "参照音声を再生",
   "voice.card.clone-reference-aria": "{name} の参照音声",
   "voice.card.clone-transcript-aria": "{name} の参照テキスト",

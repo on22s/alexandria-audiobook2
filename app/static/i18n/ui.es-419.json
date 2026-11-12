@@ -4943,6 +4943,7 @@
   "voice.card.clone-persona-aria": "Descripción de persona para {name}",
   "voice.card.clone-persona-label": "Descripción de persona",
   "voice.card.clone-play-aria": "Reproducir el audio de referencia de {name}",
+  "voice.card.clone-stop-aria": "Detener el audio de referencia de {name}",
   "voice.card.clone-play-title": "Reproducir audio de referencia",
   "voice.card.clone-reference-aria": "Voz de referencia para {name}",
   "voice.card.clone-transcript-aria": "Transcripción de referencia para {name}",

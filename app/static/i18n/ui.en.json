@@ -4940,6 +4940,7 @@
   "voice.card.clone-play-aria": "Play reference audio for {name}",
   "voice.card.clone-play-title": "Play reference audio",
   "voice.card.clone-reference-aria": "Reference voice for {name}",
+  "voice.card.clone-stop-aria": "Stop reference audio for {name}",
   "voice.card.clone-transcript-aria": "Reference transcript for {name}",
   "voice.card.clone-transcript-placeholder": "Reference Text",
   "voice.card.clone-upload": "Upload",
