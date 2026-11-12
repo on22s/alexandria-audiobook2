@@ -405,18 +405,24 @@
         "type": "object"
       },
       "AudioRepairSelection": {
+        "additionalProperties": false,
         "properties": {
-          "chapter": {
+          "chapters": {
             "anyOf": [
               {
-                "minimum": 0.0,
-                "type": "integer"
+                "items": {
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                "maxItems": 10000,
+                "minItems": 1,
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Chapter"
+            "title": "Chapters"
           },
           "expected_book_token": {
             "pattern": "^[0-9a-f]{64}$",

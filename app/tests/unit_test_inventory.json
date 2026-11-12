@@ -4777,6 +4777,8 @@
   ],
   "test_editor_audio_repair": [
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_both_batch_routes_admit_exact_selection_and_reject_stale_without_worker",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_chapter_list_refuses_out_of_range_empty_and_retired_field",
+    "tests.test_editor_audio_repair.EditorAudioRepairTests.test_chapter_list_selects_exactly_the_union_of_its_chapters",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_empty_no_heading_and_invalid_filters",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_options_revision_rejects_changed_chapter_roster",
     "tests.test_editor_audio_repair.EditorAudioRepairTests.test_shared_chapter_detection_and_literal_speaker_filter",
@@ -4788,6 +4790,12 @@
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_gap_suggestion_protects_explicit_pauses_and_chapter_boundaries",
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_gap_suggestion_requires_current_context_and_preserves_takes",
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_stale_draft_after_delete_or_book_switch_preserves_all_chunks"
+  ],
+  "test_editor_chapter_generation_js": [
+    "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_out_of_range_and_empty_input_never_request_a_preview",
+    "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_panel_sends_chapters_skips_done_and_regenerates_only_when_ticked",
+    "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_progress_map_states_count_only_non_empty_lines",
+    "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_renderer_without_regenerate_skips_done_lines_and_never_confirms"
   ],
   "test_editor_index_selection": [
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_route_forwards_normalized_selection_to_real_export",
