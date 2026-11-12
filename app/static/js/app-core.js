@@ -8016,6 +8016,17 @@
             }[status] || status;
         }
 
+        // The Script tab's ingest controls sit in three different blocks; these
+        // buttons only move focus to each one, in the order the work happens.
+        function focusScriptIngestStep(step) {
+            const targets = { upload: '#file-upload', existing: '#existing-upload-select', generate: '#btn-gen-script' };
+            const selector = targets[step];
+            const node = selector ? document.querySelector(selector) : null;
+            if (!node) { return; }
+            node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            node.focus({ preventScroll: true });
+        }
+
         async function loadChunks(forceFullRedraw = false) {
             invalidateEditorIntegrity();
             ++deliveryReviewView;
@@ -8032,6 +8043,14 @@
             } catch (e) {
                 console.error("Error loading chunks:", e);
                 window.markEditorReviewStale?.();
+                // A first load that fails would otherwise leave the loading row
+                // in place, so the table reads "Loading chunks..." forever while
+                // the only explanation sits in the status line above it.
+                const tbody = document.getElementById('chunks-table-body');
+                const placeholder = tbody && tbody.children.length === 1 ? tbody.children[0] : null;
+                if (placeholder && placeholder.children.length === 1) {
+                    placeholder.children[0].textContent = t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.');
+                }
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
                     status.innerHTML = `<span class="text-warning">${escapeHtml(t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.'))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`;

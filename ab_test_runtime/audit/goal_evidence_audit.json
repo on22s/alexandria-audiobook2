@@ -1050,16 +1050,29 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-11T16:38:56",
+  "written": "2026-11-12T17:17:55",
   "host": "RealMitch",
   "git": {
-   "commit": "5a856086ef78b518c3752d3999d3c2d2104d5bd5",
-   "branch": "ci/faster-same-tests",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "9d3cde73c31eb98ee1115d98ca60c1abc60b10d6",
+   "branch": "fix/editor-shortcuts-1936",
+   "dirty": true,
+   "source_state": "dirty:cabdaafa5f3d",
    "source_state_detail": null,
-   "modified_tracked_files": null,
-   "untracked_harness_files": null,
+   "modified_tracked_files": [
+    " M app/static/i18n/ui.en.json",
+    " M app/static/i18n/ui.es-419.json",
+    " M app/static/i18n/ui.ja.json",
+    " M app/static/i18n/ui.zh-CN.json",
+    " M app/static/index.html",
+    " M app/static/js/app-core.js",
+    " M app/tests/test_ui_guidance_js.py"
+   ],
+   "untracked_harness_files": [
+    "docs/design/ui-sections-4-5.md",
+    "ui-connection-pill-full.png",
+    "ui-drawer-scrim.png",
+    "ui-navbar-1280.png"
+   ],
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
   },

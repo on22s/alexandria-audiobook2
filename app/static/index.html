@@ -1096,6 +1096,15 @@
         .tooltip-inner { max-width: 340px; text-align: left; }
         .help-tooltip { pointer-events: none; }
         .settings-preview { background: var(--bg-card-header); overflow-wrap: anywhere; }
+        /* Script ingestion is one long card; this names the order without
+           duplicating any of the controls and never claims a step is finished. */
+        .script-ingest-steps { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .9rem; margin-bottom: 1rem; padding: .5rem .7rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); }
+        .script-ingest-steps-title { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+        .script-ingest-steps-list { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; list-style: none; margin: 0; padding: 0; counter-reset: ingest-step; }
+        .script-ingest-steps-list > li { counter-increment: ingest-step; display: flex; align-items: center; gap: .35rem; }
+        .script-ingest-steps-list > li::before { content: counter(ingest-step); display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border-radius: 999px; background: var(--accent-soft); color: var(--text-primary); font-size: .72rem; font-weight: 700; }
+        .script-ingest-steps-list .btn { padding: .05rem .3rem; text-decoration: none; }
+        .script-ingest-steps-list .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         /* Connection-test results: one pill per checked fact, so a model that is
            missing from the server list cannot hide inside a sentence. */
         .llm-test-pill { display: inline-flex; align-items: center; padding: .12rem .55rem; border: 1px solid var(--border-input); border-radius: 999px; background: var(--bg-input); font-size: .78rem; line-height: 1.5; }
@@ -2090,6 +2099,14 @@
                 <div class="card-body">
                     <!-- Single Mode -->
                     <div id="script-single-area">
+                        <div class="script-ingest-steps" role="group" data-i18n-attr="aria-label:script.ingest.steps.aria" aria-label="Ingestion order">
+                            <span class="script-ingest-steps-title" data-i18n="script.ingest.steps.title">Order of work</span>
+                            <ol class="script-ingest-steps-list">
+                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('upload')"><span data-i18n="script.ingest.steps.choose">Choose the text</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('existing')"><span data-i18n="script.ingest.steps.ingest">Accept it into this project</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('generate')"><span data-i18n="script.ingest.steps.generate">Generate the script</span></button></li>
+                            </ol>
+                        </div>
                         <div class="mb-4">
                             <label data-i18n="script.upload.label" class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, EPUB, or DOCX)</label>
                             <input type="file" class="form-control" id="file-upload" accept=".txt,.md,.epub,.docx">
@@ -4324,7 +4341,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle">
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalBody">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header py-2">
