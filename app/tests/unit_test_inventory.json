@@ -8858,7 +8858,9 @@
     "tests.test_pass1_missing_source_run.MissingSourceRunGateTests.test_dropped_clause_is_reported_and_retry_names_it",
     "tests.test_pass1_missing_source_run.MissingSourceRunGateTests.test_general_loss_is_not_a_near_miss",
     "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_complete_reordering_outranks_a_dropped_run",
+    "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_dropped_run_with_reordering_in_band_is_a_near_miss",
     "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_never_restored_is_accepted_with_a_warning",
+    "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_quote_continuation_recovery_runs_before_accepting_a_dropped_run",
     "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_restored_on_retry_is_accepted_whole"
   ],
   "test_pass2_keep_scope_ab": [
