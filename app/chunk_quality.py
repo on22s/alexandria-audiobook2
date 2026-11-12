@@ -158,13 +158,29 @@ def validate_chunk_quality(source_text, entries, *, literal_source_preserving=Fa
 # clause. A missing run of at least MIN_MISSING_SPAN_TOKENS words with this many
 # distinct words is reported; a squashed repetition ("hello hello ...") is not.
 MIN_MISSING_RUN_DISTINCT_WORDS = 4
+# recall_core tokenises CJK, kana, Hangul and Thai one character per token, so
+# a run there is measured in characters: roughly a short clause.
+MIN_MISSING_RUN_CHARACTERS = 20
+MIN_MISSING_RUN_DISTINCT_CHARACTERS = 10
 
 
 def get_missing_source_runs(source_tokens, output_tokens):
-    """Missing source spans that are real content, not a squashed repetition."""
-    return [span for span in _missing_source_spans(source_tokens, output_tokens)
-            if len(set(source_tokens[span["start_token"]:span["start_token"] + span["token_count"]]))
-            >= MIN_MISSING_RUN_DISTINCT_WORDS]
+    """Missing source spans that are real content, not a squashed repetition.
+
+    Each span gains "unit": "characters" for per-character scripts (whose
+    tokens are single non-ASCII characters), else "words"."""
+    runs = []
+    for span in _missing_source_spans(source_tokens, output_tokens):
+        run = source_tokens[span["start_token"]:span["start_token"] + span["token_count"]]
+        by_character = all(len(token) == 1 and not token.isascii() for token in run)
+        if by_character:
+            if (len(run) < MIN_MISSING_RUN_CHARACTERS
+                    or len(set(run)) < MIN_MISSING_RUN_DISTINCT_CHARACTERS):
+                continue
+        elif len(set(run)) < MIN_MISSING_RUN_DISTINCT_WORDS:
+            continue
+        runs.append({**span, "unit": "characters" if by_character else "words"})
+    return runs
 
 
 def is_segment_near_miss(quality):

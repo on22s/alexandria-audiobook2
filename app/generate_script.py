@@ -1648,9 +1648,13 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     # Same as is_trigram_only_near_miss for single-pass reports,
                     # which never carry pass 1's missing_source_run finding.
                     if near_miss_sink is not None and is_segment_near_miss(quality):
-                        best = (near_miss_sink[0][1]["metrics"]["ordered_trigram_recall"]
-                                if near_miss_sink else -1.0)
-                        if quality["metrics"]["ordered_trigram_recall"] > best:
+                        # A complete answer that only reordered words beats one
+                        # that dropped a run of source words (#1921).
+                        def rank(report):
+                            dropped = any(finding.get("code") == "missing_source_run"
+                                          for finding in report.get("findings") or [])
+                            return (not dropped, report["metrics"]["ordered_trigram_recall"])
+                        if not near_miss_sink or rank(quality) > rank(near_miss_sink[0][1]):
                             near_miss_sink[:] = [(entries, quality)]
                     if attempt_record is not None:
                         attempt_record["outcome"] = "quality_rejected"
