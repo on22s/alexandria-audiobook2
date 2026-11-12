@@ -2929,11 +2929,16 @@
                 renderBookPreflight(result);
                 _startPolling('book_preflight', () => API.get(`/api/generate_script/preflight/${job}`), {
                     doneCheck: data => data.job_id === job && data.status !== 'running',
-                    onTick: data => {
-                        if (bookPreflightJob === job && data.job_id === job) { renderBookPreflight(data); }
+                    onTick: async data => {
+                        if (bookPreflightJob !== job || data.job_id !== job) { return; }
+                        renderBookPreflight(data);
+                        // A Manual LLM waits for answers here, as Generate does (#1920).
+                        const status = await API.get('/api/status/script');
+                        if (bookPreflightJob === job) { renderManualRequest(status, 'script'); }
                     },
                     onDone: data => {
                         if (bookPreflightJob !== job || data.job_id !== job) { return; }
+                        renderManualRequest({ running: false }, 'script');
                         bookPreflightJob = null;
                         button.disabled = false;
                         renderBookPreflightVisibility();

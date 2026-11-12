@@ -470,12 +470,31 @@ def get_run_model_binding(client, primary_model, previous=None):
 
 
 MANUAL_DIR_NAME = "manual_llm"
+# A child that runs with a private ALEXANDRIA_DATA_DIR (the book test, #1920)
+# still asks its manual-transport questions where the page reads and answers them.
+MANUAL_DATA_DIR_ENV = "ALEXANDRIA_MANUAL_LLM_DATA_DIR"
 _manual_request_owners = {}
 _manual_request_owners_lock = threading.Lock()
 
 
 def manual_llm_dir(data_dir):
     return os.path.join(data_dir, MANUAL_DIR_NAME)
+
+
+def get_manual_llm_data_dir():
+    """The data directory whose manual_llm/ the page serves: an explicit parent
+    directory for isolated children, otherwise this process's data directory.
+
+    Any child started with a private ALEXANDRIA_DATA_DIR must also set
+    MANUAL_DATA_DIR_ENV to the app's data directory, or a Manual LLM's requests
+    land where no page reads them and the run waits forever (#1920)."""
+    from utils import get_runtime_data_dir
+    configured = os.environ.get(MANUAL_DATA_DIR_ENV, "").strip()
+    if configured:
+        # The same admitted spelling the server uses for manual_llm_dir(DATA_DIR).
+        from direct_path_admission import get_direct_spelling
+        return get_direct_spelling(configured)
+    return get_runtime_data_dir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_manual_process_identity(pid):
@@ -673,9 +692,7 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     limits = get_request_limits(llm_config)
     limits = limits if any(limits.values()) else None
     if llm_config.get("transport") == "manual":
-        from utils import get_runtime_data_dir
-        client = ManualClient(get_runtime_data_dir(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        client = ManualClient(get_manual_llm_data_dir())
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
