@@ -84,8 +84,9 @@ class BookPreflightManualLlmTests(unittest.TestCase):
                 child.kill(); child.communicate()
 
     def test_data_dir_precedence(self):
-        with patch.dict(os.environ, {llm_provider.MANUAL_DATA_DIR_ENV: '  /parent/data  '}):
-            self.assertEqual('/parent/data', llm_provider.get_manual_llm_data_dir())
+        from direct_path_admission import get_direct_spelling
+        with tempfile.TemporaryDirectory() as parent,                 patch.dict(os.environ, {llm_provider.MANUAL_DATA_DIR_ENV: '  ' + parent + '  '}):
+            self.assertEqual(get_direct_spelling(parent), llm_provider.get_manual_llm_data_dir())
         environment = {key: value for key, value in os.environ.items() if key != llm_provider.MANUAL_DATA_DIR_ENV}
         with patch.dict(os.environ, environment, clear=True), \
                 patch('utils.get_runtime_data_dir', return_value='/runtime') as runtime:
