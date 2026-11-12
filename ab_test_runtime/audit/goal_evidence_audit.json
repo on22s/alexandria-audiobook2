@@ -1050,26 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-12T15:37:26",
+  "written": "2026-11-11T16:38:56",
   "host": "RealMitch",
   "git": {
-   "commit": "00ba48665cb91a3e97ec581086fb75e9b75878c3",
-   "branch": "feat/ui-workflow-streamline",
-   "dirty": true,
-   "source_state": "dirty:8b9f101f23ba",
+   "commit": "5a856086ef78b518c3752d3999d3c2d2104d5bd5",
+   "branch": "ci/faster-same-tests",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/static/i18n/ui.en.json",
-    "M  app/static/i18n/ui.es-419.json",
-    "M  app/static/i18n/ui.ja.json",
-    "M  app/static/i18n/ui.zh-CN.json",
-    "M  app/static/index.html",
-    "M  app/tests/test_final_audio_restore.py",
-    "M  app/tests/test_ui_i18n_editor_audio_reports.py",
-    "M  app/tests/test_ui_i18n_setup_shell.py",
-    "M  app/tests/test_ui_markup_gate.py",
-    "M  app/tests/test_voice_navigation_reuse_js.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
    "harness_sha256_scheme": "sha256-lf-v1"
