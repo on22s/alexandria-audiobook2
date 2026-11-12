@@ -60,3 +60,26 @@ class ScopeAPITests(unittest.TestCase):
         self.client.post('/api/project/scope/discard_undo',json={'expected_revision':status['revision']}).raise_for_status()
         after=fixtures.get_bytes(self.root);self.assertEqual({k:v for k,v in before.items()
             if k!='.project_scope_undo.json'},after)
+
+
+class ScopeReadContentionTests(unittest.TestCase):
+    """#1919: the scope reads refuse instead of waiting for the book lock. The
+    panel relies on exactly this refusal (message_key) to retry its reads, so
+    the premise is pinned here through the app's own AppError handler: while
+    another request holds the book lock, the entries read is refused with
+    safety.book.switch_unconfirmed, and succeeds once it is released."""
+
+    def setUp(self):
+        ScopeAPITests.setUp(self)
+        from core import AppError, handle_app_error
+        app = FastAPI(); app.include_router(project_scope.router)
+        app.add_exception_handler(AppError, handle_app_error)
+        self.client = TestClient(app)
+
+    def test_entries_read_is_refused_while_the_book_lock_is_held(self):
+        import book_state_transaction as books
+        with books.book_operator_locked(str(self.root), timeout=5):
+            refused = self.client.get('/api/project/scope/entries?search=&offset=1')
+        self.assertEqual(409, refused.status_code, refused.text)
+        self.assertEqual('safety.book.switch_unconfirmed', refused.json().get('message_key'))
+        self.assertEqual(200, self.client.get('/api/project/scope/entries?search=&offset=1').status_code)

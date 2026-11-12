@@ -64,3 +64,68 @@ class ScopeJSTests(unittest.TestCase):
  details.children[2].children[2].onclick();assert.equal(details.children[1].children.length,21);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+    def test_find_reads_entries_then_undo_never_both_at_once(self):
+        """#1919: both reads take the book and file locks without waiting, so
+        firing them together always refused one ('Could not complete or confirm
+        change source scope'). The undo read starts only after entries finish."""
+        self.run_js(r'''
+(async()=>{
+ const get=context.API.get;let releaseEntries;const started=[];
+ context.API.get=path=>{started.push(path.split('?')[0]);
+  if(path.includes('/entries?')){return new Promise(resolve=>{releaseEntries=()=>resolve(get(path));});}return get(path);};
+ const refresh=context.refreshSourceScope();await new Promise(setImmediate);
+ assert.deepEqual(started,['/api/project/scope/entries'],'undo must wait for entries');
+ releaseEntries();await refresh;
+ assert.deepEqual(started,['/api/project/scope/entries','/api/project/scope/undo']);
+ assert.match(el('feedback').textContent,/1 choices shown from 2 saved entries/);
+ assert.match(el('undo-status').textContent,/No scope undo is stored/);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_reads_retry_only_the_book_busy_refusal(self):
+        """Another Script-tab request can hold the book lock for a moment; the
+        two reads retry that refusal, but not other errors."""
+        self.run_js(r'''
+(async()=>{
+ context.setTimeout=fn=>setImmediate(fn);  // the browser's timer; immediate here
+ const get=context.API.get;let refusals=1;const seen=[];
+ const busy=()=>Object.assign(Error('Could not complete or confirm change source scope; check the current state before retrying.'),{messageKey:'safety.book.switch_unconfirmed'});
+ context.API.get=async path=>{seen.push(path.split('?')[0]);if(path.includes('/entries?')&&refusals>0){refusals-=1;throw busy();}return get(path);};
+ assert.equal(await context.refreshSourceScope(),true);
+ assert.deepEqual(seen,['/api/project/scope/entries','/api/project/scope/entries','/api/project/scope/undo']);
+ assert.match(el('feedback').textContent,/choices shown/);
+ seen.length=0;context.API.get=async path=>{seen.push(path);throw Error('Saved annotations need inspection.');};
+ assert.equal(await context.refreshSourceScope(),false);
+ assert.equal(seen.length,1,'other errors are not retried');
+ assert.equal(el('feedback').textContent,'Saved annotations need inspection.');
+ seen.length=0;context.API.get=async path=>{seen.push(path);throw busy();};
+ assert.equal(await context.refreshSourceScope(),false);
+ assert.equal(seen.length,4,'the busy refusal is retried a bounded number of times');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_failed_refresh_after_apply_stays_visible(self):
+        """Apply succeeds, then the follow-up refresh is refused: the outcome
+        must not hide that the entries and undo status were not refreshed."""
+        self.run_js(r'''
+(async()=>{
+ el('entry').appendChild(Object.assign(new Element('option'),{value:'1'}));el('entry').value='1';
+ await context.previewSourceScope();
+ const get=context.API.get;context.API.get=async path=>{if(path.includes('/entries?')){throw Error('Saved annotations need inspection.');}return get(path);};
+ await context.applySourceScope();
+ assert.match(el('feedback').textContent,/^Scope applied\..*Saved annotations need inspection\.$/);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_refresh_requested_while_busy_runs_afterwards(self):
+        self.run_js(r'''
+(async()=>{
+ const get=context.API.get;let release;const seen=[];
+ context.API.get=path=>{seen.push(path.split('?')[0]);if(seen.length===1){return new Promise(resolve=>{release=()=>resolve(get(path));});}return get(path);};
+ const first=context.refreshSourceScope();await new Promise(setImmediate);
+ assert.equal(await context.refreshSourceScope(),false,'queued, not run');
+ release();await first;for(let i=0;i<5;i+=1){await new Promise(setImmediate);}
+ assert.deepEqual(seen,['/api/project/scope/entries','/api/project/scope/undo','/api/project/scope/entries','/api/project/scope/undo']);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')

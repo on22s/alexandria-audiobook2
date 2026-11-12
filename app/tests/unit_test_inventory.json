@@ -9677,7 +9677,8 @@
   ],
   "test_project_scope_api": [
     "tests.test_project_scope_api.ScopeAPITests.test_busy_requests_refuse_and_stale_undo_can_be_explicitly_discarded",
-    "tests.test_project_scope_api.ScopeAPITests.test_preview_apply_generation_fence_and_exact_undo_through_http"
+    "tests.test_project_scope_api.ScopeAPITests.test_preview_apply_generation_fence_and_exact_undo_through_http",
+    "tests.test_project_scope_api.ScopeReadContentionTests.test_entries_read_is_refused_while_the_book_lock_is_held"
   ],
   "test_project_scope_apply": [
     "tests.test_project_scope_apply.ScopeApplyTests.test_book_lock_alone_does_not_authorize_mutation",
@@ -9742,7 +9743,11 @@
     "tests.test_project_scope_history.ScopeHistoryTests.test_retained_predecessor_slot_is_fenced_to_original_file_version"
   ],
   "test_project_scope_js": [
+    "tests.test_project_scope_js.ScopeJSTests.test_failed_refresh_after_apply_stays_visible",
+    "tests.test_project_scope_js.ScopeJSTests.test_find_reads_entries_then_undo_never_both_at_once",
     "tests.test_project_scope_js.ScopeJSTests.test_preview_is_read_only_safe_and_mutations_use_exact_reviewed_revisions",
+    "tests.test_project_scope_js.ScopeJSTests.test_reads_retry_only_the_book_busy_refusal",
+    "tests.test_project_scope_js.ScopeJSTests.test_refresh_requested_while_busy_runs_afterwards",
     "tests.test_project_scope_js.ScopeJSTests.test_stale_reply_cannot_enable_apply_and_conflict_stays_visible"
   ],
   "test_project_scope_lifecycle": [
