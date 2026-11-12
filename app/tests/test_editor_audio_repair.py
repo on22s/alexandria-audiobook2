@@ -41,7 +41,8 @@ class EditorAudioRepairTests(unittest.TestCase):
     def preview(self, chapter=None, speakers=None):
         return self.client.post('/api/chunks/repair_preview', json={
             'expected_options_revision': editor.get_snapshot_digest(self.pm.load_chunks()),
-            'expected_book_token': self.token, 'chapter': chapter, 'speakers': speakers or ['Hero']})
+            'expected_book_token': self.token, 'chapters': None if chapter is None else [chapter],
+            'speakers': speakers or ['Hero']})
 
     def test_shared_chapter_detection_and_literal_speaker_filter(self):
         response = self.client.get('/api/chunks/repair_options', params={'expected_book_token': self.token})
@@ -58,8 +59,31 @@ class EditorAudioRepairTests(unittest.TestCase):
         revision = editor.get_snapshot_digest(self.pm.load_chunks())
         chunks = self.pm.load_chunks(); chunks[1]['text'] = 'Chapter 99'; self.pm.save_chunks(chunks)
         response = self.client.post('/api/chunks/repair_preview', json={
-            'expected_book_token': self.token, 'expected_options_revision': revision, 'speakers': ['Hero'], 'chapter': 1})
+            'expected_book_token': self.token, 'expected_options_revision': revision, 'speakers': ['Hero'], 'chapters': [1]})
         self.assertEqual(409, response.status_code, response.text)
+
+    def post_chapters(self, chapters, speakers=('Hero', 'Other'), **extra):
+        return self.client.post('/api/chunks/repair_preview', json={
+            'expected_options_revision': editor.get_snapshot_digest(self.pm.load_chunks()),
+            'expected_book_token': self.token, 'speakers': list(speakers), 'chapters': chapters, **extra})
+
+    def test_chapter_list_selects_exactly_the_union_of_its_chapters(self):
+        """Generate-by-chapter (#1921) sends several chapters at once.
+
+        Chapter 0 is the introduction (rows 0), chapter 1 rows 1-3, chapter 2 rows
+        4-6. NARRATOR rows are not in the speaker filter; row 6 is empty text."""
+        self.assertEqual([2, 3, 5], [r['id'] for r in self.post_chapters([1, 2]).json()['rows']])
+        self.assertEqual([5], [r['id'] for r in self.post_chapters([2, 2]).json()['rows']])
+        self.assertEqual([2, 3, 5], [r['id'] for r in self.post_chapters([2, 1]).json()['rows']])
+        everyone = self.post_chapters([0, 2], speakers=('NARRATOR', 'Hero', 'Other')).json()['rows']
+        self.assertEqual([0, 4, 5], [r['id'] for r in everyone])
+
+    def test_chapter_list_refuses_out_of_range_empty_and_retired_field(self):
+        self.assertEqual(409, self.post_chapters([1, 3]).status_code)
+        self.assertEqual(422, self.post_chapters([]).status_code)
+        self.assertEqual(422, self.post_chapters([-1]).status_code)
+        # The retired single field must not be ignored into a whole-book selection.
+        self.assertEqual(422, self.post_chapters(None, chapter=1).status_code)
 
     def test_empty_no_heading_and_invalid_filters(self):
         self.pm.save_chunks([{'id': 0, 'uid': 'x', 'speaker': 'Hero', 'text': 'One sentence.'}, {'id': 1, 'uid': 'y', 'speaker': 'Other', 'text': 'Two sentences.'}])

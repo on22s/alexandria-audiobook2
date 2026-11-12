@@ -451,6 +451,8 @@
         .editor-review-main .chunk-row td:first-child { white-space: normal !important; }
         .editor-review-main .chunk-actions { flex-wrap: wrap; }
         .editor-review-main .chunk-audio { max-width: 100%; }
+        .editor-chapter-map { display: flex; flex-wrap: wrap; gap: 3px; max-height: 12rem; overflow: auto; }
+        .editor-chapter-map > span { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
         .editor-review-panel { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); overflow-wrap: anywhere; }
         .editor-line-inspector { scroll-margin-top: 8rem; position: sticky; top: 7rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
         .editor-line-text { white-space: pre-wrap; }
@@ -3527,6 +3529,19 @@
 
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
+                     <details class="editor-review-panel mb-3" id="editor-chapter-panel" ontoggle="if (this.open) { refreshEditorChapterMap(); }">
+                         <summary data-i18n="editor.chapters.title">Generate by chapter</summary>
+                         <p class="small mt-2" data-i18n="editor.chapters.intro">Render only the chapters you choose. Lines that already have audio are skipped unless you tick Regenerate.</p>
+                         <div class="row g-2 align-items-end">
+                             <div class="col-md-6"><label class="form-label" for="editor-chapter-selection" data-i18n="editor.chapters.label">Chapters</label><input type="text" class="form-control form-control-sm" id="editor-chapter-selection" placeholder="1-3, 5"></div>
+                             <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" id="editor-chapter-regenerate"><label class="form-check-label" for="editor-chapter-regenerate" data-i18n="editor.chapters.regenerate">Regenerate lines that already have audio</label></div></div>
+                         </div>
+                         <div class="d-flex flex-wrap gap-2 my-2"><button type="button" class="btn btn-success btn-sm" id="editor-chapter-start" onclick="generateEditorChapters()" data-i18n="editor.chapters.start">Generate chapters</button><button type="button" class="btn btn-outline-secondary btn-sm" id="editor-chapter-refresh" onclick="refreshEditorChapterMap()" data-i18n="editor.chapters.refresh">Refresh progress</button></div>
+                         <p id="editor-chapter-status" class="small" role="status" aria-live="polite"></p>
+                         <p id="editor-chapter-summary" class="small mb-1" role="status" data-i18n="editor.chapters.summary-default">Open this panel to load chapter progress.</p>
+                         <p class="small mb-1" data-i18n="editor.chapters.legend">Green: fully generated. Amber: partly generated. Gray: not started. Red: has failed lines. Hover a square for its chapter.</p>
+                         <div id="editor-chapter-map" class="editor-chapter-map" aria-hidden="true"></div>
+                     </details>
                      <details class="editor-review-panel mb-3" id="editor-repair-panel">
                          <summary data-i18n="editor.repair.title" data-i18n-attr="title:editor.repair.title-attr" title="Choose a chapter and speakers, preview exact lines, then explicitly replace their audio.">Repair audio by chapter and speaker</summary>
                          <p class="small mt-2" data-i18n="editor.repair.intro">Preview the exact lines before replacing their audio. Dialogue and speaker labels stay unchanged.</p>

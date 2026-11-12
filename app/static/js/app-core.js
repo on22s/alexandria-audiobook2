@@ -8902,8 +8902,10 @@
                 if (!batchToken || chunkSnapshotBook !== batchBook) { throw new Error(t('core.editor.reload-before-render', 'Reload the Editor before rendering.')); }
                 const chunks = await ensureEditorRenderSnapshot();
                 await refreshDeliveryReview();
-                const selectRows = rows => repairPreview ? getEditorRepairSelection(rows, repairPreview)
-                    : (regenerateAll ? rows : rows.filter(c => c.status !== 'done'));
+                // A chapter selection without regenerate renders only its pending
+                // lines (#1921); repair and Regenerate All replace what they select.
+                const selectRows = rows => (repairPreview ? getEditorRepairSelection(rows, repairPreview) : rows)
+                    .filter(c => regenerateAll || c.status !== 'done');
                 let toProcess = selectRows(chunks)
                     .filter(c => c.text && c.text.trim());
 
@@ -8987,6 +8989,7 @@
                         if (outcome.completed > 0) {
                             runDriftCheck(selected.filter(chunk => chunk.status === 'done').map(chunk => chunk.id));
                         }
+                        if (typeof window.refreshEditorChapterMap === 'function') { window.refreshEditorChapterMap(); }
                     },
                 });
 
@@ -9234,6 +9237,9 @@
             reader.readAsText(file);
         };
         renderChapterTemplatePresets();
+        // One parser for every chapter-range box: Result-tab export and the
+        // Editor's generate-by-chapter panel (#1921). Returns zero-based numbers.
+        window.parseChapterSelection = parseChapterSelection;
         function parseChapterSelection(value) {
             const text = value || '';
             if (text.length > 65536) { throw new Error('Chapter selection exceeds the 65,536-character input limit.'); }
