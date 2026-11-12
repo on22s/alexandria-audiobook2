@@ -210,6 +210,17 @@ event=press('ArrowDown');assert.equal(event.prevented,false,'the last line has n
 event=press('ArrowUp');assert.equal(event.prevented,true);assert.equal(run('editorReviewSelection.uid'),'u0');
 event=press('ArrowUp');assert.equal(event.prevented,false,'the first line leaves the key native');assert.equal(run('editorReviewSelection.uid'),'u0');
 const focused=body.appendChild(new Element('summary'));focused.focus();event=press('ArrowDown');assert.equal(event.prevented,false,'a focused control keeps its arrows');assert.equal(run('editorReviewSelection.uid'),'u0');
+let auditions=0;context.stopSequence=()=>{auditions++;};const playErrors=[];context.showActionError=(...args)=>playErrors.push(args);context.t=(key,english)=>english;
+context.selectEditorReviewLineById(1);document.activeElement=document.body;
+rowAudio.paused=true;rowAudio.play=async()=>{throw Error('decode failed');};
+event=press('Space');assert.equal(event.prevented,true);assert.equal(auditions,1,'Space stops whole-book playback before auditioning');
+await new Promise(resolve=>setTimeout(resolve,0));assert.equal(playErrors.length,1,'a failed audition is reported, not swallowed');
+rowAudio.play=async()=>{rowAudio.paused=false;return playAudio();};
+event=press('Space');assert.equal(auditions,2,'a second audition also stops playback first');assert.equal(playErrors.length,1);
+rowAudio.paused=false;event=press('Space');assert.equal(auditions,2,'pausing the audition does not stop the sequence again');assert.equal(rowAudio.paused,true);
+// Leave the selection where the surrounding arrow assertions expect it.
+context.selectEditorReviewLineById(0);document.activeElement=document.body;
+
 document.activeElement=document.body;event=press('ArrowDown',{ctrlKey:true});assert.equal(event.prevented,false);assert.equal(run('editorReviewSelection.uid'),'u0');
 ''')
 

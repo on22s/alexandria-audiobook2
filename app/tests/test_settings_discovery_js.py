@@ -251,7 +251,17 @@ assert.strictEqual(saved.get('alexandria.setupExpert'),'1');assert(!advancedButt
     def test_native_validation_reveals_first_invalid_only(self):
         self.run_js(r'''
 form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};
-context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
+const saved=new Map();context.localStorage={getItem:key=>saved.has(key)?saved.get(key):null,setItem:(key,value)=>saved.set(key,value)};
+const toggle=overview.appendChild(new Element('input',{id:'setup-expert-toggle',type:'checkbox'}));
+const advPanel=form.appendChild(new Element('section',{'data-settings-section':'Limits & retries',id:'settings-limits','data-setup-advanced-section':'',hidden:''}));
+const advField=field('llm-retries','Retries',advPanel);
+const routed=document.querySelectorAll;
+document.querySelectorAll=selector=>selector==='[data-setup-advanced]'?overview.querySelectorAll(selector):routed(selector);
+form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return advField;};
+context.onSetupSettingsInvalid({target:advField});
+assert.strictEqual(revealed,advField);assert(toggle.checked,'an advanced validation error switches expert mode on');assert.strictEqual(saved.get('alexandria.setupExpert'),'1');
+revealed=null;form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
+assert.strictEqual(saved.get('alexandria.setupExpert'),'1','an essential field does not touch the expert switch');
 revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(revealed,null);
 ''')
 

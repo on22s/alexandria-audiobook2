@@ -609,6 +609,7 @@
         function showConfigValidationError(error) {
             const field = error.fieldId ? document.getElementById(error.fieldId) : null;
             if (field) {
+                window.revealExpertSettingsFor?.(field);
                 openConfigField(field);
             }
             showToast(error.message, 'error');

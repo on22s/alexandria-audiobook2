@@ -600,7 +600,13 @@ document.addEventListener('keydown', event => {
         const audio = target ? target.row.querySelector('.chunk-audio') : null;
         if (!audio) { return; }
         event.preventDefault();
-        if (audio.paused) { audio.play(); } else { audio.pause(); }
+        if (!audio.paused) { audio.pause(); return; }
+        // Same contract as the line's play button: one thing plays at a time, and
+        // a take that cannot decode is reported instead of failing silently.
+        stopSequence();
+        audio.play().catch(error => showActionError(
+            t('editor.review.play.failed', 'Could not play this line'), error,
+            t('editor.review.play.recovery', 'Refresh review and check the saved audio file.')));
     } else if (event.code === 'ArrowDown' || event.code === 'ArrowUp') {
         if (!cachedChunks || !cachedChunks.length) { return; }
         const target = getEditorReviewTarget();

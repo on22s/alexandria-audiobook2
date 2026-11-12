@@ -182,7 +182,10 @@ if (setupExpertToggle) {
 // rejected control so later invalid events cannot hide the browser's focus target.
 function onSetupSettingsInvalid(event) {
     const form = document.getElementById('config-form');
-    if (form.querySelector('input:invalid, select:invalid, textarea:invalid') === event.target) { openConfigField(event.target); }
+    if (form.querySelector('input:invalid, select:invalid, textarea:invalid') === event.target) {
+        revealExpertSettingsFor(event.target);
+        openConfigField(event.target);
+    }
 }
 
 document.getElementById('config-form').addEventListener('invalid', onSetupSettingsInvalid, true);
