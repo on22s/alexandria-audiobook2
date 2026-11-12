@@ -64,3 +64,21 @@ class ScopeJSTests(unittest.TestCase):
  details.children[2].children[2].onclick();assert.equal(details.children[1].children.length,21);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
+
+    def test_find_reads_entries_then_undo_never_both_at_once(self):
+        """#1919: both reads take the book and file locks without waiting, so
+        firing them together always refused one ('Could not complete or confirm
+        change source scope'). The undo read starts only after entries finish."""
+        self.run_js(r'''
+(async()=>{
+ const get=context.API.get;let releaseEntries;const started=[];
+ context.API.get=path=>{started.push(path.split('?')[0]);
+  if(path.includes('/entries?')){return new Promise(resolve=>{releaseEntries=()=>resolve(get(path));});}return get(path);};
+ const refresh=context.refreshSourceScope();await new Promise(setImmediate);
+ assert.deepEqual(started,['/api/project/scope/entries'],'undo must wait for entries');
+ releaseEntries();await refresh;
+ assert.deepEqual(started,['/api/project/scope/entries','/api/project/scope/undo']);
+ assert.match(el('feedback').textContent,/1 choices shown from 2 saved entries/);
+ assert.match(el('undo-status').textContent,/No scope undo is stored/);
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')

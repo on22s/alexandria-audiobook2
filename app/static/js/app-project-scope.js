@@ -42,7 +42,10 @@ async function refreshSourceScope(offset = 1) {
     sourceScopeElement('feedback').textContent = t('scope.reading', 'Reading saved entries and undo status…');
     try {
         const search = encodeURIComponent(sourceScopeElement('search').value.trim());
-        const [choices, undo] = await Promise.all([API.get(`/api/project/scope/entries?search=${search}&offset=${offset}`), API.get('/api/project/scope/undo')]);
+        // One after the other: both reads take the book and file locks without
+        // waiting, so two at once always refused one of them (#1919).
+        const choices = await API.get(`/api/project/scope/entries?search=${search}&offset=${offset}`);
+        const undo = await API.get('/api/project/scope/undo');
         if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
         const select = sourceScopeElement('entry'); select.replaceChildren();
         const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = t('scope.choose-first-entry', 'Choose the first entry to keep'); select.appendChild(placeholder);
