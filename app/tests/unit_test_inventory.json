@@ -8851,6 +8851,16 @@
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_interrupt_between_replacements_restores_pair_and_propagates",
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_serialization_failure_leaks_no_stage_and_never_changes_targets"
   ],
+  "test_pass1_missing_source_run": [
+    "tests.test_pass1_missing_source_run.CharacterScriptTests.test_a_dropped_clause_is_reported_in_characters",
+    "tests.test_pass1_missing_source_run.CharacterScriptTests.test_a_short_rewording_is_not_a_missing_run",
+    "tests.test_pass1_missing_source_run.MissingSourceRunGateTests.test_complete_and_squashed_repetition_are_not_reported",
+    "tests.test_pass1_missing_source_run.MissingSourceRunGateTests.test_dropped_clause_is_reported_and_retry_names_it",
+    "tests.test_pass1_missing_source_run.MissingSourceRunGateTests.test_general_loss_is_not_a_near_miss",
+    "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_complete_reordering_outranks_a_dropped_run",
+    "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_never_restored_is_accepted_with_a_warning",
+    "tests.test_pass1_missing_source_run.MissingSourceRunRetryTests.test_restored_on_retry_is_accepted_whole"
+  ],
   "test_pass2_keep_scope_ab": [
     "tests.test_pass2_keep_scope_ab.GateTest.test_fails_when_calls_drop_less_than_twenty_percent",
     "tests.test_pass2_keep_scope_ab.GateTest.test_named_may_drop_by_the_line_vs_line_spread_only",
@@ -14796,6 +14806,14 @@
     "tests.test_time_split_chain.TimeSplitChainTests.test_unset_environment_uses_checkout_defaults",
     "tests.test_time_split_chain.TimeSplitChainTests.test_valid_all_stage_caches_remain_unchanged_and_skip_to_prosody",
     "tests.test_time_split_chain.ValidatedStageDependencyTests.test_failed_prerequisite_prevents_even_cached_checker_and_worker"
+  ],
+  "test_titled_chapter_headings": [
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_adjacent_titled_labels_are_both_chapters",
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_five_chapter_book_has_exact_boundaries",
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_heading_glued_to_its_paragraph_is_split_out",
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_lookalikes_are_not_split",
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_split_heading_drops_facts_that_describe_the_whole_entry",
+    "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_titled_heading_rule"
   ],
   "test_train_split": [
     "tests.test_train_split.LibraryContaminationTest.test_the_contamination_signature_is_detectable",
