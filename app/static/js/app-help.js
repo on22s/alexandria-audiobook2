@@ -522,7 +522,7 @@
             'openVoiceStates': 'Show voice changes across the character’s states or timeline.',
             'suggestMoreVoices': 'Generate additional voice candidates for this character to compare.',
             'uploadCloneVoice': 'Choose a recording to import as this character’s cloning reference.',
-            'playCloneVoice': 'Play this voice’s current reference recording.',
+            'playCloneVoice': 'Play or stop this voice’s current reference recording.',
             'deleteCloneVoice': 'Remove the selected cloning reference.',
             'openVoiceDesignEditor': 'Open this assigned designed voice in the Designer for editing.',
             'applyStableVoiceSeeds': 'Apply stable voice seeds so unchanged settings can produce repeatable takes.',

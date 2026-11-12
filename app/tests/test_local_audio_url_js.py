@@ -15,8 +15,11 @@ from tests.test_designer_response_identity_js import SETUP, SOURCE
 
 SCRIPT = r'''(async()=>{
 const rows=[];
+// The shared Voices-tab player lives in app-core.js (#1933); here only the URL
+// it is asked to play matters, so a stand-in plays getUrl() once.
+const withPlayer=s=>{s.context.window.toggleVoicePreviewPlayback=(button,getUrl)=>{const url=getUrl();if(url){new s.context.Audio(url).play();}};return s;};
 for(const filename of ['plain.wav','legacy#voice.wav','legacy?voice.wav','legacy%voice.wav','legacy%2Fvoice.wav','普通 voice.wav']){
- const s=setup(),urls=[];s.context.Audio=class{constructor(src){this.src=src;urls.push(src);}play(){}};
+ const s=withPlayer(setup()),urls=[];s.context.Audio=class{constructor(src){this.src=src;urls.push(src);}play(){}};
  s.context.window.playDesignedVoice(filename);
  s.context.window.playCloneVoice({closest:()=>({querySelector:()=>({value:'clone_voices/'+filename})})});
  s.context.window._designedVoicesCache=[{id:'voice',filename}];
@@ -27,7 +30,7 @@ for(const filename of ['plain.wav','legacy#voice.wav','legacy?voice.wav','legacy
  const count=urls.length;s.context.window.playCloneVoice({closest:()=>({querySelector:()=>({value:''})})});
  if(urls.length!==count){throw new Error('empty reference played');}
 }
-const s=setup(),urls=[];s.context.Audio=class{constructor(src){urls.push(src);}play(){}};
+const s=withPlayer(setup()),urls=[];s.context.Audio=class{constructor(src){urls.push(src);}play(){}};
 const raw='clone_voices/nested/普通 #?%2F.wav';
 s.context.window.playCloneVoice({closest:()=>({querySelector:()=>({value:raw})})});
 rows.push({url:urls[0],raw});

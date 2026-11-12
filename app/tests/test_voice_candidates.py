@@ -315,7 +315,7 @@ vm.runInContext(s.slice(s.indexOf('function getVoiceCandidateMarkup('),s.indexOf
   assert.strictEqual(played.length,2,'stopping does not start anything');
   await c.window.toggleCandidatePlayback(a,'design-a'); played[2].listeners.ended();
   assert(a.innerHTML.includes('fa-play'),'the end of the audio resets the button');
-  assert.strictEqual(c.window._candidatePlayback,null);
+  assert.strictEqual(c.window._voicePreviewPlayback,null);
   await c.window.toggleCandidatePlayback(button(),'warm_tenor');
   assert.strictEqual(played[3].url,'/lora/warm.wav','a LoRA candidate plays its adapter preview');
   await c.window.toggleCandidatePlayback(button(),'builtin_tenor');

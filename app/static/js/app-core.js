@@ -4779,43 +4779,46 @@
             return null;
         }
 
-        function setCandidatePlayButton(button, playing) {
+        // One look for every Voices-tab preview button: Stop and the solid
+        // colour while playing, Play and the outline colour otherwise.
+        window.setVoicePreviewButton = function setVoicePreviewButton(button, playing, label, colour) {
             button.innerHTML = playing ? '<i class="fas fa-stop"></i>' : '<i class="fas fa-play"></i>';
-            button.setAttribute('aria-label', playing
+            button.setAttribute('aria-label', label);
+            button.classList.toggle('btn-' + colour, playing);
+            button.classList.toggle('btn-outline-' + colour, !playing);
+        };
+
+        function setCandidatePlayButton(button, playing) {
+            window.setVoicePreviewButton(button, playing, playing
                 ? t('voice.candidate.stop-aria', 'Stop candidate {candidate}', {candidate: button.dataset.label})
-                : t('voice.candidate.play-aria', 'Play candidate {candidate}', {candidate: button.dataset.label}));
-            button.classList.toggle('btn-primary', playing);
-            button.classList.toggle('btn-outline-primary', !playing);
+                : t('voice.candidate.play-aria', 'Play candidate {candidate}', {candidate: button.dataset.label}), 'primary');
         }
 
-        // One candidate plays at a time: Play on another stops the current one,
-        // and Stop (or the end of the audio) turns the button back to Play.
-        window.toggleCandidatePlayback = async function toggleCandidatePlayback(button, candidateId) {
-            const current = window._candidatePlayback;
+        // One voice preview plays at a time on the Voices tab: a saved
+        // candidate or a voice card's reference recording (#1933). Pressing the
+        // playing button stops it, pressing another stops it and starts that
+        // one, and the end of the audio turns the button back to Play.
+        // getUrl runs after any stop; render(button, playing) draws the button.
+        window.toggleVoicePreviewPlayback = async function toggleVoicePreviewPlayback(button, getUrl, render, failureMessage) {
+            const current = window._voicePreviewPlayback;
             if (current) {
-                current.audio.pause();
-                setCandidatePlayButton(current.button, false);
-                window._candidatePlayback = null;
+                stopVoicePreviewPlayback(current);
                 if (current.button === button) {
                     return;
                 }
             }
-            const card = button.closest('.voice-card');
-            const candidate = (getVoiceCardMetadata(card).candidates || [])
-                .find(item => item && item.candidate_id === candidateId);
-            const url = candidate ? getCandidateAudioUrl(candidate) : null;
+            const url = getUrl();
             if (!url) {
-                showToast(t('voice.candidate.no-audio', 'This candidate has no audio to play.'), 'warning');
                 return;
             }
             const audio = new Audio(url);
-            const playback = {audio, button};
-            window._candidatePlayback = playback;
-            setCandidatePlayButton(button, true);
+            const playback = {audio, button, render, stopped: false};
+            window._voicePreviewPlayback = playback;
+            render(button, true);
             const finish = () => {
-                if (window._candidatePlayback === playback) {
-                    window._candidatePlayback = null;
-                    setCandidatePlayButton(button, false);
+                if (window._voicePreviewPlayback === playback) {
+                    window._voicePreviewPlayback = null;
+                    render(button, false);
                 }
             };
             audio.addEventListener('ended', finish);
@@ -4823,8 +4826,42 @@
                 await audio.play();
             } catch (error) {
                 finish();
-                showToast(t('voice.candidate.play-failed', 'Could not play this candidate. Check that Alexandria is running, then try Play again.'), 'warning');
+                // Stop pressed before the audio started aborts play(); that is
+                // the user's choice, not a failure to report.
+                if (!playback.stopped) {
+                    showToast(failureMessage, 'warning');
+                }
             }
+        };
+
+        function stopVoicePreviewPlayback(playback) {
+            playback.stopped = true;
+            playback.audio.pause();
+            playback.render(playback.button, false);
+            window._voicePreviewPlayback = null;
+        }
+
+        // A redrawn voice list or a cleared reference removes or hides the
+        // playing button; stop its audio rather than leave it with no Stop.
+        window.stopOrphanedVoicePreview = function stopOrphanedVoicePreview() {
+            const current = window._voicePreviewPlayback;
+            if (current && (!current.button.isConnected || current.button.style.display === 'none')) {
+                stopVoicePreviewPlayback(current);
+            }
+        };
+
+        window.toggleCandidatePlayback = function toggleCandidatePlayback(button, candidateId) {
+            return window.toggleVoicePreviewPlayback(button, () => {
+                const card = button.closest('.voice-card');
+                const candidate = (getVoiceCardMetadata(card).candidates || [])
+                    .find(item => item && item.candidate_id === candidateId);
+                const url = candidate ? getCandidateAudioUrl(candidate) : null;
+                if (!url) {
+                    showToast(t('voice.candidate.no-audio', 'This candidate has no audio to play.'), 'warning');
+                }
+                return url;
+            }, setCandidatePlayButton,
+            t('voice.candidate.play-failed', 'Could not play this candidate. Check that Alexandria is running, then try Play again.'));
         };
 
         // Gender/age per line (#653): one tag per character - the most common
@@ -5064,7 +5101,7 @@
                                     <label class="form-label small d-block w-100">${t('voice.card.clone-persona-label', 'Persona description')}<textarea class="form-control persona-description" aria-label="${escapeHtml(t('voice.card.clone-persona-aria', 'Persona description for {name}', {name: label}))}">${escapeHtml(config.description || '')}</textarea></label>
                                     <div class="input-group">
                                         <input type="text" class="form-control ref-audio" aria-label="${escapeHtml(t('voice.card.clone-path-aria', 'Reference audio path for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-path-placeholder', 'Path to audio file'))}" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
-                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
+                                        <button class="btn btn-sm btn-outline-secondary clone-play-btn" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play or stop reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
                                         <button class="btn btn-sm btn-outline-danger clone-delete-btn" aria-label="${escapeHtml(t('voice.card.clone-delete-aria', 'Delete uploaded reference voice for {name}', {name: label}))}" onclick="deleteCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-delete-title', 'Delete uploaded voice'))}" style="display:${reference?.type === 'clone' ? 'inline-block' : 'none'}"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </div>
@@ -5659,6 +5696,7 @@
                     return loadVoices.publishedResult;
                 }
                 container.innerHTML = getVoiceSeedRepairMarkup(ownSnapshot) + getStateVoiceCardsMarkup(voices);
+                window.stopOrphanedVoicePreview?.();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;
                 _voiceCardsBookToken = ownBookToken;

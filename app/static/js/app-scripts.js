@@ -684,6 +684,7 @@
                 }
                 if (playBtn) playBtn.style.display = 'none';
                 if (deleteBtn) deleteBtn.style.display = 'none';
+                window.stopOrphanedVoicePreview?.();
                 refAudio.focus();
                 return;
             }
@@ -1109,18 +1110,19 @@
             }
         };
 
-        window.playCloneVoice = async (btn) => {
-            const card = btn.closest('.card-body');
-            const refAudio = card.querySelector('.ref-audio').value;
-            if (refAudio) {
-                try {
-                    const audio = new Audio(getLocalAudioUrl(refAudio, Date.now()));
-                    await audio.play();
-                } catch (error) {
-                    showToast(t('clone.play.error', 'Could not play the clone reference. Check that Alexandria is running, then try Play again.'), 'warning');
-                }
-            }
-        };
+        function setClonePlayButton(button, playing) {
+            window.setVoicePreviewButton(button, playing, playing
+                ? t('voice.card.clone-stop-aria', 'Stop reference audio for {name}', {name: button.dataset.label})
+                : t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: button.dataset.label}), 'secondary');
+        }
+
+        // Play/Stop like a saved candidate, through the one Voices-tab player:
+        // pressing it again stops the recording instead of starting another (#1933).
+        window.playCloneVoice = (btn) => window.toggleVoicePreviewPlayback(btn, () => {
+            const refAudio = btn.closest('.card-body').querySelector('.ref-audio').value;
+            return refAudio ? getLocalAudioUrl(refAudio, Date.now()) : null;
+        }, setClonePlayButton,
+        t('clone.play.error', 'Could not play the clone reference. Check that Alexandria is running, then try Play again.'));
 
         window.deleteCloneVoice = async (btn) => {
             const card = btn.closest('.card-body');
