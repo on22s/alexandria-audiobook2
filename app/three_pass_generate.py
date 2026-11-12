@@ -29,6 +29,7 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              get_preprocessed_source, LLMGenParams,
                              split_failed_chunk, is_trigram_only_near_miss,
                              ensure_run_request_params, validate_generation_output_path)
+from chunk_quality import is_segment_near_miss
 from dialogue_spans import apply_dialogue_map
 from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
@@ -1572,12 +1573,31 @@ def segment_chunk(client, model_name, chunk, params, max_retries=4,
     return entries
 
 
+def get_missing_run_warning(quality):
+    """The visible line for a chunk accepted with source text still missing."""
+    spans = quality.get("missing_source_spans") or []
+    unit = "characters" if spans and all(span.get("unit") == "characters" for span in spans) else "words"
+    missing = sum(span["token_count"] for span in spans)
+    return (f"Warning: Step 1 accepted this chunk with about {missing} source {unit} still "
+            "missing after every retry; check this passage in the Editor.")
+
+
+def _has_missing_run(quality):
+    return any(finding.get("code") == "missing_source_run"
+               for finding in (quality or {}).get("findings") or [])
+
+
 def _accept_segment_near_miss(near_miss):
     if not near_miss:
         return []
     entries, quality = near_miss[0]
-    print("  SEGMENT accepted as trigram-only near-miss "
-          f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
+    codes = {finding.get("code") for finding in quality.get("findings") or []}
+    if "missing_source_run" in codes:
+        # Accepted as before this check existed, but never silently (#1921).
+        print(get_missing_run_warning(quality), flush=True)
+    else:
+        print("  SEGMENT accepted as trigram-only near-miss "
+              f"(ordered_trigram_recall={quality['metrics']['ordered_trigram_recall']})")
     return entries
 
 
@@ -1780,6 +1800,12 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
                                                 quote_analysis=recovery_analysis)["passed"]):
             _record_resolution(resolution_sink, "quote_continuation_fallback")
             return regions
+    if near_miss and _has_missing_run(near_miss[0][1]):
+        # The model answered but kept dropping a run of source words, and no
+        # deterministic recovery applies. Before this check that answer was
+        # accepted in one call; splitting it to the 800-character floor could
+        # cost dozens more for the same warning (#1921).
+        return _resolved_near_miss(near_miss, resolution_sink)
     parts = split_failed_chunk(chunk)
     if not parts:
         if failure_sink is not None:
@@ -1817,7 +1843,9 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
         # split-seam artifact, not lost content - accept it if it still clears the
         # trigram-only near-miss floor rather than discarding two good halves.
         # Recall / ratio / cyrillic / duplicate defects are NOT waived (real).
-        if is_trigram_only_near_miss(combined_quality):
+        if is_segment_near_miss(combined_quality):
+            if _has_missing_run(combined_quality):
+                print(get_missing_run_warning(combined_quality), flush=True)
             print(f"  Adaptive split (segment) recombination accepted: both halves "
                   f"passed, trigram-only near-miss at seam "
                   f"(trigram={m['ordered_trigram_recall']} recall={m['source_token_recall']})")

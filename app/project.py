@@ -301,6 +301,36 @@ def get_speaker(entry):
     return entry.get("speaker") or entry.get("type") or ""
 
 
+_NUMBER_WORD = (r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|"
+                r"fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|"
+                r"fifty|sixty|seventy|eighty|ninety|hundred)")
+# "Chapter 3: Mana Evaluation (2)", "Chapter Five - The Gate", "Prologue: Ash".
+# Annotation often returns a heading as the first paragraph of the narration
+# that follows it; the splitter only knew bare "Chapter 3", so a titled heading
+# was never split out and the book lost every chapter boundary (#1921).
+TITLED_CHAPTER_HEADING_RE = re.compile(
+    r"^(?:(?:chapter|part|book|volume|act|section)\s+(?:[0-9]+|(?-i:[IVXLCDM]+)|"
+    + _NUMBER_WORD + r"(?:-" + _NUMBER_WORD + r")?)"
+    r"|prologue|epilogue|prelude|interlude|introduction|conclusion|afterword|foreword)"
+    r"\s*[:\-\u2013\u2014]\s*(\S)", re.IGNORECASE)
+
+
+def is_titled_chapter_heading(text):
+    """A keyword-and-number heading followed by a title, short and not a
+    sentence: "Chapter 3: The Gate". The caller requires its own paragraph."""
+    label = text.strip()
+    match = TITLED_CHAPTER_HEADING_RE.match(label)
+    # A title starts with a capital, a digit, a quote or a letter without case
+    # (CJK); prose after "Section 2:" or "Part 2 -" usually starts lowercase.
+    if not match or len(label) > 120 or "\n" in label or match.group(1).islower():
+        return False
+    title = label[match.start(1):]
+    # Not a sentence (the shared rule: . ! ? and CJK stops), not a cut-off line
+    # ("... The Storm -"), and not a number range ("Chapter 3-5").
+    return not (is_sentence_terminated(label) or is_heading_lookalike(label)
+                or re.fullmatch(r"[\d\s,.\-\u2013\u2014]+", title))
+
+
 def is_numbered_heading(text):
     heading = CHAPTER_HEADING_RE.match(text)
     return bool(heading and NUMBERED_HEADING_SUFFIX_RE.fullmatch(text[heading.end():]))
@@ -314,7 +344,8 @@ def get_chapter_heading_offsets(text, unnumbered_labels=UNNUMBERED_CHAPTER_HEADI
         label = line.strip()
         standalone = (index == 0 or not lines[index - 1].strip()) and (
             index + 1 == len(lines) or not lines[index + 1].strip())
-        if is_numbered_heading(label) or (standalone and label.casefold() in unnumbered_labels):
+        if is_numbered_heading(label) or (standalone and (
+                label.casefold() in unnumbered_labels or is_titled_chapter_heading(label))):
             offsets[offset] = label.casefold()
         offset += len(line)
     return offsets
@@ -412,7 +443,8 @@ def is_keyword_chapter_heading(text):
     """A heading named by a chapter keyword (English or CJK), even when it is
     framed by a bracket pair or by dashes on both ends ("【第一章】", "- Chapter 1 -")."""
     core = get_heading_core(text)
-    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core))
+    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core)
+                or is_titled_chapter_heading(core))
 
 
 def is_heading_lookalike(text):
@@ -448,6 +480,24 @@ def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
     return chunk
 
 
+def get_leading_heading(text):
+    """(heading, rest) when text opens with a TITLED keyword heading paragraph
+    ("Chapter 3: The Gate", then a blank line), else (None, text).
+
+    Titled only: in a spoken entry a bare "Chapter 2" or "Prologue" is a phrase
+    said aloud in the story and stays speech (test_spoken_heading_intent)."""
+    lines = text.split("\n")
+    first = next((i for i, line in enumerate(lines) if line.strip()), None)
+    if first is None:
+        return None, text
+    label = lines[first].strip()
+    standalone = first + 1 == len(lines) or not lines[first + 1].strip()
+    if (standalone and not any(mark in label for mark in "\"\u201c\u201d")
+            and is_titled_chapter_heading(label)):
+        return label, "\n".join(lines[first + 1:])
+    return None, text
+
+
 def split_on_unspeakable(entry, scene_break_pause_ms):
     """Split one entry into speakable parts, handling each glyph by class.
 
@@ -463,6 +513,23 @@ def split_on_unspeakable(entry, scene_break_pause_ms):
     # classification. Done first because each emoji is category So on its own
     # and would otherwise be reported for review one character at a time.
     original_text = str(entry.get("text") or "")
+    if str(get_speaker(entry)).upper() == "NARRATOR" and entry.get("spoken") is True:
+        # Annotation can return a chapter heading as the first paragraph of a
+        # narrator entry it marked spoken because later paragraphs quote speech
+        # (#1921). Headings are never split out of spoken entries, so the
+        # chapter was lost. The leading heading alone is narration; the rest of
+        # the entry keeps exactly what the annotator said.
+        heading, rest = get_leading_heading(original_text)
+        if heading:
+            whole_entry_facts = ("source_span", "source_speaker", "dialogue_ambiguity")
+            first = {key: value for key, value in entry.items()
+                     if key not in whole_entry_facts and (rest.strip() == "" or key != "pause_after")}
+            first.update(text=heading, spoken=False)
+            head_parts, head_review = split_on_unspeakable(first, scene_break_pause_ms)
+            if not rest.strip():
+                return head_parts, head_review
+            rest_parts, rest_review = split_on_unspeakable(dict(entry, text=rest), scene_break_pause_ms)
+            return head_parts + rest_parts, head_review + rest_review
     split_chapters = (str(get_speaker(entry)).upper() == "NARRATOR"
                       and entry.get("spoken") is not True
                       and is_chapter_line_context_unambiguous(original_text))

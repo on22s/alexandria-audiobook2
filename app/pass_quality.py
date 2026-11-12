@@ -16,7 +16,7 @@ from review_script import normalize_text
 # (e.g. the 0.84->0.82 near-miss floor history) instead of drifting.
 from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
                            MIN_OUTPUT_SOURCE_RATIO, MAX_OUTPUT_SOURCE_RATIO,
-                           get_unsupported_cyrillic_characters)
+                           get_unsupported_cyrillic_characters, get_missing_source_runs)
 from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
@@ -444,14 +444,23 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         findings.append({"code": "output_source_ratio", "value": round(ratio, 4),
                          "minimum": MIN_OUTPUT_SOURCE_RATIO, "maximum": MAX_OUTPUT_SOURCE_RATIO,
                          "message": "Output length is implausible for the source chunk."})
+    # 90% recall still lets a whole clause disappear (#1921): report it so the
+    # model is asked again with the missing words named.
+    missing_runs = get_missing_source_runs(source_tokens, output_tokens) if sc else []
+    if missing_runs:
+        findings.append({"code": "missing_source_run",
+                         "value": sum(span["token_count"] for span in missing_runs),
+                         "message": "A run of source words is absent from the response."})
     quote_findings, quote_gate = _quote_region_findings(
         source_text, entries, quote_analysis,
         quoted_must_be_spoken=quoted_must_be_spoken,
         unquoted_must_be_narrator=unquoted_must_be_narrator)
     findings.extend(quote_findings)
     findings.extend(_introduced_character_findings(source_text, output_text, entries))
-    return _report(sc, oc, recall, trigram, ratio, findings,
-                   quote_gate=quote_gate)
+    report = _report(sc, oc, recall, trigram, ratio, findings,
+                     quote_gate=quote_gate)
+    report["missing_source_spans"] = missing_runs
+    return report
 
 
 def _report(source_count, output_count, recall, trigram, ratio, findings,
