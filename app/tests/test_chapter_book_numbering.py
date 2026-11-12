@@ -81,11 +81,30 @@ class ChapterBookNumberingTests(unittest.TestCase):
             manager = self.make_project(root, with_audio={0, 1, 2})
             ok, message = manager.export_chapters(fmt='wav')
             self.assertTrue(ok, message)
-            self.assertIn('Chapter(s) 2 still have lines without audio', message)
+            self.assertIn('Chapter(s) 2 still have lines with no generated audio', message)
             self.assertEqual([1, 2], [row['number'] for row in self.manifest(root)['chapters']])
             ok, message = manager.export_chapters(fmt='wav', chapters=[0])
             self.assertTrue(ok, message)
-            self.assertNotIn('without audio', message)
+            self.assertNotIn('no generated audio', message)
+
+    def test_front_matter_counts_as_chapter_one_in_export_and_editor(self):
+        """Lines before the first heading form "Introduction", chapter 1, in both
+        the Editor's list and the export, so the heading "Chapter 1" is number 2."""
+        from routers import editor
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(tmp)
+            manager = self.make_project(root, with_audio={0, 1, 2, 3, 4, 5})
+            rows = manager.load_chunks()
+            relative = 'voicelines/front.wav'
+            sf.write(root / relative, .1 * np.ones(2000), 16000)
+            front = dict(id=0, uid='front', speaker='Hero', text='Before it all began.',
+                         status='done', audio_path=relative)
+            manager.save_chunks([front] + [dict(row, id=row['id'] + 1) for row in rows])
+            titles = [(c['index'] + 1, c['title']) for c in
+                      editor.get_audio_repair_options(manager.load_chunks())['chapters']]
+            exported = [(row['number'], row['title']) for row in manager.preview_chapter_filenames(fmt='wav')]
+            self.assertEqual(titles, exported)
+            self.assertEqual([(1, 'Introduction'), (2, 'Chapter 1')], exported[:2])
 
     def test_numbers_match_the_editor_chapter_list(self):
         from fastapi import FastAPI
@@ -113,7 +132,7 @@ class ChapterBookNumberingTests(unittest.TestCase):
     def test_selection_and_filename_helpers(self):
         self.assertEqual([2, 4], get_chapter_selection([4, 2, 4], {2, 4}))
         for bad in ([], [-1], [True], ['1']):
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, 'Select at least one|zero-based'):
                 get_chapter_selection(bad, {0})
         with self.assertRaisesRegex(ValueError, r'chapter\(s\) 1, 2, 3'):
             get_chapter_selection([0, 1, 2], set())

@@ -132,7 +132,7 @@ def get_chapter_selection(chapters, available):
     if not chapters:
         raise ValueError("Select at least one chapter")
     if any(type(number) is not int or number < 0 for number in chapters):
-        raise ValueError("Chapter numbers must be whole numbers from 1")
+        raise ValueError("Chapter numbers must be zero-based whole numbers (0 is the first chapter)")
     absent = sorted({number + 1 for number in chapters if number not in available})
     if absent:
         shown = ", ".join(str(number) for number in absent[:20]) + (", ..." if len(absent) > 20 else "")
@@ -3067,6 +3067,11 @@ class ProjectManager:
         and missing counts the chapter's non-empty lines that are not among them.
         Numbering by the book keeps chapter 500 named 500 while chapters 1-499
         have no audio yet, and matches the Editor's chapter numbers (#1921).
+
+        Rows are matched by identity: every caller passes rows taken from the one
+        `book` list (ExportSourceSnapshot copies the chunks once; the decoders and
+        iter_timeline pass those same dicts through). A reload or copy in between
+        is refused rather than guessed at.
         """
         positions = {id(row): position for position, row in enumerate(book)}
         located = [positions.get(id(row)) for row in chunks]
@@ -3464,8 +3469,8 @@ class ProjectManager:
                         return result
                     shown = ", ".join(str(number) for number in incomplete[:20])
                     shown += ", ..." if len(incomplete) > 20 else ""
-                    return True, (result[1] + f" Chapter(s) {shown} still have lines without "
-                                  "audio; those lines are not in their files.")
+                    return True, (result[1] + f" Chapter(s) {shown} still have lines with no "
+                                  "generated audio; those lines are not in their files.")
                 from chapter_timing_cache import ensure_chapter_timing_facts
                 indexed = ensure_chapter_timing_facts(
                     self.root_dir, captured_chunks, self.get_chunk_audio_path,
