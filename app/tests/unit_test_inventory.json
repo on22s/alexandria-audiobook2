@@ -4792,6 +4792,7 @@
     "tests.test_editor_book_identity.EditorBookIdentityTests.test_stale_draft_after_delete_or_book_switch_preserves_all_chunks"
   ],
   "test_editor_chapter_generation_js": [
+    "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_map_refresh_loads_only_while_the_panel_is_open",
     "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_out_of_range_and_empty_input_never_request_a_preview",
     "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_panel_sends_chapters_skips_done_and_regenerates_only_when_ticked",
     "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_progress_map_states_count_only_non_empty_lines",
