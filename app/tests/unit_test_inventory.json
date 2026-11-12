@@ -1704,8 +1704,14 @@
   "test_book_preflight_js": [
     "tests.test_book_preflight_js.BookPreflightJsTests.test_batch_hides_idle_test_but_keeps_running_cancellation",
     "tests.test_book_preflight_js.BookPreflightJsTests.test_decline_and_stale_poll_do_not_start_or_overwrite",
+    "tests.test_book_preflight_js.BookPreflightJsTests.test_manual_llm_requests_are_shown_while_the_book_test_runs",
     "tests.test_book_preflight_js.BookPreflightJsTests.test_native_failure_plan_and_owned_cancel",
     "tests.test_book_preflight_js.BookPreflightJsTests.test_unloaded_source_and_confirmation_switch_refuse_both_actions"
+  ],
+  "test_book_preflight_manual_llm": [
+    "tests.test_book_preflight_manual_llm.BookPreflightManualLlmTests.test_child_request_is_shown_and_answered_through_the_page",
+    "tests.test_book_preflight_manual_llm.BookPreflightManualLlmTests.test_data_dir_precedence",
+    "tests.test_book_preflight_manual_llm.BookPreflightManualLlmTests.test_without_the_parent_directory_the_request_is_hidden"
   ],
   "test_book_preflight_ownership": [
     "tests.test_book_preflight_ownership.BookPreflightOwnershipTests.test_failed_registration_or_receipt_publish_releases_pending_claim",
