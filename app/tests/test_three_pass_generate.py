@@ -659,7 +659,7 @@ class EndToEndTests(unittest.TestCase):
                       {"n": 1, "head": "Tell me the", "instruct": "Firm, quiet demand."}]
         import io, contextlib
         for mode, asked, done in (
-                ("auto", False, "Step 1 (split): chunk 1/1 done - from quote marks"),
+                ("auto", False, "Step 1 (split): chunk 1 resolved from quote marks"),
                 ("llm", True, "Step 1 (split): chunk 1/1 done - from the model")):
             with self.subTest(mode=mode):
                 client = _client_returning(([seg] if mode == "llm" else []) + [named, instructed])
