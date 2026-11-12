@@ -383,9 +383,28 @@ def _is_structural_text(text, max_length=80):
     return False
 
 
+# A short unterminated line that still is not a heading: a sentence cut off
+# with a dash, ellipsis or comma, or a bracketed system/status-window line.
+CONTINUATION_END_RE = re.compile(r"(?:[,;:\-\u2013\u2014]|\.\.\.|\u2026)$")
+
+
+def is_heading_lookalike(text):
+    """Short, unterminated, yet not a chapter title (#1921): an interrupted
+    sentence ("He was about to say -") or a status-window line ("[Status]")."""
+    stripped = text.strip()
+    return bool(CONTINUATION_END_RE.search(stripped) or (
+        stripped[:1] in "[\u3010" and stripped[-1:] in "]\u3011"))
+
+
 def is_smart_chapter_text(text):
-    """Use the existing long keyword-title policy for source and export decisions."""
-    return _is_structural_text(text, max_length=None if CHAPTER_HEADING_RE.match(text.strip()) else 80)
+    """Use the existing long keyword-title policy for source and export decisions.
+
+    A keyword heading ("Chapter 3: ...") is always eligible; any other short
+    unterminated line must not look like an interrupted sentence or a status line."""
+    stripped = text.strip()
+    if CHAPTER_HEADING_RE.match(stripped):
+        return _is_structural_text(text, max_length=None)
+    return _is_structural_text(text, max_length=80) and not is_heading_lookalike(stripped)
 
 
 def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
@@ -3012,13 +3031,21 @@ class ProjectManager:
                     and chunk.get("spoken") is not True
                     and source_start is not False
                     and '"' not in text
-                    and (source_start is True or is_smart_chapter_text(text))):
+                    and (source_start is True or is_smart_chapter_text(text))
+                    and (CHAPTER_HEADING_RE.match(text) or not is_heading_lookalike(text))):
                 heading_indices.append(i)
+        # Adjacent untitled candidates are a status window, a list or a table of
+        # contents, not consecutive chapter starts (#1921). Keyword headings stay.
+        weak = {i for i in heading_indices
+                if not CHAPTER_HEADING_RE.match(chunks[i].get("text", "").strip())}
+        heading_indices = [i for i in heading_indices
+                           if i not in weak or (i - 1 not in weak and i + 1 not in weak)]
 
-        # If no headings detected, fall back to per-chunk
+        # No headings: the whole script is one chapter. One chapter per line is
+        # still available on request through per_chunk_chapters (#1921).
         if not heading_indices:
-            print("  Chapters: no chapter headings detected, falling back to per-chunk chapters")
-            return self._chapter_groups(chunks, per_chunk_chapters=True)
+            print("  Chapters: no chapter headings detected; the whole script is one chapter")
+            return [("Chapter 1", 0, len(chunks) - 1)] if chunks else []
 
         groups = []
         # Pre-heading chunks → "Introduction"
