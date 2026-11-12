@@ -114,7 +114,10 @@ class EditorIndexSelectionTests(unittest.TestCase):
                     with self.subTest(changed_only=changed_only, indices=indices):
                         ok, message = pm.export_chapters(fmt='wav', chapters=indices, changed_only=changed_only)
                         self.assertFalse(ok, message)
-                        self.assertIn('index' if not indices else 'indices', message)
+                        # Book chapter numbers (#1921): each refusal names its reason.
+                        expected = ('Select at least one chapter' if not indices else
+                                    'zero-based' if -1 in indices else 'No generated audio for chapter(s)')
+                        self.assertIn(expected, message)
                         self.assertEqual(before, {p.name: p.read_bytes() for p in out.iterdir() if p.is_file()})
             ok, message = pm.export_chapters(fmt='wav', chapters=[1, 0, 1])
             self.assertTrue(ok, message)
