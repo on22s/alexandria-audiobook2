@@ -476,17 +476,24 @@ await context.refreshEditorReview();assert.equal(document.getElementById('editor
 
     def test_markup_preserves_handlers_separates_whole_book_actions_and_loads_before_restore(self):
         class Inventory(HTMLParser):
-            def __init__(self): super().__init__(); self.ids={};self.in_details=False
+            # Track the Batch & Tools dropdown so destructive whole-book actions are
+            # proven to sit behind it rather than next to the primary buttons.
+            def __init__(self): super().__init__(); self.ids={}; self.in_menu=False; self.depth=0
             def handle_starttag(self,tag,attrs):
                 a=dict(attrs)
-                if tag=='details' and 'editor-whole-book' in a.get('class',''): self.in_details=True
-                if a.get('id'): self.ids.setdefault(a['id'],[]).append((a,self.in_details))
+                if tag=='div' and 'editor-batch-menu' in a.get('class',''): self.in_menu=True; self.depth=1
+                elif self.in_menu and tag=='div': self.depth+=1
+                if a.get('id'): self.ids.setdefault(a['id'],[]).append((a,self.in_menu))
             def handle_endtag(self,tag):
-                if tag=='details': self.in_details=False
+                if self.in_menu and tag=='div':
+                    self.depth-=1
+                    if self.depth==0: self.in_menu=False
         html=(STATIC/'index.html').read_text();p=Inventory();p.feed(html)
         for key,handler in [('btn-play-seq','playSequence()'),('btn-batch-fast','startRender(false)'),('btn-regen-all','startRender(true)'),('btn-cancel-render','cancelRender()'),('btn-drift-check','runDriftCheck()')]:
             self.assertEqual(1,len(p.ids[key]));self.assertEqual(handler,p.ids[key][0][0]['onclick'])
-        self.assertTrue(p.ids['btn-regen-all'][0][1]);self.assertTrue(p.ids['btn-merge'][0][1]);self.assertFalse(p.ids['btn-play-seq'][0][1])
+        self.assertTrue(p.ids['btn-regen-all'][0][1],'Regenerate All stays inside Batch & Tools');self.assertTrue(p.ids['btn-merge'][0][1],'Merge stays inside Batch & Tools')
+        self.assertFalse(p.ids['btn-play-seq'][0][1]);self.assertFalse(p.ids['btn-batch-fast'][0][1])
+        self.assertTrue(p.ids['btn-editor-batch'][0][1])
         self.assertLess(html.index('app-editor-review.js'),html.index('app-reports.js'))
         core=(STATIC/'js/app-core.js').read_text()
         self.assertIn('window.refreshEditorReview?.();',core);self.assertIn('window.markEditorReviewStale?.();',core);self.assertIn('window.resetEditorReview?.();',core)

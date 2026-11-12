@@ -615,12 +615,3 @@ document.addEventListener('keydown', event => {
         selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
     }
 });
-
-// Click outside to close whole-book actions popover
-document.addEventListener('click', event => {
-    const wholeBook = document.querySelector('.editor-whole-book');
-    if (wholeBook && wholeBook.open && !wholeBook.contains(event.target)) {
-        wholeBook.open = false;
-    }
-});
-

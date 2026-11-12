@@ -449,52 +449,6 @@
             box-shadow: 0 2px 8px var(--shadow);
             padding: 0.75rem 1rem;
         }
-        .editor-whole-book { position: relative; display: inline-block; }
-        .editor-whole-book > summary {
-            list-style: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.25rem 0.65rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border-input);
-            background: var(--bg-card);
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: border-color var(--motion-fast), background-color var(--motion-fast);
-        }
-        .editor-whole-book > summary::-webkit-details-marker { display: none; }
-        .editor-whole-book > summary:hover {
-            border-color: var(--accent);
-            background-color: var(--accent-soft);
-        }
-        .editor-whole-book[open] > .editor-whole-book-popover {
-            position: absolute;
-            right: 0;
-            top: calc(100% + 6px);
-            z-index: 1050;
-            min-width: 19rem;
-            max-width: calc(100vw - 1rem);
-            padding: 0.85rem;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            box-shadow: 0 8px 24px var(--shadow);
-        }
-        /* Narrow screens wrap the action row, so anchoring the popover to the
-           summary pushed it off the left edge. Pin it to the viewport instead. */
-        @media (max-width: 991.98px) {
-            .editor-whole-book[open] > .editor-whole-book-popover {
-                position: fixed;
-                left: 0.75rem;
-                right: 0.75rem;
-                top: auto;
-                min-width: 0;
-                max-width: none;
-            }
-        }
         .navbar .dropdown-menu {
             background-color: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -3535,19 +3489,20 @@
                             <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate</span></span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
-                            <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>
-                            <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
+                                <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>
+                            </div>
                             <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="editor.toolbar.cancel">Cancel</span></button>
-                            <details class="editor-whole-book">
-                                <summary data-i18n="editor.toolbar.whole-book">Whole-book actions</summary>
-                                <div class="editor-whole-book-popover">
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i><span data-i18n="editor.toolbar.regenerate-all">Regenerate All</span></button>
-                                        <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i><span data-i18n="editor.toolbar.merge-all">Merge All</span></button>
-                                    </div>
-                                    <p class="small mt-2 mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
-                                </div>
-                            </details>
+                            <div class="dropdown editor-batch-menu">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="btn-editor-batch" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-layer-group me-1"></i><span data-i18n="editor.toolbar.batch-tools">Batch &amp; Tools</span></button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btn-editor-batch">
+                                    <li><button class="dropdown-item" type="button" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-2"></i><span data-i18n="editor.toolbar.regenerate-all">Regenerate All</span></button></li>
+                                    <li><button class="dropdown-item" type="button" id="btn-merge"><i class="fas fa-file-audio me-2"></i><span data-i18n="editor.toolbar.merge-mp3">Merge to MP3</span></button></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><p class="dropdown-item-text small text-muted mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge to MP3 combines the book after its existing checks.</p></li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
