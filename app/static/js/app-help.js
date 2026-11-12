@@ -180,7 +180,7 @@
 
             // Editor tab
             'sound-assets-file': {what: 'Choose WAV, FLAC, MP3 or OGG audio to retain in the sound asset library. Import verifies the complete file. It does not change book audio; use the library to audition it first.'},
-            'editor-repair-chapter': {what: 'Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, each line is a chapter.'},
+            'editor-repair-chapter': {what: 'Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, the whole script is one chapter.'},
             'editor-chapter-selection': {what: 'Chapter numbers to render, as in the Result tab’s chapter box: single numbers and ranges separated by commas, for example 1-3, 5.'},
             'editor-chapter-regenerate': {what: 'Also replace audio for lines in these chapters that already have it. Off by default, so only missing lines are rendered. Asks before replacing.'},
             'editor-repair-speakers': {what: 'Select one or more literal speaker labels to include in the repair preview. Preview shows the exact affected lines before audio replacement.'},

@@ -1742,7 +1742,7 @@
   "help.field.editor-chapter-regenerate.what": "Also replace audio for lines in these chapters that already have it. Off by default, so only missing lines are rendered. Asks before replacing.",
   "help.field.editor-chapter-selection.what": "Chapter numbers to render, as in the Result tab’s chapter box: single numbers and ranges separated by commas, for example 1-3, 5.",
   "help.field.editor-quality-filter.what": "Filter the take review queue by saved findings, historical speech evidence or missing checks. Compare retained candidates without changing audio; restoration requires an explicit action. Unknown evidence is not a clean result.",
-  "help.field.editor-repair-chapter.what": "Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, each line is a chapter.",
+  "help.field.editor-repair-chapter.what": "Choose one detected export chapter, or the entire book, for the audio repair preview. Without headings, the whole script is one chapter.",
   "help.field.editor-repair-speakers.what": "Select one or more literal speaker labels to include in the repair preview. Preview shows the exact affected lines before audio replacement.",
   "help.field.epub-extraction-report-enabled.what": "Include a page-local EPUB import snapshot of source hashes, reading order and extraction decisions. It does not change speech text. Paths and chapter labels may be private; incomplete detail is marked. Re-upload to inspect another source revision.",
   "help.field.existing-upload-select.what": "Reuse a book uploaded earlier instead of uploading it again.",

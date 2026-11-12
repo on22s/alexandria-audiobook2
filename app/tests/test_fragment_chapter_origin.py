@@ -135,7 +135,7 @@ class FragmentChapterOriginTests(unittest.TestCase):
                 self.assertEqual(2,len(self.groups(rows)))
                 self.assertEqual(2,len(self.groups(rows,True)))
         rows=group_into_chunks([dict(speaker='NARRATOR',text='The <quiet guide> returned.')])
-        self.assertEqual(len(rows),len(self.groups(rows)))  # Established no-heading fallback.
+        self.assertEqual(1,len(self.groups(rows)))  # No headings: one chapter (#1921).
         self.assertEqual(len(rows),len(self.groups(rows,True)))
 
     def test_quoted_labels_between_asides_cannot_bypass_original_context_admission(self):

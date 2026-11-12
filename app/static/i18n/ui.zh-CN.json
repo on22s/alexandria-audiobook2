@@ -1747,7 +1747,7 @@
   "help.field.editor-chapter-regenerate.what": "同时替换这些章节中已有音频的行。默认关闭，因此只渲染缺少音频的行。替换前会先确认。",
   "help.field.editor-chapter-selection.what": "要渲染的章节编号，格式与结果选项卡的章节框相同：用逗号分隔单个编号和范围，例如 1-3, 5。",
   "help.field.editor-quality-filter.what": "按已保存的发现、历史语音证据或缺失的检查筛选录音审阅队列。比较保留的候选不会改变音频；恢复需要明确操作。未知证据不算干净结果。",
-  "help.field.editor-repair-chapter.what": "为音频修复预览选择一个检测到的导出章节，或整本书。没有标题时，每行就是一章。",
+  "help.field.editor-repair-chapter.what": "为音频修复预览选择一个检测到的导出章节，或整本书。没有标题时，整个脚本就是一章。",
   "help.field.editor-repair-speakers.what": "选择一个或多个字面说话人标签纳入修复预览。预览会在替换音频前显示确切受影响的行。",
   "help.field.epub-extraction-report-enabled.what": "包含一个页面本地的 EPUB 导入快照，记录源哈希、阅读顺序和提取决策。它不会改变朗读文本。路径和章节标签可能是私密信息；不完整的细节会被标记。重新上传才能检查另一个源修订。",
   "help.field.existing-upload-select.what": "复用之前上传过的书，而不是再次上传。",

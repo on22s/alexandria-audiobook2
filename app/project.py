@@ -383,9 +383,57 @@ def _is_structural_text(text, max_length=80):
     return False
 
 
+# A short unterminated line that still is not a heading: a sentence cut off
+# with a dash, ellipsis or comma, or a bracketed system/status-window line.
+CONTINUATION_END_RE = re.compile(r"(?:[,;:\-\u2013\u2014]|\.\.\.|\u2026)$")
+
+
+# 第一章 / 第1話 / 第十二回 ...: the CJK counterpart of the English keyword list.
+# 回 and 部 are also everyday counters, and prose continues with a particle or
+# a counted noun ("第一回目の", "第一部隊が", "第一章は"), so a heading's counter
+# must not be followed by one of those.
+CJK_CHAPTER_HEADING_RE = re.compile(
+    r"^第\s*[0-9\uff10-\uff19一二三四五六七八九十百千零〇两兩]+\s*[章話话節节回卷部幕]"
+    r"(?![のはがをにでともへや目次隊队分門门])")
+HEADING_BRACKETS = {"[": "]", "\u3010": "\u3011", "\u300c": "\u300d", "(": ")", "\uff08": "\uff09"}
+HEADING_RULE_RE = re.compile(r"([-~\u2013\u2014\u301c\u30fb]+)\s*(.+?)\s*([-~\u2013\u2014\u301c\u30fb]+)")
+
+
+def get_heading_core(text):
+    """Text inside a matching bracket pair or between dashes on both ends."""
+    core = text.strip()
+    while len(core) > 2 and core[0] in HEADING_BRACKETS and core[-1] == HEADING_BRACKETS[core[0]]:
+        core = core[1:-1].strip()
+    framed = HEADING_RULE_RE.fullmatch(core)
+    return framed.group(2) if framed else core
+
+
+def is_keyword_chapter_heading(text):
+    """A heading named by a chapter keyword (English or CJK), even when it is
+    framed by a bracket pair or by dashes on both ends ("【第一章】", "- Chapter 1 -")."""
+    core = get_heading_core(text)
+    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core))
+
+
+def is_heading_lookalike(text):
+    """Short, unterminated, yet not a chapter title (#1921): an interrupted
+    sentence ("He was about to say -") or a status-window line ("[Status]")."""
+    stripped = text.strip()
+    return bool(CONTINUATION_END_RE.search(stripped) or (
+        stripped[:1] in "[\u3010" and stripped[-1:] in "]\u3011"))
+
+
 def is_smart_chapter_text(text):
-    """Use the existing long keyword-title policy for source and export decisions."""
-    return _is_structural_text(text, max_length=None if CHAPTER_HEADING_RE.match(text.strip()) else 80)
+    """Use the existing long keyword-title policy for source and export decisions.
+
+    A keyword heading ("Chapter 3: ...") is always eligible; any other short
+    unterminated line must not look like an interrupted sentence or a status line."""
+    stripped = text.strip()
+    if CHAPTER_HEADING_RE.match(stripped):
+        return _is_structural_text(text, max_length=None)
+    if is_keyword_chapter_heading(stripped):
+        return _is_structural_text(text, max_length=80)
+    return _is_structural_text(text, max_length=80) and not is_heading_lookalike(stripped)
 
 
 def _make_chunk(speaker, text, instruct, pause_after=None, source_indices=None,
@@ -3012,13 +3060,23 @@ class ProjectManager:
                     and chunk.get("spoken") is not True
                     and source_start is not False
                     and '"' not in text
-                    and (source_start is True or is_smart_chapter_text(text))):
+                    and (source_start is True or is_smart_chapter_text(text))
+                    # A stored source flag can predate the look-alike rule;
+                    # a keyword heading is never a look-alike.
+                    and (is_keyword_chapter_heading(text) or not is_heading_lookalike(text))):
                 heading_indices.append(i)
+        # Adjacent untitled candidates are a status window, a list or a table of
+        # contents, not consecutive chapter starts (#1921). Keyword headings stay.
+        weak = {i for i in heading_indices
+                if not is_keyword_chapter_heading(chunks[i].get("text", ""))}
+        heading_indices = [i for i in heading_indices
+                           if i not in weak or (i - 1 not in weak and i + 1 not in weak)]
 
-        # If no headings detected, fall back to per-chunk
+        # No headings: the whole script is one chapter. One chapter per line is
+        # still available on request through per_chunk_chapters (#1921).
         if not heading_indices:
-            print("  Chapters: no chapter headings detected, falling back to per-chunk chapters")
-            return self._chapter_groups(chunks, per_chunk_chapters=True)
+            print("  Chapters: no chapter headings detected; the whole script is one chapter")
+            return [("Chapter 1", 0, len(chunks) - 1)] if chunks else []
 
         groups = []
         # Pre-heading chunks → "Introduction"

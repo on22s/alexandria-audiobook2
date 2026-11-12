@@ -399,7 +399,7 @@ def get_audio_repair_options(chunks):
                          for i, (title, first, last) in enumerate(groups)],
             "speakers": sorted({get_speaker(chunk) for chunk in chunks
                                 if chunk.get("text", "").strip()}),
-            "grouping_note": "Uses export chapter detection; without headings, each line is a chapter."}
+            "grouping_note": "Uses export chapter detection; without headings, the whole script is one chapter."}
 
 
 @router.get("/api/chunks/repair_options")

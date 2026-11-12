@@ -2778,7 +2778,7 @@
   "test_chapter_export": [
     "tests.test_chapter_export.ChapterGroupingTests.test_keyword_dialogue_and_sentences_stay_inside_real_chapters",
     "tests.test_chapter_export.ChapterGroupingTests.test_long_keyword_heading_is_preserved_but_long_keyword_sentence_is_not",
-    "tests.test_chapter_export.ChapterGroupingTests.test_no_heading_fallback_and_explicit_per_chunk_are_preserved",
+    "tests.test_chapter_export.ChapterGroupingTests.test_no_heading_is_one_chapter_and_explicit_per_chunk_is_preserved",
     "tests.test_chapter_export.ChapterGroupingTests.test_punctuated_numbered_headings_preserve_m4b_and_export_audio_boundaries",
     "tests.test_chapter_export.ChapterGroupingTests.test_short_dialogue_and_complete_narration_do_not_create_chapters",
     "tests.test_chapter_export.DeferredExportCancelTests.test_cancel_between_claim_and_chapter_worker_preserves_audio_artifacts",
@@ -2821,6 +2821,17 @@
     "tests.test_chapter_export_quality.ChapterExportQualityTests.test_selected_native_fallback_and_mastered_have_one_scan_and_reuse_has_none",
     "tests.test_chapter_export_quality.ChapterExportQualityTests.test_source_edit_between_phases_rolls_back_set_and_observer_failure_stays_successful",
     "tests.test_chapter_export_quality.ChapterExportQualityTests.test_zero_exit_short_output_without_transport_cannot_publish_any_chapter"
+  ],
+  "test_chapter_heading_lookalikes": [
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_adjacent_keyword_headings_and_a_lone_untitled_heading_are_kept",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_cjk_and_decorated_keyword_headings_are_kept",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_cjk_counters_in_prose_and_loose_decoration_are_not_headings",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_editor_chapter_list_agrees",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_line_rules",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_no_headings_is_one_chapter_and_per_chunk_still_splits",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_one_chapter_excerpt_with_status_window_and_fragments_is_one_chapter",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_readalong_sections_are_the_shared_chapters",
+    "tests.test_chapter_heading_lookalikes.HeadingLookalikeTests.test_status_window_alone_does_not_split_a_headed_book"
   ],
   "test_chapter_input_safety_js": [
     "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_delete_requires_current_confirmation_and_preserves_storage_on_cancel_or_change",

@@ -85,9 +85,15 @@ class EditorBookIdentityTests(unittest.TestCase):
                     manager.apply_gap_suggestion(0, 'a', proposal['revision'])
                 self.assertEqual(before, Path(manager.chunks_path).read_bytes())
         with tempfile.TemporaryDirectory() as tmp:
+            # The next line is a chapter start, so no gap is suggested across it,
+            # although the dialogue rule alone would suggest one. A comma-ended
+            # 'Anna said,' is no longer a heading (#1921), so this uses 'Anna said'.
+            rows = [{'id':0, 'uid':'a', 'speaker':'Anna', 'text':'I will go,'},
+                    {'id':1, 'uid':'n', 'speaker':'NARRATOR', 'text':'Anna said'}]
+            self.assertEqual(120, get_dialogue_gap_suggestion(rows, 0)['pause_after'])
             manager = ProjectManager(tmp)
-            manager.save_chunks([{'id':0, 'uid':'a', 'speaker':'Anna', 'text':'I will go,'},
-                {'id':1, 'uid':'n', 'speaker':'NARRATOR', 'text':'Anna said,'}])
+            manager.save_chunks(rows)
+            self.assertEqual(2, len(manager._chapter_groups(manager.load_chunks(), False)))
             self.assertIsNone(manager.get_gap_suggestion(0)['pause_after'])
         rows = [{'uid':'a', 'speaker':'Anna', 'text':'I will go,'},
                 {'uid':'n', 'speaker':'NARRATOR', 'text':'Anna said,'}]
