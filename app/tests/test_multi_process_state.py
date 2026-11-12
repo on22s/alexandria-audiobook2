@@ -44,7 +44,7 @@ class MultiProcessStateTests(unittest.TestCase):
         its fraction into the per-book progress."""
         logs = ["Step 2 (speakers): window 2/4 done - speakers assigned",
                 "ETA: about 4m 10s left (Step 2 of 3, 7 of 13 model calls done) [eta_seconds=250 fraction=0.538]",
-                "Step 1 (split): chunk 5/5 done - from quote marks",   # an N/M after the ETA line
+                "Step 1 (split): chunk 5/5 done - from the model",   # an N/M after the ETA line
                 "Step 2 (speakers): window 3 of 4 - asking the model",
                 "  finish_reason=stop | tokens: prompt=1386 completion=2274 | took 59.1s"]
         with patch.object(core.time, "time", return_value=101.0):

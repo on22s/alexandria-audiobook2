@@ -1652,8 +1652,11 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
 STEP_NAMES = {1: "split", 2: "speakers", 3: "delivery"}
 
 
-def announce_step(step, unit, number, total):
-    print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total} - asking the model",
+def announce_step(step, unit, number, total, part=1):
+    """part > 1: a window too large for one request is sent in pieces, and a
+    Manual LLM user answers each piece, so each says which one it is (#1925)."""
+    piece = f" (part {part})" if part > 1 else ""
+    print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total}{piece} - asking the model",
           flush=True)
 
 
@@ -2916,16 +2919,20 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         params.quoted_must_be_spoken, params.unquoted_must_be_narrator)
                        for chunk, analysis in zip(chunks, quote_analyses)]
     needs_model = [regions is None for regions, _ in quote_decisions]
+    # "chunk x of n" counts only chunks that ask the model, as the ETA does (#1925).
+    model_total = sum(needs_model)
     if progress:
-        progress.set_total(1, sum(needs_model))
+        progress.set_total(1, model_total)
         progress.restore_done(1, sum(needs_model[:chunks_done]))
+    model_number = sum(needs_model[:chunks_done])
     for i in range(chunks_done, len(chunks)):
         sink = []
         failures = []
         attempts_before = len(attempts)
         by_marks = not needs_model[i]
+        model_number += needs_model[i]
         if not by_marks:
-            announce_step(1, "chunk", i + 1, len(chunks))
+            announce_step(1, "chunk", model_number, model_total)
             if progress:
                 progress.note_call_started()
         seg = []
@@ -2952,8 +2959,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                            # first model chunk gets the thinking room
                                            # the attempt before it showed.
                                            attempt_observer=observe_reasoning)
-        finish_step(1, "chunk", i + 1, len(chunks),
-                    "from quote marks" if by_marks else "from the model")
+        if by_marks:
+            print(f"Step 1 ({STEP_NAMES[1]}): chunk {i + 1} resolved from quote marks", flush=True)
+        else:
+            finish_step(1, "chunk", model_number, model_total, "from the model")
         if progress and not by_marks:
             progress.note_done(1)
             print(progress.eta_line(1), flush=True)
@@ -3058,22 +3067,27 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     in_flight = {"current": None, "attempt_start": 0}
     attribute_bounds = (get_entry_window_bounds(segmented, attribute_batch_size, attribute_target_chars)
                         if attribute_target_chars else None)
-    window_total = sum(1 for _ in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars))
-    window_number = 0
-    if progress:
-        model_total, model_done = 0, 0
-        for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars):
-            if not any(get_deterministic_named_entry(entry) is None for _, entry in indexed_batch):
-                continue
-            model_total += 1
+    # "window x of n" counts only windows that ask the model - the same windows
+    # the ETA counts - so a narration-only window is neither numbered nor
+    # totalled (#1925). Done windows still count, so a resumed run keeps its place.
+    def needs_attribution_model(indexed_batch):
+        return any(get_deterministic_named_entry(entry, cast) is None for _, entry in indexed_batch)
+
+    window_total, window_number, model_done = 0, 0, 0
+    for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars):
+        if not needs_attribution_model(indexed_batch):
+            continue
+        window_total += 1
+        if progress:
             pending = get_attribute_pending_entries(
                 indexed_batch, named, deterministic, diagnostic_failures)
             model_done += not any(index not in deterministic for index, _ in pending)
-        progress.set_total(2, model_total)
+    if progress:
+        progress.set_total(2, window_total)
         progress.restore_done(2, model_done)
     try:
         for indexed_batch in iter_unique_entry_batches(segmented, attribute_batch_size, attribute_target_chars):
-            window_number += 1
+            window_number += needs_attribution_model(indexed_batch)
             pending = get_attribute_pending_entries(
                 indexed_batch, named, deterministic, diagnostic_failures)
             # Narration alone is not work - without a line to attribute there is
@@ -3100,6 +3114,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     profile_bound=profile_bound)
 
             work = [pending]
+            part = 0
             while work:
                 current = work.pop(0)
                 batch = [entry for _, entry in current]
@@ -3132,7 +3147,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                     print(f"  Attribution request exceeds budget; subdividing {len(current)} entries")
                     work[0:0] = [current[:midpoint], current[midpoint:]]
                     continue
-                announce_step(2, "window", window_number, window_total)
+                part += 1
+                announce_step(2, "window", window_number, window_total, part)
                 if progress:
                     progress.note_call_started()
                 try:
@@ -3238,22 +3254,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             annotated[index] = {**entry, "instruct": default_instruct(entry)}
     inst_start = time.time()
     inst_base = elapsed_s.get("instruct", 0)
-    window_total = sum(1 for _ in iter_unique_entry_batches(named, target_chars=instruct_target_chars))
-    window_number = 0
+    # As in pass 2, only windows that ask the model are numbered (#1925).
+    def get_instruct_model_indices(indexed_batch):
+        return [index for index, entry in indexed_batch if not is_nonverbal_text(entry.get("text"))]
+
+    window_total, window_number, model_done = 0, 0, 0
     instruction_progress_reported = False
-    if progress:
-        model_total, model_done = 0, 0
-        for indexed_batch in iter_unique_entry_batches(named, target_chars=instruct_target_chars):
-            model_indices = [index for index, entry in indexed_batch
-                             if not is_nonverbal_text(entry.get("text"))]
-            if not model_indices:
-                continue
-            model_total += 1
+    for indexed_batch in iter_unique_entry_batches(named, target_chars=instruct_target_chars):
+        model_indices = get_instruct_model_indices(indexed_batch)
+        if not model_indices:
+            continue
+        window_total += 1
+        if progress:
             model_done += all(annotated[index] is not None for index in model_indices)
-        progress.set_total(3, model_total)
+    if progress:
+        progress.set_total(3, window_total)
         progress.restore_done(3, model_done)
     for indexed_batch in iter_unique_entry_batches(named, target_chars=instruct_target_chars):
-        window_number += 1
+        window_number += bool(get_instruct_model_indices(indexed_batch))
         pending = [(index, entry) for index, entry in indexed_batch
                    if annotated[index] is None]
         if not pending:
@@ -3270,6 +3288,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 profile_bound=profile_bound)
 
         work = [pending]
+        part = 0
         while work:
             current = work.pop(0)
             batch = [entry for _, entry in current]
@@ -3293,7 +3312,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 raise TokenBudgetError("One instruction entry plus context/output does not fit; use a capable endpoint.")
             exhausted = []
             attempt_start = len(attempts)
-            announce_step(3, "window", window_number, window_total)
+            part += 1
+            announce_step(3, "window", window_number, window_total, part)
             if progress:
                 progress.note_call_started()
             new_annotated = instruct_batch(

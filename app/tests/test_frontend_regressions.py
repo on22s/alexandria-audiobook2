@@ -357,7 +357,8 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("'script-logs', status => {", js)
         self.assertIn("}, 'script-activity');", js)
         self.assertEqual({1: "split", 2: "speakers", 3: "delivery"}, tp.STEP_NAMES)
-        self.assertIn('print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total} - asking the model"', pipeline)
+        # {piece} is " (part k)" for later pieces of a split window (#1925).
+        self.assertIn('print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total}{piece} - asking the model"', pipeline)
         self.assertIn(r"Step \d \([a-z]+\): ", js)   # the activity line's regex literal
         self.assertIn('return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"', retry)
         self.assertNotIn('print("Retrying...")', retry)
