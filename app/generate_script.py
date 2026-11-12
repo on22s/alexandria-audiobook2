@@ -18,7 +18,7 @@ from llm_provider import make_llm_client, make_run_client, merge_provider_extra_
 from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
 from llm_provider import FailoverClient, RunProfileChanged, RunRequestAdmissionError
 from chunk_quality import (validate_chunk_quality, is_trigram_only_near_miss, is_segment_near_miss,
-                           get_chunk_schema_findings)
+                           get_near_miss_rank, get_chunk_schema_findings)
 from validation_reporting import format_validation_findings
 from default_prompts import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 from dialogue_spans import apply_dialogue_map
@@ -1066,7 +1066,7 @@ def _describe_missing_spans(spans):
     message points at specific text instead of only a coverage percentage.
     Returns "" when there are no spans (message unchanged from before)."""
     clauses = [f'the passage beginning "{span["preview"]} ..." '
-               f'(about {span["token_count"]} words)'
+               f'(about {span["token_count"]} {span.get("unit", "words")})'
                for span in spans or [] if span.get("preview")]
     if not clauses:
         return ""
@@ -1648,13 +1648,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     # Same as is_trigram_only_near_miss for single-pass reports,
                     # which never carry pass 1's missing_source_run finding.
                     if near_miss_sink is not None and is_segment_near_miss(quality):
-                        # A complete answer that only reordered words beats one
-                        # that dropped a run of source words (#1921).
-                        def rank(report):
-                            dropped = any(finding.get("code") == "missing_source_run"
-                                          for finding in report.get("findings") or [])
-                            return (not dropped, report["metrics"]["ordered_trigram_recall"])
-                        if not near_miss_sink or rank(quality) > rank(near_miss_sink[0][1]):
+                        if (not near_miss_sink
+                                or get_near_miss_rank(quality) > get_near_miss_rank(near_miss_sink[0][1])):
                             near_miss_sink[:] = [(entries, quality)]
                     if attempt_record is not None:
                         attempt_record["outcome"] = "quality_rejected"

@@ -1791,11 +1791,6 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
     if entries:
         _record_resolution(resolution_sink, "clean")
         return entries
-    if near_miss and _has_missing_run(near_miss[0][1]):
-        # The model answered but kept dropping a run of source words. Before
-        # this check that answer was accepted in one call; splitting it to the
-        # 800-character floor could cost dozens more for the same warning (#1921).
-        return _resolved_near_miss(near_miss, resolution_sink)
     if (quote_analysis.get("initial_depth") or quote_analysis.get("final_depth")):
         recovery_analysis = (classify_lexical_quote_regions(chunk, quote_analysis)
                              if params.segmentation == "lexical" else quote_analysis)
@@ -1805,6 +1800,12 @@ def segment_chunk_adaptively(client, model_name, chunk, params,
                                                 quote_analysis=recovery_analysis)["passed"]):
             _record_resolution(resolution_sink, "quote_continuation_fallback")
             return regions
+    if near_miss and _has_missing_run(near_miss[0][1]):
+        # The model answered but kept dropping a run of source words, and no
+        # deterministic recovery applies. Before this check that answer was
+        # accepted in one call; splitting it to the 800-character floor could
+        # cost dozens more for the same warning (#1921).
+        return _resolved_near_miss(near_miss, resolution_sink)
     parts = split_failed_chunk(chunk)
     if not parts:
         if failure_sink is not None:

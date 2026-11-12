@@ -128,6 +128,39 @@ class MissingSourceRunRetryTests(unittest.TestCase):
         self.assertIn("guard old was a who man", " ".join(e["text"] for e in sink[0][0]))
 
 
+    def test_dropped_run_with_reordering_in_band_is_a_near_miss(self):
+        report = {"passed": False, "metrics": {"ordered_trigram_recall": 0.85},
+                  "findings": [{"code": "missing_source_run"}, {"code": "low_ordered_trigram_recall"}]}
+        self.assertTrue(is_segment_near_miss(report))
+        report["metrics"]["ordered_trigram_recall"] = 0.70
+        self.assertFalse(is_segment_near_miss(report))
+
+    def test_quote_continuation_recovery_runs_before_accepting_a_dropped_run(self):
+        """A chunk that continues an open quote has a deterministic, complete
+        recovery; a model answer that dropped words must not pre-empt it."""
+        from unittest.mock import patch
+        from pass_quality import analyze_outer_quote_regions
+        chunk = ("until the gate opened,” he said. " + PROSE + "She waited by the door. "
+                 + PROSE + "“We go now,” she answered.")
+        analysis = analyze_outer_quote_regions(chunk, initial_depth=1)
+        dropped = narration(PROSE)
+        report = validate_segment_quality(chunk, dropped, quote_analysis=analysis)
+
+        def fake_segment(*args, near_miss_sink=None, **kwargs):
+            near_miss_sink[:] = [(dropped, {**report, "passed": False,
+                                            "findings": [{"code": "missing_source_run"}]})]
+            return []
+
+        resolutions = []
+        with patch.object(tp, "segment_chunk", side_effect=fake_segment), \
+                contextlib.redirect_stdout(io.StringIO()):
+            entries = tp.segment_chunk_adaptively(
+                None, "m", chunk, LLMGenParams(max_tokens=2000, segmentation="llm"),
+                resolution_sink=resolutions, quote_analysis=analysis)
+        self.assertEqual(["quote_continuation_fallback"], resolutions)
+        self.assertIn("She waited by the door", " ".join(e["text"] for e in entries))
+
+
 class CharacterScriptTests(unittest.TestCase):
     """CJK, kana, Hangul and Thai are tokenised one character per token."""
     SENTENCE = "他缓缓站了起来，然后转身离开了房间。"
@@ -145,6 +178,8 @@ class CharacterScriptTests(unittest.TestCase):
         self.assertIn("missing_source_run", codes(report))
         self.assertEqual({"characters"}, {span["unit"] for span in report["missing_source_spans"]})
         self.assertIn("source characters still missing", tp.get_missing_run_warning(report))
+        # The retry hint uses the same unit.
+        self.assertRegex(_build_retry_feedback_message(report), r"\(about \d+ characters\)")
 
 
 if __name__ == "__main__":

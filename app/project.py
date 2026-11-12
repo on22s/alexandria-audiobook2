@@ -322,8 +322,13 @@ def is_titled_chapter_heading(text):
     match = TITLED_CHAPTER_HEADING_RE.match(label)
     # A title starts with a capital, a digit, a quote or a letter without case
     # (CJK); prose after "Section 2:" or "Part 2 -" usually starts lowercase.
-    return bool(match and len(label) <= 120 and "\n" not in label
-                and not label.endswith(".") and not match.group(1).islower())
+    if not match or len(label) > 120 or "\n" in label or match.group(1).islower():
+        return False
+    title = label[match.start(1):]
+    # Not a sentence (the shared rule: . ! ? and CJK stops), not a cut-off line
+    # ("... The Storm -"), and not a number range ("Chapter 3-5").
+    return not (is_sentence_terminated(label) or is_heading_lookalike(label)
+                or re.fullmatch(r"[\d\s,.\-\u2013\u2014]+", title))
 
 
 def is_numbered_heading(text):

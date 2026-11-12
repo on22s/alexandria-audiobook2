@@ -49,6 +49,7 @@ class TitledChapterHeadingTests(unittest.TestCase):
                      "Chapter 3. He said it was over", "Part 2 - we left at dawn",
                      "Section 2: see the appendix", "Book 3 - the one with the dragon",
                      "Act 2: curtain rises", "Book i - the dragon",
+                     "Interlude: The Storm -", "Chapter 3: He said it!", "Chapter 3-5",
                      "Chapter 3: " + "very long title " * 10):
             with self.subTest(text=text):
                 self.assertFalse(is_titled_chapter_heading(text))

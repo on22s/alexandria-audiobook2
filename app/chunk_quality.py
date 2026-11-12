@@ -201,6 +201,14 @@ def is_segment_near_miss(quality):
             and trigram >= ACCEPT_TRIGRAM_NEAR_MISS_FLOOR)
 
 
+def get_near_miss_rank(quality):
+    """Order near misses: a complete answer that only reordered words beats one
+    that dropped a run of source words; then higher trigram recall wins."""
+    dropped = any(finding.get("code") == "missing_source_run"
+                  for finding in quality.get("findings") or [])
+    return (not dropped, quality["metrics"]["ordered_trigram_recall"])
+
+
 def is_trigram_only_near_miss(quality):
     """True when a *failed* report's sole defect is ordered-trigram recall in
     [ACCEPT_TRIGRAM_NEAR_MISS_FLOOR, MIN_ORDERED_TRIGRAM_RECALL).
