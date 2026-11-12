@@ -37,6 +37,9 @@ KEEP_ENGLISH = frozenset({
     'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
+    # CSS selector naming the controls that own their keys (app-editor-review.js
+    # shortcut guard), an identifier rather than display copy.
+    'button, summary, a, audio',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',

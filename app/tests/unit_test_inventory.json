@@ -4880,6 +4880,7 @@
   ],
   "test_editor_review_js": [
     "tests.test_editor_review_js.EditorReviewJsTests.test_all_lines_view_exposes_unrendered_and_no_candidate_without_fabricated_findings",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_editor_shortcuts_leave_focused_controls_and_plain_keys_alone",
     "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_reason_copy_and_recheck_availability_are_distinct",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_receipt_is_labelled_and_never_presented_as_current",

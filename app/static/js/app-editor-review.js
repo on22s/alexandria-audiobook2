@@ -582,36 +582,37 @@ document.addEventListener('keydown', event => {
     const editorTab = document.getElementById('editor-tab');
     if (!editorTab || editorTab.style.display === 'none') { return; }
 
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) { return; }
+
+    // A focused control owns its own keys: Space activates a button, a <summary>
+    // or an <audio> player, and arrows inside them must keep working.
     const active = document.activeElement;
-    if (active && (['input', 'textarea', 'select'].includes(active.tagName.toLowerCase()) || active.isContentEditable)) {
+    const activeTag = active ? active.tagName.toLowerCase() : '';
+    if (active && (['input', 'textarea', 'select'].includes(activeTag) || active.isContentEditable
+            || (active.closest && active.closest('button, summary, a, audio')))) {
         return;
     }
 
     if (event.code === 'Space') {
-        event.preventDefault();
+        // Audition only the selected, rendered line. With nothing to play the key
+        // keeps its native meaning instead of starting whole-book playback.
         const target = getEditorReviewTarget();
-        if (target) {
-            const audio = target.row.querySelector('.chunk-audio');
-            if (audio) {
-                if (audio.paused) { audio.play(); } else { audio.pause(); }
-                return;
-            }
-        }
-        if (typeof playSequence === 'function') { playSequence(); }
+        const audio = target ? target.row.querySelector('.chunk-audio') : null;
+        if (!audio) { return; }
+        event.preventDefault();
+        if (audio.paused) { audio.play(); } else { audio.pause(); }
     } else if (event.code === 'ArrowDown' || event.code === 'ArrowUp') {
         if (!cachedChunks || !cachedChunks.length) { return; }
-        event.preventDefault();
         const target = getEditorReviewTarget();
-        let currentIndex = -1;
-        if (target) {
-            currentIndex = cachedChunks.findIndex(c => c.uid === target.chunk.uid);
-        }
+        const currentIndex = target ? cachedChunks.findIndex(c => c.uid === target.chunk.uid) : -1;
         const nextIndex = event.code === 'ArrowDown'
             ? Math.min(cachedChunks.length - 1, currentIndex + 1)
             : Math.max(0, currentIndex - 1);
-        if (nextIndex >= 0 && nextIndex < cachedChunks.length && nextIndex !== currentIndex) {
-            selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
-        }
+        if (nextIndex < 0 || nextIndex >= cachedChunks.length || nextIndex === currentIndex) { return; }
+        // Consume the key only once it moves, so scrolling and the ends of the
+        // list still behave natively.
+        event.preventDefault();
+        selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
     }
 });
 

@@ -195,6 +195,24 @@ document.getElementById('editor-line-recorded-binding').remove();context.renderE
         result = subprocess.run(['node','-e',DOM_FIXTURE+SETUP+script+"\ncompleted=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-editor-review.js'),str(STATIC/'index.html')], capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
+    def test_editor_shortcuts_leave_focused_controls_and_plain_keys_alone(self):
+        self.run_js(r'''
+function press(code,extra={}){const event={code,repeat:false,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,...extra};event.prevented=false;event.preventDefault=()=>{event.prevented=true;};for(const handler of document.listeners.keydown||[]){handler(event);}return event;}
+el('editor-tab').style.display='block';let sequences=0;context.playSequence=()=>{sequences++;};document.activeElement=document.body;
+const rowAudio=rows.get('u1').children.find(node=>node.classList.contains('chunk-audio')),playAudio=rowAudio.play;rowAudio.paused=true;rowAudio.play=async()=>{rowAudio.paused=false;return playAudio();};rowAudio.pause=()=>{rowAudio.paused=true;};
+let event=press('Space');assert.equal(event.prevented,false,'Space with nothing selected keeps its native scroll');assert.equal(sequences,0,'Space must not start whole-book playback');assert.equal(plays.length,0);
+context.selectEditorReviewLineById(1);event=press('Space');assert.equal(event.prevented,true,'Space auditions the selected line');assert.equal(plays.length,1);
+for(const tag of ['button','summary','a','audio']){const control=body.appendChild(new Element(tag,tag==='a'?{href:'#x'}:{}));control.focus();event=press('Space');assert.equal(event.prevented,false,tag+' keeps its own Space');assert.equal(plays.length,1,tag+' must not be replaced by a row audition');}
+assert.equal(sequences,0);document.activeElement=document.body;
+for(const extra of [{ctrlKey:true},{metaKey:true},{altKey:true},{shiftKey:true},{repeat:true}]){event=press('Space',extra);assert.equal(event.prevented,false,JSON.stringify(extra)+' keeps the key');assert.equal(plays.length,1);}
+context.selectEditorReviewLineById(1);document.activeElement=document.body;
+event=press('ArrowDown');assert.equal(event.prevented,false,'the last line has nowhere to go');assert.equal(run('editorReviewSelection.uid'),'u1');
+event=press('ArrowUp');assert.equal(event.prevented,true);assert.equal(run('editorReviewSelection.uid'),'u0');
+event=press('ArrowUp');assert.equal(event.prevented,false,'the first line leaves the key native');assert.equal(run('editorReviewSelection.uid'),'u0');
+const focused=body.appendChild(new Element('summary'));focused.focus();event=press('ArrowDown');assert.equal(event.prevented,false,'a focused control keeps its arrows');assert.equal(run('editorReviewSelection.uid'),'u0');
+document.activeElement=document.body;event=press('ArrowDown',{ctrlKey:true});assert.equal(event.prevented,false);assert.equal(run('editorReviewSelection.uid'),'u0');
+''')
+
     def test_input_preview_is_read_only_and_never_replaces_historical_evidence(self):
         self.run_js(r'''
 context.isEditorEditPending=()=>false;
