@@ -30,6 +30,8 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # A server message key compared in app-project-scope.js (#1919), not copy.
+    'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',

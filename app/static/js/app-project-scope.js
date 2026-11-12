@@ -1,7 +1,24 @@
 // Explicit source-scope edits reuse existing book/task admission on the server.
 let sourceScopeEpoch = 0, sourceScopeBusy = false, sourceScopePreview = null;
-let sourceScopeUndo = null, sourceScopeNextOffset = null;
+let sourceScopeUndo = null, sourceScopeNextOffset = null, sourceScopeRefreshQueued = null;
+// The scope reads refuse instead of waiting for the book lock (a deliberate
+// server guard), and other Script-tab requests hold that lock briefly - e.g.
+// the refreshes loadChunks starts after Apply. Reads retry that one refusal a
+// few times; Apply, Undo and Discard never retry (#1919).
+const SOURCE_SCOPE_READ_ATTEMPTS = 4;
+const SOURCE_SCOPE_READ_RETRY_MS = 400;
 const sourceScopeElement = id => document.getElementById('source-scope-' + id);
+
+async function getSourceScopeRead(path) {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            return await API.get(path);
+        } catch (error) {
+            if (error?.messageKey !== 'safety.book.switch_unconfirmed' || attempt >= SOURCE_SCOPE_READ_ATTEMPTS) { throw error; }
+            await new Promise(resolve => setTimeout(resolve, SOURCE_SCOPE_READ_RETRY_MS * attempt));
+        }
+    }
+}
 
 function updateSourceScopeControls() {
     for (const id of ['find', 'next', 'entry', 'preview', 'apply', 'undo', 'discard', 'search']) {
@@ -34,8 +51,14 @@ function onSourceScopePanelToggle() {
     if (sourceScopeElement('panel').open) { refreshSourceScope(); }
 }
 
+// -> true when entries and undo status were read and shown, false otherwise.
 async function refreshSourceScope(offset = 1) {
-    if (sourceScopeBusy) { return; }
+    if (sourceScopeBusy) {
+        // Run it once the current operation ends instead of dropping it.
+        sourceScopeRefreshQueued = offset;
+        return false;
+    }
+    sourceScopeRefreshQueued = null;
     invalidateSourceScopePreview(); const epoch = sourceScopeEpoch;
     const selection = window._existingUploadSelectionRequest;
     sourceScopeBusy = true; sourceScopeUndo = null; updateSourceScopeControls();
@@ -44,9 +67,9 @@ async function refreshSourceScope(offset = 1) {
         const search = encodeURIComponent(sourceScopeElement('search').value.trim());
         // One after the other: both reads take the book and file locks without
         // waiting, so two at once always refused one of them (#1919).
-        const choices = await API.get(`/api/project/scope/entries?search=${search}&offset=${offset}`);
-        const undo = await API.get('/api/project/scope/undo');
-        if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
+        const choices = await getSourceScopeRead(`/api/project/scope/entries?search=${search}&offset=${offset}`);
+        const undo = await getSourceScopeRead('/api/project/scope/undo');
+        if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return false; }
         const select = sourceScopeElement('entry'); select.replaceChildren();
         const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = t('scope.choose-first-entry', 'Choose the first entry to keep'); select.appendChild(placeholder);
         for (const row of choices.entries) {
@@ -61,10 +84,13 @@ async function refreshSourceScope(offset = 1) {
             sourceScopeElement('undo-status').textContent = t('scope.undo.none', 'No scope undo is stored.');
         }
         sourceScopeElement('feedback').textContent = t('scope.choices', '{shown} choices shown from {total} saved entries. Boundaries inside a saved chunk will be refused.', {shown: choices.entries.length, total: choices.total_entries});
+        return true;
     } catch (error) {
         sourceScopeElement('feedback').textContent = error.message;
+        return false;
     } finally {
         sourceScopeBusy = false; updateSourceScopeControls();
+        if (sourceScopeRefreshQueued !== null) { refreshSourceScope(sourceScopeRefreshQueued); }
     }
 }
 
@@ -142,7 +168,10 @@ async function previewSourceScope() {
         if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
         sourceScopePreview = plan; renderSourceScopePreview(plan); sourceScopeElement('feedback').textContent = t('scope.review-before-apply', 'Review the removed and retained text before applying.');
     } catch (error) { sourceScopeElement('feedback').textContent = error.message; }
-    finally { sourceScopeBusy = false; updateSourceScopeControls(); }
+    finally {
+        sourceScopeBusy = false; updateSourceScopeControls();
+        if (sourceScopeRefreshQueued !== null) { refreshSourceScope(sourceScopeRefreshQueued); }
+    }
 }
 
 async function runSourceScopeMutation(action) {
@@ -173,8 +202,13 @@ async function runSourceScopeMutation(action) {
             : error.message;
     } finally { sourceScopeBusy = false; updateSourceScopeControls(); }
     if (selection === window._existingUploadSelectionRequest) {
-        await refreshSourceScope();
-        if (outcome) { sourceScopeElement('feedback').textContent = outcome; }
+        const refreshed = await refreshSourceScope();
+        // A failed refresh stays visible beside the outcome: the server state
+        // changed, but the entries and undo status shown here may be stale.
+        if (outcome) {
+            const feedback = sourceScopeElement('feedback');
+            feedback.textContent = refreshed ? outcome : outcome + ' ' + feedback.textContent;
+        }
     }
 }
 
