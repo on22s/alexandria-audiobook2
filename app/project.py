@@ -388,6 +388,19 @@ def _is_structural_text(text, max_length=80):
 CONTINUATION_END_RE = re.compile(r"(?:[,;:\-\u2013\u2014]|\.\.\.|\u2026)$")
 
 
+# 第一章 / 第1話 / 第十二回 ...: the CJK counterpart of the English keyword list.
+CJK_CHAPTER_HEADING_RE = re.compile(
+    r"^第\s*[0-9\uff10-\uff19一二三四五六七八九十百千零〇两兩]+\s*[章話话節节回卷部幕]")
+HEADING_DECORATION = "[]\u3010\u3011\u300c\u300d\u2014\u2013-~\u301c\u30fb \t"
+
+
+def is_keyword_chapter_heading(text):
+    """A heading named by a chapter keyword (English or CJK), even when it is
+    decorated with brackets or dashes ("【第一章】", "- Chapter 1 -")."""
+    core = text.strip().strip(HEADING_DECORATION)
+    return bool(CHAPTER_HEADING_RE.match(core) or CJK_CHAPTER_HEADING_RE.match(core))
+
+
 def is_heading_lookalike(text):
     """Short, unterminated, yet not a chapter title (#1921): an interrupted
     sentence ("He was about to say -") or a status-window line ("[Status]")."""
@@ -404,6 +417,8 @@ def is_smart_chapter_text(text):
     stripped = text.strip()
     if CHAPTER_HEADING_RE.match(stripped):
         return _is_structural_text(text, max_length=None)
+    if is_keyword_chapter_heading(stripped):
+        return _is_structural_text(text, max_length=80)
     return _is_structural_text(text, max_length=80) and not is_heading_lookalike(stripped)
 
 
@@ -3032,12 +3047,12 @@ class ProjectManager:
                     and source_start is not False
                     and '"' not in text
                     and (source_start is True or is_smart_chapter_text(text))
-                    and (CHAPTER_HEADING_RE.match(text) or not is_heading_lookalike(text))):
+                    and (is_keyword_chapter_heading(text) or not is_heading_lookalike(text))):
                 heading_indices.append(i)
         # Adjacent untitled candidates are a status window, a list or a table of
         # contents, not consecutive chapter starts (#1921). Keyword headings stay.
         weak = {i for i in heading_indices
-                if not CHAPTER_HEADING_RE.match(chunks[i].get("text", "").strip())}
+                if not is_keyword_chapter_heading(chunks[i].get("text", ""))}
         heading_indices = [i for i in heading_indices
                            if i not in weak or (i - 1 not in weak and i + 1 not in weak)]
 

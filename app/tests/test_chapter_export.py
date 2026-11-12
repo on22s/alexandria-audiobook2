@@ -145,14 +145,15 @@ class ChapterGroupingTests(unittest.TestCase):
                     self.assertEqual(24000, rate)
                     np.testing.assert_array_equal(np.concatenate(samples[index * 2:index * 2 + 2]), actual)
 
-    def test_no_heading_fallback_and_explicit_per_chunk_are_preserved(self):
+    def test_no_heading_is_one_chapter_and_explicit_per_chunk_is_preserved(self):
+        # No headings: one chapter, not one per line (#1921); per-chunk on request.
         with tempfile.TemporaryDirectory() as tmp:
             manager = ProjectManager(tmp)
             chunks = [{'speaker': 'ALICE', 'text': 'Hello.'},
                       {'speaker': 'NARRATOR', 'text': 'It ended.'}]
-            expected = [('[ALICE] Hello.', 0, 0), ('[NARRATOR] It ended.', 1, 1)]
-            self.assertEqual(expected, manager._chapter_groups(chunks, False))
-            self.assertEqual(expected, manager._chapter_groups(chunks, True))
+            self.assertEqual([('Chapter 1', 0, 1)], manager._chapter_groups(chunks, False))
+            self.assertEqual([('[ALICE] Hello.', 0, 0), ('[NARRATOR] It ended.', 1, 1)],
+                             manager._chapter_groups(chunks, True))
 
 
 def _project(tmp):

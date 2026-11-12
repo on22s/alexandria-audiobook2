@@ -968,13 +968,10 @@ def build_sidecar_export(manager, cancel_check, progress_callback=None, *,
                                 "text": text, "start_frame": start_frame, "end_frame": end_frame,
                                 "pause_frames_after": pause_frames,
                                 "speaker": chunk.get("speaker")})
-            starts = []
-            for position, row in enumerate(entries):
-                chunk = row["chunk"]
-                start_flag = bool(chunk.get("_chapter_start") or
-                                  (chunk.get("chapter_origin") or {}).get("is_heading"))
-                if position == 0 or start_flag:
-                    starts.append(position)
+            # Sections are the chapters every other export uses (#1921): one
+            # decision, so a status window is not a section here alone.
+            starts = sorted({0} | {first for _, first, _ in manager._chapter_groups(
+                [row["chunk"] for row in entries], False)}) if entries else []
             for position, row in enumerate(entries):
                 row["section"] = f"sec-{len([p for p in starts if p <= position]):04d}"
                 status, words = "missing", None

@@ -78,6 +78,66 @@ class HeadingLookalikeTests(unittest.TestCase):
         self.assertEqual(len(chunks), len(per_line))
         self.assertEqual([], ProjectManager(tempfile.gettempdir())._chapter_groups([], False))
 
+    def test_cjk_and_decorated_keyword_headings_are_kept(self):
+        """Bracketed or dashed keyword headings are chapters, not status lines."""
+        for text in ("第一章", "【第一章】", "[第1話]",
+                     "第十二回 旅立ち", "- Chapter 1 -",
+                     "— Chapter 1 —", "[Chapter 1]"):
+            with self.subTest(text=text):
+                self.assertTrue(project.is_keyword_chapter_heading(text))
+                self.assertTrue(is_smart_chapter_text(text))
+        for text in ("[Status Window]", "[1]", "Lv: 1"):
+            with self.subTest(text=text):
+                self.assertFalse(project.is_keyword_chapter_heading(text))
+        cjk_prose = "彼は静かに扉を開けて中に入った。" * 3
+        entries = [narrator("【第一章】"), narrator("旅立ち"), narrator(cjk_prose),
+                   narrator("[第2話]"), narrator(cjk_prose)]
+        _, groups = groups_for(entries)
+        titles = [title for title, _, _ in groups]
+        self.assertIn("【第一章】", titles)
+        self.assertIn("[第2話]", titles)
+
+    def test_readalong_sections_are_the_shared_chapters(self):
+        """The sidecar used stored heading flags, so a status window became its
+        own sections there alone (Rule 15). It now uses _chapter_groups."""
+        import json
+        from pathlib import Path
+        from pydub import AudioSegment
+        from readalong_export import build_sidecar_export, get_sidecar_output_path
+        entries = [narrator("Chapter 1"), narrator(PROSE), narrator("Lv: 1"), narrator("Race: Human"),
+                   narrator(PROSE), narrator("Chapter 2"), narrator(PROSE)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            chunks = group_into_chunks(entries)
+        self.assertTrue(any((c.get("chapter_origin") or {}).get("is_heading")
+                            for c in chunks if c["text"].startswith("Lv")),
+                        "fixture must carry the stored heading flag that misled the sidecar")
+        for i, chunk in enumerate(chunks):
+            chunk.update(id=i, uid=f"u{i}", audio_path=f"clip{i}.wav", audio_revision=f"r{i}")
+
+        def clip():
+            return AudioSegment(data=b"\x00\x20" * 2400, sample_width=2, frame_rate=24000, channels=1)
+
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            manager = ProjectManager(tmp)
+            (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
+            book = Path(tmp) / "book.txt"; book.write_bytes(b"Synthetic book.")
+            (Path(tmp) / "state.json").write_text(json.dumps({"input_file_path": str(book)}), encoding="utf-8")
+            (Path(tmp) / "annotated_script.json").write_text("[]", encoding="utf-8")
+            manager._load_chunks_with_audio = lambda **kwargs: ([(chunk, clip()) for chunk in chunks], 0)
+            manager._load_pause_defaults = lambda: (10, 10)
+            manager.load_chunks = lambda: chunks
+            (Path(tmp) / "cloned_audiobook.mp3").write_bytes(b"mp3")
+            ok, message = build_sidecar_export(manager, lambda: False, includes_text=False,
+                                               audio_path=str(Path(tmp) / "cloned_audiobook.mp3"))
+            self.assertTrue(ok, message)
+            data = json.loads(Path(get_sidecar_output_path(tmp)).read_text(encoding="utf-8"))
+        expected = manager._chapter_groups(chunks, False)
+        self.assertEqual(["Chapter 1", "Chapter 2"], [title for title, _, _ in expected])
+        self.assertEqual(len(expected), len(data["sections"]))
+        starts = [next(e["index"] for e in data["entries"] if e["section"] == section["id"])
+                  for section in data["sections"]]
+        self.assertEqual([first for _, first, _ in expected], starts)
+
     def test_editor_chapter_list_agrees(self):
         from routers import editor
         entries = [narrator(PROSE), narrator("Lv: 1"), narrator("Race: Human"), narrator(PROSE)]
