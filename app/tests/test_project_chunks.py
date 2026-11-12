@@ -713,13 +713,13 @@ class InvalidExportAudioPathTests(unittest.TestCase):
             self.assertTrue(ok, message)
             self.assertIn("6 chunk(s) skipped", message)
             manifest = json.loads(Path(manager.root_dir, "chapter_exports", "manifest.json").read_text())
-            self.assertEqual(2, len(manifest["chapters"]))
+            # No headings: one chapter holding both decodable clips (#1921).
+            self.assertEqual(1, len(manifest["chapters"]))
             ok, message = manager.export_chapters(fmt="wav", changed_only=True)
             self.assertTrue(ok, message)
             self.assertIn("6 chunk(s) skipped", message)
-            for row in manifest["chapters"]:
-                chapter = Path(manager.root_dir, "chapter_exports", row["file"])
-                self.assertEqual(200, len(AudioSegment.from_file(str(chapter))))
+            chapter = Path(manager.root_dir, "chapter_exports", manifest["chapters"][0]["file"])
+            self.assertGreaterEqual(len(AudioSegment.from_file(str(chapter))), 400)
             for path, data in before.items():
                 self.assertEqual(data, path.read_bytes(), str(path))
 
