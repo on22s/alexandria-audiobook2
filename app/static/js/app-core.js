@@ -940,7 +940,12 @@
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                activateTab(e.currentTarget.dataset.tab);
+                // A nav-link without a data-tab belongs to something else — the
+                // Advanced dropdown toggle. getTabLink(undefined) would happily
+                // match it, so it must never reach the navigation logic.
+                const tab = e.currentTarget.dataset.tab;
+                if (!tab) { return; }
+                activateTab(tab);
             });
         });
         window.addEventListener('popstate', onTabHistoryChange);

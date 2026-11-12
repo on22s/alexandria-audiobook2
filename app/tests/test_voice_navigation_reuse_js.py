@@ -327,15 +327,23 @@ c.ctx.voiceSaveQueue.flush=()=>Promise.resolve();pending=c.ctx.loadVoices(false)
 
     def test_real_navigation_requests_reuse_and_regular_call_still_forces(self):
         self.run_js(r"""
-const c=client(),loads=[];let handler;
+const c=client(),loads=[];let handler,toggleHandler;
 const dropdownClasses=new Set();let inAdvanced=false;
 const dropdown={classList:{add:name=>dropdownClasses.add(name),remove:name=>dropdownClasses.delete(name)}};
 const link={dataset:{tab:'voices'},closest:()=>inAdvanced?{}:null,classList:{remove(){},add(){}},removeAttribute(){},setAttribute(){},addEventListener(name,fn){assert.strictEqual(name,'click');handler=fn;}};
-c.ctx.document.querySelectorAll=selector=>selector==='.nav-link'?[link]:[{style:{}}];c.ctx.document.getElementById=id=>id==='advancedNavDropdown'?dropdown:{style:{},classList:{contains:()=>false}};c.ctx.rememberTab=()=>{};c.ctx.loadVoices=(...args)=>loads.push(args);
+// The Advanced dropdown toggle is a .nav-link with no data-tab.
+const toggleLink={dataset:{},classList:{remove(){},add(){}},removeAttribute(){},setAttribute(){},addEventListener(name,fn){assert.strictEqual(name,'click');toggleHandler=fn;}};
+c.ctx.document.querySelectorAll=selector=>selector==='.nav-link'?[link,toggleLink]:[{style:{}}];c.ctx.document.getElementById=id=>id==='advancedNavDropdown'?dropdown:{style:{},classList:{contains:()=>false}};c.ctx.rememberTab=()=>{};c.ctx.loadVoices=(...args)=>loads.push(args);
 c.ctx.window=c.ctx;c.ctx.location={hash:'#setup'};c.ctx.history={pushState:(_s,_t,hash)=>c.ctx.location.hash=hash};c.ctx.addEventListener=()=>{};
 const a=source.indexOf('const TAB_STORAGE_KEY =');const b=source.indexOf('// --- LLM model picker:',a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),c.ctx);
 handler({preventDefault(){},currentTarget:link});assert.strictEqual(loads.length,1);assert.strictEqual(loads[0][0],false,'navigation must request refreshResources=false (reuse)');assert(loads[0][1]==null,'ordinary navigation passes neutral absent/null options');
 assert(!dropdownClasses.has('active'));
 inAdvanced=true;handler({preventDefault(){},currentTarget:link});assert(dropdownClasses.has('active'),'a dropdown child highlights its parent');
 inAdvanced=false;handler({preventDefault(){},currentTarget:link});assert(!dropdownClasses.has('active'),'a primary tab clears the parent highlight');
+assert(toggleHandler,'the loop also sees the tab-less Advanced toggle');
+const before=loads.length,hashBefore=c.ctx.location.hash;let prevented=false;
+toggleHandler({preventDefault(){prevented=true;},currentTarget:toggleLink});
+assert(prevented,'the toggle still suppresses the hash jump Bootstrap does not own');
+assert.strictEqual(loads.length,before,'a nav-link with no data-tab must never navigate');
+assert.strictEqual(c.ctx.location.hash,hashBefore,'a nav-link with no data-tab must never move the history');
 """)
