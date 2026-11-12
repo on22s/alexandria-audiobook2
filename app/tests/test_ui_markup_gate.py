@@ -30,6 +30,9 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # KeyboardEvent.code values and the editor pane id are identifiers in the
+    # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
+    'Space', 'ArrowDown', 'ArrowUp', 'editor-tab',
     # A server message key compared in app-project-scope.js (#1919), not copy.
     'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.

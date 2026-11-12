@@ -29,6 +29,8 @@ I18N = STATIC / 'i18n'
 LOCALES = ('zh-CN', 'ja', 'es-419')
 
 SETUP_KEYS = (
+    'setup.overview.essential',
+    'setup.overview.advanced',
     'setup.header.title',
     'setup.llm.llm-mode.label',
     'setup.llm.llm-mode.option.local',
@@ -49,6 +51,12 @@ SHELL_KEYS = (
 HTML_KEY = 'setup.strategy.tp-segmentation.help'
 SAFETY_KEY = 'safety.voice.clone_unmeasured'
 PLACEHOLDER_KEY = 'setup.limits.llm-context-length.placeholder'
+ATTRIBUTE_KEYS = (
+    ('input', 'placeholder', PLACEHOLDER_KEY),
+    ('a', 'title', 'shell.nav.advanced.title'),
+    ('optgroup', 'label', 'setup.overview.essential'),
+    ('optgroup', 'label', 'setup.overview.advanced'),
+)
 
 PREAMBLE = r'''
 Element.prototype.append=function(...children){for(const child of children){this.appendChild(child);}};
@@ -127,19 +135,21 @@ class SetupShellRenderTests(unittest.TestCase):
         self.run_js(self.paint_all_locales(SHELL_KEYS))
 
     def test_a_keyed_placeholder_attribute_follows_the_locale(self):
-        self.assert_translated((PLACEHOLDER_KEY,))
-        expected = {locale: self.catalogs[locale][PLACEHOLDER_KEY] for locale in LOCALES}
-        expected['en'] = self.english[PLACEHOLDER_KEY]
-        self.run_js(
-            self.catalogs_js([PLACEHOLDER_KEY]) + '\n'
-            + f"const input=body.appendChild(new Element('input',{{'data-i18n-attr':{js('placeholder:' + PLACEHOLDER_KEY)}}}));\n"
-            + f"input.setAttribute('placeholder',{js(self.english[PLACEHOLDER_KEY])});\n"
-            + "const seen={};\n"
-            + "for(const locale of ['zh-CN','ja','es-419','en']){\n"
-            + " context.applyUiLocale(locale);\n"
-            + " seen[locale]=input.getAttribute('placeholder');\n"
-            + "}\n"
-            + f"assert.deepStrictEqual(seen,{js(expected)});")
+        for tag, attribute, key in ATTRIBUTE_KEYS:
+            with self.subTest(attribute=attribute, key=key):
+                self.assert_translated((key,))
+                expected = {locale: self.catalogs[locale][key] for locale in LOCALES}
+                expected['en'] = self.english[key]
+                self.run_js(
+                    self.catalogs_js([key]) + '\n'
+                    + f"const input=body.appendChild(new Element({js(tag)},{{'data-i18n-attr':{js(attribute + ':' + key)}}}));\n"
+                    + f"input.setAttribute({js(attribute)},{js(self.english[key])});\n"
+                    + "const seen={};\n"
+                    + "for(const locale of ['zh-CN','ja','es-419','en']){\n"
+                    + " context.applyUiLocale(locale);\n"
+                    + f" seen[locale]=input.getAttribute({js(attribute)});\n"
+                    + "}\n"
+                    + f"assert.deepStrictEqual(seen,{js(expected)});")
 
     def test_a_markup_paragraph_keeps_its_tags_and_restores_english(self):
         for locale in LOCALES:
@@ -222,7 +232,8 @@ class MarkupKeyingTests(unittest.TestCase):
         for key in SETUP_KEYS + SHELL_KEYS + (SAFETY_KEY,):
             with self.subTest(key=key):
                 self.assertIn(f'data-i18n="{key}"', self.markup)
-        self.assertIn(f'data-i18n-attr="placeholder:{PLACEHOLDER_KEY}"', self.markup)
+        for _tag, attribute, key in ATTRIBUTE_KEYS:
+            self.assertIn(f'data-i18n-attr="{attribute}:{key}"', self.markup)
         self.assertIn(f'data-i18n-html="{HTML_KEY}"', self.markup)
 
     def test_every_sampled_p4_key_is_translated_in_every_locale(self):

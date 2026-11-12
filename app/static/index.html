@@ -1100,7 +1100,7 @@
                     <li class="nav-item"><a href="#editor" class="nav-link nav-pipeline" data-tab="editor"><span data-i18n="shell.nav.editor">4. Editor</span></a></li>
                     <li class="nav-item"><a href="#audio" class="nav-link nav-pipeline" data-tab="audio"><span data-i18n="shell.nav.result">5. Result</span></a></li>
                     <li class="nav-item dropdown ms-lg-2">
-                        <a class="nav-link dropdown-toggle nav-advanced" href="#" id="advancedNavDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Open advanced tools: Designer, Casting, Preparer, Dataset, Training, Voice Lab, and Reports"><span data-i18n="shell.nav.advanced">Advanced</span></a>
+                        <a class="nav-link dropdown-toggle nav-advanced" href="#" id="advancedNavDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-attr="title:shell.nav.advanced.title" title="Open advanced tools: Designer, Casting, Preparer, Dataset, Training, Voice Lab, and Reports"><span data-i18n="shell.nav.advanced">Advanced</span></a>
                         <ul class="dropdown-menu shadow" aria-labelledby="advancedNavDropdown">
                             <li><a data-i18n="shell.nav.designer" href="#designer" class="dropdown-item nav-link nav-advanced" data-tab="designer">Designer</a></li>
                             <li><a data-i18n="shell.nav.casting" href="#casting" class="dropdown-item nav-link nav-advanced" data-tab="casting">Casting</a></li>
@@ -1228,11 +1228,11 @@
                         <p data-i18n="setup.overview.choose-an-area-to-work-on" class="small text-muted">Choose an area to work on.</p>
                         <div class="settings-mobile"><label data-i18n="setup.overview.category.label" class="form-label" for="setup-settings-category">Settings category</label>
                         <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)">
-                            <optgroup label="Essential Setup">
+                            <optgroup data-i18n-attr="label:setup.overview.essential" label="Essential Setup">
                                 <option value="settings-llm" data-i18n="setup.overview.category.option.llm">Connection</option>
                                 <option value="settings-tts" data-i18n="setup.overview.category.option.tts">Speech engine</option>
                             </optgroup>
-                            <optgroup label="Advanced Tuning">
+                            <optgroup data-i18n-attr="label:setup.overview.advanced" label="Advanced Tuning">
                                 <option value="settings-limits" data-i18n="setup.overview.category.option.limits">Limits &amp; retries</option>
                                 <option value="settings-audio" data-i18n="setup.overview.category.option.audio">Audio &amp; timing</option>
                                 <option value="settings-generation" data-i18n="setup.overview.category.option.generation">Generation</option>
@@ -1241,10 +1241,10 @@
                             </optgroup>
                         </select></div>
                         <nav data-i18n-attr="aria-label:setup.overview.aria-label" class="settings-categories" aria-label="Setup categories">
-                            <div class="small text-uppercase fw-semibold text-muted px-2 pt-1 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;">Essential Setup</div>
+                            <div data-i18n="setup.overview.essential" class="small text-uppercase fw-semibold text-muted px-2 pt-1 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;">Essential Setup</div>
                             <button type="button" class="settings-category" data-settings-target="settings-llm" aria-controls="settings-llm" aria-current="true" onclick="openSetupSettingsSection('settings-llm')"><i class="fas fa-plug" aria-hidden="true"></i><span><strong data-i18n="setup.overview.connection">Connection</strong><small data-i18n="setup.overview.server-model-credentials">Server, model &amp; credentials</small></span></button>
                             <button type="button" class="settings-category" data-settings-target="settings-tts" aria-controls="settings-tts" aria-current="false" onclick="openSetupSettingsSection('settings-tts')"><i class="fas fa-microphone" aria-hidden="true"></i><span><strong data-i18n="setup.overview.speech-engine">Speech engine</strong><small data-i18n="setup.overview.local-model-or-external-server">Local model or external server</small></span></button>
-                            <div class="small text-uppercase fw-semibold text-muted px-2 pt-3 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;border-top:1px solid var(--border-input);margin-top:0.5rem;">Advanced Tuning</div>
+                            <div data-i18n="setup.overview.advanced" class="small text-uppercase fw-semibold text-muted px-2 pt-3 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;border-top:1px solid var(--border-input);margin-top:0.5rem;">Advanced Tuning</div>
                             <button type="button" class="settings-category" data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong data-i18n="setup.overview.limits-retries">Limits &amp; retries</strong><small data-i18n="setup.overview.context-timeouts-recovery">Context, timeouts &amp; recovery</small></span></button>
                             <button type="button" class="settings-category" data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong data-i18n="setup.overview.audio-timing">Audio &amp; timing</strong><small data-i18n="setup.overview.batches-takes-pauses">Batches, takes &amp; pauses</small></span></button>
                             <button type="button" class="settings-category" data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong data-i18n="setup.overview.generation">Generation</strong><small data-i18n="setup.overview.token-budgets-sampling">Token budgets &amp; sampling</small></span></button>
@@ -3521,7 +3521,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
-                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i>Space: Play | &uarr;&darr;: Navigate</span>
+                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate</span></span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>

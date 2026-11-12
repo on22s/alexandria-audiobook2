@@ -31,6 +31,7 @@ I18N = STATIC / 'i18n'
 LOCALES = ('zh-CN', 'ja', 'es-419')
 
 MARKUP_KEYS = (
+    'editor.toolbar.shortcuts',
     'editor.header.title',
     'editor.queue.title',
     'editor.toolbar.merge-all',
@@ -252,6 +253,7 @@ class EditorAudioKeyingTests(unittest.TestCase):
         for key in MARKUP_KEYS:
             with self.subTest(key=key):
                 self.assertIn(f'data-i18n="{key}"', self.markup)
+        self.assertIn('data-i18n-attr="title:editor.toolbar.shortcuts.title"', self.markup)
         self.assertIn(f'data-i18n-attr="placeholder:{PLACEHOLDER_KEY}"', self.markup)
         self.assertIn(f'data-i18n="{SAFETY_MARKUP_KEY}"', self.markup)
 
