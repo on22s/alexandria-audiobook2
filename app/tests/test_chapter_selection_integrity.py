@@ -102,11 +102,19 @@ class ChapterSelectionIntegrityTests(unittest.TestCase):
                 manager, rows = self.create_project(root)
                 (root / rows[1]['audio_path']).write_bytes(b'not media')
                 self.assertFalse(manager.is_chunk_audio_available(rows[1]))
-                self.assertEqual('Chapter 3', manager.preview_chapter_filenames(fmt='wav', chapters=[1])[0]['title'])
+                # Book numbering (#1921): chapter 2 has no audio, so selecting it is
+                # refused by number and chapter 3 keeps its own number, 3.
+                with self.assertRaisesRegex(ValueError, r'No generated audio for chapter\(s\) 2\.'):
+                    manager.preview_chapter_filenames(fmt='wav', chapters=[1])
+                self.assertEqual('Chapter 3', manager.preview_chapter_filenames(fmt='wav', chapters=[2])[0]['title'])
+                self.assertEqual(3, manager.preview_chapter_filenames(fmt='wav', chapters=[2])[0]['number'])
                 scope = (patch.object(manager, '_get_chapter_decoder_codes', return_value=(None,))
                          if fallback else contextlib.nullcontext())
                 with scope:
-                    result = manager.export_chapters(fmt='wav', chapters=[1])
+                    refused = manager.export_chapters(fmt='wav', chapters=[1])
+                    self.assertFalse(refused[0], refused)
+                    self.assertIn('No generated audio for chapter(s) 2.', refused[1])
+                    result = manager.export_chapters(fmt='wav', chapters=[2])
                 self.assertTrue(result[0], result)
                 manifest = json.loads((root / CHAPTER_EXPORT_DIR / 'manifest.json').read_text())
                 self.assertEqual(['Chapter 3'], [row['title'] for row in manifest['chapters']])
@@ -116,20 +124,26 @@ class ChapterSelectionIntegrityTests(unittest.TestCase):
             root = Path(tmp)
             manager, rows = self.create_project(root)
             self.assertTrue(manager.export_chapters(fmt='wav')[0])
+            first = json.loads((root / CHAPTER_EXPORT_DIR / 'manifest.json').read_text())
+            original = next(row for row in first['chapters'] if row['title'] == 'Chapter 3')
             bad = root / rows[1]['audio_path']
             stat = bad.stat()
             bad.write_bytes(b'x' * stat.st_size)
             os.utime(bad, ns=(stat.st_atime_ns, stat.st_mtime_ns))
             self.assertFalse(manager.is_chunk_audio_available(rows[1]))
-            preview = manager.preview_chapter_filenames(fmt='wav', chapters=[1], changed_only=True)
-            self.assertEqual('Chapter 3', preview[0]['title'])
+            # Book numbering (#1921): chapter 3 is selected as 3 whether or not
+            # chapter 2 has audio, so the selection cannot rebind to another chapter.
+            # Chapter 3's audio did not change, so changed-only has nothing to rewrite.
+            preview = manager.preview_chapter_filenames(fmt='wav', chapters=[2], changed_only=True)
+            self.assertEqual([], preview)
             with patch.object(manager, '_get_chapter_decoder_codes', return_value=(None,)):
-                result = manager.export_chapters(fmt='wav', chapters=[1], changed_only=True)
+                result = manager.export_chapters(fmt='wav', chapters=[2], changed_only=True)
             self.assertTrue(result[0], result)
             manifest = json.loads((root / CHAPTER_EXPORT_DIR / 'manifest.json').read_text())
-            selected = next(row for row in manifest['chapters'] if row['index'] == 1)
+            selected = next(row for row in manifest['chapters'] if row['index'] == 2)
             self.assertEqual('Chapter 3', selected['title'])
-            self.assertEqual(preview[0]['file'], selected['file'])
+            self.assertEqual(original['file'], selected['file'])
+            self.assertEqual(original['output_sha256'], selected['output_sha256'])
 
     def test_all_chapter_export_keeps_its_partial_export_warning(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):

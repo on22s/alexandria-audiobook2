@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from tests.export_quality_assertions import stable_chapter_evidence
-from project import CHAPTER_EXPORT_DIR
+from project import CHAPTER_EXPORT_DIR, CHAPTER_PLAN_VERSION
 from pydub import AudioSegment
 from tests import test_chapter_render_memory as fixtures
 
@@ -100,7 +100,7 @@ class ChapterPlanOffsetTests(unittest.TestCase):
             self.assertIn('2 chapter file(s) written', message)
             self.assertEqual([['row0', 'row1', 'row2'], ['row3', 'row4', 'row5']],
                              [[row['uid'] for row in group] for group in loads])
-            self.assertEqual(1, self.get_manifest(root)['chapter_plan_version'])
+            self.assertEqual(CHAPTER_PLAN_VERSION, self.get_manifest(root)['chapter_plan_version'])
             with patch.object(manager, '_load_chunks_with_audio', side_effect=AssertionError('unexpected decode')):
                 ok, message = manager.export_chapters(fmt='wav', changed_only=True)
             self.assertTrue(ok, message)

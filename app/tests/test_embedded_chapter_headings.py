@@ -33,7 +33,8 @@ class EmbeddedStructuralHeadingTests(unittest.TestCase):
                 self.assertEqual([(heading, 0, len(chunks)-1)], manager._chapter_groups(chunks, False))
                 self.assertEqual(heading, manager._get_chapter_export_plans(chunks, {
                     'per_chunk_chapters': False, 'template': '{chapter_name}', 'format': 'wav',
-                    'padding': 2, 'book_name': '', 'series_name': '', 'volume_number': ''}, (0, 0))[0]['title'])
+                    'padding': 2, 'book_name': '', 'series_name': '', 'volume_number': ''}, (0, 0),
+                    book=chunks)[0]['title'])
                 timeline = [(chunk, bytes(1000), index * 1000) for index, chunk in enumerate(chunks)]
                 self.assertEqual([(heading, 0, len(chunks) * 1000)],
                                  manager._build_m4b_chapters(timeline, False))

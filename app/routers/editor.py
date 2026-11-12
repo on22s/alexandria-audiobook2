@@ -65,7 +65,7 @@ from editor_review_facts import get_editor_review_facts
 from speech_verification_receipt import get_speech_verification_chunk_view
 from utils import safe_load_json, is_path_inside
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
-                     DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_index_selection,
+                     DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_chapter_selection, get_index_selection,
                      get_chunk_generation_requests, get_playback_pause_plan,
                      get_playback_trim_plan, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
@@ -1735,7 +1735,8 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
                 template=request.template, padding=request.padding,
                 book_name=request.book_name, series_name=request.series_name,
                 volume_number=request.volume_number)
-            chapters = get_index_selection(chapters, len(preview))
+            # Book chapter numbers: a chapter is selectable once it has audio (#1921).
+            chapters = get_chapter_selection(chapters, {row["number"] - 1 for row in preview})
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     state = process_state["chapter_export"]

@@ -3832,87 +3832,6 @@
                                     </div>
                                 </div>
                             </div>
-                            <a class="text-decoration-none d-block mt-3" data-bs-toggle="collapse" href="#chapter-options" role="button" aria-expanded="false">
-                                <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.title">Chapter-by-Chapter Export</span> <i class="fas fa-chevron-down fa-xs ms-1"></i>
-                            </a>
-                            <div class="collapse mt-2" id="chapter-options">
-                                <div class="border rounded p-3 text-start" style="background: var(--bg-card-header);">
-                                    <div class="row g-2">
-                                        <div class="col-md-8">
-                                            <label class="form-label small mb-1" for="chapter-template" data-i18n="audio.chapters.template-label">Filename template</label>
-                                            <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
-                                            <div class="form-text" data-i18n="audio.chapters.fields-help">Fields: {chapter_number} {chapter_name} {book_name} {series_name} {volume_number}. The extension is added for you.</div>
-                                            <div class="input-group input-group-sm mt-1">
-                                                <label class="visually-hidden" for="chapter-template-preset" data-i18n="audio.chapters.preset-label">Chapter filename preset</label><select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="" data-i18n="audio.chapters.saved-presets">Saved presets</option></select>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()" data-i18n="audio.chapters.save-preset">Save preset</button>
-                                                <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()" data-i18n="audio.chapters.delete">Delete</button>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()" data-i18n="audio.chapters.export">Export</button>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()" data-i18n="audio.chapters.import">Import</button>
-                                                <input type="file" id="chapter-preset-import" data-i18n-attr="aria-label:audio.chapters.import-aria" aria-label="Import chapter filename presets" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-padding" data-i18n="audio.chapters.padding-label">Number padding</label>
-                                            <select class="form-select form-select-sm" id="chapter-padding">
-                                                <option value="0">1</option><option value="2" selected>01</option><option value="3">001</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-format" data-i18n="audio.chapters.format-label">Format</label>
-                                            <select class="form-select form-select-sm" id="chapter-format">
-                                                <option value="mp3" selected>MP3</option><option value="wav">WAV</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-book-name" data-i18n="audio.chapters.book-name">Book name</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-book-name" data-i18n-attr="placeholder:audio.chapters.book-name-placeholder" placeholder="for {book_name}">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-series-name" data-i18n="audio.chapters.series-name">Series name</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-series-name" data-i18n-attr="placeholder:audio.chapters.series-name-placeholder" placeholder="for {series_name}">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label small mb-1" for="chapter-volume" data-i18n="audio.chapters.volume">Volume</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-volume" placeholder="3">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label small mb-1" for="chapter-selection" data-i18n="audio.chapters.selection">Chapters (optional)</label>
-                                            <input type="text" class="form-control form-control-sm" id="chapter-selection" placeholder="1, 3, 5-7">
-                                        </div>
-                                        <div class="col-md-2 d-flex flex-column justify-content-end">
-                                            <label class="form-check d-inline-flex align-items-center mb-1" data-i18n-attr="title:audio.chapters.per-chunk-title" title="Same chapter detection as the M4B export">
-                                                <input type="checkbox" class="form-check-input me-1" id="chapter-per-chunk">
-                                                <small class="text-muted" data-i18n="audio.chapters.per-chunk">Per-chunk</small>
-                                            </label>
-                                            <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.changed-only-title" title="Skip chapters whose audio has not changed since they were last exported">
-                                                <input type="checkbox" class="form-check-input me-1" id="chapter-changed-only" aria-describedby="chapter-changed-only-help" checked>
-                                                <small class="text-muted" data-i18n="audio.chapters.changed-only">Changed only</small>
-                                            </label>
-                                            <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.require-ready-title" title="Refuse export until every speaker is marked ready">
-                                                <input type="checkbox" class="form-check-input me-1" id="chapter-require-ready">
-                                                <small class="text-muted" data-i18n="audio.chapters.require-ready">Require ready</small>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div class="form-text" id="chapter-changed-only-help" data-i18n="audio.chapters.changed-only-help">Changed only exports chapters whose audio changed since the last export. Turn it off for a complete set of the selected chapters. Preview filenames shows how many files would be written.</div>
-                                    <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
-                                        <button class="btn btn-outline-secondary btn-sm" type="button" id="chapter-preview-btn">
-                                            <i class="fas fa-eye me-1"></i><span data-i18n="audio.chapters.preview">Preview names</span>
-                                        </button>
-                                        <button class="btn btn-outline-success btn-sm" type="button" id="chapter-export-btn">
-                                            <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.export-chapters">Export chapters</span>
-                                        </button>
-                                        <button class="btn btn-outline-danger btn-sm" type="button" id="chapter-cancel-btn" style="display:none;">
-                                            <i class="fas fa-stop me-1"></i><span data-i18n="audio.chapters.cancel">Cancel</span>
-                                        </button>
-                                        <a class="btn btn-outline-dark btn-sm" id="chapter-zip-link" href="/api/chapter_exports/zip" download="chapters.zip" style="display:none;">
-                                            <i class="fas fa-file-archive me-1"></i><span data-i18n="audio.chapters.download-all">Download all (zip)</span>
-                                        </a>
-                                        <span id="chapter-status" class="small d-inline-block"></span>
-                                    </div>
-                                    <div id="chapter-list" class="mt-2 small"></div>
-                                </div>
-                            </div>
                             <details id="readalong-options" class="workflow-disclosure mt-3 text-start">
                                 <summary data-i18n="audio.readalong.title">Read-along sidecar (synchronized text)</summary>
                                 <p class="small mt-2" data-i18n="audio.readalong.intro">Builds a JSON sidecar bound to a fresh MP3 that this build makes itself from your current Editor rows and your current settings — no Merge All needed first. It uses the existing frame-exact timeline and, when available, the same word timings as the Editor; timings it cannot qualify stay marked missing or ambiguous. Ordinary MP3 exports do not include this file. You need three downloads to listen: the sidecar, the matching MP3 below, and the player.</p>
@@ -3966,6 +3885,90 @@
                                 </div>
                                 <p id="readaloud-status" class="small mt-2" role="status" aria-live="polite" data-i18n="audio.readaloud.status-default">Build an EPUB read-aloud when you are ready. It needs this book’s retained source EPUB (re-upload the EPUB if this book predates retention).</p>
                             </details>
+                        </div>
+                    </div>
+                    <!-- Chapter files need only generated line audio, not Merge All (#1921). -->
+                    <div id="chapter-export-section" class="text-center">
+                        <a class="text-decoration-none d-block mt-3" data-bs-toggle="collapse" href="#chapter-options" role="button" aria-expanded="false">
+                            <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.title">Chapter-by-Chapter Export</span> <i class="fas fa-chevron-down fa-xs ms-1"></i>
+                        </a>
+                        <div class="collapse mt-2" id="chapter-options">
+                            <div class="border rounded p-3 text-start" style="background: var(--bg-card-header);">
+                                <div class="row g-2">
+                                    <div class="col-md-8">
+                                        <label class="form-label small mb-1" for="chapter-template" data-i18n="audio.chapters.template-label">Filename template</label>
+                                        <input type="text" class="form-control form-control-sm font-monospace" id="chapter-template" value="{chapter_number} - {chapter_name}">
+                                        <div class="form-text" data-i18n="audio.chapters.fields-help">Fields: {chapter_number} {chapter_name} {book_name} {series_name} {volume_number}. The extension is added for you.</div>
+                                        <div class="input-group input-group-sm mt-1">
+                                            <label class="visually-hidden" for="chapter-template-preset" data-i18n="audio.chapters.preset-label">Chapter filename preset</label><select class="form-select" id="chapter-template-preset" onchange="loadChapterTemplatePreset(this.value)"><option value="" data-i18n="audio.chapters.saved-presets">Saved presets</option></select>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="saveChapterTemplatePreset()" data-i18n="audio.chapters.save-preset">Save preset</button>
+                                            <button class="btn btn-outline-danger" type="button" onclick="deleteChapterTemplatePreset()" data-i18n="audio.chapters.delete">Delete</button>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="exportChapterTemplatePresets()" data-i18n="audio.chapters.export">Export</button>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('chapter-preset-import').click()" data-i18n="audio.chapters.import">Import</button>
+                                            <input type="file" id="chapter-preset-import" data-i18n-attr="aria-label:audio.chapters.import-aria" aria-label="Import chapter filename presets" accept="application/json" hidden onchange="importChapterTemplatePresets(this)">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1" for="chapter-padding" data-i18n="audio.chapters.padding-label">Number padding</label>
+                                        <select class="form-select form-select-sm" id="chapter-padding">
+                                            <option value="0">1</option><option value="2" selected>01</option><option value="3">001</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1" for="chapter-format" data-i18n="audio.chapters.format-label">Format</label>
+                                        <select class="form-select form-select-sm" id="chapter-format">
+                                            <option value="mp3" selected>MP3</option><option value="wav">WAV</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="chapter-book-name" data-i18n="audio.chapters.book-name">Book name</label>
+                                        <input type="text" class="form-control form-control-sm" id="chapter-book-name" data-i18n-attr="placeholder:audio.chapters.book-name-placeholder" placeholder="for {book_name}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="chapter-series-name" data-i18n="audio.chapters.series-name">Series name</label>
+                                        <input type="text" class="form-control form-control-sm" id="chapter-series-name" data-i18n-attr="placeholder:audio.chapters.series-name-placeholder" placeholder="for {series_name}">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1" for="chapter-volume" data-i18n="audio.chapters.volume">Volume</label>
+                                        <input type="text" class="form-control form-control-sm" id="chapter-volume" placeholder="3">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1" for="chapter-selection" data-i18n="audio.chapters.selection">Chapters (optional)</label>
+                                        <input type="text" class="form-control form-control-sm" id="chapter-selection" placeholder="1, 3, 5-7">
+                                    </div>
+                                    <div class="col-md-2 d-flex flex-column justify-content-end">
+                                        <label class="form-check d-inline-flex align-items-center mb-1" data-i18n-attr="title:audio.chapters.per-chunk-title" title="Same chapter detection as the M4B export">
+                                            <input type="checkbox" class="form-check-input me-1" id="chapter-per-chunk">
+                                            <small class="text-muted" data-i18n="audio.chapters.per-chunk">Per-chunk</small>
+                                        </label>
+                                        <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.changed-only-title" title="Skip chapters whose audio has not changed since they were last exported">
+                                            <input type="checkbox" class="form-check-input me-1" id="chapter-changed-only" aria-describedby="chapter-changed-only-help" checked>
+                                            <small class="text-muted" data-i18n="audio.chapters.changed-only">Changed only</small>
+                                        </label>
+                                        <label class="form-check d-inline-flex align-items-center mb-0" data-i18n-attr="title:audio.chapters.require-ready-title" title="Refuse export until every speaker is marked ready">
+                                            <input type="checkbox" class="form-check-input me-1" id="chapter-require-ready">
+                                            <small class="text-muted" data-i18n="audio.chapters.require-ready">Require ready</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-text" id="chapter-changed-only-help" data-i18n="audio.chapters.changed-only-help">Changed only exports chapters whose audio changed since the last export. Turn it off for a complete set of the selected chapters. Preview filenames shows how many files would be written.</div>
+                                <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button" id="chapter-preview-btn">
+                                        <i class="fas fa-eye me-1"></i><span data-i18n="audio.chapters.preview">Preview names</span>
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" type="button" id="chapter-export-btn">
+                                        <i class="fas fa-list-ol me-1"></i><span data-i18n="audio.chapters.export-chapters">Export chapters</span>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" type="button" id="chapter-cancel-btn" style="display:none;">
+                                        <i class="fas fa-stop me-1"></i><span data-i18n="audio.chapters.cancel">Cancel</span>
+                                    </button>
+                                    <a class="btn btn-outline-dark btn-sm" id="chapter-zip-link" href="/api/chapter_exports/zip" download="chapters.zip" style="display:none;">
+                                        <i class="fas fa-file-archive me-1"></i><span data-i18n="audio.chapters.download-all">Download all (zip)</span>
+                                    </a>
+                                    <span id="chapter-status" class="small d-inline-block"></span>
+                                </div>
+                                <div id="chapter-list" class="mt-2 small"></div>
+                            </div>
                         </div>
                     </div>
                 </div>

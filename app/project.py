@@ -118,6 +118,36 @@ class ChunkTargetMissingError(LookupError):
     """A captured publication target disappeared before its locked update."""
 
 
+# 2: a row's "index" is its chapter's position in the whole book (#1921). Version 1
+# rows counted only the chapters that had audio, so their indices mean something else.
+CHAPTER_PLAN_VERSION = 2
+
+
+def get_chapter_selection(chapters, available):
+    """Validate zero-based book chapter numbers against the chapters that have audio.
+
+    Chapters are numbered by the whole book, so a selection can name a chapter that
+    exists but has no generated audio yet; that is refused by number rather than
+    silently skipped."""
+    if not chapters:
+        raise ValueError("Select at least one chapter")
+    if any(type(number) is not int or number < 0 for number in chapters):
+        raise ValueError("Chapter numbers must be whole numbers from 1")
+    absent = sorted({number + 1 for number in chapters if number not in available})
+    if absent:
+        shown = ", ".join(str(number) for number in absent[:20]) + (", ..." if len(absent) > 20 else "")
+        raise ValueError(f"No generated audio for chapter(s) {shown}. Generate them in Editor first, "
+                         "or check the chapter numbers.")
+    return sorted(set(chapters))
+
+
+def get_current_chapter_rows(manifest):
+    """{book chapter index: row} for a manifest of the current plan version, else {}."""
+    if not isinstance(manifest, dict) or manifest.get("chapter_plan_version") != CHAPTER_PLAN_VERSION:
+        return {}
+    return {row["index"]: row for row in get_chapter_export_rows(manifest)}
+
+
 def get_index_selection(indices, count):
     """Validate an explicit selection and return unique indices in source order."""
     if not indices:
@@ -901,7 +931,7 @@ def build_chapter_filename(template, number, title, ext, padding=2, book_name=""
 
 
 def build_chapter_filenames(groups, template, ext, padding=2, book_name="",
-                            series_name="", volume_number=""):
+                            series_name="", volume_number="", numbers=None):
     """Build one unique filename per chapter group or reject the template.
 
     A custom template may omit ``{chapter_number}``, and chapter titles may
@@ -909,11 +939,12 @@ def build_chapter_filenames(groups, template, ext, padding=2, book_name="",
     chapter, so uniqueness is an export precondition rather than a best-effort
     cleanup after audio has already been rendered.
     """
+    numbers = list(numbers) if numbers is not None else range(1, len(groups) + 1)
     filenames = [build_chapter_filename(
-        template, index + 1, title, ext, padding=padding,
+        template, number, title, ext, padding=padding,
         book_name=book_name, series_name=series_name,
         volume_number=volume_number)
-        for index, (title, _, _) in enumerate(groups)]
+        for number, (title, _, _) in zip(numbers, groups)]
     seen, duplicates = set(), set()
     for name in filenames:
         key = name.casefold()
@@ -3027,19 +3058,51 @@ class ProjectManager:
             [chunk.get("pause_after") for chunk, _ in pairs],
             cancel_check=cancel_check)
 
+    def _get_book_chapter_groups(self, book, chunks, per_chunk_chapters):
+        """Chapters numbered by the whole book, mapped onto the rows being exported.
+
+        `chunks` is the in-order subset of `book` that has audio, as the same row
+        objects. Returns (book_index, title, first, last, missing) for each chapter
+        holding at least one of those rows: first/last are positions in `chunks`,
+        and missing counts the chapter's non-empty lines that are not among them.
+        Numbering by the book keeps chapter 500 named 500 while chapters 1-499
+        have no audio yet, and matches the Editor's chapter numbers (#1921).
+        """
+        positions = {id(row): position for position, row in enumerate(book)}
+        located = [positions.get(id(row)) for row in chunks]
+        if None in located or any(b <= a for a, b in zip(located, located[1:])):
+            raise ValueError("Chapter rows changed during export. Retry the export.")
+        present = set(located)
+        groups, cursor = [], 0
+        for book_index, (title, first, last) in enumerate(self._chapter_groups(book, per_chunk_chapters)):
+            start = cursor
+            while cursor < len(located) and located[cursor] <= last:
+                cursor += 1
+            if cursor == start:
+                continue
+            missing = sum(1 for position in range(first, last + 1)
+                          if position not in present and book[position].get("text", "").strip())
+            groups.append((book_index, title, start, cursor - 1, missing))
+        return groups
+
     def _get_chapter_export_plans(self, chunks, options, pause_defaults,
-                                  get_source_fingerprint=None):
-        """Plan shared names, source ranges and fingerprints without publication."""
-        groups = self._chapter_groups(chunks, options["per_chunk_chapters"])
+                                  get_source_fingerprint=None, *, book):
+        """Plan shared names, source ranges and fingerprints without publication.
+
+        A plan's index and number are its chapter's place in `book`; its chunk
+        range is a position range in `chunks`, the rows with audio."""
+        groups = self._get_book_chapter_groups(book, chunks, options["per_chunk_chapters"])
         filenames = build_chapter_filenames(
-            groups, options["template"], options["format"], padding=options["padding"],
+            [(title, first, last) for _, title, first, last, _ in groups],
+            options["template"], options["format"], padding=options["padding"],
             book_name=options["book_name"], series_name=options["series_name"],
-            volume_number=options["volume_number"])
-        plans = [{"index": index, "number": index + 1, "title": title,
-                 "file": filenames[index], "chunks": [first, last],
+            volume_number=options["volume_number"],
+            numbers=[book_index + 1 for book_index, *_ in groups])
+        plans = [{"index": book_index, "number": book_index + 1, "title": title,
+                 "file": filenames[position], "chunks": [first, last],
                  "fingerprint": self._chapter_fingerprint(
                      chunks[first:last + 1], pause_defaults)}
-                for index, (title, first, last) in enumerate(groups)]
+                for position, (book_index, title, first, last, _) in enumerate(groups)]
         if get_source_fingerprint is not None:
             for plan in plans:
                 first, last = plan['chunks']
@@ -3071,7 +3134,7 @@ class ProjectManager:
                             len(rows) != len(manifest["chapters"])):
                         return False, ("Chapter export manifest is invalid; export all chapters "
                                        "without a selection to rebuild it.")
-                    if {row["index"]: row for row in rows} != previous:
+                    if get_current_chapter_rows(manifest) != previous:
                         return False, "Chapter exports changed while preparing this selection. Retry the export."
             staging = create_export_staging(out_dir, 'chapter')
             staging_dir = str(staging.path)
@@ -3169,19 +3232,20 @@ class ProjectManager:
         from chapter_export_quality import (get_chapter_pcm_plan, get_chapter_quality_plan,
             ensure_chapter_piece_matches_plan, get_recorded_chapter_quality_plan, get_chapter_plan_duration_ms)
         from export_quality import get_admitted_export_report
+        available = {plan["index"] for plan in plans}
         try:
-            wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
+            wanted = available if chapters is None else set(get_chapter_selection(chapters, available))
         except ValueError as exc:
             return False, str(exc)
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         rows, written, reused, cursor = [], 0, 0, 0
-        for plan in plans:
+        for position, plan in enumerate(plans):
             if cancel_check and cancel_check():
                 return False, "Export cancelled"
             index = plan["index"]
             first, last = plan["chunks"]
-            if index:
-                previous_last = plans[index - 1]["chunks"][1]
+            if position:
+                previous_last = plans[position - 1]["chunks"][1]
                 cursor += get_pause_duration_ms(
                     chunks[previous_last], chunks[first], *pause_defaults)
             old = previous.get(index)
@@ -3242,7 +3306,7 @@ class ProjectManager:
                     duration = get_chapter_plan_duration_ms(quality_plan)
                     if progress_callback:
                         progress_callback(
-                            f"Writing chapter {index + 1}/{len(plans)}: {plan['title'][:60]}")
+                            f"Writing chapter {plan['number']} ({position + 1}/{len(plans)}): {plan['title'][:60]}")
                     kwargs = {"bitrate": MP3_BITRATE} if options["format"] == "mp3" else {}
                     quality_reports = []
                     mastering_report = _export_audio_segment(
@@ -3264,11 +3328,11 @@ class ProjectManager:
                 written += 1
             else:
                 if old is not None:
-                    return False, (f"Chapter {index + 1} has an invalid or unverified retained output; "
+                    return False, (f"Chapter {plan['number']} has an invalid or unverified retained output; "
                                    "select it for export or export all chapters to rebuild its independent frame proof.")
                 if durations is None:
                     return None
-                row, duration = None, durations[index]
+                row, duration = None, durations[position]
             if row is not None:
                 row["duration_ms"] = duration
                 row["start_ms"], row["end_ms"] = cursor, cursor + duration
@@ -3305,10 +3369,11 @@ class ProjectManager:
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
         if manifest.get("chapter_plan_version") != options["chapter_plan_version"]:
             return None
-        previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
+        previous = get_current_chapter_rows(manifest)
         pause_defaults = source_snapshot.pause_defaults
         try:
-            plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
+            plans = self._get_chapter_export_plans(chunks, options, pause_defaults,
+                                                   book=source_snapshot.chunks)
         except ValueError as exc:
             return False, str(exc)
         for plan in plans:
@@ -3368,7 +3433,7 @@ class ProjectManager:
         options = {"export_quality": get_export_quality_options(export_quality), "format": fmt, "template": template, "padding": padding,
                    "per_chunk_chapters": per_chunk_chapters, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number,
-                   "chapter_plan_version": 1}
+                   "chapter_plan_version": CHAPTER_PLAN_VERSION}
         if mastering is not None:
             from audio_mastering import get_mastering_options
             options["mastering"] = get_mastering_options(mastering)
@@ -3378,16 +3443,29 @@ class ProjectManager:
                 source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check)
                 captured_chunks = source_snapshot.chunks
                 selected_sources = None
+                # Number chapters by the whole book, as preview does, before a
+                # decoder can remove rows. Keep order and multiplicity.
+                available_rows = []
+                for chunk in captured_chunks:
+                    ensure_audio_export_active(cancel_check)
+                    if self.is_chunk_audio_available(chunk):
+                        available_rows.append(chunk)
+                book_groups = self._get_book_chapter_groups(
+                    captured_chunks, available_rows, per_chunk_chapters)
                 if chapters is not None:
-                    # Match preview numbering before a decoder can remove rows.
-                    # Keep order and multiplicity, including legacy rows without UIDs.
-                    selected_sources = []
-                    for chunk in captured_chunks:
-                        ensure_audio_export_active(cancel_check)
-                        if self.is_chunk_audio_available(chunk):
-                            selected_sources.append(chunk)
-                    get_index_selection(chapters, len(self._chapter_groups(
-                        selected_sources, per_chunk_chapters)))
+                    get_chapter_selection(chapters, {group[0] for group in book_groups})
+                    selected_sources = available_rows
+                incomplete = [group[0] + 1 for group in book_groups
+                              if group[4] and (chapters is None or group[0] in chapters)]
+
+                def finish(result):
+                    """Name exported chapters that still have lines without audio."""
+                    if not result or not result[0] or not incomplete:
+                        return result
+                    shown = ", ".join(str(number) for number in incomplete[:20])
+                    shown += ", ..." if len(incomplete) > 20 else ""
+                    return True, (result[1] + f" Chapter(s) {shown} still have lines without "
+                                  "audio; those lines are not in their files.")
                 from chapter_timing_cache import ensure_chapter_timing_facts
                 indexed = ensure_chapter_timing_facts(
                     self.root_dir, captured_chunks, self.get_chunk_audio_path,
@@ -3397,15 +3475,15 @@ class ProjectManager:
                 if indexed is not None:
                     if selected_sources is not None and [row for row, _ in indexed.pairs] != selected_sources:
                         return False, CHAPTER_SELECTION_AUDIO_ERROR
-                    return self._export_indexed_chapters(
+                    return finish(self._export_indexed_chapters(
                         indexed, sources, options, chapters, changed_only,
-                        progress_callback, cancel_check, source_snapshot=source_snapshot)
+                        progress_callback, cancel_check, source_snapshot=source_snapshot))
                 if changed_only and (selected_sources is None or captured_chunks == selected_sources):
                     incremental = self._export_changed_chapters(
                         captured_chunks, options, chapters, progress_callback, cancel_check,
                         source_snapshot=source_snapshot)
                     if incremental is not None:
-                        return incremental
+                        return finish(incremental)
                 pairs, skipped = self._load_chunks_with_audio(
                     cancel_check=cancel_check, chunks=captured_chunks,
                     progress_callback=_loading_progress(progress_callback),
@@ -3422,7 +3500,8 @@ class ProjectManager:
                     timeline.append((chunk, sources.save_segment(segment), start))
                     del segment
                 chunks = [chunk for chunk, _, _ in timeline]
-                plans = self._get_chapter_export_plans(chunks, options, pause_defaults)
+                plans = self._get_chapter_export_plans(chunks, options, pause_defaults,
+                                                       book=captured_chunks)
                 from chapter_export_quality import get_chapter_durations_ms
                 durations = get_chapter_durations_ms(plans,
                     [(row, segment) for row, segment, _ in timeline], pause_defaults, cancel_check)
@@ -3435,16 +3514,16 @@ class ProjectManager:
             out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
             os.makedirs(out_dir, exist_ok=True)
             manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
-            previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
+            previous = get_current_chapter_rows(manifest)
             result = self._apply_chapter_export_plans(
                 plans, chunks, options, pause_defaults, previous, chapters,
-                changed_only and manifest.get("chapter_plan_version") == 1,
+                changed_only and manifest.get("chapter_plan_version") == CHAPTER_PLAN_VERSION,
                 lambda first, last: ([(chunk, sources.load_segment(segment))
                                       for chunk, segment in pairs[first:last + 1]], 0), durations,
                 progress_callback, cancel_check, source_snapshot=source_snapshot)
             if result and result[0] and skipped:
-                return True, result[1] + f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
-            return result
+                result = True, result[1] + f" ({skipped} chunk(s) skipped - missing/corrupt audio)"
+            return finish(result)
 
     def _export_indexed_chapters(self, indexed, sources, options, chapters,
                                   changed_only, progress_callback, cancel_check, *, source_snapshot):
@@ -3458,10 +3537,11 @@ class ProjectManager:
         chunks = [chunk for chunk, _, _ in timeline]
         plans = self._get_chapter_export_plans(
             chunks, options, pause_defaults,
-            lambda selected: indexed.get_source_fingerprint(selected, self.get_chunk_audio_path))
+            lambda selected: indexed.get_source_fingerprint(selected, self.get_chunk_audio_path),
+            book=source_snapshot.chunks)
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
-        previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
+        previous = get_current_chapter_rows(manifest)
         from chapter_export_quality import get_chapter_durations_ms
         durations = get_chapter_durations_ms(plans, indexed.pairs, pause_defaults, cancel_check)
 
@@ -3484,7 +3564,7 @@ class ProjectManager:
 
         result = self._apply_chapter_export_plans(
             plans, chunks, options, pause_defaults, previous, chapters,
-            changed_only and manifest.get('chapter_plan_version') == 1,
+            changed_only and manifest.get('chapter_plan_version') == CHAPTER_PLAN_VERSION,
             get_pairs, durations, progress_callback, cancel_check,
             source_check=indexed.verify_sources, source_snapshot=source_snapshot,
             get_current_quality_plan=get_current_quality_plan)
@@ -3543,8 +3623,8 @@ class ProjectManager:
                                   book_name="", series_name="", volume_number="",
                                   chapters=None, changed_only=False, mastering=None):
         """Preview selected chapter files that export would write, excluding reuse."""
-        chunks = [chunk for chunk in self.load_chunks()
-                  if self.is_chunk_audio_available(chunk)]
+        book = self.load_chunks()
+        chunks = [chunk for chunk in book if self.is_chunk_audio_available(chunk)]
         options = {"format": fmt, "per_chunk_chapters": per_chunk_chapters,
                    "template": template, "padding": padding, "book_name": book_name,
                    "series_name": series_name, "volume_number": volume_number}
@@ -3557,12 +3637,14 @@ class ProjectManager:
             get_source_fingerprint = get_chapter_source_fingerprinter(
                 chunks, self.get_chunk_audio_path, None, self._get_chapter_decoder_codes())
         plans = self._get_chapter_export_plans(
-            chunks, options, self._load_pause_defaults(), get_source_fingerprint) if chunks else []
-        wanted = set(range(len(plans))) if chapters is None else set(get_index_selection(chapters, len(plans)))
+            chunks, options, self._load_pause_defaults(), get_source_fingerprint,
+            book=book) if chunks else []
+        available = {plan["index"] for plan in plans}
+        wanted = available if chapters is None else set(get_chapter_selection(chapters, available))
         out_dir = os.path.join(self.root_dir, CHAPTER_EXPORT_DIR)
         manifest = safe_load_json(os.path.join(out_dir, "manifest.json"), {})
-        previous = {row["index"]: row for row in get_chapter_export_rows(manifest)}
-        changed_only = changed_only and manifest.get("chapter_plan_version") == 1
+        previous = get_current_chapter_rows(manifest)
+        changed_only = changed_only and manifest.get("chapter_plan_version") == CHAPTER_PLAN_VERSION
         return [{"number": plan["number"], "title": plan["title"], "file": plan["file"]}
                 for plan in plans if plan["index"] in wanted and
                 get_chapter_reuse_duration(plan, previous.get(plan["index"]),

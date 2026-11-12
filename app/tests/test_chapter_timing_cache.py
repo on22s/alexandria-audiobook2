@@ -153,13 +153,16 @@ class ChapterTimingCacheTests(unittest.TestCase):
             root = Path(tmp); manager, chunks = self.make_project(root)
             broken = root / chunks[0]['audio_path']; broken.write_bytes(b'broken waveform')
             (root / chunks[3]['audio_path']).unlink()
-            first = manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[0])
+            # Chapters keep their book numbers (#1921): line 1 is unreadable, so
+            # select line 2 by its own number rather than as "the first with audio".
+            self.assertFalse(manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[0])[0])
+            first = manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[1])
             self.assertTrue(first[0]); self.assertIn('2 chunk(s) skipped', first[1])
             expected = self.result(root)
             reader = manager.get_chunk_audio_segment
             shutil.rmtree(root / CHAPTER_EXPORT_DIR)
             with patch.object(manager, 'get_chunk_audio_segment', wraps=reader) as decode:
-                self.assertTrue(manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[0])[0])
+                self.assertTrue(manager.export_chapters(fmt='wav', per_chunk_chapters=True, chapters=[1])[0])
                 self.assertEqual([chunks[0], chunks[1]], [call.args[0] for call in decode.call_args_list],
                                  'existing unreadable input needs a fresh admission attempt')
             self.assertEqual(expected, self.result(root))
