@@ -3334,7 +3334,11 @@
     "tests.test_clone_import_lifecycle_js.CloneImportLifecycleJsTests.test_unmet_requirements_and_old_completion_do_not_write_or_change_new_status"
   ],
   "test_clone_playback_js": [
-    "tests.test_clone_playback_js.ClonePlaybackTests.test_native_play_rejection_and_throw_are_reported_without_unhandled_promises"
+    "tests.test_clone_playback_js.ClonePlaybackTests.test_a_removed_or_hidden_button_does_not_keep_playing",
+    "tests.test_clone_playback_js.ClonePlaybackTests.test_play_failures_are_reported_and_an_empty_reference_starts_nothing",
+    "tests.test_clone_playback_js.ClonePlaybackTests.test_pressing_play_again_stops_instead_of_overlapping",
+    "tests.test_clone_playback_js.ClonePlaybackTests.test_reference_and_candidate_previews_never_overlap",
+    "tests.test_clone_playback_js.ClonePlaybackTests.test_stop_before_the_audio_starts_is_not_reported_as_a_failure"
   ],
   "test_clone_reference_cache": [
     "tests.test_clone_reference_cache.ReferenceCachePrimitiveTests.test_count_lru_and_independent_byte_limit_evict_payloads",

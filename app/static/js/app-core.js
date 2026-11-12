@@ -5696,7 +5696,7 @@
                     return loadVoices.publishedResult;
                 }
                 container.innerHTML = getVoiceSeedRepairMarkup(ownSnapshot) + getStateVoiceCardsMarkup(voices);
-                window.stopOrphanedVoicePreview();
+                window.stopOrphanedVoicePreview?.();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;
                 _voiceCardsBookToken = ownBookToken;
