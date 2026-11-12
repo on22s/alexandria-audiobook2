@@ -14758,6 +14758,8 @@
     "tests.test_three_pass_vs_single_paths.PathResolutionTests.test_the_harness_resolves_its_three_path_arguments"
   ],
   "test_three_pass_window_numbering": [
+    "tests.test_three_pass_window_numbering.PassOneAndPartTests.test_later_parts_of_a_split_window_say_which_part",
+    "tests.test_three_pass_window_numbering.PassOneAndPartTests.test_pass_one_numbers_only_chunks_that_ask_the_model",
     "tests.test_three_pass_window_numbering.WindowNumberingTests.test_pass_two_numbers_only_windows_that_ask_the_model"
   ],
   "test_threepass_reuse": [
