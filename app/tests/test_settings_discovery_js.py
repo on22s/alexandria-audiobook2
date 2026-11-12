@@ -58,10 +58,11 @@ class SettingsDiscoveryTests(unittest.TestCase):
         self.assertEqual(SETUP.count("vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);"), 1)
         setup = SETUP.replace("vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);",
                               locale_setup+"vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);")
-        result = subprocess.run(['node', '-e', DOM_FIXTURE+setup+script,
+        result = subprocess.run(['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
                                  str(STATIC/'js/app-help.js'), str(STATIC/'js/app-settings.js'),
                                  str(STATIC/'js/app-core.js'), str(STATIC/'js/app-workbench.js'),
                                  str(STATIC/'js/app-i18n.js')],
+                                input=DOM_FIXTURE+setup+script,
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 

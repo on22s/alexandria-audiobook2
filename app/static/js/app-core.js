@@ -854,6 +854,14 @@
             // Add active to clicked
             selectedLink.classList.add('active');
             selectedLink.setAttribute('aria-current', 'page');
+            const advDropdown = document.getElementById('advancedNavDropdown');
+            if (advDropdown?.classList) {
+                if (selectedLink.closest && selectedLink.closest('.dropdown-menu')) {
+                    advDropdown.classList.add('active');
+                } else {
+                    advDropdown.classList.remove('active');
+                }
+            }
 
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');

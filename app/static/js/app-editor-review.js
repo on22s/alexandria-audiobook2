@@ -576,3 +576,50 @@ editorReviewRows.addEventListener('input', () => { renderEditorLineInspector(); 
 editorReviewRows.addEventListener('play', event => {
     if (event.target.classList.contains('chunk-audio')) { selectEditorReviewLineById(Number(event.target.dataset.id), false); }
 }, true);
+
+// Keyboard navigation and audition shortcuts for Editor
+document.addEventListener('keydown', event => {
+    const editorTab = document.getElementById('editor-tab');
+    if (!editorTab || editorTab.style.display === 'none') { return; }
+
+    const active = document.activeElement;
+    if (active && (['input', 'textarea', 'select'].includes(active.tagName.toLowerCase()) || active.isContentEditable)) {
+        return;
+    }
+
+    if (event.code === 'Space') {
+        event.preventDefault();
+        const target = getEditorReviewTarget();
+        if (target) {
+            const audio = target.row.querySelector('.chunk-audio');
+            if (audio) {
+                if (audio.paused) { audio.play(); } else { audio.pause(); }
+                return;
+            }
+        }
+        if (typeof playSequence === 'function') { playSequence(); }
+    } else if (event.code === 'ArrowDown' || event.code === 'ArrowUp') {
+        if (!cachedChunks || !cachedChunks.length) { return; }
+        event.preventDefault();
+        const target = getEditorReviewTarget();
+        let currentIndex = -1;
+        if (target) {
+            currentIndex = cachedChunks.findIndex(c => c.uid === target.chunk.uid);
+        }
+        const nextIndex = event.code === 'ArrowDown'
+            ? Math.min(cachedChunks.length - 1, currentIndex + 1)
+            : Math.max(0, currentIndex - 1);
+        if (nextIndex >= 0 && nextIndex < cachedChunks.length && nextIndex !== currentIndex) {
+            selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
+        }
+    }
+});
+
+// Click outside to close whole-book actions popover
+document.addEventListener('click', event => {
+    const wholeBook = document.querySelector('.editor-whole-book');
+    if (wholeBook && wholeBook.open && !wholeBook.contains(event.target)) {
+        wholeBook.open = false;
+    }
+});
+

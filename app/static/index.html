@@ -440,9 +440,81 @@
         .step-active { background-color: var(--accent-fill); color: white; }
         .voice-card { border-left: 4px solid var(--accent); }
 
-        #editor-tab .editor-toolbar { position: sticky; top: 0; z-index: 5; background: var(--bg-card-header); }
-        .editor-whole-book { position: relative; }
-        .editor-whole-book[open] { max-width: 28rem; }
+        #editor-tab .editor-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+            background: var(--bg-card-header);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px var(--shadow);
+            padding: 0.75rem 1rem;
+        }
+        .editor-whole-book { position: relative; display: inline-block; }
+        .editor-whole-book > summary {
+            list-style: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.65rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-input);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: border-color var(--motion-fast), background-color var(--motion-fast);
+        }
+        .editor-whole-book > summary::-webkit-details-marker { display: none; }
+        .editor-whole-book > summary:hover {
+            border-color: var(--accent);
+            background-color: var(--accent-soft);
+        }
+        .editor-whole-book[open] > .editor-whole-book-popover {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            z-index: 1050;
+            min-width: 19rem;
+            padding: 0.85rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+        .navbar .dropdown-menu {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 24px var(--shadow);
+            padding: 0.35rem;
+            border-radius: var(--radius-md);
+        }
+        .navbar .dropdown-item {
+            color: var(--text-primary);
+            border-radius: var(--radius-sm);
+            padding: 0.4rem 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background-color var(--motion-fast), color var(--motion-fast);
+        }
+        .navbar .dropdown-item:hover, .navbar .dropdown-item:focus {
+            background-color: var(--accent-soft);
+            color: var(--text-primary);
+        }
+        .navbar .dropdown-item.active {
+            background-color: var(--accent-fill);
+            color: #fff;
+        }
+        .navbar .dropdown-divider {
+            border-top: 1px solid var(--hr-color);
+            margin: 0.35rem 0;
+            opacity: 1;
+        }
+        .navbar .nav-link.dropdown-toggle::after {
+            vertical-align: middle;
+            margin-left: 0.35rem;
+        }
         .word-timing-active { background: var(--bg-input); color: var(--text-primary) !important; outline: 2px solid var(--accent); font-weight: 700; }
         .word-timing-span { white-space: normal; color: var(--text-primary); text-decoration: underline; }
         .editor-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 23rem); gap: 1rem; align-items: start; }
@@ -1019,7 +1091,7 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav me-auto align-items-center">
                     <li data-i18n="shell.nav.workflow" class="nav-section-label" aria-hidden="true">Workflow</li>
                     <li class="nav-item"><a data-i18n="shell.nav.workspace" class="nav-link" href="#home" data-tab="home">Workspace</a></li>
                     <li class="nav-item"><a href="#setup" class="nav-link nav-pipeline active" aria-current="page" data-tab="setup"><span data-i18n="shell.nav.setup">1. Setup</span></a></li>
@@ -1027,14 +1099,19 @@
                     <li class="nav-item"><a href="#voices" class="nav-link nav-pipeline" data-tab="voices"><span data-i18n="shell.nav.voices">3. Voices</span></a></li>
                     <li class="nav-item"><a href="#editor" class="nav-link nav-pipeline" data-tab="editor"><span data-i18n="shell.nav.editor">4. Editor</span></a></li>
                     <li class="nav-item"><a href="#audio" class="nav-link nav-pipeline" data-tab="audio"><span data-i18n="shell.nav.result">5. Result</span></a></li>
-                    <li data-i18n="shell.nav.advanced" class="nav-section-label nav-advanced-start" aria-hidden="true">Advanced</li>
-                    <li class="nav-item"><a data-i18n="shell.nav.designer" href="#designer" class="nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.casting" href="#casting" class="nav-link nav-advanced" data-tab="casting">Casting</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.preparer" href="#preparer" class="nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.dataset" href="#dataset-builder" class="nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.training" href="#training" class="nav-link nav-advanced" data-tab="training">Training</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.voice-lab" href="#voicelab" class="nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
-                    <li class="nav-item"><a data-i18n="shell.nav.reports" href="#reports" class="nav-link nav-advanced" data-tab="reports">Reports</a></li>
+                    <li class="nav-item dropdown ms-lg-2">
+                        <a class="nav-link dropdown-toggle nav-advanced" href="#" id="advancedNavDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Open advanced tools: Designer, Casting, Preparer, Dataset, Training, Voice Lab, and Reports"><span data-i18n="shell.nav.advanced">Advanced</span></a>
+                        <ul class="dropdown-menu shadow" aria-labelledby="advancedNavDropdown">
+                            <li><a data-i18n="shell.nav.designer" href="#designer" class="dropdown-item nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                            <li><a data-i18n="shell.nav.casting" href="#casting" class="dropdown-item nav-link nav-advanced" data-tab="casting">Casting</a></li>
+                            <li><a data-i18n="shell.nav.preparer" href="#preparer" class="dropdown-item nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
+                            <li><a data-i18n="shell.nav.dataset" href="#dataset-builder" class="dropdown-item nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
+                            <li><a data-i18n="shell.nav.training" href="#training" class="dropdown-item nav-link nav-advanced" data-tab="training">Training</a></li>
+                            <li><a data-i18n="shell.nav.voice-lab" href="#voicelab" class="dropdown-item nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a data-i18n="shell.nav.reports" href="#reports" class="dropdown-item nav-link nav-advanced" data-tab="reports">Reports</a></li>
+                        </ul>
+                    </li>
                 </ul>
                 <ul class="navbar-nav ms-auto align-items-center gap-2">
                     <li class="nav-item">
@@ -1150,15 +1227,30 @@
                         <div data-i18n="setup.overview.title" class="settings-sidebar-title">Setup workspace</div>
                         <p data-i18n="setup.overview.choose-an-area-to-work-on" class="small text-muted">Choose an area to work on.</p>
                         <div class="settings-mobile"><label data-i18n="setup.overview.category.label" class="form-label" for="setup-settings-category">Settings category</label>
-                        <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)"><option value="settings-llm" data-i18n="setup.overview.category.option.llm">Connection</option><option value="settings-limits" data-i18n="setup.overview.category.option.limits">Limits &amp; retries</option><option value="settings-tts" data-i18n="setup.overview.category.option.tts">Speech engine</option><option value="settings-audio" data-i18n="setup.overview.category.option.audio">Audio &amp; timing</option><option value="settings-generation" data-i18n="setup.overview.category.option.generation">Generation</option><option value="settings-strategy" data-i18n="setup.overview.category.option.strategy">Script strategy</option><option value="settings-prompts" data-i18n="setup.overview.category.option.prompts">Prompt studio</option></select></div>
-                        <nav data-i18n-attr="aria-label:setup.overview.aria-label" class="settings-categories" aria-label="Setup categories"><button type="button" class="settings-category" data-settings-target="settings-llm" aria-controls="settings-llm" aria-current="true" onclick="openSetupSettingsSection('settings-llm')"><i class="fas fa-plug" aria-hidden="true"></i><span><strong data-i18n="setup.overview.connection">Connection</strong><small data-i18n="setup.overview.server-model-credentials">Server, model &amp; credentials</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong data-i18n="setup.overview.limits-retries">Limits &amp; retries</strong><small data-i18n="setup.overview.context-timeouts-recovery">Context, timeouts &amp; recovery</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-tts" aria-controls="settings-tts" aria-current="false" onclick="openSetupSettingsSection('settings-tts')"><i class="fas fa-microphone" aria-hidden="true"></i><span><strong data-i18n="setup.overview.speech-engine">Speech engine</strong><small data-i18n="setup.overview.local-model-or-external-server">Local model or external server</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong data-i18n="setup.overview.audio-timing">Audio &amp; timing</strong><small data-i18n="setup.overview.batches-takes-pauses">Batches, takes &amp; pauses</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong data-i18n="setup.overview.generation">Generation</strong><small data-i18n="setup.overview.token-budgets-sampling">Token budgets &amp; sampling</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-strategy" aria-controls="settings-strategy" aria-current="false" onclick="openSetupSettingsSection('settings-strategy')"><i class="fas fa-book-open" aria-hidden="true"></i><span><strong data-i18n="setup.overview.script-strategy">Script strategy</strong><small data-i18n="setup.overview.segmentation-speakers">Segmentation &amp; speakers</small></span></button>
-<button type="button" class="settings-category" data-settings-target="settings-prompts" aria-controls="settings-prompts" aria-current="false" onclick="openSetupSettingsSection('settings-prompts')"><i class="fas fa-code" aria-hidden="true"></i><span><strong data-i18n="setup.overview.prompt-studio">Prompt studio</strong><small data-i18n="setup.overview.advanced-instructions-presets">Advanced instructions &amp; presets</small></span></button>
-</nav>
+                        <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)">
+                            <optgroup label="Essential Setup">
+                                <option value="settings-llm" data-i18n="setup.overview.category.option.llm">Connection</option>
+                                <option value="settings-tts" data-i18n="setup.overview.category.option.tts">Speech engine</option>
+                            </optgroup>
+                            <optgroup label="Advanced Tuning">
+                                <option value="settings-limits" data-i18n="setup.overview.category.option.limits">Limits &amp; retries</option>
+                                <option value="settings-audio" data-i18n="setup.overview.category.option.audio">Audio &amp; timing</option>
+                                <option value="settings-generation" data-i18n="setup.overview.category.option.generation">Generation</option>
+                                <option value="settings-strategy" data-i18n="setup.overview.category.option.strategy">Script strategy</option>
+                                <option value="settings-prompts" data-i18n="setup.overview.category.option.prompts">Prompt studio</option>
+                            </optgroup>
+                        </select></div>
+                        <nav data-i18n-attr="aria-label:setup.overview.aria-label" class="settings-categories" aria-label="Setup categories">
+                            <div class="small text-uppercase fw-semibold text-muted px-2 pt-1 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;">Essential Setup</div>
+                            <button type="button" class="settings-category" data-settings-target="settings-llm" aria-controls="settings-llm" aria-current="true" onclick="openSetupSettingsSection('settings-llm')"><i class="fas fa-plug" aria-hidden="true"></i><span><strong data-i18n="setup.overview.connection">Connection</strong><small data-i18n="setup.overview.server-model-credentials">Server, model &amp; credentials</small></span></button>
+                            <button type="button" class="settings-category" data-settings-target="settings-tts" aria-controls="settings-tts" aria-current="false" onclick="openSetupSettingsSection('settings-tts')"><i class="fas fa-microphone" aria-hidden="true"></i><span><strong data-i18n="setup.overview.speech-engine">Speech engine</strong><small data-i18n="setup.overview.local-model-or-external-server">Local model or external server</small></span></button>
+                            <div class="small text-uppercase fw-semibold text-muted px-2 pt-3 pb-1" style="font-size:0.7rem;letter-spacing:0.06em;border-top:1px solid var(--border-input);margin-top:0.5rem;">Advanced Tuning</div>
+                            <button type="button" class="settings-category" data-settings-target="settings-limits" aria-controls="settings-limits" aria-current="false" onclick="openSetupSettingsSection('settings-limits')"><i class="fas fa-shield-alt" aria-hidden="true"></i><span><strong data-i18n="setup.overview.limits-retries">Limits &amp; retries</strong><small data-i18n="setup.overview.context-timeouts-recovery">Context, timeouts &amp; recovery</small></span></button>
+                            <button type="button" class="settings-category" data-settings-target="settings-audio" aria-controls="settings-audio" aria-current="false" onclick="openSetupSettingsSection('settings-audio')"><i class="fas fa-sliders-h" aria-hidden="true"></i><span><strong data-i18n="setup.overview.audio-timing">Audio &amp; timing</strong><small data-i18n="setup.overview.batches-takes-pauses">Batches, takes &amp; pauses</small></span></button>
+                            <button type="button" class="settings-category" data-settings-target="settings-generation" aria-controls="settings-generation" aria-current="false" onclick="openSetupSettingsSection('settings-generation')"><i class="fas fa-magic" aria-hidden="true"></i><span><strong data-i18n="setup.overview.generation">Generation</strong><small data-i18n="setup.overview.token-budgets-sampling">Token budgets &amp; sampling</small></span></button>
+                            <button type="button" class="settings-category" data-settings-target="settings-strategy" aria-controls="settings-strategy" aria-current="false" onclick="openSetupSettingsSection('settings-strategy')"><i class="fas fa-book-open" aria-hidden="true"></i><span><strong data-i18n="setup.overview.script-strategy">Script strategy</strong><small data-i18n="setup.overview.segmentation-speakers">Segmentation &amp; speakers</small></span></button>
+                            <button type="button" class="settings-category" data-settings-target="settings-prompts" aria-controls="settings-prompts" aria-current="false" onclick="openSetupSettingsSection('settings-prompts')"><i class="fas fa-code" aria-hidden="true"></i><span><strong data-i18n="setup.overview.prompt-studio">Prompt studio</strong><small data-i18n="setup.overview.advanced-instructions-presets">Advanced instructions &amp; presets</small></span></button>
+                        </nav>
                         <label data-i18n="setup.locale.label" class="form-label mt-3" for="setup-ui-locale">Interface language</label>
                         <select id="setup-ui-locale" class="form-select" aria-describedby="setup-ui-locale-hint setup-ui-locale-status" onchange="changeUiLocale(this.value)"><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ja">日本語</option><option value="es-419">Español (Latinoamérica)</option><option value="qps-ploc">Pseudo-English (layout test, not a translation)</option></select>
                         <div data-i18n="setup.locale.hint" id="setup-ui-locale-hint" class="form-text">The whole interface follows this language. A locale marked (draft) is a machine draft with no native review yet, so safety warnings also show the English beneath. Task logs stay English. This preference is browser-local, never changes the book, TTS or transcription language, and offers no RTL locale.</div>
@@ -3427,18 +3519,23 @@
             <div class="card">
                 <div class="card-header editor-toolbar">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
-                        <div class="d-flex flex-wrap gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
+                        <div class="d-flex align-items-center gap-2">
+                            <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
+                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i>Space: Play | &uarr;&darr;: Navigate</span>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>
                             <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
                             <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="editor.toolbar.cancel">Cancel</span></button>
                             <details class="editor-whole-book">
                                 <summary data-i18n="editor.toolbar.whole-book">Whole-book actions</summary>
-                                <div class="d-flex flex-wrap gap-2 mt-2">
-                                    <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i><span data-i18n="editor.toolbar.regenerate-all">Regenerate All</span></button>
-                                    <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i><span data-i18n="editor.toolbar.merge-all">Merge All</span></button>
+                                <div class="editor-whole-book-popover">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button class="btn btn-outline-success btn-sm" id="btn-regen-all" onclick="startRender(true)"><i class="fas fa-redo me-1"></i><span data-i18n="editor.toolbar.regenerate-all">Regenerate All</span></button>
+                                        <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i><span data-i18n="editor.toolbar.merge-all">Merge All</span></button>
+                                    </div>
+                                    <p class="small mt-2 mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
                                 </div>
-                                <p class="small mt-2 mb-0" data-i18n="editor.toolbar.whole-book-help">Regenerate All replaces generated audio. Merge All combines the book after its existing checks.</p>
                             </details>
                         </div>
                     </div>
