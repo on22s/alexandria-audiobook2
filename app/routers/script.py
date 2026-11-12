@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
 from diagnostics import redact_text
-from llm_provider import manual_llm_dir, is_manual_request_owner_alive
+from llm_provider import MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -2445,7 +2445,10 @@ def start_book_preflight(background_tasks, request):
                 if state.get("cancel"):
                     result["status"] = "cancelled"
                     return
-                child_env = dict(os.environ, ALEXANDRIA_DATA_DIR=private.name)
+                # Private data for the samples, but a Manual LLM's requests go
+                # where the Script tab shows and answers them (#1920).
+                child_env = dict(os.environ, ALEXANDRIA_DATA_DIR=private.name,
+                                 **{MANUAL_DATA_DIR_ENV: DATA_DIR})
                 code, _ = _stream_subprocess_to_logs(command, BASE_DIR, state, env=child_env)
                 if state.get("cancel"):
                     result["status"] = "cancelled"

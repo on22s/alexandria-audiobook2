@@ -121,6 +121,8 @@ class BookPreflightApiTests(unittest.TestCase):
                 self.assertIn('--first-person-narrator', command)
                 self.assertIn('--preflight', command)
                 private = Path(env['ALEXANDRIA_DATA_DIR'])
+                # A Manual LLM's requests go where the page reads them (#1920).
+                self.assertEqual(script.DATA_DIR, env[script.MANUAL_DATA_DIR_ENV])
                 self.assertEqual('fixture', json.loads((private / 'config.json').read_text())['llm_local']['model_name'])
                 output = command[command.index('--output') + 1]
                 plan = {'1': 1, '2': 1, '3': 1}

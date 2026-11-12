@@ -22,8 +22,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),receipt=JSON.parse(process.argv[2]);
 const elements={}; for(const id of ['book-preflight-result','btn-book-preflight','btn-cancel-book-preflight','script-first-person-narrator','script-batch-mode','book-preflight-controls','btn-gen-script-fresh']){elements[id]={style:{},innerHTML:'',value:' ALICE ',disabled:false};}
 elements['upload-status']={innerHTML:'text-success'};
-const posts=[],toasts=[]; let poll;
-const ctx={currentBookFilename:'book.txt',document:{getElementById:id=>elements[id]},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),confirmIfRemote:async()=>true,_isStripFrontMatterChecked:()=>false,showToast:s=>toasts.push(s),API:{post:async(url,data)=>{posts.push({url,data});return{...receipt,status:'running'};},get:async()=>receipt},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'book_preflight');poll={fetch,options};}};
+const posts=[],toasts=[],manual=[]; let poll;
+const ctx={currentBookFilename:'book.txt',document:{getElementById:id=>elements[id]},escapeHtml:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),confirmIfRemote:async()=>true,_isStripFrontMatterChecked:()=>false,showToast:s=>toasts.push(s),API:{post:async(url,data)=>{posts.push({url,data});return{...receipt,status:'running'};},get:async url=>url==='/api/status/script'?{running:true,manual_request:{id:'r1',sequence:1}}:receipt},renderManualRequest:(status,task)=>manual.push([status,task]),_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'book_preflight');poll={fetch,options};}};
 ctx.window=ctx;vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));const run=code=>vm.runInContext(code,ctx);run(source.slice(source.indexOf('function _isLiteralSourcePreservingChecked('),source.indexOf('function _isStripFrontMatterChecked(')));
 run(source.slice(source.indexOf('let bookPreflightJob ='),source.indexOf('// End book-preflight controls.')));
 '''
@@ -33,6 +33,16 @@ run(source.slice(source.indexOf('let bookPreflightJob ='),source.indexOf('// End
     def test_native_failure_plan_and_owned_cancel(self):
         self.run_js(r'''
 (async()=>{await ctx.startBookPreflight();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.strip_front_matter,false);assert.strictEqual(posts[0].data.first_person_narrator,'ALICE');assert(elements['btn-book-preflight'].disabled);await ctx.cancelBookPreflight();assert.strictEqual(posts[1].url,`/api/generate_script/preflight/${receipt.job_id}/cancel`);assert.match(toasts.at(-1),/worker to exit/);const data=await poll.fetch();await poll.options.onTick(data);assert(poll.options.doneCheck(data));assert.match(elements['book-preflight-result'].innerHTML,/coverage: 2/);assert.match(elements['book-preflight-result'].innerHTML,/Step 1 3/);assert.match(elements['book-preflight-result'].innerHTML,/earlier source/);assert.match(elements['book-preflight-result'].innerHTML,/&lt;rejected&gt;/);assert(!elements['book-preflight-result'].innerHTML.includes('<rejected>'));await poll.options.onDone(data);assert(!elements['btn-book-preflight'].disabled);assert.strictEqual(posts.length,2);})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_manual_llm_requests_are_shown_while_the_book_test_runs(self):
+        """#1920: the Script tab's manual-reply panel follows the running book test."""
+        self.run_js(r'''
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{await ctx.startBookPreflight();const running={...receipt,status:'running'};
+await poll.options.onTick(running);assert.strictEqual(manual.length,1);assert.strictEqual(manual[0][1],'script');assert.strictEqual(manual[0][0].manual_request.id,'r1');
+await poll.options.onTick({...running,job_id:'b'.repeat(32)});assert.strictEqual(manual.length,1,'another job does not drive the panel');
+await poll.options.onDone(receipt);assert.strictEqual(manual.length,2);assert.deepStrictEqual(JSON.parse(JSON.stringify(manual[1])),[{running:false},'script']);
+assert(!elements['btn-book-preflight'].disabled);finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
     def test_decline_and_stale_poll_do_not_start_or_overwrite(self):
