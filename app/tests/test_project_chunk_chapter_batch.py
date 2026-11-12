@@ -55,7 +55,9 @@ class ProjectChunkChapterBatchTests(unittest.TestCase):
             watched=[root/'chunks.json',root/'good.wav',root/'second.wav',root/'bad.wav',foreign]
             before={path:path.read_bytes() for path in watched}
             preview=manager.preview_chapter_filenames(fmt='wav',per_chunk_chapters=True)
-            self.assertEqual([1,2],[row['number'] for row in preview])
+            # Book numbering (#1921): lines 1-3 have no usable audio, so the two
+            # exported per-line chapters keep their own numbers, 4 and 5.
+            self.assertEqual([4,5],[row['number'] for row in preview])
             self.assertEqual(['[NARRATOR] Chapter 3','[NARRATOR] Chapter 4'],[row['title'] for row in preview])
             ok,message=manager.export_chapters(fmt='wav',per_chunk_chapters=True)
             self.assertTrue(ok,message);self.assertIn('3 chunk(s) skipped',message)

@@ -2746,6 +2746,14 @@
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_detector_fires_on_the_chain_that_failed",
     "tests.test_chains_reclaim_vram.ChainsReclaimVramTest.test_the_remedy_is_present_in_the_shared_runner"
   ],
+  "test_chapter_book_numbering": [
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_a_chapter_without_audio_is_refused_by_its_number_and_nothing_is_written",
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_front_matter_counts_as_chapter_one_in_export_and_editor",
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_later_chapters_keep_their_book_numbers",
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_numbers_match_the_editor_chapter_list",
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_partly_generated_chapter_is_exported_and_named",
+    "tests.test_chapter_book_numbering.ChapterBookNumberingTests.test_selection_and_filename_helpers"
+  ],
   "test_chapter_cold_memory": [
     "tests.test_chapter_cold_memory.ColdChapterMemoryTests.test_selected_cold_chapter_releases_prior_decoded_pcm_and_preserves_samples_offsets_sources"
   ],
