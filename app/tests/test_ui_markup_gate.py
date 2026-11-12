@@ -32,7 +32,7 @@ TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
     # KeyboardEvent.code values and the editor pane id are identifiers in the
     # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
-    'Space', 'ArrowDown', 'ArrowUp', 'editor-tab',
+    'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',
     # A server message key compared in app-project-scope.js (#1919), not copy.
     'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
@@ -44,10 +44,12 @@ KEEP_ENGLISH = frozenset({
     # its advanced panels and a browser-local storage key, none of them copy.
     'setup-expert-toggle', 'settings-llm', 'data-setup-advanced-section',
     'alexandria.setupExpert',
-    # Editor tool drawer: two element ids, two ARIA attribute names and the key
+    # Editor tool drawer: three element ids, two ARIA attribute names and the key
     # that closes it, all wiring rather than text.
-    'editor-tool-drawer', 'editor-tools-toggle', 'aria-pressed',
-    'aria-expanded', 'Escape',
+    'editor-tool-drawer', 'editor-tools-toggle', 'editor-drawer-scrim',
+    # The waveform card's wrapper, canvas and status line are element ids.
+    'editor-line-waveform', 'editor-line-waveform-wrap', 'editor-line-waveform-status',
+    'aria-pressed', 'aria-expanded', 'Escape',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',

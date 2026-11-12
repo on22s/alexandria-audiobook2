@@ -233,6 +233,7 @@ function getEditorReviewRowState({chunk, row}) {
 }
 
 function renderEditorLineInspector() {
+    renderEditorLineWaveform();
     const target = getEditorReviewTarget();
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
@@ -593,6 +594,30 @@ document.addEventListener('keydown', event => {
         return;
     }
 
+    if (event.code === 'KeyR') {
+        // Same path as the row's Generate button: one line, no confirmation, and
+        // automatic take history still protects the take it replaces.
+        const target = getEditorReviewTarget();
+        if (!target || target.chunk.status === 'generating') { return; }
+        event.preventDefault();
+        generateChunk(target.chunk.id);
+        return;
+    }
+
+    if (event.code === 'KeyE') {
+        const target = getEditorReviewTarget();
+        const field = target ? target.row.querySelector('.chunk-text') : null;
+        if (!field) { return; }
+        event.preventDefault();
+        if (!target.row.classList.contains('expanded')) {
+            toggleChunkExpand(target.row.querySelector('.chunk-toggle-btn'));
+        }
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'center', behavior: 'instant' });
+        if (typeof field.setSelectionRange === 'function') { field.setSelectionRange(field.value.length, field.value.length); }
+        return;
+    }
+
     if (event.code === 'Space') {
         // Audition only the selected, rendered line. With nothing to play the key
         // keeps its native meaning instead of starting whole-book playback.
@@ -625,6 +650,102 @@ document.addEventListener('keydown', event => {
 // The seven editor tools share one drawer: the take queue no longer sits under a
 // stack of collapsed sections. Panels keep their ids and ontoggle hooks, so
 // opening one still runs the same refresh the summary used to trigger.
+// A peak sketch of the selected line's saved take. The audio element already
+// holds the URL the browser plays; decoding here never replaces playback and
+// never touches the project files.
+let editorWaveformContext = null;
+let editorWaveformRequest = 0;
+let editorWaveformKey = '';
+const editorWaveformPeaks = new Map();
+
+async function renderEditorLineWaveform() {
+    const wrap = document.getElementById('editor-line-waveform-wrap');
+    const canvas = document.getElementById('editor-line-waveform');
+    const status = document.getElementById('editor-line-waveform-status');
+    if (!wrap || !canvas || !status) { return; }
+    const target = getEditorReviewTarget();
+    const audio = target ? target.row.querySelector('.chunk-audio') : null;
+    const src = audio?.getAttribute('src');
+    if (!src) {
+        wrap.hidden = true;
+        editorWaveformKey = '';
+        status.textContent = '';
+        return;
+    }
+    wrap.hidden = false;
+    const key = [target.chunk.uid, target.chunk.audio_revision || '', src].join(':');
+    if (key === editorWaveformKey && !canvas.hidden) { return; }
+    editorWaveformKey = key;
+    const request = ++editorWaveformRequest;
+    let peaks = editorWaveformPeaks.get(key);
+    if (!peaks) {
+        status.textContent = t('editor.waveform.loading', 'Reading the saved audio…');
+        try {
+            peaks = await decodeEditorWaveformPeaks(src);
+            editorWaveformPeaks.set(key, peaks);
+            if (editorWaveformPeaks.size > 24) { editorWaveformPeaks.delete(editorWaveformPeaks.keys().next().value); }
+        } catch (error) {
+            if (request !== editorWaveformRequest) { return; }
+            canvas.hidden = true;
+            status.textContent = t('editor.waveform.unavailable', 'Waveform unavailable: {detail}', { detail: error.message });
+            return;
+        }
+    }
+    if (request !== editorWaveformRequest) { return; }
+    canvas.hidden = false;
+    drawEditorWaveform(canvas, peaks);
+    status.textContent = t('editor.waveform.caption', 'Peaks of the saved audio: silence, clipping and truncation show up here. This is not a quality measure.');
+}
+
+async function decodeEditorWaveformPeaks(src) {
+    const response = await fetch(src);
+    if (!response.ok) { throw new Error(String(response.status)); }
+    const bytes = await response.arrayBuffer();
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) { throw new Error(t('editor.waveform.no-context', 'This browser cannot decode audio buffers.')); }
+    editorWaveformContext = editorWaveformContext || new Context();
+    const buffer = await editorWaveformContext.decodeAudioData(bytes);
+    const channel = buffer.getChannelData(0);
+    const bars = 160;
+    const step = Math.max(1, Math.floor(channel.length / bars));
+    const peaks = new Array(bars);
+    for (let bar = 0; bar < bars; bar++) {
+        const start = bar * step;
+        const end = Math.min(channel.length, start + step);
+        let min = 0;
+        let max = 0;
+        for (let index = start; index < end; index++) {
+            const value = channel[index];
+            if (value < min) { min = value; }
+            if (value > max) { max = value; }
+        }
+        peaks[bar] = [min, max];
+    }
+    return peaks;
+}
+
+function drawEditorWaveform(canvas, peaks) {
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(canvas.clientWidth || canvas.width));
+    const height = Math.max(1, Math.round(canvas.clientHeight || 48));
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const context = canvas.getContext('2d');
+    if (!context) { return; }
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    const styles = getComputedStyle(document.documentElement);
+    context.fillStyle = styles.getPropertyValue('--accent').trim() || '#0d6efd';
+    const middle = height / 2;
+    const barWidth = width / peaks.length;
+    for (let index = 0; index < peaks.length; index++) {
+        const [min, max] = peaks[index];
+        const top = middle - max * middle;
+        const bottom = middle - min * middle;
+        context.fillRect(index * barWidth, Math.min(top, bottom), Math.max(1, barWidth - 0.5), Math.max(1, Math.abs(bottom - top)));
+    }
+}
+
 function getEditorToolPanels() {
     return Array.from(document.querySelectorAll('#editor-tool-drawer [data-editor-tool]'));
 }
@@ -643,12 +764,24 @@ function showEditorTool(slug) {
 function toggleEditorTools(open = document.getElementById('editor-tool-drawer').hidden) {
     const drawer = document.getElementById('editor-tool-drawer');
     const toggle = document.getElementById('editor-tools-toggle');
+    const scrim = document.getElementById('editor-drawer-scrim');
+    const wasOpen = !drawer.hidden;
     drawer.hidden = !open;
+    if (scrim) { scrim.hidden = !open; }
     toggle.setAttribute('aria-expanded', String(open));
-    if (!open) { return; }
+    if (!open) {
+        // Closing returns focus to the control that opened the drawer, so a
+        // keyboard user is not dropped at the top of the page.
+        if (wasOpen) { toggle.focus({ preventScroll: true }); }
+        return;
+    }
     const panels = getEditorToolPanels();
     const current = panels.find(panel => !panel.hidden) || panels[0];
     if (current) { showEditorTool(current.dataset.editorTool); }
+    // The active tab is the drawer's first real control; focusing it puts the
+    // next Tab inside the panel rather than back on the page behind the scrim.
+    const activeTab = document.querySelector('[data-editor-tool-target][aria-pressed="true"]');
+    if (activeTab) { activeTab.focus({ preventScroll: true }); }
 }
 
 document.addEventListener('keydown', event => {

@@ -2080,10 +2080,17 @@
                 const res = await API.post('/api/llm/test', profile);
                 if (!isCurrent()) { return; }
                 if (res.ok) {
-                    out.className = 'ms-2 small text-success';
-                    const note = res.model_present === false
-                        ? ` — warning: model "${escapeHtml(res.model)}" not in server list` : '';
-                    out.innerHTML = `<i class="fas fa-check me-1"></i>Connected. Reply: "${escapeHtml(res.reply || '')}"${note}`;
+                    // Three separate facts stay readable as pills: whether the
+                    // server answered, whether the configured model is actually
+                    // served, and what came back. The sentence form buried the
+                    // model warning in the middle of a line.
+                    out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                    const modelPresent = res.model_present !== false;
+                    out.innerHTML = [
+                        `<span class="llm-test-pill is-ok"><i class="fas fa-circle-check me-1"></i>${escapeHtml(t('setup.llm.test.pill-connected', 'Connected · {mode}', {mode: res.is_remote ? t('setup.llm.test.mode-remote', 'Remote') : t('setup.llm.test.mode-local', 'Local')}))}</span>`,
+                        `<span class="llm-test-pill ${modelPresent ? 'is-ok' : 'is-warn'}"><i class="fas fa-microchip me-1"></i>${escapeHtml(modelPresent ? t('setup.llm.test.pill-model-present', 'Model "{model}" present', {model: res.model || ''}) : t('setup.llm.test.pill-model-missing', 'Model "{model}" not in the server list', {model: res.model || ''}))}</span>`,
+                        `<span class="llm-test-pill"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(t('setup.llm.test.pill-reply', 'Reply: "{reply}"', {reply: res.reply || ''}))}</span>`,
+                    ].join('');
 
                     const modeLabel = res.is_remote ? 'Remote' : 'Local';
                     const banner = document.getElementById('auto-config-banner');
@@ -2093,14 +2100,17 @@
                     banner.style.display = '';
                     banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 } else {
-                    out.className = 'ms-2 small text-danger';
-                    const log = res.log_file ? ` (log: ${escapeHtml(res.log_file)})` : '';
-                    out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
+                    out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                    out.innerHTML = [
+                        `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-failed', 'Failed at {step}', {step: res.step || ''}))}</span>`,
+                        `<span class="llm-test-pill is-bad">${escapeHtml(res.error || t('setup.llm.test.no-detail', 'The server did not say why.'))}</span>`,
+                        res.log_file ? `<span class="llm-test-pill">${escapeHtml(t('setup.llm.test.pill-log', 'Log: {log}', {log: res.log_file}))}</span>` : '',
+                    ].join('');
                 }
             } catch (e) {
                 if (!isCurrent()) { return; }
-                out.className = 'ms-2 small text-danger';
-                out.textContent = 'Test request failed: ' + (e.message || 'unknown error');
+                out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail: e.message || t('setup.llm.test.no-detail', 'The server did not say why.')}))}</span>`;
             } finally {
                 if (testLlmConnection.request === request) { btn.disabled = false; }
             }

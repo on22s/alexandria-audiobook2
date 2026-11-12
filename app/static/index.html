@@ -494,6 +494,10 @@
             border-left: 1px solid var(--border-color); box-shadow: -8px 0 24px var(--shadow);
         }
         .editor-drawer[hidden] { display: none !important; }
+        /* The scrim is decorative: it dims the page and closes the drawer on click.
+           Escape and the close button do the same for keyboard users. */
+        .editor-drawer-scrim { position: fixed; inset: 0; z-index: 1044; background: rgba(0, 0, 0, .42); }
+        .editor-drawer-scrim[hidden] { display: none !important; }
         .editor-drawer-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
         .editor-drawer-tabs { display: flex; flex-wrap: wrap; gap: .35rem; }
         .editor-drawer-tabs .btn { font-size: .78rem; padding: .2rem .55rem; }
@@ -501,9 +505,9 @@
         .editor-drawer [data-editor-tool][hidden] { display: none !important; }
         @media (max-width: 767.98px) { .editor-drawer { width: 100vw; } }
         .status-pill {
-            display: inline-flex; align-items: center; gap: .9rem; padding: .18rem .65rem;
+            display: inline-flex; align-items: center; gap: .6rem; padding: .16rem .55rem;
             border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; background: rgba(255,255,255,0.06);
-            min-width: 0;
+            min-width: 0; font-size: .8rem;
         }
         /* The cluster must never push the navbar onto a second row: the pill keeps
            its own width in check and a stale-reading warning truncates instead of
@@ -512,7 +516,25 @@
         .status-cluster #sys-status-error {
             max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        @media (max-width: 1399.98px) { .status-pill #sys-build { display: none !important; } }
+        /* Eight links plus the theme button and the status cluster need about
+           1410px, but the bar only has ~1150px at a 1440 viewport, so the cluster
+           used to wrap onto a second row. Two steps give it back the difference:
+           the build number and the warning's width first, then the theme caption
+           and the link padding. Nothing is dropped except the build number, which
+           stays in the About/test surface. */
+        @media (max-width: 1599.98px) {
+            .status-pill { gap: .5rem; }
+            .status-pill #sys-build { display: none !important; }
+            .status-cluster #sys-status-error { max-width: 6.5rem; }
+            .navbar .nav-link { padding-left: .45rem; padding-right: .45rem; }
+        }
+        @media (max-width: 1399.98px) {
+            #theme-label { display: none; }
+            #theme-toggle { padding: 3px 9px; }
+            .navbar .nav-link { padding-left: .4rem; padding-right: .4rem; }
+            .status-cluster #sys-status-error { max-width: 6rem; }
+            .status-cluster { padding: .2rem .35rem; }
+        }
         .editor-review-main { min-width: 0; }
         .editor-review-main table { min-width: 64rem; table-layout: fixed; }
         .editor-review-main .chunk-row td:first-child { white-space: normal !important; }
@@ -523,6 +545,12 @@
         .editor-review-panel { padding: 1rem; border: 1px solid var(--border-input); border-radius: var(--radius-md); background: var(--bg-card-header); overflow-wrap: anywhere; }
         .editor-line-inspector { scroll-margin-top: 8rem; position: sticky; top: 7rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
         .editor-line-text { white-space: pre-wrap; }
+        /* A peak-only sketch of the saved take: it shows silence, clipping and
+           truncation at a glance and deliberately claims nothing about quality. */
+        .editor-line-waveform { margin: 0 0 .9rem; }
+        .editor-line-waveform-canvas { display: block; width: 100%; height: 48px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); background: var(--bg-input); }
+        .editor-line-waveform-canvas[hidden] { display: none !important; }
+        .editor-line-waveform[hidden] { display: none !important; }
         .editor-quality-row { padding: .6rem 0; border-bottom: 1px solid var(--border-input); }
         #editor-tab .editor-review-panel .text-muted { color: var(--text-primary) !important; }
         #editor-tab .editor-review-panel :is(button, select, summary):focus-visible, #editor-tab .editor-toolbar :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -599,9 +627,22 @@
         }
 
         @media (min-width: 992px) {
+            /* The left nav used to claim a whole row (flex-basis: 100%), which
+               pushed the theme button and the status cluster onto a second one at
+               every desktop width. It now sizes to its links so both groups share
+               the bar; wrap stays on so a longer translation degrades to the old
+               two-row layout instead of overflowing. */
             .navbar-collapse { min-width: 0; flex-wrap: wrap; }
-            .navbar-nav.me-auto { flex-basis: 100%; flex-wrap: wrap; }
+            .navbar-nav.me-auto { flex-basis: auto; flex-wrap: wrap; }
             .navbar-nav.ms-auto { flex-wrap: wrap; }
+        }
+        @media (max-width: 1299.98px) {
+            /* Decorative caption only (`aria-hidden`); dropping it is what buys
+               the row back at 1280, where the links plus the cluster do not fit.
+               The last few pixels come out of the pill's gaps and the warning. */
+            .nav-section-label { display: none; }
+            .status-pill { gap: .45rem; }
+            .status-cluster #sys-status-error { max-width: 5rem; }
         }
 
         /* Preserve readable density on narrow screens without hiding controls. */
@@ -1055,6 +1096,12 @@
         .tooltip-inner { max-width: 340px; text-align: left; }
         .help-tooltip { pointer-events: none; }
         .settings-preview { background: var(--bg-card-header); overflow-wrap: anywhere; }
+        /* Connection-test results: one pill per checked fact, so a model that is
+           missing from the server list cannot hide inside a sentence. */
+        .llm-test-pill { display: inline-flex; align-items: center; padding: .12rem .55rem; border: 1px solid var(--border-input); border-radius: 999px; background: var(--bg-input); font-size: .78rem; line-height: 1.5; }
+        .llm-test-pill.is-ok { border-color: rgba(25, 135, 84, .45); background: rgba(25, 135, 84, .1); color: #146c43; }
+        .llm-test-pill.is-warn { border-color: rgba(255, 193, 7, .55); background: rgba(255, 193, 7, .14); color: #664d03; }
+        .llm-test-pill.is-bad { border-color: rgba(220, 53, 69, .45); background: rgba(220, 53, 69, .1); color: #b02a37; }
         #llm-active-mode-badge { white-space: normal; text-align: left; line-height: 1.4; }
         .settings-preview-row { border-bottom: 1px solid var(--border-input); padding: .75rem 0; }
         .settings-preview-values { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem; margin-top: .4rem; }
@@ -3522,7 +3569,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
-                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate</span></span>
+                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate | R: Re-render | E: Edit text</span></span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <div class="btn-group btn-group-sm" role="group">
@@ -3557,6 +3604,7 @@
                      </div>
                      <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
+                     <div id="editor-drawer-scrim" class="editor-drawer-scrim" hidden onclick="toggleEditorTools(false)"></div>
                      <section id="editor-tool-drawer" class="editor-drawer" hidden aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
                          <div class="editor-drawer-header">
                              <div class="editor-drawer-tabs" role="group" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
@@ -3737,6 +3785,10 @@
                                    <div class="editor-line-actions d-flex flex-wrap gap-2 mb-3">
                                        <button type="button" class="btn btn-outline-primary btn-sm" id="editor-line-play" onclick="playEditorReviewLine()" data-i18n="editor.inspector.play-line">Play line</button>
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()" data-i18n="editor.inspector.generate-line">Generate line…</button>
+                                   </div>
+                                   <div class="editor-line-waveform" id="editor-line-waveform-wrap" hidden>
+                                       <canvas id="editor-line-waveform" class="editor-line-waveform-canvas" height="48" role="img" data-i18n-attr="aria-label:editor.waveform.aria" aria-label="Peak waveform of this line's saved audio"></canvas>
+                                       <p id="editor-line-waveform-status" class="small text-muted mb-0" role="status" aria-live="polite"></p>
                                    </div>
                                    <details class="mb-3" id="editor-take-details"><summary data-i18n="editor.snapshots.title" data-i18n-attr="title:editor.snapshots.title-attr" title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
                                        <p class="small mt-2" data-i18n="editor.snapshots.intro">Save a good performance explicitly or enable automatic history above. Audition keeps the current selection. Check &amp; restore selects a saved performance only when its original inputs, voice, settings and pronunciation still match; it retains the displaced take. Verification may load the native voice model. Other snapshots remain available for audition.</p>
