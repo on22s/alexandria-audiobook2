@@ -2102,9 +2102,9 @@
                         <div class="script-ingest-steps" role="group" data-i18n-attr="aria-label:script.ingest.steps.aria" aria-label="Ingestion order">
                             <span class="script-ingest-steps-title" data-i18n="script.ingest.steps.title">Order of work</span>
                             <ol class="script-ingest-steps-list">
-                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('upload')"><span data-i18n="script.ingest.steps.choose">Choose the text</span></button></li>
-                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('existing')"><span data-i18n="script.ingest.steps.ingest">Accept it into this project</span></button></li>
-                                <li><button type="button" class="btn btn-link btn-sm" onclick="focusScriptIngestStep('generate')"><span data-i18n="script.ingest.steps.generate">Generate the script</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestUpload" onclick="focusScriptIngestStep('upload')"><span data-i18n="script.ingest.steps.choose">Choose the text</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestExisting" onclick="focusScriptIngestStep('existing')"><span data-i18n="script.ingest.steps.ingest">Accept it into this project</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestGenerate" onclick="focusScriptIngestStep('generate')"><span data-i18n="script.ingest.steps.generate">Generate the script</span></button></li>
                             </ol>
                         </div>
                         <div class="mb-4">
@@ -3625,13 +3625,13 @@
                      <section id="editor-tool-drawer" class="editor-drawer" hidden aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
                          <div class="editor-drawer-header">
                              <div class="editor-drawer-tabs" role="group" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="true" data-editor-tool-target="sound-assets" onclick="showEditorTool('sound-assets')"><span data-i18n="editor.sound-assets.title">Sound asset library</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="sound-cues" onclick="showEditorTool('sound-cues')"><span data-i18n="editor.sound-cues.title">Sound cues</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="renditions" onclick="showEditorTool('renditions')"><span data-i18n="editor.renditions.title">Recorded renditions and stems</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="mixes" onclick="showEditorTool('mixes')"><span data-i18n="editor.mixes.title">Mixed audio review</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="pronunciation" onclick="showEditorTool('pronunciation')"><span data-i18n="editor.pronunciation.title">Pronunciation</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="chapters" onclick="showEditorTool('chapters')"><span data-i18n="editor.chapters.title">Generate by chapter</span></button>
-                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="repair" onclick="showEditorTool('repair')"><span data-i18n="editor.repair.title">Repair audio by chapter and speaker</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="true" data-editor-tool-target="sound-assets" data-help-key="editorToolSoundAssets" onclick="showEditorTool('sound-assets')"><span data-i18n="editor.sound-assets.title">Sound asset library</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="sound-cues" data-help-key="editorToolSoundCues" onclick="showEditorTool('sound-cues')"><span data-i18n="editor.sound-cues.title">Sound cues</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="renditions" data-help-key="editorToolRenditions" onclick="showEditorTool('renditions')"><span data-i18n="editor.renditions.title">Recorded renditions and stems</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="mixes" data-help-key="editorToolMixes" onclick="showEditorTool('mixes')"><span data-i18n="editor.mixes.title">Mixed audio review</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="pronunciation" data-help-key="editorToolPronunciation" onclick="showEditorTool('pronunciation')"><span data-i18n="editor.pronunciation.title">Pronunciation</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="chapters" data-help-key="editorToolChapters" onclick="showEditorTool('chapters')"><span data-i18n="editor.chapters.title">Generate by chapter</span></button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="false" data-editor-tool-target="repair" data-help-key="editorToolRepair" onclick="showEditorTool('repair')"><span data-i18n="editor.repair.title">Repair audio by chapter and speaker</span></button>
                              </div>
                              <button type="button" class="btn btn-sm btn-outline-secondary" id="editor-tools-close" aria-label="Close tools" data-i18n-attr="aria-label:editor.tools.close" onclick="toggleEditorTools(false)"><i class="fas fa-times"></i></button>
                          </div>
