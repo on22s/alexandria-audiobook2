@@ -378,7 +378,9 @@
 
         /* Navbar */
         .config-save-bar { position: sticky; top: 0; z-index: 5; background-color: var(--bg-card); }
-        .navbar { background-color: var(--bg-navbar) !important; transition: background-color 0.25s ease; }
+        /* Raise the whole navbar above sticky page controls (1020). A menu's
+           own z-index cannot escape its ancestor; drawers and modals stay above. */
+        .navbar { z-index: 1030; background-color: var(--bg-navbar) !important; transition: background-color 0.25s ease; }
 
         /* Log window */
         .log-window {
