@@ -2584,6 +2584,7 @@
   ],
   "test_cast_paragraph_windows": [
     "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_actual_progress_roster_and_provenance_follow_packed_windows",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_cli_preserves_unicode_blank_line_paragraphs",
     "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_empty_exact_limit_tail_and_separator_boundaries",
     "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_generated_windows_preserve_bounded_paragraphs_and_exact_offsets",
     "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_late_oversized_paragraph_refuses_before_any_model_request",

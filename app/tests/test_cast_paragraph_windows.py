@@ -26,7 +26,8 @@ class CastParagraphWindowTests(unittest.TestCase):
                 body = ''.join(rng.choice('abc界😀 ') for _ in range(rng.randrange(1, 40))) + '.'
                 if rng.randrange(2):
                     body += '\nWrapped text.'  # A single line break is not a paragraph break.
-                paragraphs.append(body + rng.choice(['\n\n', '\n \t\n', '\r\n\r\n', '\r\r']))
+                paragraphs.append(body + rng.choice(['\n\n', '\n \t\n', '\r\n\r\n', '\r\r',
+                                                     '\n\u00a0\n', '\n\u3000\n']))
             if rng.randrange(2):
                 paragraphs.append('Final paragraph.')
             text = ''.join(paragraphs)
@@ -59,6 +60,8 @@ class CastParagraphWindowTests(unittest.TestCase):
         for text, limit, expected in (
                 ('', 1, []), ('Tiny.', 5, ['Tiny.']),
                 ('A.\n\nB.', 4, ['A.\n\n', 'B.']),
+                ('A.\n\u3000\nB.', 5, ['A.\n\u3000\n', 'B.']),
+                ('A.\n\u00a0\nB.', 5, ['A.\n\u00a0\n', 'B.']),
                 ('ALPHA.\r\n\r\nBETA.', 10, ['ALPHA.\r\n\r\n', 'BETA.']),
                 (' A.\n \t\n  B. ', 7, [' A.\n \t\n', '  B. '])):
             with self.subTest(text=repr(text)):
@@ -71,6 +74,16 @@ class CastParagraphWindowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Paragraph.*Increase Cast source characters'):
             cast_list.request_incremental_cast(client, 'fixture', 'Short.\n\n' + 'x' * 36, 35, 8000)
         self.assertEqual([], client.requests)
+
+    def test_cli_preserves_unicode_blank_line_paragraphs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, out = Path(directory) / 'source.txt', Path(directory) / 'cast.json'
+            source.write_text('ALICE spoke.\n\u3000\nBORIN replied.', encoding='utf-8')
+            client = Client([ALICE, BOB])
+            self.assertEqual(0, fixtures.IncrementalCastTests.run_main(
+                self, source, out, client, '--incremental', '--source-chars', '20'))
+            self.assertEqual(2, len(client.requests))
+            self.assertIn('\n\u3000\n', client.requests[0]['messages'][0]['content'])
 
     def test_actual_progress_roster_and_provenance_follow_packed_windows(self):
         paragraphs = ['ALICE spoke calmly.\n\n', 'BORIN replied softly.\n\n', 'The narrator paused.']

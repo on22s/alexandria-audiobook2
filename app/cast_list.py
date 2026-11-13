@@ -153,7 +153,7 @@ def iter_source_windows(text, source_chars):
     # Treat CRLF as one line ending; a single wrapped line is not a paragraph.
     newline = r"(?:\r\n|\r(?!\n)|\n)"
     boundaries = chain((match.end() for match in re.finditer(
-        newline + r"(?:[ \t]*" + newline + r")+", text)), [len(text)])
+        newline + r"(?:[^\S\r\n]*" + newline + r")+", text)), [len(text)])
     start = end = 0
     for boundary in boundaries:
         if boundary - end > source_chars:

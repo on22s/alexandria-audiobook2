@@ -12,7 +12,8 @@ with every retained alias from all earlier windows. Only source text counts towa
 the character target; instructions and the growing roster also consume context.
 The whole-book 1,200,000-character limit remains in the default mode. Experimental
 mode can process larger books without dropping a tail or truncating the roster.
-Windows pack complete paragraphs and end at blank-line paragraph breaks. Single
+Windows pack complete paragraphs and end at blank-line paragraph breaks, including
+blank lines containing Unicode whitespace. Single
 wrapped line breaks stay inside their paragraph. Paragraph separators count toward
 the strict character cap, and all whitespace is preserved. If any paragraph plus
 its separator exceeds the cap, discovery refuses before sending any model requests;
