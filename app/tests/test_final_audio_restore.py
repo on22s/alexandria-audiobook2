@@ -31,7 +31,7 @@ class FinalAudioRestoreTests(unittest.TestCase):
         script = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),pending=[],elements={};
-const el=id=>elements[id]||(elements[id]={style:{},textContent:'',src:'',href:'',pause(){this.paused=true;},removeAttribute(name){delete this[name];},classList:{contains:()=>false}});
+const el=id=>elements[id]||(elements[id]={style:{},textContent:'',src:'',href:'',pause(){this.paused=true;},removeAttribute(name){delete this[name];},classList:{contains:()=>false,add(){},remove(){}}});
 const link={dataset:{tab:'audio'},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){}};
 const ctx={window:{location:{hash:'#audio'},innerWidth:1200},rememberTab(){},getTabLink:()=>link,document:{getElementById:el,querySelectorAll:selector=>selector==='.nav-link'?[link]:[el('audio-tab')]},console:{error(){}},fetch:(url,options)=>{assert.strictEqual(url,'/api/audiobook');assert.strictEqual(options.method,'HEAD');assert.strictEqual(options.cache,'no-store');return new Promise((resolve,reject)=>pending.push({resolve,reject}));}};
 vm.createContext(ctx);

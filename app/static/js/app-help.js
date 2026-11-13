@@ -13,6 +13,7 @@
             'roster-split-name': {what: 'Name the new character when splitting one selected identity. Supply a supporting source quote before approval.'},
             'roster-split-new': {what: 'Retire the original identity and allocate two new identities for this split. Leave off to keep the original identity for one character.'},
             'roster-consent': {what: 'Confirm that you reviewed the proposed identities and exact source locations. Edits invalidate this confirmation.'},
+            'setup-expert-toggle': {what: 'Show the advanced Setup categories: limits and retries, audio and timing, generation, script strategy and prompt studio. Switching it off changes no setting and saves nothing.'},
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             'setup-ui-locale': {what: "Choose the language of this Setup pane and the app shell: English, Chinese, Japanese, Spanish or the layout-test Pseudo-English. Help text, task logs, safety warnings and other tabs stay English until their phase ships. Preserves counts, config values and book/TTS/transcription language."},
@@ -336,7 +337,17 @@
         };
 
         const ACTION_HELP = {
+            'editorToolSoundAssets': 'Show the sound library: import, audition and delete reusable effects. Opening the panel changes nothing.',
+            'editorToolSoundCues': 'Show where effects are cued against script lines. Opening the panel changes no cue.',
+            'editorToolRenditions': 'Show recorded renditions and stems. Opening the panel renders nothing.',
+            'editorToolMixes': 'Show the mixed audio review and its exports. Opening the panel mixes nothing.',
+            'editorToolPronunciation': 'Show pronunciation rules and the preview that applies them. Opening the panel changes no rule.',
+            'editorToolChapters': 'Show chapter-by-chapter script generation. Opening the panel starts nothing.',
+            'editorToolRepair': 'Show the repair panel for regenerating only the audio that is wrong. Opening the panel regenerates nothing.',
             'audiobookshelfApiDocs': 'Open the official Audiobookshelf API documentation. Does not upload audio or send your API key.',
+            'scriptIngestUpload': 'Step 1 of 3: focus the upload control so you can choose a source text. Focusing it starts no transcription.',
+            'scriptIngestExisting': 'Step 2 of 3: focus the existing-file picker to reuse a source already on the server. Nothing is transcribed until you generate the script.',
+            'scriptIngestGenerate': 'Step 3 of 3: focus the Generate Script button, the one control that actually starts transcription. This step does not start it for you.',
             'saveAbsConfig': 'Save the selected Audiobookshelf server and its API key in the OS credential store. Does not send the audiobook.',
             'loadAbsLibraries': 'Contact the selected Audiobookshelf server to list accessible libraries and folders. Does not upload audio.',
             'previewAbsSend': 'Check the current export and destination, then display their identity before you confirm sending. Contacts the server to check the destination.',
@@ -605,6 +616,11 @@
         };
 
         const ITEM_HELP = {
+            'editor-line-waveform-retry': 'Try reading the selected take again after a waveform error. This only refreshes the sketch; it does not regenerate or change the audio.',
+            'btn-editor-batch': 'Open the batch actions for the script: regenerate, repair or export several lines at once. Nothing runs until you pick an action.',
+            'editor-tools-toggle': 'Open or close the tool drawer, which keeps the sound, rendition, mix, pronunciation, chapter and repair panels beside the line editor without leaving this tab.',
+            'editor-drawer-scrim': 'Dims the page while the tool drawer is open. Clicking it closes the drawer and returns focus to the Tools button.',
+            'editor-tools-close': 'Close the tool drawer and return focus to the Tools button. Closing changes no setting and discards nothing.',
             'translated-edition-refresh': 'Re-check which language pairs are installed on this machine. Does not download anything.',
             'translated-edition-create': 'Build a reviewable translation proposal for the first 25 saved Script rows. Proposal only: never changes the Script, source, or any language setting, and it refuses rather than download when Argos needs a sentence-splitter model that is not already installed. It belongs to the active book; re-opening the panel with nothing running shows the most recent saved preview for the current book, and another book\'s preview is never shown for this book.',
             'translated-edition-cancel': 'Request a stop for a running preview after the current row. A preview that has not finished building is saved as cancelled, never complete or approved; one already finished keeps its finished status.',

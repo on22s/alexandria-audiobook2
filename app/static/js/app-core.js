@@ -609,6 +609,7 @@
         function showConfigValidationError(error) {
             const field = error.fieldId ? document.getElementById(error.fieldId) : null;
             if (field) {
+                if (typeof revealExpertSettingsFor === 'function') { revealExpertSettingsFor(field); }
                 openConfigField(field);
             }
             showToast(error.message, 'error');
@@ -841,6 +842,7 @@
             if (!selectedLink) { return; }
             const target = document.getElementById(name + '-tab');
             if (!target) { return; }
+            if (name !== 'editor') { window.toggleEditorTools?.(false); }
             if (updateHistory && window.location.hash !== '#' + name) {
                 window.history.pushState(null, '', '#' + name);
             }
@@ -854,6 +856,14 @@
             // Add active to clicked
             selectedLink.classList.add('active');
             selectedLink.setAttribute('aria-current', 'page');
+            const advDropdown = document.getElementById('advancedNavDropdown');
+            if (advDropdown?.classList) {
+                if (selectedLink.closest && selectedLink.closest('.dropdown-menu')) {
+                    advDropdown.classList.add('active');
+                } else {
+                    advDropdown.classList.remove('active');
+                }
+            }
 
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
@@ -931,7 +941,12 @@
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                activateTab(e.currentTarget.dataset.tab);
+                // A nav-link without a data-tab belongs to something else — the
+                // Advanced dropdown toggle. getTabLink(undefined) would happily
+                // match it, so it must never reach the navigation logic.
+                const tab = e.currentTarget.dataset.tab;
+                if (!tab) { return; }
+                activateTab(tab);
             });
         });
         window.addEventListener('popstate', onTabHistoryChange);
@@ -2058,18 +2073,36 @@
                 try { return !profile || JSON.stringify(getEditedLlmProfile()) === JSON.stringify(profile); }
                 catch (_) { return false; }
             };
+            // Parse before reporting "Testing…": a profile that cannot be read
+            // fails validation, not the request, and nothing is sent. Reporting
+            // it as a request failure would describe work that never happened.
+            try {
+                profile = getEditedLlmProfile();
+            } catch (e) {
+                out.className = 'ms-2 small text-danger';
+                out.textContent = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
+                // Only the call that owns the button may re-enable it.
+                if (testLlmConnection.request === request) { btn.disabled = false; }
+                return;
+            }
             btn.disabled = true;
             out.className = 'ms-2 small text-muted';
             out.textContent = 'Testing…';
             try {
-                profile = getEditedLlmProfile();
                 const res = await API.post('/api/llm/test', profile);
                 if (!isCurrent()) { return; }
                 if (res.ok) {
-                    out.className = 'ms-2 small text-success';
-                    const note = res.model_present === false
-                        ? ` — warning: model "${escapeHtml(res.model)}" not in server list` : '';
-                    out.innerHTML = `<i class="fas fa-check me-1"></i>Connected. Reply: "${escapeHtml(res.reply || '')}"${note}`;
+                    // Three separate facts stay readable as pills: whether the
+                    // server answered, whether the configured model is actually
+                    // served, and what came back. The sentence form buried the
+                    // model warning in the middle of a line.
+                    out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                    const modelPresent = res.model_present !== false;
+                    out.innerHTML = [
+                        `<span class="llm-test-pill is-ok"><i class="fas fa-circle-check me-1"></i>${escapeHtml(t('setup.llm.test.pill-connected', 'Connected · {mode}', {mode: res.is_remote ? t('setup.llm.test.mode-remote', 'Remote') : t('setup.llm.test.mode-local', 'Local')}))}</span>`,
+                        `<span class="llm-test-pill ${modelPresent ? 'is-ok' : 'is-warn'}"><i class="fas fa-microchip me-1"></i>${escapeHtml(modelPresent ? t('setup.llm.test.pill-model-present', 'Model "{model}" present', {model: res.model || ''}) : t('setup.llm.test.pill-model-missing', 'Model "{model}" not in the server list', {model: res.model || ''}))}</span>`,
+                        `<span class="llm-test-pill"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(t('setup.llm.test.pill-reply', 'Reply: "{reply}"', {reply: res.reply || ''}))}</span>`,
+                    ].join('');
 
                     const modeLabel = res.is_remote ? 'Remote' : 'Local';
                     const banner = document.getElementById('auto-config-banner');
@@ -2079,14 +2112,21 @@
                     banner.style.display = '';
                     banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 } else {
-                    out.className = 'ms-2 small text-danger';
-                    const log = res.log_file ? ` (log: ${escapeHtml(res.log_file)})` : '';
-                    out.innerHTML = `<i class="fas fa-times me-1"></i>Failed at ${escapeHtml(res.step)}: ${escapeHtml(res.error || '')}${log}`;
+                    out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                    out.innerHTML = [
+                        `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-failed', 'Failed at {step}', {step: res.step || ''}))}</span>`,
+                        `<span class="llm-test-pill is-bad">${escapeHtml(res.error || t('setup.llm.test.no-detail', 'The server did not say why.'))}</span>`,
+                        res.log_file ? `<span class="llm-test-pill">${escapeHtml(t('setup.llm.test.pill-log', 'Log: {log}', {log: res.log_file}))}</span>` : '',
+                    ].join('');
                 }
             } catch (e) {
-                if (!isCurrent()) { return; }
-                out.className = 'ms-2 small text-danger';
-                out.textContent = 'Test request failed: ' + (e.message || 'unknown error');
+                const detail = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
+                // Only a newer request or a mode change makes this result stale.
+                // isCurrent() would re-parse a profile that just failed to parse,
+                // which threw again and dropped the message on the floor.
+                if (testLlmConnection.request !== request || currentLlmMode !== mode) { return; }
+                out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
+                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail}))}</span>`;
             } finally {
                 if (testLlmConnection.request === request) { btn.disabled = false; }
             }
@@ -7992,6 +8032,17 @@
             }[status] || status;
         }
 
+        // The Script tab's ingest controls sit in three different blocks; these
+        // buttons only move focus to each one, in the order the work happens.
+        function focusScriptIngestStep(step) {
+            const targets = { upload: '#file-upload', existing: '#existing-upload-select', generate: '#btn-gen-script' };
+            const selector = targets[step];
+            const node = selector ? document.querySelector(selector) : null;
+            if (!node) { return; }
+            node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            node.focus({ preventScroll: true });
+        }
+
         async function loadChunks(forceFullRedraw = false) {
             invalidateEditorIntegrity();
             ++deliveryReviewView;
@@ -8008,6 +8059,14 @@
             } catch (e) {
                 console.error("Error loading chunks:", e);
                 window.markEditorReviewStale?.();
+                // A first load that fails would otherwise leave the loading row
+                // in place, so the table reads "Loading chunks..." forever while
+                // the only explanation sits in the status line above it.
+                const tbody = document.getElementById('chunks-table-body');
+                const placeholder = tbody && tbody.children && tbody.children.length === 1 ? tbody.children[0] : null;
+                if (placeholder && placeholder.children.length === 1) {
+                    placeholder.children[0].textContent = t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.');
+                }
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
                     status.innerHTML = `<span class="text-warning">${escapeHtml(t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.'))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`;

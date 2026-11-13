@@ -30,10 +30,34 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # KeyboardEvent.code values and the editor pane id are identifiers in the
+    # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
+    'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',
     # A server message key compared in app-project-scope.js (#1919), not copy.
     'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
+    # CSS selector naming the controls that own their keys (app-editor-review.js
+    # shortcut guard), an identifier rather than display copy.
+    'button, summary, a, audio',
+    # Setup's expert switch: a control id, a section id, the marker attribute on
+    # its advanced panels and a browser-local storage key, none of them copy.
+    'setup-expert-toggle', 'settings-llm', 'data-setup-advanced-section',
+    'alexandria.setupExpert',
+    # Editor tool drawer: three element ids, two ARIA attribute names and the key
+    # that closes it, all wiring rather than text.
+    'editor-tool-drawer', 'editor-tools-toggle', 'editor-drawer-scrim',
+    # The waveform card's wrapper, canvas and status line are element ids.
+    'editor-line-waveform', 'editor-line-waveform-wrap', 'editor-line-waveform-status',
+    # The waveform retry and playback controls, ARIA attribute, and Bootstrap's
+    # modal event are DOM wiring, not display copy.
+    'editor-line-waveform-retry', 'editor-line-play', 'aria-hidden', 'show.bs.modal',
+    # Shortcut guards: a Bootstrap body class, a KeyboardEvent.key value, and the
+    # selector the drawer's focus trap cycles through, none of them copy.
+    'modal-open', 'Tab', 'button, input, select, textarea, a[href], summary, [tabindex]',
+    # Drawer panel slugs are data-editor-tool values, not labels.
+    'sound-cues', 'renditions',
+    'aria-pressed', 'aria-expanded', 'Escape',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',
     '简体中文', '日本語', 'Español (Latinoamérica)',
@@ -43,6 +67,8 @@ KEEP_ENGLISH = frozenset({
     'zh-CN', 'ja',
     # HTTP header names are identifiers too (app-core.js checked downloads).
     'content-length',
+    # Bootstrap class lists on the connection-test result: styling, not copy.
+    'ms-2 small text-danger', 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that

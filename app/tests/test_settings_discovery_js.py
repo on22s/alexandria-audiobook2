@@ -58,10 +58,11 @@ class SettingsDiscoveryTests(unittest.TestCase):
         self.assertEqual(SETUP.count("vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);"), 1)
         setup = SETUP.replace("vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);",
                               locale_setup+"vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);")
-        result = subprocess.run(['node', '-e', DOM_FIXTURE+setup+script,
+        result = subprocess.run(['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
                                  str(STATIC/'js/app-help.js'), str(STATIC/'js/app-settings.js'),
                                  str(STATIC/'js/app-core.js'), str(STATIC/'js/app-workbench.js'),
                                  str(STATIC/'js/app-i18n.js')],
+                                input=DOM_FIXTURE+setup+script,
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
@@ -223,10 +224,44 @@ const conditional=other.appendChild(new Element('div',{hidden:''}));field('serve
 assert.equal(context.getSetupSettingsMatches('backend only').length,0);
 ''')
 
+    def test_advanced_categories_stay_hidden_until_expert_mode_is_switched_on(self):
+        self.run_js(r'''
+const saved=new Map();
+context.localStorage={getItem:key=>saved.has(key)?saved.get(key):null,setItem:(key,value)=>saved.set(key,value)};
+const toggle=overview.appendChild(new Element('input',{id:'setup-expert-toggle',type:'checkbox'}));
+const advancedButton=overview.appendChild(new Element('button',{'data-setup-advanced':'','data-settings-target':'settings-limits',hidden:''}));
+const advancedGroup=overview.appendChild(new Element('optgroup',{'data-setup-advanced':'',hidden:''}));
+const expertPanel=form.appendChild(new Element('section',{'data-settings-section':'Limits & retries',id:'settings-limits','data-setup-advanced-section':'',hidden:''}));
+expertPanel.appendChild(new Element('h5'));
+const expertField=field('llm-retries','Retries before giving up',expertPanel);
+const routed=document.querySelectorAll;
+document.querySelectorAll=selector=>selector==='[data-setup-advanced]'?overview.querySelectorAll(selector):routed(selector);
+assert(advancedButton.hidden);assert(advancedGroup.hidden);assert(expertPanel.hidden);
+context.setSetupExpertMode(true);
+assert.strictEqual(saved.get('alexandria.setupExpert'),'1');assert(!advancedButton.hidden);assert(!advancedGroup.hidden);
+context.openSetupSettingsSection('settings-limits',false);assert(!expertPanel.hidden);assert.equal(category.value,'settings-limits');
+context.setSetupExpertMode(false);
+assert.strictEqual(saved.get('alexandria.setupExpert'),'0');assert(advancedButton.hidden);assert(advancedGroup.hidden);
+assert(!section.hidden);assert(expertPanel.hidden);assert.equal(category.value,'settings-llm');
+search.value='retries';context.renderSetupSettingsSearch();assert.equal(results.children.length,1);
+results.children[0].children[0].fire('click');
+assert.strictEqual(saved.get('alexandria.setupExpert'),'0','a search hit reveals without saving the preference');assert(!advancedButton.hidden);assert(results.hidden);assert.strictEqual(revealed,expertField);
+''')
+
     def test_native_validation_reveals_first_invalid_only(self):
         self.run_js(r'''
 form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};
-context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
+const saved=new Map();context.localStorage={getItem:key=>saved.has(key)?saved.get(key):null,setItem:(key,value)=>saved.set(key,value)};
+const toggle=overview.appendChild(new Element('input',{id:'setup-expert-toggle',type:'checkbox'}));
+const advPanel=form.appendChild(new Element('section',{'data-settings-section':'Limits & retries',id:'settings-limits','data-setup-advanced-section':'',hidden:''}));
+const advField=field('llm-retries','Retries',advPanel);
+const routed=document.querySelectorAll;
+document.querySelectorAll=selector=>selector==='[data-setup-advanced]'?overview.querySelectorAll(selector):routed(selector);
+form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return advField;};
+context.onSetupSettingsInvalid({target:advField});
+assert.strictEqual(revealed,advField);assert(toggle.checked,'an advanced validation error switches expert mode on');assert(!saved.has('alexandria.setupExpert'),'and does not persist the switch');
+revealed=null;form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
+assert(!saved.has('alexandria.setupExpert'),'an essential field does not touch the expert switch');
 revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(revealed,null);
 ''')
 

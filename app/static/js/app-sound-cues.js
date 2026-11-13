@@ -256,6 +256,9 @@ const SoundCues = (() => {
     async function useRendition(record, history) {
         if (busy) { return; }
         const invocation = ++useSequence;
+        // The drawer shows one tool at a time; filling the cue editor without
+        // switching to it would leave the form the reader needs out of sight.
+        if (typeof showEditorTool === 'function') { showEditorTool('sound-cues'); }
         const panel = el('sound-cues-content').closest?.('details');
         if (panel && !panel.open) {
             await new Promise(resolve => { panel.addEventListener('toggle', resolve, {once: true}); panel.open = true; });

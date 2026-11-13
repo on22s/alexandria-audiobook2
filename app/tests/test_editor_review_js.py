@@ -195,6 +195,35 @@ document.getElementById('editor-line-recorded-binding').remove();context.renderE
         result = subprocess.run(['node','-e',DOM_FIXTURE+SETUP+script+"\ncompleted=true;})().catch(error=>{console.error(error);process.exitCode=1;});",str(STATIC/'js/app-editor-review.js'),str(STATIC/'index.html')], capture_output=True,text=True,timeout=15)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
 
+    def test_editor_shortcuts_leave_focused_controls_and_plain_keys_alone(self):
+        self.run_js(r'''
+function press(code,extra={}){const event={code,repeat:false,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,...extra};event.prevented=false;event.preventDefault=()=>{event.prevented=true;};for(const handler of document.listeners.keydown||[]){handler(event);}return event;}
+el('editor-tab').style.display='block';let sequences=0;context.playSequence=()=>{sequences++;};document.activeElement=document.body;
+const rowAudio=rows.get('u1').children.find(node=>node.classList.contains('chunk-audio')),playAudio=rowAudio.play;rowAudio.paused=true;rowAudio.play=async()=>{rowAudio.paused=false;return playAudio();};rowAudio.pause=()=>{rowAudio.paused=true;};
+let event=press('Space');assert.equal(event.prevented,false,'Space with nothing selected keeps its native scroll');assert.equal(sequences,0,'Space must not start whole-book playback');assert.equal(plays.length,0);
+context.selectEditorReviewLineById(1);event=press('Space');assert.equal(event.prevented,true,'Space auditions the selected line');assert.equal(plays.length,1);
+for(const tag of ['button','summary','a','audio']){const control=body.appendChild(new Element(tag,tag==='a'?{href:'#x'}:{}));control.focus();event=press('Space');assert.equal(event.prevented,false,tag+' keeps its own Space');assert.equal(plays.length,1,tag+' must not be replaced by a row audition');}
+assert.equal(sequences,0);document.activeElement=document.body;
+for(const extra of [{ctrlKey:true},{metaKey:true},{altKey:true},{shiftKey:true},{repeat:true}]){event=press('Space',extra);assert.equal(event.prevented,false,JSON.stringify(extra)+' keeps the key');assert.equal(plays.length,1);}
+context.selectEditorReviewLineById(1);document.activeElement=document.body;
+event=press('ArrowDown');assert.equal(event.prevented,false,'the last line has nowhere to go');assert.equal(run('editorReviewSelection.uid'),'u1');
+event=press('ArrowUp');assert.equal(event.prevented,true);assert.equal(run('editorReviewSelection.uid'),'u0');
+event=press('ArrowUp');assert.equal(event.prevented,false,'the first line leaves the key native');assert.equal(run('editorReviewSelection.uid'),'u0');
+const focused=body.appendChild(new Element('summary'));focused.focus();event=press('ArrowDown');assert.equal(event.prevented,false,'a focused control keeps its arrows');assert.equal(run('editorReviewSelection.uid'),'u0');
+let auditions=0;context.stopSequence=()=>{auditions++;};const playErrors=[];context.showActionError=(...args)=>playErrors.push(args);context.t=(key,english)=>english;
+context.selectEditorReviewLineById(1);document.activeElement=document.body;
+rowAudio.paused=true;rowAudio.play=async()=>{throw Error('decode failed');};
+event=press('Space');assert.equal(event.prevented,true);assert.equal(auditions,1,'Space stops whole-book playback before auditioning');
+await new Promise(resolve=>setTimeout(resolve,0));assert.equal(playErrors.length,1,'a failed audition is reported, not swallowed');
+rowAudio.play=async()=>{rowAudio.paused=false;return playAudio();};
+event=press('Space');assert.equal(auditions,2,'a second audition also stops playback first');assert.equal(playErrors.length,1);
+rowAudio.paused=false;event=press('Space');assert.equal(auditions,2,'pausing the audition does not stop the sequence again');assert.equal(rowAudio.paused,true);
+// Leave the selection where the surrounding arrow assertions expect it.
+context.selectEditorReviewLineById(0);document.activeElement=document.body;
+
+document.activeElement=document.body;event=press('ArrowDown',{ctrlKey:true});assert.equal(event.prevented,false);assert.equal(run('editorReviewSelection.uid'),'u0');
+''')
+
     def test_input_preview_is_read_only_and_never_replaces_historical_evidence(self):
         self.run_js(r'''
 context.isEditorEditPending=()=>false;
@@ -458,17 +487,24 @@ await context.refreshEditorReview();assert.equal(document.getElementById('editor
 
     def test_markup_preserves_handlers_separates_whole_book_actions_and_loads_before_restore(self):
         class Inventory(HTMLParser):
-            def __init__(self): super().__init__(); self.ids={};self.in_details=False
+            # Track the Batch & Tools dropdown so destructive whole-book actions are
+            # proven to sit behind it rather than next to the primary buttons.
+            def __init__(self): super().__init__(); self.ids={}; self.in_menu=False; self.depth=0
             def handle_starttag(self,tag,attrs):
                 a=dict(attrs)
-                if tag=='details' and 'editor-whole-book' in a.get('class',''): self.in_details=True
-                if a.get('id'): self.ids.setdefault(a['id'],[]).append((a,self.in_details))
+                if tag=='div' and 'editor-batch-menu' in a.get('class',''): self.in_menu=True; self.depth=1
+                elif self.in_menu and tag=='div': self.depth+=1
+                if a.get('id'): self.ids.setdefault(a['id'],[]).append((a,self.in_menu))
             def handle_endtag(self,tag):
-                if tag=='details': self.in_details=False
+                if self.in_menu and tag=='div':
+                    self.depth-=1
+                    if self.depth==0: self.in_menu=False
         html=(STATIC/'index.html').read_text();p=Inventory();p.feed(html)
         for key,handler in [('btn-play-seq','playSequence()'),('btn-batch-fast','startRender(false)'),('btn-regen-all','startRender(true)'),('btn-cancel-render','cancelRender()'),('btn-drift-check','runDriftCheck()')]:
             self.assertEqual(1,len(p.ids[key]));self.assertEqual(handler,p.ids[key][0][0]['onclick'])
-        self.assertTrue(p.ids['btn-regen-all'][0][1]);self.assertTrue(p.ids['btn-merge'][0][1]);self.assertFalse(p.ids['btn-play-seq'][0][1])
+        self.assertTrue(p.ids['btn-regen-all'][0][1],'Regenerate All stays inside Batch & Tools');self.assertTrue(p.ids['btn-merge'][0][1],'Merge stays inside Batch & Tools')
+        self.assertFalse(p.ids['btn-play-seq'][0][1]);self.assertFalse(p.ids['btn-batch-fast'][0][1])
+        self.assertTrue(p.ids['btn-editor-batch'][0][1])
         self.assertLess(html.index('app-editor-review.js'),html.index('app-reports.js'))
         core=(STATIC/'js/app-core.js').read_text()
         self.assertIn('window.refreshEditorReview?.();',core);self.assertIn('window.markEditorReviewStale?.();',core);self.assertIn('window.resetEditorReview?.();',core)

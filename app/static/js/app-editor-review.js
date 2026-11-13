@@ -236,6 +236,7 @@ function renderEditorLineInspector() {
     const target = getEditorReviewTarget();
     document.getElementById('editor-line-empty').hidden = !!target;
     document.getElementById('editor-line-content').hidden = !target;
+    renderEditorLineWaveform(target);
     document.querySelectorAll('#chunks-table-body .editor-selected-line').forEach(row => row.classList.remove('editor-selected-line'));
     if (!target) { editorReviewSelection = null; resetEditorSpeechPreview(); window.applyWordTimingInspector?.(); window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); window.applyNarrationMarkupInspector?.(); return; }
     const {chunk, row} = target;
@@ -576,3 +577,343 @@ editorReviewRows.addEventListener('input', () => { renderEditorLineInspector(); 
 editorReviewRows.addEventListener('play', event => {
     if (event.target.classList.contains('chunk-audio')) { selectEditorReviewLineById(Number(event.target.dataset.id), false); }
 }, true);
+
+// Keyboard navigation and audition shortcuts for Editor
+document.addEventListener('keydown', event => {
+    const editorTab = document.getElementById('editor-tab');
+    if (!editorTab || editorTab.style.display === 'none') { return; }
+
+    // A dialog or the tool drawer covers the selection these keys act on, and
+    // Bootstrap leaves focus on the .modal container, which none of the control
+    // checks below match. Acting on a line nobody can see is worse than a dead key.
+    if (document.body.classList.contains('modal-open')) { return; }
+    const openDrawer = document.getElementById('editor-tool-drawer');
+    if (openDrawer && !openDrawer.hidden) { return; }
+
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) { return; }
+
+    // A focused control owns its own keys: Space activates a button, a <summary>
+    // or an <audio> player, and arrows inside them must keep working.
+    const active = document.activeElement;
+    const activeTag = active ? active.tagName.toLowerCase() : '';
+    if (active && (['input', 'textarea', 'select'].includes(activeTag) || active.isContentEditable
+            || (active.closest && active.closest('button, summary, a, audio')))) {
+        return;
+    }
+
+    if (event.code === 'KeyR') {
+        // Same path as the row's Generate button: one line, no confirmation, and
+        // automatic take history still protects the take it replaces.
+        const target = getEditorReviewTarget();
+        if (!target || target.chunk.status === 'generating') { return; }
+        event.preventDefault();
+        generateChunk(target.chunk.id);
+        return;
+    }
+
+    if (event.code === 'KeyE') {
+        const target = getEditorReviewTarget();
+        const field = target ? target.row.querySelector('.chunk-text') : null;
+        if (!field) { return; }
+        event.preventDefault();
+        if (!target.row.classList.contains('expanded')) {
+            toggleChunkExpand(target.row.querySelector('.chunk-toggle-btn'));
+        }
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'center', behavior: 'instant' });
+        if (typeof field.setSelectionRange === 'function') { field.setSelectionRange(field.value.length, field.value.length); }
+        return;
+    }
+
+    if (event.code === 'Space') {
+        // Audition only the selected, rendered line. With nothing to play the key
+        // keeps its native meaning instead of starting whole-book playback.
+        const target = getEditorReviewTarget();
+        const audio = target ? target.row.querySelector('.chunk-audio') : null;
+        if (!audio || document.getElementById('editor-line-play').disabled) { return; }
+        event.preventDefault();
+        if (!audio.paused) { audio.pause(); return; }
+        // Same contract as the line's play button: one thing plays at a time, and
+        // a take that cannot decode is reported instead of failing silently.
+        void playEditorReviewLine();
+    } else if (event.code === 'ArrowDown' || event.code === 'ArrowUp') {
+        if (!cachedChunks || !cachedChunks.length) { return; }
+        const target = getEditorReviewTarget();
+        const currentIndex = target ? cachedChunks.findIndex(c => c.uid === target.chunk.uid) : -1;
+        const nextIndex = event.code === 'ArrowDown'
+            ? Math.min(cachedChunks.length - 1, currentIndex + 1)
+            : Math.max(0, currentIndex - 1);
+        if (nextIndex < 0 || nextIndex >= cachedChunks.length || nextIndex === currentIndex) { return; }
+        // Consume the key only once it moves, so scrolling and the ends of the
+        // list still behave natively.
+        event.preventDefault();
+        selectEditorReviewLineById(cachedChunks[nextIndex].id, true);
+    }
+});
+
+// The seven editor tools share one drawer: the take queue no longer sits under a
+// stack of collapsed sections. Panels keep their ids and ontoggle hooks, so
+// opening one still runs the same refresh the summary used to trigger.
+// A peak sketch of the selected line's saved take. The audio element already
+// holds the URL the browser plays; decoding here never replaces playback and
+// never touches the project files.
+let editorWaveformContext = null;
+let editorWaveformRequest = 0;
+let editorWaveformKey = '';
+const editorWaveformPeaks = new Map();
+const editorWaveformFailures = new Map();
+const editorWaveformLoads = new Map();
+let editorWaveformObserver = null;
+let editorWaveformResizeAttached = false;
+
+function getEditorWaveformKey(target, src) {
+    return JSON.stringify([chunkSnapshotBookToken, target.chunk.uid, target.chunk.audio_revision || '', src]);
+}
+
+function redrawEditorWaveform() {
+    const canvas = document.getElementById('editor-line-waveform');
+    const peaks = editorWaveformPeaks.get(editorWaveformKey);
+    if (canvas && !canvas.hidden && peaks) { drawEditorWaveform(canvas, peaks); }
+}
+
+function observeEditorWaveform(canvas) {
+    if (editorWaveformResizeAttached) { return; }
+    editorWaveformResizeAttached = true;
+    if (window.ResizeObserver) {
+        editorWaveformObserver = new window.ResizeObserver(redrawEditorWaveform);
+        editorWaveformObserver.observe(canvas);
+    }
+    window.addEventListener('resize', redrawEditorWaveform);
+}
+
+function retryEditorLineWaveform() {
+    const target = getEditorReviewTarget();
+    const src = target?.row.querySelector('.chunk-audio')?.getAttribute('src');
+    if (!src) { return; }
+    editorWaveformFailures.delete(getEditorWaveformKey(target, src));
+    return renderEditorLineWaveform(target);
+}
+
+async function renderEditorLineWaveform(target = getEditorReviewTarget()) {
+    const wrap = document.getElementById('editor-line-waveform-wrap');
+    const canvas = document.getElementById('editor-line-waveform');
+    const status = document.getElementById('editor-line-waveform-status');
+    const retry = document.getElementById('editor-line-waveform-retry');
+    if (!wrap || !canvas || !status) { return; }
+    observeEditorWaveform(canvas);
+    const audio = target ? target.row.querySelector('.chunk-audio') : null;
+    const src = audio?.getAttribute('src');
+    if (!src) {
+        editorWaveformRequest++;
+        wrap.hidden = true;
+        canvas.hidden = true;
+        if (retry) { retry.hidden = true; }
+        editorWaveformKey = '';
+        status.textContent = '';
+        return;
+    }
+    wrap.hidden = false;
+    const key = getEditorWaveformKey(target, src);
+    if (key === editorWaveformKey && (!canvas.hidden || editorWaveformLoads.has(key))) { return; }
+    editorWaveformKey = key;
+    const request = ++editorWaveformRequest;
+    if (retry) { retry.hidden = true; }
+    // Keep failures off the per-keystroke download path, but let the reader
+    // deliberately retry a transient network or decoding failure.
+    const failed = editorWaveformFailures.get(key);
+    if (failed) {
+        canvas.hidden = true;
+        if (retry) { retry.hidden = false; }
+        status.textContent = failed;
+        return;
+    }
+    let peaks = editorWaveformPeaks.get(key);
+    if (!peaks) {
+        canvas.hidden = true;
+        status.textContent = t('editor.waveform.loading', 'Reading the saved audio…');
+        try {
+            let loading = editorWaveformLoads.get(key);
+            if (!loading) {
+                loading = decodeEditorWaveformPeaks(src);
+                editorWaveformLoads.set(key, loading);
+            }
+            try { peaks = await loading; }
+            finally {
+                if (editorWaveformLoads.get(key) === loading) { editorWaveformLoads.delete(key); }
+            }
+            editorWaveformPeaks.set(key, peaks);
+            if (editorWaveformPeaks.size > 24) {
+                // Late decodes may fill the cache after the reader has returned
+                // to an older take. Keep that visible take available for redraw.
+                const oldest = editorWaveformPeaks.keys();
+                let evict = oldest.next().value;
+                if (evict === editorWaveformKey) { evict = oldest.next().value; }
+                editorWaveformPeaks.delete(evict);
+            }
+        } catch (error) {
+            if (request !== editorWaveformRequest) { return; }
+            const text = t('editor.waveform.unavailable', 'Waveform unavailable: {detail}', { detail: error.message });
+            editorWaveformFailures.set(key, text);
+            if (editorWaveformFailures.size > 24) { editorWaveformFailures.delete(editorWaveformFailures.keys().next().value); }
+            canvas.hidden = true;
+            if (retry) { retry.hidden = false; }
+            status.textContent = text;
+            return;
+        }
+    }
+    if (request !== editorWaveformRequest) { return; }
+    canvas.hidden = false;
+    drawEditorWaveform(canvas, peaks);
+    status.textContent = t('editor.waveform.caption', 'Peaks of the saved audio: silence, clipping and truncation show up here. This is not a quality measure.');
+}
+
+async function decodeEditorWaveformPeaks(src) {
+    const response = await fetch(src);
+    if (!response.ok) { throw new Error(String(response.status)); }
+    const bytes = await response.arrayBuffer();
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) { throw new Error(t('editor.waveform.no-context', 'This browser cannot decode audio buffers.')); }
+    editorWaveformContext = editorWaveformContext || new Context();
+    const buffer = await editorWaveformContext.decodeAudioData(bytes);
+    const channel = buffer.getChannelData(0);
+    const bars = 160;
+    const step = Math.max(1, Math.floor(channel.length / bars));
+    const peaks = new Array(bars);
+    for (let bar = 0; bar < bars; bar++) {
+        const start = bar * step;
+        const end = Math.min(channel.length, start + step);
+        let min = 0;
+        let max = 0;
+        for (let index = start; index < end; index++) {
+            const value = channel[index];
+            if (value < min) { min = value; }
+            if (value > max) { max = value; }
+        }
+        peaks[bar] = [min, max];
+    }
+    return peaks;
+}
+
+function drawEditorWaveform(canvas, peaks) {
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.round(canvas.clientWidth);
+    if (!width) { return; } // ResizeObserver redraws when a hidden pane becomes visible.
+    const height = Math.max(1, Math.round(canvas.clientHeight || 48));
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const context = canvas.getContext('2d');
+    if (!context) { return; }
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    const styles = getComputedStyle(document.documentElement);
+    context.fillStyle = styles.getPropertyValue('--accent').trim() || '#0d6efd';
+    const middle = height / 2;
+    const barWidth = width / peaks.length;
+    for (let index = 0; index < peaks.length; index++) {
+        const [min, max] = peaks[index];
+        const top = middle - max * middle;
+        const bottom = middle - min * middle;
+        context.fillRect(index * barWidth, Math.min(top, bottom), Math.max(1, barWidth - 0.5), Math.max(1, Math.abs(bottom - top)));
+    }
+}
+
+function getEditorToolPanels() {
+    return Array.from(document.querySelectorAll('#editor-tool-drawer [data-editor-tool]'));
+}
+
+function showEditorTool(slug) {
+    for (const panel of getEditorToolPanels()) {
+        const selected = panel.dataset.editorTool === slug;
+        panel.hidden = !selected;
+        if (selected) { panel.open = true; }
+    }
+    for (const tab of document.querySelectorAll('[data-editor-tool-target]')) {
+        tab.setAttribute('aria-pressed', String(tab.dataset.editorToolTarget === slug));
+    }
+}
+
+const editorDrawerBackground = new Map();
+
+function isolateEditorDrawer(drawer, scrim) {
+    if (editorDrawerBackground.size) { return; }
+    // Isolate sibling subtrees along the drawer's ancestry, never an ancestor
+    // of the drawer itself. The scrim keeps its pointer-dismiss action.
+    for (let branch = drawer; branch.parentElement; branch = branch.parentElement) {
+        for (const node of branch.parentElement.children) {
+            if (node === branch || node === scrim) { continue; }
+            editorDrawerBackground.set(node, {inert: node.getAttribute('inert'), hidden: node.getAttribute('aria-hidden')});
+            node.setAttribute('inert', '');
+            node.setAttribute('aria-hidden', 'true');
+        }
+        if (branch.parentElement === document.body) { break; }
+    }
+}
+
+function restoreEditorDrawerBackground() {
+    for (const [node, saved] of editorDrawerBackground) {
+        for (const [attribute, value] of [['inert', saved.inert], ['aria-hidden', saved.hidden]]) {
+            if (value === null) { node.removeAttribute(attribute); }
+            else { node.setAttribute(attribute, value); }
+        }
+    }
+    editorDrawerBackground.clear();
+}
+
+function getEditorDrawerFocusable(drawer) {
+    return Array.from(drawer.querySelectorAll('button, input, select, textarea, a[href], summary, [tabindex]'))
+        .filter(node => !node.matches(':disabled') && !node.closest('[hidden], [inert]')
+            && !(Number(node.getAttribute('tabindex')) < 0) && node.offsetParent !== null);
+}
+
+function toggleEditorTools(open = document.getElementById('editor-tool-drawer')?.hidden) {
+    const drawer = document.getElementById('editor-tool-drawer');
+    const toggle = document.getElementById('editor-tools-toggle');
+    const scrim = document.getElementById('editor-drawer-scrim');
+    if (!drawer || !toggle) { return; }
+    const wasOpen = !drawer.hidden;
+    drawer.hidden = !open;
+    if (scrim) { scrim.hidden = !open; }
+    toggle.setAttribute('aria-expanded', String(open));
+    if (!open) {
+        restoreEditorDrawerBackground();
+        // Closing returns focus to the control that opened the drawer, so a
+        // keyboard user is not dropped at the top of the page.
+        if (wasOpen) { toggle.focus({ preventScroll: true }); }
+        return;
+    }
+    const panels = getEditorToolPanels();
+    const current = panels.find(panel => !panel.hidden) || panels[0];
+    if (current) { showEditorTool(current.dataset.editorTool); }
+    // The active tab is the drawer's first real control; focusing it puts the
+    // next Tab inside the panel rather than back on the page behind the scrim.
+    const activeTab = document.querySelector('[data-editor-tool-target][aria-pressed="true"]');
+    (activeTab || drawer).focus({ preventScroll: true });
+    isolateEditorDrawer(drawer, scrim);
+}
+
+document.addEventListener('show.bs.modal', () => {
+    // Shared confirmation dialogs live outside this drawer's subtree.
+    toggleEditorTools(false);
+});
+
+document.addEventListener('focusin', event => {
+    const drawer = document.getElementById('editor-tool-drawer');
+    if (!drawer || drawer.hidden || drawer.contains(event.target)) { return; }
+    (getEditorDrawerFocusable(drawer)[0] || drawer).focus({ preventScroll: true });
+});
+
+document.addEventListener('keydown', event => {
+    const drawer = document.getElementById('editor-tool-drawer');
+    if (!drawer || drawer.hidden) { return; }
+    if (event.key === 'Escape') { event.preventDefault(); toggleEditorTools(false); return; }
+    if (event.key !== 'Tab') { return; }
+    // The scrim stops the pointer reaching the page behind it, so Tab has to
+    // stay in the drawer too, or keyboard users reach what a mouse cannot.
+    const focusable = getEditorDrawerFocusable(drawer);
+    if (!focusable.length) { event.preventDefault(); drawer.focus({ preventScroll: true }); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!drawer.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});

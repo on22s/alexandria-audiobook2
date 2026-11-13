@@ -264,6 +264,8 @@ const SoundRenditions = (() => {
         }, t('sound.renditions.record-title', 'Retain one immutable record using verified imported source/master/stem identities.')));
     }
     function openPanel() {
+        // Reached from Sound cues: select this drawer panel, not just its details.
+        if (typeof showEditorTool === 'function') { showEditorTool('renditions'); }
         const panel = el('sound-renditions-content').closest?.('details');
         if (panel && !panel.open) {
             return new Promise(resolve => { panel.addEventListener('toggle', () => resolve(panel.open), {once: true}); panel.open = true; });

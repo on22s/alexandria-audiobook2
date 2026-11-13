@@ -4880,6 +4880,7 @@
   ],
   "test_editor_review_js": [
     "tests.test_editor_review_js.EditorReviewJsTests.test_all_lines_view_exposes_unrendered_and_no_candidate_without_fabricated_findings",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_editor_shortcuts_leave_focused_controls_and_plain_keys_alone",
     "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_reason_copy_and_recheck_availability_are_distinct",
     "tests.test_editor_review_js.EditorReviewJsTests.test_historical_receipt_is_labelled_and_never_presented_as_current",
@@ -4921,6 +4922,17 @@
     "tests.test_editor_review_regressions.ConfigDefaultsRace.test_actual_configuration_loader_preserves_edits_during_both_fetches",
     "tests.test_editor_review_regressions.EditorReviewRegressions.test_batch_staging_and_failed_preflight_do_not_select_an_active_book",
     "tests.test_editor_review_regressions.EditorReviewRegressions.test_delete_receipt_binds_book_and_is_consumed_once"
+  ],
+  "test_editor_review_repairs": [
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_drawer_isolates_background_and_restores_existing_attributes",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_drawer_skips_disabled_controls_and_recaptures_outside_focus",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_editor_body_and_tools_remain_inside_the_editor_card",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_late_decodes_cannot_evict_the_visible_waveform_before_resize",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_opening_a_shared_modal_releases_the_drawer_background",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_pending_waveform_is_shared_and_cannot_resurrect_a_cleared_selection",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_space_does_not_play_audio_rejected_by_the_inspector",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_waveform_failure_has_an_explicit_retry_without_a_keystroke_storm",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_waveform_resize_redraws_cached_peaks_without_fetching"
   ],
   "test_editor_safety_js": [
     "tests.test_editor_safety_js.EditorSafetyJsTests.test_async_script_confirmations_refuse_changed_targets",
@@ -12429,6 +12441,7 @@
   ],
   "test_settings_discovery_js": [
     "tests.test_settings_discovery_js.DarkThemeContrastTests.test_rejects_old_white_on_light_blue_and_accepts_fills_and_text",
+    "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_advanced_categories_stay_hidden_until_expert_mode_is_switched_on",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_blocked_locale_storage_is_visible_and_preference_remains_tab_only",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_category_navigation_keeps_original_controls_and_searches_inactive_panels",
     "tests.test_settings_discovery_js.SettingsDiscoveryTests.test_description_matching_and_no_value_or_secret_indexing",
