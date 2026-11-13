@@ -203,6 +203,10 @@ class GenerationConfig(BaseModel):
     # (attribution_prompt_variants.GROUP_RULE_7). Off by default: measured on
     # one light-novel chapter and five PDNC novels (#653), see that constant.
     three_pass_group_rule: bool = False
+    # #1931: one opt-in enables sequential discovery and explicit Pass 2 alias evidence.
+    cast_list_incremental: bool = Field(default=False, strict=True)
+    cast_list_source_chars: int = Field(default=30000, ge=1, le=1200000, strict=True)
+    cast_list_max_tokens: int = Field(default=8000, gt=0, strict=True)
     # Pass 2: every answer also gives the speaker's gender, age group (as they
     # look and act) and an ageless flag (speaker_traits.py). Off by default;
     # measured in character_traits.json (+2.6% tokens, who-speaks unchanged).

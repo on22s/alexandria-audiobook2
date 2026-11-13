@@ -1296,6 +1296,7 @@
     "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_version_rechecks_disk_and_other_batch_reservations"
   ],
   "test_batch_script_sizing_reuse": [
+    "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_experimental_batch_overrides_bind_cached_sizing_and_cast_controls",
     "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_live_capacity_reduces_workers_without_rescanning",
     "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_preparation_and_dispatch_scan_once_without_mutating_input",
     "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_refusal_matches_uncached_after_settings_change",
@@ -2557,7 +2558,11 @@
     "tests.test_cast_list.CastListTest.test_unparseable_reply_writes_nothing"
   ],
   "test_cast_list_async_routes": [
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_batch_runs_cast_before_generation_and_keeps_failure_cancel_fences",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_build_rejects_invalid_controls_before_scheduling",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_build_snapshots_shared_saved_controls_and_source_digest",
     "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_delete_waits_for_real_lock_without_blocking_ping",
+    "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_generation_command_carries_batch_alias_override_and_preflight_cast_identity",
     "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_get_reads_cast_in_worker_and_preserves_response",
     "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_refusals_and_missing_list_preserve_existing_behavior",
     "tests.test_cast_list_async_routes.CastListAsyncRoutesTests.test_save_waits_for_real_lock_without_blocking_ping"
@@ -2574,7 +2579,8 @@
     "tests.test_cast_list_ui.CastListUITests.test_a_name_from_the_model_is_rendered_as_text",
     "tests.test_cast_list_ui.CastListUITests.test_batch_poller_renders_the_manual_request",
     "tests.test_cast_list_ui.CastListUITests.test_every_element_the_script_uses_is_on_the_page",
-    "tests.test_cast_list_ui.CastListUITests.test_every_handler_the_page_calls_exists"
+    "tests.test_cast_list_ui.CastListUITests.test_every_handler_the_page_calls_exists",
+    "tests.test_cast_list_ui.CastListUITests.test_incremental_cast_controls_default_off_have_limits_and_are_persisted"
   ],
   "test_casting_api": [
     "tests.test_casting_api.CastingApiTests.test_clone_config_for_a_voice_with_audio_and_refusals",
@@ -3685,6 +3691,7 @@
   "test_config_save_keeps_unsent_fields": [
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_a_default_template_without_placeholders_is_refused",
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_builtins_and_preview",
+    "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_preview_respects_experimental_alias_switch",
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_variant_is_derived_from_the_active_preset",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_a_field_sent_at_its_default_value_is_applied_not_kept",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_form_save_preserves_hidden_llm_options_and_profile_identity",
@@ -6850,6 +6857,30 @@
     "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_tail",
     "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_utf8_cli_real_request_budgets_and_cached_replay_on_non_utf8_locale",
     "tests.test_incremental_alias_review.IncrementalAliasReviewTests.test_validation"
+  ],
+  "test_incremental_cast": [
+    "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_actual_canonical_transport_gets_aliases_and_canonicalizes_speaker",
+    "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_checkpoint_identity_changes_only_on_opt_in",
+    "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_every_variant_and_custom_preset_gets_explicit_alias_evidence",
+    "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_opt_in_without_cast_reports_missing_alias_evidence",
+    "tests.test_incremental_cast.IncrementalCastTests.test_alias_sizing_requires_source_identity_when_enabled",
+    "tests.test_incremental_cast.IncrementalCastTests.test_conflict_diagnostic_reports_build_cause_without_blaming_json",
+    "tests.test_incremental_cast.IncrementalCastTests.test_conflicting_alias_claims_refuse_rather_than_merge_people",
+    "tests.test_incremental_cast.IncrementalCastTests.test_each_window_receives_entire_prior_roster_and_budget",
+    "tests.test_incremental_cast.IncrementalCastTests.test_failure_cancellation_empty_result_and_stale_source_preserve_final",
+    "tests.test_incremental_cast.IncrementalCastTests.test_full_prompt_overflow_is_refused_without_dropping_roster",
+    "tests.test_incremental_cast.IncrementalCastTests.test_generated_merge_sequences_preserve_every_nonconflicting_identity",
+    "tests.test_incremental_cast.IncrementalCastTests.test_incremental_completion_metadata_does_not_invent_observations",
+    "tests.test_incremental_cast.IncrementalCastTests.test_interrupted_finish_reasons_preserve_previous_complete_cast",
+    "tests.test_incremental_cast.IncrementalCastTests.test_invalid_reply_shapes_are_rejected",
+    "tests.test_incremental_cast.IncrementalCastTests.test_merge_preserves_prior_aliases_and_is_idempotent",
+    "tests.test_incremental_cast.IncrementalCastTests.test_opt_in_removes_whole_book_limit_and_records_complete_coverage",
+    "tests.test_incremental_cast.IncrementalCastTests.test_real_manual_and_http_wrappers_receive_identical_validated_windows",
+    "tests.test_incremental_cast.IncrementalCastTests.test_saved_configuration_drives_cli_defaults_and_explicit_off_wins",
+    "tests.test_incremental_cast.IncrementalCastTests.test_source_change_while_waiting_for_publication_lock_is_refused",
+    "tests.test_incremental_cast.IncrementalCastTests.test_truncated_even_valid_json_is_discarded_and_empty_window_can_retry",
+    "tests.test_incremental_cast.IncrementalCastTests.test_usage_aggregates_only_observed_accepted_window_responses",
+    "tests.test_incremental_cast.IncrementalCastTests.test_windows_cover_every_character_once_and_obey_bound"
   ],
   "test_index_added_commit_lag": [
     "tests.test_index_added_commit_lag.AddedCommitLagTests.test_a_change_in_any_other_column_is_not_forgiven",

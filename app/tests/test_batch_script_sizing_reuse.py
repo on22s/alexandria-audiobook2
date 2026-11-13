@@ -41,6 +41,21 @@ class BatchScriptSizingReuseTests(unittest.TestCase):
             self.assertEqual(self.request.model_dump(), original)
             self.assertNotIn('requests', jobs[0]['prepared_source']['preflight']['report'])
 
+    def test_experimental_batch_overrides_bind_cached_sizing_and_cast_controls(self):
+        self.request.cast_list_settings = script.CastListBuildRequest(incremental=True, source_chars=1234, max_tokens=12000)
+        jobs = script.get_prepared_batch_script_jobs(self.request)
+        controls = jobs[0]['cast_list_settings']
+        self.assertEqual({'incremental': True, 'source_chars': 1234, 'max_tokens': 12000}, controls)
+        settings = script.resolve_three_pass_generation_settings(self.config)
+        bound = script.get_cast_sizing_settings(settings, str(self.path), controls)
+        self.assertTrue(bound['cast_aliases'])
+        self.assertEqual(controls, bound['cast_discovery_settings'])
+        before = jobs[0]['prepared_source']['preflight']['identity']
+        self.request.cast_list_settings = script.CastListBuildRequest(incremental=False)
+        off_jobs = script.get_prepared_batch_script_jobs(self.request)
+        self.assertNotEqual(before, off_jobs[0]['prepared_source']['preflight']['identity'])
+        self.assertNotIn('cast_aliases', script.get_cast_sizing_settings({'cast_aliases': True}, str(self.path), off_jobs[0]['cast_list_settings']))
+
     def test_live_capacity_reduces_workers_without_rescanning(self):
         jobs = script.get_prepared_batch_script_jobs(self.request)
         jobs = [jobs[0], {**jobs[0], 'filename': 'second.txt'}]

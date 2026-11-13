@@ -6,7 +6,7 @@ import unittest
 
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
 HARNESS=r'''
-const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv.at(-1),'utf8');
 const elements={},toasts=[],posts=[];let persisted=null,mode='fail',release,arrive;const entered=new Promise(resolve=>arrive=resolve);
 const element=id=>elements[id]??={value:'',checked:false,style:{},replaceChildren(){},appendChild(){},classList:{},addEventListener(){}};
 const context={window:{prompt:(_question,defaultValue)=>_question==='Preset name:'?'new':'description',confirm:()=>true},document:{getElementById:element,createElement:()=>({appendChild(){},childElementCount:1})},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,showPresetEditor:async()=>({name:'new',description:'description'}),console,
@@ -57,7 +57,7 @@ element('system-prompt').value='second';const second=context.window.previewAttri
 assert.strictEqual(pending[0].body.system_prompt,'first');assert.strictEqual(pending[1].body.system_prompt,'second');
 pending[1].resolve(reply('newer'));await second;pending[0].resolve(reply('older'));await first;
 assert.strictEqual(element('prompt-preview-system').textContent,'newer');
-for(const change of ['editor','selection','variant','context','new-request']){
+for(const change of ['editor','selection','variant','context','aliases','new-request']){
  for(const failure of [false,true]){
   seed();element('tp-attribute-context-chars').value='100';const errors=toasts.length;
   const preview=context.window.previewAttributionPrompt();const request=pending.at(-1);
@@ -65,6 +65,7 @@ for(const change of ['editor','selection','variant','context','new-request']){
   if(change==='selection'){run('applyPromptPreset(0)');}
   if(change==='variant'){run("promptPresets[1].variant='changed'");}
   if(change==='context'){element('tp-attribute-context-chars').value='invalid';}
+  if(change==='aliases'){element('cast-list-incremental').checked=!request.body.cast_aliases;}
   let next;
   if(change==='new-request'){next=context.window.previewAttributionPrompt();}
   if(failure){request.reject(Error('stale failure'));}else{request.resolve(reply('stale'));}
@@ -123,7 +124,7 @@ context.showConfirm=async()=>true;seed();await context.window.deletePassPromptPr
 ''')
 
     def run_case(self,code):
-        result=subprocess.run(['node','-e',HARNESS+code+"\n})().catch(error=>{console.error(error);process.exitCode=1;});",str(SOURCE)],capture_output=True,text=True,timeout=10)
+        result=subprocess.run(['node','-',str(SOURCE)], input=HARNESS+code+"\n})().catch(error=>{console.error(error);process.exitCode=1;});",capture_output=True,text=True,timeout=10)
         self.assertEqual(0,result.returncode,result.stderr)
         return json.loads(result.stdout) if result.stdout else None
 

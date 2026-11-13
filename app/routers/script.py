@@ -2544,7 +2544,8 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
                                   reasoning_effort: Optional[str] = None,
                                   cast_file: Optional[str] = None,
                                   literal_source_preserving: bool = False,
-                                  selection_binding: Optional[dict] = None) -> List[str]:
+                                  selection_binding: Optional[dict] = None,
+                                  cast_aliases: Optional[bool] = None) -> List[str]:
     """Build the one production command used by single and batch generation.
 
     `reasoning_effort` is passed explicitly so three_pass_generate records it
@@ -2563,6 +2564,8 @@ def build_generate_script_command(input_file: str, output_path: Optional[str] = 
         command.extend(["--first-person-narrator", narrator])
     if cast_file:
         command.extend(["--cast-file", cast_file])
+    if cast_aliases is not None:
+        command.append("--cast-aliases" if cast_aliases else "--no-cast-aliases")
     if type(literal_source_preserving) is not bool:
         raise ValueError("literal_source_preserving must be a boolean")
     if literal_source_preserving:
@@ -3526,6 +3529,26 @@ async def save_character_aliases(aliases: Dict[str, str]):
 
 class CastListBuildRequest(BaseModel):
     strip_front_matter: bool = True
+    incremental: Optional[StrictBool] = None
+    source_chars: Optional[int] = Field(default=None, ge=1, le=1200000, strict=True)
+    max_tokens: Optional[int] = Field(default=None, gt=0, strict=True)
+
+
+def resolve_cast_build_settings(request=None, config=None):
+    from cast_list_settings import get_cast_list_settings
+    config = load_app_config(CONFIG_PATH) if config is None else config
+    return get_cast_list_settings(config, **{
+        name: getattr(request, name, None) for name in ("incremental", "source_chars", "max_tokens")})
+
+
+def build_cast_list_command(input_file, path, settings, strip_front_matter=True):
+    from cast_list_settings import get_cast_list_cli_args
+    # path was keyed by captured source bytes; the child refuses a later edit.
+    command = [sys.executable, "-u", "cast_list.py", input_file, "--out", path,
+               "--source-sha256", Path(path).stem, *get_cast_list_cli_args(settings)]
+    if not strip_front_matter:
+        command.append("--no-strip-front-matter")
+    return command
 
 
 class CastListUpdate(BaseModel):
@@ -3547,9 +3570,9 @@ async def build_cast_list_endpoint(background_tasks: BackgroundTasks,
     """Ask the model for everyone who speaks in the selected book, unnamed people
     included, and save it where generation will find it (#653)."""
     input_file, path = await asyncio.to_thread(get_current_cast_list_target)
-    cmd = [sys.executable, "-u", "cast_list.py", input_file, "--out", path]
-    if request is not None and not request.strip_front_matter:
-        cmd.append("--no-strip-front-matter")
+    settings = await asyncio.to_thread(resolve_cast_build_settings, request)
+    cmd = build_cast_list_command(input_file, path, settings,
+                                  request.strip_front_matter if request is not None else True)
     schedule_claimed_background_task(background_tasks, "cast_list", run_process, cmd, "cast_list")
     return {"status": "started"}
 
@@ -3903,6 +3926,7 @@ class BatchScriptRequest(BaseModel):
     # Build a whole-book cast list for each book that has none before
     # generating it (#653). Off by default: one extra request per book.
     build_cast_lists: bool = False
+    cast_list_settings: Optional[CastListBuildRequest] = None
 
 
 def _get_versioned_script_path(path: str) -> str:
@@ -4086,10 +4110,29 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
                                     allow_nan=False).encode("utf-8")).hexdigest()
 
 
+def get_cast_sizing_settings(settings, input_path, cast_settings=None):
+    """Bind discovery controls and known alias evidence to preflight identity."""
+    if cast_settings is not None:
+        settings = {key: value for key, value in settings.items() if key not in ("cast_aliases", "cast_discovery_settings")}
+        if cast_settings["incremental"]:
+            settings.update(cast_aliases=True, cast_discovery_settings=cast_settings)
+    if not settings.get("cast_aliases"):
+        return settings
+    if not input_path:
+        raise ValueError("Alias-aware sizing requires a source path")
+    path = get_existing_cast_list(input_path)
+    if not path:
+        return settings  # Discovery has not happened yet; runtime sizes the actual roster.
+    from three_pass_generate import load_cast
+    cast = load_cast(path)
+    return {**settings, "cast": {key: cast[key] for key in ("names", "alias_groups", "sha256")}}
+
+
 def get_batch_script_source_preflight(job, text, settings, context, context_windows):
     """Reuse this request's sizing summary only while its inputs still match."""
     if job.get("literal_source_preserving"):
         settings = {**settings, "literal_source_preserving": True}
+    settings = get_cast_sizing_settings(settings, job.get("input_path"), job.get("cast_list_settings"))
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
             text, settings, context_windows, context):
@@ -4305,10 +4348,10 @@ def _run_claimed_batch_script_job(job, state, log_path, total):
     if state.get("run_id"):
         env["ALEXANDRIA_RUN_ID"] = state["run_id"]
     if job.get("build_cast_list") and not get_existing_cast_list(job["input_path"]):
-        cast_command = [sys.executable, "-u", "cast_list.py", job["input_path"],
-                        "--out", get_cast_list_path(job["input_path"], DATA_DIR)]
-        if not job.get("strip_front_matter", True):
-            cast_command.append("--no-strip-front-matter")
+        cast_command = build_cast_list_command(
+            job["input_path"], get_cast_list_path(job["input_path"], DATA_DIR),
+            job.get("cast_list_settings") or resolve_cast_build_settings(),
+            job.get("strip_front_matter", True))
         cast_rc, _ = _stream_subprocess_to_logs(
             cast_command, BASE_DIR, state, log_prefix=f"[{index + 1}] ",
             log_file=log_path, env=env)
@@ -4326,6 +4369,7 @@ def _run_claimed_batch_script_job(job, state, log_path, total):
         first_person_narrator=job.get("first_person_narrator"),
         reasoning_effort=get_active_reasoning_effort(),
         cast_file=get_existing_cast_list(job["input_path"]),
+        cast_aliases=(job.get("cast_list_settings") or {}).get("incremental"),
         **({"literal_source_preserving": True} if job.get("literal_source_preserving") else {}),
     )
     rc, _ = _stream_subprocess_to_logs(
@@ -4355,6 +4399,8 @@ def get_prepared_batch_script_jobs(request):
         if getattr(request, "literal_source_preserving", False):
             jobs = [{**job, "literal_source_preserving": True} for job in jobs]
         config = load_app_config(CONFIG_PATH)
+        cast_settings = resolve_cast_build_settings(getattr(request, "cast_list_settings", None), config)
+        jobs = [{**job, "cast_list_settings": cast_settings} for job in jobs]
         settings = resolve_three_pass_generation_settings(config)
         if getattr(request, "literal_source_preserving", False):
             settings["literal_source_preserving"] = True
@@ -4373,9 +4419,10 @@ def get_prepared_batch_script_jobs(request):
             text, normalizations, identity = _capture_and_validate_batch_script_source(job)
             if get_batch_script_source_identity(job["input_path"]) != identity:
                 raise ValueError(f"Source changed while preparing: {job['filename']}")
-            sizing_identity = get_batch_script_sizing_identity(text, settings, context_windows, context)
+            book_settings = get_cast_sizing_settings(settings, job["input_path"], job.get("cast_list_settings"))
+            sizing_identity = get_batch_script_sizing_identity(text, book_settings, context_windows, context)
             report = build_three_pass_request_preflight(
-                text, settings, context, 1, context_windows=context_windows)
+                text, book_settings, context, 1, context_windows=context_windows)
             prepared.append({**job, "prepared_source": {
                 "identity": identity, "text": text, "normalizations": normalizations,
                 "preflight": {
@@ -4449,6 +4496,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                          "output_path": output_path, "safe_stem": safe_stem,
                          "strip_front_matter": request.strip_front_matter,
                          "build_cast_list": request.build_cast_lists,
+                         "cast_list_settings": prepared_jobs[i]["cast_list_settings"],
                          **({"literal_source_preserving": True} if getattr(request, "literal_source_preserving", False) else {}),
                          "first_person_narrator": prepared_jobs[i]["first_person_narrator"],
                          "prepared_source": prepared_jobs[i]["prepared_source"],

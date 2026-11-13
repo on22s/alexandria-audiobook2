@@ -822,6 +822,9 @@ class LLMGenParams:
     # Pass 3 delivery-direction mode (#1258, pass_quality.DELIVERY_DIRECTIONS).
     # "off" sends the shipped instruct prompt and output unchanged.
     delivery_direction: str = "off"
+    # Appended so all legacy positional constructors retain their meaning.
+    cast_aliases: bool = False
+    cast_alias_groups: list = None
 
 
 

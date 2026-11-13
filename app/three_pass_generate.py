@@ -152,6 +152,7 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         load_default_model_profiles())
     return {
         "model_profile": model_profile,
+        **({"cast_aliases": True} if gen.get("cast_list_incremental") is True else {}),
         "chunk_size": resolve_chunk_size(
             chunk_size_override, gen.get("three_pass_chunk_size", 3000),
             model_profile.get("chunk_size")),
@@ -227,6 +228,7 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
     from llm_request_budget import get_request_limits
     limits = get_request_limits(llm, lm_status.get("context_length"))
     params = LLMGenParams(
+        cast_aliases=gen.get("cast_list_incremental", False) is True,
         task_max_tokens=gen.get("max_tokens", 10000),
         task_hard_max_tokens=resolve_hard_max_tokens(gen.get("max_tokens", 10000)),
         max_tokens=min(generation_settings["max_tokens"], limits["max_output_tokens"] or generation_settings["max_tokens"]),
@@ -521,7 +523,8 @@ def load_cast(path):
     never admit "the stranger", which is how The Invisible Man's protagonist
     lost 99 lines to UNKNOWN in stage 0 (2026-09-28). A malformed file raises.
     """
-    raw = open(path, "rb").read()
+    with open(path, "rb") as handle:
+        raw = handle.read()
     try:
         cast = get_cast_from_data(json.loads(raw.decode("utf-8")))
     except ValueError as exc:
@@ -678,6 +681,16 @@ SURROUND_AFTER_HEADER = ("TEXT AFTER THIS WINDOW (evidence only; do not attribut
                          "or return it):")
 
 
+def append_cast_alias_evidence(user_prompt, params, alias_groups=None):
+    """Explicit canonical associations even when a custom preset omits {roster}."""
+    groups = alias_groups if alias_groups is not None else getattr(params, "cast_alias_groups", None)
+    if not getattr(params, "cast_aliases", False) or not groups:
+        return user_prompt
+    rows = [{"name": group[0], "aliases": group[1:]} for group in groups if group]
+    return (user_prompt + "\n\nVALIDATED CAST ALIASES (identity evidence only; "
+            "keep narration, UNKNOWN and groups separate):\n" + json.dumps(rows, ensure_ascii=False))
+
+
 def build_attribute_request(frozen_batch, params, roster,
                             neighbor_contexts=None, surround=None):
     """Build the canonical pass-2 system and user prompts. `surround`
@@ -699,7 +712,7 @@ def build_attribute_request(frozen_batch, params, roster,
         for i, e in enumerate(frozen_batch)], ensure_ascii=False)
     user_prompt = usr_template.format(
         roster=", ".join(roster) or "(none yet)", batch=batch_json)
-    return sys_prompt, wrap_window_surround(user_prompt, surround)
+    return sys_prompt, wrap_window_surround(append_cast_alias_evidence(user_prompt, params), surround)
 
 
 def wrap_window_surround(user_prompt, surround, instruct=False):
@@ -963,6 +976,8 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     does not repair labels or change validation, prompts on first attempts,
     schemas or retry budgets."""
     params = ensure_run_request_params(client, params)
+    if getattr(params, "cast_aliases", False) and cast:
+        params = replace(params, cast_alias_groups=cast.get("alias_groups"))
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
     from pass_quality import (get_attribution_tag_proofs, get_attribution_snapshot_digest,
@@ -1360,6 +1375,8 @@ def get_attribute_sizing_request(batch, params, roster, contexts, surround,
             variant or "default", batch, params, roster,
             alias_groups=(cast or {}).get("alias_groups"), neighbor_contexts=contexts,
             surround=surround, texts=texts, roster_traits=roster_traits)
+    if getattr(params, "cast_aliases", False) and cast:
+        params = replace(params, cast_alias_groups=cast.get("alias_groups"))
     return build_attribute_request(batch, params, roster, contexts, surround)
 
 
@@ -2015,6 +2032,8 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
                                  "max_output_tokens": settings.get("profile_output_ceiling")}, context_length)
     context_length = limits["context_length"]
     params = params or LLMGenParams(
+        cast_aliases=settings.get("cast_aliases", False),
+        cast_alias_groups=(settings.get("cast") or {}).get("alias_groups"),
         literal_source_preserving=settings.get("literal_source_preserving", False),
         max_tokens=settings["max_tokens"], context_length=context_length,
         max_input_tokens=limits["max_input_tokens"],
@@ -2101,7 +2120,9 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
 
     roster_chars = min(4096, 32 * sum(
         entry.get("type") == "SPOKEN" for entry in predicted_entries))
-    estimated_roster = ["R" * roster_chars] if roster_chars else []
+    estimated_roster = (["R" * roster_chars] if roster_chars else [])
+    if getattr(params, "cast_aliases", False):
+        estimated_roster = list((settings.get("cast") or {}).get("names") or []) + estimated_roster
     attribute_batch_size = int(settings.get("attribute_batch_size") or BATCH_SIZE)
     context_chars = int(settings.get("attribute_context_chars") or 0)
     attribute_budgeted = bool(settings.get("attribute_target_chars") or context_chars > LARGE_CONTEXT_CHARS)
@@ -2487,6 +2508,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                  list(load_instruct_prompts())), [])).encode("utf-8")).hexdigest(),
     }
     if params is not None:
+        if getattr(params, "cast_aliases", False):
+            settings["cast_aliases"] = {"version": 1, "groups": params.cast_alias_groups}
         if getattr(params, "literal_source_preserving", False):
             settings["literal_source_preserving"] = "literal_words_v1"
             from literal_prompts import CHECKPOINT_PROMPT_POLICY
@@ -2714,6 +2737,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     text is sent through the variant provider for every variant, default
     included, so what Setup shows is what the model gets."""
     require_nonempty_source(source_text)
+    if getattr(params, "cast_aliases", False):
+        params = replace(params, cast_alias_groups=(cast or {}).get("alias_groups"))
+        if not params.cast_alias_groups:
+            print("Experimental Step 2 alias evidence unavailable: no cast aliases loaded.", flush=True)
     validate_instruct_context_chars(instruct_context_chars, params)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))
@@ -3848,6 +3875,8 @@ def main():
                              "llm (always the model)")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
+    parser.add_argument("--cast-aliases", action=argparse.BooleanOptionalAction, default=None,
+                        help="Explicit Pass 2 cast aliases; saved incremental-cast setting by default")
     parser.add_argument("--cast-file", default=None,
                         help="JSON cast list [{name, aliases}] put on the pass-2 roster "
                              "ahead of attested names (experiments/build_cast_list.py).")
@@ -4005,6 +4034,8 @@ def main():
     })
     attribute_prompt_variant, attribute_prompt_texts = resolve_attribute_prompt(
         config, args.prompt_variant)
+    if args.cast_aliases is not None:
+        params = replace(params, cast_aliases=args.cast_aliases)
     from attribution_prompt_variants import (GROUP_RULE_7, VARIANTS, builtin_texts,
                                              validate_preset_texts)
     if (config.get("generation") or {}).get("three_pass_group_rule") is True:

@@ -1903,12 +1903,15 @@
             window._attributionPreviewRequest = request;
             const snapshot = getPromptPresetEditorSnapshot('attribution');
             const contextChars = document.getElementById('tp-attribute-context-chars').value;
+            const castAliases = document.getElementById('cast-list-incremental').checked;
             const isCurrent = () => window._attributionPreviewRequest === request
                 && getPromptPresetEditorSnapshot('attribution') === snapshot
-                && document.getElementById('tp-attribute-context-chars').value === contextChars;
+                && document.getElementById('tp-attribute-context-chars').value === contextChars
+                && document.getElementById('cast-list-incremental').checked === castAliases;
             const preset = selectedPromptPreset();
             const body = {variant: (preset && preset.variant) || 'default', ...promptBoxes(),
-                context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true)};
+                context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
+                cast_aliases: castAliases};
             try {
                 const preview = await API.post('/api/prompts/attribution_preview', body);
                 if (!isCurrent()) { return; }
@@ -2137,6 +2140,8 @@
             'top-k': 'top_k', 'min-p': 'min_p', 'presence-penalty': 'presence_penalty',
             'tp-chunk-size': 'three_pass_chunk_size', 'tp-attribute-batch-size': 'three_pass_attribute_batch_size',
             'tp-attribute-context-chars': 'three_pass_attribute_context_chars',
+            'cast-list-source-chars': 'cast_list_source_chars',
+            'cast-list-max-tokens': 'cast_list_max_tokens',
             'tp-attribute-target-chars': 'three_pass_attribute_target_chars',
             'tp-instruct-target-chars': 'three_pass_instruct_target_chars',
             'tp-instruct-context-chars': 'three_pass_instruct_context_chars',
@@ -2163,6 +2168,7 @@
             document.getElementById('tp-unquoted-must-be-narrator').checked = g.three_pass_unquoted_must_be_narrator !== false;
             document.getElementById('tp-keep-whole-batch').checked = g.three_pass_keep_whole_batch === true;
             document.getElementById('tp-group-rule').checked = g.three_pass_group_rule === true;
+            document.getElementById('cast-list-incremental').checked = g.cast_list_incremental === true;
             document.getElementById('tp-speaker-traits').checked = g.three_pass_speaker_traits === true;
         }
 
@@ -2418,7 +2424,7 @@
                 const g = defaults.generation;
                 if (!g || Object.values(generationControlFields).some(key => g[key] == null)
                     || g.chunk_size == null || !Array.isArray(g.banned_tokens) || !Array.isArray(g.context_rescue_windows)
-                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator', 'three_pass_keep_whole_batch', 'three_pass_group_rule', 'three_pass_speaker_traits'].some(key => typeof g[key] !== 'boolean')) {
+                    || ['merge_narrators', 'three_pass_quoted_must_be_spoken', 'three_pass_unquoted_must_be_narrator', 'three_pass_keep_whole_batch', 'three_pass_group_rule', 'three_pass_speaker_traits', 'cast_list_incremental'].some(key => typeof g[key] !== 'boolean')) {
                     throw new Error('Generation defaults are unavailable');
                 }
 
@@ -2551,6 +2557,9 @@
                     three_pass_unquoted_must_be_narrator: document.getElementById('tp-unquoted-must-be-narrator').checked,
                     three_pass_keep_whole_batch: document.getElementById('tp-keep-whole-batch').checked,
                     three_pass_group_rule: document.getElementById('tp-group-rule').checked,
+                    cast_list_incremental: document.getElementById('cast-list-incremental').checked,
+                    cast_list_source_chars: getNumFieldValue('cast-list-source-chars', 30000, true),
+                    cast_list_max_tokens: getNumFieldValue('cast-list-max-tokens', 8000, true),
                     three_pass_speaker_traits: document.getElementById('tp-speaker-traits').checked,
                     context_rescue_windows: getIntListInput('context-rescue-windows', 'Context rescue windows', [2000, 4000, 6000]),
                     context_rescue_retries: getNumFieldValue('context-rescue-retries', 2, true)
@@ -4087,7 +4096,7 @@
         async function buildCastList() {
             const source = getLoadedScriptSourceFilename();
             if (!source) { showToast(t('script.cast_list.no-book', 'Select or upload a book before building its cast list.'), 'warning'); return; }
-            if (!(await confirmIfRemote(t('core.remote.task.cast-list', 'this cast list (the whole book in one request)')))) { return; }
+            if (!(await confirmIfRemote(t('core.remote.task.cast-list', 'this cast list (the complete book; experimental mode uses sequential requests with the accumulated roster and aliases)')))) { return; }
             if (source !== getLoadedScriptSourceFilename()) {
                 showToast(t('safety.script.cast_list.book_changed_build', 'The loaded book changed. Review it before building its cast list.'), 'warning'); return;
             }
