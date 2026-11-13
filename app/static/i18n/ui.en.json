@@ -1716,7 +1716,7 @@
   "help.field.cast-list-incremental.source": "#1931",
   "help.field.cast-list-incremental.what": "Experimental sequential cast discovery with the complete accumulated roster and aliases. Also adds explicit cast alias evidence to Step 2. Off by default; save configuration before building or generating.",
   "help.field.cast-list-max-tokens.what": "Requested reply tokens per cast window, or for the legacy whole-book request. Profile limits still apply; truncated replies are discarded.",
-  "help.field.cast-list-source-chars.what": "Maximum source characters per experimental cast window, including paragraph separators. Windows end at blank-line paragraph breaks; single wrapped line breaks are kept. If one paragraph plus its separator cannot fit, increase this limit. Instructions and the full growing roster also need context. An over-budget request stops without publishing a partial cast.",
+  "help.field.cast-list-source-chars.what": "Maximum source characters per experimental window, including separators. Paragraphs stay intact; wrapped lines are preserved. If one cannot fit, increase the limit or add blank-line paragraph breaks. Instructions and the full roster also need context. Failure preserves the previous cast.",
   "help.field.cast-prompt-preset-select.what": "Saved instructions for building the cast list. Each preset includes whole-book and experimental incremental instructions. Save Setup before starting a build.",
   "help.field.cast-select.what": "The saved cast (character → voice mapping) applied to this book.",
   "help.field.cast-whole-book-prompt.what": "Literal instructions for whole-book cast discovery. The builder appends the prepared source. Keep the JSON array of name and aliases objects.",

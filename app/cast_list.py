@@ -146,26 +146,35 @@ def get_cast_prompt_settings(config):
             "incremental_prompt": preset.incremental_prompt}
 
 
-def iter_source_windows(text, source_chars):
-    """Pack whole paragraphs, including separators, without changing the source."""
+def iter_source_window_ranges(text, source_chars):
+    """Pack whole paragraphs, including separators, into source offset pairs."""
     if type(source_chars) is not int or source_chars <= 0:
         raise ValueError("Source characters must be a positive integer")
-    # Treat CRLF as one line ending; a single wrapped line is not a paragraph.
-    newline = r"(?:\r\n|\r(?!\n)|\n)"
+    # CRLF is atomic. A single line separator is a wrap; U+2029 explicitly
+    # marks a paragraph even without a second line ending.
+    newline = r"(?:\r\n|\r(?!\n)|[\n\u2028\u2029])"
+    paragraph_break = newline + r"(?:[^\S\r\n\u2028\u2029]*" + newline + r")+|\u2029"
     boundaries = chain((match.end() for match in re.finditer(
-        newline + r"(?:[^\S\r\n]*" + newline + r")+", text)), [len(text)])
+        paragraph_break, text)), [len(text)])
     start = end = 0
     for boundary in boundaries:
         if boundary - end > source_chars:
             raise ValueError(
                 f"Paragraph at source {end}:{boundary} has {boundary - end} characters "
                 f"including its separator, exceeding the {source_chars}-character cast window. "
-                "Increase Cast source characters per request; paragraphs are never split.")
+                "Increase Cast source characters per request or add blank-line paragraph "
+                "breaks to the source; paragraphs are never split.")
         if boundary - start > source_chars:
-            yield start, end, text[start:end]
+            yield start, end
             start = end
         end = boundary
     if end > start:
+        yield start, end
+
+
+def iter_source_windows(text, source_chars):
+    """Consecutive lossless text slices over the shared paragraph range plan."""
+    for start, end in iter_source_window_ranges(text, source_chars):
         yield start, end, text[start:end]
 
 
@@ -211,7 +220,7 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
     cast, windows, dropped = [], [], []
     # Plan all ranges before sending: a late oversized paragraph must not spend
     # requests on a prefix. Store offsets, not a second copy of the whole book.
-    source_windows = [(start, end) for start, end, _ in iter_source_windows(text, source_chars)]
+    source_windows = list(iter_source_window_ranges(text, source_chars))
     count = len(source_windows)
     for start, end in source_windows:
         part = text[start:end]
@@ -282,7 +291,8 @@ def main(argv=None):
                         help="Experimental sequential discovery; saved setting is off by default")
     parser.add_argument("--source-chars", type=int, default=None,
                         help="Maximum source characters per paragraph-aligned window, including separators; "
-                             "increase if one paragraph cannot fit. Excludes roster/instructions")
+                             "increase or supply blank-line breaks if a paragraph cannot fit. "
+                             "Excludes roster/instructions")
     parser.add_argument("--source-sha256", help="Refuse if the selected source identity changed")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)

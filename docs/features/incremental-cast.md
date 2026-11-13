@@ -13,11 +13,15 @@ the character target; instructions and the growing roster also consume context.
 The whole-book 1,200,000-character limit remains in the default mode. Experimental
 mode can process larger books without dropping a tail or truncating the roster.
 Windows pack complete paragraphs and end at blank-line paragraph breaks, including
-blank lines containing Unicode whitespace. Single
-wrapped line breaks stay inside their paragraph. Paragraph separators count toward
+blank lines containing Unicode whitespace. Unicode line separators (U+2028) follow
+the same rule; a single Unicode paragraph separator (U+2029) is also a paragraph
+boundary. Single wrapped line breaks stay inside their paragraph. Separators count toward
 the strict character cap, and all whitespace is preserved. If any paragraph plus
 its separator exceeds the cap, discovery refuses before sending any model requests;
-increase **Cast source characters per request** to fit it. The builder never splits
+increase **Cast source characters per request** to fit it, or supply a source with
+blank-line paragraph breaks. The latter is necessary for paragraph-per-line text
+that otherwise becomes one oversized unit; raising the cap cannot override model
+context limits. The builder never splits
 the paragraph or silently exceeds the cap. Smaller windows can still lose identity
 context, so review the resulting cast. Accuracy improvements have not been established.
 

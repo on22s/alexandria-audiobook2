@@ -27,7 +27,8 @@ class CastParagraphWindowTests(unittest.TestCase):
                 if rng.randrange(2):
                     body += '\nWrapped text.'  # A single line break is not a paragraph break.
                 paragraphs.append(body + rng.choice(['\n\n', '\n \t\n', '\r\n\r\n', '\r\r',
-                                                     '\n\u00a0\n', '\n\u3000\n']))
+                                                     '\n\u00a0\n', '\n\u3000\n',
+                                                     '\u2028\u2028', '\u2029', '\u2029\u2029']))
             if rng.randrange(2):
                 paragraphs.append('Final paragraph.')
             text = ''.join(paragraphs)
@@ -51,7 +52,7 @@ class CastParagraphWindowTests(unittest.TestCase):
                 self.assertEqual(len(text), cursor)
 
     def test_single_newline_and_crlf_do_not_split_a_wrapped_paragraph(self):
-        for newline in ('\n', '\r\n', '\r'):
+        for newline in ('\n', '\r\n', '\r', '\u2028'):
             text = 'A sentence' + newline + 'continues here.'
             with self.subTest(newline=repr(newline)), self.assertRaisesRegex(ValueError, 'paragraph|Paragraph'):
                 list(cast_list.iter_source_windows(text, 20))
@@ -62,6 +63,9 @@ class CastParagraphWindowTests(unittest.TestCase):
                 ('A.\n\nB.', 4, ['A.\n\n', 'B.']),
                 ('A.\n\u3000\nB.', 5, ['A.\n\u3000\n', 'B.']),
                 ('A.\n\u00a0\nB.', 5, ['A.\n\u00a0\n', 'B.']),
+                ('A.\u2028\u2028B.', 4, ['A.\u2028\u2028', 'B.']),
+                ('A.\u2029B.', 3, ['A.\u2029', 'B.']),
+                ('A.\u2029\u2029B.', 4, ['A.\u2029\u2029', 'B.']),
                 ('ALPHA.\r\n\r\nBETA.', 10, ['ALPHA.\r\n\r\n', 'BETA.']),
                 (' A.\n \t\n  B. ', 7, [' A.\n \t\n', '  B. '])):
             with self.subTest(text=repr(text)):
@@ -71,19 +75,20 @@ class CastParagraphWindowTests(unittest.TestCase):
 
     def test_late_oversized_paragraph_refuses_before_any_model_request(self):
         client = Client([ALICE] * 20)
-        with self.assertRaisesRegex(ValueError, 'Paragraph.*Increase Cast source characters'):
+        with self.assertRaisesRegex(ValueError, 'Paragraph.*Increase Cast source characters.*add blank-line paragraph breaks'):
             cast_list.request_incremental_cast(client, 'fixture', 'Short.\n\n' + 'x' * 36, 35, 8000)
         self.assertEqual([], client.requests)
 
     def test_cli_preserves_unicode_blank_line_paragraphs(self):
-        with tempfile.TemporaryDirectory() as directory:
-            source, out = Path(directory) / 'source.txt', Path(directory) / 'cast.json'
-            source.write_text('ALICE spoke.\n\u3000\nBORIN replied.', encoding='utf-8')
-            client = Client([ALICE, BOB])
-            self.assertEqual(0, fixtures.IncrementalCastTests.run_main(
-                self, source, out, client, '--incremental', '--source-chars', '20'))
-            self.assertEqual(2, len(client.requests))
-            self.assertIn('\n\u3000\n', client.requests[0]['messages'][0]['content'])
+        for separator in ('\n\u3000\n', '\u2028\u2028', '\u2029', '\u2029\u2029'):
+            with self.subTest(separator=repr(separator)), tempfile.TemporaryDirectory() as directory:
+                source, out = Path(directory) / 'source.txt', Path(directory) / 'cast.json'
+                source.write_text('ALICE spoke.' + separator + 'BORIN replied.', encoding='utf-8')
+                client = Client([ALICE, BOB])
+                self.assertEqual(0, fixtures.IncrementalCastTests.run_main(
+                    self, source, out, client, '--incremental', '--source-chars', '20'))
+                self.assertEqual(2, len(client.requests))
+                self.assertIn(separator, client.requests[0]['messages'][0]['content'])
 
     def test_actual_progress_roster_and_provenance_follow_packed_windows(self):
         paragraphs = ['ALICE spoke calmly.\n\n', 'BORIN replied softly.\n\n', 'The narrator paused.']

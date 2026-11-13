@@ -1721,7 +1721,7 @@
   "help.field.cast-list-incremental.source": "#1931",
   "help.field.cast-list-incremental.what": "实验性顺序角色发现，携带完整的累积角色表及别名。也会为第 2 步加入明确的角色别名证据。默认关闭；构建或生成前请保存配置。",
   "help.field.cast-list-max-tokens.what": "每个角色表窗口或传统整本书请求的回复令牌预算。仍受配置限制；截断的回复会被丢弃。",
-  "help.field.cast-list-source-chars.what": "每个实验性角色表窗口的原文字符数上限（含段落分隔符）。窗口在空行段落边界结束；单个换行保留在段内。若单段及其分隔符超限，请提高此值。指令和不断增长的完整角色表同样占用上下文。请求超出预算时会停止，不会发布不完整的角色表。",
+  "help.field.cast-list-source-chars.what": "每个实验性窗口的原文字符数上限（含分隔符）。段落保持完整，段内换行会保留。若单段无法容纳，请提高上限，或在原文中用空行划分段落。指令和完整角色表同样需要上下文。失败时保留之前的角色表。",
   "help.field.cast-prompt-preset-select.what": "构建角色列表时使用的已保存指令。每个预设均包含整本书指令和实验性增量指令。开始构建前请保存设置。",
   "help.field.cast-select.what": "应用于本书的已保存声音阵容（角色 → 声音映射）。",
   "help.field.cast-whole-book-prompt.what": "整本书角色发现使用的原样指令。构建器会追加预处理原文。请保留由 name 和 aliases 对象组成的 JSON 数组格式。",
