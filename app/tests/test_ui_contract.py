@@ -33,11 +33,31 @@ class UIContractTests(unittest.TestCase):
         route = (STATIC.parent / "routers" / "system.py").read_text(encoding="utf-8")
         script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
         for field in ("pass1_system_prompt", "pass1_user_prompt",
-                      "pass3_system_prompt", "pass3_user_prompt"):
+                      "pass3_system_prompt", "pass3_user_prompt",
+                      "cast_whole_book_prompt", "cast_incremental_prompt"):
             self.assertIn(f'"{field}"', route)
             self.assertIn(f"defaults.{field}", script)
-        self.assertRegex(script, r"preset\?\.system_prompt \|\| defaults\.system_prompt")
-        self.assertRegex(script, r"preset\?\.user_prompt \|\| defaults\.user_prompt")
+        from tests import test_prompt_preset_transactions_js as fixtures
+        fixtures.PromptPresetTransactionTests.run_case(self, r"""
+run("passPromptDefaults.cast={whole_book_prompt:'default whole',incremental_prompt:'default incremental'};");
+for(const pass of ['pass1','pass3','cast']){
+ const isCast=pass==='cast';
+ const systemId=isCast?'cast-whole-book-prompt':pass+'-system-prompt';
+ const userId=isCast?'cast-incremental-prompt':pass+'-user-prompt';
+ const systemKey=isCast?'whole_book_prompt':'system_prompt';
+ const userKey=isCast?'incremental_prompt':'user_prompt';
+ const presets=[{name:'custom',[systemKey]:'custom instruction',[userKey]:'custom context'}];
+ context.renderPassPromptPresets(pass,presets,'default');
+ assert.strictEqual(element(systemId).value,run('passPromptDefaults.'+pass)[systemKey]);
+ assert.strictEqual(element(userId).value,run('passPromptDefaults.'+pass)[userKey]);
+ context.renderPassPromptPresets(pass,presets,'custom');
+ assert.strictEqual(element(systemId).value,'custom instruction');
+ assert.strictEqual(element(userId).value,'custom context');
+ context.renderPassPromptPresets(pass,[{name:'partial',[systemKey]:'partial instruction'}],'partial');
+ assert.strictEqual(element(systemId).value,'partial instruction');
+ assert.strictEqual(element(userId).value,run('passPromptDefaults.'+pass)[userKey]);
+}
+""")
 
     def test_reset_preserves_numbered_prompt_presets(self):
         script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")

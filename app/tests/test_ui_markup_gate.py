@@ -32,6 +32,9 @@ TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
     # Experimental cast controls are DOM identifiers; their visible labels/help are keyed.
     'cast-list-incremental', 'cast-list-source-chars', 'cast-list-max-tokens',
+    # Cast prompt editor ids and API field names; visible labels/help remain keyed.
+    'cast-whole-book-prompt', 'cast-incremental-prompt',
+    'cast_whole_book_prompt', 'cast_incremental_prompt',
     # KeyboardEvent.code values and the editor pane id are identifiers in the
     # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
     'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',

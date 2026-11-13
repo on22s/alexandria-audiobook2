@@ -18,8 +18,8 @@ class PassPromptPayloadTests(unittest.TestCase):
     def build(self,custom=False,edited=True):
         script=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),input=JSON.parse(process.argv[2]);
-const defaults={pass1:{system_prompt:'default segment system',user_prompt:'default segment user'},pass3:{system_prompt:'default instruct system',user_prompt:'default instruct user'}};
-const presets={pass1:[],pass3:[]},active={pass1:'default',pass3:'default'},elements={};
+const defaults={cast:{whole_book_prompt:'',incremental_prompt:''},pass1:{system_prompt:'default segment system',user_prompt:'default segment user'},pass3:{system_prompt:'default instruct system',user_prompt:'default instruct user'}};
+const presets={pass1:[],pass3:[],cast:[]},active={pass1:'default',pass3:'default',cast:'default'},elements={};
 const ctx={window:{},document:{getElementById(id){return elements[id]??={value:'',checked:false,replaceChildren(){},appendChild(){}};},createElement(){return {}; }},llmProfiles:{local:{base_url:'http://localhost:1234/v1',api_key:'local',model_name:'fixture'},remote:null},currentLlmMode:'local',legacyChunkSize:3000,promptPresetPayload:()=>({active:'default',own:[]}),selectedPromptPreset:()=>null,passPromptPresets:presets,activePassPromptPreset:active,passPromptDefaults:defaults};
 for(const [id,value] of Object.entries({'tts-mode':'local','tts-device':'auto','tts-language':'English'})){ctx.document.getElementById(id).value=value;}
 for(const pass of ['pass1','pass3']){

@@ -13,7 +13,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('p
 const source=fs.readFileSync(path.join(process.argv[1],'app-core.js'),'utf8');
 const fields={},decisions=[],requests=[];const el=id=>fields[id]??={id,value:'initial',checked:false,style:{}};
 const ids=['llm-url','llm-model','tts-url','parallel-workers'];el('config-form').elements=ids.map(el);
-const ctx={window:{},document:{getElementById:el},console:{error(){}},llmProfiles:{},passPromptDefaults:{pass1:{system_prompt:'default'},pass3:{system_prompt:'default'}},API:{get:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},showConfirm:()=>new Promise(resolve=>decisions.push(resolve))};
+const ctx={window:{},document:{getElementById:el},console:{error(){}},llmProfiles:{},passPromptDefaults:{cast:{whole_book_prompt:'cast whole',incremental_prompt:'cast incremental'},pass1:{system_prompt:'default'},pass3:{system_prompt:'default'}},API:{get:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},showConfirm:()=>new Promise(resolve=>decisions.push(resolve))};
 for(const name of ['renderConfigWarnings','applyPauseSupport','renderActiveLlmModeBadge','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets','applyCurrentBookFilename']){ctx[name]=()=>{};}
 ctx.populateLlmInputs=()=>{el('llm-url').value=ctx.llmProfiles.local.base_url;el('llm-model').value=ctx.llmProfiles.local.model_name;};
 for(const id of ['review-system-prompt','review-user-prompt','persona-system-prompt','persona-user-prompt']){el(id).value='filled';}
@@ -41,7 +41,7 @@ const source=fs.readFileSync(path.join(process.argv[1],'app-core.js'),'utf8');
 const fields={},errors=[];let fail=true;
 const element=id=>fields[id]||(fields[id]={value:'unsaved input',innerHTML:'',textContent:'',style:{},checked:false});
 const ctx={window:{},legacyChunkSize:123,console:{error:(...args)=>errors.push(args),warn:()=>{}},document:{getElementById:element},llmProfiles:{},
- passPromptDefaults:{pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},
+ passPromptDefaults:{cast:{whole_book_prompt:'cast whole',incremental_prompt:'cast incremental'},pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},
  API:{get:async path=>{assert.strictEqual(path,'/api/config');if(fail){throw Error('HTTP 503 <img src=x>');}return {tts:{mode:'local'}};}}};
 for(const name of ['applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets','applyCurrentBookFilename']){ctx[name]=()=>{};}
 vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}

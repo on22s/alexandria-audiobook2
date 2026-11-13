@@ -1454,11 +1454,12 @@
         let promptPresets = [];
         let activePromptPreset = 'michel2_full';
         let configSavePending = false;
-        const passPromptPresets = {pass1: [], pass3: []};
-        const activePassPromptPreset = {pass1: 'default', pass3: 'default'};
+        const passPromptPresets = {pass1: [], pass3: [], cast: []};
+        const activePassPromptPreset = {pass1: 'default', pass3: 'default', cast: 'default'};
         const passPromptDefaults = {
             pass1: {system_prompt: '', user_prompt: ''},
-            pass3: {system_prompt: '', user_prompt: ''}
+            pass3: {system_prompt: '', user_prompt: ''},
+            cast: {whole_book_prompt: '', incremental_prompt: ''}
         };
 
         function promptBoxes() {
@@ -1470,9 +1471,26 @@
         }
 
         function passPromptFields(pass) {
+            if (pass === 'cast') { return {system: 'cast-whole-book-prompt', user: 'cast-incremental-prompt'}; }
             return pass === 'pass1'
                 ? {system: 'pass1-system-prompt', user: 'pass1-user-prompt'}
                 : {system: 'pass3-system-prompt', user: 'pass3-user-prompt'};
+        }
+
+        function getPromptEditorBoxes(pass) {
+            if (pass === 'attribution') { return promptBoxes(); }
+            const fields = passPromptFields(pass);
+            if (pass === 'cast') { return {whole_book_prompt: document.getElementById(fields.system).value,
+                incremental_prompt: document.getElementById(fields.user).value}; }
+            return {system_prompt: document.getElementById(fields.system).value,
+                user_prompt: document.getElementById(fields.user).value};
+        }
+
+        function setPromptEditorBoxes(pass, boxes) {
+            const fields = pass === 'attribution' ? {system: 'system-prompt', user: 'user-prompt'} : passPromptFields(pass);
+            document.getElementById(fields.system).value = pass === 'cast' ? boxes.whole_book_prompt : boxes.system_prompt;
+            document.getElementById(fields.user).value = pass === 'cast' ? boxes.incremental_prompt : boxes.user_prompt;
+            if (pass === 'attribution') { document.getElementById('prompt-example').value = boxes.example; }
         }
 
         function getPassPromptPresetPayload(pass) {
@@ -1480,11 +1498,8 @@
             const active = activePassPromptPreset[pass];
             const preset = own.find(item => item.name === active);
             const defaults = passPromptDefaults[pass];
-            const fields = passPromptFields(pass);
-            const boxes = {system_prompt: document.getElementById(fields.system).value,
-                user_prompt: document.getElementById(fields.user).value};
-            if (boxes.system_prompt === (preset?.system_prompt || defaults.system_prompt)
-                && boxes.user_prompt === (preset?.user_prompt || defaults.user_prompt)) { return {active, own}; }
+            const boxes = getPromptEditorBoxes(pass);
+            if (Object.entries(boxes).every(([key, value]) => value === (preset?.[key] || defaults[key]))) { return {active, own}; }
             const name = preset?.name || 'default (edited)';
             const edited = {...preset, name, ...boxes};
             const index = own.findIndex(item => item.name === name);
@@ -1573,9 +1588,7 @@
             window.invalidateSetupPreview?.();
             const preset = passPromptPresets[pass][index];
             const defaults = passPromptDefaults[pass];
-            const fields = passPromptFields(pass);
-            document.getElementById(fields.system).value = preset?.system_prompt || defaults.system_prompt;
-            document.getElementById(fields.user).value = preset?.user_prompt || defaults.user_prompt;
+            setPromptEditorBoxes(pass, Object.fromEntries(Object.keys(defaults).map(key => [key, preset?.[key] || defaults[key]])));
             activePassPromptPreset[pass] = preset?.name || 'default';
         }
 
@@ -1584,9 +1597,9 @@
         }
 
         window.savePassPromptPreset = async (pass) => {
-            const fields = passPromptFields(pass);
             const snapshot = getPromptPresetEditorSnapshot(pass);
-            const values = await showPresetEditor({title: pass === 'pass1'
+            const values = await showPresetEditor({title: pass === 'cast'
+                    ? t('setup.prompts.save-cast-title', 'Save cast prompt preset') : pass === 'pass1'
                     ? t('setup.prompts.save-pass1-title', 'Save Step 1 prompt preset')
                     : t('setup.prompts.save-pass3-title', 'Save Step 3 prompt preset'),
                 name: activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass],
@@ -1599,9 +1612,7 @@
             const {name, description} = values;
             const nameError = getPassPromptPresetNameError(name);
             if (nameError) { showToast(nameError, 'warning'); return; }
-            const preset = {name: name.trim(), description: description.trim(),
-                system_prompt: document.getElementById(fields.system).value,
-                user_prompt: document.getElementById(fields.user).value};
+            const preset = {name: name.trim(), description: description.trim(), ...getPromptEditorBoxes(pass)};
             const presets = passPromptPresets[pass].map(item => ({...item}));
             const index = presets.findIndex(p => p.name === preset.name);
             if (index >= 0) { presets[index] = preset; } else { presets.push(preset); }
@@ -1609,7 +1620,7 @@
             try {
                 await persistPromptPresets({prompts: {[`${pass}_preset`]: preset.name, [`${pass}_prompt_presets`]: presets}},
                     () => applyPromptPresetSave(pass, presets, preset.name, submitted));
-                showToast(pass === 'pass1'
+                showToast(pass === 'cast' ? t('setup.prompts.saved-cast', 'Cast prompt preset saved.') : pass === 'pass1'
                     ? t('setup.prompts.saved-pass1', 'Step 1 prompt preset saved.')
                     : t('setup.prompts.saved-pass3', 'Step 3 prompt preset saved.'), 'success');
             } catch (e) { showActionError(t('setup.prompts.save-error', 'Could not save prompt preset'), e, t('setup.prompts.save-error-recovery', 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.')); }
@@ -1777,22 +1788,12 @@
             }
         }
 
-        function getPromptEditorBoxes(pass) {
-            if (pass === 'attribution') { return promptBoxes(); }
-            const fields = passPromptFields(pass);
-            return {system_prompt: document.getElementById(fields.system).value,
-                user_prompt: document.getElementById(fields.user).value};
-        }
-
         function applyPromptPresetSave(pass, presets, active, submitted) {
             const current = getPromptEditorBoxes(pass);
             if (pass === 'attribution') { renderPromptPresets(presets, active); }
             else { renderPassPromptPresets(pass, presets, active); }
             if (JSON.stringify(current) !== JSON.stringify(submitted)) {
-                const fields = pass === 'attribution' ? {system: 'system-prompt', user: 'user-prompt'} : passPromptFields(pass);
-                document.getElementById(fields.system).value = current.system_prompt;
-                document.getElementById(fields.user).value = current.user_prompt;
-                if (pass === 'attribution') { document.getElementById('prompt-example').value = current.example; }
+                setPromptEditorBoxes(pass, current);
             }
         }
 
@@ -2227,7 +2228,9 @@
                 'pass1-system-prompt': 'pass1_system_prompt',
                 'pass1-user-prompt': 'pass1_user_prompt',
                 'pass3-system-prompt': 'pass3_system_prompt',
-                'pass3-user-prompt': 'pass3_user_prompt'
+                'pass3-user-prompt': 'pass3_user_prompt',
+                'cast-whole-book-prompt': 'cast_whole_book_prompt',
+                'cast-incremental-prompt': 'cast_incremental_prompt'
             };
             const before = Object.fromEntries(Object.keys(fields).map(id => [id, document.getElementById(id).value]));
             const selected = {...activePassPromptPreset};
@@ -2237,16 +2240,17 @@
             try {
                 const defaults = await API.get('/api/default_prompts');
                 window.invalidateSetupPreview?.();
-                const required = Object.entries(fields).filter(([id]) => id !== 'persona-advanced-prompt' && (!before[id] || id.startsWith('pass')));
+                const required = Object.entries(fields).filter(([id]) => id !== 'persona-advanced-prompt' && (!before[id] || id.startsWith('pass') || id.startsWith('cast-')));
                 if (!defaults || required.some(([, key]) => typeof defaults[key] !== 'string' || !defaults[key].trim())) {
                     throw new Error('Default prompt response is incomplete');
                 }
                 for (const pass of ['pass1', 'pass3']) {
                     passPromptDefaults[pass] = {system_prompt: defaults[`${pass}_system_prompt`], user_prompt: defaults[`${pass}_user_prompt`]};
                 }
+                passPromptDefaults.cast = {whole_book_prompt: defaults.cast_whole_book_prompt, incremental_prompt: defaults.cast_incremental_prompt};
                 for (const [id, key] of Object.entries(fields)) {
                     const field = document.getElementById(id);
-                    const pass = id.startsWith('pass1-') ? 'pass1' : id.startsWith('pass3-') ? 'pass3' : null;
+                    const pass = id.startsWith('pass1-') ? 'pass1' : id.startsWith('pass3-') ? 'pass3' : id.startsWith('cast-') ? 'cast' : null;
                     if (!before[id] && field.value === before[id] && typeof defaults[key] === 'string'
                         && (!pass || (selected[pass] === 'default' && activePassPromptPreset[pass] === selected[pass]))) {
                         field.value = defaults[key];
@@ -2382,6 +2386,7 @@
                 }
                 activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'michel2_full';
                 renderPromptPresets(config.prompt_presets || [], activePromptPreset);
+                renderPassPromptPresets('cast', config.prompts?.cast_prompt_presets || [], config.prompts?.cast_preset || 'default');
                 renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
                     config.prompts?.pass1_preset || 'default');
                 renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
@@ -2393,7 +2398,7 @@
                 // If review/persona/pass prompts are still empty, fetch defaults.
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
                     || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
-                    || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt) {
+                    || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt || !passPromptDefaults.cast.whole_book_prompt) {
                     await loadMissingPromptDefaults();
                 }
 
@@ -2428,6 +2433,10 @@
                     throw new Error('Generation defaults are unavailable');
                 }
 
+                if (typeof defaults.cast_whole_book_prompt !== 'string' || !defaults.cast_whole_book_prompt.trim()
+                    || typeof defaults.cast_incremental_prompt !== 'string' || !defaults.cast_incremental_prompt.trim()) {
+                    throw new Error(t('setup.prompts.cast-defaults-unavailable', 'Cast prompt defaults are unavailable'));
+                }
                 if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
 
                 renderPromptPresets(promptPresets, 'default');
@@ -2435,6 +2444,8 @@
                 passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
                 passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
                 passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
+                passPromptDefaults.cast = {whole_book_prompt: defaults.cast_whole_book_prompt, incremental_prompt: defaults.cast_incremental_prompt};
+                renderPassPromptPresets('cast', passPromptPresets.cast, 'default');
                 renderPassPromptPresets('pass1', passPromptPresets.pass1, 'default');
                 renderPassPromptPresets('pass3', passPromptPresets.pass3, 'default');
                 if (defaults.review_system_prompt) {
@@ -2478,6 +2489,7 @@
             const presetPayload = promptPresetPayload();
             const pass1Payload = getPassPromptPresetPayload('pass1');
             const pass3Payload = getPassPromptPresetPayload('pass3');
+            const castPayload = getPassPromptPresetPayload('cast');
             return {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,
@@ -2520,6 +2532,8 @@
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
                     persona_reference_chars: Number(document.getElementById('persona-reference-chars').value || 12000),
                     persona_allow_unknown_network_context: document.getElementById('persona-unknown-network-context').checked,
+                    cast_preset: castPayload.active,
+                    cast_prompt_presets: castPayload.own,
                     pass1_preset: pass1Payload.active,
                     pass1_prompt_presets: pass1Payload.own,
                     pass3_preset: pass3Payload.active,
