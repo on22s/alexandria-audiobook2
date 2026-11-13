@@ -364,7 +364,7 @@ y, donde hay una medición, qué recomendamos y por qué. Escape cierra la ayuda
   - **Step 2: extra text around each request** (2,000 por defecto: el bloque circundante de `michel2_full`;
     0 reproduce las puntuaciones anteriores al 2026-09-19);
   - **temperatures** por pasada, **Context rescue windows** y **Rescue retries per window**.
-- Desplegable **Attribution prompt** (cada opción empieza por el nombre de variante usado en
+- Desplegable **Preajuste de prompt del paso 2 (atribución de hablantes)** (cada opción empieza por el nombre de variante usado en
   RECIPES), con **System prompt**, **User instruction** (el pipeline rellena
   `{roster}` y `{batch}`) y **Worked example** como texto editable.
   - **Save as preset** y **Delete selected**.

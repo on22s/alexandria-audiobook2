@@ -22,17 +22,28 @@ class EditorParser(HTMLParser):
         self.nodes = []
 
     def handle_starttag(self, tag, attrs):
-        node = dict(attrs, tag=tag, parents=tuple(self.stack))
+        node = dict(attrs, tag=tag, parents=tuple(identity for _, identity in self.stack))
         self.nodes.append(node)
         if tag not in ('area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'):
-            self.stack.append(node.get('id') or tag)
+            self.stack.append((tag, node.get('id') or tag))
 
     def handle_endtag(self, tag):
-        if self.stack:
-            self.stack.pop()
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                break
 
 
 class Pass2PromptStudioTests(unittest.TestCase):
+    def test_parser_closes_matching_ancestor_before_recording_later_fields(self):
+        for content in ('<p>Optional closing tag', '<br/>', '<div>Nested content</div>'):
+            with self.subTest(content=content):
+                parser = EditorParser()
+                parser.feed('<fieldset id="pass2-prompt-editor">' + content
+                            + '</fieldset><textarea id="system-prompt"></textarea>')
+                field = next(node for node in parser.nodes if node.get('id') == 'system-prompt')
+                self.assertNotIn('pass2-prompt-editor', field['parents'])
+
     def test_preset_controls_and_all_attribution_fields_share_step2_editor(self):
         parser = EditorParser()
         parser.feed((Path(__file__).resolve().parents[1] / 'static/index.html').read_text(encoding='utf8'))

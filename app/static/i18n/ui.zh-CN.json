@@ -3980,6 +3980,7 @@
   "setup.prompts.pass1-user-prompt.label": "步骤 1 用户提示词模板",
   "setup.prompts.pass1_compact.help": "仅在第 1 步选择紧凑标签时使用。生成前请保存设置。保留一个 {units} 占位符和按编号返回的 JSON 标签格式。引号解析和普通模式回退仍然生效。",
   "setup.prompts.pass1_compact.title": "紧凑标签（实验性）",
+  "setup.prompts.pass2-shared-help": "对系统提示词和用户指令的修改也会影响单遍生成。预设格式选择适用于第 2 步。",
   "setup.prompts.pass2-system-prompt.help": "（用于判断说话人）",
   "setup.prompts.pass2-system-prompt.label": "步骤 2 系统提示词",
   "setup.prompts.pass2.title": "步骤 2：说话人归属",

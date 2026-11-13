@@ -3980,6 +3980,7 @@
   "setup.prompts.pass1-user-prompt.label": "ステップ 1 のユーザープロンプトテンプレート",
   "setup.prompts.pass1_compact.help": "ステップ 1 でコンパクトラベルを選択した場合のみ使用します。生成前に設定を保存してください。{units} を 1 つと番号付き JSON ラベルの応答形式を維持してください。引用符の解析と通常方式へのフォールバックは引き続き有効です。",
   "setup.prompts.pass1_compact.title": "コンパクトラベル（実験的）",
+  "setup.prompts.pass2-shared-help": "システムプロンプトとユーザー指示の編集は、シングルパス生成にも反映されます。プリセットの形式選択はステップ 2 に適用されます。",
   "setup.prompts.pass2-system-prompt.help": "（話者の割り当てに使用）",
   "setup.prompts.pass2-system-prompt.label": "ステップ 2 のシステムプロンプト",
   "setup.prompts.pass2.title": "ステップ 2：話者の割り当て",

@@ -3975,6 +3975,7 @@
   "setup.prompts.pass1-user-prompt.label": "Step 1 user prompt template",
   "setup.prompts.pass1_compact.help": "Used only when Compact labels is selected for Pass 1. Save Setup before generating. Keep one {units} placeholder and the numbered JSON label response. Quote parsing and ordinary fallback still apply.",
   "setup.prompts.pass1_compact.title": "Compact labels (experimental)",
+  "setup.prompts.pass2-shared-help": "Edits to the system prompt and user instruction also affect single-pass generation. Preset shape selection applies to Step 2.",
   "setup.prompts.pass2-system-prompt.help": "(used for speaker attribution)",
   "setup.prompts.pass2-system-prompt.label": "Step 2 system prompt",
   "setup.prompts.pass2.title": "Step 2: speaker attribution",
