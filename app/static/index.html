@@ -3604,7 +3604,6 @@
                                 </ul>
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" type="button" id="editor-tools-toggle" aria-expanded="false" aria-controls="editor-tool-drawer" onclick="toggleEditorTools()"><i class="fas fa-toolbox me-1"></i><span data-i18n="editor.tools.open">Editor tools</span></button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -3621,8 +3620,8 @@
                      </div>
                      <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
-                     <div id="editor-drawer-scrim" class="editor-drawer-scrim" hidden onclick="toggleEditorTools(false)"></div>
-                     <section id="editor-tool-drawer" class="editor-drawer" hidden role="dialog" aria-modal="true" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
+                     <div id="editor-drawer-scrim" class="editor-drawer-scrim" hidden aria-hidden="true" onclick="toggleEditorTools(false)"></div>
+                     <section id="editor-tool-drawer" class="editor-drawer" hidden role="dialog" tabindex="-1" aria-modal="true" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
                          <div class="editor-drawer-header">
                              <div class="editor-drawer-tabs" role="group">
                                  <button type="button" class="btn btn-sm btn-outline-secondary" aria-pressed="true" data-editor-tool-target="sound-assets" data-help-key="editorToolSoundAssets" onclick="showEditorTool('sound-assets')"><span data-i18n="editor.sound-assets.title">Sound asset library</span></button>
@@ -3806,6 +3805,7 @@
                                    <div class="editor-line-waveform" id="editor-line-waveform-wrap" hidden>
                                        <canvas id="editor-line-waveform" class="editor-line-waveform-canvas" height="48" role="img" data-i18n-attr="aria-label:editor.waveform.aria" aria-label="Peak waveform of this line's saved audio"></canvas>
                                        <p id="editor-line-waveform-status" class="small text-muted mb-0" role="status" aria-live="polite"></p>
+                                       <button id="editor-line-waveform-retry" type="button" class="btn btn-sm btn-outline-secondary mt-1" hidden onclick="retryEditorLineWaveform()" data-i18n="editor.waveform.retry">Retry waveform</button>
                                    </div>
                                    <details class="mb-3" id="editor-take-details"><summary data-i18n="editor.snapshots.title" data-i18n-attr="title:editor.snapshots.title-attr" title="Save and audition immutable copies, or explicitly check an eligible snapshot for restoration.">Saved take snapshots</summary>
                                        <p class="small mt-2" data-i18n="editor.snapshots.intro">Save a good performance explicitly or enable automatic history above. Audition keeps the current selection. Check &amp; restore selects a saved performance only when its original inputs, voice, settings and pronunciation still match; it retains the displaced take. Verification may load the native voice model. Other snapshots remain available for audition.</p>

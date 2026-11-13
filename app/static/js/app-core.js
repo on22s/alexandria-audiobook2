@@ -842,6 +842,7 @@
             if (!selectedLink) { return; }
             const target = document.getElementById(name + '-tab');
             if (!target) { return; }
+            if (name !== 'editor') { window.toggleEditorTools?.(false); }
             if (updateHistory && window.location.hash !== '#' + name) {
                 window.history.pushState(null, '', '#' + name);
             }

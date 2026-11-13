@@ -49,6 +49,9 @@ KEEP_ENGLISH = frozenset({
     'editor-tool-drawer', 'editor-tools-toggle', 'editor-drawer-scrim',
     # The waveform card's wrapper, canvas and status line are element ids.
     'editor-line-waveform', 'editor-line-waveform-wrap', 'editor-line-waveform-status',
+    # The waveform retry and playback controls, ARIA attribute, and Bootstrap's
+    # modal event are DOM wiring, not display copy.
+    'editor-line-waveform-retry', 'editor-line-play', 'aria-hidden', 'show.bs.modal',
     # Shortcut guards: a Bootstrap body class, a KeyboardEvent.key value, and the
     # selector the drawer's focus trap cycles through, none of them copy.
     'modal-open', 'Tab', 'button, input, select, textarea, a[href], summary, [tabindex]',

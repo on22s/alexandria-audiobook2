@@ -616,6 +616,7 @@
         };
 
         const ITEM_HELP = {
+            'editor-line-waveform-retry': 'Try reading the selected take again after a waveform error. This only refreshes the sketch; it does not regenerate or change the audio.',
             'btn-editor-batch': 'Open the batch actions for the script: regenerate, repair or export several lines at once. Nothing runs until you pick an action.',
             'editor-tools-toggle': 'Open or close the tool drawer, which keeps the sound, rendition, mix, pronunciation, chapter and repair panels beside the line editor without leaving this tab.',
             'editor-drawer-scrim': 'Dims the page while the tool drawer is open. Clicking it closes the drawer and returns focus to the Tools button.',
