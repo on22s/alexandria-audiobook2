@@ -1050,21 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T16:04:10",
+  "written": "2026-11-13T16:49:42",
   "host": "RealMitch",
   "git": {
-   "commit": "fe210a23e14047a1d2eaf19019e8b038a7b3737f",
-   "branch": "fix/1945-paragraph-cast-windows",
+   "commit": "6eac23b590f04cad68ec79ed8f49ac547ee3f070",
+   "branch": "fix/paragraph-normalization-followups",
    "dirty": true,
-   "source_state": "dirty:1ce44a32282d",
+   "source_state": "dirty:d2207153e7e9",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/cast_list.py",
-    "M  app/static/i18n/ui.en.json",
-    "M  app/static/i18n/ui.es-419.json",
-    "M  app/static/i18n/ui.ja.json",
-    "M  app/static/i18n/ui.zh-CN.json",
-    "M  app/static/js/app-help.js",
+    "M  app/source_normalization.py",
+    "A  app/tests/test_paragraph_followups.py",
+    "M  app/tests/unit_test_inventory.json",
     "M  docs/features/incremental-cast.md"
    ],
    "untracked_harness_files": null,

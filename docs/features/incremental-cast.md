@@ -15,7 +15,8 @@ mode can process larger books without dropping a tail or truncating the roster.
 Windows pack complete paragraphs and end at blank-line paragraph breaks, including
 blank lines containing Unicode whitespace. Unicode line separators (U+2028) follow
 the same rule; a single Unicode paragraph separator (U+2029) is also a paragraph
-boundary. Single wrapped line breaks stay inside their paragraph. Separators count toward
+boundary. Publisher-colophon removal uses the same paragraph boundaries and retains the story
+as an exact source substring, including its separators. Single wrapped line breaks stay inside their paragraph. Separators count toward
 the strict character cap, and all whitespace is preserved. If any paragraph plus
 its separator exceeds the cap, discovery refuses before sending any model requests;
 increase **Cast source characters per request** to fit it, or supply a source with
@@ -46,7 +47,10 @@ Only a nonempty validated final cast is atomically published under the source-by
 hash. Its provenance records raw/prepared hashes, preprocessing, all window ranges,
 window/request hashes, budgets, attempts and available token usage. New incremental
 builds record `window_boundary_policy: paragraph-v1`. Progress totals use the actual
-packed-window count, which can exceed a simple character-count estimate. Source identity
+packed-window count, which can exceed a simple character-count estimate. Whitespace-only
+windows remain in coverage with status `skipped_whitespace`, zero attempts and zero
+usage; they do not send a model request or change the roster. Their request hash and
+completion reason are null. New builds record `empty_window_policy: skip-whitespace-v1`. Source identity
 is checked before preparation and again under the final publication lock. Incremental
 completion reasons are recorded per window; there is no single top-level response.
 Usage totals cover accepted window responses only, excluding discarded attempts. A

@@ -20,7 +20,6 @@ import os
 import re
 import sys
 import time
-from itertools import chain
 
 from utils import atomic_json_write, file_lock
 
@@ -150,14 +149,9 @@ def iter_source_window_ranges(text, source_chars):
     """Pack whole paragraphs, including separators, into source offset pairs."""
     if type(source_chars) is not int or source_chars <= 0:
         raise ValueError("Source characters must be a positive integer")
-    # CRLF is atomic. A single line separator is a wrap; U+2029 explicitly
-    # marks a paragraph even without a second line ending.
-    newline = r"(?:\r\n|\r(?!\n)|[\n\u2028\u2029])"
-    paragraph_break = r"(?:" + newline + r"(?:[^\S\r\n\u2028\u2029]*" + newline + r")+|\u2029)"
-    boundaries = chain((match.end() for match in re.finditer(
-        paragraph_break, text)), [len(text)])
+    from source_normalization import iter_source_paragraph_ranges
     start = end = 0
-    for boundary in boundaries:
+    for _, boundary in iter_source_paragraph_ranges(text):
         if boundary - end > source_chars:
             raise ValueError(
                 f"Paragraph at source {end}:{boundary} has {boundary - end} characters "
@@ -224,6 +218,15 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
     count = len(source_windows)
     for start, end in source_windows:
         part = text[start:end]
+        if not part.strip():
+            report(f"Cast window {len(windows) + 1}/{count}: source {start}:{end}; "
+                   "whitespace only; no model request")
+            windows.append({"start": start, "end": end, "status": "skipped_whitespace",
+                            "attempts": 0, "discarded_finish_reasons": [],
+                            "source_sha256": hashlib.sha256(part.encode()).hexdigest(),
+                            "request_sha256": None, "finish_reason": None,
+                            "usage": {"prompt_tokens": 0, "completion_tokens": 0}})
+            continue
         prompt = build_incremental_prompt(part, cast, instruction=instruction)
         messages = [{"role": "user", "content": prompt}]
         report(f"Cast window {len(windows) + 1}/{count}: source {start}:{end}; "
@@ -236,7 +239,7 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
         for alias, name, reason in refused:
             report(f"Dropped alias {alias} from {name}: {reason}.")
         usage = getattr(response, "usage", None)
-        windows.append({"start": start, "end": end, "attempts": attempts,
+        windows.append({"start": start, "end": end, "status": "completed", "attempts": attempts,
                         "discarded_finish_reasons": ["length"] * (attempts - 1),
                         "source_sha256": hashlib.sha256(part.encode()).hexdigest(),
                         "request_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
@@ -377,7 +380,8 @@ def main(argv=None):
         **settings,
         "source_sha256": source_sha256,
         "prepared_source_chars": len(text),
-        **({"windows": windows, "complete": True, "window_boundary_policy": "paragraph-v1"}
+        **({"windows": windows, "complete": True, "window_boundary_policy": "paragraph-v1",
+            "empty_window_policy": "skip-whitespace-v1"}
            if settings["incremental"] else {}),
         "source": os.path.basename(args.source),
         "prepared_source_sha256": hashlib.sha256(text.encode()).hexdigest(),
