@@ -742,7 +742,14 @@ async function renderEditorLineWaveform(target = getEditorReviewTarget()) {
                 if (editorWaveformLoads.get(key) === loading) { editorWaveformLoads.delete(key); }
             }
             editorWaveformPeaks.set(key, peaks);
-            if (editorWaveformPeaks.size > 24) { editorWaveformPeaks.delete(editorWaveformPeaks.keys().next().value); }
+            if (editorWaveformPeaks.size > 24) {
+                // Late decodes may fill the cache after the reader has returned
+                // to an older take. Keep that visible take available for redraw.
+                const oldest = editorWaveformPeaks.keys();
+                let evict = oldest.next().value;
+                if (evict === editorWaveformKey) { evict = oldest.next().value; }
+                editorWaveformPeaks.delete(evict);
+            }
         } catch (error) {
             if (request !== editorWaveformRequest) { return; }
             const text = t('editor.waveform.unavailable', 'Waveform unavailable: {detail}', { detail: error.message });

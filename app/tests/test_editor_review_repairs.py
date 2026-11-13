@@ -65,6 +65,17 @@ await context.retryEditorLineWaveform();assert.equal(decodeCalls,2);assert(retry
 assert(document.getElementById('editor-line-waveform-status').textContent.includes('Peaks'));
 ''')
 
+    def test_late_decodes_cannot_evict_the_visible_waveform_before_resize(self):
+        self.run_js(WAVEFORM + r'''
+context.selectEditorReviewLineById(1);await tick();
+const waiting=[];context.decodeEditorWaveformPeaks=()=>new Promise(resolve=>waiting.push(resolve));
+const chunk=context.cachedChunks[1];
+for(let i=0;i<25;i++){chunk.audio_revision='pending-'+i;context.renderEditorLineInspector();}
+delete chunk.audio_revision;context.renderEditorLineInspector();
+for(const resolve of waiting){resolve([[0,1]]);}await tick();
+canvas.clientWidth=320;resize();assert.equal(canvas.width,640,'late cache fills must retain the displayed take for resizing');
+''')
+
     def test_pending_waveform_is_shared_and_cannot_resurrect_a_cleared_selection(self):
         self.run_js(WAVEFORM + r'''
 let resolve;context.decodeEditorWaveformPeaks=()=>{decodeCalls++;return new Promise(done=>resolve=done);};

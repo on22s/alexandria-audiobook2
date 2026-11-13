@@ -4927,6 +4927,7 @@
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_drawer_isolates_background_and_restores_existing_attributes",
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_drawer_skips_disabled_controls_and_recaptures_outside_focus",
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_editor_body_and_tools_remain_inside_the_editor_card",
+    "tests.test_editor_review_repairs.EditorReviewRepairTests.test_late_decodes_cannot_evict_the_visible_waveform_before_resize",
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_opening_a_shared_modal_releases_the_drawer_background",
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_pending_waveform_is_shared_and_cannot_resurrect_a_cleared_selection",
     "tests.test_editor_review_repairs.EditorReviewRepairTests.test_space_does_not_play_audio_rejected_by_the_inspector",
