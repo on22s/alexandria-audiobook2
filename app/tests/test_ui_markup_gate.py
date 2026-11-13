@@ -30,6 +30,11 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # Shared prompt editor DOM ids and config/default-response key fragments (#1937).
+    # Visible labels, validation messages and help remain keyed; numeric limits unchanged.
+    '${pass}-system-prompt', '${pass}-user-prompt', '${pass}_preset',
+    '${pass}_prompt_presets', '${pass}_system_prompt', '${pass}_user_prompt',
+    'system_prompt', 'user_prompt', '_system_prompt', '_user_prompt', '_prompt_presets',
     # Experimental cast controls are DOM identifiers; their visible labels/help are keyed.
     'cast-list-incremental', 'cast-list-source-chars', 'cast-list-max-tokens',
     # Cast prompt editor ids and API field names; visible labels/help remain keyed.

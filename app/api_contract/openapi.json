@@ -1793,6 +1793,42 @@
         "title": "CollectionOverviewRequest",
         "type": "object"
       },
+      "CompactPromptPreset": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "User Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "system_prompt",
+          "user_prompt"
+        ],
+        "title": "CompactPromptPreset",
+        "type": "object"
+      },
       "ContentRepairRequest": {
         "properties": {
           "direction_changes": {
@@ -2129,6 +2165,42 @@
           "snapshot"
         ],
         "title": "DeliveryRetryRequest",
+        "type": "object"
+      },
+      "DirectedPromptPreset": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "User Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "system_prompt",
+          "user_prompt"
+        ],
+        "title": "DirectedPromptPreset",
         "type": "object"
       },
       "DirectionSelection": {
@@ -3905,6 +3977,21 @@
             "title": "Cast Prompt Presets",
             "type": "array"
           },
+          "pass1_compact_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pass1 Compact Preset",
+            "type": "string"
+          },
+          "pass1_compact_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/CompactPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Pass1 Compact Prompt Presets",
+            "type": "array"
+          },
           "pass1_preset": {
             "default": "default",
             "maxLength": 80,
@@ -3918,6 +4005,36 @@
             },
             "maxItems": 50,
             "title": "Pass1 Prompt Presets",
+            "type": "array"
+          },
+          "pass3_directed_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pass3 Directed Preset",
+            "type": "string"
+          },
+          "pass3_directed_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/DirectedPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Pass3 Directed Prompt Presets",
+            "type": "array"
+          },
+          "pass3_gaps_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Pass3 Gaps Preset",
+            "type": "string"
+          },
+          "pass3_gaps_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/DirectedPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Pass3 Gaps Prompt Presets",
             "type": "array"
           },
           "pass3_preset": {

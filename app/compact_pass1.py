@@ -8,9 +8,9 @@ rebuilt into ordinary {type, text} entries, and the shipped segment gate must
 accept them. Any problem returns [] so the caller falls back to the ordinary
 Pass 1 path for that chunk - nothing is defaulted silently.
 
-`split_units`, `build_compact_prompt`, `parse_compact` and `entries_from_labels`
-are copied unchanged from the experiment so production matches what was
-measured. The request itself goes through generate_script.call_llm_for_entries
+The source splitting, label parsing and reconstruction retain the evaluated
+behavior. Experimental presets can replace instructions while code inserts the
+complete numbered source units. Requests go through generate_script.call_llm_for_entries
 (Rule 15: one call path - logging, budgets, attempt telemetry, transports).
 """
 import json
@@ -64,9 +64,13 @@ def norm(t):
     return re.sub(r"\W+", "", t or "").lower()
 
 
-def build_compact_prompt(units):
+COMPACT_USER_TEMPLATE = "Label every line.\n\n{units}"
+
+
+def build_compact_prompt(units, system_prompt=None, user_prompt_template=None):
     body = "\n".join(f"N{i}: {u}" for i, u in enumerate(units, 1))
-    return COMPACT_SYSTEM, "Label every line.\n\n" + body
+    return (system_prompt if system_prompt is not None else COMPACT_SYSTEM,
+            (user_prompt_template if user_prompt_template is not None else COMPACT_USER_TEMPLATE).format(units=body))
 
 
 def parse_compact(content, count):
@@ -139,7 +143,9 @@ def segment_chunk_compact(client, model_name, chunk, params, attempt_sink=None):
     units = split_units(chunk)
     if not units:
         return []
-    sys_prompt, user_prompt = build_compact_prompt(units)
+    sys_prompt, user_prompt = build_compact_prompt(
+        units, getattr(params, "compact_system_prompt", None),
+        getattr(params, "compact_user_prompt_template", None))
     ceiling = TPG.resolve_completion_ceiling(
         max(1, len(chunk.split())), params, reasoning_allowance=params.reasoning_allowance)
     cap = min(params.max_tokens, ceiling, COMPACT_MAX_TOKENS)

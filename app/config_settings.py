@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, get_origin
 from types import UnionType
 
-from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError, field_validator
 from export_limits import MAX_PAUSE_MS
 from lora_evidence import TTS_MODEL_DEFAULTS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
@@ -222,6 +222,25 @@ class TextPromptPreset(BaseModel):
     user_prompt: str = Field(default="", max_length=100_000)
 
 
+class CompactPromptPreset(TextPromptPreset):
+    system_prompt: str = Field(min_length=1, max_length=100_000, pattern=r"\S")
+    user_prompt: str = Field(min_length=1, max_length=100_000)
+
+    @field_validator("user_prompt")
+    @classmethod
+    def validate_user_prompt(cls, value):
+        from experimental_prompts import validate_experimental_template
+        return validate_experimental_template(value, "units")
+
+
+class DirectedPromptPreset(CompactPromptPreset):
+    @field_validator("user_prompt")
+    @classmethod
+    def validate_user_prompt(cls, value):
+        from experimental_prompts import validate_experimental_template
+        return validate_experimental_template(value, "batch")
+
+
 class CastPromptPreset(BaseModel):
     """Instructions only; the builder appends source and validated roster evidence."""
     name: str = Field(min_length=1, max_length=80)
@@ -251,6 +270,12 @@ class PromptConfig(BaseModel):
     pass1_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
     pass3_preset: str = Field(default="default", min_length=1, max_length=80)
     pass3_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
+    pass1_compact_preset: str = Field(default="default", min_length=1, max_length=80)
+    pass1_compact_prompt_presets: List[CompactPromptPreset] = Field(default_factory=list, max_length=50)
+    pass3_gaps_preset: str = Field(default="default", min_length=1, max_length=80)
+    pass3_gaps_prompt_presets: List[DirectedPromptPreset] = Field(default_factory=list, max_length=50)
+    pass3_directed_preset: str = Field(default="default", min_length=1, max_length=80)
+    pass3_directed_prompt_presets: List[DirectedPromptPreset] = Field(default_factory=list, max_length=50)
 
 
 class PromptPreset(BaseModel):

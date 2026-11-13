@@ -61,8 +61,10 @@ context.API.get=async()=>({system_prompt:'should not apply',generation:{},cast_w
         actions.PromptPresetTransactionTests().run_case(code)
 
     def test_cancelled_reset_preserves_edits_and_confirmed_reset_only_changes_form(self):
-        defaults=GenerationConfig().model_dump()
-        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults,'cast_whole_book_prompt':PROMPT,'cast_incremental_prompt':INCREMENTAL_PROMPT})+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
+        app=FastAPI();app.include_router(system.router)
+        with TestClient(app) as client:
+            response=client.get('/api/default_prompts');self.assertEqual(200,response.status_code,response.text);defaults=response.json()
+        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps(defaults)+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
 run('renderPromptPresets('+JSON.stringify(builtins)+',\"michel2_full\");');context.API.get=async()=>defaults;let confirmations=0;context.showConfirm=async message=>{confirmations++;assert(message.includes('current form edits will be replaced'));assert(message.includes('Save Configuration'));return false;};const before=state();await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(confirmations,1);assert.strictEqual(toasts.length,0);
 context.API.post=async()=>{throw Error('reset must not persist');};context.showConfirm=async()=>true;await context.window.resetPrompts();assert.strictEqual(element('system-prompt').value,builtins.find(p=>p.name==='default').system_prompt);assert.strictEqual(run('activePromptPreset'),'default');assert.strictEqual(element('temperature').value,String(defaults.generation.temperature));assert(toasts.at(-1)[0].includes('Click Save Configuration to keep them.'));assert.strictEqual(toasts.at(-1)[1],'success');
 '''

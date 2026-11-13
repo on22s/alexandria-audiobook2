@@ -825,6 +825,9 @@ class LLMGenParams:
     # Appended so all legacy positional constructors retain their meaning.
     cast_aliases: bool = False
     cast_alias_groups: list = None
+    # Experimental compact request instructions, separate from ordinary Pass 1.
+    compact_system_prompt: str = None
+    compact_user_prompt_template: str = None
 
 
 

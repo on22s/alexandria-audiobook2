@@ -1454,12 +1454,15 @@
         let promptPresets = [];
         let activePromptPreset = 'michel2_full';
         let configSavePending = false;
-        const passPromptPresets = {pass1: [], pass3: [], cast: []};
-        const activePassPromptPreset = {pass1: 'default', pass3: 'default', cast: 'default'};
+        const passPromptPresets = {pass1: [], pass3: [], cast: [], pass1_compact: [], pass3_gaps: [], pass3_directed: []};
+        const activePassPromptPreset = {pass1: 'default', pass3: 'default', cast: 'default', pass1_compact: 'default', pass3_gaps: 'default', pass3_directed: 'default'};
         const passPromptDefaults = {
             pass1: {system_prompt: '', user_prompt: ''},
             pass3: {system_prompt: '', user_prompt: ''},
-            cast: {whole_book_prompt: '', incremental_prompt: ''}
+            cast: {whole_book_prompt: '', incremental_prompt: ''},
+            pass1_compact: {system_prompt: '', user_prompt: ''},
+            pass3_gaps: {system_prompt: '', user_prompt: ''},
+            pass3_directed: {system_prompt: '', user_prompt: ''}
         };
 
         function promptBoxes() {
@@ -1472,9 +1475,7 @@
 
         function passPromptFields(pass) {
             if (pass === 'cast') { return {system: 'cast-whole-book-prompt', user: 'cast-incremental-prompt'}; }
-            return pass === 'pass1'
-                ? {system: 'pass1-system-prompt', user: 'pass1-user-prompt'}
-                : {system: 'pass3-system-prompt', user: 'pass3-user-prompt'};
+            return {system: `${pass}-system-prompt`, user: `${pass}-user-prompt`};
         }
 
         function getPromptEditorBoxes(pass) {
@@ -1601,7 +1602,8 @@
             const values = await showPresetEditor({title: pass === 'cast'
                     ? t('setup.prompts.save-cast-title', 'Save cast prompt preset') : pass === 'pass1'
                     ? t('setup.prompts.save-pass1-title', 'Save Step 1 prompt preset')
-                    : t('setup.prompts.save-pass3-title', 'Save Step 3 prompt preset'),
+                    : pass === 'pass3' ? t('setup.prompts.save-pass3-title', 'Save Step 3 prompt preset')
+                    : t('setup.prompts.save-experimental-title', 'Save experimental prompt preset'),
                 name: activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass],
                 validateName: getPassPromptPresetNameError});
             if (!values) { return; }
@@ -1622,7 +1624,8 @@
                     () => applyPromptPresetSave(pass, presets, preset.name, submitted));
                 showToast(pass === 'cast' ? t('setup.prompts.saved-cast', 'Cast prompt preset saved.') : pass === 'pass1'
                     ? t('setup.prompts.saved-pass1', 'Step 1 prompt preset saved.')
-                    : t('setup.prompts.saved-pass3', 'Step 3 prompt preset saved.'), 'success');
+                    : pass === 'pass3' ? t('setup.prompts.saved-pass3', 'Step 3 prompt preset saved.')
+                    : t('setup.prompts.saved-experimental', 'Experimental prompt preset saved.'), 'success');
             } catch (e) { showActionError(t('setup.prompts.save-error', 'Could not save prompt preset'), e, t('setup.prompts.save-error-recovery', 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.')); }
         };
 
@@ -2232,6 +2235,10 @@
                 'cast-whole-book-prompt': 'cast_whole_book_prompt',
                 'cast-incremental-prompt': 'cast_incremental_prompt'
             };
+            for (const pass of Object.keys(passPromptDefaults).filter(pass => pass !== 'cast')) {
+                fields[`${pass}-system-prompt`] = `${pass}_system_prompt`;
+                fields[`${pass}-user-prompt`] = `${pass}_user_prompt`;
+            }
             const before = Object.fromEntries(Object.keys(fields).map(id => [id, document.getElementById(id).value]));
             const selected = {...activePassPromptPreset};
             promptDefaultsLoadPending = true;
@@ -2244,13 +2251,13 @@
                 if (!defaults || required.some(([, key]) => typeof defaults[key] !== 'string' || !defaults[key].trim())) {
                     throw new Error('Default prompt response is incomplete');
                 }
-                for (const pass of ['pass1', 'pass3']) {
+                for (const pass of Object.keys(passPromptDefaults).filter(pass => pass !== 'cast')) {
                     passPromptDefaults[pass] = {system_prompt: defaults[`${pass}_system_prompt`], user_prompt: defaults[`${pass}_user_prompt`]};
                 }
                 passPromptDefaults.cast = {whole_book_prompt: defaults.cast_whole_book_prompt, incremental_prompt: defaults.cast_incremental_prompt};
                 for (const [id, key] of Object.entries(fields)) {
                     const field = document.getElementById(id);
-                    const pass = id.startsWith('pass1-') ? 'pass1' : id.startsWith('pass3-') ? 'pass3' : id.startsWith('cast-') ? 'cast' : null;
+                    const pass = Object.keys(passPromptDefaults).find(pass => id.startsWith(`${pass}-`));
                     if (!before[id] && field.value === before[id] && typeof defaults[key] === 'string'
                         && (!pass || (selected[pass] === 'default' && activePassPromptPreset[pass] === selected[pass]))) {
                         field.value = defaults[key];
@@ -2386,11 +2393,9 @@
                 }
                 activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'michel2_full';
                 renderPromptPresets(config.prompt_presets || [], activePromptPreset);
-                renderPassPromptPresets('cast', config.prompts?.cast_prompt_presets || [], config.prompts?.cast_preset || 'default');
-                renderPassPromptPresets('pass1', config.prompts?.pass1_prompt_presets || [],
-                    config.prompts?.pass1_preset || 'default');
-                renderPassPromptPresets('pass3', config.prompts?.pass3_prompt_presets || [],
-                    config.prompts?.pass3_preset || 'default');
+                for (const pass of Object.keys(passPromptDefaults)) {
+                    renderPassPromptPresets(pass, config.prompts?.[`${pass}_prompt_presets`] || [], config.prompts?.[`${pass}_preset`] || 'default');
+                }
 
                 // Apply saved generation values before yielding to the defaults request.
                 if (config.generation) { applyGenerationSettings(config.generation); }
@@ -2398,7 +2403,7 @@
                 // If review/persona/pass prompts are still empty, fetch defaults.
                 if (!document.getElementById('review-system-prompt').value || !document.getElementById('review-user-prompt').value
                     || !document.getElementById('persona-system-prompt').value || !document.getElementById('persona-user-prompt').value
-                    || !passPromptDefaults.pass1.system_prompt || !passPromptDefaults.pass3.system_prompt || !passPromptDefaults.cast.whole_book_prompt) {
+                    || Object.values(passPromptDefaults).some(defaults => Object.values(defaults).some(value => !value))) {
                     await loadMissingPromptDefaults();
                 }
 
@@ -2437,17 +2442,21 @@
                     || typeof defaults.cast_incremental_prompt !== 'string' || !defaults.cast_incremental_prompt.trim()) {
                     throw new Error(t('setup.prompts.cast-defaults-unavailable', 'Cast prompt defaults are unavailable'));
                 }
+                for (const pass of Object.keys(passPromptDefaults).filter(pass => pass !== 'cast')) {
+                    if (['system_prompt', 'user_prompt'].some(key => typeof defaults[pass + '_' + key] !== 'string' || !defaults[pass + '_' + key].trim())) {
+                        throw new Error(t('setup.prompts.experimental-defaults-unavailable', 'Prompt defaults are incomplete. Retry loading prompts before resetting.'));
+                    }
+                }
                 if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
 
                 renderPromptPresets(promptPresets, 'default');
-                passPromptDefaults.pass1.system_prompt = defaults.pass1_system_prompt || '';
-                passPromptDefaults.pass1.user_prompt = defaults.pass1_user_prompt || '';
-                passPromptDefaults.pass3.system_prompt = defaults.pass3_system_prompt || '';
-                passPromptDefaults.pass3.user_prompt = defaults.pass3_user_prompt || '';
+                for (const pass of Object.keys(passPromptDefaults).filter(pass => pass !== 'cast')) {
+                    passPromptDefaults[pass] = {system_prompt: defaults[pass + '_system_prompt'], user_prompt: defaults[pass + '_user_prompt']};
+                }
                 passPromptDefaults.cast = {whole_book_prompt: defaults.cast_whole_book_prompt, incremental_prompt: defaults.cast_incremental_prompt};
-                renderPassPromptPresets('cast', passPromptPresets.cast, 'default');
-                renderPassPromptPresets('pass1', passPromptPresets.pass1, 'default');
-                renderPassPromptPresets('pass3', passPromptPresets.pass3, 'default');
+                for (const pass of Object.keys(passPromptDefaults)) {
+                    renderPassPromptPresets(pass, passPromptPresets[pass], 'default');
+                }
                 if (defaults.review_system_prompt) {
                     document.getElementById('review-system-prompt').value = defaults.review_system_prompt;
                 }
@@ -2487,9 +2496,12 @@
 
         function buildConfigPayload(parallelWorkers) {
             const presetPayload = promptPresetPayload();
-            const pass1Payload = getPassPromptPresetPayload('pass1');
-            const pass3Payload = getPassPromptPresetPayload('pass3');
-            const castPayload = getPassPromptPresetPayload('cast');
+            const passPayload = {};
+            for (const pass of Object.keys(passPromptDefaults)) {
+                const payload = getPassPromptPresetPayload(pass);
+                passPayload[pass + '_preset'] = payload.active;
+                passPayload[pass + '_prompt_presets'] = payload.own;
+            }
             return {
                 llm: llmProfiles[currentLlmMode],
                 llm_mode: currentLlmMode,
@@ -2532,12 +2544,7 @@
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
                     persona_reference_chars: Number(document.getElementById('persona-reference-chars').value || 12000),
                     persona_allow_unknown_network_context: document.getElementById('persona-unknown-network-context').checked,
-                    cast_preset: castPayload.active,
-                    cast_prompt_presets: castPayload.own,
-                    pass1_preset: pass1Payload.active,
-                    pass1_prompt_presets: pass1Payload.own,
-                    pass3_preset: pass3Payload.active,
-                    pass3_prompt_presets: pass3Payload.own
+                    ...passPayload
                 },
                 prompt_presets: presetPayload.own,
                 generation: {
