@@ -1494,6 +1494,9 @@ alexandria-audiobook2/
 - **Ejecuta `./ready.sh` antes de hacer commit.** Regenera los archivos derivados (instantáneas del
   contrato de la API, el inventario de pruebas unitarias, el índice de resultados, las auditorías) y luego ejecuta el
   verificador de release. La CI ejecuta las mismas comprobaciones.
+- Las pruebas de superposición de menús requieren Chrome, Edge o Chromium instalado.
+  Si la detección automática falla, define `AA2_TEST_BROWSER` con la ruta al ejecutable.
+  Sin navegador, la prueba falla explícitamente; no cuenta como cobertura omitida.
 - **Los archivos derivados nunca se combinan a mano.** `.gitattributes` los marca `merge=ours`,
   y el hook `post-merge` los reconstruye. `./ready.sh` instala los hooks en un checkout
   nuevo.

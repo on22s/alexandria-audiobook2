@@ -1498,6 +1498,9 @@ alexandria-audiobook2/
 - **Run `./ready.sh` before committing.** It regenerates the derived files (API contract
   snapshots, the unit-test inventory, the results index, audits) and then runs the
   release verifier. CI runs the same checks.
+- Dropdown layering tests require an installed Chrome, Edge, or Chromium. Set
+  `AA2_TEST_BROWSER` to its executable if automatic detection fails. A missing
+  browser fails explicitly; it is not counted as skipped coverage.
 - **Derived files are never merged by hand.** `.gitattributes` marks them `merge=ours`,
   and the `post-merge` hook rebuilds them. `./ready.sh` installs the hooks in a fresh
   checkout.
