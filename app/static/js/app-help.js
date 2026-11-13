@@ -13,6 +13,7 @@
             'roster-split-name': {what: 'Name the new character when splitting one selected identity. Supply a supporting source quote before approval.'},
             'roster-split-new': {what: 'Retire the original identity and allocate two new identities for this split. Leave off to keep the original identity for one character.'},
             'roster-consent': {what: 'Confirm that you reviewed the proposed identities and exact source locations. Edits invalidate this confirmation.'},
+            'setup-expert-toggle': {what: 'Show the advanced Setup categories: limits and retries, audio and timing, generation, script strategy and prompt studio. Switching it off changes no setting and saves nothing.'},
             'setup-settings-category': {what: 'Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.'},
             'setup-settings-search': {what: 'Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.'},
             'setup-ui-locale': {what: "Choose the language of this Setup pane and the app shell: English, Chinese, Japanese, Spanish or the layout-test Pseudo-English. Help text, task logs, safety warnings and other tabs stay English until their phase ships. Preserves counts, config values and book/TTS/transcription language."},

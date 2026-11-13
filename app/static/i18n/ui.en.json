@@ -1913,6 +1913,7 @@
   "help.field.script-first-person-narrator.what": "For books narrated in the first person: the narrator’s exact character name, so their narration and dialogue get one voice. Leave empty otherwise.",
   "help.field.script-literal-source-preserving.what": "Keeps the book’s exact words through annotation and review. Numbers and symbols may still be expanded later for speech.",
   "help.field.script-strip-front-matter.what": "Removes known non-story boilerplate (translator’s notes, tables of contents) before the text is sent to the LLM.",
+  "help.field.setup-expert-toggle.what": "Show the advanced Setup categories: limits and retries, audio and timing, generation, script strategy and prompt studio. Switching it off changes no setting and saves nothing.",
   "help.field.setup-settings-category.what": "Choose which Setup category to display. Edits in other categories are retained. Save Configuration applies all edited categories.",
   "help.field.setup-settings-search.what": "Find available Setup settings by their labels and explanations, then jump to the original control. Does not search field values or save settings.",
   "help.field.setup-ui-locale.what": "Choose the language of this Setup pane and the app shell: English, Chinese, Japanese, Spanish or the layout-test Pseudo-English. Help text, task logs, safety warnings and other tabs stay English until their phase ships. Preserves counts, config values and book/TTS/transcription language.",

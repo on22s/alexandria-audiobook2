@@ -609,7 +609,7 @@
         function showConfigValidationError(error) {
             const field = error.fieldId ? document.getElementById(error.fieldId) : null;
             if (field) {
-                window.revealExpertSettingsFor?.(field);
+                if (typeof revealExpertSettingsFor === 'function') { revealExpertSettingsFor(field); }
                 openConfigField(field);
             }
             showToast(error.message, 'error');
@@ -2072,11 +2072,21 @@
                 try { return !profile || JSON.stringify(getEditedLlmProfile()) === JSON.stringify(profile); }
                 catch (_) { return false; }
             };
+            // Parse before reporting "Testing…": a profile that cannot be read
+            // fails validation, not the request, and nothing is sent. Reporting
+            // it as a request failure would describe work that never happened.
+            try {
+                profile = getEditedLlmProfile();
+            } catch (e) {
+                out.className = 'ms-2 small text-danger';
+                out.textContent = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
+                btn.disabled = false;
+                return;
+            }
             btn.disabled = true;
             out.className = 'ms-2 small text-muted';
             out.textContent = 'Testing…';
             try {
-                profile = getEditedLlmProfile();
                 const res = await API.post('/api/llm/test', profile);
                 if (!isCurrent()) { return; }
                 if (res.ok) {
@@ -2108,9 +2118,13 @@
                     ].join('');
                 }
             } catch (e) {
-                if (!isCurrent()) { return; }
+                const detail = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
+                // Only a newer request or a mode change makes this result stale.
+                // isCurrent() would re-parse a profile that just failed to parse,
+                // which threw again and dropped the message on the floor.
+                if (testLlmConnection.request !== request || currentLlmMode !== mode) { return; }
                 out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
-                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail: e.message || t('setup.llm.test.no-detail', 'The server did not say why.')}))}</span>`;
+                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail}))}</span>`;
             } finally {
                 if (testLlmConnection.request === request) { btn.disabled = false; }
             }
@@ -8047,7 +8061,7 @@
                 // in place, so the table reads "Loading chunks..." forever while
                 // the only explanation sits in the status line above it.
                 const tbody = document.getElementById('chunks-table-body');
-                const placeholder = tbody && tbody.children.length === 1 ? tbody.children[0] : null;
+                const placeholder = tbody && tbody.children && tbody.children.length === 1 ? tbody.children[0] : null;
                 if (placeholder && placeholder.children.length === 1) {
                     placeholder.children[0].textContent = t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.');
                 }

@@ -59,6 +59,8 @@ KEEP_ENGLISH = frozenset({
     'zh-CN', 'ja',
     # HTTP header names are identifiers too (app-core.js checked downloads).
     'content-length',
+    # Bootstrap class lists on the connection-test result: styling, not copy.
+    'ms-2 small text-danger', 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that

@@ -1918,6 +1918,7 @@
   "help.field.script-first-person-narrator.what": "对于第一人称叙事的书：旁白的准确角色名，使其旁白和对话使用同一个声音。其他情况下留空。",
   "help.field.script-literal-source-preserving.what": "在标注和审阅过程中保留书中的准确措辞。数字和符号之后仍可能为朗读而展开。",
   "help.field.script-strip-front-matter.what": "在文本发送给 LLM 之前，移除已知的非故事样板内容（译者注、目录）。",
+  "help.field.setup-expert-toggle.what": "显示高级设置类别：限制与重试、音频与时间、生成、脚本策略和提示词工作室。关闭它不会更改任何设置，也不会保存任何内容。",
   "help.field.setup-settings-category.what": "选择要显示的设置类别。其他类别中的编辑会保留。保存配置（Save Configuration）会应用所有已编辑的类别。",
   "help.field.setup-settings-search.what": "按标签和说明查找可用的 Setup 设置，然后跳转到原始控件。不搜索字段值，也不保存设置。",
   "help.field.setup-ui-locale.what": "选择此设置面板和应用外壳的语言：英语、中文、日语、西班牙语，或用于布局测试的伪英语。帮助文本、任务日志行、安全警告和其他标签页在其翻译阶段发布前仍为英语。保留计数和配置值、书籍、TTS 与转写语言。伪英语是布局测试，不是翻译。",
