@@ -1930,22 +1930,6 @@
                         </div>
                         <div id="promptSettings">
                             <details class="settings-advanced mb-3"><summary data-i18n="setup.prompts.summary">Cast, attribution and segmentation prompts</summary>
-                            <div class="card card-body bg-light mb-3">
-                                <div class="row g-2 align-items-end">
-                                    <div class="col-md-6">
-                                        <label data-i18n="setup.prompts.prompt-preset-select.label" class="form-label mb-1" for="prompt-preset-select">Attribution prompt (how the AI is asked who speaks each line)</label>
-                                        <select class="form-select" id="prompt-preset-select"></select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div id="prompt-preset-description" class="form-text mb-2"></div>
-                                        <span data-i18n-skip class="badge bg-secondary me-2" id="prompt-preset-variant-badge">shape: default</span>
-                                        <button data-i18n="setup.prompts.save-preset" data-i18n-attr="title:setup.prompts.title" type="button" class="btn btn-outline-primary btn-sm me-1" data-config-save-action onclick="savePromptPreset()" title="Also saves all other edited Setup settings">Save preset and Setup</button>
-                                        <button data-i18n="setup.prompts.delete-preset" type="button" class="btn btn-outline-danger btn-sm me-1" data-config-save-action onclick="deletePromptPreset()">Delete preset and save Setup</button>
-                                        <button data-i18n="setup.prompts.preview-prompt" type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAttributionPrompt()">What the model will see</button>
-                                    </div>
-                                </div>
-                                <div data-i18n-html="setup.prompts.prompt-preset-select.help" class="form-text mt-2">Built-in prompts are the ones this project measured; their names match <code>RECIPES.md</code> ("Prompt"). Pick one and its text appears below - edit it and it is what the next run sends. To keep an edit, <strong>Save preset and Setup</strong> gives it a name and also saves all other edited Setup settings; saving Setup with a built-in edited saves it as "<em>name</em> (edited)" and selects that. If you are using a trained adapter (LoRA), use the prompt it was trained with: the Qwen3-14B adapters were trained on <code>default</code> and are a null under <code>michel2_full</code>; the Qwen3.8 and A3B <code>michel2</code> adapters were trained on this shape and are measured under <code>michel2_full</code>.</div>
-                            </div>
                             <div class="mb-3">
                                 <div class="row g-2 align-items-end mb-2">
                                     <div class="col-md-6">
@@ -1998,8 +1982,26 @@
                                 <textarea class="form-control font-monospace" id="pass1_compact-user-prompt" rows="5" style="font-size: 0.85em;" aria-describedby="pass1_compact-prompt-help"></textarea>
                                 <div data-i18n="setup.prompts.pass1_compact.help" class="form-text" id="pass1_compact-prompt-help">Used only when Compact labels is selected for Pass 1. Save Setup before generating. Keep one {units} placeholder and the numbered JSON label response. Quote parsing and ordinary fallback still apply.</div>
                             </details>
+                            <fieldset class="mb-3" id="pass2-prompt-editor" aria-describedby="pass2-prompt-help">
+                                <legend data-i18n="setup.prompts.pass2.title" class="fs-6 fw-bold">Step 2: speaker attribution</legend>
+                            <div class="card card-body bg-light mb-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-6">
+                                        <label data-i18n="setup.prompts.prompt-preset-select.label" class="form-label mb-1" for="prompt-preset-select">Step 2 prompt preset (speaker attribution)</label>
+                                        <select class="form-select" id="prompt-preset-select" aria-describedby="pass2-prompt-help"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div id="prompt-preset-description" class="form-text mb-2"></div>
+                                        <span data-i18n-skip class="badge bg-secondary me-2" id="prompt-preset-variant-badge">shape: default</span>
+                                        <button data-i18n="setup.prompts.save-preset" data-i18n-attr="title:setup.prompts.title" type="button" class="btn btn-outline-primary btn-sm me-1" data-config-save-action onclick="savePromptPreset()" title="Also saves all other edited Setup settings">Save preset and Setup</button>
+                                        <button data-i18n="setup.prompts.delete-preset" type="button" class="btn btn-outline-danger btn-sm me-1" data-config-save-action onclick="deletePromptPreset()">Delete preset and save Setup</button>
+                                        <button data-i18n="setup.prompts.preview-prompt" type="button" class="btn btn-outline-secondary btn-sm" onclick="previewAttributionPrompt()">What the model will see</button>
+                                    </div>
+                                </div>
+                                <div id="pass2-prompt-help" data-i18n-html="setup.prompts.prompt-preset-select.help" class="form-text mt-2">Built-in prompts are the ones this project measured; their names match <code>RECIPES.md</code> ("Prompt"). Pick one and its text appears below - edit it and it is what the next run sends. To keep an edit, <strong>Save preset and Setup</strong> gives it a name and also saves all other edited Setup settings; saving Setup with a built-in edited saves it as "<em>name</em> (edited)" and selects that. If you are using a trained adapter (LoRA), use the prompt it was trained with: the Qwen3-14B adapters were trained on <code>default</code> and are a null under <code>michel2_full</code>; the Qwen3.8 and A3B <code>michel2</code> adapters were trained on this shape and are measured under <code>michel2_full</code>.</div>
+                            </div>
                             <div class="mb-3">
-                                <label class="form-label" for="system-prompt"><span data-i18n="setup.prompts.system-prompt.label">System prompt</span> <span data-i18n="setup.prompts.pass1-user-prompt.single-pass-attribution" class="text-muted small">(single-pass attribution)</span></label>
+                                <label class="form-label" for="system-prompt"><span data-i18n="setup.prompts.pass2-system-prompt.label">Step 2 system prompt</span> <span data-i18n="setup.prompts.pass2-system-prompt.help" class="text-muted small">(used for speaker attribution)</span></label>
                                 <textarea class="form-control font-monospace" id="system-prompt" rows="12" style="font-size: 0.85em;"></textarea>
                             </div>
                             <div class="mb-3">
@@ -2022,6 +2024,7 @@
                                 <div data-i18n="setup.prompts.prompt-example.user-message-sample-window" class="small text-muted">User message (sample window)</div>
                                 <pre class="border rounded p-2 bg-light" id="prompt-preview-user" style="white-space: pre-wrap; font-size: 0.8em; max-height: 30em; overflow: auto;"></pre>
                             </div>
+                            </fieldset>
                             </details>
                             <details class="settings-advanced mb-3"><summary data-i18n="setup.prompts.summary.delivery-notes-and-revie">Delivery notes and review prompts</summary>
                             <div class="mb-3">
