@@ -2585,6 +2585,7 @@
   "test_cast_prompt_studio": [
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_ambiguous_or_invalid_selected_presets_refuse",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_cast_presets_save_switch_and_preserve_inflight_edits",
+    "tests.test_cast_prompt_studio.CastPromptStudioTests.test_cast_preview_displays_names_and_keeps_instruction_text_private",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_custom_instruction_counts_toward_full_prompt_budget",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_custom_manual_and_http_requests_match_with_complete_roster",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_default_requests_keep_exact_legacy_text",
@@ -2594,7 +2595,8 @@
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_saved_cast_presets_round_trip_and_survive_older_config_clients",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_schema_retains_cast_preset_and_bounds_text",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_selected_incremental_preset_reaches_cli_and_preserves_old_cast_on_bad_reply",
-    "tests.test_cast_prompt_studio.CastPromptStudioTests.test_selected_whole_book_prompt_and_provenance_reach_cli"
+    "tests.test_cast_prompt_studio.CastPromptStudioTests.test_selected_whole_book_prompt_and_provenance_reach_cli",
+    "tests.test_cast_prompt_studio.CastPromptStudioTests.test_whole_book_prompt_budget_refuses_before_model_and_preserves_cast"
   ],
   "test_casting_api": [
     "tests.test_casting_api.CastingApiTests.test_clone_config_for_a_voice_with_audio_and_refusals",

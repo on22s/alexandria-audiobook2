@@ -11,6 +11,7 @@ from config_settings import GenerationConfig, PromptConfig
 from routers import system
 from tests import test_prompt_preset_transactions_js as actions
 from attribution_prompt_variants import builtin_presets
+from cast_list import PROMPT, INCREMENTAL_PROMPT
 
 FIELDS={'cast-list-source-chars':'cast_list_source_chars','cast-list-max-tokens':'cast_list_max_tokens','tp-attribute-target-chars':'three_pass_attribute_target_chars','tp-instruct-target-chars':'three_pass_instruct_target_chars','max-tokens':'max_tokens','temperature':'temperature','top-p':'top_p','top-k':'top_k','min-p':'min_p','presence-penalty':'presence_penalty','tp-chunk-size':'three_pass_chunk_size','tp-attribute-batch-size':'three_pass_attribute_batch_size','tp-attribute-context-chars':'three_pass_attribute_context_chars','tp-instruct-context-chars':'three_pass_instruct_context_chars','tp-segment-output-ratio':'three_pass_segment_output_ratio','tp-segment-temperature':'three_pass_segment_temperature','tp-attribute-temperature':'three_pass_attribute_temperature','tp-instruct-temperature':'three_pass_instruct_temperature','tp-segmentation':'three_pass_segmentation','context-rescue-retries':'context_rescue_retries'}
 SETUP=r'''
@@ -27,11 +28,13 @@ class PromptResetDefaultTests(unittest.TestCase):
         with TestClient(app) as client:
             response=client.get('/api/default_prompts');self.assertEqual(200,response.status_code,response.text);defaults=response.json();self.assertEqual(GenerationConfig().model_dump(),defaults.get('generation'))
         code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps(defaults)+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
+run("renderPassPromptPresets('cast',[{name:'saved cast',whole_book_prompt:'saved whole',incremental_prompt:'saved incremental'}],'saved cast');");
 run('renderPromptPresets('+JSON.stringify(builtins)+',"michel2_full");');const cacheBefore=run('JSON.stringify(passPromptPresets)');context.API.get=async()=>defaults;
 for(const [id,value] of Object.entries({'tts-mode':'local','tts-device':'auto','tts-language':'English'})){element(id).value=value;}
 element('persona-reference-chars').value='1000000';
 element('persona-unknown-network-context').checked=true;
-await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),cacheBefore);assert.strictEqual(run('activePassPromptPreset.pass1'),'default');assert.strictEqual(run('activePassPromptPreset.pass3'),'default');
+await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),cacheBefore);assert.strictEqual(run('activePassPromptPreset.pass1'),'default');assert.strictEqual(run('activePassPromptPreset.pass3'),'default');assert.strictEqual(run('activePassPromptPreset.cast'),'default');
+assert.strictEqual(element('cast-whole-book-prompt').value,defaults.cast_whole_book_prompt);assert.strictEqual(element('cast-incremental-prompt').value,defaults.cast_incremental_prompt);
 assert.strictEqual(Number(element('persona-reference-chars').value),defaults.persona_reference_chars);
 assert.strictEqual(element('persona-unknown-network-context').checked,false);
 assert.strictEqual(element('pass1-system-prompt').value,defaults.pass1_system_prompt);assert.strictEqual(element('pass3-user-prompt').value,defaults.pass3_user_prompt);
@@ -53,12 +56,13 @@ console.log(JSON.stringify(context.buildConfigPayload(2)));
         code='const fields='+json.dumps(FIELDS)+';'+SETUP+r'''
 const before=state();context.API.get=async()=>{throw Error('fixture defaults unavailable');};await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(toasts.at(-1)[1],'error');
 context.API.get=async()=>({system_prompt:'should not apply',generation:{}});await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(toasts.at(-1)[1],'error');
+context.API.get=async()=>({system_prompt:'should not apply',generation:{},cast_whole_book_prompt:'present',cast_incremental_prompt:''});await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(toasts.at(-1)[1],'error');
 '''
         actions.PromptPresetTransactionTests().run_case(code)
 
     def test_cancelled_reset_preserves_edits_and_confirmed_reset_only_changes_form(self):
         defaults=GenerationConfig().model_dump()
-        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults})+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
+        code='const fields='+json.dumps(FIELDS)+';const defaults='+json.dumps({'system_prompt':'factory','user_prompt':'factory user','generation':defaults,'cast_whole_book_prompt':PROMPT,'cast_incremental_prompt':INCREMENTAL_PROMPT})+';const builtins='+json.dumps(builtin_presets())+';'+SETUP+r'''
 run('renderPromptPresets('+JSON.stringify(builtins)+',\"michel2_full\");');context.API.get=async()=>defaults;let confirmations=0;context.showConfirm=async message=>{confirmations++;assert(message.includes('current form edits will be replaced'));assert(message.includes('Save Configuration'));return false;};const before=state();await context.window.resetPrompts();assert.strictEqual(state(),before);assert.strictEqual(confirmations,1);assert.strictEqual(toasts.length,0);
 context.API.post=async()=>{throw Error('reset must not persist');};context.showConfirm=async()=>true;await context.window.resetPrompts();assert.strictEqual(element('system-prompt').value,builtins.find(p=>p.name==='default').system_prompt);assert.strictEqual(run('activePromptPreset'),'default');assert.strictEqual(element('temperature').value,String(defaults.generation.temperature));assert(toasts.at(-1)[0].includes('Click Save Configuration to keep them.'));assert.strictEqual(toasts.at(-1)[1],'success');
 '''

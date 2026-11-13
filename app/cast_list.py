@@ -86,7 +86,7 @@ def get_cast_without_refused_aliases(cast):
     return kept_cast, dropped
 
 
-def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS, *, prompt=None, require_stop=False):
+def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS, *, prompt=None, require_stop=False, limits=None):
     """(cast, response, attempts) from one call, retried when the reply ran to the token cap.
 
     A reply that stops at max_tokens is a runaway (Anne of Green Gables, 2026-09-29: 40 names
@@ -96,10 +96,19 @@ def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS
     again; any other finish reason is parsed and a bad parse raises at once. Raises after
     max_attempts truncated replies, saying so. Experimental require_stop additionally
     refuses unknown or interrupted completion reasons even when the JSON parses.
+    Optional limits admit the complete prompt before the first attempt; a declared
+    input/context violation or reduced output allowance raises ValueError before sending.
+    With no declared limits, admission leaves the original request unchanged.
     """
+    from llm_request_budget import get_budgeted_request
+    request = get_budgeted_request({"max_tokens": max_tokens, "messages": [
+        {"role": "user", "content": PROMPT + text if prompt is None else prompt}]}, limits or {})
+    # Never trim source/roster or silently reduce the requested reply allowance.
+    if request["max_tokens"] != max_tokens:
+        raise ValueError("Full cast prompt plus requested output exceeds the profile budget; "
+                         "reduce source characters/output tokens or use a larger context")
     for attempt in range(1, max_attempts + 1):
-        r = client.chat.completions.create(model=model, temperature=0, max_tokens=max_tokens,
-                                           messages=[{"role": "user", "content": PROMPT + text if prompt is None else prompt}])
+        r = client.chat.completions.create(model=model, temperature=0, **request)
         if r.choices[0].finish_reason != "length":
             if require_stop and r.choices[0].finish_reason != "stop":
                 raise ValueError(f"Cast window did not complete (finish_reason={r.choices[0].finish_reason!r})")
@@ -181,7 +190,7 @@ def merge_cast_window(previous, contribution):
 
 def request_incremental_cast(client, model, text, source_chars, max_tokens, *, limits=None,
                              report=lambda message: None, instruction=INCREMENTAL_PROMPT):
-    from llm_request_budget import get_budgeted_request, get_prompt_token_estimate
+    from llm_request_budget import get_prompt_token_estimate
     from cast_list_settings import get_cast_list_settings
     get_cast_list_settings({}, incremental=True, source_chars=source_chars, max_tokens=max_tokens)
     cast, windows, dropped = [], [], []
@@ -189,17 +198,11 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
     for start, end, part in iter_source_windows(text, source_chars):
         prompt = build_incremental_prompt(part, cast, instruction=instruction)
         messages = [{"role": "user", "content": prompt}]
-        budget = get_budgeted_request({"max_tokens": max_tokens, "messages": messages}, limits or {})
-        # A source-character target is not a context guarantee. Never drop the roster
-        # or silently reduce the requested reply budget to fit a growing prompt.
-        if budget["max_tokens"] != max_tokens:
-            raise ValueError("Full cast prompt plus requested output exceeds the profile budget; "
-                             "reduce source characters/output tokens or use a larger context")
         report(f"Cast window {len(windows) + 1}/{count}: source {start}:{end}; "
                f"{len(cast)} established people; ~{get_prompt_token_estimate(messages)} input tokens, "
                f"{max_tokens} output tokens requested")
         contribution, response, attempts = request_cast_list(
-            client, model, part, max_tokens, prompt=prompt, require_stop=True)
+            client, model, part, max_tokens, prompt=prompt, require_stop=True, limits=limits)
         cast, refused = merge_cast_window(cast, contribution)
         dropped.extend(refused)
         for alias, name, reason in refused:
@@ -308,16 +311,17 @@ def main(argv=None):
     response = None
     attempts = 0
     try:
+        from llm_request_budget import get_request_limits
+        limits = get_request_limits(llm)
         if settings["incremental"]:
-            from llm_request_budget import get_request_limits
             cast, windows, dropped = request_incremental_cast(
                 client, llm.get("model_name"), text, settings["source_chars"], settings["max_tokens"],
-                limits=get_request_limits(llm), report=lambda message: print(message, flush=True),
+                limits=limits, report=lambda message: print(message, flush=True),
                 instruction=prompt_settings["incremental_prompt"])
         else:
             cast, response, attempts = request_cast_list(
                 client, llm.get("model_name"), text, settings["max_tokens"],
-                prompt=prompt_settings["whole_book_prompt"] + text)
+                prompt=prompt_settings["whole_book_prompt"] + text, limits=limits)
     except KeyboardInterrupt:
         print("Cast build cancelled. Previous complete cast preserved.")
         return 1
@@ -339,6 +343,7 @@ def main(argv=None):
         "prompt_sha256": hashlib.sha256(
             prompt_settings["incremental_prompt" if settings["incremental"] else "whole_book_prompt"].encode()).hexdigest(),
         "prompt_preset": prompt_settings["preset"],
+        "request_limits": limits,
         **settings,
         "source_sha256": source_sha256,
         "prepared_source_chars": len(text),

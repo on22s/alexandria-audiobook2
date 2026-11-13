@@ -147,6 +147,33 @@ assert.strictEqual(persisted.prompts.cast_preset,'default');assert.strictEqual(p
             with self.subTest(presets=presets), self.assertRaises(ValueError):
                 cast_list.get_cast_prompt_settings({'prompts': {'cast_preset': 'synthetic', 'cast_prompt_presets': presets}})
 
+    def test_whole_book_prompt_budget_refuses_before_model_and_preserves_cast(self):
+        import contextlib
+        import io
+        for limits in ({'max_input_tokens': 50}, {'context_length': 8100}, {'max_output_tokens': 7999}):
+            with self.subTest(limits=limits), tempfile.TemporaryDirectory() as directory:
+                source, out = Path(directory)/'book.txt', Path(directory)/'cast.json'
+                source.write_text('Synthetic source.', encoding='utf8')
+                out.write_bytes(b'previous complete cast')
+                client = fixtures.Client([fixtures.ALICE])
+                config = {'prompts': {'cast_preset': 'synthetic', 'cast_prompt_presets': [
+                    {**PRESET, 'whole_book_prompt': 'Synthetic instructions. ' * 100}]}}
+                profile = {'model_name': 'fixture', **limits}
+                with patch('config_settings.load_app_config', return_value=config), \
+                        patch('lmstudio_settings.get_active_llm_config', return_value=profile), \
+                        patch('llm_provider.make_run_client', return_value=client), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(1, cast_list.main([str(source), '--out', str(out)]))
+                self.assertEqual([], client.requests)
+                self.assertEqual(b'previous complete cast', out.read_bytes())
+
+    def test_cast_preview_displays_names_and_keeps_instruction_text_private(self):
+        from config_change_preview import get_preview_value
+        self.assertEqual('alpha', get_preview_value('alpha', 'cast_preset'))
+        self.assertEqual('bravo', get_preview_value('bravo', 'cast_preset'))
+        self.assertNotIn('synthetic private instruction',
+                         get_preview_value('synthetic private instruction', 'whole_book_prompt'))
+
     def test_defaults_endpoint_exposes_both_actual_instructions(self):
         import asyncio
         from routers.system import get_default_prompts

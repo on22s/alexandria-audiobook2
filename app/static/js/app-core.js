@@ -2435,7 +2435,7 @@
 
                 if (typeof defaults.cast_whole_book_prompt !== 'string' || !defaults.cast_whole_book_prompt.trim()
                     || typeof defaults.cast_incremental_prompt !== 'string' || !defaults.cast_incremental_prompt.trim()) {
-                    throw new Error('Cast prompt defaults are unavailable');
+                    throw new Error(t('setup.prompts.cast-defaults-unavailable', 'Cast prompt defaults are unavailable'));
                 }
                 if (!await showConfirm('Reset prompt and generation settings? Your current form edits will be replaced. Click Save Configuration afterward to keep the defaults.', {title: 'Replace prompt settings?', actionLabel: 'Reset form', danger: true})) { return; }
 

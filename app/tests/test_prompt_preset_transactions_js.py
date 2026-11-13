@@ -175,7 +175,16 @@ mode='fail';await assert.rejects(context.saveConfigPayload(context.buildConfigPa
         with tempfile.TemporaryDirectory() as root,patch.object(system,'CONFIG_PATH',str(Path(root,'config.json'))),patch.object(system,'project_manager',SimpleNamespace(reset_engine=lambda:None,engine=None)),TestClient(app,raise_server_exceptions=False) as client:
             path=Path(root,'config.json');path.write_text('{}');original_bytes=path.read_bytes();requests=[];statuses=[]
             class Handler(BaseHTTPRequestHandler):
+                protocol_version = "HTTP/1.1"
                 def log_message(self,*args):pass
+                def handle_one_request(self):
+                    # Node may reset idle pooled sockets when its process exits.
+                    # A reset during headers, body, or response handling still fails.
+                    self.raw_requestline = None
+                    try:super().handle_one_request()
+                    except ConnectionResetError:
+                        if self.raw_requestline is not None:raise
+                        self.close_connection = True
                 def do_POST(self):
                     body=self.rfile.read(int(self.headers['Content-Length']));requests.append(json.loads(body))
                     if len(requests)==1:
@@ -183,8 +192,9 @@ mode='fail';await assert.rejects(context.saveConfigPayload(context.buildConfigPa
                             response=client.post(self.path,content=body,headers={'Content-Type':'application/json'});write.assert_called_once()
                         assert path.read_bytes()==original_bytes
                     else:response=client.post(self.path,content=body,headers={'Content-Type':'application/json'})
-                    # This HTTP/1.0 fixture closes each socket; explicitly prevent Node fetch from reusing it.
-                    statuses.append(response.status_code);self.send_response(response.status_code);self.send_header('Connection','close');self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(response.content)));self.end_headers();self.wfile.write(response.content)
+                    # Match the application HTTP/1.1 transport so Node can reuse the response socket.
+                    statuses.append(response.status_code);self.send_response(response.status_code)
+                    self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(response.content)));self.end_headers();self.wfile.write(response.content)
             server=ThreadingHTTPServer(('127.0.0.1',0),Handler);worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
             code="const builtins="+json.dumps(builtin_presets())+";const base="+json.dumps('http://127.0.0.1:'+str(server.server_port))+r''';
 seed();run('renderPromptPresets('+JSON.stringify(builtins)+',"michel2_full");');for(const [id,value] of Object.entries({'tts-mode':'local','tts-device':'auto','tts-language':'English'})){element(id).value=value;}

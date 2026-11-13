@@ -15,7 +15,7 @@ _LABELS = {'api_key': 'API credential', 'base_url': 'Model endpoint', 'model_nam
            'provider_extra_body': 'Custom request body', 'llm_mode': 'Active model location',
            'llm_failover': 'Automatic model failover', 'llm_remote_ssh': 'Remote management connection',
            'prompt_presets': 'Saved attribution presets'}
-_VISIBLE_TEXT = {'model_name', 'device', 'language', 'attribution_preset', 'pass1_preset', 'pass3_preset'}
+_VISIBLE_TEXT = {'model_name', 'device', 'language', 'attribution_preset', 'pass1_preset', 'pass3_preset', 'cast_preset'}
 
 
 def get_literal_values(annotation):
