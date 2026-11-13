@@ -107,6 +107,7 @@ class IncrementalCastTests(unittest.TestCase):
         cast, windows, _ = cast_list.request_incremental_cast(client, 'fixture', 'abcdefgh', 4, 4000)
         self.assertEqual(BOB, cast)
         self.assertEqual(2, windows[0]['attempts'])
+        self.assertEqual(['length'], windows[0]['discarded_finish_reasons'])
         self.assertNotIn('ALICE', client.requests[-1]['messages'][0]['content'])
 
     def run_main(self, source, out, client, *extra, config=None):
@@ -145,6 +146,61 @@ class IncrementalCastTests(unittest.TestCase):
             self.assertEqual(20, provenance['source_chars'])
             self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), provenance['source_sha256'])
             self.assertEqual(provenance['prepared_source_chars'], provenance['windows'][-1]['end'])
+
+    def test_incremental_completion_metadata_does_not_invent_observations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
+            source.write_text('Synthetic dialogue.', encoding='utf8')
+            self.assertEqual(0, self.run_main(source, out, Client([ALICE]), '--incremental'))
+            provenance = json.loads(out.read_text(encoding='utf8'))['provenance']
+            self.assertIsNone(provenance['finish_reason'])
+            self.assertEqual('accepted_window_responses_only', provenance['usage_scope'])
+            self.assertEqual({'prompt_tokens': None, 'completion_tokens': None}, provenance['usage'])
+            self.assertEqual('stop', provenance['windows'][0]['finish_reason'])
+
+    def test_usage_aggregates_only_observed_accepted_window_responses(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
+                source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
+                source.write_text('abcdefgh', encoding='utf8')
+                client = Client([ALICE, BOB])
+                original_create = client.create
+                def create(**kwargs):
+                    response = original_create(**kwargs)
+                    response.usage = SimpleNamespace(prompt_tokens=10, completion_tokens=(None if missing and len(client.requests) == 2 else 5))
+                    return response
+                client.chat.completions.create = create
+                self.assertEqual(0, self.run_main(source, out, client, '--incremental', '--source-chars', '4'))
+                usage = json.loads(out.read_text(encoding='utf8'))['provenance']['usage']
+                self.assertEqual({'prompt_tokens': 20, 'completion_tokens': None if missing else 10}, usage)
+
+    def test_interrupted_finish_reasons_preserve_previous_complete_cast(self):
+        for reason in ('content_filter', None, 'tool_calls'):
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as directory:
+                source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
+                source.write_text('Synthetic dialogue.', encoding='utf8')
+                out.write_bytes(b'previous complete cast')
+                self.assertEqual(1, self.run_main(source, out, Client([(json.dumps(ALICE), reason)]), '--incremental'))
+                self.assertEqual(b'previous complete cast', out.read_bytes())
+
+    def test_conflict_diagnostic_reports_build_cause_without_blaming_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
+            source.write_text('abcdefgh', encoding='utf8')
+            output = io.StringIO()
+            client = Client([ALICE, [{'name': 'BOB', 'aliases': ['THE PILOT']}]])
+            with patch('config_settings.load_app_config', return_value={}), patch('lmstudio_settings.get_active_llm_config', return_value={'model_name': 'fixture'}), patch('llm_provider.make_run_client', return_value=client), contextlib.redirect_stdout(output):
+                code = cast_list.main([str(source), '--out', str(out), '--incremental', '--source-chars', '4'])
+            self.assertEqual(1, code)
+            self.assertIn('cast build refused', output.getvalue())
+            self.assertNotIn('reply was not the JSON', output.getvalue())
+            self.assertFalse(out.exists())
+
+    def test_alias_sizing_requires_source_identity_when_enabled(self):
+        from routers.script import get_cast_sizing_settings
+        self.assertEqual({}, get_cast_sizing_settings({}, None))
+        with self.assertRaisesRegex(ValueError, 'source path'):
+            get_cast_sizing_settings({'cast_aliases': True}, None)
 
     def test_invalid_reply_shapes_are_rejected(self):
         for data in ([{'name': 4}], [{'name': 'A', 'aliases': 'B'}], [{'name': 'A', 'aliases': [5]}]):
@@ -217,6 +273,15 @@ class IncrementalCastTests(unittest.TestCase):
 
 
 class ExperimentalPass2AliasTests(unittest.TestCase):
+    def test_opt_in_without_cast_reports_missing_alias_evidence(self):
+        from three_pass_generate import run_three_pass
+        for enabled in (False, True):
+            output = io.StringIO()
+            with patch('three_pass_generate.validate_instruct_context_chars', side_effect=RuntimeError('fixture stop')), contextlib.redirect_stdout(output):
+                with self.assertRaisesRegex(RuntimeError, 'fixture stop'):
+                    run_three_pass(None, 'fixture', 'Synthetic dialogue.', LLMGenParams(cast_aliases=enabled), 3000)
+            self.assertEqual(enabled, 'no cast aliases loaded' in output.getvalue())
+
     def test_every_variant_and_custom_preset_gets_explicit_alias_evidence(self):
         batch = [{'type': 'SPOKEN', 'text': 'A synthetic greeting.'}]
         cast = get_cast_from_data(ALICE)

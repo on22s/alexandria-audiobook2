@@ -57,7 +57,7 @@ element('system-prompt').value='second';const second=context.window.previewAttri
 assert.strictEqual(pending[0].body.system_prompt,'first');assert.strictEqual(pending[1].body.system_prompt,'second');
 pending[1].resolve(reply('newer'));await second;pending[0].resolve(reply('older'));await first;
 assert.strictEqual(element('prompt-preview-system').textContent,'newer');
-for(const change of ['editor','selection','variant','context','new-request']){
+for(const change of ['editor','selection','variant','context','aliases','new-request']){
  for(const failure of [false,true]){
   seed();element('tp-attribute-context-chars').value='100';const errors=toasts.length;
   const preview=context.window.previewAttributionPrompt();const request=pending.at(-1);
@@ -65,6 +65,7 @@ for(const change of ['editor','selection','variant','context','new-request']){
   if(change==='selection'){run('applyPromptPreset(0)');}
   if(change==='variant'){run("promptPresets[1].variant='changed'");}
   if(change==='context'){element('tp-attribute-context-chars').value='invalid';}
+  if(change==='aliases'){element('cast-list-incremental').checked=!request.body.cast_aliases;}
   let next;
   if(change==='new-request'){next=context.window.previewAttributionPrompt();}
   if(failure){request.reject(Error('stale failure'));}else{request.resolve(reply('stale'));}

@@ -363,6 +363,11 @@
       },
       "AttributionPreviewRequest": {
         "properties": {
+          "cast_aliases": {
+            "default": false,
+            "title": "Cast Aliases",
+            "type": "boolean"
+          },
           "context_chars": {
             "default": 0,
             "title": "Context Chars",

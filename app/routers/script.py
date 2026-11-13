@@ -4118,6 +4118,8 @@ def get_cast_sizing_settings(settings, input_path, cast_settings=None):
             settings.update(cast_aliases=True, cast_discovery_settings=cast_settings)
     if not settings.get("cast_aliases"):
         return settings
+    if not input_path:
+        raise ValueError("Alias-aware sizing requires a source path")
     path = get_existing_cast_list(input_path)
     if not path:
         return settings  # Discovery has not happened yet; runtime sizes the actual roster.
@@ -4130,7 +4132,7 @@ def get_batch_script_source_preflight(job, text, settings, context, context_wind
     """Reuse this request's sizing summary only while its inputs still match."""
     if job.get("literal_source_preserving"):
         settings = {**settings, "literal_source_preserving": True}
-    settings = get_cast_sizing_settings(settings, job["input_path"], job.get("cast_list_settings"))
+    settings = get_cast_sizing_settings(settings, job.get("input_path"), job.get("cast_list_settings"))
     receipt = (job.get("prepared_source") or {}).get("preflight")
     if receipt and receipt["identity"] == get_batch_script_sizing_identity(
             text, settings, context_windows, context):
@@ -4444,7 +4446,6 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
     same command single-book generation runs (build_generate_script_command)."""
     check_global_gpu_lock("batch_script")
     prepared_jobs = await asyncio.to_thread(get_prepared_batch_script_jobs, request)
-    cast_settings = prepared_jobs[0]["cast_list_settings"]
 
     def _run():
         with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
@@ -4495,7 +4496,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                          "output_path": output_path, "safe_stem": safe_stem,
                          "strip_front_matter": request.strip_front_matter,
                          "build_cast_list": request.build_cast_lists,
-                         "cast_list_settings": cast_settings,
+                         "cast_list_settings": prepared_jobs[i]["cast_list_settings"],
                          **({"literal_source_preserving": True} if getattr(request, "literal_source_preserving", False) else {}),
                          "first_person_narrator": prepared_jobs[i]["first_person_narrator"],
                          "prepared_source": prepared_jobs[i]["prepared_source"],

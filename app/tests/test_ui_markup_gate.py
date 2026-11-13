@@ -30,6 +30,8 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # Experimental cast controls are DOM identifiers; their visible labels/help are keyed.
+    'cast-list-incremental', 'cast-list-source-chars', 'cast-list-max-tokens',
     # KeyboardEvent.code values and the editor pane id are identifiers in the
     # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
     'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',

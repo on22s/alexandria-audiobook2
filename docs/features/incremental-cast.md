@@ -20,7 +20,8 @@ that same canonical identity. New names remain separate; there is no fuzzy ident
 merge. Contradictory alias ownership stops the build and reports the conflict.
 Protected narration, UNKNOWN and group aliases are refused and reported. A malformed
 reply aborts; a reply cut off at its token limit is discarded and retried up to
-three times. No repair of truncated JSON is attempted.
+three times. Other unfinished or unknown completion reasons are refused in experimental
+mode even if the JSON parses. No repair of truncated JSON is attempted.
 
 Progress appears in the existing Script task log, including window offsets,
 roster size and estimated input/requested output tokens. Manual transport uses the
@@ -32,14 +33,19 @@ retry starts discovery from the beginning.
 Only a nonempty validated final cast is atomically published under the source-byte
 hash. Its provenance records raw/prepared hashes, preprocessing, all window ranges,
 window/request hashes, budgets, attempts and available token usage. Source identity
-is checked before preparation and again under the final publication lock.
+is checked before preparation and again under the final publication lock. Incremental
+completion reasons are recorded per window; there is no single top-level response.
+Usage totals cover accepted window responses only, excluding discarded attempts. A
+missing usage field stays unknown rather than being counted as zero.
 Configured profile limits check the full prompt, including the roster, before each
 experimental window. If limits are undeclared, the provider can still reject a
 request; the character target alone cannot guarantee model-context fit.
 
 The switch also appends explicit canonical-name/alias associations to every Step 2
 request, including the default prompt, alternate variants and custom presets.
-Request sizing uses the same evidence. Step 2 validation/canonicalization remains
+The prompt preview uses the current experimental checkbox and synthetic sample aliases.
+Request sizing uses the same evidence. Generation logs a diagnostic if the switch is on
+but no cast aliases are loaded; building a cast remains optional. Step 2 validation/canonicalization remains
 unchanged. The opt-in and alias evidence participate in checkpoint identity; legacy
 prompts and checkpoint semantics stay unchanged with the switch off. Existing
 alias-oriented variants retain their previous behavior when it is off.

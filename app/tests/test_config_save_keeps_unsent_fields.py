@@ -162,6 +162,17 @@ class AttributionPresetSaveTests(unittest.TestCase):
             self.assertEqual(400, ctx.exception.status_code)
             self.assertIn("{batch}", ctx.exception.detail)
 
+    def test_preview_respects_experimental_alias_switch(self):
+        legacy = asyncio.run(system_module.attribution_preview(
+            system_module.AttributionPreviewRequest()))
+        experimental = asyncio.run(system_module.attribution_preview(
+            system_module.AttributionPreviewRequest(cast_aliases=True)))
+        self.assertNotIn('VALIDATED CAST ALIASES', legacy['user_message'])
+        self.assertIn('VALIDATED CAST ALIASES', experimental['user_message'])
+        self.assertIn('OLD PIET', experimental['user_message'])
+        self.assertIn('sample cast aliases', experimental['note'])
+        self.assertIn('Save Configuration', experimental['note'])
+
     def test_builtins_and_preview(self):
         builtins = system_module._builtin_prompt_presets()
         self.assertEqual(10, len(builtins))

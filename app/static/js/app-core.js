@@ -1903,12 +1903,15 @@
             window._attributionPreviewRequest = request;
             const snapshot = getPromptPresetEditorSnapshot('attribution');
             const contextChars = document.getElementById('tp-attribute-context-chars').value;
+            const castAliases = document.getElementById('cast-list-incremental').checked;
             const isCurrent = () => window._attributionPreviewRequest === request
                 && getPromptPresetEditorSnapshot('attribution') === snapshot
-                && document.getElementById('tp-attribute-context-chars').value === contextChars;
+                && document.getElementById('tp-attribute-context-chars').value === contextChars
+                && document.getElementById('cast-list-incremental').checked === castAliases;
             const preset = selectedPromptPreset();
             const body = {variant: (preset && preset.variant) || 'default', ...promptBoxes(),
-                context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true)};
+                context_chars: getNumFieldValue('tp-attribute-context-chars', 0, true),
+                cast_aliases: castAliases};
             try {
                 const preview = await API.post('/api/prompts/attribution_preview', body);
                 if (!isCurrent()) { return; }

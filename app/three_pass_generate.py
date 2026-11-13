@@ -2739,6 +2739,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     require_nonempty_source(source_text)
     if getattr(params, "cast_aliases", False):
         params = replace(params, cast_alias_groups=(cast or {}).get("alias_groups"))
+        if not params.cast_alias_groups:
+            print("Experimental Step 2 alias evidence unavailable: no cast aliases loaded.", flush=True)
     validate_instruct_context_chars(instruct_context_chars, params)
     for target in (attribute_target_chars, instruct_target_chars):
         list(iter_entry_windows([], attribute_batch_size, target))

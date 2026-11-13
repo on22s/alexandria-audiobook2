@@ -86,7 +86,7 @@ def get_cast_without_refused_aliases(cast):
     return kept_cast, dropped
 
 
-def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS, *, prompt=None):
+def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS, *, prompt=None, require_stop=False):
     """(cast, response, attempts) from one call, retried when the reply ran to the token cap.
 
     A reply that stops at max_tokens is a runaway (Anne of Green Gables, 2026-09-29: 40 names
@@ -94,12 +94,15 @@ def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS
     answered with 70 characters in 2,295 tokens), so raising the cap does not help and the
     reply is never parsed or repaired. One policy on every attempt: length -> discard and ask
     again; any other finish reason is parsed and a bad parse raises at once. Raises after
-    max_attempts truncated replies, saying so.
+    max_attempts truncated replies, saying so. Experimental require_stop additionally
+    refuses unknown or interrupted completion reasons even when the JSON parses.
     """
     for attempt in range(1, max_attempts + 1):
         r = client.chat.completions.create(model=model, temperature=0, max_tokens=max_tokens,
                                            messages=[{"role": "user", "content": PROMPT + text if prompt is None else prompt}])
         if r.choices[0].finish_reason != "length":
+            if require_stop and r.choices[0].finish_reason != "stop":
+                raise ValueError(f"Cast window did not complete (finish_reason={r.choices[0].finish_reason!r})")
             return parse_cast_list(r.choices[0].message.content), r, attempt
         print(f"attempt {attempt}/{max_attempts}: reply hit max_tokens={max_tokens}; discarded",
               file=sys.stderr)
@@ -180,13 +183,14 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
                f"{len(cast)} established people; ~{get_prompt_token_estimate(messages)} input tokens, "
                f"{max_tokens} output tokens requested")
         contribution, response, attempts = request_cast_list(
-            client, model, part, max_tokens, prompt=prompt)
+            client, model, part, max_tokens, prompt=prompt, require_stop=True)
         cast, refused = merge_cast_window(cast, contribution)
         dropped.extend(refused)
         for alias, name, reason in refused:
             report(f"Dropped alias {alias} from {name}: {reason}.")
         usage = getattr(response, "usage", None)
         windows.append({"start": start, "end": end, "attempts": attempts,
+                        "discarded_finish_reasons": ["length"] * (attempts - 1),
                         "source_sha256": hashlib.sha256(part.encode()).hexdigest(),
                         "request_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                         "finish_reason": response.choices[0].finish_reason,
@@ -302,10 +306,14 @@ def main(argv=None):
         print(f"Error: {exc}")
         return 1
     except ValueError as exc:
-        print(f"Error: the reply was not the JSON list that was asked for ({exc}). "
-              "Nothing was saved; build it again.")
+        print(f"Error: cast build refused: {exc}. Nothing was saved.")
         return 1
     usage = getattr(response, "usage", None)
+    usage_totals = {}
+    for field in ("prompt_tokens", "completion_tokens"):
+        values = [window["usage"][field] for window in windows]
+        usage_totals[field] = (sum(values) if values and all(
+            type(value) is int and value >= 0 for value in values) else None)
     provenance = {
         "written": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "model": llm.get("model_name"), "transport": llm.get("transport", "http"),
@@ -318,10 +326,12 @@ def main(argv=None):
         "source": os.path.basename(args.source),
         "prepared_source_sha256": hashlib.sha256(text.encode()).hexdigest(),
         "strip_front_matter": args.strip_front_matter,
-        "finish_reason": response.choices[0].finish_reason if response else "stop",
+        "finish_reason": response.choices[0].finish_reason if response else None,
         "attempts": sum(w["attempts"] for w in windows) if windows else attempts,
-        "usage": {"prompt_tokens": getattr(usage, "prompt_tokens", None),
-                  "completion_tokens": getattr(usage, "completion_tokens", None)},
+        **({"usage_scope": "accepted_window_responses_only", "usage": usage_totals}
+           if settings["incremental"] else {"usage": {
+               "prompt_tokens": getattr(usage, "prompt_tokens", None),
+               "completion_tokens": getattr(usage, "completion_tokens", None)}}),
         "elapsed_s": round(time.time() - started, 1)}
     cast, legacy_dropped = get_cast_without_refused_aliases(cast)
     dropped.extend(legacy_dropped)
@@ -339,7 +349,7 @@ def main(argv=None):
     try:
         save_cast_list(args.out, cast, provenance, source_guard=require_current_source)
     except ValueError as exc:
-        print(f"Error: the model's list was refused: {exc}")
+        print(f"Error: cast publication refused: {exc}")
         return 1
     except TimeoutError:
         print("Error: the cast list is busy. Retry after other cast-list operations finish.")

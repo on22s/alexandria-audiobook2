@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, Field, StrictInt, ValidationError
+from pydantic import BaseModel, Field, StrictBool, StrictInt, ValidationError
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
@@ -179,6 +179,7 @@ def _builtin_prompt_presets() -> list[dict]:
 
 
 class AttributionPreviewRequest(BaseModel):
+    cast_aliases: StrictBool = False
     variant: PromptVariant = "default"
     system_prompt: str = ""
     user_prompt: str = ""
@@ -217,14 +218,18 @@ async def attribution_preview(request: AttributionPreviewRequest):
                 for i in range(len(_PREVIEW_WINDOW))]
     try:
         system_prompt, user_message = build_variant_request(
-            request.variant, _PREVIEW_WINDOW, LLMGenParams(structured_output="off"),
+            request.variant, _PREVIEW_WINDOW, LLMGenParams(
+                structured_output="off", cast_aliases=request.cast_aliases,
+                cast_alias_groups=_PREVIEW_ALIASES),
             _PREVIEW_ROSTER, _PREVIEW_ALIASES, contexts, surround, None, texts)
     except (KeyError, IndexError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"Could not render this prompt: {exc}") from exc
     return {
         "system_prompt": system_prompt,
         "user_message": user_message,
-        "note": ("Rendered on a four-line sample window. The ROSTER line, the entry markers "
+        "note": ("Rendered on a four-line sample window using the current editor controls and "
+                 "sample cast aliases. Save Configuration to apply these controls to generation. "
+                 "The ROSTER line, the entry markers "
                  "(|n|\"...\"|n| and [n] or the JSON entries), the previous-window and "
                  "surrounding-text blocks, and the JSON answer schema are added by the "
                  "pipeline; the rest is the text from the boxes."),

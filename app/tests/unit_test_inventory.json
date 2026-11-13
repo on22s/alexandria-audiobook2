@@ -3691,6 +3691,7 @@
   "test_config_save_keeps_unsent_fields": [
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_a_default_template_without_placeholders_is_refused",
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_builtins_and_preview",
+    "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_preview_respects_experimental_alias_switch",
     "tests.test_config_save_keeps_unsent_fields.AttributionPresetSaveTests.test_variant_is_derived_from_the_active_preset",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_a_field_sent_at_its_default_value_is_applied_not_kept",
     "tests.test_config_save_keeps_unsent_fields.KeepUnsentFieldsTests.test_form_save_preserves_hidden_llm_options_and_profile_identity",
@@ -6861,11 +6862,16 @@
     "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_actual_canonical_transport_gets_aliases_and_canonicalizes_speaker",
     "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_checkpoint_identity_changes_only_on_opt_in",
     "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_every_variant_and_custom_preset_gets_explicit_alias_evidence",
+    "tests.test_incremental_cast.ExperimentalPass2AliasTests.test_opt_in_without_cast_reports_missing_alias_evidence",
+    "tests.test_incremental_cast.IncrementalCastTests.test_alias_sizing_requires_source_identity_when_enabled",
+    "tests.test_incremental_cast.IncrementalCastTests.test_conflict_diagnostic_reports_build_cause_without_blaming_json",
     "tests.test_incremental_cast.IncrementalCastTests.test_conflicting_alias_claims_refuse_rather_than_merge_people",
     "tests.test_incremental_cast.IncrementalCastTests.test_each_window_receives_entire_prior_roster_and_budget",
     "tests.test_incremental_cast.IncrementalCastTests.test_failure_cancellation_empty_result_and_stale_source_preserve_final",
     "tests.test_incremental_cast.IncrementalCastTests.test_full_prompt_overflow_is_refused_without_dropping_roster",
     "tests.test_incremental_cast.IncrementalCastTests.test_generated_merge_sequences_preserve_every_nonconflicting_identity",
+    "tests.test_incremental_cast.IncrementalCastTests.test_incremental_completion_metadata_does_not_invent_observations",
+    "tests.test_incremental_cast.IncrementalCastTests.test_interrupted_finish_reasons_preserve_previous_complete_cast",
     "tests.test_incremental_cast.IncrementalCastTests.test_invalid_reply_shapes_are_rejected",
     "tests.test_incremental_cast.IncrementalCastTests.test_merge_preserves_prior_aliases_and_is_idempotent",
     "tests.test_incremental_cast.IncrementalCastTests.test_opt_in_removes_whole_book_limit_and_records_complete_coverage",
@@ -6873,6 +6879,7 @@
     "tests.test_incremental_cast.IncrementalCastTests.test_saved_configuration_drives_cli_defaults_and_explicit_off_wins",
     "tests.test_incremental_cast.IncrementalCastTests.test_source_change_while_waiting_for_publication_lock_is_refused",
     "tests.test_incremental_cast.IncrementalCastTests.test_truncated_even_valid_json_is_discarded_and_empty_window_can_retry",
+    "tests.test_incremental_cast.IncrementalCastTests.test_usage_aggregates_only_observed_accepted_window_responses",
     "tests.test_incremental_cast.IncrementalCastTests.test_windows_cover_every_character_once_and_obey_bound"
   ],
   "test_index_added_commit_lag": [
