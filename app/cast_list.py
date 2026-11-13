@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import time
+from itertools import chain
 
 from utils import atomic_json_write, file_lock
 
@@ -146,11 +147,25 @@ def get_cast_prompt_settings(config):
 
 
 def iter_source_windows(text, source_chars):
-    """Consecutive Python character offsets; no stripping, overlap, or lost tail."""
+    """Pack whole paragraphs, including separators, without changing the source."""
     if type(source_chars) is not int or source_chars <= 0:
         raise ValueError("Source characters must be a positive integer")
-    for start in range(0, len(text), source_chars):
-        end = min(start + source_chars, len(text))
+    # Treat CRLF as one line ending; a single wrapped line is not a paragraph.
+    newline = r"(?:\r\n|\r(?!\n)|\n)"
+    boundaries = chain((match.end() for match in re.finditer(
+        newline + r"(?:[ \t]*" + newline + r")+", text)), [len(text)])
+    start = end = 0
+    for boundary in boundaries:
+        if boundary - end > source_chars:
+            raise ValueError(
+                f"Paragraph at source {end}:{boundary} has {boundary - end} characters "
+                f"including its separator, exceeding the {source_chars}-character cast window. "
+                "Increase Cast source characters per request; paragraphs are never split.")
+        if boundary - start > source_chars:
+            yield start, end, text[start:end]
+            start = end
+        end = boundary
+    if end > start:
         yield start, end, text[start:end]
 
 
@@ -194,8 +209,12 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
     from cast_list_settings import get_cast_list_settings
     get_cast_list_settings({}, incremental=True, source_chars=source_chars, max_tokens=max_tokens)
     cast, windows, dropped = [], [], []
-    count = (len(text) + source_chars - 1) // source_chars
-    for start, end, part in iter_source_windows(text, source_chars):
+    # Plan all ranges before sending: a late oversized paragraph must not spend
+    # requests on a prefix. Store offsets, not a second copy of the whole book.
+    source_windows = [(start, end) for start, end, _ in iter_source_windows(text, source_chars)]
+    count = len(source_windows)
+    for start, end in source_windows:
+        part = text[start:end]
         prompt = build_incremental_prompt(part, cast, instruction=instruction)
         messages = [{"role": "user", "content": prompt}]
         report(f"Cast window {len(windows) + 1}/{count}: source {start}:{end}; "
@@ -262,7 +281,8 @@ def main(argv=None):
     parser.add_argument("--incremental", action=argparse.BooleanOptionalAction, default=None,
                         help="Experimental sequential discovery; saved setting is off by default")
     parser.add_argument("--source-chars", type=int, default=None,
-                        help="Source characters per incremental window, excluding roster/instructions")
+                        help="Maximum source characters per paragraph-aligned window, including separators; "
+                             "increase if one paragraph cannot fit. Excludes roster/instructions")
     parser.add_argument("--source-sha256", help="Refuse if the selected source identity changed")
     parser.add_argument("--strip-front-matter", action=argparse.BooleanOptionalAction,
                         default=True)
@@ -347,7 +367,8 @@ def main(argv=None):
         **settings,
         "source_sha256": source_sha256,
         "prepared_source_chars": len(text),
-        **({"windows": windows, "complete": True} if settings["incremental"] else {}),
+        **({"windows": windows, "complete": True, "window_boundary_policy": "paragraph-v1"}
+           if settings["incremental"] else {}),
         "source": os.path.basename(args.source),
         "prepared_source_sha256": hashlib.sha256(text.encode()).hexdigest(),
         "strip_front_matter": args.strip_front_matter,

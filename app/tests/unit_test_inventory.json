@@ -2582,6 +2582,15 @@
     "tests.test_cast_list_ui.CastListUITests.test_every_handler_the_page_calls_exists",
     "tests.test_cast_list_ui.CastListUITests.test_incremental_cast_controls_default_off_have_limits_and_are_persisted"
   ],
+  "test_cast_paragraph_windows": [
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_actual_progress_roster_and_provenance_follow_packed_windows",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_empty_exact_limit_tail_and_separator_boundaries",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_generated_windows_preserve_bounded_paragraphs_and_exact_offsets",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_late_oversized_paragraph_refuses_before_any_model_request",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_oversized_paragraph_keeps_existing_cast_and_reports_action",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_single_newline_and_crlf_do_not_split_a_wrapped_paragraph",
+    "tests.test_cast_paragraph_windows.CastParagraphWindowTests.test_windows_end_at_complete_paragraphs_instead_of_inside_words"
+  ],
   "test_cast_prompt_studio": [
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_ambiguous_or_invalid_selected_presets_refuse",
     "tests.test_cast_prompt_studio.CastPromptStudioTests.test_cast_presets_save_switch_and_preserve_inflight_edits",

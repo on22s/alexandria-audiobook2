@@ -42,8 +42,9 @@ class IncrementalCastTests(unittest.TestCase):
     def test_windows_cover_every_character_once_and_obey_bound(self):
         rng = random.Random(1931)
         for _ in range(250):
-            text = ''.join(rng.choice('a \n😀界') for _ in range(rng.randrange(1, 500)))
-            limit = rng.randrange(1, 100)
+            limit = rng.randrange(3, 100)
+            text = ''.join('a' + ''.join(rng.choice('a 😀界') for _ in range(rng.randrange(limit - 2)))
+                           + '\n\n' for _ in range(rng.randrange(1, 20)))
             windows = list(cast_list.iter_source_windows(text, limit))
             self.assertEqual(text, ''.join(part for _, _, part in windows))
             cursor = 0
@@ -92,7 +93,7 @@ class IncrementalCastTests(unittest.TestCase):
 
     def test_each_window_receives_entire_prior_roster_and_budget(self):
         client = Client([ALICE, [], BOB])
-        cast, windows, dropped = cast_list.request_incremental_cast(client, 'fixture', 'abcdefghijkl', 4, 12000)
+        cast, windows, dropped = cast_list.request_incremental_cast(client, 'fixture', 'a.\n\nb.\n\nc.\n\n', 4, 12000)
         self.assertEqual(ALICE + BOB, cast)
         self.assertEqual([], dropped)
         self.assertEqual([(0, 4), (4, 8), (8, 12)], [(w['start'], w['end']) for w in windows])
@@ -104,7 +105,7 @@ class IncrementalCastTests(unittest.TestCase):
 
     def test_truncated_even_valid_json_is_discarded_and_empty_window_can_retry(self):
         client = Client([(json.dumps(ALICE), 'length'), [], BOB])
-        cast, windows, _ = cast_list.request_incremental_cast(client, 'fixture', 'abcdefgh', 4, 4000)
+        cast, windows, _ = cast_list.request_incremental_cast(client, 'fixture', 'a.\n\nb.\n\n', 4, 4000)
         self.assertEqual(BOB, cast)
         self.assertEqual(2, windows[0]['attempts'])
         self.assertEqual(['length'], windows[0]['discarded_finish_reasons'])
@@ -118,7 +119,7 @@ class IncrementalCastTests(unittest.TestCase):
         for failure in ('bad', 'truncated', 'cancel', 'empty', 'stale', 'identity'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-                source.write_text('Synthetic dialogue. ' * 5, encoding='utf8')
+                source.write_text('Synthetic line.\n\n' * 5, encoding='utf8')
                 out.write_bytes(b'previous complete cast')
                 action = (lambda n: source.write_text('changed', encoding='utf8')) if failure == 'stale' else None
                 replies = {'bad': [ALICE, ('oops', 'stop')], 'truncated': [(json.dumps(ALICE), 'length')] * 3, 'cancel': [ALICE, KeyboardInterrupt()], 'empty': [[]] * 10, 'stale': [ALICE] * 10, 'identity': [ALICE] * 10}[failure]
@@ -131,11 +132,14 @@ class IncrementalCastTests(unittest.TestCase):
                 self.assertEqual(b'previous complete cast', out.read_bytes())
                 if failure == 'identity':
                     self.assertEqual([], client.requests)
+                else:
+                    self.assertEqual({'bad': 2, 'truncated': 3, 'cancel': 2,
+                                      'empty': 5, 'stale': 5}[failure], len(client.requests))
 
     def test_opt_in_removes_whole_book_limit_and_records_complete_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-            source.write_text('Synthetic dialogue. ' * 5, encoding='utf8')
+            source.write_text('Synthetic line.\n\n' * 5, encoding='utf8')
             client = Client([ALICE] * 20)
             with patch.object(cast_list, 'MAX_SOURCE_CHARS', 30):
                 self.assertEqual(0, self.run_main(source, out, client, '--incremental', '--source-chars', '20', '--max-tokens', '12000'))
@@ -144,6 +148,7 @@ class IncrementalCastTests(unittest.TestCase):
             self.assertTrue(provenance['incremental'])
             self.assertEqual(12000, provenance['max_tokens'])
             self.assertEqual(20, provenance['source_chars'])
+            self.assertEqual('paragraph-v1', provenance['window_boundary_policy'])
             self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), provenance['source_sha256'])
             self.assertEqual(provenance['prepared_source_chars'], provenance['windows'][-1]['end'])
 
@@ -162,7 +167,7 @@ class IncrementalCastTests(unittest.TestCase):
         for missing in (False, True):
             with self.subTest(missing=missing), tempfile.TemporaryDirectory() as directory:
                 source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-                source.write_text('abcdefgh', encoding='utf8')
+                source.write_text('a.\n\nb.\n\n', encoding='utf8')
                 client = Client([ALICE, BOB])
                 original_create = client.create
                 def create(**kwargs):
@@ -186,7 +191,7 @@ class IncrementalCastTests(unittest.TestCase):
     def test_conflict_diagnostic_reports_build_cause_without_blaming_json(self):
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-            source.write_text('abcdefgh', encoding='utf8')
+            source.write_text('a.\n\nb.\n\n', encoding='utf8')
             output = io.StringIO()
             client = Client([ALICE, [{'name': 'BOB', 'aliases': ['THE PILOT']}]])
             with patch('config_settings.load_app_config', return_value={}), patch('lmstudio_settings.get_active_llm_config', return_value={'model_name': 'fixture'}), patch('llm_provider.make_run_client', return_value=client), contextlib.redirect_stdout(output):
@@ -210,10 +215,10 @@ class IncrementalCastTests(unittest.TestCase):
     def test_full_prompt_overflow_is_refused_without_dropping_roster(self):
         client = Client([ALICE, BOB])
         from llm_request_budget import get_prompt_token_estimate
-        first = cast_list.build_incremental_prompt('abcd', [])
+        first = cast_list.build_incremental_prompt('a.\n\n', [])
         limit = get_prompt_token_estimate([{'role': 'user', 'content': first}])
         with self.assertRaises(ValueError):
-            cast_list.request_incremental_cast(client, 'fixture', 'abcdefgh', 4, 100, limits={'max_input_tokens': limit})
+            cast_list.request_incremental_cast(client, 'fixture', 'a.\n\nb.\n\n', 4, 100, limits={'max_input_tokens': limit})
         self.assertEqual(1, len(client.requests))
 
 
@@ -229,10 +234,10 @@ class IncrementalCastTests(unittest.TestCase):
                 recorded.append(request)
                 atomic_json_write({'id': request['id'], 'content': json.dumps(next(replies))}, manual.response_path)
             with patch('llm_provider.time.sleep', side_effect=answer):
-                manual_cast, _, _ = cast_list.request_incremental_cast(manual, 'fixture', 'abcdefgh', 4, 12000)
+                manual_cast, _, _ = cast_list.request_incremental_cast(manual, 'fixture', 'a.\n\nb.\n\n', 4, 12000)
             raw = Client([ALICE, BOB])
             http = ConfiguredOpenAI(raw, {}, limits={'max_output_tokens': 16000})
-            http_cast, _, _ = cast_list.request_incremental_cast(http, 'fixture', 'abcdefgh', 4, 12000)
+            http_cast, _, _ = cast_list.request_incremental_cast(http, 'fixture', 'a.\n\nb.\n\n', 4, 12000)
             self.assertEqual(manual_cast, http_cast)
             self.assertEqual([r['messages'] for r in recorded], [r['messages'] for r in raw.requests])
             self.assertTrue(all(r['params']['max_tokens'] == 12000 for r in recorded))
@@ -245,7 +250,7 @@ class IncrementalCastTests(unittest.TestCase):
         config = {'generation': {'cast_list_incremental': True, 'cast_list_source_chars': 20, 'cast_list_max_tokens': 12345}}
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-            source.write_text('Synthetic dialogue. ' * 5, encoding='utf8')
+            source.write_text('Synthetic line.\n\n' * 5, encoding='utf8')
             client = Client([ALICE] * 10)
             self.assertEqual(0, self.run_main(source, out, client, config=config))
             self.assertTrue(all(r['max_tokens'] == 12345 for r in client.requests))
@@ -260,7 +265,7 @@ class IncrementalCastTests(unittest.TestCase):
     def test_source_change_while_waiting_for_publication_lock_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
-            source.write_text('Synthetic dialogue. ' * 5, encoding='utf8')
+            source.write_text('Synthetic line.\n\n' * 5, encoding='utf8')
             out.write_bytes(b'old complete cast')
             @contextlib.contextmanager
             def changed_lock(_path):
@@ -270,6 +275,7 @@ class IncrementalCastTests(unittest.TestCase):
                 code = self.run_main(source, out, Client([ALICE] * 10), '--incremental', '--source-chars', '20')
             self.assertEqual(1, code)
             self.assertEqual(b'old complete cast', out.read_bytes())
+            self.assertEqual('changed while waiting', source.read_text(encoding='utf8'))
 
 
 class ExperimentalPass2AliasTests(unittest.TestCase):
