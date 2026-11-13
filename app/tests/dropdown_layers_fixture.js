@@ -15,6 +15,9 @@
             await new Promise(r=>setTimeout(r,0));
             const menu=document.querySelector('[aria-labelledby="advancedNavDropdown"]');
             const a=menu.getBoundingClientRect(), b=document.querySelector('.editor-toolbar').getBoundingClientRect();
+            const item=menu.querySelector('.dropdown-item').getBoundingClientRect();
+            const navMenuOpen=menu.classList.contains('show') && a.width>0 && a.height>0 &&
+                menu.contains(document.elementFromPoint(item.left+item.width/2,item.top+item.height/2));
             const x=(Math.max(a.left,b.left)+Math.min(a.right,b.right))/2;
             const y=(Math.max(a.top,b.top)+Math.min(a.bottom,b.bottom))/2;
             const overlap=Math.min(a.right,b.right)>Math.max(a.left,b.left)&&Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top);
@@ -55,7 +58,7 @@
             const d=batchMenu.querySelector('.dropdown-item').getBoundingClientRect();
             const stickyBatchAbove=batchMenu.contains(document.elementFromPoint(d.left+8,d.top+d.height/2));
             bootstrap.Dropdown.getOrCreateInstance(batch).hide(); window.scrollTo(0,0);
-            return {width,theme,overlap,navAbove,batchAbove,drawerAbove,scrimAbove,modalAbove,backdropAbove,stickyBatchAbove,hit:hit?.className};
+            return {width,theme,overlap,navMenuOpen,navAbove,batchAbove,drawerAbove,scrimAbove,modalAbove,backdropAbove,stickyBatchAbove,hit:hit?.className};
         };
         const rows = [];
         for (const theme of ['light', 'night', 'super-night', 'cyberpunk', 'bread', 'leek']) {

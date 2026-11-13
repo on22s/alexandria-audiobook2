@@ -1050,20 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T13:53:31",
+  "written": "2026-11-13T14:01:52",
   "host": "RealMitch",
   "git": {
-   "commit": "978417f679ea9a54500ac3fa914218caf286b6a0",
+   "commit": "8919048bc830bcc2a28bb487028e1c031b1e6cda",
    "branch": "fix/1940-dropdown-layering",
    "dirty": true,
-   "source_state": "dirty:6d90d6530eef",
+   "source_state": "dirty:71505f28481f",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  README.md",
-    "M  README_ES.md",
-    "A  app/tests/dropdown_layers_fixture.js",
-    "M  app/tests/test_dropdown_layers.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/dropdown_layers_fixture.js",
+    "M  app/tests/test_dropdown_layers.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

@@ -98,13 +98,16 @@ class DropdownLayerTests(unittest.TestCase):
                     self.assertTrue(case[key], f"{key}: {case}")
 
     def test_advanced_menu_clears_editor_toolbar(self):
-        self.assert_cases("navAbove")
+        self.assert_cases("navMenuOpen", "navAbove")
         self.assertTrue(all(case["overlap"] for case in self.cases if case["width"] >= 992))
 
     def test_mobile_navigation_uses_nonoverlapping_layout(self):
         mobile = [case for case in self.cases if case["width"] < 992]
         self.assertEqual(len(mobile), 6)
-        self.assertTrue(all(not case["overlap"] for case in mobile))
+        for case in mobile:
+            with self.subTest(theme=case["theme"]):
+                self.assertTrue(case["navMenuOpen"], f"Mobile menu did not open: {case}")
+                self.assertFalse(case["overlap"])
 
     def test_batch_menu_clears_content_before_and_after_scrolling(self):
         self.assert_cases("batchAbove", "stickyBatchAbove")
