@@ -1050,26 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T09:39:35",
+  "written": "2026-11-13T10:21:54",
   "host": "RealMitch",
   "git": {
-   "commit": "bf7cf97516c46337e404da3d8a07ac8fe8922fc5",
-   "branch": "feat/1929-pass2-prompt-presets",
+   "commit": "28b3a4a465aa4ea5670f834d72c1af987f9c28f5",
+   "branch": "fix/1940-dropdown-layering",
    "dirty": true,
-   "source_state": "dirty:1cfe3f46c0df",
+   "source_state": "dirty:52a599f2019c",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  README.md",
-    "M  README_ES.md",
-    "M  app/attribution_prompt_variants.py",
-    "M  app/static/i18n/ui.en.json",
-    "M  app/static/i18n/ui.es-419.json",
-    "M  app/static/i18n/ui.ja.json",
-    "M  app/static/i18n/ui.zh-CN.json",
     "M  app/static/index.html",
-    "M  app/tests/test_pass2_prompt_studio.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  docs/features/step2-prompt-presets.md"
+    "A  app/tests/test_dropdown_layers.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

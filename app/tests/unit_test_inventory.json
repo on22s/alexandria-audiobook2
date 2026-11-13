@@ -4768,6 +4768,11 @@
     "tests.test_drift_voice_states.DriftVoiceStateTests.test_timeline_alias_uses_selected_root_reference_before_ensemble_members",
     "tests.test_drift_voice_states.DriftVoiceStateTests.test_unselected_compatible_reference_survives_batch_boundaries"
   ],
+  "test_dropdown_layers": [
+    "tests.test_dropdown_layers.DropdownLayerTests.test_blocking_drawer_stays_above_navigation",
+    "tests.test_dropdown_layers.DropdownLayerTests.test_modal_backdrop_stays_above_navigation",
+    "tests.test_dropdown_layers.DropdownLayerTests.test_navbar_menu_clears_sticky_page_controls"
+  ],
   "test_duplicate_classification": [
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_block_the_source_repeats_is_kept",
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_duplicated_pair_is_removed_not_refused",
