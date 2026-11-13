@@ -949,6 +949,12 @@ async def get_default_prompts():
         "pass3_system_prompt": pass3_system_prompt,
         "pass3_user_prompt": pass3_user_prompt,
     }
+    from compact_pass1 import COMPACT_SYSTEM, COMPACT_USER_TEMPLATE
+    result.update(pass1_compact_system_prompt=COMPACT_SYSTEM, pass1_compact_user_prompt=COMPACT_USER_TEMPLATE)
+    for mode in ("gaps", "directed"):
+        system, user = load_instruct_prompts(mode)
+        result[f"pass3_{mode}_system_prompt"] = system
+        result[f"pass3_{mode}_user_prompt"] = user
     try:
         review_sys, review_usr = load_review_prompts()
         result["review_system_prompt"] = review_sys

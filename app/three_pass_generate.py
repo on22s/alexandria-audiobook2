@@ -150,7 +150,7 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
     model_profile = resolve_model_profile(
         model_name, gen.get("three_pass_model_profiles"),
         load_default_model_profiles())
-    return {
+    settings = {
         "model_profile": model_profile,
         **({"cast_aliases": True} if gen.get("cast_list_incremental") is True else {}),
         "chunk_size": resolve_chunk_size(
@@ -181,6 +181,17 @@ def resolve_three_pass_generation_settings(config, chunk_size_override=None,
         "attribute_prompt_variant": gen.get("three_pass_attribute_prompt_variant") or "michel2_full",
         "delivery_direction": resolve_delivery_direction(config, delivery_direction_override),
     }
+    from experimental_prompts import resolve_experimental_prompt
+    if settings["pass1_format"] == "compact":
+        system, user = resolve_experimental_prompt(config, "pass1_compact")
+        if system is not None:
+            settings.update(compact_system_prompt=system, compact_user_prompt_template=user)
+    if settings["delivery_direction"] != "off":
+        family = "pass3_gaps" if settings["delivery_direction"] == "gaps" else "pass3_directed"
+        system, user = resolve_experimental_prompt(config, family)
+        if system is not None:
+            settings.update(instruct_system_prompt=system, instruct_user_prompt_template=user)
+    return settings
 
 
 def resolve_delivery_direction(config, cli_value=None):
@@ -274,6 +285,11 @@ def get_three_pass_run_params(config, lm_status, reasoning_effort=None, generati
         config, "pass1")
     params.instruct_system_prompt, params.instruct_user_prompt_template = resolve_three_pass_prompt(
         config, "pass3")
+    params.compact_system_prompt = generation_settings.get("compact_system_prompt")
+    params.compact_user_prompt_template = generation_settings.get("compact_user_prompt_template")
+    if params.delivery_direction != "off":
+        params.instruct_system_prompt = generation_settings.get("instruct_system_prompt")
+        params.instruct_user_prompt_template = generation_settings.get("instruct_user_prompt_template")
     return params
 
 
@@ -1141,18 +1157,16 @@ def build_instruct_request(prior_batch, params, neighbor_contexts=None, surround
     """Build the canonical pass-3 system and user prompts."""
     direction = getattr(params, "delivery_direction", "off")
     sys_prompt, usr_template = load_instruct_prompts(direction)
-    # A delivery-direction mode always sends its own prompt, which asks for its
-    # fields: get_three_pass_run_params refuses a custom Pass 3 preset with a
-    # mode, and the legacy prompt fallbacks would ask for an instruct alone.
-    if direction == "off":
-        if params.instruct_system_prompt:
-            sys_prompt = params.instruct_system_prompt
-        elif params.system_prompt:
-            sys_prompt = params.system_prompt
-        if params.instruct_user_prompt_template:
-            usr_template = params.instruct_user_prompt_template
-        elif params.user_prompt_template:
-            usr_template = params.user_prompt_template
+    # Explicit fields hold the selected format's preset. Legacy generic
+    # fallbacks apply only to ordinary instructions, never experimental modes.
+    if params.instruct_system_prompt:
+        sys_prompt = params.instruct_system_prompt
+    elif direction == "off" and params.system_prompt:
+        sys_prompt = params.system_prompt
+    if params.instruct_user_prompt_template:
+        usr_template = params.instruct_user_prompt_template
+    elif direction == "off" and params.user_prompt_template:
+        usr_template = params.user_prompt_template
     neighbor_contexts = neighbor_contexts or [{} for _ in prior_batch]
     batch_json = json.dumps([
         {"n": i, "speaker": e["speaker"], "text": e["text"], **neighbor_contexts[i]}
@@ -2045,7 +2059,11 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
         segment_system_prompt=settings.get("segment_system_prompt"),
         segment_user_prompt_template=settings.get("segment_user_prompt_template"),
         instruct_system_prompt=settings.get("instruct_system_prompt"),
-        instruct_user_prompt_template=settings.get("instruct_user_prompt_template"))
+        instruct_user_prompt_template=settings.get("instruct_user_prompt_template"),
+        pass1_format=settings.get("pass1_format", "ordinary"),
+        delivery_direction=settings.get("delivery_direction", "off"),
+        compact_system_prompt=settings.get("compact_system_prompt"),
+        compact_user_prompt_template=settings.get("compact_user_prompt_template"))
     instruct_context_chars = settings.get("instruct_context_chars", 0)
     validate_instruct_context_chars(instruct_context_chars, params)
     chunks, predicted_entries, unresolved_chunks, chunks_without_quote_marks = (
@@ -2105,6 +2123,12 @@ def build_three_pass_request_preflight(source_text, settings, context_length,
             int(settings["max_tokens"]),
             resolve_completion_ceiling(
                 max(1, len(chunk.split())), params, source_text=chunk))
+        if params.pass1_format == "compact":
+            from compact_pass1 import build_compact_prompt, split_units, COMPACT_MAX_TOKENS
+            compact_system, compact_user = build_compact_prompt(
+                split_units(chunk), params.compact_system_prompt, params.compact_user_prompt_template)
+            add_request("segment_compact", compact_system, compact_user, min(completion, COMPACT_MAX_TOKENS))
+        # The ordinary request remains a possible fallback after rejected labels.
         add_request("segment", segment_system,
                     segment_template.format(chunk=chunk), completion)
         max_window = max(context_windows)
@@ -2529,6 +2553,9 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # keep their identity; switching format restarts instead of mixing.
         if getattr(params, "pass1_format", "ordinary") != "ordinary":
             settings["pass1_format"] = params.pass1_format
+            if getattr(params, "compact_system_prompt", None) is not None:
+                settings["compact_system_prompt"] = params.compact_system_prompt
+                settings["compact_user_prompt_template"] = params.compact_user_prompt_template
         # Only off the default, so existing checkpoints keep their identity; a
         # resumed book cannot mix delivery-direction modes or prompt revisions.
         if getattr(params, "delivery_direction", "off") != "off":

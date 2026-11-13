@@ -4101,6 +4101,11 @@ def get_batch_script_sizing_identity(text, settings, context_windows, context_le
               "context_windows": get_context_rescue_windows(context_windows),
               "prompts": [load_segment_prompts(), load_attribute_prompts(),
                           load_instruct_prompts()]}
+    if settings.get("pass1_format") == "compact":
+        from compact_pass1 import COMPACT_SYSTEM, COMPACT_USER_TEMPLATE
+        inputs["compact_prompts"] = [COMPACT_SYSTEM, COMPACT_USER_TEMPLATE]
+    if settings.get("delivery_direction", "off") != "off":
+        inputs["delivery_prompts"] = load_instruct_prompts(settings["delivery_direction"])
     if is_three_pass_context_required(
             settings.get("chunk_size", 0), settings.get("attribute_context_chars", 0),
             settings.get("attribute_target_chars", 0), settings.get("instruct_target_chars", 0),

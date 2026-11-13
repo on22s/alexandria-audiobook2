@@ -30,17 +30,21 @@ class UIContractTests(unittest.TestCase):
         self.assertEqual(1, sum(tab.get("aria-current") == "page" for tab in parser.tabs))
 
     def test_pass_prompt_defaults_have_a_server_and_browser_path(self):
-        route = (STATIC.parent / "routers" / "system.py").read_text(encoding="utf-8")
-        script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
-        for field in ("pass1_system_prompt", "pass1_user_prompt",
-                      "pass3_system_prompt", "pass3_user_prompt",
-                      "cast_whole_book_prompt", "cast_incremental_prompt"):
-            self.assertIn(f'"{field}"', route)
-            self.assertIn(f"defaults.{field}", script)
+        import json
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import system
+        app = FastAPI(); app.include_router(system.router)
+        with TestClient(app) as client:
+            response = client.get('/api/default_prompts')
+            self.assertEqual(200, response.status_code, response.text)
+            defaults = response.json()
         from tests import test_prompt_preset_transactions_js as fixtures
-        fixtures.PromptPresetTransactionTests.run_case(self, r"""
-run("passPromptDefaults.cast={whole_book_prompt:'default whole',incremental_prompt:'default incremental'};");
-for(const pass of ['pass1','pass3','cast']){
+        fixtures.PromptPresetTransactionTests.run_case(self, "const defaults=" + json.dumps(defaults) + ";" + r"""
+const a=source.indexOf('let promptDefaultsLoadPending =');
+assert(a>=0);run(source.slice(a,source.indexOf('async function loadConfig()',a)));
+context.API.get=async()=>defaults;await context.loadMissingPromptDefaults();
+for(const pass of ['pass1','pass3','cast','pass1_compact','pass3_gaps','pass3_directed']){
  const isCast=pass==='cast';
  const systemId=isCast?'cast-whole-book-prompt':pass+'-system-prompt';
  const userId=isCast?'cast-incremental-prompt':pass+'-user-prompt';
@@ -60,15 +64,31 @@ for(const pass of ['pass1','pass3','cast']){
 """)
 
     def test_reset_preserves_numbered_prompt_presets(self):
-        script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
-        start = script.index("window.resetPrompts =")
-        end = script.index("function buildConfigPayload(", start)
-        self.assertGreater(end, start)
-        reset = script[start:end]
-        self.assertIn("renderPassPromptPresets('pass1', passPromptPresets.pass1, 'default')", reset)
-        self.assertIn("renderPassPromptPresets('pass3', passPromptPresets.pass3, 'default')", reset)
-        self.assertNotIn("renderPassPromptPresets('pass1', [], 'default')", reset)
-        self.assertNotIn("renderPassPromptPresets('pass3', [], 'default')", reset)
+        import json
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import system
+        from tests import test_prompt_preset_transactions_js as fixtures
+        app = FastAPI(); app.include_router(system.router)
+        with TestClient(app) as client:
+            response = client.get('/api/default_prompts')
+            self.assertEqual(200, response.status_code, response.text)
+            defaults = response.json()
+        fixtures.PromptPresetTransactionTests.run_case(self, "const defaults=" + json.dumps(defaults) + ";" + r"""
+const helper=source.indexOf('const generationControlFields =');assert(helper>=0);
+run(source.slice(helper,source.indexOf('async function loadConfig()',helper)));
+const a=source.indexOf('window.resetPrompts ='),b=source.indexOf('function buildConfigPayload(',a);
+assert(a>=0&&b>a);run(source.slice(a,b));
+const families=['pass1','pass3','pass1_compact','pass3_gaps','pass3_directed'];
+for(const pass of families){context.renderPassPromptPresets(pass,[{name:'saved',system_prompt:'custom S',user_prompt:'custom U'}],'saved');}
+const before=run('JSON.stringify(passPromptPresets)');context.API.get=async()=>defaults;
+await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),before);
+for(const pass of families){
+ assert.strictEqual(run('activePassPromptPreset.'+pass),'default');
+ assert.strictEqual(element(pass+'-system-prompt').value,defaults[pass+'_system_prompt']);
+ assert.strictEqual(element(pass+'-user-prompt').value,defaults[pass+'_user_prompt']);
+}
+""")
 
     def test_error_toasts_are_assertive_but_other_toasts_are_polite(self):
         script = (STATIC / "js" / "app-core.js").read_text(encoding="utf-8")
