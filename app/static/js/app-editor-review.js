@@ -583,6 +583,13 @@ document.addEventListener('keydown', event => {
     const editorTab = document.getElementById('editor-tab');
     if (!editorTab || editorTab.style.display === 'none') { return; }
 
+    // A dialog or the tool drawer covers the selection these keys act on, and
+    // Bootstrap leaves focus on the .modal container, which none of the control
+    // checks below match. Acting on a line nobody can see is worse than a dead key.
+    if (document.body.classList.contains('modal-open')) { return; }
+    const openDrawer = document.getElementById('editor-tool-drawer');
+    if (openDrawer && !openDrawer.hidden) { return; }
+
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.repeat) { return; }
 
     // A focused control owns its own keys: Space activates a button, a <summary>
@@ -657,6 +664,7 @@ let editorWaveformContext = null;
 let editorWaveformRequest = 0;
 let editorWaveformKey = '';
 const editorWaveformPeaks = new Map();
+const editorWaveformFailures = new Map();
 
 async function renderEditorLineWaveform() {
     const wrap = document.getElementById('editor-line-waveform-wrap');
@@ -676,6 +684,15 @@ async function renderEditorLineWaveform() {
     const key = [target.chunk.uid, target.chunk.audio_revision || '', src].join(':');
     if (key === editorWaveformKey && !canvas.hidden) { return; }
     editorWaveformKey = key;
+    // A take that will not decode fails the same way every time, and the
+    // inspector re-renders on each keystroke: without this the whole file is
+    // downloaded again per character for a message already on screen.
+    const failed = editorWaveformFailures.get(key);
+    if (failed) {
+        canvas.hidden = true;
+        status.textContent = failed;
+        return;
+    }
     const request = ++editorWaveformRequest;
     let peaks = editorWaveformPeaks.get(key);
     if (!peaks) {
@@ -686,8 +703,11 @@ async function renderEditorLineWaveform() {
             if (editorWaveformPeaks.size > 24) { editorWaveformPeaks.delete(editorWaveformPeaks.keys().next().value); }
         } catch (error) {
             if (request !== editorWaveformRequest) { return; }
+            const text = t('editor.waveform.unavailable', 'Waveform unavailable: {detail}', { detail: error.message });
+            editorWaveformFailures.set(key, text);
+            if (editorWaveformFailures.size > 24) { editorWaveformFailures.delete(editorWaveformFailures.keys().next().value); }
             canvas.hidden = true;
-            status.textContent = t('editor.waveform.unavailable', 'Waveform unavailable: {detail}', { detail: error.message });
+            status.textContent = text;
             return;
         }
     }
@@ -786,5 +806,16 @@ function toggleEditorTools(open = document.getElementById('editor-tool-drawer').
 
 document.addEventListener('keydown', event => {
     const drawer = document.getElementById('editor-tool-drawer');
-    if (event.key === 'Escape' && drawer && !drawer.hidden) { toggleEditorTools(false); }
+    if (!drawer || drawer.hidden) { return; }
+    if (event.key === 'Escape') { toggleEditorTools(false); return; }
+    if (event.key !== 'Tab') { return; }
+    // The scrim stops the pointer reaching the page behind it, so Tab has to
+    // stay in the drawer too, or keyboard users reach what a mouse cannot.
+    const focusable = Array.from(drawer.querySelectorAll('button, input, select, textarea, a[href], summary, [tabindex]'))
+        .filter(node => !node.hidden && node.getAttribute('tabindex') !== '-1' && node.offsetParent !== null);
+    if (!focusable.length) { return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });

@@ -2080,7 +2080,8 @@
             } catch (e) {
                 out.className = 'ms-2 small text-danger';
                 out.textContent = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
-                btn.disabled = false;
+                // Only the call that owns the button may re-enable it.
+                if (testLlmConnection.request === request) { btn.disabled = false; }
                 return;
             }
             btn.disabled = true;

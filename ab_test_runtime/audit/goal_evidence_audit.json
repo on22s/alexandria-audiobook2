@@ -1050,17 +1050,22 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T01:14:17",
+  "written": "2026-11-13T02:52:28",
   "host": "RealMitch",
   "git": {
-   "commit": "e057d1ab953e4af62e6321c25841780e1ab52eb4",
+   "commit": "d76d3273a3369160a5e6f3067ec4a5743db0b59f",
    "branch": "fix/editor-shortcuts-1936",
    "dirty": true,
-   "source_state": "dirty:3bba06a5b90f",
+   "source_state": "dirty:5b8e3d812d04",
    "source_state_detail": null,
    "modified_tracked_files": [
+    " M app/static/index.html",
     " M app/static/js/app-core.js",
-    " M app/static/js/app-help.js",
+    " M app/static/js/app-editor-review.js",
+    " M app/static/js/app-settings.js",
+    " M app/static/js/app-sound-cues.js",
+    " M app/static/js/app-sound-renditions.js",
+    " M app/tests/test_settings_discovery_js.py",
     " M app/tests/test_ui_markup_gate.py"
    ],
    "untracked_harness_files": [

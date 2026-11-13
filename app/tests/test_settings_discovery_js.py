@@ -245,7 +245,7 @@ assert.strictEqual(saved.get('alexandria.setupExpert'),'0');assert(advancedButto
 assert(!section.hidden);assert(expertPanel.hidden);assert.equal(category.value,'settings-llm');
 search.value='retries';context.renderSetupSettingsSearch();assert.equal(results.children.length,1);
 results.children[0].children[0].fire('click');
-assert.strictEqual(saved.get('alexandria.setupExpert'),'1');assert(!advancedButton.hidden);assert(results.hidden);assert.strictEqual(revealed,expertField);
+assert.strictEqual(saved.get('alexandria.setupExpert'),'0','a search hit reveals without saving the preference');assert(!advancedButton.hidden);assert(results.hidden);assert.strictEqual(revealed,expertField);
 ''')
 
     def test_native_validation_reveals_first_invalid_only(self):
@@ -259,9 +259,9 @@ const routed=document.querySelectorAll;
 document.querySelectorAll=selector=>selector==='[data-setup-advanced]'?overview.querySelectorAll(selector):routed(selector);
 form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return advField;};
 context.onSetupSettingsInvalid({target:advField});
-assert.strictEqual(revealed,advField);assert(toggle.checked,'an advanced validation error switches expert mode on');assert.strictEqual(saved.get('alexandria.setupExpert'),'1');
+assert.strictEqual(revealed,advField);assert(toggle.checked,'an advanced validation error switches expert mode on');assert(!saved.has('alexandria.setupExpert'),'and does not persist the switch');
 revealed=null;form.querySelector=selector=>{assert.equal(selector,'input:invalid, select:invalid, textarea:invalid');return budget;};context.onSetupSettingsInvalid({target:budget});assert.strictEqual(revealed,budget);
-assert.strictEqual(saved.get('alexandria.setupExpert'),'1','an essential field does not touch the expert switch');
+assert(!saved.has('alexandria.setupExpert'),'an essential field does not touch the expert switch');
 revealed=null;context.onSetupSettingsInvalid({target:key});assert.strictEqual(revealed,null);
 ''')
 

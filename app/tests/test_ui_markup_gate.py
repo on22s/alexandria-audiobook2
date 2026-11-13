@@ -49,6 +49,11 @@ KEEP_ENGLISH = frozenset({
     'editor-tool-drawer', 'editor-tools-toggle', 'editor-drawer-scrim',
     # The waveform card's wrapper, canvas and status line are element ids.
     'editor-line-waveform', 'editor-line-waveform-wrap', 'editor-line-waveform-status',
+    # Shortcut guards: a Bootstrap body class, a KeyboardEvent.key value, and the
+    # selector the drawer's focus trap cycles through, none of them copy.
+    'modal-open', 'Tab', 'button, input, select, textarea, a[href], summary, [tabindex]',
+    # Drawer panel slugs are data-editor-tool values, not labels.
+    'sound-cues', 'renditions',
     'aria-pressed', 'aria-expanded', 'Escape',
     'Alexandria', 'Alexandria Audiobook', 'GPU', 'CPU', 'LoRA', 'M4B', 'WAV',
     'MP3', 'API', 'JSON', 'URL', 'OK', 'English', 'Qwen3-TTS', 'NFKC',

@@ -169,7 +169,9 @@ function setSetupExpertMode(expert) {
 function revealExpertSettingsFor(control) {
     if (!control.closest('[data-settings-section]')?.hasAttribute('data-setup-advanced-section')) { return; }
     const toggle = document.getElementById('setup-expert-toggle');
-    if (toggle && !toggle.checked) { toggle.checked = true; setSetupExpertMode(true); }
+    // Show the panel now without persisting: the switch is the reader's choice,
+    // and a validation error should not silently become their saved preference.
+    if (toggle && !toggle.checked) { toggle.checked = true; applySetupExpertMode(true); }
 }
 
 const setupExpertToggle = document.getElementById('setup-expert-toggle');
