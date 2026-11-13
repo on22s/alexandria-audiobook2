@@ -933,6 +933,7 @@ async def get_config():
 @router.get("/api/default_prompts")
 async def get_default_prompts():
     system_prompt, user_prompt = load_default_prompts()
+    from cast_list import PROMPT as cast_whole_book_prompt, INCREMENTAL_PROMPT as cast_incremental_prompt
     pass1_system_prompt, pass1_user_prompt = load_segment_prompts()
     pass3_system_prompt, pass3_user_prompt = load_instruct_prompts()
     result = {
@@ -941,6 +942,8 @@ async def get_default_prompts():
         "persona_allow_unknown_network_context": PromptConfig().persona_allow_unknown_network_context,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
+        "cast_whole_book_prompt": cast_whole_book_prompt,
+        "cast_incremental_prompt": cast_incremental_prompt,
         "pass1_system_prompt": pass1_system_prompt,
         "pass1_user_prompt": pass1_user_prompt,
         "pass3_system_prompt": pass3_system_prompt,

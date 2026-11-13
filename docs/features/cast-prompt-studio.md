@@ -1,0 +1,11 @@
+# Cast prompt presets in Setup
+
+Setup → Prompt Studio → Build cast list prompt preset exposes the actual whole-book and experimental incremental cast instructions. Select Default to restore the checked-in texts, or edit both fields and use Save preset and Setup. Saving Setup directly stores edits in the selected user preset, or creates an edited default. The controls use the same discard confirmation, stale-selection protection, and save-failure handling as Step 1 and Step 3. Deleting a user preset selects Default; Reset to Defaults resets both editors while retaining saved presets.
+
+Save Setup before starting a cast build. Single-book, batch, and direct CLI builds read the saved cast preset from the runtime configuration. Both HTTP and manual transport use the resulting request. The whole-book instructions apply with experimental discovery off; the incremental instructions apply only with it on. Editing prompts does not enable the experiment.
+
+Instructions are literal text: JSON braces are allowed, and there are no template substitutions. The builder appends the full prepared source for whole-book discovery. In incremental mode it appends the complete validated roster (including aliases) and each consecutive source window. Keep the JSON array response format, with name and aliases fields. Existing reply validation, roster conflict checks, budget limits, cancellation and source-identity publication guards still apply. Changing instructions can change model quality; no live model quality claim is made here.
+
+Configuration uses prompts.cast_preset (default: default) and prompts.cast_prompt_presets, a list of up to 50 objects with name, optional description, whole_book_prompt and incremental_prompt. Instruction fields must contain non-whitespace text and are capped at 100,000 characters each. A selected preset must resolve to exactly one entry; missing or ambiguous selections refuse the build before any model request. No extra CLI flags are needed: cast_list.py uses the same saved configuration.
+
+The cast artifact records prompt_preset and the SHA-256 of the active mode's exact instruction text in provenance. Incremental window evidence additionally records each full request hash, source offsets and source hashes. The existing complete cast remains protected when a build fails or is cancelled.

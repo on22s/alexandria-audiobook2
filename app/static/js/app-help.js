@@ -117,6 +117,9 @@
 
             // Setup: prompts
             'prompt-preset-select': {what: 'How Step 2 asks the model who speaks each line. michel2_full is the default. michel2_spoken labels only the quotes and fills narration in code. If you serve an attribution adapter, keep the prompt it was trained on (usually michel2_full).', recommend: 'michel2_spoken on Qwen3-14B without an adapter: +6.5 points on a local gold set (p = 0.001) with about 3× less Step 2 time. Not yet measured on other models.', source: '#1171 / #1176 A/Bs'},
+            'cast-prompt-preset-select': {what: 'Saved instructions for building the cast list. Each preset includes whole-book and experimental incremental instructions. Save Setup before starting a build.'},
+            'cast-whole-book-prompt': {what: 'Literal instructions for whole-book cast discovery. The builder appends the prepared source. Keep the JSON array of name and aliases objects.'},
+            'cast-incremental-prompt': {what: 'Literal instructions used only with experimental incremental discovery. Every window still receives all validated names and aliases; source coverage and merge validation remain enforced.'},
             'pass1-prompt-preset-select': {what: 'Prompt preset for Step 1 (splitting text into lines). Default uses the checked-in prompt.'},
             'pass1-system-prompt': {what: 'Step 1 system prompt. Edit only to customise; the text must still come back word for word.'},
             'pass1-user-prompt': {what: 'Step 1 user prompt template. It must keep {chunk}.'},

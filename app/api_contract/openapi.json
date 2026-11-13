@@ -1270,6 +1270,44 @@
         "title": "CastMatchBulkRequest",
         "type": "object"
       },
+      "CastPromptPreset": {
+        "description": "Instructions only; the builder appends source and validated roster evidence.",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "incremental_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Incremental Prompt",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "whole_book_prompt": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Whole Book Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "whole_book_prompt",
+          "incremental_prompt"
+        ],
+        "title": "CastPromptPreset",
+        "type": "object"
+      },
       "CastingLifecycleBatchRequest": {
         "properties": {
           "changes": {
@@ -3851,6 +3889,21 @@
             "minLength": 1,
             "title": "Attribution Preset",
             "type": "string"
+          },
+          "cast_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Cast Preset",
+            "type": "string"
+          },
+          "cast_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/CastPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Cast Prompt Presets",
+            "type": "array"
           },
           "pass1_preset": {
             "default": "default",

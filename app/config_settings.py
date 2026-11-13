@@ -222,6 +222,14 @@ class TextPromptPreset(BaseModel):
     user_prompt: str = Field(default="", max_length=100_000)
 
 
+class CastPromptPreset(BaseModel):
+    """Instructions only; the builder appends source and validated roster evidence."""
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=500)
+    whole_book_prompt: str = Field(min_length=1, max_length=100_000, pattern=r"\S")
+    incremental_prompt: str = Field(min_length=1, max_length=100_000, pattern=r"\S")
+
+
 class PromptConfig(BaseModel):
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
@@ -237,6 +245,8 @@ class PromptConfig(BaseModel):
     persona_advanced_prompt: Optional[str] = None
     persona_reference_chars: int = Field(default=12000, ge=12000, le=1_000_000)
     persona_allow_unknown_network_context: bool = False
+    cast_preset: str = Field(default="default", min_length=1, max_length=80)
+    cast_prompt_presets: List[CastPromptPreset] = Field(default_factory=list, max_length=50)
     pass1_preset: str = Field(default="default", min_length=1, max_length=80)
     pass1_prompt_presets: List[TextPromptPreset] = Field(default_factory=list, max_length=50)
     pass3_preset: str = Field(default="default", min_length=1, max_length=80)

@@ -30,8 +30,8 @@ for (const inputs of cases) {
  const context={document:{getElementById(id){return {value:fields[id]===undefined?'':fields[id],checked:false};}},
   llmProfiles:{local:{base_url:'http://localhost:1/v1',model_name:'fixture'}},currentLlmMode:'local',
   legacyChunkSize:3000,promptPresetPayload:()=>({active:'default',own:[]}),
-  activePassPromptPreset:{pass1:'default',pass3:'default'},passPromptPresets:{pass1:[],pass3:[]},
-  passPromptDefaults:{pass1:{system_prompt:'',user_prompt:''},pass3:{system_prompt:'',user_prompt:''}},selectedPromptPreset:()=>null};
+  activePassPromptPreset:{pass1:'default',pass3:'default',cast:'default'},passPromptPresets:{pass1:[],pass3:[],cast:[]},
+  passPromptDefaults:{cast:{whole_book_prompt:'cast whole',incremental_prompt:'cast incremental'},pass1:{system_prompt:'',user_prompt:''},pass3:{system_prompt:'',user_prompt:''}},selectedPromptPreset:()=>null};
  vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));vm.runInContext(helper+passHelper+builder,context);
  const payload=context.buildConfigPayload(2);
  assert.deepStrictEqual(fields,{'tts-mode':'local','tts-device':'auto','tts-language':'English',...inputs});

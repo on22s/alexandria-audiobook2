@@ -1949,6 +1949,23 @@
                             <div class="mb-3">
                                 <div class="row g-2 align-items-end mb-2">
                                     <div class="col-md-6">
+                                        <label data-i18n="setup.prompts.cast-preset.label" class="form-label mb-1" for="cast-prompt-preset-select">Build cast list prompt preset</label>
+                                        <select class="form-select" id="cast-prompt-preset-select" aria-describedby="cast-prompt-help"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button data-i18n="setup.prompts.save-preset" data-i18n-attr="title:setup.prompts.title" type="button" class="btn btn-outline-primary btn-sm me-1" data-config-save-action onclick="savePassPromptPreset('cast')" title="Also saves all other edited Setup settings">Save preset and Setup</button>
+                                        <button data-i18n="setup.prompts.delete-preset" type="button" class="btn btn-outline-danger btn-sm" data-config-save-action onclick="deletePassPromptPreset('cast')">Delete preset and save Setup</button>
+                                    </div>
+                                </div>
+                                <label data-i18n="setup.prompts.cast-whole.label" class="form-label" for="cast-whole-book-prompt">Whole-book cast instructions</label>
+                                <textarea class="form-control font-monospace" id="cast-whole-book-prompt" rows="6" style="font-size: 0.85em;" aria-describedby="cast-prompt-help"></textarea>
+                                <label data-i18n="setup.prompts.cast-incremental.label" class="form-label mt-2" for="cast-incremental-prompt">Experimental incremental cast instructions</label>
+                                <textarea class="form-control font-monospace" id="cast-incremental-prompt" rows="6" style="font-size: 0.85em;" aria-describedby="cast-prompt-help"></textarea>
+                                <div class="form-text" id="cast-prompt-help" data-i18n="setup.prompts.cast.help">Save Setup before building a cast. Default uses the checked-in instructions. These are literal instructions, with no template placeholders. The builder appends the complete prepared source, or each incremental window with all validated names and aliases. Keep the JSON name/aliases response format. The incremental editor applies only when experimental incremental discovery is enabled.</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="row g-2 align-items-end mb-2">
+                                    <div class="col-md-6">
                                         <label data-i18n="setup.prompts.pass1-prompt-preset-select.label" class="form-label mb-1" for="pass1-prompt-preset-select">Step 1 prompt preset</label>
                                         <select class="form-select" id="pass1-prompt-preset-select"></select>
                                     </div>
