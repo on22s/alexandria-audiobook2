@@ -366,7 +366,7 @@ does and, where there is a measurement, what we recommend and why. Escape dismis
   - **Step 2: extra text around each request** (default 2,000 — the `michel2_full`
     surrounding block; 0 reproduces the scores from before 2026-09-19);
   - per-pass **temperatures**, **Context rescue windows** and **Rescue retries per window**.
-- **Attribution prompt** dropdown (each option starts with the variant name used in
+- **Step 2 prompt preset (speaker attribution)** dropdown (each option starts with the variant name used in
   RECIPES), with the **System prompt**, **User instruction** (the pipeline fills in
   `{roster}` and `{batch}`) and **Worked example** as editable text.
   - **Save as preset** and **Delete selected**.

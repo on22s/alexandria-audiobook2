@@ -1,7 +1,7 @@
 """Alternative ways of ASKING the attribution question, as entries_providers
 for three_pass_generate.attribute_batch (issue #522 follow-up, GOALS 1.2).
 
-Selectable in the product: Setup -> Script generation -> "Attribution prompt"
+Selectable in the product: Setup -> Advanced -> Prompt studio -> "Step 2 prompt preset (speaker attribution)"
 (generation.three_pass_attribute_prompt_variant, or --prompt-variant). Each
 variant's measured result on the four clean-gold books is in RECIPES.md
 ("Prompt"); `default` is the shipped prompt every adapter was trained on.

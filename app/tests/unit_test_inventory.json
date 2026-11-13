@@ -8951,6 +8951,11 @@
     "tests.test_pass2_keep_scope_ab.GateTest.test_unnamed_may_not_drop",
     "tests.test_pass2_keep_scope_ab.LogCountTest.test_counts_responses_cost_and_subdivisions"
   ],
+  "test_pass2_prompt_studio": [
+    "tests.test_pass2_prompt_studio.Pass2PromptStudioTests.test_editor_save_roundtrips_through_http_disk_and_real_request_builder",
+    "tests.test_pass2_prompt_studio.Pass2PromptStudioTests.test_parser_closes_matching_ancestor_before_recording_later_fields",
+    "tests.test_pass2_prompt_studio.Pass2PromptStudioTests.test_preset_controls_and_all_attribution_fields_share_step2_editor"
+  ],
   "test_pass_boundary_retry_regressions": [
     "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_default_provider_name_gate_still_retries",
     "tests.test_pass_boundary_retry_regressions.AttributionCountRetryTests.test_default_provider_truncation_still_increases_budget",
