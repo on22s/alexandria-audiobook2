@@ -72,6 +72,23 @@ class ParagraphFollowupTests(unittest.TestCase):
                 self.assertIn('no model request', progress[0])
                 self.assertIn('Cast window 2/2:', progress[-1])
 
+    def test_oversized_whitespace_advises_only_a_larger_cap_before_requests(self):
+        for whitespace in ('\n' * 500, '\n\u3000' * 250):
+            with self.subTest(whitespace=repr(whitespace)):
+                client = Client([ALICE])
+                with self.assertRaises(ValueError) as caught:
+                    cast_list.request_incremental_cast(
+                        client, 'fixture', whitespace + 'ALICE spoke.', 100, 8000)
+                self.assertIn('Increase Cast source characters per request', str(caught.exception))
+                self.assertNotIn('add blank-line paragraph breaks', str(caught.exception))
+                self.assertEqual([], client.requests)
+        client = Client([ALICE])
+        with self.assertRaises(ValueError) as caught:
+            cast_list.request_incremental_cast(
+                client, 'fixture', 'ALICE spoke.\n\n' + '\n' * 200 + 'BOB spoke.', 100, 8000)
+        self.assertIn('for paragraph-per-line text', str(caught.exception))
+        self.assertEqual([], client.requests)
+
     def test_whitespace_only_source_preserves_prior_cast_without_requests(self):
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'

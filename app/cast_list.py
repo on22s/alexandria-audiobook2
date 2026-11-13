@@ -153,11 +153,14 @@ def iter_source_window_ranges(text, source_chars):
     start = end = 0
     for _, boundary in iter_source_paragraph_ranges(text):
         if boundary - end > source_chars:
+            remedy = "Increase Cast source characters per request"
+            if text[end:boundary].strip():
+                remedy += (" or, for paragraph-per-line text, add blank-line paragraph "
+                           "breaks to the source (changes source identity)")
             raise ValueError(
                 f"Paragraph at source {end}:{boundary} has {boundary - end} characters "
                 f"including its separator, exceeding the {source_chars}-character cast window. "
-                "Increase Cast source characters per request or add blank-line paragraph "
-                "breaks to the source (changes source identity); paragraphs are never split.")
+                f"{remedy}; paragraphs are never split.")
         if boundary - start > source_chars:
             yield start, end
             start = end
