@@ -104,7 +104,7 @@
             'tp-unquoted-must-be-narrator': {what: 'Rejects a Step 1 reply that types unquoted text as speech.'},
             'tp-keep-whole-batch': {what: 'Keeps a Step 2 batch whose only problems are names written in lower case in the book or an unnamed quoted line. Those lines are marked for review instead of re-asked.'},
             'cast-list-incremental': {what: 'Experimental sequential cast discovery with the complete accumulated roster and aliases. Also adds explicit cast alias evidence to Step 2. Off by default; save configuration before building or generating.', source: '#1931'},
-            'cast-list-source-chars': {what: 'Maximum source characters in each experimental cast window. Instructions and the entire growing roster also need input context. A window that cannot fit stops without publishing a partial cast.'},
+            'cast-list-source-chars': {what: 'Maximum source characters per experimental window, including separators. Whole paragraphs only; wrapped lines stay intact. If one cannot fit, raise the cap or add blank lines (changes source identity). Instructions and roster also need context. Failure preserves the previous cast.'},
             'cast-list-max-tokens': {what: 'Requested reply tokens per cast window, or for the legacy whole-book request. Profile limits still apply; truncated replies are discarded.'},
             'tp-group-rule': {what: 'Unnamed dialogue from a group on the cast list (e.g. THE GUARDS) is assigned to that group instead of UNKNOWN.'},
             'tp-speaker-traits': {what: 'Also records gender, age group and ageless status for each line. This adds to every Step 2 reply; check the inferred traits against the book.'},

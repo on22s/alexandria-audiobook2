@@ -12,8 +12,20 @@ with every retained alias from all earlier windows. Only source text counts towa
 the character target; instructions and the growing roster also consume context.
 The whole-book 1,200,000-character limit remains in the default mode. Experimental
 mode can process larger books without dropping a tail or truncating the roster.
-Windows can split sentences; smaller windows can lose identity context, so review
-the resulting cast. Accuracy improvements have not been established by this feature.
+Windows pack complete paragraphs and end at blank-line paragraph breaks, including
+blank lines containing Unicode whitespace. Unicode line separators (U+2028) follow
+the same rule; a single Unicode paragraph separator (U+2029) is also a paragraph
+boundary. Single wrapped line breaks stay inside their paragraph. Separators count toward
+the strict character cap, and all whitespace is preserved. If any paragraph plus
+its separator exceeds the cap, discovery refuses before sending any model requests;
+increase **Cast source characters per request** to fit it, or supply a source with
+blank-line paragraph breaks. The latter is necessary for paragraph-per-line text
+that otherwise becomes one oversized unit; raising the cap cannot override model
+context limits. Editing the source changes its byte identity: existing casts remain
+bound to the old source, and a build pinned to the old hash refuses. Select the edited
+source again before building a new cast. The builder never splits
+the paragraph or silently exceeds the cap. Smaller windows can still lose identity
+context, so review the resulting cast. Accuracy improvements have not been established.
 
 A reply may contribute an empty list. Exact established names or aliases add to
 that same canonical identity. New names remain separate; there is no fuzzy identity
@@ -32,7 +44,9 @@ retry starts discovery from the beginning.
 
 Only a nonempty validated final cast is atomically published under the source-byte
 hash. Its provenance records raw/prepared hashes, preprocessing, all window ranges,
-window/request hashes, budgets, attempts and available token usage. Source identity
+window/request hashes, budgets, attempts and available token usage. New incremental
+builds record `window_boundary_policy: paragraph-v1`. Progress totals use the actual
+packed-window count, which can exceed a simple character-count estimate. Source identity
 is checked before preparation and again under the final publication lock. Incremental
 completion reasons are recorded per window; there is no single top-level response.
 Usage totals cover accepted window responses only, excluding discarded attempts. A

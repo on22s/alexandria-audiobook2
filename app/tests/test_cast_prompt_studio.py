@@ -41,14 +41,14 @@ class CastPromptStudioTests(unittest.TestCase):
 
     def test_incremental_custom_instruction_keeps_all_source_and_prior_aliases(self):
         client = fixtures.Client([fixtures.ALICE, fixtures.BOB])
-        cast, windows, _ = cast_list.request_incremental_cast(client, 'fixture', 'abcdefgh', 4, 8000,
+        cast, windows, _ = cast_list.request_incremental_cast(client, 'fixture', 'a.\n\nb.\n\n', 4, 8000,
             instruction=PRESET['incremental_prompt'])
         self.assertEqual(fixtures.ALICE + fixtures.BOB, cast)
         self.assertEqual([(0, 4), (4, 8)], [(w['start'], w['end']) for w in windows])
         for index, request in enumerate(client.requests):
             prompt = request['messages'][0]['content']
             self.assertTrue(prompt.startswith(PRESET['incremental_prompt']))
-            self.assertTrue(prompt.endswith(('abcd', 'efgh')[index]))
+            self.assertTrue(prompt.endswith(('a.\n\n', 'b.\n\n')[index]))
         self.assertIn('THE PILOT', client.requests[1]['messages'][0]['content'])
 
     def test_missing_selected_preset_refuses_before_model_and_preserves_old_cast(self):
@@ -104,7 +104,7 @@ assert.strictEqual(persisted.prompts.cast_preset,'default');assert.strictEqual(p
         config = {**CONFIG, 'generation': {'cast_list_incremental': True, 'cast_list_source_chars': 4}}
         with tempfile.TemporaryDirectory() as directory:
             source, out = Path(directory)/'book.txt', Path(directory)/'cast.json'
-            source.write_text('abcdefgh', encoding='utf8')
+            source.write_text('a.\n\nb.\n\n', encoding='utf8')
             client = fixtures.Client([fixtures.ALICE, fixtures.BOB])
             self.assertEqual(0, self.run_main(source, out, client, config=config))
             evidence = json.loads(out.read_text())['provenance']
@@ -127,10 +127,10 @@ assert.strictEqual(persisted.prompts.cast_preset,'default');assert.strictEqual(p
                 recorded.append(request)
                 atomic_json_write({'id': request['id'], 'content': json.dumps(next(replies))}, manual.response_path)
             with patch('llm_provider.time.sleep', side_effect=answer):
-                cast_list.request_incremental_cast(manual, 'fixture', 'abcdefgh', 4, 8000,
+                cast_list.request_incremental_cast(manual, 'fixture', 'a.\n\nb.\n\n', 4, 8000,
                     instruction=PRESET['incremental_prompt'])
             raw = fixtures.Client([fixtures.ALICE, fixtures.BOB])
-            cast_list.request_incremental_cast(ConfiguredOpenAI(raw, {}), 'fixture', 'abcdefgh', 4, 8000,
+            cast_list.request_incremental_cast(ConfiguredOpenAI(raw, {}), 'fixture', 'a.\n\nb.\n\n', 4, 8000,
                 instruction=PRESET['incremental_prompt'])
             self.assertEqual([r['messages'] for r in recorded], [r['messages'] for r in raw.requests])
             self.assertIn('THE PILOT', recorded[-1]['messages'][0]['content'])
