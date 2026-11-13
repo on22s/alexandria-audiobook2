@@ -481,7 +481,7 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
     else:
         # canonical request, with the preset's texts standing in for the file's
         canon_params = replace(params, attribute_system_prompt=t["system"],
-                               user_prompt_template=t["user"])
+                               user_prompt_template=t["user"], cast_aliases=False)
         sys_prompt, canonical = build_attribute_request(
             frozen_batch, canon_params, roster, neighbor_contexts, surround)
         body = canonical.replace(f"ESTABLISHED ROSTER: {', '.join(roster) or '(none yet)'}",
@@ -498,7 +498,8 @@ def build_variant_request(variant, frozen_batch, params, roster, alias_groups=No
                 f"lines from it):\n{memory['summary'] or '(none)'}\n\n"
                 f"LAST LINES OF THE PREVIOUS PASSAGE, with their speakers:\n{tail or '(none)'}"
                 "\n\n") + body
-    return sys_prompt, body
+    from three_pass_generate import append_cast_alias_evidence
+    return sys_prompt, append_cast_alias_evidence(body, params, alias_groups)
 
 
 def get_expanded_spoken_answer(frozen_batch, entries):

@@ -1872,6 +1872,19 @@
                                             <label data-i18n="setup.strategy.tp-keep-whole-batch.label" class="form-check-label" for="tp-keep-whole-batch">Keep batch when only names are refused</label>
                                             <div data-i18n="setup.strategy.tp-keep-whole-batch-help.help" class="form-text" id="tp-keep-whole-batch-help">Keep a Step 2 batch when the only rejected names are lower-case in the book or a quoted line is unnamed; refused names stay as written and are marked for review.</div>
                                         </div>
+                                        <div class="border rounded p-2 my-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="cast-list-incremental" aria-describedby="cast-list-incremental-help">
+                                                <label class="form-check-label" for="cast-list-incremental" data-i18n="setup.cast.incremental.label">Experimental incremental cast and Step 2 aliases</label>
+                                            </div>
+                                            <div class="form-text" id="cast-list-incremental-help" data-i18n="setup.cast.incremental.help">Off by default. Build cast lists in sequential windows, carrying every validated name and alias forward. Step 2 also receives explicit cast aliases with any prompt preset. Conflicting ownership stops the build; cancellation or failure preserves the previous cast. Save Configuration before building or generating.</div>
+                                            <label class="form-label small mt-2" for="cast-list-source-chars" data-i18n="setup.cast.source-chars.label">Cast source characters per request</label>
+                                            <input class="form-control form-control-sm" type="number" id="cast-list-source-chars" min="1" max="1200000" step="1" value="30000" aria-describedby="cast-list-source-chars-help">
+                                            <div class="form-text" id="cast-list-source-chars-help" data-i18n="setup.cast.source-chars.help">Experimental windows cover the entire prepared book. This excludes instructions and the accumulated roster; those also consume context. Oversized requests stop with an error. Reduce this target or use a larger model context.</div>
+                                            <label class="form-label small mt-2" for="cast-list-max-tokens" data-i18n="setup.cast.max-tokens.label">Cast reply budget (tokens)</label>
+                                            <input class="form-control form-control-sm" type="number" id="cast-list-max-tokens" min="1" step="1" value="8000" aria-describedby="cast-list-max-tokens-help">
+                                            <div class="form-text" id="cast-list-max-tokens-help" data-i18n="setup.cast.max-tokens.help">Applies to both cast modes. Default 8000; the LLM profile output and total context limits still apply. Truncated replies are discarded and retried up to three times. No partial cast is published.</div>
+                                        </div>
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="tp-group-rule" aria-describedby="tp-group-rule-help">
                                             <label data-i18n="setup.strategy.tp-group-rule.label" class="form-check-label" for="tp-group-rule">Listed groups answer for their members</label>
@@ -2296,7 +2309,7 @@
                             <div class="form-check mt-3">
                                 <input class="form-check-input" type="checkbox" id="script-batch-build-cast-lists">
                                 <label class="form-check-label small" for="script-batch-build-cast-lists">
-                                    <span data-i18n="script.batch.build-cast">Build a cast list for each book first &mdash; one extra request per book that has none, so unnamed speakers get their own lines instead of UNKNOWN.</span>
+                                    <span data-i18n="script.batch.build-cast">Build a cast list for each book first — uses saved cast settings (one request, or sequential experimental windows) for books with no cast. Unnamed speakers can then get their own lines instead of UNKNOWN.</span>
                                 </label>
                             </div>
                         </div>

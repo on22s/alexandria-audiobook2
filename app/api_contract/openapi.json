@@ -663,6 +663,16 @@
             "title": "Build Cast Lists",
             "type": "boolean"
           },
+          "cast_list_settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CastListBuildRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "collision_policy": {
             "default": "cancel",
             "enum": [
@@ -1171,6 +1181,42 @@
       },
       "CastListBuildRequest": {
         "properties": {
+          "incremental": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incremental"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "source_chars": {
+            "anyOf": [
+              {
+                "maximum": 1200000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Chars"
+          },
           "strip_front_matter": {
             "default": true,
             "title": "Strip Front Matter",
@@ -2336,6 +2382,24 @@
             },
             "title": "Banned Tokens",
             "type": "array"
+          },
+          "cast_list_incremental": {
+            "default": false,
+            "title": "Cast List Incremental",
+            "type": "boolean"
+          },
+          "cast_list_max_tokens": {
+            "default": 8000,
+            "exclusiveMinimum": 0.0,
+            "title": "Cast List Max Tokens",
+            "type": "integer"
+          },
+          "cast_list_source_chars": {
+            "default": 30000,
+            "maximum": 1200000.0,
+            "minimum": 1.0,
+            "title": "Cast List Source Chars",
+            "type": "integer"
           },
           "chunk_size": {
             "default": 3000,

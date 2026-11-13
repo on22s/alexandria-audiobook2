@@ -164,3 +164,68 @@ class CastListAsyncRoutesTests(unittest.IsolatedAsyncioTestCase):
                     **({'json': {'cast': CAST}} if method == 'POST' else {}))
                 self.assertEqual(400, result.status_code)
                 self.assertEqual({'detail': 'No input file selected'}, result.json())
+
+    async def test_build_snapshots_shared_saved_controls_and_source_digest(self):
+        config = {'generation': {'cast_list_incremental': True, 'cast_list_source_chars': 1234, 'cast_list_max_tokens': 12000}}
+        with patch.object(script, 'load_app_config', return_value=config), patch.object(script, 'schedule_claimed_background_task') as schedule:
+            response = await self.client.post('/api/cast_list/build', json={'strip_front_matter': False})
+        self.assertEqual(200, response.status_code, response.text)
+        command = schedule.call_args.args[3]
+        self.assertIn('--incremental', command)
+        self.assertIn('--no-strip-front-matter', command)
+        self.assertEqual('1234', command[command.index('--source-chars') + 1])
+        self.assertEqual('12000', command[command.index('--max-tokens') + 1])
+        self.assertEqual(self.cast_path.stem, command[command.index('--source-sha256') + 1])
+        with patch.object(script, 'load_app_config', return_value=config), patch.object(script, 'schedule_claimed_background_task') as schedule:
+            response = await self.client.post('/api/cast_list/build', json={'incremental': False, 'max_tokens': 16000})
+        self.assertEqual(200, response.status_code)
+        self.assertIn('--no-incremental', schedule.call_args.args[3])
+        self.assertIn('16000', schedule.call_args.args[3])
+
+    async def test_build_rejects_invalid_controls_before_scheduling(self):
+        for body in ({'incremental': 'true'}, {'source_chars': True}, {'source_chars': 0}, {'source_chars': 1200001}, {'max_tokens': 0}, {'max_tokens': 1.5}):
+            with self.subTest(body=body), patch.object(script, 'schedule_claimed_background_task') as schedule:
+                response = await self.client.post('/api/cast_list/build', json=body)
+                self.assertEqual(422, response.status_code, response.text)
+                schedule.assert_not_called()
+
+    async def test_generation_command_carries_batch_alias_override_and_preflight_cast_identity(self):
+        command = script.build_generate_script_command(str(self.root / 'book.txt'), cast_file=str(self.cast_path), cast_aliases=True)
+        self.assertIn('--cast-aliases', command)
+        settings = {'cast_aliases': True}
+        first = script.get_cast_sizing_settings(settings, str(self.root / 'book.txt'))
+        self.assertEqual([['ALICE']], first['cast']['alias_groups'])
+        save_cast_list(str(self.cast_path), [{'name': 'ALICE', 'aliases': ['THE PILOT']}])
+        second = script.get_cast_sizing_settings(settings, str(self.root / 'book.txt'))
+        self.assertNotEqual(first['cast']['sha256'], second['cast']['sha256'])
+        self.assertEqual({}, script.get_cast_sizing_settings({}, str(self.root / 'book.txt')))
+
+    async def test_batch_runs_cast_before_generation_and_keeps_failure_cancel_fences(self):
+        source = str(self.root / 'book.txt')
+        output = str(self.root / 'script.json')
+        settings = {'incremental': True, 'source_chars': 1234, 'max_tokens': 12000}
+        job = {'index': 0, 'filename': 'book.txt', 'input_path': source, 'output_path': output,
+               'safe_stem': 'script', 'build_cast_list': True, 'cast_list_settings': settings}
+        for cast_rc, cancel in ((0, False), (1, False), (0, True)):
+            with self.subTest(cast_rc=cast_rc, cancel=cancel):
+                state = {'tasks': [{}], 'logs': [], 'cancel': False}
+                commands = []
+                def run(command, *args, **kwargs):
+                    commands.append(command)
+                    if len(commands) == 1:
+                        state['cancel'] = cancel
+                        return cast_rc, None
+                    return 0, None
+                with patch.object(script, 'get_existing_cast_list', side_effect=[None, str(self.cast_path)]), patch.object(script, '_stream_subprocess_to_logs', side_effect=run), patch.object(script, 'get_active_reasoning_effort', return_value=None):
+                    script._run_claimed_batch_script_job(job, state, str(self.root / 'log'), 1)
+                self.assertIn('--incremental', commands[0])
+                self.assertIn('1234', commands[0])
+                self.assertIn('12000', commands[0])
+                if cast_rc or cancel:
+                    self.assertEqual(1, len(commands))
+                    self.assertEqual('cancelled' if cancel else 'failed', state['tasks'][0]['status'])
+                else:
+                    self.assertEqual(2, len(commands))
+                    self.assertIn('--cast-aliases', commands[1])
+                    self.assertIn(str(self.cast_path), commands[1])
+                    self.assertEqual('done', state['tasks'][0]['status'])
