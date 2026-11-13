@@ -1721,7 +1721,7 @@
   "help.field.cast-list-incremental.source": "#1931",
   "help.field.cast-list-incremental.what": "Detección secuencial experimental con toda la lista acumulada y sus alias. También agrega al paso 2 evidencia explícita de los alias. Desactivado por defecto; guarda la configuración antes de crear o generar.",
   "help.field.cast-list-max-tokens.what": "Tokens de respuesta solicitados por ventana de personajes o para la solicitud tradicional del libro completo. Se mantienen los límites del perfil; las respuestas truncadas se descartan.",
-  "help.field.cast-list-source-chars.what": "Máximo de caracteres por ventana experimental, incluidos los separadores. Conserva párrafos enteros y saltos internos. Si uno no cabe, aumenta el límite o separa los párrafos con líneas en blanco. Las instrucciones y la lista completa también requieren contexto. Si falla, conserva la lista anterior.",
+  "help.field.cast-list-source-chars.what": "Máximo por ventana experimental, incluidos separadores. Conserva párrafos y saltos internos. Si uno no cabe, sube el límite o añade líneas en blanco (cambia la identidad del texto). Instrucciones y lista también usan contexto. Si falla, conserva la lista anterior.",
   "help.field.cast-prompt-preset-select.what": "Instrucciones guardadas para crear el elenco. Cada preset incluye instrucciones para el libro completo y para la detección incremental experimental. Guarda la configuración antes de iniciar.",
   "help.field.cast-select.what": "El reparto guardado (asignación de personaje → voz) que se aplica a este libro.",
   "help.field.cast-whole-book-prompt.what": "Instrucciones literales para detectar el elenco del libro completo. El generador agrega el texto preparado. Conserva el arreglo JSON de objetos con name y aliases.",

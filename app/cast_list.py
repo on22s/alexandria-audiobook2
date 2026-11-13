@@ -153,7 +153,7 @@ def iter_source_window_ranges(text, source_chars):
     # CRLF is atomic. A single line separator is a wrap; U+2029 explicitly
     # marks a paragraph even without a second line ending.
     newline = r"(?:\r\n|\r(?!\n)|[\n\u2028\u2029])"
-    paragraph_break = newline + r"(?:[^\S\r\n\u2028\u2029]*" + newline + r")+|\u2029"
+    paragraph_break = r"(?:" + newline + r"(?:[^\S\r\n\u2028\u2029]*" + newline + r")+|\u2029)"
     boundaries = chain((match.end() for match in re.finditer(
         paragraph_break, text)), [len(text)])
     start = end = 0
@@ -163,7 +163,7 @@ def iter_source_window_ranges(text, source_chars):
                 f"Paragraph at source {end}:{boundary} has {boundary - end} characters "
                 f"including its separator, exceeding the {source_chars}-character cast window. "
                 "Increase Cast source characters per request or add blank-line paragraph "
-                "breaks to the source; paragraphs are never split.")
+                "breaks to the source (changes source identity); paragraphs are never split.")
         if boundary - start > source_chars:
             yield start, end
             start = end
@@ -173,7 +173,7 @@ def iter_source_window_ranges(text, source_chars):
 
 
 def iter_source_windows(text, source_chars):
-    """Consecutive lossless text slices over the shared paragraph range plan."""
+    """Public text-slice wrapper; preserve the existing (start, end, text) API."""
     for start, end in iter_source_window_ranges(text, source_chars):
         yield start, end, text[start:end]
 

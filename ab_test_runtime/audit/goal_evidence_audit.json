@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T15:52:14",
+  "written": "2026-11-13T16:04:10",
   "host": "RealMitch",
   "git": {
-   "commit": "876d70e91be4f861be4cc8fabab810d4aa6e8d38",
+   "commit": "fe210a23e14047a1d2eaf19019e8b038a7b3737f",
    "branch": "fix/1945-paragraph-cast-windows",
    "dirty": true,
-   "source_state": "dirty:2005c4322675",
+   "source_state": "dirty:1ce44a32282d",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/cast_list.py",
@@ -1065,7 +1065,6 @@
     "M  app/static/i18n/ui.ja.json",
     "M  app/static/i18n/ui.zh-CN.json",
     "M  app/static/js/app-help.js",
-    "M  app/tests/test_cast_paragraph_windows.py",
     "M  docs/features/incremental-cast.md"
    ],
    "untracked_harness_files": null,

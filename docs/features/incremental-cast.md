@@ -21,7 +21,9 @@ its separator exceeds the cap, discovery refuses before sending any model reques
 increase **Cast source characters per request** to fit it, or supply a source with
 blank-line paragraph breaks. The latter is necessary for paragraph-per-line text
 that otherwise becomes one oversized unit; raising the cap cannot override model
-context limits. The builder never splits
+context limits. Editing the source changes its byte identity: existing casts remain
+bound to the old source, and a build pinned to the old hash refuses. Select the edited
+source again before building a new cast. The builder never splits
 the paragraph or silently exceeds the cap. Smaller windows can still lose identity
 context, so review the resulting cast. Accuracy improvements have not been established.
 
