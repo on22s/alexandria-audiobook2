@@ -159,7 +159,10 @@ class ServingEvidenceTests(unittest.TestCase):
                 candidates = str(adapter / 'candidates')
                 with patch.object(evaluation, 'get_adapter_generation_sha256', wraps=evidence.get_adapter_generation_sha256) as hashing:
                     evaluation.partition_unique_candidates(str(adapter), candidates, production_snapshot=snapshot)
-                    hashing.assert_not_called()
+                    if sys.platform.startswith("win"):
+                        hashing.assert_called_once_with(str(adapter))
+                    else:
+                        hashing.assert_not_called()
                 path = adapter / filename;version = path.stat();text = path.read_text()
                 self.assertIn(old, text);path.write_text(text.replace(old, new))
                 self.assertEqual(version.st_size, path.stat().st_size)

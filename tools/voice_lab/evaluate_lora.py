@@ -67,7 +67,11 @@ def get_checkpoint_sha256(checkpoint_dir: str) -> str:
 def partition_unique_candidates(adapter_dir: str, candidates_root: str, *, production_snapshot=None):
     if not is_path_inside(candidates_root, adapter_dir):
         raise ValueError("evaluation candidates are outside the adapter")
-    if (production_snapshot is not None and len(production_snapshot) == 3
+    # Windows st_ctime is creation time: a same-size rewrite can retain every
+    # stat field after restoring mtime. Rehash there instead of trusting a
+    # cached content identity that native stat cannot attest.
+    if (not sys.platform == "win32"
+            and production_snapshot is not None and len(production_snapshot) == 3
             and production_snapshot[1] == get_adapter_generation_file_identity(adapter_dir)):
         production_generation, _identity, production_hash = production_snapshot
     else:

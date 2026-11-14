@@ -1,6 +1,7 @@
 """Actual PDNC shell decisions, without a live model or server."""
 import copy
 import hashlib
+import shlex
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,8 @@ import sys
 import tempfile
 import unittest
 
+
+from tests.test_support import get_bash_executable
 
 REPO = Path(__file__).resolve().parents[2]
 CHAIN = REPO / "run_chains/pdnc_context_evidence.sh"
@@ -46,14 +49,16 @@ class PdncCampaignGuardTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         (self.root / "app/env/bin").mkdir(parents=True)
-        (self.root / "app/env/bin/python").symlink_to(sys.executable)
+        interpreter = self.root / "app/env/bin/python"
+        interpreter.write_text('#!/bin/sh\nexec ' + shlex.quote(Path(sys.executable).as_posix()) + ' "$@"\n', encoding='utf-8')
+        interpreter.chmod(0o755)
         self.foreign = self.root / "foreign"
         (self.foreign / "app").mkdir(parents=True)
         self.source = Path(os.environ.get("ALEXANDRIA_TEST_PDNC_SOURCE", str(CHAIN))).read_text(encoding="utf-8")
 
     def _bash(self, body, cwd=None):
-        return subprocess.run(["bash", "-c", 'set -uo pipefail\nrepo=$1\n' + body,
-                               "fixture", str(self.root)], cwd=cwd or self.root,
+        return subprocess.run([get_bash_executable(), "-c", 'set -uo pipefail\nrepo=$1\n' + body,
+                               "fixture", self.root.as_posix()], cwd=cwd or self.root,
                               capture_output=True, text=True, timeout=10,
                               env=dict(os.environ, PYTHONPATH=str(REPO / "app")))
 

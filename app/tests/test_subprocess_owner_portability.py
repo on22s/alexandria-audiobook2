@@ -13,7 +13,7 @@ class SubprocessOwnerPortabilityTests(unittest.TestCase):
         app_dir=Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:
             for name in ('subprocess_ownership.py','windows_subprocess_owner.py','windows_subprocess_job.py',
-                         'macos_subprocess_owner.py','macos_subprocess_kernel.py'):
+                         'macos_subprocess_owner.py','macos_subprocess_kernel.py', 'json_metadata.py'):
                 shutil.copy2(app_dir/name,Path(tmp)/name)
             script=r"""
 import subprocess,sys

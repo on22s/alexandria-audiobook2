@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -108,12 +110,27 @@ class PreparerAdmissionCancelTests(unittest.TestCase):
                 self.assertEqual(400, error.exception.status_code)
                 self.assertFalse(self.state[name]['cancel'])
             with self.subTest(task=name, phase='active child'):
-                proc = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'], start_new_session=True)
+                state = self.state[name]
+                state.update(running=True, process=None)
+                outcome = []
+                def stream_worker():
+                    try:
+                        outcome.append(core._stream_subprocess_to_logs(
+                            [sys.executable, '-c', 'import time; time.sleep(30)'], str(self.root), state))
+                    except BaseException as error:
+                        outcome.append(error)
+                worker = threading.Thread(target=stream_worker)
+                worker.start()
+                deadline = time.monotonic() + 10
+                while state.get('process') is None and worker.is_alive() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                proc = state.get('process')
+                self.assertIsNotNone(proc, repr(outcome))
                 try:
                     self.state[name].update(running=True, process=proc)
                     with patch.object(preparer, '_send_signal_tree', wraps=preparer._send_signal_tree) as signal_tree:
                         self.assertEqual({'status': 'cancel_requested'}, asyncio.run(cancel()))
-                        proc.wait(timeout=3)
+                        proc.wait(timeout=core.CANCEL_TERMINATE_GRACE_SECONDS + 5)
                         self.assertNotEqual(0, proc.returncode)
                         self.assertTrue(self.state[name]['cancel'])
                         signal_tree.assert_called_once()
@@ -121,5 +138,9 @@ class PreparerAdmissionCancelTests(unittest.TestCase):
                         asyncio.run(cancel())  # Already-exited child needs no signal.
                         signal_tree.assert_called_once()
                 finally:
-                    if proc.poll() is None: proc.terminate(); proc.wait(timeout=3)
+                    core.stop_owned_subprocess(proc)
+                    worker.join(timeout=15)
+                    self.assertFalse(worker.is_alive())
+                    self.assertEqual(1, len(outcome))
+                    self.assertIsInstance(outcome[0], tuple, repr(outcome))
                     self.state[name].update(running=False, process=None)

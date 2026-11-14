@@ -4,6 +4,7 @@ from contextlib import contextmanager, ExitStack, nullcontext
 from collections import Counter
 import tempfile
 import hashlib
+import sys
 import json
 import shutil
 import subprocess
@@ -1105,6 +1106,7 @@ class ProjectManager:
         self._chunks_lock = threading.Lock()  # Thread-safe chunks.json writes
         self._uids_backfilled = False  # see _read_chunks
         self._uids_file_version = None
+        self._uids_content_sha256 = None
         self._status_journal = None
         self._active_journal_identity = None
         self._config_cache = None
@@ -1267,15 +1269,22 @@ class ProjectManager:
                 or any(row.get(RETAINED_TAKE_KEY) is not None for row in chunks)):
             previous = self._get_saved_chunk_rows_locked() if os.path.exists(self.chunks_path) else []
             preserve_retained_takes(self.root_dir, previous, chunks, updated_uid=retained_update_uid)
+        written_bytes = None
+        def save_snapshot(rows):
+            nonlocal written_bytes
+            options = {'return_written_bytes': True} if uids_backfilled and sys.platform == 'win32' else {}
+            written_bytes = atomic_json_write(rows, self.chunks_path, **options)
         if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
-            self._get_status_journal_locked().save_compacted(
-                chunks, save_snapshot=lambda rows: atomic_json_write(rows, self.chunks_path))
+            self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot)
             self._status_journal = None
         else:
-            atomic_json_write(chunks, self.chunks_path)
+            save_snapshot(chunks)
         self._uids_backfilled = uids_backfilled
         self._uids_file_version = (self._get_chunks_file_version()
                                    if uids_backfilled else None)
+        # Bind only our validated staged bytes. A destination reread could
+        # attest an external edit that arrived immediately after publication.
+        self._uids_content_sha256 = hashlib.sha256(written_bytes).digest() if written_bytes is not None else None
 
     def _read_chunks_snapshot(self):
         """-> (bytes, (dev, ino)) of chunks.json read through one descriptor,
@@ -1327,6 +1336,7 @@ class ProjectManager:
         raw, read_identity = self._read_chunks_snapshot()
         if raw is not None and is_book_placeholder_bytes(raw):
             raise ValueError(switching)
+        content_sha256 = hashlib.sha256(raw).digest() if raw is not None and sys.platform == 'win32' else None
         chunks = self._parse_chunks_snapshot(raw)
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
             chunks = None
@@ -1336,6 +1346,7 @@ class ProjectManager:
             # revalidate a replaced saved book or an externally edited file.
             if (not self._uids_backfilled
                     or file_version != self._uids_file_version
+                    or content_sha256 != self._uids_content_sha256
                     or file_version != self._get_chunks_file_version()):
                 changed = False
                 for chunk in chunks:
@@ -1349,6 +1360,7 @@ class ProjectManager:
                     self._uids_backfilled = file_version == after_version
                     self._uids_file_version = (after_version
                                                if self._uids_backfilled else None)
+                    self._uids_content_sha256 = content_sha256 if self._uids_backfilled else None
             return chunks
         if os.path.exists(self.chunks_path):
             # Back the corrupted file up rather than deleting it - regenerating
@@ -1941,7 +1953,8 @@ class ProjectManager:
                 current = self._update_chunk_fields_by_uid(chunk.get('uid'), expected_chunk=chunk)
                 if current is None:
                     raise ValueError(GENERATION_INPUTS_CHANGED)
-                receipt = validate_retained_take(current) or make_retained_take(self.root_dir, current)
+            receipt = validate_retained_take(current) or make_retained_take(
+                self.root_dir, current, cancel_check=ensure_audio_generation_active)
             if receipt is None:
                 yield {}
                 return
@@ -1959,6 +1972,7 @@ class ProjectManager:
             else:
                 saved = history.capture(os.path.join(self.root_dir, receipt['path']), token, current['uid'],
                     receipt['captured'], expected_source_version=receipt['source_version'],
+                    expected_source_sha256=receipt.get('source_sha256'),
                     cancel_check=ensure_audio_generation_active)
                 receipt = {**receipt, 'archive': dict(version=saved['version'], sha256=saved['sha256'],
                     path=f"take_history/{saved['version']}{os.path.splitext(receipt['path'])[1].lower()}")}
@@ -2220,7 +2234,16 @@ class ProjectManager:
         def version():
             try:
                 stat = os.stat(self.script_path)
-                return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+                identity = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+                if sys.platform == 'win32':
+                    # Windows ctime is creation time: same-size rewrites can
+                    # retain the entire stat identity after restoring mtime.
+                    with open(self.script_path, 'rb') as source:
+                        digest = hashlib.sha256()
+                        for block in iter(lambda: source.read(1024 * 1024), b''):
+                            digest.update(block)
+                    return identity + (digest.hexdigest(),)
+                return identity
             except FileNotFoundError:
                 return None
         with self._literal_policy_lock:

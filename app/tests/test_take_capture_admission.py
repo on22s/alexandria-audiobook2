@@ -30,6 +30,8 @@ class TakeCaptureAdmissionTests(unittest.TestCase):
         self.captured = {'text': 'Original words.', 'take': 2, 'audio_revision': 'old'}
 
     def capture(self, **kwargs):
+        if kwargs.get('expected_source_version') is not None:
+            kwargs.setdefault('expected_source_sha256', hashlib.sha256(self.before).hexdigest())
         return self.history.capture(self.source, 'a' * 64, 'line', self.captured, **kwargs)
 
     def assert_pending(self, extent):
@@ -78,6 +80,20 @@ class TakeCaptureAdmissionTests(unittest.TestCase):
                 self.capture(expected_source_version=value)
         self.assertFalse(self.history.directory.exists())
         self.assertEqual(self.source.read_bytes(), self.before)
+
+    def test_native_version_only_predecessor_refuses_without_content_evidence(self):
+        with patch.object(takes.sys, 'platform', 'win32'):
+            with self.assertRaisesRegex(ValueError, 'lacks content evidence'):
+                self.history.capture(self.source, 'a' * 64, 'line', self.captured,
+                    expected_source_version=takes._version(self.source.stat()))
+        self.assertFalse(self.history.directory.exists())
+        self.assertEqual(self.source.read_bytes(), self.before)
+
+    def test_invalid_content_digest_refuses_without_creating_archive(self):
+        for digest in ('', 'f' * 63, 'F' * 64, True, [], 42):
+            with self.subTest(digest=digest), self.assertRaisesRegex(ValueError, 'content digest'):
+                self.capture(expected_source_sha256=digest)
+        self.assertFalse(self.history.directory.exists())
 
     def test_cancel_before_admission_does_not_create_archive(self):
         with self.assertRaises(AudioGenerationCancelled): self.capture(cancel_check=lambda: True)

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from tests.test_support import FramedHttpFixtureHandler
 from urllib.request import Request
 from unittest.mock import MagicMock
 import unittest
@@ -70,6 +71,8 @@ client.test_clone_voices_upload_bad_format()
                     kwargs['stdout']=server_log;kwargs['stderr']=subprocess.STDOUT
                     return actual_start(command,**kwargs)
                 def run_probe(command,**kwargs):
+                    if "--url" not in command:
+                        return real_run(command, **kwargs)
                     self.assertEqual('fixture-秘密',kwargs['env']['ALEXANDRIA_AUTH_PASSWORD'])
                     observed['url']=command[command.index('--url')+1]
                     env=dict(kwargs['env'],FIXTURE_URL=observed['url'])
@@ -101,10 +104,9 @@ client.test_clone_voices_upload_bad_format()
 
     def test_client_native_request_sends_credentials_to_guarded_fixture(self):
         expected=get_api_test_headers(environ={'ALEXANDRIA_AUTH_PASSWORD':'fixture'})['Authorization']
-        class Handler(BaseHTTPRequestHandler):
+        class Handler(FramedHttpFixtureHandler):
             def do_GET(self):
-                self.send_response(200 if self.headers.get('Authorization')==expected else 401)
-                self.end_headers()
+                self.send_fixture_response(200 if self.headers.get('Authorization')==expected else 401)
             def log_message(self,*args):
                 pass
         server=ThreadingHTTPServer(('127.0.0.1',0),Handler)

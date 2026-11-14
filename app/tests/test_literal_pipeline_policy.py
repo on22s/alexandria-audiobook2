@@ -222,6 +222,23 @@ class LiteralPipelinePolicyTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     manager.ensure_literal_render_inputs([row("She left.")], [0])
 
+    def test_same_stat_script_rewrite_invalidates_cached_literal_policy(self):
+        import os
+        first = bind_literal_policy("She left.", [row("She left.")])
+        second = bind_literal_policy("She wept.", [row("She wept.")])
+        with tempfile.TemporaryDirectory() as td:
+            manager = ProjectManager(td)
+            path = Path(manager.script_path)
+            path.write_text(json.dumps(first), encoding='utf-8')
+            chunks = group_into_chunks(first)
+            manager.ensure_literal_render_inputs(chunks, [0])
+            original = path.stat()
+            path.write_text(json.dumps(second), encoding='utf-8')
+            self.assertEqual(original.st_size, path.stat().st_size)
+            os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+            with self.assertRaises(ValueError):
+                manager.ensure_literal_render_inputs(chunks, [0])
+
     def test_chunk_source_policy_is_bound_and_not_reconstructed(self):
         first = bind_literal_policy("One word.", [row("One word.")])
         second = bind_literal_policy("Different words.", [row("Different words.")])

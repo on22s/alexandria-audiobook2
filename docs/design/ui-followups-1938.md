@@ -229,3 +229,120 @@ self-authored synthetic text. This closes the live-LLM check without a model
 download or external paid call. The application needed forced cleanup after a
 graceful-stop warning; its launcher/child and the temporary model server were
 stopped. This did not exercise real speech synthesis or benchmark long books.
+
+
+## Native Windows continuation (2026-11-14)
+
+Qualification continued on Windows from main
+`cd02ff1d475ed016111fb7464cad0f0143072444`, in the isolated
+`fix/1938-native-windows-followup` worktree. The live checkout was not edited.
+This follow-up does not establish completion of #1938 or #1954.
+
+Production defects reproduced on Windows before repair:
+
+- A same-size rewrite with restored mtime can preserve Windows creation time.
+  LoRA evaluation now rehashes the live bundle on Windows instead of accepting
+  a stat-authorized cached digest. POSIX retains its existing fast path. The
+  new regression failed for each of four bundle files before the repair.
+- An automatic prior-take receipt now records a bounded streaming SHA-256
+  digest (receipt version 2), and archive capture compares it before reserving
+  an archive. A same-size/mtime-restored rewrite failed both JSON and journal
+  manager regressions before repair. Hashing observes generation cancellation
+  outside the publication owner mutex; that regression also failed before the
+  repair. Publication continues to recheck row and book admission.
+- UID backfill and literal-narration admission cached only stat identity. Their
+  Windows paths now bind cache reuse to content digests. The existing UID test
+  and a new same-stat script-rewrite regression both failed before repair.
+  The write cache hashes staged write bytes rather than rereading the mutable
+  destination; a separate external-edit-at-publication regression failed before
+  that repair. Its UID/journal cohort passed 14 tests with one POSIX-only skip.
+- Voice profiling now escapes characters unsupported by a legacy redirected
+  console while preserving its encoding. Success and failure publication paths
+  previously raised UnicodeEncodeError under cp1252; a real narrow-encoder
+  regression reproduces the failure and verifies both outcomes.
+- ASR discarded a NumPy reference while backend/slice references retained its
+  mapping, preventing native directory removal. The owner now explicitly closes
+  its mapping on success and model failure before removing temporary PCM.
+- Successful checkpoint-tail repair translated LF into CRLF on Windows. The
+  replacement writer now retains LF; byte-preservation regressions failed
+  before repair and pass after the change.
+
+Version 1 receipts remain readable, including already verified archives.
+On Windows, an unarchived v1 receipt cannot authorize generation using stat
+identity alone. The error directs the user to disable automatic history and
+regenerate that line; a real publication regression covers that remedy. Scope
+planning preserves historical v1 metadata without upgrading it to generation
+content authority. V2 scope plans compare the stored digest to captured bytes.
+
+Fixture repairs use host paths, the shared native file-lock helper, the actual
+Git Bash resolver and host-executable Python launchers. GPU lock workers fail
+with their child exit/error instead of skipping after startup failure. UTF-8
+Python settings alone do not fix CMD decoding: the generated test launcher now
+selects code page 65001 before its Unicode command, then restores the original
+console code page while preserving the command exit status. A separate fail-first
+assertion covers restoration from OEM 437. Its Unicode-path regression
+failed under OEM 437 before repair and passes afterward. Windows CI runs the
+CLI/ROCm cohort from OEM 437 and the three automatic take/scope modules natively.
+No OS privilege or safety gate was changed.
+
+Measured local focused results after the source fixes use the existing Windows
+hook interpreter with PYTHONUTF8=1 and PYTHONIOENCODING=utf-8 (also set by the
+hosted native steps):
+
+- 31 take-capture, automatic-history and scope-history tests: zero failures,
+  errors or skips.
+- 44 CLI, dispatch, Colab, subprocess, streaming-hash and LoRA evaluation tests:
+  zero failures, errors or skips.
+- 91 speech-receipt, GPU-guard, pipeline and required-input tests: zero failures
+  or errors, six existing Linux-tooling skips. Freebuff independently reran this
+  cohort without UTF-8 environment variables after the console repair.
+- Exact Windows CI CLI/ROCm command under OEM 437: 10 tests, zero failures,
+  errors or skips. Cohorts overlap; these are not additive coverage totals.
+
+The stabilized current-base Git Bash readiness shard ran 2,262 tests in
+456.346 seconds: zero assertion failures, 16 errors and 240 skips. All 16 error
+tracebacks are WinError 1314 at fixture symlink creation, before the containment
+assertions execute. The account lacks that capability. No privilege setting,
+link semantics, test expectation or skip waiver was changed. The broad native
+gate remains red; Linux hosted checks and selected native jobs do not substitute
+for it. The release verifier also rejects unit skips, so these 240 platform/tool
+skips cannot be represented as a passing release gate even on a symlink-capable
+host. Its later gates were not executed after the unit gate failed.
+
+The earlier current-base run had 2,259 tests, 12 failures, 42 errors and 239
+skips. It predates the final fixes; the original pre-edit run used a different
+shell resolution and is not a comparable baseline. No complete unchanged-base
+shard was run. #1954 retains the qualification limit. A new hosted Windows step
+runs the CPU-only containment fixtures without suppressing privilege failures;
+the PEFT-backed evidence fixtures remain in the full Linux suite and are not
+claimed as extra native coverage.
+
+Additional final focused evidence: the profiler module passed 40 tests with no
+skips; the UID/journal cohort passed 14 with one POSIX-only skip; and the native
+cache/ASR/HTTP/cancellation plus static-file URL cohort passed 24 with no skips.
+These overlapping cohorts are not additive totals. Freebuff DeepSeek's final
+code-review-20 delta pass confirmed the console and cache repairs. Its nine
+angles ran serially in one model, with no independent finder/verifier clearance.
+The speculative future non-memmap cleanup concern was not reproduced; the actual
+decoder requires a nonempty memmap and success/model-failure cleanup is tested.
+
+The native LM Studio auth-revocation probe failed once in 12 runs and twice in
+30 further instrumented runs before reload began. Both latter failures accepted
+the HTTP requests in the current fixture process, then reset during the initial
+inventory request (WinError 10054). This rules out calling them successful auth
+refusal tests; it does not establish the transport root cause. No retry or
+weaker assertion was added. The final fixture now uses fully framed HTTP/1.1 keep-alive responses and a
+threaded server. Its 30-run revoked-auth probe passed without retries. The
+revoked-auth assertion requires an actual CLI load and both authenticated
+inventory requests, so an early reset cannot satisfy it. This is measured
+fixture behavior; the deeper Windows socket-reset mechanism is not proven.
+
+Additional native fixture repairs retain the production contracts: current
+speech receipts remain historical on Windows; unowned batch intents still
+refuse automatic recovery; cancellation runs through the actual owned streaming
+worker. Known held lock sidecars are compared by exact identity while all data
+files are compared by bytes. Real socket sharing exercises the static-file URL
+transport without unsupported pass_fds. Legal native filenames preserve URL,
+glob, quoting and Unicode cases. The one POSIX SIGINT queue test now declares its
+existing Linux-tooling requirement; native cancellation has separate real
+process coverage. No symlink privilege failure is suppressed.

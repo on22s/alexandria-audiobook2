@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, get_bash_executable
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -30,7 +30,9 @@ class CampaignReportingTests(unittest.TestCase):
                          "run_chains/lib/llm_campaign.sh", "run_chains/lib/llm_job.sh", "run_chains/lib/reclaim_vram.sh"):
             shutil.copyfile(REPO / relative, self.root / relative)
             (self.root / relative).chmod(0o755)
-        (self.root / "app/env/bin/python").symlink_to(sys.executable)
+        interpreter = self.root / "app/env/bin/python"
+        interpreter.write_text('#!/bin/sh\nexec ' + shlex.quote(Path(sys.executable).as_posix()) + ' "$@"\n', encoding='utf-8')
+        interpreter.chmod(0o755)
         for name in ('serving_results.py', 'serving_environment.py', 'manifest.py', 'respelling_completion.py'):
             shutil.copyfile(REPO / 'app/experiments' / name, self.root / 'app/experiments' / name)
         (self.root / 'app/lmstudio_settings.py').write_text("def get_lmstudio_status(model): return {}\n"
@@ -40,7 +42,7 @@ class CampaignReportingTests(unittest.TestCase):
         self._write("ensure_llama_server.sh", "#!/bin/sh\nexit 0\n")
         self._write("bin/pgrep", "#!/bin/sh\nexit 1\n")
         self._write("bin/rocm-smi", "#!/bin/sh\nexit 1\n")
-        self._write("gpu_job.sh", "#!/bin/bash\nexec " + shlex.quote(sys.executable)
+        self._write("gpu_job.sh", "#!/bin/bash\nexec " + shlex.quote(Path(sys.executable).as_posix())
                     + ' "$(dirname "${BASH_SOURCE[0]}")/fixture_gpu.py" "$@"\n')
         self._write("fixture_gpu.py", "#!" + sys.executable + "\n" + "\n".join([
             "import json, os, pathlib, sys",
@@ -50,6 +52,9 @@ class CampaignReportingTests(unittest.TestCase):
             "with (root/'dispatch.log').open('a') as handle: handle.write(args[0] + '\\n')",
             "if args[0].startswith('unanswered_campaign_'):",
             "    os.environ.update(ALEXANDRIA_GPU_LOCK_HELD='1', ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()), ALEXANDRIA_GPU_LOCK_FD='9')",
+            "    if os.name == 'nt':",
+            "        import subprocess",
+            "        raise SystemExit(subprocess.run([" + repr(get_bash_executable()) + ", *args[1:]], env=os.environ).returncode)",
             "    os.execvpe(args[1], args[1:], os.environ)",
             "rc = int(os.environ.get('FIXTURE_JOB_RC', '0')) if args[0].startswith('unanswered-') else 0",
             "if rc: raise SystemExit(rc)",
@@ -90,7 +95,7 @@ class CampaignReportingTests(unittest.TestCase):
         path.chmod(0o755)
 
     def _run(self, chain):
-        return subprocess.run(["bash", str(self.root / "run_chains" / chain)],
+        return subprocess.run([get_bash_executable(), (self.root / "run_chains" / chain).as_posix()],
                               cwd=self.root, env=self.environment, text=True,
                               capture_output=True, timeout=20)
 

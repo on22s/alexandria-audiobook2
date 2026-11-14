@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -144,6 +145,90 @@ class AutomaticTakeHistoryTests(unittest.TestCase):
                     manager._update_generation_fields(copy.deepcopy(before), status='generating')
                 self.assertEqual(manager.load_chunks()[0], before)
                 self.assertEqual(AudioTakeHistory(root).list()['total'], 0)
+
+    def test_new_receipt_hash_observes_cancellation_without_holding_owner_mutex(self):
+        from audio_generation_owner import ensure_audio_generation_owner, AudioGenerationCancelled
+        import take_retention
+        with self.fixture() as (root, manager, previous, _):
+            mutex, cancelled = threading.Lock(), threading.Event()
+            @contextmanager
+            def owner(*, allow_cancelled=False):
+                with mutex:
+                    if cancelled.is_set() and not allow_cancelled:
+                        raise AudioGenerationCancelled()
+                    yield
+            row = manager.load_chunks()[0]
+            before, original = copy.deepcopy(row), previous.read_bytes()
+            hash_source = take_retention._hash
+            def interrupted(stream, limit, **kwargs):
+                acquired = mutex.acquire(blocking=False)
+                self.assertTrue(acquired, 'Receipt hashing held the task owner mutex')
+                if acquired:
+                    mutex.release()
+                self.assertIsNotNone(kwargs.get('cancel_check'))
+                cancelled.set()
+                return hash_source(stream, limit, **kwargs)
+            with ensure_audio_generation_owner(owner), patch('take_retention._hash', side_effect=interrupted):
+                with self.assertRaises(AudioGenerationCancelled):
+                    manager._update_generation_fields(row, status='generating')
+            self.assertEqual(manager.load_chunks()[0], before)
+            self.assertEqual(previous.read_bytes(), original)
+            self.assertEqual(AudioTakeHistory(root).list()['total'], 0)
+
+    def test_legacy_unarchived_receipt_is_preserved_and_refused_on_windows(self):
+        for journal in (False, True):
+            with self.subTest(journal=journal), self.fixture(journal) as (root, manager, previous, fresh):
+                manager.update_chunk(0, {'text': 'Edited words.'})
+                row = manager.load_chunks()[0]
+                legacy = {k: v for k, v in row[KEY].items() if k != 'source_sha256'}
+                legacy['version'] = 1
+                manager._update_chunk_fields_by_uid(row['uid'], **{KEY: legacy})
+                before = copy.deepcopy(manager.load_chunks()[0])
+                original = previous.read_bytes()
+                with patch('audio_take_history.sys.platform', 'win32'):
+                    with self.assertRaisesRegex(ValueError, 'lacks content evidence'):
+                        manager._update_generation_fields(copy.deepcopy(before), status='generating')
+                self.assertEqual(manager.load_chunks()[0], before)
+                self.assertEqual(previous.read_bytes(), original)
+                self.assertEqual(AudioTakeHistory(root).list()['total'], 0)
+                self.policy(manager, False)
+                with patch('audio_take_history.sys.platform', 'win32'):
+                    result = manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(fresh), 'NARRATOR')
+                self.assertEqual((root/result).read_bytes(), fresh.read_bytes())
+                self.assertIsNone(manager.load_chunks()[0][KEY])
+
+    def test_legacy_archived_receipt_remains_usable_on_windows(self):
+        for journal in (False, True):
+            with self.subTest(journal=journal), self.fixture(journal) as (root, manager, previous, fresh):
+                original = previous.read_bytes()
+                row = manager.load_chunks()[0]
+                manager._update_generation_fields(row, status='generating')
+                held = manager.load_chunks()[0]
+                legacy = {k: v for k, v in held[KEY].items() if k != 'source_sha256'}
+                legacy['version'] = 1
+                manager._update_chunk_fields_by_uid(row['uid'], **{KEY: legacy})
+                with patch('audio_take_history.sys.platform', 'win32'):
+                    result = manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(fresh), 'NARRATOR')
+                self.assertEqual((root/result).read_bytes(), fresh.read_bytes())
+                self.assertEqual((root/legacy['archive']['path']).read_bytes(), original)
+                self.assertIsNone(manager.load_chunks()[0][KEY])
+
+    def test_same_size_rewrite_with_restored_mtime_refuses_before_archiving(self):
+        for journal in (False, True):
+            with self.subTest(journal=journal), self.fixture(journal) as (root, manager, previous, fresh):
+                manager.update_chunk(0, {'text': 'Edited words.'})
+                before = copy.deepcopy(manager.load_chunks()[0])
+                info = previous.stat()
+                original = previous.read_bytes()
+                previous.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
+                os.utime(previous, ns=(info.st_atime_ns, info.st_mtime_ns))
+                changed = previous.read_bytes()
+                with self.assertRaisesRegex(ValueError, 'Prior take changed'):
+                    manager._update_generation_fields(copy.deepcopy(before), status='generating')
+                self.assertEqual(manager.load_chunks()[0], before)
+                self.assertEqual(AudioTakeHistory(root).list()['total'], 0)
+                self.assertEqual(previous.read_bytes(), changed)
+                self.assertEqual(list((root/'take_history').glob('*.wav')), [])
 
     def test_held_archive_blocks_delete_and_publication_failure_can_retry_after_old_slot_changes(self):
         for journal in (False, True):

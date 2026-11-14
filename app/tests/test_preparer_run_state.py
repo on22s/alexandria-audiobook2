@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,23 @@ class PreparerRunStateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        descriptors = []
+        acquire = preparer.acquire_run_lock
+        def own_lock(*args, **kwargs):
+            descriptor = acquire(*args, **kwargs)
+            descriptors.append(descriptor)
+            return descriptor
+        owner_patch = patch.object(preparer, 'acquire_run_lock', side_effect=own_lock)
+        owner_patch.start()
+        self.addCleanup(owner_patch.stop)
+        self.addCleanup(lambda: [os.close(fd) for fd in descriptors])
+        handlers = list(preparer.logger.handlers)
+        def restore_logging():
+            for handler in list(preparer.logger.handlers):
+                if handler not in handlers:
+                    preparer.logger.removeHandler(handler)
+                    handler.close()
+        self.addCleanup(restore_logging)
         self.root = Path(self.temp.name)
         self.work = self.root / 'dataset_temp'
         self.work.mkdir()
@@ -88,7 +106,7 @@ class PreparerRunStateTests(unittest.TestCase):
                     rows.append(json.dumps({'audio_filepath':name,'text':'synthetic',
                         'start':index,'end':index+1,'duration':1})+'\n')
                 checkpoint=self.work/'metadata.jsonl';original=''.join(rows)+'{\n'
-                checkpoint.write_text(original,encoding='utf-8')
+                checkpoint.write_text(original,encoding='utf-8',newline='')
                 def broken_open(path,mode='r',*args,**kwargs):
                     stream=real_open(path,mode,*args,**kwargs)
                     return FailedWrite(stream) if Path(path)==checkpoint and mode=='w' else stream
@@ -287,12 +305,14 @@ class PreparerRunStateTests(unittest.TestCase):
             stream.setframerate(16000)
             stream.writeframes(b'\x00\x20' * 16000)
         mapped_paths = []
+        mapped_samples = []
 
         def transcribe(samples, _device, _language, limit=None):
             self.assertIsInstance(samples, np.memmap)
             self.assertEqual(16000, len(samples))
             self.assertAlmostEqual(0.25, float(samples[0]), places=2)
             mapped_paths.append(samples.filename)
+            mapped_samples.append(samples)
             return ([{'word': 'test', 'start': 0.0, 'end': 1.0,
                       'confidence': 1.0}], 'en')
 
@@ -311,6 +331,7 @@ class PreparerRunStateTests(unittest.TestCase):
              patch.object(preparer, 'choose_and_transcribe', side_effect=transcribe):
             self.assertEqual(0, preparer.main())
         self.assertEqual(1, len(mapped_paths))
+        self.assertTrue(mapped_samples[0]._mmap.closed)
         self.assertFalse(Path(mapped_paths[0]).exists())
         self.assertTrue((self.work / 'audio_24k_scratch.wav').exists())
 
@@ -362,7 +383,9 @@ class PreparerRunStateTests(unittest.TestCase):
         proxy=SimpleNamespace(name='posix',open=os.open,fsync=os.fsync,close=os.close,O_RDONLY=os.O_RDONLY)
         with patch.object(manifest,'os',proxy),patch.object(proxy,'open',side_effect=PermissionError('directory denied')):
             with self.assertRaises(PermissionError):manifest.sync_run_directory(str(self.work))
-        descriptor=os.open(str(self.work),os.O_RDONLY)
+        # The error/closure contract does not require a real directory fd:
+        # native Windows refuses those; the injected fsync fails before use.
+        descriptor=os.open(str(self.work / 'sync-fixture'), os.O_CREAT | os.O_RDWR)
         with patch.object(manifest,'os',proxy),patch.object(proxy,'open',return_value=descriptor), \
              patch.object(proxy,'fsync',side_effect=OSError('disk sync failed')):
             with self.assertRaisesRegex(OSError,'disk sync failed'):manifest.sync_run_directory(str(self.work))
@@ -388,8 +411,8 @@ class PreparerRunStateTests(unittest.TestCase):
                 preparer._save_chunk_metadata(
                     item, 'hello', None, None, None, [], checkpoint,
                     stats, timing, 0, str(self.work))
-        self.assertEqual([stat.S_IFREG, stat.S_IFDIR, stat.S_IFREG],
-                         synced_types)
+        expected = [stat.S_IFREG, stat.S_IFREG] if os.name == 'nt' else [stat.S_IFREG, stat.S_IFDIR, stat.S_IFREG]
+        self.assertEqual(expected, synced_types)
         self.assertTrue((self.work / 'sample_0000.wav').is_file())
 
     def test_annotation_checks_manifest_before_loading_model(self):
@@ -428,8 +451,31 @@ class PreparerRunStateTests(unittest.TestCase):
         audio = self.root / 'book.wav'
         audio.write_bytes(b'input')
         phases = []
+        native_run = subprocess.run
+        phase_transport = preparer.run_phase_with_lock
+
+        def transport(command, descriptor):
+            if os.name != 'nt':
+                return phase_transport(command, descriptor)
+            phase = command[command.index('--phase') + 1]
+            phases.append(phase)
+            code = """import os,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from alexandria_run_manifest import acquire_run_lock,get_manifest,mark_artifact_complete,LOCK_HANDLE_ENV
+assert os.environ.get(LOCK_HANDLE_ENV), 'native preparer lease missing'
+work=Path('dataset_temp');fd=acquire_run_lock(work)
+try:
+ if sys.argv[2]=='asr':
+  asr=work/'asr_segments.json';asr.write_text('{"detected_lang":"en","word_segments":[]}')
+  mark_artifact_complete(work,get_manifest(work)['identity'],'asr',asr)
+finally:os.close(fd)
+"""
+            return phase_transport([sys.executable, '-c', code, str(ROOT), phase], descriptor)
 
         def phase_child(command, **kwargs):
+            if '--phase' not in command:
+                return native_run(command, **kwargs)
             phase = command[command.index('--phase') + 1]
             phases.append(phase)
             self.assertEqual(str(kwargs['pass_fds'][0]), kwargs['env'][LOCK_ENV])
@@ -446,7 +492,8 @@ class PreparerRunStateTests(unittest.TestCase):
         with patch.object(sys, 'argv', ['preparer', '--audio', str(audio),
                                         '--model', 'model.gguf']), \
              patch.object(preparer, 'LLAMA_CPP_AVAILABLE', True), \
-             patch.object(preparer.subprocess, 'run', side_effect=phase_child):
+             patch.object(preparer.subprocess, 'run', side_effect=phase_child), \
+             patch.object(preparer, 'run_phase_with_lock', side_effect=transport):
             with self.assertRaises(SystemExit) as result:
                 preparer.main()
         self.assertEqual(0, result.exception.code)

@@ -1,4 +1,5 @@
 """Actual UI URLs must fetch the raw local filename after one HTTP decode."""
+import os
 import json
 import subprocess
 import tempfile
@@ -6,11 +7,10 @@ import unittest
 from pathlib import Path
 from urllib.parse import urlsplit, unquote, parse_qs
 
+import requests
 import socket
 import sys
 import time
-from urllib.request import urlopen
-from urllib.error import HTTPError, URLError
 from tests.test_designer_response_identity_js import SETUP, SOURCE
 
 SCRIPT = r'''(async()=>{
@@ -40,8 +40,9 @@ console.log(JSON.stringify(rows));
 
 
 class LocalAudioUrlTests(unittest.TestCase):
-    def get_actual_ui_urls(self):
-        result = subprocess.run(['node', '-e', SETUP + SCRIPT, str(SOURCE), str(SOURCE.with_name('app-core.js'))],
+    def get_actual_ui_urls(self, native_files=False):
+        script = SCRIPT.replace("legacy?voice.wav", "legacy&voice.wav").replace("#?%2F.wav", "#&%2F.wav") if native_files and os.name == "nt" else SCRIPT
+        result = subprocess.run(['node', '-e', SETUP + script, str(SOURCE), str(SOURCE.with_name('app-core.js'))],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
         return json.loads(result.stdout)
@@ -60,7 +61,7 @@ class LocalAudioUrlTests(unittest.TestCase):
         self.assertTrue(plain.startswith('/designed_voices/plain.wav?t='), plain)
 
     def test_actual_ui_urls_fetch_distinct_static_file_bytes(self):
-        rows = self.get_actual_ui_urls()
+        rows = self.get_actual_ui_urls(native_files=True)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             for prefix in ('designed_voices', 'clone_voices'):
@@ -79,41 +80,52 @@ class LocalAudioUrlTests(unittest.TestCase):
 from pathlib import Path
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
-import uvicorn
+import uvicorn, socket
+from contextlib import asynccontextmanager
 root = Path(sys.argv[1])
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app):
+    (root / 'http-ready').write_text('ready')
+    yield
+app = FastAPI(lifespan=lifespan)
 for prefix in ('designed_voices', 'clone_voices'):
     app.mount('/' + prefix, StaticFiles(directory=root / prefix))
-uvicorn.run(app, fd=int(sys.argv[2]), access_log=False, log_level='error')
+listener = socket.socket(fileno=int(sys.argv[2])) if sys.argv[3] == 'fd' else socket.fromshare(bytes.fromhex(sys.argv[2]))
+uvicorn.Server(uvicorn.Config(app, access_log=False, log_level='error')).run(sockets=[listener])
 """
-            with socket.socket() as listener, tempfile.TemporaryFile(mode='w+') as log:
+            with socket.socket() as listener, tempfile.TemporaryFile(mode='w+') as log, requests.Session() as http:
                 listener.bind(('127.0.0.1', 0))
                 listener.listen()
                 base = f'http://127.0.0.1:{listener.getsockname()[1]}'
                 fd = listener.fileno()
-                server = subprocess.Popen([sys.executable, '-c', server_source, str(root), str(fd)],
-                                          pass_fds=(fd,), stdout=log, stderr=log)
+                if os.name == 'nt':
+                    # Share the already-bound socket with the new Windows PID;
+                    # the child waits for stdin before constructing its socket.
+                    native_source = server_source.replace("listener = socket.socket", "sys.argv[2] = sys.stdin.readline().strip()\nlistener = socket.socket")
+                    server = subprocess.Popen([sys.executable, '-c', native_source, str(root), '', 'share'],
+                                              stdin=subprocess.PIPE, stdout=log, stderr=log, text=True)
+                    server.stdin.write(listener.share(server.pid).hex() + '\n')
+                    server.stdin.close()
+                else:
+                    server = subprocess.Popen([sys.executable, '-c', server_source, str(root), str(fd), 'fd'],
+                                              pass_fds=(fd,), stdout=log, stderr=log)
                 try:
-                    for _ in range(100):
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline:
                         if server.poll() is not None:
                             log.seek(0)
                             self.fail('isolated HTTP server exited: ' + log.read())
-                        try:
-                            with urlopen(base + rows[0]['url'], timeout=0.1) as response:
-                                if response.status == 200:
-                                    break
-                        except (URLError, TimeoutError):
-                            time.sleep(0.02)
+                        if (root / 'http-ready').exists():
+                            break
+                        time.sleep(.02)
                     else:
-                        self.fail('isolated HTTP server did not become ready')
+                        log.seek(0)
+                        self.fail('isolated HTTP server did not become ready: ' + log.read())
                     for row in rows:
                         with self.subTest(path=row['raw']):
-                            try:
-                                with urlopen(base + row['url'], timeout=3) as response:
-                                    self.assertEqual(200, response.status)
-                                    self.assertEqual(expected[row['raw']], response.read())
-                            except HTTPError as error:
-                                self.fail(f'{row["url"]}: HTTP {error.code}')
+                            response = http.get(base + row['url'], timeout=3)
+                            self.assertEqual(200, response.status_code)
+                            self.assertEqual(expected[row['raw']], response.content)
                 finally:
                     server.terminate()
                     try:

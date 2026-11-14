@@ -170,8 +170,16 @@ class GetCasesTests(unittest.TestCase):
             admitted.write_text('{}')
             def replace_after_open(*args, **kwargs):
                 stream, info = real_open(*args, **kwargs)
-                admitted.unlink()
-                os.mkfifo(admitted)
+                if os.name == 'nt':
+                    # Native Windows denies unlink while the admitted descriptor
+                    # is open. A concurrent growth must still fail bounded input.
+                    with self.assertRaises(PermissionError):
+                        admitted.unlink()
+                    with admitted.open('ab') as writer:
+                        writer.write(b' ')
+                else:
+                    admitted.unlink()
+                    os.mkfifo(admitted)
                 return stream, info
             with patch.object(scope_files, '_open_regular', side_effect=replace_after_open):
                 with self.assertRaises(ValueError):
@@ -189,7 +197,10 @@ class GetCasesTests(unittest.TestCase):
             # A FIFO named by a control row is refused without blocking on it.
             wav = Path(root) / 'alice' / 'wav' / 'a1.wav'
             wav.unlink()
-            os.mkfifo(wav)
+            if os.name == 'nt':
+                wav.mkdir()  # native nonregular path; POSIX additionally tests FIFO
+            else:
+                os.mkfifo(wav)
             with self.assertRaisesRegex(ValueError, 'regular file'):
                 get_cases(root, Path(root) / 'd', {1}, ('alice',))
 

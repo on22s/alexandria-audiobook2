@@ -1,5 +1,6 @@
 from contextlib import ExitStack, contextmanager, nullcontext
 import functools
+from http.server import BaseHTTPRequestHandler
 import inspect
 import json
 import os
@@ -10,6 +11,39 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+
+
+class FramedHttpFixtureHandler(BaseHTTPRequestHandler):
+    """Let the client consume a framed response before ending its connection.
+
+    Immediate close-delimited responses intermittently reset on native Windows.
+    A full length and keep-alive avoid racing client reads against server close.
+    Only a reset while awaiting the next request after a complete response is
+    normal client teardown; resets during request/response handling still raise.
+    """
+    protocol_version = 'HTTP/1.1'
+
+    def send_fixture_response(self, status, payload=b'', headers=()):
+        self.send_response(status)
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Connection', 'keep-alive')
+        for name, value in headers:
+            self.send_header(name, value)
+        self.end_headers()
+        self.wfile.write(payload)
+        self.wfile.flush()
+        self._fixture_response_complete = True
+
+    def handle_one_request(self):
+        completed = getattr(self, '_fixture_response_complete', False)
+        self._fixture_response_complete = False
+        self.raw_requestline = b''
+        try:
+            super().handle_one_request()
+        except ConnectionResetError:
+            if not completed or self.raw_requestline:
+                raise
+            self.close_connection = True
 
 
 def assume_ample_free_disk(testcase):
@@ -36,6 +70,29 @@ def get_bash_executable():
     return executable
 
 
+def snapshot_fixture_files(root, *, lock_files=()):
+    """Snapshot data bytes and exact identities of known held lock sidecars.
+
+    Windows byte-range leases prohibit reading their lock byte. Never treat an
+    arbitrary unreadable file as a lock: callers name the actual sidecars.
+    """
+    root = Path(root)
+    result = {}
+    for path in root.rglob('*'):
+        if not path.is_file():
+            continue
+        name = path.relative_to(root).as_posix()
+        if name in lock_files:
+            info = path.stat()
+            result[name] = ('lock', info.st_dev, info.st_ino, info.st_size)
+        else:
+            try:
+                result[name] = path.read_bytes()
+            except OSError as error:
+                raise OSError(f"Could not snapshot fixture data file {name}") from error
+    return result
+
+
 def write_python_cli_fixture(path, source):
     """Return a real host-executable Python fixture, including Windows CMD.
 
@@ -51,8 +108,14 @@ def write_python_cli_fixture(path, source):
     payload.write_text(source, encoding='utf-8')
     if os.name == 'nt':
         launcher = path.with_name(path.name + '.cmd')
-        launcher.write_text('@"' + sys.executable + '" "' + str(payload) + '" %*\n',
-                            encoding='utf-8')
+        # CMD decodes batch contents using its console code page, even when
+        # Python is in UTF-8 mode. Select UTF-8 before reading a Unicode path.
+        launcher.write_text('@setlocal\n'
+                            '@for /f "tokens=2 delims=:" %%c in (\'chcp\') do @set "_AA2_FIXTURE_CP=%%c"\n'
+                            '@chcp 65001 >nul\n@"' + sys.executable + '" "' + str(payload) + '" %*\n'
+                            '@set "_AA2_FIXTURE_EXIT=%errorlevel%"\n'
+                            '@chcp %_AA2_FIXTURE_CP% >nul\n'
+                            '@exit /b %_AA2_FIXTURE_EXIT%\n', encoding='utf-8')
     else:
         launcher = path
         launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' '

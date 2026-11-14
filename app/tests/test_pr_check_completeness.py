@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import unittest
 from unittest.mock import patch
 
+from tests.test_support import FramedHttpFixtureHandler
 import mark_pr_ready as ready
 
 
@@ -18,7 +19,7 @@ class PullRequestCheckCompletenessTests(unittest.TestCase):
         self.assertIsNotNone(shutil.which('gh'), 'GitHub CLI is required for this native protocol test')
         requests = []
         successful = {'name':'unit','status':'completed','conclusion':'success'}
-        class Handler(BaseHTTPRequestHandler):
+        class Handler(FramedHttpFixtureHandler):
             def do_GET(self):
                 requests.append(self.path)
                 later = 'page=2' in self.path
@@ -30,13 +31,11 @@ class PullRequestCheckCompletenessTests(unittest.TestCase):
                                [{'context':'legacy-recovered','state':'failure'},
                                 {'context':'legacy-hidden','state':'pending'}])
                 data = json.dumps(payload).encode()
-                self.send_response(200)
-                self.send_header('Content-Type','application/json')
-                self.send_header('Content-Length',str(len(data)))
+                headers = [('Content-Type','application/json')]
                 if not later:
                     next_url = f'http://127.0.0.1:{self.server.server_port}{self.path}?page=2'
-                    self.send_header('Link',f'<{next_url}>; rel="next"')
-                self.end_headers(); self.wfile.write(data)
+                    headers.append(('Link',f'<{next_url}>; rel="next"'))
+                self.send_fixture_response(200, data, headers)
             def log_message(self, *_args): pass
         server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
         thread = threading.Thread(target=server.serve_forever,daemon=True); thread.start()

@@ -651,6 +651,10 @@ def llm_describe(llm, narrator: str, summary: str,
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
+    # Preserve the selected output encoding, but escape characters a redirected
+    # legacy Windows console cannot represent instead of aborting publication.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Profile narrator voices via acoustics + LLM")
     parser.add_argument("--manifest",   default=MANIFEST)
     parser.add_argument("--model",      default=MODEL_PATH,    help="Path to GGUF model")

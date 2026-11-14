@@ -10,7 +10,7 @@ import stat
 
 from adapter_publication import sync_adapter_directory
 from audio_take_history import (AudioTakeHistory, MAX_AUDIO_BYTES, _encode,
-    _ensure_plain_path, _open_regular, _version, _ensure_metadata_depth)
+    _ensure_plain_path, _open_regular, _version, _ensure_metadata_depth, _hash)
 from utils import file_lock
 
 KEY = '_retained_take'
@@ -114,9 +114,12 @@ def validate_retained_take(row):
     if receipt is None:
         return None
     _ensure_metadata_depth(receipt)
-    if (type(receipt) is not dict or set(receipt) != {
-            'version', 'book_token', 'uid', 'path', 'source_version', 'captured', 'archive'}
-            or type(receipt['version']) is not int or receipt['version'] != 1
+    fields = {'version', 'book_token', 'uid', 'path', 'source_version', 'captured', 'archive'}
+    if (type(receipt) is not dict
+            or type(receipt.get('version')) is not int or receipt['version'] not in (1, 2)
+            or set(receipt) != (fields | {'source_sha256'} if receipt['version'] == 2 else fields)
+            or (receipt['version'] == 2 and (type(receipt['source_sha256']) is not str
+                or not _DIGEST.fullmatch(receipt['source_sha256'])))
             or type(receipt['book_token']) is not str or not _DIGEST.fullmatch(receipt['book_token'])
             or type(receipt['uid']) is not str or receipt['uid'] != row.get('uid')
             or not 0 < len(receipt['uid']) <= 128
@@ -168,7 +171,7 @@ def get_retained_book_bytes(rows):
     return total
 
 
-def make_retained_take(root, row):
+def make_retained_take(root, row, *, cancel_check=None):
     from book_state_transaction import get_book_operation_token
     token = get_book_operation_token(root)
     raw_path = row.get('audio_path')
@@ -178,11 +181,15 @@ def make_retained_take(root, row):
     if path.suffix.lower() not in ('.wav', '.flac', '.mp3', '.ogg'):
         raise ValueError('Prior take format cannot be retained. Disable automatic history or inspect it.')
     stream, info = _open_regular(path, Path(root).resolve(), MAX_AUDIO_BYTES)
-    stream.close()
+    with stream:
+        digest, size = _hash(stream, MAX_AUDIO_BYTES, cancel_check=cancel_check)
+        if size != info.st_size or _version(os.fstat(stream.fileno())) != _version(info):
+            raise ValueError('Prior take changed while recording its metadata.')
     if _version(_ensure_plain_path(path, Path(root).resolve()).stat()) != _version(info):
         raise ValueError('Prior take changed while recording its metadata.')
-    receipt = dict(version=1, book_token=token, uid=row.get('uid'), path=raw_path,
-                   source_version=list(_version(info)), captured=get_captured_take(row), archive=None)
+    receipt = dict(version=2, book_token=token, uid=row.get('uid'), path=raw_path,
+                   source_version=list(_version(info)), source_sha256=digest,
+                   captured=get_captured_take(row), archive=None)
     # Reserve room for the later verified archive reference before accepting edits.
     if len(_encode(receipt)) > MAX_RECEIPT_BYTES - 2048:
         raise ValueError('Prior take metadata is too large. Disable automatic history or inspect it.')

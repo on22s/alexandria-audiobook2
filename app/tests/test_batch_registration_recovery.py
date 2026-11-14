@@ -1,6 +1,7 @@
 """Native adapter registration retries preserve completed weights and provenance."""
 import contextlib
 import io
+import os
 import json
 from pathlib import Path
 import sys
@@ -51,6 +52,15 @@ class BatchRegistrationRecoveryTests(unittest.TestCase):
         record = registration.get_batch_registration_intent(str(self.models), 'synthetic')
         self.assertIsNone(record['entry'])
         self.assertFalse(self.manifest.exists())
+        if os.name == 'nt':
+            # An interrupted result without a frozen receipt has no inherited
+            # POSIX trainer lease on Windows. Preserve the fail-closed contract.
+            self.assertEqual(1, self.run_batch())
+            self.assertIn('Unowned legacy/unsupported batch intent', self.last_log.getvalue())
+            self.assertEqual(record, registration.get_batch_registration_intent(str(self.models), 'synthetic'))
+            self.assertEqual(1, len(self.calls))
+            self.assertFalse(self.manifest.exists())
+            return
         self.assertEqual(0, self.run_batch())
         self.assertIn('Done: 0 trained', self.last_log.getvalue())
         self.assertIn('Recovered registrations without retraining: 1', self.last_log.getvalue())

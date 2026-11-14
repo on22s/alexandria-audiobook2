@@ -1752,6 +1752,10 @@ class PauseStatusTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.path.exists(GPU_PAUSE), "gpu_pause.sh not present")
+# This queue test needs /proc, flock and POSIX SIGINT inheritance. Native
+# cancellation is exercised through the owned streaming worker in
+# test_preparer_admission_cancel, rather than pretending preexec_fn is portable.
+@requires_linux_queue_tools
 class PauseNowTest(unittest.TestCase):
     """`on --now` must END the job, and the wrapper alone writes the marker.
 

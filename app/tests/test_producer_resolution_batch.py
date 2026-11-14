@@ -1,4 +1,5 @@
 """Native Git history batching preserves individual artifact origins and CSV bytes."""
+import os
 import contextlib
 import csv
 import importlib.util
@@ -36,7 +37,9 @@ class ProducerResolutionBatchTests(unittest.TestCase):
         for i in range(count):
             name=f'worker__{i}.json';path=experiments/name
             path.write_text(json.dumps({'meta':{'experiment':'fixture','model':'cpu'},'rows':[{'id':'book:1','arm':'base','correct':True}]}));paths.append(str(path))
-        for name in ('space 日本語.json','literal[1]?.json','line\nname.json','unknown.json'):
+        for name in ('space 日本語.json',
+                     'literal[1];.json' if os.name == 'nt' else 'literal[1]?.json',
+                     "line'quote.json" if os.name == 'nt' else 'line\nname.json', 'unknown.json'):
             path=experiments/name;path.write_text('{"rows":[]}');paths.append(str(path))
         provenance=experiments/'exact.json';provenance.write_text(json.dumps({'provenance':{'script':'worker.py','args':{'limit':3}}}));paths.append(str(provenance))
         git(root,'add','.');git(root,'commit','-qm','first artifacts')

@@ -1,9 +1,10 @@
 """Native HTTP fixtures reject generic responses and preserve authentication."""
 import copy
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import ThreadingHTTPServer as HTTPServer
 import json
 import threading
 import unittest
+from tests.test_support import FramedHttpFixtureHandler
 
 from lmstudio_endpoint import get_lmstudio_endpoint_status, get_native_model_status
 
@@ -18,15 +19,12 @@ V0 = {'object': 'list', 'data': [{'object': 'model', 'type': 'llm',
 class NativeEndpointTests(unittest.TestCase):
     def probe(self, replies, api_key=None):
         calls = []
-        class Handler(BaseHTTPRequestHandler):
+        class Handler(FramedHttpFixtureHandler):
             def do_GET(self):
                 calls.append((self.path, self.headers.get('Authorization')))
                 code, document = replies.get(self.path, (404, {}))
-                self.send_response(code)
-                if code == 302:
-                    self.send_header('Location', '/prefix/api/v0/models')
-                self.end_headers()
-                self.wfile.write(json.dumps(document).encode())
+                headers = [('Location', '/prefix/api/v0/models')] if code == 302 else []
+                self.send_fixture_response(code, json.dumps(document).encode(), headers)
             def log_message(self, *args):
                 pass
         server = HTTPServer(('127.0.0.1', 0), Handler)

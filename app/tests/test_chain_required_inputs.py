@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, get_bash_executable
 
 REPO=Path(__file__).resolve().parents[2]
 PUBLIC=('TheGambler','TheSignOfTheFour','TheMysteriousAffairAtStyles','AHandfulOfDust')
@@ -61,7 +61,7 @@ if '--out' in args:
         return path
 
     def run_chain(self, name):
-        result=subprocess.run(['bash',str(self.root/'run_chains'/name)],env=self.env,cwd=self.root,
+        result=subprocess.run([get_bash_executable(),str(self.root/'run_chains'/name)],env=self.env,cwd=self.root,
                               capture_output=True,text=True,timeout=15)
         calls=self.root/'calls'
         return result,[json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
@@ -72,7 +72,11 @@ if '--out' in args:
         result,calls=self.run_chain('dialogue_map_5_3_20260826.sh')
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual([],calls)
-        self.assertIn(str(missing),result.stdout+result.stderr)
+        shell_root = subprocess.check_output([get_bash_executable(), '-c',
+            'cd -- "$1" && pwd', 'fixture', str(self.root)], text=True).strip()
+        expected = shell_root + '/' + missing.relative_to(self.root).as_posix()
+        self.assertIn(expected, result.stdout + result.stderr)
+        self.assertIn('missing or unreadable', result.stdout + result.stderr)
         self.assertEqual('STALE staged source',staged.read_text())
 
     def test_missing_private_source_refuses_without_using_stale_staged_copy(self):

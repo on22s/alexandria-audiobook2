@@ -1,5 +1,6 @@
 """Retained history remains immutable and verified; empty browsing creates nothing."""
 from pathlib import Path
+import os
 import tempfile
 import unittest
 import wave
@@ -47,6 +48,15 @@ class ScopeHistoryTests(unittest.TestCase):
             token = get_book_operation_token(root)
             plan = get_scope_history_plan(root, token, ['retained'], retained_rows=[row])
             self.assertEqual('prior.wav', plan['predecessors'][0]['path'])
-            path.write_bytes(b'replacement encoded bytes')
+            legacy = {k: v for k, v in row['_retained_take'].items() if k != 'source_sha256'}
+            legacy['version'] = 1
+            legacy_plan = get_scope_history_plan(root, token, ['retained'],
+                retained_rows=[{**row, '_retained_take': legacy}])
+            self.assertEqual(plan['predecessors'], legacy_plan['predecessors'])
+            self.assertNotIn('source_sha256', legacy)
+            info = path.stat()
+            path.write_bytes(b'other encoded bytes')
+            os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+            self.assertEqual(path.stat().st_size, info.st_size)
             with self.assertRaisesRegex(ValueError, 'source slot changed'):
                 get_scope_history_plan(root, token, ['retained'], retained_rows=[row])

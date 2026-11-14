@@ -1,5 +1,5 @@
 """Authenticated CPU HTTP inventory and a real fake-CLI process verify reloads."""
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import ThreadingHTTPServer as HTTPServer
 import json
 from pathlib import Path
 import tempfile
@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import lmstudio_settings as settings
-from tests.test_support import write_python_cli_fixture
+from tests.test_support import FramedHttpFixtureHandler, write_python_cli_fixture
 
 
 class NativeReloadTests(unittest.TestCase):
@@ -17,21 +17,20 @@ class NativeReloadTests(unittest.TestCase):
             root = Path(directory)
             loaded, calls = root / 'loaded', root / 'calls.jsonl'
             requests = []
-            class Handler(BaseHTTPRequestHandler):
+            class Handler(FramedHttpFixtureHandler):
                 def do_GET(self):
                     requests.append((self.path, self.headers.get('Authorization')))
                     if self.path == '/props':
-                        self.send_response(404); self.end_headers(); return
+                        self.send_fixture_response(404); return
                     if revoke and loaded.exists():
-                        self.send_response(401); self.end_headers(); return
+                        self.send_fixture_response(401); return
                     if self.headers.get('Authorization') != 'Bearer fixture-token':
-                        self.send_response(401); self.end_headers(); return
+                        self.send_fixture_response(401); return
                     document = {'data': [{'object': 'model', 'id': 'alias'}]} if generic else {
                         'models': [{'type': 'llm', 'key': 'model-key', 'publisher': 'fixture',
                         'loaded_instances': [{'id': 'alias', 'config': {'context_length': 8192,
                            'parallel': 1}}] if loaded.exists() else []}]}
-                    self.send_response(200); self.end_headers()
-                    self.wfile.write(json.dumps(document).encode())
+                    self.send_fixture_response(200, json.dumps(document).encode())
                 def log_message(self, *args):
                     pass
             server = HTTPServer(('127.0.0.1', 0), Handler)
@@ -68,10 +67,12 @@ class NativeReloadTests(unittest.TestCase):
         self.assertIn('Reloaded', message)
 
     def test_revoked_auth_after_cli_success_cannot_claim_verified_ideal_settings(self):
-        status, message, operations, _ = self.run_reload(revoke=True)
+        status, message, operations, requests = self.run_reload(revoke=True)
+        self.assertEqual(1, sum(args[0] == 'load' for args in operations))
+        self.assertEqual(['Bearer fixture-token', 'Bearer fixture-token'],
+                         [auth for path, auth in requests if path == '/api/v1/models'])
         self.assertFalse(status['management_verified'])
         self.assertIn('fresh status did not verify', message)
-        self.assertEqual(1, sum(args[0] == 'load' for args in operations))
 
     def test_generic_api_does_not_even_query_unrelated_cli(self):
         status, message, operations, _ = self.run_reload(generic=True)
