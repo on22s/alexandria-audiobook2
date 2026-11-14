@@ -127,6 +127,36 @@ class InteractiveInventory(HTMLParser):
 
 
 class UiHelpTests(unittest.TestCase):
+    def test_disabled_label_before_locale_preserves_authored_title(self):
+        self.run_js(r'''
+const f=body.appendChild(new Element('fieldset',{disabled:''}));
+const label=f.appendChild(new Element('label',{for:'save-script-name',title:'Name',
+ 'data-i18n-attr':'title:test.label.title'}));label.textContent='Name';
+const input=f.appendChild(new Element('input',{id:'save-script-name'}));input.labels=[label];label.control=input;
+load();assert.strictEqual(label.getAttribute('title'),null);
+vm.runInContext("uiCatalogs.set('ja',{messages:{'test.label.title':'\\u540d\\u524d'}})",context);
+context.applyUiLocale('ja');assert.strictEqual(label.getAttribute('title'),'\u540d\u524d');
+context.applyUiLocale('en');assert.strictEqual(label.getAttribute('title'),'Name');
+context.removeItemHelp(input);assert.strictEqual(label.getAttribute('title'),'Name');
+assert.strictEqual(label.getAttribute('role'),null);
+''')
+
+    def test_help_before_locale_preserves_authored_titles_and_translations(self):
+        self.run_js(r'''
+const title='Open advanced tools';
+const control=body.appendChild(new Element('a',{href:'#',title,
+ 'data-i18n-attr':'title:shell.nav.advanced.title'}));control.textContent='Advanced';
+load();
+assert.strictEqual(control.getAttribute('title'),null);
+vm.runInContext("uiCatalogs.set('ja',{messages:{'shell.nav.advanced.title':'\u8a73\u7d30\u30c4\u30fc\u30eb\u3092\u958b\u304f'}})",context);
+context.applyUiLocale('ja');context.renderItemHelp(control);
+assert.strictEqual(helpFor(control),'\u8a73\u7d30\u30c4\u30fc\u30eb\u3092\u958b\u304f');
+assert.strictEqual(control.getAttribute('title'),null);
+context.applyUiLocale('en');context.renderItemHelp(control);
+assert.strictEqual(helpFor(control),title);
+assert.strictEqual(control.getAttribute('title'),null);
+''')
+
     def run_js(self, body):
         result = run_help_js(body)
         self.assertEqual(0, result.returncode, result.stderr)

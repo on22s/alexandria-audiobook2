@@ -46,7 +46,7 @@ from script_repair import build_deterministic_repair
 from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
     capture_generation_selection, check_binding_source, parse_script_binding,
     make_script_selection_binding, saved_binding_matches, updated_saved_binding,
-    _read_selection_state, saved_script_is_active_source)
+    _read_selection_state, saved_script_is_active_source, is_script_selection_pending)
 from editor_poll_snapshot import get_snapshot_digest
 from completed_review_receipt import get_review_entries_fingerprint
 from speaker_repair import apply_speaker_selections, build_speaker_review
@@ -436,9 +436,7 @@ def _save_script_sync(request):
         if request.expected_book_token is not None:
             if get_book_operation_token(DATA_DIR, state=active_state) != request.expected_book_token:
                 raise HTTPException(status_code=409, detail="Active book changed; reopen Save Current before saving")
-        if (not isinstance(active_state, dict)
-                or ('script_selection_pending' in active_state
-                    and active_state['script_selection_pending'] is not False)):
+        if not isinstance(active_state, dict) or is_script_selection_pending(active_state):
             raise HTTPException(status_code=409, detail=(
                 'The selected source does not yet have a published script. '
                 'Finish generation or load a saved script before saving.'))

@@ -957,6 +957,7 @@
         }
 
         function renderItemHelp(control) {
+            captureUiAuthoredAttributes(control);
             const nativeTitle = control.getAttribute('title');
             if (nativeTitle !== null) {
                 helpNativeTitles.set(control, nativeTitle);
@@ -987,6 +988,7 @@
                         saved[name] = wrapper.getAttribute(name);
                     }
                     helpLabelAttributes.set(wrapper, saved);
+                    captureUiAuthoredAttributes(wrapper);
                     wrapper.removeAttribute('title');
                 } else {
                     wrapper = document.createElement('span');
