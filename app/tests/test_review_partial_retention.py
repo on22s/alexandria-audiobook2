@@ -126,16 +126,14 @@ class PartialRetentionTests(unittest.TestCase):
         self.assertIsNone(disabled)
         self.assertEqual(old_calls, calls)
 
-    def test_full_review_retries_narration_rename_before_complete_sdk_publication(self):
-        source = [{'speaker': 'NARRATOR', 'text': 'The rain stopped.', 'instruct': '',
-                   'spoken': False, 'uid': 'n1', 'source_span': [4, 21], 'pause_after': 700}]
-        bad = [{**source[0], 'speaker': 'ALICE', 'spoken': True}]
-        good = [{key: source[0][key] for key in ('speaker', 'text', 'instruct')}]
-        output, calls, records = self.run_review([bad, good], source=source)
-        self.assertEqual(2, len(calls))
-        self.assertEqual(['quality_rejected', 'accepted'], [record['outcome'] for record in records])
-        self.assertIn('narrator_renamed', records[0]['failure_codes'])
-        self.assertEqual(source, output)
+    def test_full_review_publishes_corrected_narrator_with_source_metadata(self):
+        source = [{'speaker': 'NARRATOR', 'text': 'Please close the gate.', 'instruct': '',
+                   'spoken': False, 'uid': 'n1', 'source_span': [4, 26], 'pause_after': 700}]
+        reply = [{**source[0], 'speaker': 'ALICE', 'spoken': True}]
+        output, calls, records = self.run_review([reply], source=source)
+        self.assertEqual(1, len(calls))
+        self.assertEqual(['accepted'], [record['outcome'] for record in records])
+        self.assertEqual([{**source[0], 'speaker': 'ALICE'}], output)
         self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
         self.assertEqual('complete', review.get_review_batch_status(output, records)['status'])
 
@@ -228,13 +226,16 @@ class PartialRetentionTests(unittest.TestCase):
         self.assertEqual(['quality_rejected'] * 3,
                          [attempt['outcome'] for attempt in status['attempts']])
 
-    def test_partial_labels_cannot_rename_source_narration_despite_model_speech(self):
+    def test_partial_narrator_correction_preserves_originals_and_stays_incomplete(self):
         source = copy.deepcopy(SOURCE)
-        source[0].update(spoken=False, type='SPOKEN')
+        source[0].update(speaker='NARRATOR', spoken=False, type='NARRATOR')
         output, calls, records = self.run_review([get_reply(source)] * 3, source=source)
-        self.assertIsNone(output)
+        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
         self.assertEqual(3, len(calls))
-        self.assertFalse(any(record.get('event') == review.REVIEW_PARTIAL_EVENT for record in records))
+        status = review.get_review_batch_status(output, records)
+        self.assertEqual('partial', status['status'])
+        self.assertEqual([0], status['partial_retention']['retained_positions'])
+        self.assertEqual(['quality_rejected'] * 3, [a['outcome'] for a in status['attempts']])
 
     def test_last_candidate_only_and_later_complete_answer_always_wins(self):
         first = get_reply(); first[0]['speaker'] = 'EARLIER'
@@ -264,13 +265,13 @@ class PartialRetentionTests(unittest.TestCase):
                 output, calls, _ = self.run_review([get_reply()] * 3, **kwargs)
                 self.assertIsNone(output); self.assertEqual(3, len(calls))
 
-    def test_unique_complete_field_and_narrator_guards_abstain(self):
+    def test_unique_complete_field_guards_abstain(self):
         bads = []
         rows = get_reply(); rows[2] = copy.deepcopy(rows[0]); bads.append(rows)
         bads.append(get_reply() + [get_reply()[0]])
         for field, value in [('speaker', ''), ('speaker', None), ('instruct', 1), ('text', '')]:
             rows = get_reply(); rows[2][field] = value; bads.append(rows)
-        rows = get_reply(); rows[1]['text'] = SOURCE[1]['text']; rows[1]['speaker'] = 'INVENTED'
+        rows = get_reply(); rows[1]['text'] = SOURCE[1]['text']; rows[1]['speaker'] = ''
         rows[2]['text'] = 'A changed final line.'; bads.append(rows)
         for rows in bads:
             with self.subTest(rows=rows):
@@ -609,7 +610,7 @@ class PartialPublicationTests(unittest.TestCase):
         def fingerprint():
             return review.get_completed_review_fingerprint(config, config['llm_remote'], params,
                                                          args, object(), 'fixture')
-        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 5):old = fingerprint()
+        with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 6):old = fingerprint()
         current = fingerprint()
         self.assertNotEqual(old, current)
         with tempfile.TemporaryDirectory() as directory:
