@@ -1,9 +1,11 @@
 """Rendered #1938 controls and real browser audio decoding; no model calls."""
 import base64
+import contextlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
 import math
+import os
 from pathlib import Path
 import re
 import struct
@@ -11,8 +13,11 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import Mock, patch
+from urllib.request import Request, urlopen
 import wave
 
+from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 from tests.test_dropdown_layers import find_browser
 from tests.test_table_themes import extract_function
 
@@ -114,12 +119,13 @@ def get_browser_result(source, width, timeout=30):
         try:
             with tempfile.TemporaryDirectory(prefix='aa2-followups-') as directory:
                 with tempfile.TemporaryFile() as errors:
-                    browser = subprocess.Popen([find_browser(), '--headless=new', '--disable-gpu',
+                    browser = start_owned_subprocess([find_browser(), '--headless=new', '--disable-gpu',
                         '--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking',
                         '--no-first-run', '--no-default-browser-check',
                         '--user-data-dir=' + str(Path(directory) / 'profile'),
                         f'--window-size={width},1000', f'http://127.0.0.1:{server.server_port}/'],
-                        stdout=subprocess.DEVNULL, stderr=errors)
+                        stdout=subprocess.DEVNULL, stderr=errors,
+                        start_new_session=os.name == 'posix', termination_grace=1)
                     try:
                         if not completed.wait(timeout):
                             errors.seek(0)
@@ -127,18 +133,57 @@ def get_browser_result(source, width, timeout=30):
                             raise RuntimeError('Rendered follow-ups did not complete at ' + result.get('stage', 'page startup') + ': ' + diagnostics)
                         return result['data']
                     finally:
-                        browser.terminate()
                         try:
-                            browser.wait(timeout=10)
-                        except subprocess.TimeoutExpired:
-                            browser.kill()
-                            browser.wait(timeout=10)
+                            stop_owned_subprocess(browser, timeout=3, force_after_grace=True)
+                        finally:
+                            control = getattr(browser, '_alexandria_control', None)
+                            if control is not None:
+                                control.close()
         finally:
             server.shutdown()
             worker.join(timeout=5)
 
 
 class RenderedUiFollowupTests(unittest.TestCase):
+    def test_browser_tree_stops_before_profile_cleanup_on_success_and_timeout(self):
+        temporary_directory = tempfile.TemporaryDirectory
+        for reply in (True, False):
+            with self.subTest(reply=reply):
+                state = {'stopped': False}
+                browser = Mock()
+                browser._alexandria_control = Mock()
+
+                @contextlib.contextmanager
+                def profile_directory(**kwargs):
+                    with temporary_directory(**kwargs) as directory:
+                        try:
+                            yield directory
+                        finally:
+                            self.assertTrue(state['stopped'], 'profile cleanup preceded descendant teardown')
+                            browser._alexandria_control.close.assert_called_once_with()
+
+                def start(command, **kwargs):
+                    if reply:
+                        request = Request(command[-1] + 'results', data=b'{"finished": true}', method='POST')
+                        with urlopen(request, timeout=5) as response:
+                            self.assertEqual(204, response.status)
+                    return browser
+
+                def stop(process, **kwargs):
+                    self.assertIs(browser, process)
+                    state['stopped'] = True
+
+                with patch(__name__ + '.find_browser', return_value='fixture-browser'), \
+                     patch(__name__ + '.tempfile.TemporaryDirectory', side_effect=profile_directory), \
+                     patch(__name__ + '.subprocess.Popen', side_effect=start), \
+                     patch(__name__ + '.start_owned_subprocess', side_effect=start, create=True), \
+                     patch(__name__ + '.stop_owned_subprocess', side_effect=stop, create=True):
+                    if reply:
+                        self.assertEqual({'finished': True}, get_browser_result('', 500, timeout=5))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'did not complete'):
+                            get_browser_result('', 500, timeout=0)
+
     def test_browser_waits_for_async_fixture_completion(self):
         source = """<script>
         setTimeout(async () => {
