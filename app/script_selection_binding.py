@@ -17,6 +17,11 @@ MAX_BINDING_BYTES = 4096
 BINDING_NAME = 'annotated_script.selection_binding.json'
 
 
+def is_script_selection_pending(state):
+    """Only an absent flag or explicit False permits published-script access."""
+    return 'script_selection_pending' in state and state['script_selection_pending'] is not False
+
+
 def require_published_selection(data_dir):
     """Keep a retained old script out of the newly selected book's operations."""
     from book_state_transaction import reuse_book_state
@@ -25,7 +30,7 @@ def require_published_selection(data_dir):
     root = Path(data_dir)
     with reuse_book_state(data_dir), file_lock(str(root / 'state.json')):
         state = _read_selection_state(data_dir, required=False)
-        if ('script_selection_pending' in state and state['script_selection_pending'] is not False):
+        if is_script_selection_pending(state):
             raise ValueError('The selected source has no published script; previous book files were preserved.')
 
 
@@ -223,7 +228,7 @@ def _binding_for_controlled_edit_locked(data_dir, old_script, new_script):
     from book_state_transaction import get_book_operation_token
 
     state = _read_selection_state(data_dir, required=False)
-    if ('script_selection_pending' in state and state['script_selection_pending'] is not False):
+    if is_script_selection_pending(state):
         raise ValueError('The selected source has no published script; previous book files were preserved.')
     _, raw = capture_scope_file(data_dir, BINDING_NAME, limit=MAX_BINDING_BYTES, include_bytes=True)
     _validated_script_entries(new_script)

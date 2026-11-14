@@ -111,7 +111,7 @@ function renderScriptIngestFeedback() {
     const text = scriptIngestFeedback === 'checking' ? t('script.ingest.checking', 'Checking saved source, roster and script…')
         : scriptIngestFeedback === 'snapshot' ? t('script.ingest.snapshot', 'Saved-state snapshot. Refresh after changes; these links do not start work or certify voice quality.')
         : scriptIngestFeedback === 'unavailable' ? t('script.ingest.unavailable', 'Saved progress could not be verified. Refresh after resolving the reported problem; no completion is inferred.') : '';
-    node.textContent = [text, scriptIngestDetail].filter(Boolean).join(' ');
+    node.textContent = joinUiSentences([text, scriptIngestDetail]);
 }
 
 function refreshScriptIngestFacts() {

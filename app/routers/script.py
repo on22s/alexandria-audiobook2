@@ -1341,6 +1341,7 @@ def _get_single_narrator_source_preview(*, include_metrics=False):
     from docx_publication import capture_docx_group
     from project_scope_files import capture_scope_file
     from source_encoding import get_decoded_source_text
+    from script_selection_binding import is_script_selection_pending
 
     def load_book_state():
         # Bounded strict selection-state reader shared with script
@@ -1520,7 +1521,7 @@ def _get_single_narrator_source_preview(*, include_metrics=False):
             words = sum(1 for _ in re.finditer(r'\S+', text))
             result.update(word_count=words, chapter_count=len(get_chapter_heading_offsets(text)),
                           estimated_minutes=round(words / 150, 1))
-            result['selection_pending'] = state.get('script_selection_pending') is True
+            result['selection_pending'] = is_script_selection_pending(state)
         return result
 
 
