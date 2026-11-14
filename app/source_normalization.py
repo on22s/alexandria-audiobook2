@@ -19,6 +19,22 @@ EXTREME_PHRASE_MAX_WORDS = 5
 
 
 
+def iter_source_paragraph_ranges(text):
+    """Yield lossless paragraph spans, attaching separators to their preceding text.
+
+    CRLF is atomic; a single line ending is a wrap, while U+2029 explicitly
+    ends a paragraph. Blank lines may contain any Unicode whitespace.
+    """
+    newline = r"(?:\r\n|\r(?!\n)|[\n\u2028\u2029])"
+    paragraph_break = r"(?:" + newline + r"(?:[^\S\r\n\u2028\u2029]*" + newline + r")+|\u2029)"
+    start = 0
+    for match in re.finditer(paragraph_break, text):
+        yield start, match.end()
+        start = match.end()
+    if start < len(text):
+        yield start, len(text)
+
+
 def get_located_source_changes(text, changes):
     """Return new evidence records using one newline index for this stage."""
     if not changes:
@@ -358,7 +374,8 @@ def strip_publisher_matter(text):
     Only runs anchored at an end are removed, never a match in the middle, and
     the whole book is never stripped. Returns the text and what was removed.
     """
-    paragraphs = text.split("\n\n")
+    ranges = list(iter_source_paragraph_ranges(text))
+    paragraphs = [text[start:end] for start, end in ranges]
     if len(paragraphs) < 8:
         return text, {"front_paragraphs": 0, "back_paragraphs": 0}
     limit = min(len(paragraphs) // 2,
@@ -371,5 +388,6 @@ def strip_publisher_matter(text):
         # not a book with front matter. Leave it for the caller's gate to
         # reject rather than silently emptying it.
         return text, {"front_paragraphs": 0, "back_paragraphs": 0}
-    kept = paragraphs[front:len(paragraphs) - back] if back else paragraphs[front:]
-    return "\n\n".join(kept), {"front_paragraphs": front, "back_paragraphs": back}
+    start = ranges[front][0]
+    end = ranges[len(ranges) - back - 1][1]
+    return text[start:end], {"front_paragraphs": front, "back_paragraphs": back}

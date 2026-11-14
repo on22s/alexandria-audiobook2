@@ -8948,6 +8948,17 @@
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_interrupt_between_replacements_restores_pair_and_propagates",
     "tests.test_paired_json_recovery.PairedJsonRecoveryTests.test_serialization_failure_leaks_no_stage_and_never_changes_targets"
   ],
+  "test_paragraph_followups": [
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_cancel_after_skipped_whitespace_preserves_old_cast",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_cli_audits_skipped_window_and_real_request_attempts",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_generation_preparation_and_cast_cli_share_unicode_stripping",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_oversized_whitespace_advises_only_a_larger_cap_before_requests",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_publisher_stripping_preserves_exact_story_for_every_separator",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_shared_paragraph_ranges_are_lossless_and_match_constructed_units",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_story_mentions_and_all_metadata_remain_untouched",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_whitespace_only_source_preserves_prior_cast_without_requests",
+    "tests.test_paragraph_followups.ParagraphFollowupTests.test_whitespace_window_records_coverage_without_a_model_request"
+  ],
   "test_pass1_missing_source_run": [
     "tests.test_pass1_missing_source_run.CharacterScriptTests.test_a_dropped_clause_is_reported_in_characters",
     "tests.test_pass1_missing_source_run.CharacterScriptTests.test_a_short_rewording_is_not_a_missing_run",

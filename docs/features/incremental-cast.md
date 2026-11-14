@@ -15,17 +15,28 @@ mode can process larger books without dropping a tail or truncating the roster.
 Windows pack complete paragraphs and end at blank-line paragraph breaks, including
 blank lines containing Unicode whitespace. Unicode line separators (U+2028) follow
 the same rule; a single Unicode paragraph separator (U+2029) is also a paragraph
-boundary. Single wrapped line breaks stay inside their paragraph. Separators count toward
+boundary. Publisher-colophon removal uses the same paragraph boundaries and retains the story
+as an exact source substring, including its separators. Single wrapped line breaks stay inside their paragraph. Separators count toward
 the strict character cap, and all whitespace is preserved. If any paragraph plus
-its separator exceeds the cap, discovery refuses before sending any model requests;
-increase **Cast source characters per request** to fit it, or supply a source with
-blank-line paragraph breaks. The latter is necessary for paragraph-per-line text
-that otherwise becomes one oversized unit; raising the cap cannot override model
-context limits. Editing the source changes its byte identity: existing casts remain
+its separator exceeds the cap, discovery refuses before sending any model requests,
+including for a whitespace-only block. Increase **Cast source characters per request**
+to fit it. For paragraph-per-line text that otherwise becomes one oversized unit,
+supply a source with blank-line paragraph breaks. Raising the cap cannot override
+model context limits. Editing the source changes its byte identity: existing casts remain
 bound to the old source, and a build pinned to the old hash refuses. Select the edited
 source again before building a new cast. The builder never splits
 the paragraph or silently exceeds the cap. Smaller windows can still lose identity
 context, so review the resulting cast. Accuracy improvements have not been established.
+
+Upgrading can change prepared-source identity even when the uploaded bytes are unchanged.
+For example, removing closing publisher matter now retains the last story paragraph's
+separator, and Unicode boundaries can expose publisher matter that older preparation
+left in place. Existing selected-source proofs and literal-origin policies can then
+refuse reuse or report source integrity as unavailable. Preserve the old outputs and
+re-run generation and any source-range selection against the current prepared source
+before continuing that workflow. Rebuild the cast for the current preparation; its old
+prepared-source hash continues to describe the earlier build. Source hashes and saved
+policies are not automatically rewritten to certify old outputs against changed text.
 
 A reply may contribute an empty list. Exact established names or aliases add to
 that same canonical identity. New names remain separate; there is no fuzzy identity
@@ -46,7 +57,10 @@ Only a nonempty validated final cast is atomically published under the source-by
 hash. Its provenance records raw/prepared hashes, preprocessing, all window ranges,
 window/request hashes, budgets, attempts and available token usage. New incremental
 builds record `window_boundary_policy: paragraph-v1`. Progress totals use the actual
-packed-window count, which can exceed a simple character-count estimate. Source identity
+packed-window count, which can exceed a simple character-count estimate. Whitespace-only
+windows remain in coverage with status `skipped_whitespace`, zero attempts and zero
+usage; they do not send a model request or change the roster. Their request hash and
+completion reason are null. New builds record `empty_window_policy: skip-whitespace-v1`. Source identity
 is checked before preparation and again under the final publication lock. Incremental
 completion reasons are recorded per window; there is no single top-level response.
 Usage totals cover accepted window responses only, excluding discarded attempts. A
