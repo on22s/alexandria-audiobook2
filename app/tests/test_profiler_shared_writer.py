@@ -1,6 +1,7 @@
 """Profiler checkpoints use the common durable writer and preserve prior data on failure."""
 import errno
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -15,16 +16,31 @@ class ProfilerSharedWriterTests(unittest.TestCase):
             path = Path(tmp) / 'manifest.json'
             events = []
             real_fsync, real_replace = utils.os.fsync, utils.os.replace
+            real_open, real_close = utils.os.open, utils.os.close
+            directory_fd = object()
+            def open_directory(name, flags, *args, **kwargs):
+                if os.name == 'nt' and str(name) == str(path.parent):
+                    return directory_fd
+                return real_open(name, flags, *args, **kwargs)
+            def close(fd):
+                if fd is not directory_fd:
+                    return real_close(fd)
             def sync(fd):
                 events.append('sync')
-                return real_fsync(fd)
+                if fd is not directory_fd:
+                    return real_fsync(fd)
             def replace(source, target):
                 self.assertTrue(events, 'checkpoint was not synced before replacement')
                 self.assertEqual('sync', events[-1])
                 events.append('replace')
                 return real_replace(source, target)
             data = [{'id': '日本語', 'voice_profile': '暖かい声'}]
-            with patch.object(utils.os, 'fsync', side_effect=sync), patch.object(utils.os, 'replace', side_effect=replace):
+            # Supply directory-fsync capability only on Windows. POSIX still opens
+            # and syncs a real directory descriptor to exercise its durability.
+            with patch.object(utils.os, 'open', side_effect=open_directory), \
+                 patch.object(utils.os, 'close', side_effect=close), \
+                 patch.object(utils.os, 'fsync', side_effect=sync), \
+                 patch.object(utils.os, 'replace', side_effect=replace):
                 voice_profiler.atomic_json_write(data, str(path))
             self.assertEqual(data, json.loads(path.read_text()))
             self.assertEqual(['sync','replace','sync'], events)

@@ -59,7 +59,7 @@ class FiniteAudioMetricsTests(unittest.TestCase):
             old = quality.audit_zip(archive, fingerprint)
             old['clips'] = [{'path': 'train/clip.wav', 'metrics': {'rms': float('nan')},
                              'warnings': [], 'pcm_sha256': 'old'}]
-            report = output / (hashlib.sha256(b'reader/dataset.zip').hexdigest()[:16] + '.json')
+            report = output / (hashlib.sha256(str(Path('reader') / 'dataset.zip').encode()).hexdigest()[:16] + '.json')
             report.write_text(json.dumps(old))
             argv = ['audit_voice_datasets.py', '--zips2', str(root)]
             with patch.object(sys, 'argv', argv), redirect_stdout(io.StringIO()), \

@@ -23,6 +23,9 @@ class PreparerMetadataReadTests(unittest.TestCase):
         old = Path.cwd()
         os.chdir(self.temp.name)
         self.addCleanup(os.chdir, old)
+        logging = patch.object(p, 'ensure_preparer_logging', return_value='fixture.log')
+        logging.start()
+        self.addCleanup(logging.stop)
         Path('book.wav').write_bytes(b'fixture audio identity only')
         epub = p.alignment.epub
         book = epub.EpubBook()
@@ -48,7 +51,7 @@ class PreparerMetadataReadTests(unittest.TestCase):
             records.append({'phase': phase, 'identity': identity})
             if phase is not None:
                 raise StopBeforeModel()
-        def child(command, **kwargs):
+        def child(command, _lock_fd):
             with patch.object(sys, 'argv', command[1:]):
                 with self.assertRaises(StopBeforeModel):
                     p.main()
@@ -56,7 +59,7 @@ class PreparerMetadataReadTests(unittest.TestCase):
         argv = ['preparer', '--audio', 'book.wav', '--source', 'book.epub',
                 '--model', 'model.gguf', '--enrich-with-llm', '--llm-model-path', 'llm.gguf',
                 '--enrich-narration-style', *extra]
-        with patch.object(p, 'LLAMA_CPP_AVAILABLE', True), patch.object(p, 'acquire_run_lock', return_value=1), patch.object(p, 'ensure_run_manifest', side_effect=admit), patch.object(p, 'cleanup_run_artifacts'), patch.object(p.subprocess, 'run', side_effect=child), patch.object(p.alignment.epub, 'read_epub', wraps=p.alignment.epub.read_epub) as reads, patch.object(sys, 'argv', argv):
+        with patch.object(p, 'LLAMA_CPP_AVAILABLE', True), patch.object(p, 'acquire_run_lock', return_value=1), patch.object(p, 'ensure_run_manifest', side_effect=admit), patch.object(p, 'cleanup_run_artifacts'), patch.object(p, 'run_phase_with_lock', side_effect=child), patch.object(p.subprocess, 'run', side_effect=AssertionError('metadata fixture must stop before model subprocess dispatch')), patch.object(p.alignment.epub, 'read_epub', wraps=p.alignment.epub.read_epub) as reads, patch.object(sys, 'argv', argv):
             if orchestrate:
                 with self.assertRaises(SystemExit) as exit_code:
                     p.main()
@@ -78,7 +81,7 @@ class PreparerMetadataReadTests(unittest.TestCase):
         records, count = self.run_main(['--output=folder/pinned.zip', '--book-title', 'Explicit Title'])
         self.assertEqual(0, count)
         self.assertTrue(all(row['identity'] == records[0]['identity'] for row in records))
-        self.assertEqual('folder/pinned.zip', records[-1]['identity']['options']['output'])
+        self.assertEqual(Path('folder/pinned.zip'), Path(records[-1]['identity']['options']['output']))
         self.assertEqual('Explicit Title', records[-1]['identity']['options']['book_title'])
 
     def test_standalone_generic_phase_still_preserves_derived_identity(self):
@@ -86,7 +89,7 @@ class PreparerMetadataReadTests(unittest.TestCase):
             with self.subTest(phase=phase):
                 records, count = self.run_main(['--phase', phase, '--output', 'folder/output.zip'], orchestrate=False)
                 self.assertEqual(1, count)
-                self.assertEqual('folder/A_Native_Title_The_Author.zip', records[0]['identity']['options']['output'])
+                self.assertEqual(Path('folder/A_Native_Title_The_Author.zip'), Path(records[0]['identity']['options']['output']))
 
     def test_phase_builder_can_forward_resolved_output_without_changing_other_values(self):
         command = p.build_phase_command('asr', ['--output=output.zip', '--character', 'annotate'], output='folder/pinned.zip')

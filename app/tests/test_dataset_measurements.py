@@ -116,7 +116,7 @@ class DatasetAuditIdentityTests(unittest.TestCase):
             self.assertEqual(before, old)
             output = root / '_quality'
             output.mkdir()
-            cached = output / (hashlib.sha256(b'reader/clips.zip').hexdigest()[:16] + '.json')
+            cached = output / (hashlib.sha256(str(Path('reader') / 'clips.zip').encode()).hexdigest()[:16] + '.json')
             cached.write_text(json.dumps(old))
             with patch.object(sys, 'argv', ['audit', '--zips2', str(root)]), \
                  redirect_stdout(io.StringIO()), \

@@ -23,12 +23,24 @@ class SharedShutdownPolicyTests(unittest.TestCase):
         stop.assert_called_once_with(process,timeout=core.CANCEL_TERMINATE_GRACE_SECONDS,force_after_grace=True)
 
     def test_forced_tail_runs_even_when_graceful_inspection_fails(self):
-        process=Mock()
-        with patch.object(ownership,'is_subprocess_tree_running',side_effect=RuntimeError('fixture inspection fault')), \
-             patch.object(ownership,'send_subprocess_signal') as send:
-            with self.assertRaisesRegex(RuntimeError,'fixture inspection fault'):
-                ownership.stop_owned_subprocess(process,force_after_grace=True)
-        send.assert_called_once_with(process,signal.SIGKILL)
+        for platform in ('linux', 'win32'):
+            with self.subTest(platform=platform):
+                process = Mock()
+                forced_signal = object()
+                with patch.object(ownership.sys, 'platform', platform), \
+                     patch.object(ownership.signal, 'SIGKILL', forced_signal, create=True), \
+                     patch.object(ownership, 'is_subprocess_tree_running',
+                                  side_effect=RuntimeError('fixture inspection fault')), \
+                     patch.object(ownership, 'terminate_windows_process_tree') as terminate, \
+                     patch.object(ownership, 'send_subprocess_signal') as send:
+                    with self.assertRaisesRegex(RuntimeError, 'fixture inspection fault'):
+                        ownership.stop_owned_subprocess(process, timeout=3, force_after_grace=True)
+                if platform == 'win32':
+                    terminate.assert_called_once_with(process, force=True, timeout=3)
+                    send.assert_not_called()
+                else:
+                    send.assert_called_once_with(process, forced_signal)
+                    terminate.assert_not_called()
 
     @unittest.skipUnless(sys.platform=='linux','Native Linux owned worker fixture')
     def test_paused_term_ignoring_worker_is_forced_before_return(self):
