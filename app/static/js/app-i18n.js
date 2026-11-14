@@ -336,9 +336,22 @@ function readUiMessageValues(node, english) {
     return values;
 }
 
-// One repaint function for every keyed node. The authored English is captured
-// on the first sweep and kept here (never in the DOM), so switching back to
-// English restores the source text instead of reusing a translation.
+// Capture keyed attributes before another UI owner moves them (for example,
+// help replaces native titles). Keep the first authored value across locales.
+function captureUiAuthoredAttributes(node) {
+    if (!uiAuthoredAttrs.has(node)) { uiAuthoredAttrs.set(node, new Map()); }
+    const authored = uiAuthoredAttrs.get(node);
+    for (const entry of (node.getAttribute('data-i18n-attr') || '').split(',')) {
+        const [attribute, key] = entry.split(':').map(part => part.trim());
+        if (attribute && key && !authored.has(attribute)) {
+            authored.set(attribute, node.getAttribute(attribute) || '');
+        }
+    }
+    return authored;
+}
+
+// One repaint function for every keyed node. Authored English stays in the
+// capture maps, so switching back restores source text instead of a translation.
 function applyUiCatalog(root = document) {
     const locale = getUiLocale();
     for (const node of root.querySelectorAll('[data-i18n]')) {
@@ -361,16 +374,10 @@ function applyUiCatalog(root = document) {
         node.innerHTML = t(node.getAttribute('data-i18n-html'), uiAuthoredHtml.get(node), readUiMessageValues(node, uiAuthoredHtml.get(node)), locale);
     }
     for (const node of root.querySelectorAll('[data-i18n-attr]')) {
-        if (!uiAuthoredAttrs.has(node)) {
-            uiAuthoredAttrs.set(node, new Map());
-        }
-        const authored = uiAuthoredAttrs.get(node);
+        const authored = captureUiAuthoredAttributes(node);
         for (const entry of node.getAttribute('data-i18n-attr').split(',')) {
             const [attribute, key] = entry.split(':').map(part => part.trim());
             if (!attribute || !key) { continue; }
-            if (!authored.has(attribute)) {
-                authored.set(attribute, node.getAttribute(attribute) || '');
-            }
             node.setAttribute(attribute, t(key, authored.get(attribute), readUiMessageValues(node, authored.get(attribute)), locale));
         }
     }

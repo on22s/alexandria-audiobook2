@@ -89,3 +89,43 @@ is not a live language model. The connection test uses whichever endpoint and
 model the app user edits; no developer-specific server is required. Live-provider
 success and full app end-to-end qualification are not inferred from these tests.
 No paid calls, model downloads, or user books are needed by the regressions.
+
+
+## Complete-page startup follow-up
+
+A fresh isolated app/browser run exposed a help/localization startup-order bug:
+help removed native titles before localization captured their authored English.
+The next locale sweep threw on the Advanced navigation title and interrupted
+settings initialization. Help now captures keyed attributes through the same
+localization-owned map before moving them, including reused disabled labels.
+The regression loads the real help and localization modules in their production
+order, verifies translated tooltip text, and restores authored English without
+reintroducing native titles. A complete app page was also exercised with an
+isolated data root, four locale changes and a synthetic text upload; no browser
+exceptions occurred and the source/roster/script summary showed the saved facts.
+This smoke check does not exercise model generation or certify the entire
+upload-to-audiobook workflow.
+
+
+The follow-up also shares the pending-selection predicate with published-script
+admission and saved-book publication. Missing or explicit `false` permits the
+published-script path; every other stored flag value keeps the selection pending.
+Ingest can therefore retain verified source facts while correctly reporting that
+its script is not built, without reading the previous selection's script.
+Feedback sentences use the shared locale-aware separator for Japanese, Chinese,
+English and Spanish. Regressions exercise malformed legacy flag values against
+the actual ingest and diff routes, disabled-label capture before locale startup,
+and locale-specific sentence spacing using the actual localization module.
+
+To repeat the manual complete-page smoke check, launch the app with a fresh
+isolated `ALEXANDRIA_DATA_DIR`, open the complete page, and collect browser
+exceptions from initial load. Change locales through Japanese, Chinese, Spanish
+and English and verify the Advanced navigation help text each time. Upload a
+synthetic text file through the file picker and refresh ingest facts: the selected
+source should be verified while missing cast and script artifacts remain marked
+as not built. Point the connection test at an explicitly configured test endpoint
+and verify both its returned reply and the re-enabled button. A synthetic
+OpenAI-compatible service can exercise that transport, but is not evidence of
+live-provider or audiobook generation success. This procedure is manual evidence;
+the committed automated regressions cover its startup-order and status defects,
+not the complete procedure.

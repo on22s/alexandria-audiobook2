@@ -7,13 +7,30 @@ STATIC = Path(__file__).resolve().parents[1] / "static"
 
 
 class UiFollowupTests(unittest.TestCase):
+    def test_ingest_feedback_uses_locale_sentence_spacing(self):
+        self.run_js(r"""
+const assert=require('assert'),fs=require('fs'),vm=require('vm'),node={textContent:''};
+const c={window:{},document:{getElementById:()=>node}};vm.createContext(c);
+vm.runInContext(fs.readFileSync(process.argv[1]+'/js/app-i18n.js','utf8'),c);
+vm.runInContext(fs.readFileSync(process.argv[1]+'/js/app-ui-followups.js','utf8'),c);
+for(const locale of ['ja','zh-CN','en','es-419']){
+ const message=['ja','zh-CN'].includes(locale)?'\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002':'Could not verify.';
+ const detail=['ja','zh-CN'].includes(locale)?'\u518d\u8a66\u884c\u3002':'Retry.';
+ c.locale=locale;c.message=message;c.detail=detail;
+ vm.runInContext("uiLocale=locale;uiCatalogs.set(locale,{messages:{'script.ingest.unavailable':message}});scriptIngestFeedback='unavailable';scriptIngestDetail=detail",c);
+ c.renderScriptIngestFeedback();
+ assert.equal(node.textContent,message+(['ja','zh-CN'].includes(locale)?'':' ')+detail);
+}
+""")
+
     def test_ingest_refresh_coalesces_and_preserves_failure_details_without_stale_facts(self):
         self.run_js(r"""
 const assert=require('assert'),fs=require('fs'),vm=require('vm'),elements={},pending=[];
 const el=id=>elements[id]??={textContent:'',setAttribute(){},removeAttribute(){}};
 const c={window:{},currentBookFilename:'A',document:{getElementById:el},describeApiError:e=>e.message,
  API:{get:()=>new Promise((resolve,reject)=>pending.push({resolve,reject}))},t:(k,s,v={})=>s.replace(/\{(\w+)\}/g,(_,n)=>v[n])};
-vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1]+'/js/app-ui-followups.js','utf8'),c);
+vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1]+'/js/app-i18n.js','utf8'),c);
+vm.runInContext(fs.readFileSync(process.argv[1]+'/js/app-ui-followups.js','utf8'),c);
 let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
 const a=c.refreshScriptIngestFacts(),again=c.refreshScriptIngestFacts();assert.equal(pending.length,1);assert.strictEqual(a,again);
 c.currentBookFilename='B';c.resetScriptIngestFacts();const b=c.refreshScriptIngestFacts();assert.equal(pending.length,2);
@@ -240,14 +257,19 @@ c.resetScriptIngestFacts();assert(!el('script-ingest-source-state').textContent.
             self.assertEqual('differences', client.get('/api/script/ingest-status').json()['script']['status'])
             self.assertEqual(409, client.get('/api/script/ingest-status?expected_book_token=' + '0' * 64).status_code)
             state = json.loads((root / 'state.json').read_text())
-            state['script_selection_pending'] = True
+            for pending in (True, None, 1, 0, 'false', [], {}):
+                with self.subTest(pending=pending):
+                    state['script_selection_pending'] = pending
+                    (root / 'state.json').write_text(json.dumps(state))
+                    awaiting = client.get('/api/script/ingest-status')
+                    self.assertEqual(200, awaiting.status_code, awaiting.text)
+                    self.assertEqual('not_built', awaiting.json()['script']['status'])
+                    self.assertEqual(5, awaiting.json()['source']['word_count'])
+                    self.assertEqual(409, client.get('/api/annotated_script/diff').status_code,
+                                     'Original published-script guard must remain effective')
+            state['script_selection_pending'] = False
             (root / 'state.json').write_text(json.dumps(state))
-            awaiting = client.get('/api/script/ingest-status')
-            self.assertEqual(200, awaiting.status_code, awaiting.text)
-            self.assertEqual('not_built', awaiting.json()['script']['status'])
-            self.assertEqual(5, awaiting.json()['source']['word_count'])
-            self.assertEqual(409, client.get('/api/annotated_script/diff').status_code,
-                             'Original published-script guard must remain effective')
+            self.assertEqual('differences', client.get('/api/script/ingest-status').json()['script']['status'])
 
     def test_ingest_route_refuses_source_replacement_and_keeps_files(self):
         from contextlib import ExitStack

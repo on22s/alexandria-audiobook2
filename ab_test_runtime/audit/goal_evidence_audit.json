@@ -1050,17 +1050,25 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-14T11:07:10",
+  "written": "2026-11-14T12:07:29",
   "host": "RealMitch",
   "git": {
-   "commit": "0df8a32e30faf710bfa4ed3f6241fc6f98358f5f",
-   "branch": "feat/1938-ui-followups",
+   "commit": "67a618ebb423514f1d85966421fd37f8090a9f75",
+   "branch": "fix/1938-help-localization-startup",
    "dirty": true,
-   "source_state": "dirty:7c8ab3c53980",
+   "source_state": "dirty:c29be8c358db",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_ui_followups_rendered.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/routers/script.py",
+    "M  app/routers/scripts_library.py",
+    "M  app/script_selection_binding.py",
+    "M  app/static/js/app-help.js",
+    "M  app/static/js/app-i18n.js",
+    "M  app/static/js/app-ui-followups.js",
+    "M  app/tests/test_ui_followups.py",
+    "M  app/tests/test_ui_help_js.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/design/ui-followups-1938.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",
