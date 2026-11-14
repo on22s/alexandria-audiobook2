@@ -37,10 +37,20 @@ def check_inventory(path=INVENTORY_PATH):
     return get_inventory_differences(expected, get_unit_test_inventory())
 
 
-def write_inventory(path=INVENTORY_PATH):
+def write_inventory(path=INVENTORY_PATH, *, module_names=None):
     """Write the current inventory deterministically and return its path."""
     path = Path(path)
-    inventory = get_unit_test_inventory()
+    if module_names is None:
+        inventory = get_unit_test_inventory()
+    else:
+        # Maintenance only: CI still performs complete import/discovery. Never
+        # fabricate the IDs of unavailable modules or publish a partial file.
+        inventory = json.loads(path.read_text(encoding='utf-8'))
+        if (not isinstance(inventory, dict) or any(not isinstance(key, str)
+                or not isinstance(ids, list) or any(not isinstance(item, str) for item in ids)
+                for key, ids in inventory.items())):
+            raise ValueError('Existing inventory is not a module-to-test-ID mapping')
+        inventory.update(get_unit_test_inventory(module_names=module_names))
     atomic_json_write(dict(sorted(inventory.items())), str(path), newline="\n")
     return path
 
@@ -74,7 +84,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
                         help="report drift without modifying the inventory")
+    parser.add_argument('--module', action='append', dest='module_names', metavar='TEST_MODULE',
+                        help='update only this tracked module (repeatable); retains other IDs, not full verification')
     args = parser.parse_args(argv)
+    if args.check and args.module_names:
+        parser.error('--check always verifies all modules; --module is an explicit maintenance update only')
     untracked = find_untracked_test_modules()
     if untracked:
         print("\nWARNING: these test files are untracked and are NOT in the "
@@ -97,11 +111,17 @@ def main(argv=None):
         print("Unit test inventory matches discovery.")
         return 0
     try:
-        path = write_inventory()
+        path = write_inventory(module_names=args.module_names)
     except InventoryUnavailable as error:
         report_unavailable("Unit test inventory was not written.", error)
         return CANNOT_VERIFY
+    except (OSError, ValueError) as error:
+        print(f'Unit test inventory was not written: {error}')
+        return CANNOT_VERIFY
     print(f"Updated {path}")
+    if args.module_names:
+        print('TARGETED UPDATE ONLY: unchanged modules were retained, not rediscovered. '
+              'Run --check in the full test environment before claiming full verification.')
     return 0
 
 

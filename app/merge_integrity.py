@@ -137,7 +137,8 @@ def _get_cached_diff(snapshot, source, entries_json):
     return word_diff(source, json.loads(entries_json))
 
 
-def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks', review_offset=None):
+def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks', review_offset=None,
+                         expected_source_sha256=None):
     """Compare copied rows; callers serialize native book/chunk reads themselves.
 
     A successful comparison is against the *current* selected source, not a
@@ -161,6 +162,8 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
     try:
         input_path, strip_front_matter = get_source_preparation(state)
         source, source_sha256 = get_generation_input(input_path)
+        if expected_source_sha256 is not None and source_sha256 != expected_source_sha256:
+            raise ValueError('Source changed during the comparison; refresh before relying on it.')
         if strip_front_matter is not None:
             source = get_prepared_source(source, strip_front_matter)
             scope = 'current source after generation preprocessing'

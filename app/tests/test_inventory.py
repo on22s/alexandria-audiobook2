@@ -101,7 +101,7 @@ def _import_failure_reason(error):
     return f"{type(error).__name__}: {error}"
 
 
-def get_unit_test_inventory(test_directory=None):
+def get_unit_test_inventory(test_directory=None, *, module_names=None):
     """Return every discoverable unittest module and its stable test IDs."""
     directory = get_test_directory(test_directory)
     tracked = _tracked_test_modules(directory)
@@ -112,6 +112,14 @@ def get_unit_test_inventory(test_directory=None):
         # a container without git) rather than reporting an empty inventory.
         and (tracked is None or path.stem in tracked)
     )
+    if module_names is not None:
+        requested = set(module_names)
+        if not requested or any(not isinstance(name, str) or not name for name in requested):
+            raise ValueError('Targeted inventory requires at least one nonempty tracked module name')
+        unknown = requested - set(modules)
+        if unknown:
+            raise ValueError('Unknown tracked test modules: ' + ', '.join(repr(name) for name in sorted(unknown)))
+        modules = [name for name in modules if name in requested]
     inventory = {}
     failures = []
     for module_name in modules:
@@ -129,6 +137,91 @@ def get_unit_test_inventory(test_directory=None):
 
 
 class TestInventoryTests(unittest.TestCase):
+    def test_targeted_cli_works_without_site_packages_and_full_check_still_refuses(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'tests').mkdir()
+            (root / 'tests/__init__.py').touch()
+            app = Path(__file__).resolve().parents[1]
+            shutil.copyfile(app / 'update_test_inventory.py', root / 'update_test_inventory.py')
+            shutil.copyfile(app / 'utils.py', root / 'utils.py')
+            shutil.copyfile(app / 'loaded_module_code.py', root / 'loaded_module_code.py')
+            shutil.copyfile(Path(__file__), root / 'tests/test_inventory.py')
+            (root / 'tests/test_small.py').write_text('import unittest\nclass Small(unittest.TestCase):\n def test_small(self): pass\n')
+            (root / 'tests/test_heavy.py').write_text('import torch\n')
+            inventory = root / 'tests/unit_test_inventory.json'
+            inventory.write_text(json.dumps({'test_small':['before'], 'test_heavy':['preserved']}))
+            subprocess.run(['git','init','-q',str(root)], check=True, capture_output=True)
+            subprocess.run(['git','-C',str(root),'add','tests/test_small.py','tests/test_heavy.py'], check=True, capture_output=True)
+            environment = {key:value for key,value in os.environ.items() if not key.startswith(('GIT_', 'PYTHON'))}
+            selected = subprocess.run([sys.executable,'-S','update_test_inventory.py','--module','test_small'],
+                cwd=root, env=environment, capture_output=True, text=True, encoding='utf-8', timeout=15)
+            self.assertEqual(0, selected.returncode, selected.stdout + selected.stderr)
+            self.assertIn('TARGETED UPDATE ONLY', selected.stdout)
+            self.assertEqual(['preserved'], json.loads(inventory.read_text())['test_heavy'])
+            self.assertEqual(['tests.test_small.Small.test_small'], json.loads(inventory.read_text())['test_small'])
+            self.assertNotIn(b'\r', inventory.read_bytes())
+            before = inventory.read_bytes()
+            full = subprocess.run([sys.executable,'-S','update_test_inventory.py','--check'],
+                cwd=root, env=environment, capture_output=True, text=True, encoding='utf-8', timeout=15)
+            self.assertEqual(2, full.returncode, full.stdout + full.stderr)
+            self.assertIn("missing module 'torch'", full.stdout)
+            self.assertIn('Nothing was compared', full.stdout)
+            self.assertEqual(before, inventory.read_bytes())
+
+    def test_targeted_discovery_does_not_import_unrelated_ml_modules(self):
+        import types
+        from unittest.mock import patch
+        class Example(unittest.TestCase):
+            def test_example(self):
+                pass
+        Example.__module__ = 'tests.test_small'
+        module = types.ModuleType('tests.test_small')
+        module.Example = Example
+        imported = []
+        def load(name):
+            imported.append(name)
+            if name.endswith('test_heavy'):
+                raise ModuleNotFoundError("No module named 'torch'", name='torch')
+            return module
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ['test_small.py', 'test_heavy.py']:
+                (root / name).touch()
+            with patch(__name__ + '._tracked_test_modules', return_value={'test_small', 'test_heavy'}), \
+                    patch('importlib.import_module', side_effect=load):
+                selected = get_unit_test_inventory(root, module_names=['test_small'])
+                self.assertEqual(['test_small'], list(selected))
+                self.assertEqual(['tests.test_small'], imported)
+                self.assertEqual(1, len(selected['test_small']))
+                with self.assertRaises(InventoryUnavailable):
+                    get_unit_test_inventory(root)
+                with self.assertRaises(ValueError):
+                    get_unit_test_inventory(root, module_names=['../untracked'])
+
+    def test_targeted_writer_retains_other_ids_and_lf_bytes(self):
+        from unittest.mock import patch
+        import update_test_inventory as updater
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'inventory.json'
+            path.write_text(json.dumps({'test_old':['old'], 'test_new':['before']}))
+            with patch.object(updater, 'get_unit_test_inventory', return_value={'test_new':['after']}):
+                updater.write_inventory(path, module_names=['test_new'])
+            self.assertEqual({'test_old':['old'], 'test_new':['after']}, json.loads(path.read_text()))
+            self.assertNotIn(b'\r', path.read_bytes())
+
+    def test_targeted_writer_refuses_unreadable_base_without_replacing_it(self):
+        from unittest.mock import patch
+        import update_test_inventory as updater
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'inventory.json'
+            path.write_bytes(b'invalid json')
+            with patch.object(updater, 'get_unit_test_inventory', return_value={'test_new':['after']}):
+                with self.assertRaises(ValueError):
+                    updater.write_inventory(path, module_names=['test_new'])
+            self.assertEqual(b'invalid json', path.read_bytes())
+
     def test_unit_test_inventory_is_stable(self):
         from update_test_inventory import get_inventory_differences
 

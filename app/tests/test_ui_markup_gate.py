@@ -30,6 +30,17 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    # #1938 DOM IDs, tag/selector names and slider ARIA wiring, never copy.
+    'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
+    'llm-test-help', 'script-ingest-${id}-state', 'script-ingest-metadata', 'script-ingest-feedback',
+    'script-ingest-source-state', 'script-ingest-cast-state', 'script-ingest-script-state',
+    'aria-valuemax', 'aria-valuenow', 'aria-disabled',
+    # Locale metadata keys/query syntax and a caught internal stale-snapshot
+    # exception. The displayed error itself is keyed in the handler's catch.
+    'editor.toolbar.render-pending', 'editor.toolbar.render-pending-count',
+    'data-i18n-count', '?expected_book_token=', 'Obsolete ingest snapshot',
+    'button, summary, a, audio, [role="slider"]',
+    'script.ingest.unknown', 'not_built',  # DOM key and backend state vocabulary.
     # Shared prompt editor DOM ids and config/default-response key fragments (#1937).
     # Visible labels, validation messages and help remain keyed; numeric limits unchanged.
     '${pass}-system-prompt', '${pass}-user-prompt', '${pass}_preset',
@@ -156,6 +167,7 @@ MARKUP_BASELINE = {
 # string that is caught before display, server-backed data (pair names, stage
 # names, status tokens) and the template HTML that embeds the keyed t() calls.
 JS_BASELINE = {
+    'app-ui-followups.js': 0,
     'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
     'app-core.js': 1793, 'app-editor-repair.js': 16, 'app-editor-review.js': 98,

@@ -4,6 +4,9 @@ Scope note for the remaining two sections of the editor/navigation review. It
 records what the surfaces already do, what changed, and what a later pass would
 have to add. Anything not listed as implemented is still open.
 
+The #1938 implementation and its remaining qualification limits are recorded in
+[UI follow-ups](ui-followups-1938.md).
+
 ## 4. Card and row states
 
 Every async surface owes the reader four states: empty, loading, failed (with a
@@ -16,7 +19,7 @@ not only in a status line somewhere else on the page.
 | Editor review panel | "Refresh review" prompt | inert until a book is loaded | stale notice from `markEditorReviewStale` | Review facts are explicitly separate from row data. |
 | Result / audio tab | empty-state block | task log renderer | task outcome handled on completion | Covered by `test_result_empty_state_hides_after_success_but_not_failed_or_cancelled_merge`. |
 | Voices cast list | placeholder text | existing refresh status | toast plus retained list | |
-| Setup connection check | nothing until run | `Testing...` | one failed pill per fact | |
+| Setup connection check | nothing until run | spinner and `Testing…` | failed facts plus troubleshooting | Endpoint-adjacent results include total round-trip milliseconds. |
 
 Rules that keep these honest:
 
@@ -30,13 +33,15 @@ Rules that keep these honest:
 
 The Script tab holds one long card: upload, existing upload, DOCX preview, OPDS,
 then generation. The reader cannot see the order. The card now opens with an
-explicit three-step order (choose the text, accept it into this project, generate
-the script); each step moves focus to the matching control instead of duplicating
-it, and the strip never marks a step as done.
+explicit order (choose text, accept it, analyze characters/context, generate the
+script); each step moves focus to the matching control instead of duplicating
+it. The read-only saved-state summary never infers completed work from a filename.
 
-Still open: live per-step completion. That needs the ingest state machine to
-publish "text accepted into the project" and "script generated for the active
-book" as separate facts; the strip must not infer them from a filename.
+`/api/script/ingest-status` now distinguishes a verified selected source, a saved
+validated character roster, and an actual comparison between the saved script
+and prepared source. Selection, roster refresh and task completion update or
+invalidate the display. A source match does not certify that a particular model
+task ran. Unknown, source differences and unavailable remain explicit states.
 
 ## 5b. Dialogs
 
@@ -48,9 +53,12 @@ Now: the dialog body is tied to the dialog with `aria-describedby`, alongside th
 existing `aria-labelledby`, so a screen reader announces the specific action, not
 just "Please confirm".
 
-Still open: a single width/spacing scale for every modal, and replacing the three
-one-off modals (script batch, casting, scripts) with the shared confirm/prompt
-component where they only ask a question.
+The #1938 audit confirmed ordinary script-batch, Casting and saved-script
+confirmations already use the shared component. Remaining dedicated dialogs
+contain interactive listening/review or clone-import forms, not just a question;
+they retain their controls, identity guards and Bootstrap focus handling. A
+single width/spacing scale for every specialized modal remains separate design
+work.
 
 ## Verification
 

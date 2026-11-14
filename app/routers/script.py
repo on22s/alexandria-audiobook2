@@ -1322,7 +1322,7 @@ async def select_existing_upload(request: ExistingUploadRequest):
 SINGLE_NARRATOR_PREVIEW_CHARS = 4000
 
 
-def _get_single_narrator_source_preview():
+def _get_single_narrator_source_preview(*, include_metrics=False):
     """Bounded, book-bound source preview for the single-narrator guide (#1724).
 
     Read-only: takes no path input, reads only the active book's recorded
@@ -1510,11 +1510,67 @@ def _get_single_narrator_source_preview():
                 "Active book could not be verified while reading the preview.")) from exc
         if token_after != book_token:
             raise AppError(409, 'Active book changed while reading the preview.', key='safety.book.changed_while_preview')
-        return {"book_token": book_token, "source_name": source_name,
+        result = {"book_token": book_token, "source_name": source_name,
                 "imported_source_name": imported_source_name,
                 "source_sha256": source_sha256, "encoding": encoding,
                 "total_chars": len(text), "truncated": len(text) > SINGLE_NARRATOR_PREVIEW_CHARS,
                 "text_start": text[:SINGLE_NARRATOR_PREVIEW_CHARS]}
+        if include_metrics:
+            from project import get_chapter_heading_offsets
+            words = sum(1 for _ in re.finditer(r'\S+', text))
+            result.update(word_count=words, chapter_count=len(get_chapter_heading_offsets(text)),
+                          estimated_minutes=round(words / 150, 1))
+            result['selection_pending'] = state.get('script_selection_pending') is True
+        return result
+
+
+def _get_script_ingest_status(expected_book_token=None):
+    """Saved facts only, bounded by the existing descriptor-confined source read.
+
+    No completed stage is inferred from a filename. A matching script is a
+    source comparison, not proof that any particular model task ran.
+    """
+    from three_pass_generate import get_cast_from_data
+    source = _get_single_narrator_source_preview(include_metrics=True)
+    if expected_book_token is not None and source['book_token'] != expected_book_token:
+        raise HTTPException(409, 'Selected book changed; refresh ingest status.')
+    cast = {'status': 'not_built', 'count': 0}
+    relative = f'cast_lists/{source["source_sha256"]}.json'
+    try:
+        proof, raw = capture_scope_file(DATA_DIR, relative, limit=4 * 1024 * 1024, include_bytes=True)
+        if proof.get('exists'):
+            document = json.loads(raw)
+            get_cast_from_data(document['cast'])
+            cast = {'status': 'available', 'count': len(document['cast'])}
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError, KeyError, TypeError):
+        cast = {'status': 'unavailable', 'count': 0}
+    # Accepted source is usable for discovery before script publication. Never
+    # inspect the previous book's saved script while this selection is pending.
+    diff = {'status': 'not_built'} if source['selection_pending'] else _read_annotated_script_comparison(
+        expected_source_sha256=source['source_sha256'])
+    script = {'status': diff['status']}
+    if diff.get('reason'):
+        script['reason'] = diff['reason']
+    # Include the source hash as well as selection identity: editing bytes
+    # in place need not change the book operation token.
+    after = _get_single_narrator_source_preview()
+    if any(source[key] != after[key] for key in ('book_token', 'source_sha256')):
+        raise HTTPException(409, 'Source changed while reading ingest facts; refresh.')
+    return {'book_token': source['book_token'],
+            'source': {key: value for key, value in source.items() if key not in {'text_start', 'selection_pending'}},
+            'cast': cast, 'script': script}
+
+
+@router.get('/api/script/ingest-status')
+async def get_script_ingest_status(expected_book_token: Optional[str] = None):
+    try:
+        return await asyncio.to_thread(_get_script_ingest_status, expected_book_token)
+    except TimeoutError:
+        raise HTTPException(503, 'Book state is busy; retry ingest status.') from None
+    except (ValueError, OSError) as error:
+        raise HTTPException(409, 'Saved ingest facts could not be verified; refresh.') from error
 
 
 @router.get("/api/single-narrator/source-preview")
@@ -4575,21 +4631,29 @@ async def get_annotated_script_diff():
     return await asyncio.to_thread(_ensure_annotated_script_diff)
 
 
-def _ensure_annotated_script_diff():
+def _ensure_annotated_script_diff(*, expected_source_sha256=None):
     """Compare annotation with the same source policy as editor merge admission."""
+    result = _read_annotated_script_comparison(expected_source_sha256=expected_source_sha256)
+    if result['status'] == 'not_built':
+        raise HTTPException(status_code=404, detail="No annotated script found")
+    if result['status'] == 'unavailable':
+        raise HTTPException(status_code=404, detail=result['reason'])
+    return result
+
+
+def _read_annotated_script_comparison(*, expected_source_sha256=None):
     with ensure_book_state(DATA_DIR):
         _require_published_selection()
         if not os.path.exists(SCRIPT_PATH):
-            raise HTTPException(status_code=404, detail="No annotated script found")
+            return {'status': 'not_built'}
         state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
         with open(SCRIPT_PATH, "rb") as stream:
             script_bytes = stream.read()
         entries = json.loads(script_bytes)
         if not isinstance(entries, list):
             raise HTTPException(status_code=400, detail="Script is not a list of entries")
-        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script")
-        if result["status"] == "unavailable":
-            raise HTTPException(status_code=404, detail=result["reason"])
+        binding = {} if expected_source_sha256 is None else {'expected_source_sha256': expected_source_sha256}
+        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script", **binding)
         return result
 
 

@@ -597,7 +597,7 @@ document.addEventListener('keydown', event => {
     const active = document.activeElement;
     const activeTag = active ? active.tagName.toLowerCase() : '';
     if (active && (['input', 'textarea', 'select'].includes(activeTag) || active.isContentEditable
-            || (active.closest && active.closest('button, summary, a, audio')))) {
+            || (active.closest && active.closest('button, summary, a, audio, [role="slider"]')))) {
         return;
     }
 
@@ -676,6 +676,40 @@ function redrawEditorWaveform() {
     if (canvas && !canvas.hidden && peaks) { drawEditorWaveform(canvas, peaks); }
 }
 
+function getEditorWaveformPosition() {
+    const target = getEditorReviewTarget();
+    const audio = target?.row.querySelector('.chunk-audio');
+    const src = audio?.getAttribute('src');
+    if (!src || getEditorWaveformKey(target, src) !== editorWaveformKey
+            || !Number.isFinite(audio.duration) || audio.duration <= 0) { return null; }
+    return {audio, fraction: Math.max(0, Math.min(1, audio.currentTime / audio.duration))};
+}
+
+function seekEditorWaveform(event) {
+    const position = getEditorWaveformPosition();
+    const canvas = document.getElementById('editor-line-waveform');
+    if (!position || !canvas || !Number.isFinite(event.clientX)) { return; }
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) { return; }
+    // CSS pixels match drawEditorWaveform's bar geometry; the backing buffer
+    // may be scaled by devicePixelRatio and must not enter seek arithmetic.
+    position.audio.currentTime = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * position.audio.duration;
+    redrawEditorWaveform();
+}
+
+function onEditorWaveformKey(event) {
+    const position = getEditorWaveformPosition();
+    if (!position) { return; }
+    const {audio} = position;
+    const times = {Home: 0, End: audio.duration,
+        ArrowLeft: Math.max(0, audio.currentTime - 5), ArrowRight: Math.min(audio.duration, audio.currentTime + 5)};
+    if (!Object.hasOwn(times, event.key)) { return; }
+    event.preventDefault();
+    event.stopPropagation();
+    audio.currentTime = times[event.key];
+    redrawEditorWaveform();
+}
+
 function observeEditorWaveform(canvas) {
     if (editorWaveformResizeAttached) { return; }
     editorWaveformResizeAttached = true;
@@ -684,6 +718,29 @@ function observeEditorWaveform(canvas) {
         editorWaveformObserver.observe(canvas);
     }
     window.addEventListener('resize', redrawEditorWaveform);
+    canvas.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || !getEditorWaveformPosition()) { return; }
+        canvas.setPointerCapture(event.pointerId);
+        canvas.focus();
+        seekEditorWaveform(event);
+    });
+    canvas.addEventListener('click', seekEditorWaveform);
+    canvas.addEventListener('pointermove', event => {
+        if (canvas.hasPointerCapture(event.pointerId)) { seekEditorWaveform(event); }
+    });
+    canvas.addEventListener('pointerup', event => {
+        if (canvas.hasPointerCapture(event.pointerId)) {
+            seekEditorWaveform(event);
+            canvas.releasePointerCapture(event.pointerId);
+        }
+    });
+    canvas.addEventListener('keydown', onEditorWaveformKey);
+    // Delegation survives row refresh/replacement without retaining old audio.
+    for (const type of ['timeupdate', 'loadedmetadata', 'durationchange', 'seeked', 'emptied']) {
+        document.getElementById('chunks-table-body')?.addEventListener(type, event => {
+            if (event.target.matches('.chunk-audio')) { redrawEditorWaveform(); }
+        }, true);
+    }
 }
 
 function retryEditorLineWaveform() {
@@ -777,11 +834,10 @@ async function decodeEditorWaveformPeaks(src) {
     const buffer = await editorWaveformContext.decodeAudioData(bytes);
     const channel = buffer.getChannelData(0);
     const bars = 160;
-    const step = Math.max(1, Math.floor(channel.length / bars));
     const peaks = new Array(bars);
     for (let bar = 0; bar < bars; bar++) {
-        const start = bar * step;
-        const end = Math.min(channel.length, start + step);
+        const start = Math.floor(bar * channel.length / bars);
+        const end = Math.floor((bar + 1) * channel.length / bars);
         let min = 0;
         let max = 0;
         for (let index = start; index < end; index++) {
@@ -814,6 +870,15 @@ function drawEditorWaveform(canvas, peaks) {
         const top = middle - max * middle;
         const bottom = middle - min * middle;
         context.fillRect(index * barWidth, Math.min(top, bottom), Math.max(1, barWidth - 0.5), Math.max(1, Math.abs(bottom - top)));
+    }
+    const position = getEditorWaveformPosition();
+    const seconds = position ? position.audio.currentTime : 0;
+    canvas.setAttribute('aria-valuemax', position ? String(position.audio.duration) : '0');
+    canvas.setAttribute('aria-valuenow', String(seconds));
+    canvas.setAttribute('aria-disabled', String(!position));
+    if (position) {
+        context.fillStyle = styles.getPropertyValue('--text-primary').trim() || '#212529';
+        context.fillRect(Math.min(width - 2, position.fraction * width), 0, 2, height);
     }
 }
 
