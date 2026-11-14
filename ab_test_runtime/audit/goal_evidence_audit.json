@@ -1050,19 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-14T10:25:27",
+  "written": "2026-11-14T10:41:28",
   "host": "RealMitch",
   "git": {
-   "commit": "f1c174783e557e49aebdac0592496ffb736bb8b4",
+   "commit": "cd64d9155ec334e8080862b4a7166da8b709be88",
    "branch": "feat/1938-ui-followups",
    "dirty": true,
-   "source_state": "dirty:898d40abb9fa",
+   "source_state": "dirty:10a35d327bc3",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_manual_persona_ui.py",
-    "M  app/tests/test_ui_followups_rendered.py",
-    "M  app/tests/ui_followups_fixture.js",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/test_inventory.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

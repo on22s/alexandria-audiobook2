@@ -140,12 +140,16 @@ class TestInventoryTests(unittest.TestCase):
     def test_targeted_cli_works_without_site_packages_and_full_check_still_refuses(self):
         import shutil
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            # Keep utils' parent-directory imports inside this private fixture,
+            # rather than accidentally finding modules in the shared temp root.
+            root = Path(directory) / 'app'
+            root.mkdir()
             (root / 'tests').mkdir()
             (root / 'tests/__init__.py').touch()
             app = Path(__file__).resolve().parents[1]
             shutil.copyfile(app / 'update_test_inventory.py', root / 'update_test_inventory.py')
             shutil.copyfile(app / 'utils.py', root / 'utils.py')
+            shutil.copyfile(app.parent / 'gpu_stats.py', root.parent / 'gpu_stats.py')
             shutil.copyfile(app / 'loaded_module_code.py', root / 'loaded_module_code.py')
             shutil.copyfile(Path(__file__), root / 'tests/test_inventory.py')
             (root / 'tests/test_small.py').write_text('import unittest\nclass Small(unittest.TestCase):\n def test_small(self): pass\n')
