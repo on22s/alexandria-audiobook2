@@ -1050,19 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-13T17:33:44",
+  "written": "2026-11-13T18:37:45",
   "host": "RealMitch",
   "git": {
-   "commit": "24d0ac57938fe1d8731e541800f88ba5e7edd0c7",
-   "branch": "fix/paragraph-normalization-followups",
+   "commit": "3a131034a4b628c705f1dc5085cdecbb1b987b30",
+   "branch": "fix/1926-theme-integrity",
    "dirty": true,
-   "source_state": "dirty:c1d6a03e39ed",
+   "source_state": "dirty:a6623691f435",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/cast_list.py",
-    "M  app/tests/test_paragraph_followups.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  docs/features/incremental-cast.md"
+    "M  app/static/index.html",
+    "A  app/tests/table_themes_fixture.js",
+    "A  app/tests/test_table_themes.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f347bd0975a041e245aeef0c7f973d526bc8ddb463171206e942aaed4428cf05",

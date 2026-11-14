@@ -232,9 +232,6 @@
             box-shadow: 0 0 10px rgba(252,238,84,0.35);
         }
         html[data-theme="cyberpunk"] .voice-card { border-left-color: var(--cyber-pink); }
-        html[data-theme="cyberpunk"] .table-striped > tbody > tr:nth-of-type(odd) > * {
-            background-color: rgba(0,240,255,0.035);
-        }
         html[data-theme="cyberpunk"] .progress { background-color: var(--bg-input); }
         html[data-theme="cyberpunk"] .progress-bar { background-color: var(--cyber-cyan); color: #090b12; }
         html[data-theme="cyberpunk"] #theme-toggle {
@@ -345,17 +342,42 @@
             color: var(--text-muted);
         }
 
-        /* Tables */
-        .table {
+        /* Bootstrap paints cells through its own tokens, including contextual
+           rows and striped/hover/active states. Keep every consumer on the
+           current app palette rather than Bootstrap's fixed light defaults. */
+        .table { background-color: var(--bg-card); }
+        .table, .table-primary, .table-info, .table-warning,
+        .table-danger, .table-success, .table-secondary, .table-light {
+            --bs-table-color: var(--text-primary);
+            --bs-table-bg: var(--bg-card);
+            --bs-table-border-color: var(--border-color);
+            --bs-table-striped-color: var(--text-primary);
+            --bs-table-striped-bg: rgba(127,127,127,0.05);
+            --bs-table-hover-color: var(--text-primary);
+            --bs-table-hover-bg: rgba(127,127,127,0.08);
+            --bs-table-active-color: var(--text-primary);
+            --bs-table-active-bg: rgba(127,127,127,0.14);
             color: var(--text-primary);
             border-color: var(--border-color);
         }
+        .table-primary { --bs-table-bg: var(--accent-soft); }
+        .table-info { --bs-table-bg: rgba(13,202,240,0.12); }
+        .table-warning { --bs-table-bg: rgba(255,193,7,0.14); }
+        .table-danger { --bs-table-bg: rgba(220,53,69,0.14); }
+        .table-success { --bs-table-bg: rgba(25,135,84,0.14); }
+        .table-secondary, .table-light { --bs-table-bg: var(--bg-card-header); }
         .table th, .table td { border-color: var(--border-color); }
         .table thead th { background-color: var(--bg-card-header); color: var(--text-heading); }
-        .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(0,0,0,0.03); }
-        html[data-theme="night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.03); }
-        html[data-theme="leek"] .table-striped > tbody > tr:nth-of-type(odd) > *,
-        html[data-theme="super-night"] .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: rgba(255,255,255,0.02); }
+        /* Context on status tints needs extra contrast; preserve the normal
+           muted hierarchy in plain tables and the strong changed-word markup. */
+        .table :is(.table-primary, .table-info, .table-warning, .table-danger, .table-success) .text-muted {
+            color: color-mix(in srgb, var(--text-primary) 85%, var(--bg-card)) !important;
+        }
+        .table .btn-link {
+            --bs-btn-color: var(--accent-strong);
+            --bs-btn-hover-color: var(--accent-strong);
+            --bs-btn-active-color: var(--accent-strong);
+        }
 
         /* Modals */
         .modal-content {
@@ -724,53 +746,6 @@
             border-color: #198754;
         }
 
-        /* ── Bootstrap contextual table class overrides ────────────────── */
-        html[data-theme="night"] .table-light,
-        html[data-theme="leek"] .table-light,
-        html[data-theme="super-night"] .table-light,
-        html[data-theme="cyberpunk"] .table-light {
-            --bs-table-color: var(--text-primary);
-            --bs-table-bg: var(--bg-card-header);
-            --bs-table-border-color: var(--border-color);
-            color: var(--text-primary);
-        }
-        html[data-theme="night"] .table-primary,
-        html[data-theme="leek"] .table-primary,
-        html[data-theme="super-night"] .table-primary,
-        html[data-theme="cyberpunk"] .table-primary {
-            --bs-table-color: var(--text-primary);
-            --bs-table-bg: rgba(13,110,253,0.18);
-            --bs-table-border-color: var(--border-color);
-            color: var(--text-primary);
-        }
-        html[data-theme="night"] .table-info,
-        html[data-theme="leek"] .table-info,
-        html[data-theme="super-night"] .table-info,
-        html[data-theme="cyberpunk"] .table-info {
-            --bs-table-color: var(--text-primary);
-            --bs-table-bg: rgba(13,202,240,0.12);
-            --bs-table-border-color: var(--border-color);
-            color: var(--text-primary);
-        }
-        html[data-theme="night"] .table-warning,
-        html[data-theme="leek"] .table-warning,
-        html[data-theme="super-night"] .table-warning,
-        html[data-theme="cyberpunk"] .table-warning {
-            --bs-table-color: var(--text-primary);
-            --bs-table-bg: rgba(255,193,7,0.14);
-            --bs-table-border-color: var(--border-color);
-            color: var(--text-primary);
-        }
-        html[data-theme="night"] .table-secondary,
-        html[data-theme="leek"] .table-secondary,
-        html[data-theme="super-night"] .table-secondary,
-        html[data-theme="cyberpunk"] .table-secondary {
-            --bs-table-color: var(--text-primary);
-            --bs-table-bg: var(--bg-card-header);
-            --bs-table-border-color: var(--border-color);
-            color: var(--text-primary);
-        }
-
         /* ── Bootstrap bg utility overrides ────────────────────────────── */
         html[data-theme="night"] .bg-white,
         html[data-theme="leek"] .bg-white,
@@ -992,16 +967,6 @@
         html:is([data-theme="bread"], [data-theme="leek"]) select option {
             background-color: var(--bg-input);
             color: var(--text-primary);
-        }
-        html:is([data-theme="bread"], [data-theme="leek"]) .table {
-            --bs-table-bg: var(--bg-card);
-            --bs-table-color: var(--text-primary);
-            --bs-table-striped-color: var(--text-primary);
-            --bs-table-hover-color: var(--text-primary);
-        }
-        html:is([data-theme="bread"], [data-theme="leek"]) .table-primary {
-            --bs-table-bg: var(--accent-soft);
-            --bs-table-color: var(--text-primary);
         }
         html[data-theme="bread"] .bg-white { background-color: var(--bg-card) !important; }
         html[data-theme="bread"] .bg-light { background-color: var(--bg-card-header) !important; }

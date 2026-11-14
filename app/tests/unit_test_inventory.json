@@ -14319,6 +14319,14 @@
   "test_system_version": [
     "tests.test_system_version.VersionEndpointTests.test_version_endpoint_returns_runtime_info"
   ],
+  "test_table_themes": [
+    "tests.test_table_themes.TableThemeTests.test_contextual_colors_remain_distinct_in_all_themes",
+    "tests.test_table_themes.TableThemeTests.test_integrity_added_deleted_changed_rows_follow_current_theme",
+    "tests.test_table_themes.TableThemeTests.test_integrity_labels_and_entry_links_remain_readable",
+    "tests.test_table_themes.TableThemeTests.test_plain_tables_follow_current_surface_and_foreground",
+    "tests.test_table_themes.TableThemeTests.test_shared_contextual_classes_follow_theme_on_rows_and_cells",
+    "tests.test_table_themes.TableThemeTests.test_striped_hover_and_active_foregrounds_follow_current_theme"
+  ],
   "test_tag_priority_field": [
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_a_neighbour_without_a_speech_verb_is_not_a_tag",
     "tests.test_tag_priority_field.AdjacentTagFieldTests.test_gating_on_speaker_finds_the_tags",
