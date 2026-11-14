@@ -1,10 +1,12 @@
 // Real CSS, audio decode, click/key handlers, and synthetic WAV only.
-(async () => {
+window.uiFollowupChecks = (async () => {
     const output = document.createElement('pre');
     output.id = 'followup-results';
     output.textContent = JSON.stringify({error: 'Synthetic audio check has not completed'});
     document.body.appendChild(output);
     try {
+        const stage = value => fetch('/progress', {method: 'POST', body: value});
+        await stage('preparing media');
         document.querySelectorAll('.tab-content').forEach(node => { node.style.display = 'none'; });
         document.getElementById('navbarNav').classList.add('show');
         const wrap = document.getElementById('editor-line-waveform-wrap');
@@ -15,6 +17,7 @@
         audio.preload = 'auto';
         audio.src = SYNTHETIC_WAV;
         document.body.appendChild(audio);
+        void stage('loading metadata');
         await new Promise((resolve, reject) => {
             audio.onloadedmetadata = resolve;
             audio.onerror = () => reject(Error('Synthetic WAV metadata failed'));
@@ -22,7 +25,9 @@
         });
         const target = {chunk: {uid: 'synthetic', audio_revision: 'one'}, row: {querySelector: () => audio}};
         window.getEditorReviewTarget = () => target;
+        void stage('decoding waveform');
         await renderEditorLineWaveform(target);
+        void stage('checking controls');
         if (canvas.hidden) { throw Error(document.getElementById('editor-line-waveform-status').textContent); }
         const rect = canvas.getBoundingClientRect();
         canvas.dispatchEvent(new MouseEvent('click', {clientX: rect.left + rect.width * .5}));

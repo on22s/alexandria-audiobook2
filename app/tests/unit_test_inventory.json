@@ -15565,6 +15565,7 @@
     "tests.test_ui_followups.UiFollowupTests.test_waveform_seek_is_bounded_and_does_not_cross_take_identity"
   ],
   "test_ui_followups_rendered": [
+    "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_browser_waits_for_async_fixture_completion",
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_metrics_remain_available_on_compact_navigation",
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_waveform_seek_decode_and_theme_states_at_desktop_width"
   ],
