@@ -28,6 +28,30 @@ function setUiCatalog(locale,payload){vm.runInContext('uiCatalogs.set('+JSON.str
 
 
 class UiI18nJsTests(unittest.TestCase):
+    def test_followup_count_and_ingest_facts_survive_locale_round_trip(self):
+        self.run_js(r'''
+const root=require('path').dirname(process.argv[1]);
+const core=fs.readFileSync(root+'/app-core.js','utf8');
+vm.runInContext(core.slice(core.indexOf('function isChunkPendingRender('),core.indexOf('window.renderAll =')),context);
+context.window=context;context.currentBookFilename='book';context.chunkSnapshotBook='book';context.cachedChunks=[{status:'pending',text:'Synthetic'}];
+vm.runInContext(fs.readFileSync(root+'/app-ui-followups.js','utf8'),context);
+const label=addNode({id:'render-pending-label','data-i18n':'editor.toolbar.render-pending'},'Render Pending');
+for(const name of ['source','cast','script']){addNode({id:'script-ingest-'+name+'-state','data-i18n':'script.ingest.unknown'},'Not checked');}
+const metadata=addNode({id:'script-ingest-metadata'},'');addNode({id:'script-ingest-feedback'},'');
+await context.applyUiLocale('en');
+context.renderPendingCount(context.cachedChunks);context.renderScriptIngestFacts({source:{source_name:'book',total_chars:10,word_count:2,chapter_count:0,estimated_minutes:.1},cast:{status:'not_built'},script:{status:'verified'}});
+setUiCatalog('es-419',catalog({'editor.toolbar.render-pending-count':'Pendientes ({count})','script.ingest.unknown':'Sin comprobar',
+ 'script.ingest.accepted':'Fuente verificada','script.ingest.cast-missing':'Sin crear','script.ingest.script-verified':'Texto coincide',
+ 'script.ingest.metadata':'{name}: {chars} caracteres, {words} palabras, {chapters} capítulos, {minutes} minutos'}));
+context.renderSetupSearchStatus=()=>{};
+const settings=fs.readFileSync(root+'/app-settings.js','utf8');
+vm.runInContext(settings.slice(settings.indexOf('function renderUiLocaleChrome('),settings.indexOf('function renderSetupSearchStatus(')),context);
+await context.applyUiLocaleAndSearchStatus('es-419');
+assert.equal(label.textContent,'Pendientes (1)');assert.equal(document.getElementById('script-ingest-source-state').textContent,'Fuente verificada');
+assert.equal(document.getElementById('script-ingest-script-state').textContent,'Texto coincide');assert(metadata.textContent.includes('palabras'));
+await context.applyUiLocaleAndSearchStatus('en');assert.equal(label.textContent,'Render Pending (1)');
+assert.equal(document.getElementById('script-ingest-source-state').textContent,'Selected source verified');
+''')
     def run_js(self, code):
         result = subprocess.run(
             ['node', '-e', DOM_FIXTURE + SETUP + "\n(async()=>{\n" + code

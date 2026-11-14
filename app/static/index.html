@@ -291,7 +291,7 @@
         /* Cards */
         .card {
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px var(--shadow);
+            box-shadow: var(--card-elevation, 0 3px 12px var(--shadow));
             background-color: var(--bg-card);
             border-color: var(--border-color);
             transition: var(--theme-transition);
@@ -531,8 +531,20 @@
         .status-pill {
             display: inline-flex; align-items: center; gap: .6rem; padding: .16rem .55rem;
             border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; background: rgba(255,255,255,0.06);
-            min-width: 0; font-size: .8rem;
+            min-width: 0; font-size: .8rem; flex-wrap: wrap;
         }
+        .status-pill > span { padding: .12rem .35rem; border: 1px solid rgba(255,255,255,.16); border-radius: .35rem; background: rgba(255,255,255,.06); white-space: nowrap; }
+        :root { --card-elevation: 0 2px 10px rgba(25,35,50,.07); }
+        html[data-theme="night"] { --card-elevation: 0 3px 12px rgba(0,0,0,.18); }
+        html[data-theme="super-night"] { --card-elevation: 0 2px 10px rgba(255,255,255,.035); }
+        html[data-theme="bread"] { --card-elevation: 0 3px 12px rgba(91,48,64,.10); }
+        html[data-theme="leek"] { --card-elevation: 0 3px 12px rgba(0,25,28,.25); }
+        #chunks-table-body tr[data-render-state] > td:first-child { border-left: 4px solid var(--border-color); }
+        #chunks-table-body tr[data-render-state="rendered"] > td:first-child { border-left-color: #198754; }
+        #chunks-table-body tr[data-render-state="pending"] > td:first-child { border-left-color: var(--text-muted); }
+        #chunks-table-body tr[data-render-state="generating"] > td:first-child { border-left-color: var(--accent); }
+        #chunks-table-body tr[data-render-state="flagged"] > td:first-child { border-left-color: #d39e00; }
+        #chunks-table-body tr[data-render-state="failed"] > td:first-child { border-left-color: #dc3545; }
         /* The cluster must never push the navbar onto a second row: the pill keeps
            its own width in check and a stale-reading warning truncates instead of
            running off the viewport. */
@@ -540,15 +552,12 @@
         .status-cluster #sys-status-error {
             max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        /* Eight links plus the theme button and the status cluster need about
-           1410px, but the bar only has ~1150px at a 1440 viewport, so the cluster
-           used to wrap onto a second row. Two steps give it back the difference:
-           the build number and the warning's width first, then the theme caption
-           and the link padding. Nothing is dropped except the build number, which
-           stays in the About/test surface. */
+        /* Compact the metric badges and warning first, then the theme caption
+           and link spacing. The cluster wraps internally; build information
+           stays available in this cluster and the existing brand badge. */
         @media (max-width: 1599.98px) {
-            .status-pill { gap: .5rem; }
-            .status-pill #sys-build { display: none !important; }
+            .status-pill > span { font-size: .7rem; padding: .08rem .22rem; }
+            .status-pill { max-width: 20rem; gap: .2rem; }
             .status-cluster #sys-status-error { max-width: 6.5rem; }
             .navbar .nav-link { padding-left: .45rem; padding-right: .45rem; }
         }
@@ -574,6 +583,8 @@
         .editor-line-waveform { margin: 0 0 .9rem; }
         .editor-line-waveform-canvas { display: block; width: 100%; height: 48px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); background: var(--bg-input); }
         .editor-line-waveform-canvas[hidden] { display: none !important; }
+        .editor-line-waveform-canvas { cursor: crosshair; touch-action: none; }
+        .editor-line-waveform-canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         .editor-line-waveform[hidden] { display: none !important; }
         .editor-quality-row { padding: .6rem 0; border-bottom: 1px solid var(--border-input); }
         #editor-tab .editor-review-panel .text-muted { color: var(--text-primary) !important; }
@@ -1318,6 +1329,12 @@
 <section id="settings-llm" class="settings-section" data-settings-section="Connection" aria-labelledby="settings-llm-heading">
 <h5 data-i18n="setup.llm.heading" id="settings-llm-heading" tabindex="-1">Connection</h5>
 <p data-i18n="setup.llm.intro" class="settings-intro">Connect the language model that reads your book and identifies speakers. Each location keeps its own profile.</p>
+<div class="workflow-disclosure mb-3">
+    <p class="small" data-i18n="setup.basic.destinations">Basic workflow: connect here, preview the narrator in Voices, then choose rendering speed in Speech engine and review output in Result. Each setting has one home.</p>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openBasicWorkflowControl('voices', '#voices-tab')" data-i18n="setup.basic.narrator">Narrator voice and preview</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openSetupSettingsSection('settings-tts')" data-i18n="setup.basic.speed">Speech quality and speed</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openBasicWorkflowControl('audio', '#export-quality-options')" data-i18n="setup.basic.output">Output and integrity checks</button>
+</div>
 
                         <div class="mb-3">
                             <label class="form-label" for="llm-mode"><span data-i18n="setup.llm.llm-mode.label">LLM Location</span> <span data-i18n-skip id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
@@ -1332,6 +1349,11 @@
                             <label data-i18n="setup.llm.llm-url.label" class="form-label" for="llm-url">Base URL</label>
                             <input data-i18n-skip type="text" class="form-control" id="llm-url" placeholder="http://localhost:1234/v1">
                             <div data-i18n="setup.llm.llm-url.help" class="form-text">URL for your OpenAI-compatible server (LM Studio, Ollama, etc.)</div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="llm-test-btn" onclick="testLlmConnection()"><i class="fas fa-plug me-1"></i><span data-i18n="setup.llm.llm-test-btn.button">Test Connection</span></button>
+                                <span id="llm-test-result" class="ms-2 small" role="status" aria-live="polite"></span>
+                            </div>
+                            <p id="llm-test-help" class="small mt-2" tabindex="-1" hidden data-i18n="setup.llm.test.help">Check that the server is running, the Base URL ends in /v1, the model name is served, and the API key is valid. For remote servers, also check forwarding and network access. Test again after edits; Save Configuration applies them.</p>
                         </div>
                         <div class="mb-3">
                             <label data-i18n="setup.llm.llm-key.label" class="form-label" for="llm-key">API Key</label>
@@ -1392,11 +1414,6 @@
                             <label data-i18n="setup.llm.llm-ssh.label" class="form-label" for="llm-ssh">Remote SSH host alias</label>
                             <input type="text" class="form-control" id="llm-ssh" placeholder="tnr-0">
                             <div data-i18n-html="setup.llm.llm-ssh.help" class="form-text">Only used by the "Optimize" button to reconfigure the remote LM Studio over SSH. Run <code>tnr connect &lt;id&gt;</code> once first so the alias exists.</div>
-                        </div>
-                        <div class="mb-3">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="llm-test-btn" onclick="testLlmConnection()">
-                                <i class="fas fa-plug me-1"></i><span data-i18n="setup.llm.llm-test-btn.button">Test Connection</span> </button>
-                            <span id="llm-test-result" class="ms-2 small"></span>
                         </div>
 
 
@@ -2157,10 +2174,18 @@
                         <div class="script-ingest-steps" role="group" data-i18n-attr="aria-label:script.ingest.steps.aria" aria-label="Ingestion order">
                             <span class="script-ingest-steps-title" data-i18n="script.ingest.steps.title">Order of work</span>
                             <ol class="script-ingest-steps-list">
-                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestUpload" onclick="focusScriptIngestStep('upload')"><span data-i18n="script.ingest.steps.choose">Choose the text</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestUpload" onclick="focusScriptIngestStep('upload')"><span data-i18n="script.ingest.steps.choose">Choose the text</span></button><span id="script-ingest-source-state" class="small" data-i18n="script.ingest.unknown">Not checked</span></li>
                                 <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestExisting" onclick="focusScriptIngestStep('existing')"><span data-i18n="script.ingest.steps.ingest">Accept it into this project</span></button></li>
-                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestGenerate" onclick="focusScriptIngestStep('generate')"><span data-i18n="script.ingest.steps.generate">Generate the script</span></button></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestAnalyze" onclick="focusScriptIngestStep('analyze')" data-i18n="script.ingest.analyze">Analyze characters and scenes</button><span id="script-ingest-cast-state" class="small" data-i18n="script.ingest.unknown">Not checked</span></li>
+                                <li><button type="button" class="btn btn-link btn-sm" data-help-key="scriptIngestGenerate" onclick="focusScriptIngestStep('generate')"><span data-i18n="script.ingest.steps.generate">Generate the script</span></button><span id="script-ingest-script-state" class="small" data-i18n="script.ingest.unknown">Not checked</span></li>
                             </ol>
+                        </div>
+                        <p class="small" id="script-ingest-metadata"></p>
+                        <p class="small" data-i18n="script.ingest.analysis-help">Build and review the character roster here, then generate the script for scene context. There is no separate scene-analysis job. Source statistics describe the accepted text; chapter headings and reading time are estimates, not an audio plan.</p>
+                        <p class="small" id="script-ingest-feedback" role="status" aria-live="polite"></p>
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshScriptIngestFacts()" data-i18n="script.ingest.refresh">Refresh saved progress</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadCastList(true)" data-i18n="script.ingest.review-roster">Review character roster before Voices</button>
                         </div>
                         <div class="mb-4">
                             <label data-i18n="script.upload.label" class="form-label" for="file-upload">Select Book/Novel (Text, Markdown, EPUB, or DOCX)</label>
@@ -3645,7 +3670,7 @@
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
+                                <button class="btn btn-success btn-sm" id="btn-batch-fast" onclick="startRender(false)"><i class="fas fa-bolt me-1"></i><span id="render-pending-label" data-i18n="editor.toolbar.render-pending">Render Pending</span></button>
                                 <button class="btn btn-primary btn-sm" id="btn-play-seq" onclick="playSequence()"><i class="fas fa-play me-1"></i><span data-i18n="editor.toolbar.play-sequence">Play Sequence</span></button>
                             </div>
                             <button class="btn btn-danger btn-sm" id="btn-cancel-render" onclick="cancelRender()" style="display:none;"><i class="fas fa-stop me-1"></i><span data-i18n="editor.toolbar.cancel">Cancel</span></button>
@@ -3858,7 +3883,7 @@
                                        <button type="button" class="btn btn-outline-success btn-sm" id="editor-line-generate" onclick="generateEditorReviewLine()" data-i18n="editor.inspector.generate-line">Generate line…</button>
                                    </div>
                                    <div class="editor-line-waveform" id="editor-line-waveform-wrap" hidden>
-                                       <canvas id="editor-line-waveform" class="editor-line-waveform-canvas" height="48" role="img" data-i18n-attr="aria-label:editor.waveform.aria" aria-label="Peak waveform of this line's saved audio"></canvas>
+                                       <canvas id="editor-line-waveform" class="editor-line-waveform-canvas" height="48" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-disabled="true" data-help-key="editorWaveformSeek" data-i18n-attr="aria-label:editor.waveform.seek" aria-label="Seek in this line's saved audio. Drag or use Left/Right, Home and End."></canvas>
                                        <p id="editor-line-waveform-status" class="small text-muted mb-0" role="status" aria-live="polite"></p>
                                        <button id="editor-line-waveform-retry" type="button" class="btn btn-sm btn-outline-secondary mt-1" hidden onclick="retryEditorLineWaveform()" data-i18n="editor.waveform.retry">Retry waveform</button>
                                    </div>
@@ -4418,6 +4443,7 @@
     <button data-i18n="shell.task-guide-return.button" data-i18n-attr="title:shell.task-guide-return.task-guide-return.title" id="task-guide-return" type="button" class="btn btn-secondary shadow" onclick="returnToTaskGuide()" title="Return to the same guide step without changing your selected book" hidden>Return to guide</button>
     <script src="/static/js/app-i18n.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-ui-followups.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-project-scope.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-translated-edition.js?v=__APP_BUILD__"></script>

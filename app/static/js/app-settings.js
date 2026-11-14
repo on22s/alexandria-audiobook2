@@ -25,12 +25,13 @@ function changeUiLocale(locale) {
 function renderUiLocaleChrome() {
     renderSetupSearchStatus();
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
+    if (typeof renderFollowupLocaleChrome === 'function') { renderFollowupLocaleChrome(); }
 }
 
 function applyUiLocaleAndSearchStatus(locale) {
     const applied = applyUiLocale(locale);
     renderUiLocaleChrome();
-    return applied.then(renderSetupSearchStatus);
+    return applied.then(renderUiLocaleChrome);
 }
 
 function renderSetupSearchStatus() {

@@ -49,11 +49,12 @@ for (const id of ['manual-llm-panel', 'manual-llm-title', 'manual-llm-hint',
                  'voices-logs', 'script-logs', 'persona-status', 'btn-cancel-personas', 'persona-refresh-status', 'persona-refresh-retry']) {
     elements[id] = {value: '', hidden: true, disabled: false, style: {}, textContent: '', children: [], appendChild(node){this.children.push(node);}};
 }
+let ingestRefreshes = 0;
 let poll, pending, copied, failSubmit = false, runningTask = 'persona';
 const posts = [], statusFetches = [];let registryFetches=0;
 const context = {
-    currentIsRemote:false, failoverIsRemote:false,
-    window: {prompt: () => 'teen'}, console,
+    currentIsRemote:false, failoverIsRemote:false, currentTabName: "voices",
+    window: {prompt: () => 'teen', refreshScriptIngestFacts: () => {ingestRefreshes++;}}, console,
     document: {getElementById: id => elements[id] || null,createElement:tag=>({tag,children:[],setAttribute(name,value){this[name]=value;},append(...nodes){this.children.push(...nodes);}})},
     API: {
         get: async path => {
@@ -147,7 +148,9 @@ const settle = async () => { for (let i = 0; i < 5; i++) { await Promise.resolve
     pending = request('script', 4);
     await poll.onTick(status('script')); await settle();
     assert.strictEqual(elements['manual-llm-title'].textContent, 'request 4');
+    context.currentTabName = 'script';
     poll.onDone({running: false, logs: []}); await settle();
+    assert.strictEqual(ingestRefreshes, 1, 'script completion refreshes visible ingest facts');
     assert.strictEqual(elements['manual-llm-panel'].hidden, true);
     // A delayed old pending fetch cannot resurrect a completed request.
     let resolve;

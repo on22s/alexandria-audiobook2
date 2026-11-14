@@ -926,6 +926,7 @@
                 loadRunHistory();
                 refreshBenchmarkStatus();
             }
+            if (name === 'script') { window.refreshScriptIngestFacts?.(); }
         }
         function restoreTab() {
             let saved = null;
@@ -2093,11 +2094,16 @@
                 return;
             }
             btn.disabled = true;
+            btn.setAttribute?.('aria-busy', 'true');
+            const startedAt = Date.now();
             out.className = 'ms-2 small text-muted';
-            out.textContent = 'Testing…';
+            out.innerHTML = `<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>${escapeHtml(t('setup.llm.test.testing', 'Testing…'))}`;
             try {
                 const res = await API.post('/api/llm/test', profile);
-                if (!isCurrent()) { return; }
+                if (!isCurrent()) {
+                    if (testLlmConnection.request === request && currentLlmMode === mode) { out.textContent = t('setup.llm.test.changed', 'Settings changed; test the edited endpoint again.'); }
+                    return;
+                }
                 if (res.ok) {
                     // Three separate facts stay readable as pills: whether the
                     // server answered, whether the configured model is actually
@@ -2124,18 +2130,26 @@
                         `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-failed', 'Failed at {step}', {step: res.step || ''}))}</span>`,
                         `<span class="llm-test-pill is-bad">${escapeHtml(res.error || t('setup.llm.test.no-detail', 'The server did not say why.'))}</span>`,
                         res.log_file ? `<span class="llm-test-pill">${escapeHtml(t('setup.llm.test.pill-log', 'Log: {log}', {log: res.log_file}))}</span>` : '',
+                        `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="troubleshootLlmConnection()">${escapeHtml(t('setup.llm.test.troubleshoot', 'Troubleshoot'))}</button>`,
                     ].join('');
                 }
             } catch (e) {
                 const detail = (e && e.message) || t('setup.llm.test.no-detail', 'The server did not say why.');
-                // Only a newer request or a mode change makes this result stale.
-                // isCurrent() would re-parse a profile that just failed to parse,
-                // which threw again and dropped the message on the floor.
-                if (testLlmConnection.request !== request || currentLlmMode !== mode) { return; }
+                // Do not attach a failure to a different edited endpoint.
+                if (!isCurrent()) {
+                    if (testLlmConnection.request === request && currentLlmMode === mode) { out.textContent = t('setup.llm.test.changed', 'Settings changed; test the edited endpoint again.'); }
+                    return;
+                }
                 out.className = 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2';
-                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail}))}</span>`;
+                out.innerHTML = `<span class="llm-test-pill is-bad"><i class="fas fa-circle-xmark me-1"></i>${escapeHtml(t('setup.llm.test.pill-request-failed', 'Test request failed: {detail}', {detail}))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="troubleshootLlmConnection()">${escapeHtml(t('setup.llm.test.troubleshoot', 'Troubleshoot'))}</button>`;
             } finally {
-                if (testLlmConnection.request === request) { btn.disabled = false; }
+                if (testLlmConnection.request === request) {
+                    btn.disabled = false;
+                    btn.removeAttribute?.('aria-busy');
+                    if (isCurrent()) {
+                        out.innerHTML += ` <span class="llm-test-pill">${escapeHtml(t('setup.llm.test.latency', '{milliseconds} ms round trip', {milliseconds: Date.now() - startedAt}))}</span>`;
+                    }
+                }
             }
         }
 
@@ -2184,6 +2198,8 @@
             window.retirePlaybackSequence?.();
             window._selectedUploadIdentity = null;
             currentBookFilename = typeof filename === 'string' ? filename : '';
+            window.resetScriptIngestFacts?.();
+            window.renderPendingCount?.(null);
             window.resetEditorReview?.();
             window.resetPronunciationBook?.();
             // A reloaded script can change even when its filename stays the same.
@@ -4192,6 +4208,7 @@
             if (request !== castListRequest || book !== currentBookFilename) { return; }
             castListLoaded = true;
             renderCastListStatus(result);
+            if (typeof refreshScriptIngestFacts === 'function' && currentTabName === 'script') { void refreshScriptIngestFacts(); }
             if (!show) { return; }
             if (castListMutationPending || editorSnapshot !== getCastListEditorSnapshot()) {
                 showToast(t('safety.script.cast_list.edits_changed', 'Your cast-list edits changed while loading. They have been kept.'), 'warning');
@@ -7899,6 +7916,7 @@
             const statusColor = chunk.status === 'done' ? 'success' :
                               chunk.status === 'generating' ? 'warning' :
                               chunk.status === 'error' ? 'danger' : 'secondary';
+            if (typeof getChunkRowState === 'function') { tr.dataset.renderState = getChunkRowState(chunk); }
 
             // Update status badge
             const badge = tr.querySelector('.badge');
@@ -7934,6 +7952,13 @@
                         btn.onclick = () => generateChunk(chunk.id);
                         btn.innerHTML = '<i class="fas fa-play"></i> Gen';
                         actionContainer.replaceChild(btn, existingProgress);
+                    }
+                    const action = actionContainer.querySelector('button');
+                    if (action) {
+                        action.innerHTML = `<i class="fas fa-play"></i> ${escapeHtml(chunk.status === 'error'
+                            ? t('core.editor.retry-line', 'Retry') : t('core.editor.generate-short', 'Gen'))}`;
+                        action.classList?.toggle('btn-outline-danger', chunk.status === 'error');
+                        action.classList?.toggle('btn-primary', chunk.status !== 'error');
                     }
                 }
 
@@ -8065,10 +8090,11 @@
         // The Script tab's ingest controls sit in three different blocks; these
         // buttons only move focus to each one, in the order the work happens.
         function focusScriptIngestStep(step) {
-            const targets = { upload: '#file-upload', existing: '#existing-upload-select', generate: '#btn-gen-script' };
+            const targets = { upload: '#file-upload', existing: '#existing-upload-select', generate: '#btn-gen-script', analyze: '#btn-build-cast-list' };
             const selector = targets[step];
             const node = selector ? document.querySelector(selector) : null;
             if (!node) { return; }
+            if (typeof revealWorkflowTarget === 'function') { revealWorkflowTarget(node); return; }
             node.scrollIntoView({ block: 'center', behavior: 'smooth' });
             node.focus({ preventScroll: true });
         }
@@ -8158,6 +8184,7 @@
             if (chunks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
                 cachedChunks = [];
+                window.renderPendingCount?.([]);
                 chunkSnapshotBook = refreshBook;
                 chunkSnapshotRevision = snapshot.revision;
                 window.renderEditorQualityInbox?.();
@@ -8166,6 +8193,7 @@
 
             // Update Full Progress Bar
             const completed = chunks.filter(c => c.status === 'done').length;
+            window.renderPendingCount?.(chunks);
             const total = chunks.length;
             const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
             const progressBar = document.getElementById('full-progress-bar');
@@ -8253,10 +8281,10 @@
                         `<div class="progress" style="width: 100px; height: 20px;">
                             <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
                          </div>` :
-                        `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${escapeHtml(t('core.editor.generate-short', 'Gen'))}</button>`;
+                        `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${escapeHtml(chunk.status === 'error' ? t('core.editor.retry-line', 'Retry') : t('core.editor.generate-short', 'Gen'))}</button>`;
 
                     return `
-                        <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" class="chunk-row">
+                        <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
                             <td class="text-center align-middle" style="white-space:nowrap;">
                                 <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
                             </td>
@@ -9037,7 +9065,7 @@
                 // A chapter selection without regenerate renders only its pending
                 // lines (#1921); repair and Regenerate All replace what they select.
                 const selectRows = rows => (repairPreview ? getEditorRepairSelection(rows, repairPreview) : rows)
-                    .filter(c => regenerateAll || c.status !== 'done');
+                    .filter(c => regenerateAll || isChunkPendingRender(c));
                 let toProcess = selectRows(chunks)
                     .filter(c => c.text && c.text.trim());
 
@@ -9131,6 +9159,10 @@
                 cancelRender(true);
                 if (rowsMarked) { await loadChunks(true); }
             }
+        }
+
+        function isChunkPendingRender(chunk) {
+            return chunk.status !== 'done' && !!chunk.text?.trim();
         }
 
         window.renderAll = (regenerateAll = false, repairPreview = null) => _runBatchRender('/api/generate_batch', regenerateAll, {
@@ -9858,6 +9890,7 @@
                     if (activityEl) { activityEl.hidden = true; }
                     if (activityId) { renderManualRequest({ running: false }, taskName); }
                     notifyJobDone(taskName, '', 'finished', status);
+                    if (['script', 'review', 'cast_list'].includes(taskName) && currentTabName === 'script') { window.refreshScriptIngestFacts?.(); }
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && getTaskCompletionOutcome(status) === 'finished' && status.logs.some(l => l.includes("complete"))) {
                         loadFinalAudio();

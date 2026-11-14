@@ -65,6 +65,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-publication-validation.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
                           '/static/js/app-editor-review.js?v=__APP_BUILD__',
+                          '/static/js/app-ui-followups.js?v=__APP_BUILD__',
                           '/static/js/app-narration-markup.js?v=__APP_BUILD__',
                           '/static/js/app-take-history.js?v=__APP_BUILD__',
                           '/static/js/app-sound-assets.js?v=__APP_BUILD__',
@@ -87,6 +88,7 @@ class LocalUiAssetTests(unittest.TestCase):
         self.assertIn(('/static/js/app-help.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-readalong.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-settings.js?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/js/app-ui-followups.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-publication.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-take-history.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-sound-assets.js?v=__APP_BUILD__', None), resources)

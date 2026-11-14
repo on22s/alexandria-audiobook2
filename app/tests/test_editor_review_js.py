@@ -203,6 +203,7 @@ const rowAudio=rows.get('u1').children.find(node=>node.classList.contains('chunk
 let event=press('Space');assert.equal(event.prevented,false,'Space with nothing selected keeps its native scroll');assert.equal(sequences,0,'Space must not start whole-book playback');assert.equal(plays.length,0);
 context.selectEditorReviewLineById(1);event=press('Space');assert.equal(event.prevented,true,'Space auditions the selected line');assert.equal(plays.length,1);
 for(const tag of ['button','summary','a','audio']){const control=body.appendChild(new Element(tag,tag==='a'?{href:'#x'}:{}));control.focus();event=press('Space');assert.equal(event.prevented,false,tag+' keeps its own Space');assert.equal(plays.length,1,tag+' must not be replaced by a row audition');}
+const slider=body.appendChild(new Element('canvas',{role:'slider'}));slider.focus();event=press('Space');assert.equal(event.prevented,false);event=press('KeyR');assert.equal(generates.length,0,'slider focus does not regenerate the line');assert.equal(plays.length,1);
 assert.equal(sequences,0);document.activeElement=document.body;
 for(const extra of [{ctrlKey:true},{metaKey:true},{altKey:true},{shiftKey:true},{repeat:true}]){event=press('Space',extra);assert.equal(event.prevented,false,JSON.stringify(extra)+' keeps the key');assert.equal(plays.length,1);}
 context.selectEditorReviewLineById(1);document.activeElement=document.body;
