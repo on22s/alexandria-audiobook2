@@ -129,3 +129,103 @@ OpenAI-compatible service can exercise that transport, but is not evidence of
 live-provider or audiobook generation success. This procedure is manual evidence;
 the committed automated regressions cover its startup-order and status defects,
 not the complete procedure.
+
+
+## Windows follow-up and joined synthetic workflow (2026-11-14)
+
+A fresh worktree at merged main `70a63e313d6151ebea09161c86629833bffa9bdc`
+was exercised with the existing Windows Python 3.10 environment. The full
+readiness gate is still **not qualified on this Windows host**. The earlier
+shard 3/6 attempt ran 2,187 tests with 29 failures, 46 errors and 142 skips.
+The verifier rejects skipped unit tests, including deliberately Linux-only
+process/queue tests. File symlink creation also fails with WinError 1314 on this
+account. Additional failures involve POSIX-only fixtures, unavailable local
+packages (`uv`, `romkan2`), a symlink materialized as target-name text, and
+open-file cleanup. Neither gate semantics nor OS privilege settings were changed.
+
+This follow-up repairs demonstrated test-fixture portability defects:
+
+- Native CLI fixtures use a real Python payload and host launcher, including
+  interpreter and command paths containing spaces; exit status and arguments
+  are checked. ROCm and LM Studio reload tests still execute real subprocesses.
+- Native path comparisons and dataset cache keys follow their production
+  counterparts on Windows and POSIX, without changing expected behavior.
+- Signal dispatch tests supply unavailable platform constants explicitly and
+  check the Windows process-tree branch as well as the POSIX branch.
+- The durable-writer test supplies directory-fsync capability on Windows while
+  POSIX still syncs a real directory descriptor. Both retain real file
+  sync/replacement and the exact sync/replace/sync order.
+- Metadata-read tests intercept the actual owned-phase boundary and isolate
+  unrelated preparer logging so their temporary files can close on Windows.
+
+Before these repairs, the selected Windows cohort ran 90 tests with 19 failures,
+2 errors and one existing Linux-only skip. With the new launcher regression it
+ran 91 tests: the first repair run had one LM Studio assertion mismatch at the initial-status path
+(initial endpoint refusal rather than the intended fresh-status refusal) and one
+HTTP worker connection reset (WinError 10054); a repeat had only the reset. The
+two modules passed all four tests when isolated. Their intermittent behavior
+remains unqualified; no causal CLI/file race has been established and no test
+retries or enlarged timeouts hide it. Diagnostic-only probes subsequently
+captured WinError 10054 on the initial native inventory request before any CLI
+operation (one of five attempts). Explicit HTTP response framing did not fix it
+(three of twenty attempts still refused initially), so that experiment was
+reverted. The precise socket-reset cause remains unresolved.
+
+Freebuff review found two sibling dataset cache fixtures with the same separator
+defect. Before repair, their 11 tests produced 14 failing subtests; native-path
+keys preserve their cache rebuild/reuse assertions. The expanded cohort then ran
+101 tests with one LM Studio assertion mismatch at the initial-status path, zero errors and one existing
+Linux-only skip. The new Windows CI command (`tests.test_cli_fixture` and
+`tests.test_gpu_stats`) ran nine tests with zero failures/errors/skips.
+
+A later full shard 3/6 gate ran 2,556 tests with 17 failures, 64 errors and 180
+skips (521.703 seconds including gate overhead). This differs in discovered
+scope from the earlier 2,187-test run and is not an improvement comparison. It
+remains red. The final pre-publication run of that same shard ran 2,556 tests
+with 18 failures, 66 errors and 180 skips (517.859 seconds including gate
+overhead). None of the changed test modules appears among that run's failing
+tests; the earlier selected-module HTTP intermittency remains recorded above.
+The hosted Windows ownership job now also runs the two native CLI/
+ROCm modules so their CMD launchers execute on Windows in CI.
+
+A separate, isolated full application session used actual uvicorn, Chromium,
+Gradio client/server transport, command-line cast/script workers and ffmpeg.
+All input and output were synthetic: the OpenAI-compatible fixture returned
+fixed replies, and TTS returned a one-second sine wave rather than speech.
+The observed sequence was:
+
+1. Connection UI displayed model `synthetic-workflow`, reply `pong`, and 162 ms
+   round-trip time with the busy button released.
+2. Uploaded `The traveler waves. "Hello there."` through the page's file handler;
+   cast discovery saved TRAVELER with THE TRAVELER as its alias.
+3. Three-pass generation preserved both source entries, attributed narration
+   and speech correctly, and the ingest comparison reported source match.
+4. Saved NARRATOR and TRAVELER assignments through the guarded revision/book API.
+5. Batch rendering deliberately failed the spoken line once. The row exposed
+   inline Retry; it succeeded. Render Pending moved from 2 to 1 to 0 and both
+   rows became rendered.
+6. The browser decoded a saved one-second chunk MP3 into waveform peaks. Clicking at 65 percent
+   moved its one-second audio to 0.648812 seconds; the canvas was a visible slider.
+7. MP3 merge returned a 41,517-byte artifact; ffprobe measured 2.499875 seconds,
+   including the configured inter-speaker pause. Audacity export returned a
+   valid 63,298-byte ZIP with project.lof, labels.txt and two PCM tracks.
+8. No runtime exceptions or unhandled rejections were observed after the page
+   loaded. This observation does not replace the earlier startup-specific checks.
+
+The workflow establishes joined application/transport behavior with synthetic
+audio. Graceful-stop warnings required forced cleanup; both owned application
+and Gradio processes were reaped. Actual speech quality and source-scan
+performance remain unqualified.
+
+A subsequent real-model session used the user-provided Qwen3.8-27B-UD-Q2_K_XL
+GGUF and existing llama.cpp b12385 Vulkan build on an AMD Radeon RX 9070 XT. The
+server listened only on loopback, with 8,192 context tokens, one slot, GPU
+offload and reasoning disabled. Through the actual connection button, Chromium
+showed visible Connected/Model present/Reply pong pills, a 263 ms round trip,
+and a released busy button. The real cast CLI saved one character; actual
+three-pass generation returned three source-preserving entries (narration,
+THE TRAVELER speech, narration), with both workers exiting zero. All source was
+self-authored synthetic text. This closes the live-LLM check without a model
+download or external paid call. The application needed forced cleanup after a
+graceful-stop warning; its launcher/child and the temporary model server were
+stopped. This did not exercise real speech synthesis or benchmark long books.

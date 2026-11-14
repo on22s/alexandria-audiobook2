@@ -2,13 +2,13 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
-import sys
 import tempfile
 import threading
 import unittest
 from unittest.mock import patch
 
 import lmstudio_settings as settings
+from tests.test_support import write_python_cli_fixture
 
 
 class NativeReloadTests(unittest.TestCase):
@@ -37,17 +37,15 @@ class NativeReloadTests(unittest.TestCase):
             server = HTTPServer(('127.0.0.1', 0), Handler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
-            cli = root / 'lms'
-            cli.write_text('#!' + sys.executable + '\nimport json,pathlib,sys\n'
-                + 'args=sys.argv[1:];state=pathlib.Path(' + repr(str(loaded)) + ')\n'
-                + 'with open(' + repr(str(calls)) + ',"a") as f:f.write(json.dumps(args)+"\\n")\n'
-                + 'if args[:2]==["server","status"]:print(json.dumps({"running":True,"port":'
-                + str(server.server_port) + '}))\n'
-                + 'elif args[0]=="ps":print(json.dumps([{"identifier":"alias","modelKey":"model-key",'
-                + '"contextLength":8192,"parallel":1}] if state.exists() else []))\n'
-                + 'elif args[0]=="load":state.write_text("loaded by CPU fixture")\n')
-            cli.chmod(0o755)
             try:
+                cli = write_python_cli_fixture(root / 'lms', 'import json,pathlib,sys\n'
+                    + 'args=sys.argv[1:];state=pathlib.Path(' + repr(str(loaded)) + ')\n'
+                    + 'with open(' + repr(str(calls)) + ',"a") as f:f.write(json.dumps(args)+"\\n")\n'
+                    + 'if args[:2]==["server","status"]:print(json.dumps({"running":True,"port":'
+                    + str(server.server_port) + '}))\n'
+                    + 'elif args[0]=="ps":print(json.dumps([{"identifier":"alias","modelKey":"model-key",'
+                    + '"contextLength":8192,"parallel":1}] if state.exists() else []))\n'
+                    + 'elif args[0]=="load":state.write_text("loaded by CPU fixture")\n')
                 with patch.object(settings, 'find_lms_binary', return_value=str(cli)), \
                      patch.object(settings, 'get_local_vram_bytes', return_value=None):
                     _, status, message = settings.ensure_ideal_settings('local',

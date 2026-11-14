@@ -36,6 +36,31 @@ def get_bash_executable():
     return executable
 
 
+def write_python_cli_fixture(path, source):
+    """Return a real host-executable Python fixture, including Windows CMD.
+
+    Keep the payload separate from its launcher so interpreter paths containing
+    spaces work without relying on POSIX shebang support in CreateProcess.
+    Use only trusted synthetic arguments: CMD shell metacharacters are not
+    escaped by this test helper. Callers must wait for a running fixture before
+    replacing its payload.
+    """
+    import shlex
+    path = Path(path)
+    payload = path.with_name(path.name + '.py')
+    payload.write_text(source, encoding='utf-8')
+    if os.name == 'nt':
+        launcher = path.with_name(path.name + '.cmd')
+        launcher.write_text('@"' + sys.executable + '" "' + str(payload) + '" %*\n',
+                            encoding='utf-8')
+    else:
+        launcher = path
+        launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' '
+                            + shlex.quote(str(payload)) + ' "$@"\n', encoding='utf-8')
+        launcher.chmod(0o755)
+    return launcher
+
+
 def get_missing_linux_queue_tools():
     """Name what this host lacks of the GPU queue's Linux tooling.
 

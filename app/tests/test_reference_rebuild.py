@@ -113,7 +113,7 @@ class SeparatingArmsTest(unittest.TestCase):
         import sys
         from unittest import mock
         entries = [{"audio_filepath": f"{i}.wav", "text": f"t{i}"} for i in range(len(durations))]
-        info = lambda p: mock.Mock(frames=durations[int(p.split("/")[-1][:-4])] * 24000, samplerate=24000)  # noqa: E731
+        info = lambda p: mock.Mock(frames=durations[int(Path(p).stem)] * 24000, samplerate=24000)  # noqa: E731
         with mock.patch.dict(sys.modules, {"soundfile": mock.Mock(info=info)}):
             return self.m.candidates(entries, "/x", target, band)
 

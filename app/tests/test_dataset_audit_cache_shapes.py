@@ -64,7 +64,7 @@ class DatasetAuditCacheShapeTests(unittest.TestCase):
             valid = quality.audit_zip(archive, fingerprint)
             output = root / "_quality"
             output.mkdir()
-            cache = output / (hashlib.sha256(b"reader/dataset.zip").hexdigest()[:16] + ".json")
+            cache = output / (hashlib.sha256(str(Path("reader") / "dataset.zip").encode()).hexdigest()[:16] + ".json")
             for name, corrupted in get_corrupt_reports(valid):
                 with self.subTest(name=name):
                     cache.write_text(json.dumps(corrupted))

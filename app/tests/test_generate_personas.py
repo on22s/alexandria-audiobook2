@@ -440,7 +440,7 @@ sys.argv = ['generate_personas.py'] + (['--advanced'] if advanced == 'yes' else 
 original_write = personas._atomic_json_write
 
 def write(data, path):
-    assert path == root + '/voice_config.json'
+    assert personas.os.path.normpath(path) == personas.os.path.join(root, 'voice_config.json')
     if fail == 'yes':
         raise PermissionError('injected cast write failure')
     original_write(data, path)
