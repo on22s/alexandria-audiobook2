@@ -75,22 +75,21 @@ class ReviewLabelsTests(unittest.TestCase):
         self.assertEqual([0, 1], schema['items']['properties']['n']['enum'])
         self.assertEqual(original, REVIEW_LABEL_SCHEMA)
 
-    def test_narrator_character_shift_retries_before_binding(self):
-        bad = [self.labels[0], {**self.labels[1], 'speaker': 'ALICE'}]
-        report = get_review_label_binding(self.batch, bad)[1]
-        self.assertEqual('narrator_renamed', report['findings'][0]['code'])
-        client, calls = client_for([(bad, 'stop'), (self.labels, 'stop')])
-        with patch('generate_script.time.sleep'):
-            out = review_batch(client, 'm', self.batch, 1, 1,
-                               LLMGenParams(review_labels_only=True), max_retries=1)
-        self.assertEqual(2, len(calls))
-        self.assertEqual('NARRATOR', out[1]['speaker'])
+    def test_narrator_character_correction_is_bound_on_first_attempt(self):
+        corrected = [self.labels[0], {**self.labels[1], 'speaker': 'ALICE'}]
+        self.assertTrue(get_review_label_binding(self.batch, corrected)[1]['passed'])
+        client, calls = client_for([(corrected, 'stop')])
+        out = review_batch(client, 'm', self.batch, 1, 1,
+                           LLMGenParams(review_labels_only=True), max_retries=0)
+        self.assertEqual(1, len(calls))
+        self.assertEqual('ALICE', out[1]['speaker'])
+        self.assertEqual(self.batch[1]['text'], out[1]['text'])
 
     def test_explicit_spoken_type_can_correct_a_wrong_narrator_label(self):
         batch = [{**self.batch[0], 'type': 'SPOKEN', 'speaker': 'NARRATOR'}, self.batch[1]]
         self.assertTrue(get_review_label_binding(batch, self.labels)[1]['passed'])
         batch[0]['type'] = 'NARRATOR'
-        self.assertFalse(get_review_label_binding(batch, self.labels)[1]['passed'])
+        self.assertTrue(get_review_label_binding(batch, self.labels)[1]['passed'])
 
     def test_source_mapped_speech_can_correct_wrong_narrator_labels(self):
         from dialogue_spans import apply_dialogue_map
@@ -115,12 +114,12 @@ class ReviewLabelsTests(unittest.TestCase):
         for original, result in zip(batch, out):
             self.assertIsNot(original['source_span'], result['source_span'])
 
-    def test_source_boolean_role_wins_but_malformed_flags_keep_legacy_fallback(self):
-        roles = ((None, 'NARRATOR', False), (None, 'BOB', True),
-                 ('SPOKEN', 'NARRATOR', True), ('SPOKEN', 'BOB', True),
-                 ('NARRATOR', 'NARRATOR', False), ('NARRATOR', 'BOB', False))
+    def test_source_role_hints_do_not_lock_review_labels(self):
+        roles = ((None, 'NARRATOR'), (None, 'BOB'),
+                 ('SPOKEN', 'NARRATOR'), ('SPOKEN', 'BOB'),
+                 ('NARRATOR', 'NARRATOR'), ('NARRATOR', 'BOB'))
         for spoken in (True, False, None, 0, 1, 'true', 'false', [], {}):
-            for kind, speaker, legacy_allowed in roles:
+            for kind, speaker in roles:
                 with self.subTest(spoken=spoken, kind=kind, speaker=speaker):
                     original = {**self.batch[0], 'spoken': spoken, 'speaker': speaker}
                     if kind is not None:
@@ -129,7 +128,6 @@ class ReviewLabelsTests(unittest.TestCase):
                     labels = copy.deepcopy(self.labels[:1])
                     before_labels = copy.deepcopy(labels)
                     _, report = get_review_label_binding([original], labels)
-                    expected = spoken if type(spoken) is bool else legacy_allowed
-                    self.assertEqual(expected, report['passed'])
+                    self.assertTrue(report['passed'])
                     self.assertEqual(before, original)
                     self.assertEqual(before_labels, labels)

@@ -163,10 +163,10 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                     self.assertEqual(SOURCE, rows)
                     self.assertNotIn('n', rows[0])
 
-    def test_selected_mode_keeps_missing_duplicate_and_narrator_label_guards(self):
+    def test_selected_mode_keeps_index_and_label_validation(self):
         for reply, code in ((LABELS[:1], 'review_label_alignment'),
                             ([LABELS[0], LABELS[0]], 'review_label_alignment'),
-                            ([{**LABELS[0], 'speaker': 'ALICE'}, LABELS[1]], 'narrator_renamed')):
+                            ([{**LABELS[0], 'speaker': ''}, LABELS[1]], 'review_label_value')):
             with self.subTest(code=code):
                 result = run_native_benchmark(reply=reply)
                 case = result['report']['cases'][0]

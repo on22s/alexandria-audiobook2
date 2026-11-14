@@ -103,10 +103,9 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 output, _, _ = self.run_review([row(source_text)], [[row(reply_text)]])
                 self.assertIsNone(output)
 
-    def test_punctuation_recovery_reuses_narrator_guard_and_labels_validation(self):
+    def test_punctuation_recovery_keeps_labels_validation(self):
         source = [row('Alice answered— quietly.', speaker='NARRATOR', type='NARRATOR')]
-        for reply in ([row('Alice answered, quietly.', speaker='ALICE')],
-                      [row('Alice answered, quietly.', speaker='')],
+        for reply in ([row('Alice answered, quietly.', speaker='')],
                       [{**row('Alice answered, quietly.'), 'instruct': None}]):
             with self.subTest(reply=reply):
                 output, _, _ = self.run_review(source, [reply])
@@ -125,27 +124,26 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
                 self.assertEqual(1, len(calls))
 
-    def test_punctuation_recovery_protects_source_narration_despite_model_speech(self):
-        source = [row('Alice waited— beside the gate.', speaker='BOB', spoken=False, type='SPOKEN')]
-        reply = [row('Alice waited, beside the gate.', speaker='ALICE')]
-        output, calls, attempts = self.run_review(source, [reply, reply])
-        self.assertIsNone(output)
-        self.assertEqual(2, len(calls))
-        self.assertTrue(all('narrator_renamed' in attempt['failure_codes'] for attempt in attempts))
+    def test_punctuation_recovery_accepts_correction_and_keeps_quote_metadata(self):
+        source = [row('Please wait— beside the gate.', speaker='NARRATOR', spoken=False, type='NARRATOR')]
+        reply = [row('Please wait, beside the gate.', speaker='ALICE')]
+        output, calls, attempts = self.run_review(source, [reply])
+        self.assertEqual([{**source[0], 'speaker': 'ALICE'}], output)
+        self.assertEqual(1, len(calls))
+        self.assertEqual('accepted', attempts[0]['outcome'])
 
-    def test_exact_full_review_retries_narration_rename_despite_model_role_fields(self):
-        source = [row('The rain stopped.', speaker='BOB', spoken=False, type='SPOKEN',
-                      source_span=[4, 21], pause_after=700)]
-        bad = [row(source[0]['text'], speaker='ALICE', spoken=True)]
-        good = [row(source[0]['text'], speaker='NARRATOR')]
-        output, calls, attempts = self.run_review(source, [bad, good])
-        self.assertEqual(2, len(calls))
-        self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
-        self.assertEqual([{**source[0], 'speaker': 'NARRATOR'}], output)
+    def test_exact_full_review_accepts_correction_but_ignores_model_role_fields(self):
+        source = [row('Please wait beside the gate.', speaker='NARRATOR', spoken=False, type='NARRATOR',
+                      source_span=[4, 30], pause_after=700)]
+        reply = [row(source[0]['text'], speaker='ALICE', spoken=True)]
+        output, calls, attempts = self.run_review(source, [reply])
+        self.assertEqual(1, len(calls))
+        self.assertEqual('accepted', attempts[0]['outcome'])
+        self.assertEqual([{**source[0], 'speaker': 'ALICE'}], output)
         self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
-        self.assertIn('source-confirmed narration', calls[0]['messages'][-1]['content'])
+        self.assertIn(review.REVIEW_ATTRIBUTION_RULE, calls[0]['messages'][-1]['content'])
 
-    def test_full_review_split_and_merge_keep_confirmed_narration_roles(self):
+    def test_full_review_split_and_merge_allow_label_corrections_with_metadata(self):
         split_source = [row('Rain fell. Wind rose.', speaker='NARRATOR', spoken=False,
                             provenance={'section': 1}, pause_after=700)]
         merge_source = [row('Rain fell.', speaker='NARRATOR', spoken=False, provenance={'section': 1}),
@@ -154,19 +152,18 @@ class ReviewSourceBindingTests(unittest.TestCase):
         for source, texts in ((split_source, ['Rain fell.', 'Wind rose.']),
                               (merge_source, ['Rain fell. Wind rose.'])):
             with self.subTest(texts=texts):
-                bad = [row(text, speaker='ALICE') for text in texts]
-                good = [row(text, speaker='NARRATOR') for text in texts]
-                output, calls, attempts = self.run_review(source, [bad, good])
-                self.assertEqual(2, len(calls))
-                self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
+                reply = [row(text, speaker='ALICE') for text in texts]
+                output, calls, attempts = self.run_review(source, [reply])
+                self.assertEqual(1, len(calls))
+                self.assertEqual('accepted', attempts[0]['outcome'])
                 self.assertEqual(texts, [entry['text'] for entry in output])
-                self.assertTrue(all(entry['speaker'] == 'NARRATOR' and entry['spoken'] is False
+                self.assertTrue(all(entry['speaker'] == 'ALICE' and entry['spoken'] is False
                                     for entry in output))
                 self.assertEqual([None] * (len(texts) - 1) + [700],
                                  [entry.get('pause_after') for entry in output])
 
     def test_full_review_preserves_speech_and_legacy_boundary_corrections(self):
-        for spoken in (True, None, 0, 1, 'false', [], {}, Ellipsis):
+        for spoken in (True, False, None, 0, 1, 'false', [], {}, Ellipsis):
             with self.subTest(spoken=spoken):
                 source = [row('Hello. Rain fell.', speaker='NARRATOR', type='NARRATOR', pause_after=700)]
                 if spoken is not Ellipsis:
@@ -178,16 +175,15 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 self.assertEqual(1, len(calls))
                 self.assertNotIn('source-confirmed narration', calls[0]['messages'][-1]['content'])
 
-    def test_full_review_uses_positional_source_roles_for_repeated_text(self):
+    def test_full_review_keeps_positional_quote_metadata_for_repeated_text(self):
         source = [row('Wait.', speaker='NARRATOR', spoken=False),
                   row('Wait.', speaker='NARRATOR', spoken=True)]
-        bad = [row('Wait.', speaker='ALICE'), row('Wait.', speaker='ALICE')]
-        good = [row('Wait.', speaker='NARRATOR'), row('Wait.', speaker='ALICE')]
-        output, calls, attempts = self.run_review(source, [bad, good])
-        self.assertEqual(2, len(calls))
-        self.assertIn('narrator_renamed', attempts[0]['failure_codes'])
+        reply = [row('Wait.', speaker='ALICE'), row('Wait.', speaker='ALICE')]
+        output, calls, attempts = self.run_review(source, [reply])
+        self.assertEqual(1, len(calls))
+        self.assertEqual('accepted', attempts[0]['outcome'])
         self.assertEqual([False, True], [entry['spoken'] for entry in output])
-        self.assertEqual(['NARRATOR', 'ALICE'], [entry['speaker'] for entry in output])
+        self.assertEqual(['ALICE', 'ALICE'], [entry['speaker'] for entry in output])
 
     def test_full_review_refuses_merges_that_erase_boolean_role_facts(self):
         for spoken in ((0, False), (False, 0), (1, True), (True, 1)):
@@ -269,26 +265,36 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertEqual([None, 1500], [entry.get('pause_after') for entry in output])
         self.assertEqual([{'section': 1}] * 2, [entry['provenance'] for entry in output])
 
-    def test_real_cli_publication_keeps_pause_and_traits_in_the_saved_artifact(self):
-        with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory, 'fixture.json')
-            source.write_text(json.dumps(self.source))
-            reply = [row('And yet, Just turn your head.', speaker='ALICE'), self.source[1]]
-            client, calls = client_for([(reply, 'stop')])
-            config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
-                      'generation': {'review_batch_size': 25}}
-            with ExitStack() as stack:
-                stack.enter_context(redirect_stdout(io.StringIO()))
-                stack.enter_context(patch.object(review.sys, 'argv', ['review', '--input', str(source)]))
-                for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
-                                    ('ensure_ideal_settings', (True, {}, 'fixture')),
-                                    ('get_active_llm_config', config['llm_remote']),
-                                    ('make_run_client', client), ('get_cached_or_benchmarked_concurrency', 1),
-                                    ('get_current_status', {'loaded': False})):
-                    stack.enter_context(patch.object(review, name, return_value=value))
-                stack.enter_context(patch.object(review, 'wait_for_vram_headroom', side_effect=AssertionError('No GPU calls')))
-                review.main()
-            saved = json.loads(source.read_text())
-            self.assertEqual([{**self.source[0], 'speaker': 'ALICE'}, self.source[1]], saved)
-            self.assertEqual(1, len(calls))
-            self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
+    def test_real_cli_publication_saves_narrator_corrections_and_preserves_metadata(self):
+        for labels_only in (False, True):
+            with self.subTest(labels_only=labels_only), tempfile.TemporaryDirectory() as directory:
+                original = copy.deepcopy(self.source)
+                original[0].update(speaker='NARRATOR', type='NARRATOR', spoken=False)
+                source = Path(directory, 'fixture.json')
+                source.write_text(json.dumps(original), encoding='utf-8')
+                if labels_only:
+                    reply = [{'n': i, 'speaker': 'ALICE' if i == 0 else entry['speaker'],
+                              'instruct': entry['instruct']} for i, entry in enumerate(original)]
+                else:
+                    reply = [row('And yet, Just turn your head.', speaker='ALICE'), original[1]]
+                client, calls = client_for([(reply, 'stop')])
+                config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                          'generation': {'review_batch_size': 25}}
+                argv = ['review', '--input', str(source)] + (['--labels-only'] if labels_only else [])
+                with ExitStack() as stack:
+                    stack.enter_context(redirect_stdout(io.StringIO()))
+                    stack.enter_context(patch.object(review.sys, 'argv', argv))
+                    for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                                        ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                        ('get_active_llm_config', config['llm_remote']),
+                                        ('make_run_client', client), ('get_cached_or_benchmarked_concurrency', 1),
+                                        ('get_current_status', {'loaded': False})):
+                        stack.enter_context(patch.object(review, name, return_value=value))
+                    stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                                    side_effect=AssertionError('No GPU calls')))
+                    review.main()
+                saved = json.loads(source.read_text(encoding='utf-8'))
+                self.assertEqual([{**original[0], 'speaker': 'ALICE'}, original[1]], saved)
+                self.assertEqual(1, len(calls))
+                self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
+                self.assertTrue(Path(str(source) + '.review_completed.json').exists())

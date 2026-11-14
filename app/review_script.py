@@ -922,6 +922,13 @@ def merge_consecutive_narrators(entries, max_merged_length=800):
     return merged, merges
 
 
+REVIEW_ATTRIBUTION_RULE = (
+    'Speaker labels, including NARRATOR, may be corrected using the text and context. '
+    'Input speaker/type labels and Boolean spoken flags are fallible hints, not '
+    'attribution locks. Use NARRATOR for actual narration; do not relabel it without '
+    'contextual evidence. Only return the fields required by the response format.')
+
+
 REVIEW_LABEL_SCHEMA = {"name": "review_labels", "schema": {
     "type": "array", "items": {"type": "object", "properties": {
         "n": {"type": "integer"}, "speaker": {"type": "string"},
@@ -932,12 +939,13 @@ REVIEW_LABEL_SYSTEM = (
     'Use speech tags and surrounding context to correct the speaker of each entry. '
     'Return ONLY a JSON array of {"n", "speaker", "instruct"}, one object per '
     'input index, including unchanged entries. Speaker names are UPPERCASE; '
-    'narration uses NARRATOR and must remain NARRATOR. Never return text, change entry boundaries, or '
-    'label the surrounding context. Source text is immutable; only labels are editable.')
+    'narration uses NARRATOR. Never return text, change entry boundaries, or '
+    'label the surrounding context. Source text is immutable; only labels are editable. '
+    + REVIEW_ATTRIBUTION_RULE)
 
 
 def get_review_source_narration(entry):
-    """Return the source's narration fact, or None when it is unestablished."""
+    """Return the quote-derived role hint for lossless metadata boundary checks."""
     from dialogue_spans import get_source_narration
     return get_source_narration(entry)
 
@@ -951,14 +959,6 @@ def get_review_label_binding(batch_entries, entries):
         findings.append({"code": "review_label_alignment", "message": reason})
     else:
         for i, row in enumerate(ordered):
-            original = batch_entries[i]
-            is_narration = get_review_source_narration(original)
-            if is_narration is None:
-                is_narration = (original.get("type") == "NARRATOR" or
-                                (original.get("type") != "SPOKEN" and original.get("speaker") == "NARRATOR"))
-            if is_narration and row.get("speaker") != "NARRATOR":
-                findings.append({"code": "narrator_renamed", "entry_number": i + 1,
-                                 "message": "A narrator line must keep the speaker NARRATOR."})
             if set(row) != {"n", "speaker", "instruct"}:
                 findings.append({"code": "review_label_fields", "entry_number": i + 1,
                                  "message": "Return only n, speaker and instruct."})
@@ -1072,10 +1072,6 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
         elif any('pause_after' in original and stop < end for _, stop, original in sources):
             findings.append({"code": "review_pause_boundary", "entry_number": number,
                              "message": "A review boundary would move an explicit source pause."})
-        elif (entry['speaker'] != 'NARRATOR'
-                and any(get_review_source_narration(original) is True for _, _, original in sources)):
-            findings.append({"code": "narrator_renamed", "entry_number": number,
-                             "message": "A source-confirmed narrator span must keep the speaker NARRATOR."})
         else:
             row = {**copy.deepcopy(metadata[0]), "speaker": entry["speaker"],
                    "text": entry["text"], "instruct": entry["instruct"]}
@@ -1169,11 +1165,8 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     # Build context
     context_parts = []
     context_parts.append(f"Batch {batch_num} of {total_batches}.")
-    if not params.review_labels_only and any(get_review_source_narration(entry) is True
-                                            for entry in batch_entries):
-        context_parts.append("\nAn input's Boolean spoken=false marks source-confirmed narration. "
-                             "Keep every portion of those spans assigned to NARRATOR, "
-                             "including after splitting or merging entries.")
+    if not params.review_labels_only:
+        context_parts.append("\n" + REVIEW_ATTRIBUTION_RULE)
 
     if previous_tail:
         context_parts.append("\nPrevious batch ended with:")
