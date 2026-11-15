@@ -4161,6 +4161,7 @@
   "setup.tts.cap.unknown": "Saved server schema could not be fully verified. See unknown operations and diagnostics below.",
   "setup.tts.cap.unsupported-voice": "This voice type is unsupported by the selected {mode} mode. Its assignment is kept. Choose a supported voice or switch mode and save before generating. Ensemble members and version timelines are also checked by the server.",
   "setup.tts.exact-download-contents-below-refresh-read": "Exact download contents below. Refresh reads only this AA2 server; it never contacts a model server or uploads a report. Null means unobserved or excluded. Review before sharing separately.",
+  "setup.tts.failure-log-download": "Download failure log",
   "setup.tts.heading": "Speech engine",
   "setup.tts.intro": "Choose where voices are generated and the language used for synthesis. Assign individual character voices in Voices.",
   "setup.tts.no-timings-requested": "No timings requested.",
