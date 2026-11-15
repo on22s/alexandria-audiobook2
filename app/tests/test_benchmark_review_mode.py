@@ -158,7 +158,8 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                     self.assertEqual('passed', result['report']['cases'][0]['status'])
                     self.assertFalse(result['params'][0].review_labels_only)
                     body = result['requests'][0]
-                    self.assertEqual('Classic fixture reviewer.', body['messages'][0]['content'])
+                    self.assertEqual('Classic fixture reviewer.\n\n' + review.REVIEW_CLASSIC_RESPONSE_RULE,
+                                     body['messages'][0]['content'])
                     rows = json.loads(body['messages'][1]['content'].split('TARGET\n', 1)[1])
                     self.assertEqual(SOURCE, rows)
                     self.assertNotIn('n', rows[0])

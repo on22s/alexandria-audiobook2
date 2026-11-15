@@ -162,6 +162,9 @@ class CompletedReviewReceiptTests(unittest.TestCase):
             profile = {'base_url': 'http://fixture/v1', 'model_name': 'model', 'api_key': 'env:RECEIPT_TEST_KEY'}
             def key(cfg=config, llm=profile, par=params, options=args, model='model'):
                 return review.get_completed_review_fingerprint(cfg, llm, par, options, object(), model)
+            with patch.object(review, 'REVIEW_ALGORITHM_VERSION', 7):
+                old_response_contract = key()
+            self.assertNotEqual(old_response_contract, key())
             with patch.dict('os.environ', RECEIPT_TEST_KEY='first-secret'):
                 baseline = key()
                 for field, value in [('system_prompt','new system'), ('user_prompt_template','new {batch}'), ('temperature',.7), ('max_tokens',300), ('context_length',8192), ('structured_output','off'), ('review_labels_only',True)]:

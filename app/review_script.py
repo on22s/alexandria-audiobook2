@@ -929,6 +929,17 @@ REVIEW_ATTRIBUTION_RULE = (
     'contextual evidence. Only return the fields required by the response format.')
 
 
+REVIEW_CLASSIC_RESPONSE_RULE = (
+    'REVIEW RESPONSE CONTRACT (takes precedence over conflicting format instructions): '
+    'Return a JSON array with speaker, text and instruct string fields in every entry. '
+    'Do not return input-only metadata such as spoken, source_span, type, '
+    'speaker_gender, speaker_age_group, speaker_ageless, pause_after or provenance. '
+    'Those fields are restored from the original entries after source-text validation; '
+    'their omission from the response does not remove them from the saved script. '
+    'Preserve all text in its original order. Split or merge only when text and '
+    'source metadata can be preserved. Never omit speaker, text or instruct.')
+
+
 REVIEW_LABEL_SCHEMA = {"name": "review_labels", "schema": {
     "type": "array", "items": {"type": "object", "properties": {
         "n": {"type": "integer"}, "speaker": {"type": "string"},
@@ -1161,6 +1172,8 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     if literal:
         from literal_prompts import REVIEW_SYSTEM, REVIEW_USER
         sys_prompt, usr_template = REVIEW_SYSTEM, REVIEW_USER
+    if not params.review_labels_only:
+        sys_prompt += '\n\n' + REVIEW_CLASSIC_RESPONSE_RULE
 
     # Build context
     context_parts = []
