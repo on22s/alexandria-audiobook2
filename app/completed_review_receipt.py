@@ -5,9 +5,9 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-# v10 rebinds speaker annotations after label corrections while preserving
-# source provenance and pause boundaries. Earlier receipts must be re-reviewed.
-REVIEW_ALGORITHM_VERSION = 10
+# v11 permits validated explicit annotation corrections in both review modes
+# while preserving source facts. Earlier receipts must be re-reviewed.
+REVIEW_ALGORITHM_VERSION = 11
 
 
 def get_review_entries_fingerprint(entries):

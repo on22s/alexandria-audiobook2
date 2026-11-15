@@ -3591,6 +3591,7 @@
   "script.review.start-failed": "Failed to start review",
   "script.review.start-recovery": "Check the current review task state and Test Connection in Setup before starting another review.",
   "script.review.start.help": "Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.",
+  "script.review.stats.annotations": ", {count} annotation correction(s)",
   "script.review.stats.batches-failed": ", {count} batch(es) failed",
   "script.review.stats.batches-skipped": ", {count} batch(es) skipped (VRAM)",
   "script.review.stats.changes": "{changes} changes: {text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries",

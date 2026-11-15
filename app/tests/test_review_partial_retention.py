@@ -133,7 +133,7 @@ class PartialRetentionTests(unittest.TestCase):
         output, calls, records = self.run_review([reply], source=source)
         self.assertEqual(1, len(calls))
         self.assertEqual(['accepted'], [record['outcome'] for record in records])
-        self.assertEqual([{**{k: v for k, v in source[0].items() if k != 'spoken'}, 'speaker': 'ALICE'}], output)
+        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'spoken': True}], output)
         self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
         self.assertEqual('complete', review.get_review_batch_status(output, records)['status'])
 

@@ -3846,7 +3846,7 @@
                 await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone();
+                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
                 showActionError(t('script.review.start-failed', 'Failed to start review'), e, t('script.review.start-recovery', 'Check the current review task state and Test Connection in Setup before starting another review.'));
             }
         });
@@ -3875,7 +3875,7 @@
                 }
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone();
+                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
                 showActionError(t('script.review.contextual-failed', 'Failed to start contextual review'), e, t('script.review.contextual-recovery', 'Check the review task state, context window and Test Connection in Setup before starting another review.'));
             }
         });
@@ -4387,6 +4387,7 @@
         function _formatBookStats(stats) {
             const changes = t('script.review.stats.changes', '{changes} changes: {text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries', {changes: stats.total_changes, text: stats.text_changed, speaker: stats.speaker_changed, instruct: stats.instruct_changed, added: stats.entries_added, removed: stats.entries_removed});
             let txt = stats.partial ? joinUiSentences([t('script.review.stats.partial', '(partial — not every pass completed)'), changes]) : changes;
+            if (stats.annotations_changed) { txt += t('script.review.stats.annotations', ', {count} annotation correction(s)', {count: stats.annotations_changed}); }
             if (stats.narrators_merged) { txt += t('script.review.stats.narrators-merged', ', {count} narrators merged', {count: stats.narrators_merged}); }
             if (stats.speakers_merged) { txt += t('script.review.stats.speakers-merged', ', {count} speakers merged', {count: stats.speakers_merged}); }
             if (stats.batches_failed) { txt += t('script.review.stats.batches-failed', ', {count} batch(es) failed', {count: stats.batches_failed}); }
@@ -4398,6 +4399,7 @@
         function _formatTotalsLine(label, totals) {
             if (!totals || !totals.books_done) { return t('script.review.totals.none', '{label}: no books finished yet', {label}); }
             let txt = t('script.review.totals.line', '{label}: {books} book(s), {changes} total change(s) ({text} text, {speaker} speaker, {instruct} instruct, +{added}/-{removed} entries)', {label, books: totals.books_done, changes: totals.total_changes, text: totals.text_changed, speaker: totals.speaker_changed, instruct: totals.instruct_changed, added: totals.entries_added, removed: totals.entries_removed});
+            if (totals.annotations_changed) { txt += t('script.review.stats.annotations', ', {count} annotation correction(s)', {count: totals.annotations_changed}); }
             if (totals.batches_failed) { txt = joinUiSentences([txt, t('script.review.totals.batches-failed', '— {count} batch(es) failed', {count: totals.batches_failed})]); }
             if (totals.accounting_warning) { txt += ` — ${totals.accounting_warning}`; }
             return txt;

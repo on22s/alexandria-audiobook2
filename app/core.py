@@ -613,8 +613,8 @@ process_state = {
     "report_explanation": {"running": False, "logs": [], "cancel": False, "status": "idle"},
     "review": {"running": False, "status": "idle", "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "batch_review": {"running": False, "logs": [], "cancel": False, "tasks": [], "current_task_idx": -1, "process": None, "pid": None, "paused": False, "start_time": None, "bidirectional": False,
-                     "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
-                     "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "books_done": 0},
+                     "totals_fwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "annotations_changed": 0, "books_done": 0},
+                     "totals_bwd": {"text_changed": 0, "speaker_changed": 0, "instruct_changed": 0, "entries_added": 0, "entries_removed": 0, "narrators_merged": 0, "speakers_merged": 0, "batches_failed": 0, "batches_skipped_vram": 0, "total_changes": 0, "annotations_changed": 0, "books_done": 0},
                      "aliases_fwd": [], "aliases_bwd": []},
     "nicknames": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "cast_list": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
@@ -1510,7 +1510,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     process = None
     reader = None
     try:
-        subprocess_env = get_gpu_task_environment(state, env)
+        from review_startup import worker_environment, event as review_startup_event
+        subprocess_env = get_gpu_task_environment(state, worker_environment(env))
+        review_startup_event('subprocess_launch')
         process = start_owned_subprocess(
             command,
             stdout=subprocess.PIPE,
@@ -1524,6 +1526,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             # Linux uses a reaper; macOS a private task job; Windows a Job Object.
             start_new_session=True,
         )
+        review_startup_event('subprocess_started', child_pid=process.pid)
 
         if sys.platform != "win32":
             process._alexandria_pgid = process.pid
@@ -1666,9 +1669,12 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                 break
             except subprocess.TimeoutExpired:
                 continue
+        review_startup_event('subprocess_finished', exit_code=process.returncode, child_pid=process.pid)
         return process.returncode, own_lines
 
-    except BaseException:
+    except BaseException as error:
+        from review_startup import event as review_startup_event
+        review_startup_event('subprocess_failed', error=error)
         if process is not None:
             try:
                 ensure_failed_subprocess_stopped(process, state)
@@ -1704,6 +1710,7 @@ _REVIEW_SUMMARY_PATTERNS = {
     "text_changed": re.compile(r'Text changed:\s*(\d+)'),
     "speaker_changed": re.compile(r'Speaker changed:\s*(\d+)'),
     "instruct_changed": re.compile(r'Instruct changed:\s*(\d+)'),
+    "annotations_changed": re.compile(r'Annotations changed:\s*(\d+)'),
     "entries_changed": re.compile(r'Entries changed:\s*(\d+)'),
     "entries_added": re.compile(r'Entries added:\s*(\d+)'),
     "entries_removed": re.compile(r'Entries removed:\s*(\d+)'),
@@ -1894,6 +1901,8 @@ def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -
             f"{stats['text_changed']} text", f"{stats['speaker_changed']} speaker",
             f"{stats['instruct_changed']} instruct",
             f"+{stats['entries_added']}/-{stats['entries_removed']} entries"]
+    if stats.get("annotations_changed"):
+        bits.append(f"{stats['annotations_changed']} annotation correction(s)")
     if stats["narrators_merged"]:
         bits.append(f"{stats['narrators_merged']} narrators merged")
     if stats["speakers_merged"]:
@@ -1912,6 +1921,8 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
     lines = [f"=== {label}: {totals['books_done']} book(s), {totals['total_changes']} total change(s) ===",
              f"  Text: {totals['text_changed']}, Speaker: {totals['speaker_changed']}, "
              f"Instruct: {totals['instruct_changed']}, Entries: +{totals['entries_added']}/-{totals['entries_removed']}"]
+    if totals.get("annotations_changed"):
+        lines.append(f"  Annotations: {totals['annotations_changed']}")
     if totals["narrators_merged"] or totals["speakers_merged"]:
         lines.append(f"  Narrators merged: {totals['narrators_merged']}, Speakers merged: {totals['speakers_merged']}")
     if totals["batches_failed"] or totals["batches_skipped_vram"]:
@@ -1934,6 +1945,7 @@ _STAT_LABELS = [
     ("text_changed", "Lines with reworded text"),
     ("speaker_changed", "Lines with a changed speaker"),
     ("instruct_changed", "Lines with updated voice direction"),
+    ("annotations_changed", "Lines with corrected annotations"),
     ("entries_added", "New lines added"),
     ("entries_removed", "Lines removed"),
     ("narrators_merged", "Narration lines merged together for smoother flow"),
