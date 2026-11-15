@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 import wave
 
+from tests.test_support import snapshot_fixture_files
 import book_state_transaction as books
 from chunk_status_journal import ChunkStatusJournal
 import sound_design_context as context
@@ -41,8 +42,7 @@ class SoundDesignContextTests(unittest.TestCase):
             yield
 
     def files(self):
-        return {str(path.relative_to(self.root)):path.read_bytes()
-                for path in self.root.rglob('*') if path.is_file()}
+        return snapshot_fixture_files(self.root, lock_files=(books.JOURNAL + '.lock', 'chunks.json.lock', 'state.json.lock'))
 
     def test_context_and_anchor_are_read_only_and_bound_to_actual_encoded_bytes(self):
         with self.admitted():

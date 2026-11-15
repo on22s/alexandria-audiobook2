@@ -67,8 +67,8 @@ class GenerationDispatchTests(unittest.TestCase):
     def test_default_output_and_stale_chunks_share_runtime_data_directory(self):
         output, chunks = get_output_paths("/runtime/data")
 
-        self.assertEqual("/runtime/data/annotated_script.json", output)
-        self.assertEqual("/runtime/data/chunks.json", chunks)
+        self.assertEqual(os.path.join("/runtime/data", "annotated_script.json"), output)
+        self.assertEqual(os.path.join("/runtime/data", "chunks.json"), chunks)
 
     def test_explicit_batch_output_does_not_clear_active_book_chunks(self):
         output, chunks = get_output_paths(

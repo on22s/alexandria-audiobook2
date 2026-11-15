@@ -220,7 +220,8 @@ class SpeechVerificationReceiptTests(unittest.TestCase):
                 self.assertIsNone(get_current_speech_verification_receipt(
                     {**self.chunk,'speech_verification':bad},'f'*64))
 
-    def test_selected_take_quick_stat_invalidates_changed_or_missing_audio_without_hashing(self):
+    @patch('speech_verification_receipt._ctime_attests_change', return_value=True)
+    def test_selected_take_quick_stat_invalidates_changed_or_missing_audio_without_hashing(self, _change_time):
         valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
         info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns]
         row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
@@ -241,15 +242,18 @@ class SpeechVerificationReceiptTests(unittest.TestCase):
         after=self.path.stat()
         self.assertEqual((info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns),
                          (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns))
-        self.assertNotEqual(info.st_ctime_ns,after.st_ctime_ns)
+        if os.name != 'nt':
+            self.assertNotEqual(info.st_ctime_ns,after.st_ctime_ns)
         with patch('speech_verification_receipt.get_verifier_file_identity',side_effect=AssertionError('poll hashed audio')):
             self.assertIsNone(get_current_speech_verification_receipt(row,'f'*64,resolve_audio=lambda path:path))
             view=get_speech_verification_chunk_view(row,'f'*64,lambda path:path)
         self.assertIsNone(view['speech_verification'])
         self.assertEqual(valid,view['speech_verification_historical'])
-        self.assertEqual('changed',view['speech_verification_historical_reason'])
+        self.assertEqual('platform' if os.name == 'nt' else 'changed',
+                         view['speech_verification_historical_reason'])
 
-    def test_legacy_version_is_historical_but_still_available_for_recheck(self):
+    @patch('speech_verification_receipt._ctime_attests_change', return_value=True)
+    def test_legacy_version_is_historical_but_still_available_for_recheck(self, _change_time):
         valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
         info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
         row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}
@@ -271,7 +275,8 @@ class SpeechVerificationReceiptTests(unittest.TestCase):
                 self.assertIsNone(get_historical_speech_verification_receipt(
                     {**row,'speech_verification':bad},'f'*64,resolve_audio=lambda path:path))
 
-    def test_legacy_version_with_changed_four_field_stat_is_classified_changed(self):
+    @patch('speech_verification_receipt._ctime_attests_change', return_value=True)
+    def test_legacy_version_with_changed_four_field_stat_is_classified_changed(self, _change_time):
         valid=get_speech_verification_receipt(get_report(self.path,self.text),self.chunk,'f'*64,'take',self.input)
         info=self.path.stat();valid['audio_file_version']=[info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]
         row={**self.chunk,'audio_path':str(self.path),'speech_verification':valid}

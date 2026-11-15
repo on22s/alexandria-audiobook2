@@ -172,6 +172,7 @@ def _read_control(path, expected_sha, expected_size):
 def get_rows(run_dir):
     """Rows whose WAV on disk is the audio their render proof names."""
     from project_scope_files import capture_scope_file
+    from direct_path_admission import get_canonical_plain_path
     from speech_verification_compare import get_comparison_tokens
     from word_timing import MAX_AUDIO_BYTES
     root = Path(run_dir).resolve()
@@ -190,13 +191,16 @@ def get_rows(run_dir):
         if proof != row['wav_sha256']:
             raise ValueError(f"{row['clip_id']}: render proof does not match its WAV")
         try:
-            relative = Path(row['wav']).absolute().relative_to(root)
+            # Admit the written path before canonicalizing DOS short names.
+            # Resolving first would hide symlinks/reparse points from containment.
+            canonical = get_canonical_plain_path(row['wav'])
+            relative = canonical.relative_to(root)
         except ValueError as error:
             raise ValueError('Control WAV must stay inside its pilot run') from error
         actual, _ = capture_scope_file(root, relative.as_posix(), limit=MAX_AUDIO_BYTES)
         if not actual['exists'] or actual['sha256'] != proof:
             raise ValueError(f"{row['clip_id']}: WAV on disk is not the audio its render proof names")
-        yield dict(row, input_sha256=actual['sha256'], input_size=actual['size'])
+        yield dict(row, wav=str(canonical), input_sha256=actual['sha256'], input_size=actual['size'])
 
 
 def _get_derived_root(root):

@@ -3,6 +3,7 @@ import builtins
 from contextlib import contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -92,7 +93,8 @@ class BenchmarkStreamingHashTests(unittest.TestCase):
                 if len(payload) > 3 * 1024 * 1024:
                     self.assertGreater(len(reads), 4)
             with self.assertRaises(FileNotFoundError): get_file_sha256(str(root / 'missing'))
-            with self.assertRaises(IsADirectoryError): get_file_sha256(str(root))
+            error = PermissionError if os.name == 'nt' else IsADirectoryError
+            with self.assertRaises(error): get_file_sha256(str(root))
 
     def test_producer_and_all_validators_keep_exact_hashes_and_reject_changes(self):
         with tempfile.TemporaryDirectory() as tmp:

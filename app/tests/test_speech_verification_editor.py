@@ -39,14 +39,18 @@ class SpeechVerificationEditorTests(unittest.TestCase):
     def test_status_listing_and_review_agree_without_audio_hash_or_provider_work(self):
         with self.fixture() as (root,manager,client):
             first=client.get('/api/chunks/status').json()
-            row=first['chunks'][0];receipt=row['speech_verification']
+            row=first['chunks'][0]
+            receipt=row['speech_verification_historical'] if os.name == 'nt' else row['speech_verification']
+            if os.name == 'nt':
+                self.assertIsNone(row['speech_verification'])
+                self.assertEqual('platform',row['speech_verification_historical_reason'])
             self.assertEqual(row['audio_revision'],receipt['audio_revision'])
             self.assertEqual(publication.TEXT,receipt['expected_text'])
             self.assertEqual([row],client.get('/api/chunks').json())
             quality=self.quality(client,first['book_token'])
             self.assertEqual(first['revision'],quality['revision'])
-            self.assertEqual('no_content_candidate',quality['rows'][0]['speech'])
-            self.assertEqual([],quality['rows'][0]['issues'])
+            self.assertEqual('not_checked' if os.name == 'nt' else 'no_content_candidate',quality['rows'][0]['speech'])
+            self.assertEqual(['speech_historical'] if os.name == 'nt' else [],quality['rows'][0]['issues'])
             before={path.name:path.read_bytes() for path in root.iterdir() if path.is_file()}
             same=client.get('/api/chunks/status',params={'revision':first['revision']}).json()
             self.assertEqual([],same['chunks']);self.assertFalse(same['full'])
@@ -61,16 +65,20 @@ class SpeechVerificationEditorTests(unittest.TestCase):
                 elif event=='same_stat':
                     data=bytearray(path.read_bytes());data[0]^=1
                     path.write_bytes(data);os.utime(path,ns=(info.st_atime_ns,info.st_mtime_ns))
-                    self.assertNotEqual(info.st_ctime_ns,path.stat().st_ctime_ns)
+                    if os.name != 'nt':
+                        self.assertNotEqual(info.st_ctime_ns,path.stat().st_ctime_ns)
                 else:path.write_bytes(b'new unrelated artifact')
                 changed=client.get('/api/chunks/status',params={'revision':first['revision']}).json()
-                self.assertFalse(changed['full']);self.assertEqual([0],changed['changed_ids'])
-                self.assertIsNone(changed['chunks'][0]['speech_verification'])
+                self.assertFalse(changed['full'])
+                expected_ids = [] if os.name == 'nt' and event != 'delete' else [0]
+                self.assertEqual(expected_ids,changed['changed_ids'])
+                fresh=client.get('/api/chunks/status').json()['chunks'][0]
+                self.assertIsNone(fresh['speech_verification'])
                 if event=='same_stat':
-                    self.assertIsNotNone(changed['chunks'][0]['speech_verification_historical'])
-                    self.assertEqual('changed',changed['chunks'][0]['speech_verification_historical_reason'])
+                    self.assertIsNotNone(fresh['speech_verification_historical'])
+                    self.assertEqual('platform' if os.name == 'nt' else 'changed',fresh['speech_verification_historical_reason'])
                 if event=='delete':
-                    self.assertEqual('unavailable',changed['chunks'][0]['speech_verification_historical_reason'])
+                    self.assertEqual('unavailable',fresh['speech_verification_historical_reason'])
                     self.assertIn('speech_historical',self.quality(client,first['book_token'])['rows'][0]['issues'])
                 self.assertEqual(raw,manager.load_chunks()[0])
                 self.assertIsNone(client.get('/api/chunks').json()[0]['speech_verification'])
@@ -94,11 +102,12 @@ class SpeechVerificationEditorTests(unittest.TestCase):
     def test_rejected_attempt_is_separate_from_prior_selected_take_in_quality_review(self):
         with self.fixture(reject=True) as (root,manager,client):
             first=client.get('/api/chunks/status').json();row=first['chunks'][0]
-            self.assertEqual('no_content_candidate',row['speech_verification']['status'])
+            selected = row['speech_verification_historical'] if os.name == 'nt' else row['speech_verification']
+            self.assertEqual('no_content_candidate',selected['status'])
             self.assertEqual('corroborated_content_difference',row['speech_verification_failure']['status'])
             self.assertNotEqual(row['audio_revision'],row['speech_verification_failure']['audio_revision'])
             quality=self.quality(client,first['book_token'])['rows'][0]
-            self.assertEqual('no_content_candidate',quality['speech'])
+            self.assertEqual('not_checked' if os.name == 'nt' else 'no_content_candidate',quality['speech'])
             self.assertEqual('rejected',quality['speech_attempt'])
             self.assertIn('speech_rejected',quality['issues'])
             self.assertNotIn('speech_difference',quality['issues'])

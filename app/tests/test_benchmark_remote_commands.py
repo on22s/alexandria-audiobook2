@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.test_support import get_bash_executable
 import benchmark_runner as runner
 
 
@@ -21,7 +22,7 @@ class BenchmarkRemoteCommandTests(unittest.TestCase):
             fixture = dict(zip_path='audio.zip', zip_sha256='a'*64,
                            model_sha256=hashlib.sha256(model.read_bytes()).hexdigest())
             settings = dict(remote_root='/remote', remote_python='/remote/python',
-                            remote_model_path=str(model))
+                            remote_model_path=model.as_posix())
             original = copy.deepcopy(fixture)
             calls = []
             def transport(command, **kwargs):
@@ -29,8 +30,8 @@ class BenchmarkRemoteCommandTests(unittest.TestCase):
                 if command[0] == 'scp':
                     return subprocess.CompletedProcess(command, 0, '', '')
                 if len(calls) == 2:
-                    result = subprocess.run(['bash', '-c', ' '.join(command[2:])],
-                                            capture_output=True, text=True)
+                    result = subprocess.run([get_bash_executable(), '-c', ' '.join(command[2:])],
+                                            capture_output=True, text=True, env={**os.environ, "MSYS_NO_PATHCONV": "1"})
                     result.stdout = 'Fixture decorative banner\n' + result.stdout
                     return result
                 return subprocess.CompletedProcess(command, 0,
@@ -50,9 +51,10 @@ class BenchmarkRemoteCommandTests(unittest.TestCase):
             original = copy.deepcopy(fixture)
             settings = dict(remote_root='/remote', remote_python='/remote/python')
             recorder = 'import json,sys;open(sys.argv[1],"a").write(json.dumps(sys.argv[2:])+"\\n")'
-            definition = 'mkdir() { ' + shlex.join([sys.executable, '-c', recorder, str(record)]) + ' "$@"; }; '
+            definition = 'mkdir() { ' + shlex.join([Path(sys.executable).as_posix(), '-c', recorder, record.as_posix()]) + ' "$@"; }; '
             calls = []
             actual_run = subprocess.run
+            bash = get_bash_executable()
             base = '/tmp/alexandria-lora-training.abcdefghij'
             def transport(command, **kwargs):
                 calls.append(command)
@@ -62,8 +64,8 @@ class BenchmarkRemoteCommandTests(unittest.TestCase):
                     self.assertEqual(['mktemp', '-d', '/tmp/alexandria-lora-training.XXXXXXXXXX'], shlex.split(command[2]))
                     return subprocess.CompletedProcess(command, 0, 'Fixture decorative banner\n' + base + '\n', '')
                 if 'mkdir' in ' '.join(command[2:]):
-                    return actual_run(['bash', '-c', definition + ' '.join(command[2:])],
-                                          capture_output=True, text=True)
+                    return actual_run([bash, '-c', definition + ' '.join(command[2:])],
+                                          capture_output=True, text=True, env={**os.environ, "MSYS2_ARG_CONV_EXCL": "*"})
                 return subprocess.CompletedProcess(command, 0,
                     'LORA_TRAINING_BENCHMARK_RESULT={"status":"passed"}\n', '')
             def cleanup(command, **kwargs):

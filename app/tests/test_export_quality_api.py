@@ -1,5 +1,6 @@
 """Current-book delivery proofs, bounded failed attempts and request policies."""
 from contextlib import contextmanager
+from tests.test_support import snapshot_fixture_files
 import asyncio
 import copy
 import json
@@ -87,8 +88,11 @@ class ExportQualityApiTests(unittest.TestCase):
                 with self.subTest(task=name):
                     background = BackgroundTasks()
                     self.assertEqual('started', asyncio.run(start(background))['status'])
-                    before = {str(path.relative_to(root)): path.read_bytes()
-                              for path in root.rglob('*') if path.is_file()}
+                    locks = ('.active_book_transaction.json.lock', 'chunks.json.lock', 'state.json.lock',
+                             '.task_ownership/task-audacity_export.lock',
+                             '.task_ownership/task-m4b_export.lock',
+                             '.task_ownership/task-chapter_export.lock')
+                    before = snapshot_fixture_files(root, lock_files=locks)
                     states[name]['cancel'] = True
                     with patch.object(editor, 'ensure_book_state', side_effect=AssertionError('cancelled worker opened book')), \
                             patch.object(manager, method, side_effect=AssertionError('cancelled worker started export')):
@@ -96,8 +100,7 @@ class ExportQualityApiTests(unittest.TestCase):
                     self.assertEqual({'status': 'cancelled', 'message': 'Export cancelled'}, states[name]['result'])
                     self.assertNotIn('export_quality_attempt', states[name])
                     self.assertFalse(states[name]['running'])
-                    self.assertEqual(before, {str(path.relative_to(root)): path.read_bytes()
-                                             for path in root.rglob('*') if path.is_file()})
+                    self.assertEqual(before, snapshot_fixture_files(root, lock_files=locks))
                     background = BackgroundTasks()
                     self.assertEqual('started', asyncio.run(start(background))['status'])
                     with patch.object(manager, method, side_effect=editor.ExportCancelled('cancelled provider')):

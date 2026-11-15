@@ -56,8 +56,12 @@ def get_scope_history_plan(root, book_token, retained_uids, *, retained_rows=Non
             raise ValueError('Retained predecessor belongs to a different book or UID.')
         archive = receipt['archive']
         if archive is None:
+            # Scope preserves legacy receipts unchanged; it never upgrades their
+            # historical metadata into generation admission. New receipts also
+            # bind the bytes observed before the authored edit.
             proof, _ = capture_scope_file(root, receipt['path'], cancel_check=cancel_check)
-            if not proof['exists'] or proof['file_version'] != receipt['source_version']:
+            if (not proof['exists'] or proof['file_version'] != receipt['source_version']
+                    or (receipt.get('source_sha256') is not None and proof['sha256'] != receipt['source_sha256'])):
                 raise ValueError('Retained predecessor source slot changed.')
             predecessors.append(proof)
         else:

@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 from experiments.gpu_guard import (acquire_gpu_lock, gpu_is_busy,
                                    release_gpu_lock, require_free_gpu)
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, get_bash_executable
 
 
 class GpuGuardTest(unittest.TestCase):
@@ -34,27 +34,33 @@ class GpuGuardTest(unittest.TestCase):
     def _hold(self):
         """A separate process holding the lock, as a real job does."""
         code = textwrap.dedent(f"""
-            import fcntl, time
+            import sys, time
+            sys.path.insert(0, {os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))!r})
+            from alexandria_file_lock import acquire_exclusive_file_lock
             h = open({self.lock!r}, "a")
-            fcntl.flock(h, fcntl.LOCK_EX)
+            acquire_exclusive_file_lock(h.fileno())
             print("held", flush=True)
             time.sleep(30)
         """)
         proc = subprocess.Popen([sys.executable, "-c", code],
-                                stdout=subprocess.PIPE, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         def cleanup():
             if proc.poll() is None:
                 proc.kill()
             proc.wait()
             if proc.stdout:
                 proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
         self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:
             if proc.stdout.readline().strip() == "held":
                 return proc
+            if proc.poll() is not None:
+                self.fail(f'Native lock fixture exited {proc.returncode}: {proc.stderr.read()}')
             time.sleep(0.05)
-        self.skipTest("could not acquire the test lock")
+        self.fail('fixture process did not acquire the native test lock')
 
     def test_a_free_gpu_is_not_busy(self):
         self.assertFalse(gpu_is_busy(self.lock))
@@ -178,13 +184,14 @@ class LockPathAgreementTest(unittest.TestCase):
             default_lock.cache_clear()
             try:
                 spoken = subprocess.run(
-                    ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
+                    [get_bash_executable(), os.path.join(repo, 'gpu_job.sh'), '--print-lock'],
+                    env=dict(os.environ, GPU_OWNER_PYTHON=sys.executable),
                     capture_output=True, text=True, timeout=60)
                 self.assertEqual(0, spoken.returncode, spoken.stderr)
                 self.assertEqual(spoken.stdout.strip(), default_lock())
-                self.assertTrue(default_lock().startswith("/"), default_lock())
-                self.assertTrue(default_lock().endswith(
-                    "ab_test_runtime/logs/alexandria_gpu.lock"), default_lock())
+                self.assertTrue(os.path.isabs(default_lock()), default_lock())
+                self.assertTrue(default_lock().endswith(os.path.join(
+                    'ab_test_runtime', 'logs', 'alexandria_gpu.lock')), default_lock())
             finally:
                 default_lock.cache_clear()
 
@@ -222,7 +229,8 @@ class LockPathAgreementTest(unittest.TestCase):
         answers = set()
         for cwd in (repo, tempfile.gettempdir()):
             answers.add(subprocess.run(
-                ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
+                [get_bash_executable(), os.path.join(repo, 'gpu_job.sh'), '--print-lock'],
+                env=dict(os.environ, GPU_OWNER_PYTHON=sys.executable),
                 capture_output=True, text=True, cwd=cwd,
                 timeout=60).stdout.strip())
         self.assertEqual(1, len(answers), answers)
@@ -236,13 +244,17 @@ class LockPathAgreementTest(unittest.TestCase):
         repo = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))
         spoken = subprocess.run(
-            ["bash", os.path.join(repo, "gpu_job.sh"), "--print-qlog"],
+            [get_bash_executable(), os.path.join(repo, 'gpu_job.sh'), '--print-qlog'],
+            env=dict(os.environ, GPU_OWNER_PYTHON=sys.executable),
             capture_output=True, text=True, timeout=60)
         self.assertEqual(0, spoken.returncode, spoken.stderr)
         qlog = spoken.stdout.strip()
         self.assertTrue(qlog.startswith("/"), qlog)
-        self.assertEqual(os.path.join(repo, "ab_test_runtime", "logs",
-                                      "gpu_jobq.log"), qlog)
+        if os.name == 'nt':
+            qlog = subprocess.check_output([get_bash_executable(), '-c',
+                'cygpath -w "$1"', 'fixture', qlog], text=True).strip()
+        self.assertEqual(os.path.normpath(os.path.join(repo, "ab_test_runtime", "logs",
+                                      "gpu_jobq.log")), os.path.normpath(qlog))
         self.assertNotIn(os.path.expanduser("~") + "/gpu_jobq.log", qlog)
 
     def test_no_chain_writes_its_queue_log_outside_the_repo(self):
@@ -284,7 +296,7 @@ class LockPathAgreementTest(unittest.TestCase):
         guard.GPU_JOB = os.path.join(self.tmp.name if hasattr(self, "tmp")
                                      else tempfile.gettempdir(), "absent.sh")
         try:
-            with self.assertRaises(Exception):
+            with patch.object(guard.sys, 'platform', 'linux'), self.assertRaises(Exception):
                 default_lock_fn()
         finally:
             guard.GPU_JOB = original
@@ -364,23 +376,30 @@ class StaleSentinelTest(unittest.TestCase):
             self.addCleanup(os.environ.pop, name, None)
 
     def _hold(self):
-        code = ("import fcntl,time;h=open(%r,'a');fcntl.flock(h,fcntl.LOCK_EX);"
-                "print('held',flush=True);time.sleep(30)" % self.lock)
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        code = ("import sys,time;sys.path.insert(0,%r);"
+                "from alexandria_file_lock import acquire_exclusive_file_lock;"
+                "h=open(%r,'a');acquire_exclusive_file_lock(h.fileno());"
+                "print('held',flush=True);time.sleep(30)" % (repo, self.lock))
         proc = subprocess.Popen([sys.executable, "-c", code],
-                                stdout=subprocess.PIPE, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         def cleanup():
             if proc.poll() is None:
                 proc.kill()
             proc.wait()
             if proc.stdout:
                 proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
         self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:
             if proc.stdout.readline().strip() == "held":
                 return proc
+            if proc.poll() is not None:
+                self.fail(f'Native lock fixture exited {proc.returncode}: {proc.stderr.read()}')
             time.sleep(0.05)
-        self.skipTest("could not acquire the test lock")
+        self.fail('fixture process did not acquire the native test lock')
 
     def test_a_sentinel_from_a_dead_job_no_longer_exempts(self):
         from experiments.gpu_guard import require_free_gpu

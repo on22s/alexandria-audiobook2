@@ -1079,10 +1079,14 @@
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_file_version_refuses_changed_predecessor_without_relabeling_it",
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_held_archive_blocks_delete_and_publication_failure_can_retry_after_old_slot_changes",
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_journal_status_updates_keep_cached_rows_and_bound_receipt_charge",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_legacy_archived_receipt_remains_usable_on_windows",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_legacy_unarchived_receipt_is_preserved_and_refused_on_windows",
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_native_batch_capacity_preflight_leaves_no_generating_rows_or_model_load",
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_native_batch_reservation_failure_restores_already_reserved_rows",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_new_receipt_hash_observes_cancellation_without_holding_owner_mutex",
     "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_original_authored_receipt_survives_repeated_edits_without_copying_payload",
-    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_policy_is_off_by_default_versioned_and_disables_without_parsing_archive"
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_policy_is_off_by_default_versioned_and_disables_without_parsing_archive",
+    "tests.test_automatic_take_history.AutomaticTakeHistoryTests.test_same_size_rewrite_with_restored_mtime_refuses_before_archiving"
   ],
   "test_background_speakers": [
     "tests.test_background_speakers.AbScoringTest.test_cast_alias_credits_full_name_strict_does_not",
@@ -3354,7 +3358,8 @@
     "tests.test_cjk_speech_rate.PickSentencesTests.test_zero_count_returns_empty"
   ],
   "test_cli_fixture": [
-    "tests.test_cli_fixture.CliFixtureTests.test_real_command_preserves_arguments_output_and_nonzero_status"
+    "tests.test_cli_fixture.CliFixtureTests.test_real_command_preserves_arguments_output_and_nonzero_status",
+    "tests.test_cli_fixture.CliFixtureTests.test_real_command_runs_from_non_ascii_directory"
   ],
   "test_clipboard_fallback_js": [
     "tests.test_clipboard_fallback_js.ClipboardFallbackJsTests.test_manual_copy_preserves_text_and_cleans_up"
@@ -5341,6 +5346,7 @@
   ],
   "test_evaluation_directory_containment": [
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_candidate_cleanup_rejects_escape_without_deleting_owned_or_outside_files",
+    "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_containment_module_import_does_not_require_resampling_runtime",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_escaped_ids_and_symlink_adapter_reject_before_generation",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_internal_candidate_symlink_does_not_delete_its_target",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_main_rejects_manifest_paths_before_model_initialization",
@@ -7391,6 +7397,7 @@
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_cli_inherits_policy_and_retains_it_in_published_output",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_final_guard_rejects_changes_even_after_postprocessing",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_review_retries_changed_words_with_dedicated_prompt",
+    "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_same_stat_script_rewrite_invalidates_cached_literal_policy",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_three_pass_prompt_and_checkpoint_identity_select_literal_only",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_three_pass_segmentation_rejects_word_rewrite_without_near_miss",
     "tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_tts_admission_fails_before_engine_creation_and_catches_unmarked_cache"
@@ -7932,7 +7939,8 @@
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_cached_updates_are_still_persisted",
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_empty_manifest_still_has_one_final_write",
     "tests.test_lora_evaluation_io.EvaluationIoTests.test_hash_reuse_is_scoped_to_unchanged_native_file_identity",
-    "tests.test_lora_evaluation_io.EvaluationIoTests.test_new_evaluation_hashes_captured_weights_once_and_saves_manifest_once"
+    "tests.test_lora_evaluation_io.EvaluationIoTests.test_new_evaluation_hashes_captured_weights_once_and_saves_manifest_once",
+    "tests.test_lora_evaluation_io.EvaluationIoTests.test_windows_creation_time_cannot_authorize_cached_bundle_hashes"
   ],
   "test_lora_evidence_containment": [
     "tests.test_lora_evidence_containment.CheckpointEvidenceContainmentTests.test_fixed_evidence_outside_symlinks_reject_even_with_matching_hashes",
@@ -9467,7 +9475,8 @@
   "test_preparer_dual_decode": [
     "tests.test_preparer_dual_decode.PreparerDualDecodeTests.test_actual_asr_phase_decodes_once_keeps_scratch_and_cleans_mapping",
     "tests.test_preparer_dual_decode.PreparerDualDecodeTests.test_decoder_failure_removes_temporary_asr_directory",
-    "tests.test_preparer_dual_decode.PreparerDualDecodeTests.test_independent_streams_match_old_two_decodes_sample_exactly"
+    "tests.test_preparer_dual_decode.PreparerDualDecodeTests.test_independent_streams_match_old_two_decodes_sample_exactly",
+    "tests.test_preparer_dual_decode.PreparerDualDecodeTests.test_transcription_failure_closes_mapping_before_temporary_cleanup"
   ],
   "test_preparer_enrichment_settings": [
     "tests.test_preparer_enrichment_settings.PreparerEnrichmentSettingsTests.test_api_refuses_with_the_same_400_before_any_admission",
@@ -9929,7 +9938,8 @@
     "tests.test_project_uid_cache.ProjectUidCacheTests.test_in_place_replacement_with_same_size_and_mtime_is_detected",
     "tests.test_project_uid_cache.ProjectUidCacheTests.test_public_save_invalidates_without_mutating_the_supplied_rows",
     "tests.test_project_uid_cache.ProjectUidCacheTests.test_replaced_book_gets_persisted_uids_and_retains_them_after_edits",
-    "tests.test_project_uid_cache.ProjectUidCacheTests.test_status_updates_keep_the_cache_and_single_row_uid_changes_invalidate"
+    "tests.test_project_uid_cache.ProjectUidCacheTests.test_status_updates_keep_the_cache_and_single_row_uid_changes_invalidate",
+    "tests.test_project_uid_cache.ProjectUidCacheTests.test_write_cache_never_attests_an_unvalidated_destination_reread"
   ],
   "test_project_voice_groups": [
     "tests.test_project_voice_groups.ProjectVoiceGroupTests.test_grouped_requests_match_actual_engine_category_dispatch",
@@ -13661,6 +13671,7 @@
     "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_status_listing_and_review_agree_without_audio_hash_or_provider_work"
   ],
   "test_speech_verification_faults": [
+    "tests.test_speech_verification_faults.GetCasesTests.test_control_accepts_equivalent_plain_path_spellings",
     "tests.test_speech_verification_faults.GetCasesTests.test_fault_plan_per_group",
     "tests.test_speech_verification_faults.GetCasesTests.test_refuses_a_row_whose_proof_names_other_audio",
     "tests.test_speech_verification_faults.GetCasesTests.test_resume_keys_on_run_and_reuses_only_identical_inputs",
@@ -14356,7 +14367,9 @@
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_cancellation_in_riff_validation_and_decoded_blocks_stays_distinct",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_deduplicated_copy_verification_is_cancellable_without_changing_record",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_file_version_matches_descriptor_and_deduplicates_exact_bytes",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_invalid_content_digest_refuses_without_creating_archive",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_invalid_file_version_is_rejected_without_archive_creation",
+    "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_native_version_only_predecessor_refuses_without_content_evidence",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_owner_cancellation_can_acquire_mutex_during_actual_archive_copy",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_replaced_or_rewritten_predecessor_refuses_before_reservation",
     "tests.test_take_capture_admission.TakeCaptureAdmissionTests.test_waiting_for_other_process_archive_lock_is_cancellable"
@@ -16619,6 +16632,7 @@
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_model_errors_are_classified",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_model_init_failure_is_concise_and_non_mutating",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_preflight_reports_missing_model_and_dependency",
+    "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_profiler_reports_success_and_failure_on_legacy_console",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_quality_train_evaluate_and_profile_background_dispatch_reaches_subprocess",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resume_admission_requires_exact_dataset_identity_not_an_arbitrary_prefix",
     "tests.test_voicelab_pipeline_scripts.VoiceLabPipelineScriptTests.test_resumed_profiling_csv_contains_existing_and_new_profiles",

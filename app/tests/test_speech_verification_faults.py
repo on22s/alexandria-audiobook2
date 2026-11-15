@@ -69,6 +69,33 @@ class GetCasesTests(unittest.TestCase):
                             speech_input=dict(text=text, audio=dict(sha256=sha))))
         (folder / 'rows.json').write_text(json.dumps({'rows': out}))
 
+    def test_control_accepts_equivalent_plain_path_spellings(self):
+        with tempfile.TemporaryDirectory(prefix='aa2 plain control ') as root:
+            self._run(root, 'alice', [('a1', 'a01', 1, 'synthetic text', 1)])
+            run = Path(root) / 'alice'
+            path = run / 'rows.json'
+            data = json.loads(path.read_text())
+            wav = Path(data['rows'][0]['wav'])
+            if os.name == 'nt':
+                import ctypes
+                get_short = ctypes.windll.kernel32.GetShortPathNameW
+                get_short.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+                get_short.restype = ctypes.c_uint
+                buffer = ctypes.create_unicode_buffer(32768)
+                size = get_short(str(wav), buffer, len(buffer))
+                self.assertTrue(0 < size < len(buffer), 'Could not obtain DOS path spelling')
+                spelled = Path(buffer.value)
+                self.assertNotEqual(spelled, wav.resolve(), 'Fixture must exercise DOS aliases')
+            else:
+                spelled = wav.parent / '..' / wav.parent.name / wav.name
+            self.assertEqual(spelled.resolve(), wav.resolve())
+            data['rows'][0]['wav'] = str(spelled)
+            path.write_text(json.dumps(data))
+            rows = list(harness.get_rows(run))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]['input_sha256'], get_sha256(wav))
+            self.assertEqual(rows[0]['input_size'], wav.stat().st_size)
+
     def test_fault_plan_per_group(self):
         # Long lines get the four long faults, short lines the two short ones, and
         # authored repetition only a control; other seeds are controls only.
@@ -116,6 +143,18 @@ class GetCasesTests(unittest.TestCase):
             linked_derived.symlink_to(derived, target_is_directory=True)
             with self.assertRaises(ValueError):
                 publish_cases(cases, linked_derived)
+            # Canonical spelling must not launder a control symlink, even when
+            # its target is the very WAV named by the matching proof.
+            rows_path = Path(root) / 'alice' / 'rows.json'
+            original_rows = rows_path.read_text()
+            linked_control = Path(root) / 'alice' / 'linked.wav'
+            linked_control.symlink_to(Path(root) / 'alice' / 'wav' / 'a1.wav')
+            linked_rows = json.loads(original_rows)
+            linked_rows['rows'][0]['wav'] = str(linked_control)
+            rows_path.write_text(json.dumps(linked_rows))
+            with self.assertRaisesRegex(ValueError, 'inside its pilot run'):
+                get_cases(root, derived, {1}, ('alice',))
+            rows_path.write_text(original_rows)
             # Reject an oversized designed WAV before creating its staged file.
             with patch('word_timing.MAX_AUDIO_BYTES', 200), \
                  patch.object(harness.tempfile, 'TemporaryDirectory',
@@ -170,8 +209,16 @@ class GetCasesTests(unittest.TestCase):
             admitted.write_text('{}')
             def replace_after_open(*args, **kwargs):
                 stream, info = real_open(*args, **kwargs)
-                admitted.unlink()
-                os.mkfifo(admitted)
+                if os.name == 'nt':
+                    # Native Windows denies unlink while the admitted descriptor
+                    # is open. A concurrent growth must still fail bounded input.
+                    with self.assertRaises(PermissionError):
+                        admitted.unlink()
+                    with admitted.open('ab') as writer:
+                        writer.write(b' ')
+                else:
+                    admitted.unlink()
+                    os.mkfifo(admitted)
                 return stream, info
             with patch.object(scope_files, '_open_regular', side_effect=replace_after_open):
                 with self.assertRaises(ValueError):
@@ -189,7 +236,10 @@ class GetCasesTests(unittest.TestCase):
             # A FIFO named by a control row is refused without blocking on it.
             wav = Path(root) / 'alice' / 'wav' / 'a1.wav'
             wav.unlink()
-            os.mkfifo(wav)
+            if os.name == 'nt':
+                wav.mkdir()  # native nonregular path; POSIX additionally tests FIFO
+            else:
+                os.mkfifo(wav)
             with self.assertRaisesRegex(ValueError, 'regular file'):
                 get_cases(root, Path(root) / 'd', {1}, ('alice',))
 

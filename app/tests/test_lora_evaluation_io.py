@@ -34,9 +34,15 @@ class EvaluationIoTests(unittest.TestCase):
             with self.subTest(kind="manifest_writes"):self.assertEqual(2 if cached_tail else 1,len(writes))
             if not cached and any(row.get('id')=='voice' for row in entries):
                 with self.subTest(kind="captured_weight_hash_reads"):
-                    self.assertEqual(1,len(hash_file.call_args_list))
-                    self.assertNotEqual(str(adapter),str(hash_file.call_args.args[0]),
+                    # Captured evidence hashes its immutable input exactly once.
+                    # Windows additionally revalidates live bytes before grouping
+                    # candidates because creation-time stat cannot prove freshness.
+                    calls = hash_file.call_args_list
+                    self.assertEqual(2 if sys.platform.startswith('win') else 1, len(calls))
+                    self.assertNotEqual(str(adapter), str(calls[0].args[0]),
                                         'evidence must identify the captured input, not a later live bundle')
+                    if sys.platform.startswith('win'):
+                        self.assertEqual(str(adapter), str(calls[1].args[0]))
                 result=json.loads((adapter/'evaluation.json').read_text())
                 self.assertEqual(result['evidence']['checkpoint_sha256'],result['checkpoint_sha256'])
                 self.assertTrue(evaluation.is_complete_evaluation(result,str(adapter), expected_serving_identity=SyntheticEvaluationEngine().get_lora_serving_identity()))
@@ -59,7 +65,11 @@ class EvaluationIoTests(unittest.TestCase):
                       evaluation.get_adapter_generation_file_identity(tmp),evaluation.get_checkpoint_sha256(tmp))
             with patch.object(evaluation,'get_checkpoint_sha256',wraps=evaluation.get_checkpoint_sha256) as hash_file:
                 result=evaluation.partition_unique_candidates(tmp,str(adapter/'candidates'),production_snapshot=snapshot)
-                self.assertEqual(snapshot[2],result[0]);hash_file.assert_not_called()
+                self.assertEqual(snapshot[2],result[0])
+                if sys.platform.startswith("win"):
+                    hash_file.assert_called_once_with(tmp)
+                else:
+                    hash_file.assert_not_called()
             original=weights.read_bytes();changed=original[:-1]+bytes([original[-1]^1])
             version=weights.stat();weights.write_bytes(changed)
             self.assertEqual(version.st_size,weights.stat().st_size)
@@ -69,3 +79,26 @@ class EvaluationIoTests(unittest.TestCase):
                 hash_file.assert_called_once_with(tmp)
             self.assertNotEqual(snapshot[2],changed[0])
             self.assertEqual(weights.read_bytes(),original[:-1]+bytes([original[-1]^1]))
+
+    def test_windows_creation_time_cannot_authorize_cached_bundle_hashes(self):
+        from tests.test_support import write_test_serving_adapter
+        for filename in ('adapter_config.json', 'adapter_model.safetensors', 'ref_sample.wav', 'training_meta.json'):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tmp:
+                adapter = Path(tmp)
+                write_test_serving_adapter(adapter)
+                snapshot = (evaluation.get_adapter_generation_sha256(tmp),
+                            evaluation.get_adapter_generation_file_identity(tmp),
+                            evaluation.get_checkpoint_sha256(tmp))
+                path = adapter / filename
+                before = path.stat()
+                content = path.read_bytes()
+                path.write_bytes(content[:-1] + bytes([content[-1] ^ 1]))
+                os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+                with patch.object(evaluation.sys, 'platform', 'win32'), patch.object(
+                        evaluation, 'get_adapter_generation_file_identity', return_value=snapshot[1]), patch.object(
+                        evaluation, 'get_adapter_generation_sha256', wraps=evaluation.get_adapter_generation_sha256) as generation:
+                    result = evaluation.partition_unique_candidates(
+                        tmp, str(adapter / 'candidates'), production_snapshot=snapshot)
+                generation.assert_called_once_with(tmp)
+                self.assertNotEqual(snapshot[0], evaluation.get_adapter_generation_sha256(tmp))
+                self.assertEqual(evaluation.get_checkpoint_sha256(tmp), result[0])

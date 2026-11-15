@@ -1,4 +1,5 @@
 import unittest
+import os
 
 from experiments.lora_serving_eval import (get_book_paths, get_eval_arms,
                                            get_eval_metadata, ServingResponseCapture)
@@ -132,15 +133,15 @@ class LoraServingEvalModeTests(unittest.TestCase):
 
     def test_corrected_data_directories_override_legacy_layout(self):
         self.assertEqual(
-            ("/inputs/index18.txt",
-             "/checkpoints/index18__three_pass.json.threepass_checkpoint.json"),
+            (os.path.join("/inputs", "index18.txt"),
+             os.path.join("/checkpoints", "index18__three_pass.json.threepass_checkpoint.json")),
             get_book_paths("index18", "/inputs", "/checkpoints"),
         )
 
     def test_distill_eval_uses_the_same_corrected_layout(self):
         self.assertEqual(
-            ("/inputs/index18.txt",
-             "/checkpoints/index18__three_pass.json.threepass_checkpoint.json"),
+            (os.path.join("/inputs", "index18.txt"),
+             os.path.join("/checkpoints", "index18__three_pass.json.threepass_checkpoint.json")),
             get_distill_book_paths("index18", "/inputs", "/checkpoints"),
         )
 

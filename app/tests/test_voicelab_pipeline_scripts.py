@@ -19,7 +19,7 @@ from fastapi import BackgroundTasks
 import core
 import archive_utils
 from tests import test_lora_batch_preflight as training_fixtures
-from tests.test_support import use_private_cpu_fixture_lock
+from tests.test_support import use_private_cpu_fixture_lock, write_python_cli_fixture
 from routers import voicelab
 from voicelab_settings import get_deduped_zip_name, get_profiler_paths, get_voice_lab_script_path
 
@@ -165,16 +165,27 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                 root = Path(tmp)
                 python = root / 'app' / 'env' / relative
                 python.parent.mkdir(parents=True)
-                python.write_text('#!'+sys.executable+'\nimport sys,json\njson.load(sys.stdin)\n'+
+                python.touch()
+                launcher = write_python_cli_fixture(root / 'preflight-python',
+                    'import sys,json\njson.load(sys.stdin)\n'
                     'print(json.dumps({"status":"ready","datasets":[],"errors":[],"runtime":{}}))\n')
-                python.chmod(0o700)
                 module = types.ModuleType('synthetic_batch_layout')
                 module.__file__ = str(root / 'tools' / 'voice_lab' / 'batch_train_lora.py')
                 source = Path(batch_train.__file__).read_text()
                 with patch.object(sys, 'path', list(sys.path)), patch.object(sys, 'platform', platform):
                     exec(compile(source, module.__file__, 'exec'), module.__dict__)
                 self.assertEqual(str(python), module.PYTHON)
-                receipt = module.get_selected_interpreter_preflight(module.PYTHON, [], 'cpu')
+                # The selector has the target platform's layout. Execute the
+                # payload with a real host launcher, not Python text in an EXE.
+                import subprocess
+                run = subprocess.run
+                def execute_selected(command, **kwargs):
+                    self.assertEqual(str(python), command[0])
+                    self.assertEqual('--batch', command[-1])
+                    return run([str(launcher), *command[1:]], **kwargs)
+                with patch('subprocess.run', side_effect=execute_selected) as selected:
+                    receipt = module.get_selected_interpreter_preflight(module.PYTHON, [], 'cpu')
+                selected.assert_called_once()
                 self.assertEqual('ready', receipt['status'], receipt)
 
     def test_profiler_epub_search_uses_only_explicit_directories(self):
@@ -544,6 +555,28 @@ class VoiceLabPipelineScriptTests(unittest.TestCase):
                 ids = [row["id"] for row in csv.DictReader(f)]
             self.assertEqual(0, rc)
             self.assertEqual(["old", "new"], ids)
+
+    def test_profiler_reports_success_and_failure_on_legacy_console(self):
+        # Reuse the full publication assertions under a real narrow encoder:
+        # redirected Windows output defaults to a legacy code page.
+        raw = io.BytesIO()
+        output = io.TextIOWrapper(raw, encoding="cp1252")
+        try:
+            result = unittest.TestResult()
+            with redirect_stdout(output):
+                for method in ("test_resumed_profiling_csv_contains_existing_and_new_profiles",
+                               "test_profiler_failure_stays_pending_and_returns_failure"):
+                    type(self)(method).run(result)
+            self.assertEqual(2, result.testsRun)
+            self.assertEqual([], result.errors)
+            self.assertEqual([], result.failures)
+            self.assertEqual([], result.skipped)
+            output.flush()
+            text = raw.getvalue().decode("cp1252")
+            self.assertIn("new profile", text)
+            self.assertIn("offline", text)
+        finally:
+            output.close()
 
     def test_atomic_csv_failure_preserves_previous_file(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -53,7 +53,7 @@ class ColabInstallationTests(unittest.TestCase):
         self.assertEqual(['git', 'clone', 'https://github.com/on22s/alexandria-audiobook2.git',
                           '/content/Alexandria'], calls[0][0])
         self.assertEqual([sys.executable, '-m', 'pip', 'install', '-r',
-                          '/content/Alexandria/app/requirements.txt',
+                          os.path.join('/content/Alexandria', 'app', 'requirements.txt'),
                           'qwen-tts==0.1.1', 'pyngrok'], calls[1][0])
         self.assertEqual(2, len(calls))
         self.assertTrue(all(kwargs == {'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT,

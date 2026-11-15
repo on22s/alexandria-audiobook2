@@ -1584,7 +1584,7 @@ def _load_existing_checkpoint(temp_dir):
     if truncated:
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=temp_dir,
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", dir=temp_dir,
                                              prefix=".metadata-repair-", delete=False) as f:
                 temporary = f.name
                 f.writelines(good_lines)
@@ -3489,6 +3489,7 @@ def main():
     audio_24k_scratch = audio_24k_path  # for the finally block cleanup
 
     decode_temp_dir = None
+    decoded_audio_mapping = None
     diarization_temp_dir = None
     try:
         if args.phase == "asr":
@@ -3518,6 +3519,7 @@ def main():
                     args.audio, audio_24k_path,
                     os.path.join(decode_temp_dir.name, "audio_16k.f32"),
                     **({"channel": args.audio_channel} if args.audio_channel != "mix" else {}))
+                decoded_audio_mapping = audio_16k
                 sf_info_24k = sf.info(audio_24k_path)
                 duration_secs = sf_info_24k.duration
                 logger.info(f"  Audio: {duration_secs:.1f}s @ {sf_info_24k.frames} samples (loaded in {time.monotonic()-load_t0:.1f}s)")
@@ -3907,6 +3909,10 @@ def main():
     finally:
         if diarization_temp_dir is not None:
             diarization_temp_dir.cleanup()
+        if decoded_audio_mapping is not None:
+            # Slices and backend references can outlive audio_16k. Release our
+            # backing handle explicitly before removing its directory on Windows.
+            decoded_audio_mapping._mmap.close()
         if decode_temp_dir is not None:
             decode_temp_dir.cleanup()
         # Only clean up the scratch audio file after the final phase (annotation)

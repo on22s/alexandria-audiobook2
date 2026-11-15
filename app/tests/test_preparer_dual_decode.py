@@ -60,6 +60,39 @@ class PreparerDualDecodeTests(unittest.TestCase):
         self.assertIn('pcm_s16le', decoded[0])
         self.assertIn('pcm_f32le', decoded[0])
 
+    def test_transcription_failure_closes_mapping_before_temporary_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path.cwd()
+            os.chdir(tmp)
+            mappings = []
+            def fail(samples, *args, **kwargs):
+                mappings.append(samples)
+                raise RuntimeError('synthetic transcription failure')
+            try:
+                sf.write('source.wav', np.ones(16000, dtype='float32') * .1, 16000)
+                with patch.object(sys, 'argv', ['preparer', '--audio', 'source.wav', '--phase', 'asr']), \
+                     patch.object(p, 'acquire_run_lock', return_value=1), \
+                     patch.object(p, 'ensure_preparer_logging', return_value='fixture.log'), \
+                     patch.object(p, 'get_run_identity', return_value={}), \
+                     patch.object(p, 'ensure_run_manifest'), \
+                     patch.object(p, 'validate_scratch_path'), \
+                     patch.object(p, '_wav_overflow_info', return_value=(False, 601, 1)), \
+                     patch.object(p, '_lazy_import_torch'), \
+                     patch.object(p, 'resolve_cuda_device', return_value='cpu'), \
+                     patch.object(p, 'log_torch_info'), \
+                     patch.object(p, 'mark_artifact_complete') as receipt, \
+                     patch.object(p, 'choose_and_transcribe', side_effect=fail):
+                    with self.assertLogs('alexandria', 'ERROR') as logs:
+                        self.assertEqual(1, p.main())
+                    self.assertIn('synthetic transcription failure', '\n'.join(logs.output))
+                self.assertEqual(1, len(mappings))
+                self.assertTrue(mappings[0]._mmap.closed)
+                self.assertEqual([], list(Path('dataset_temp').glob('alexandria_asr_*')))
+                self.assertEqual(['scratch'], [call.args[2] for call in receipt.call_args_list])
+                self.assertTrue(Path('dataset_temp/audio_24k_scratch.wav').is_file())
+            finally:
+                os.chdir(old)
+
     def test_decoder_failure_removes_temporary_asr_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             old = Path.cwd()
@@ -70,7 +103,7 @@ class PreparerDualDecodeTests(unittest.TestCase):
                     output = command[-1]
                     Path(output).write_bytes(b'partial raw output')
                     raise subprocess.CalledProcessError(1, command)
-                with patch.object(sys, 'argv', ['preparer', '--audio', 'source.wav', '--phase', 'asr']), patch.object(p, 'acquire_run_lock', return_value=1), patch.object(p, 'get_run_identity', return_value={}), patch.object(p, 'ensure_run_manifest'), patch.object(p, 'validate_scratch_path'), patch.object(p, '_wav_overflow_info', return_value=(True, 601, 1)), patch.object(p, '_lazy_import_torch'), patch.object(p, 'resolve_cuda_device', return_value='cpu'), patch.object(p, 'log_torch_info'), patch.object(p, 'mark_artifact_complete') as receipt, patch.object(p.subprocess, 'run', side_effect=fail), patch.object(p, 'choose_and_transcribe') as transcribe:
+                with patch.object(sys, 'argv', ['preparer', '--audio', 'source.wav', '--phase', 'asr']), patch.object(p, 'acquire_run_lock', return_value=1), patch.object(p, 'ensure_preparer_logging', return_value='fixture.log'), patch.object(p, 'get_run_identity', return_value={}), patch.object(p, 'ensure_run_manifest'), patch.object(p, 'validate_scratch_path'), patch.object(p, '_wav_overflow_info', return_value=(True, 601, 1)), patch.object(p, '_lazy_import_torch'), patch.object(p, 'resolve_cuda_device', return_value='cpu'), patch.object(p, 'log_torch_info'), patch.object(p, 'mark_artifact_complete') as receipt, patch.object(p.subprocess, 'run', side_effect=fail), patch.object(p, 'choose_and_transcribe') as transcribe:
                     with self.assertLogs('alexandria', 'ERROR') as logs:
                         self.assertEqual(1, p.main())
                     self.assertIn('returned non-zero exit status 1', '\n'.join(logs.output))

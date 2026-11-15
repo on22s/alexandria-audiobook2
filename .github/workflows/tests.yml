@@ -298,11 +298,14 @@ jobs:
           python-version: "3.10"
       - name: Install CPU startup dependencies
         run: python -m pip install 'fastapi==0.128.0' 'pydantic==2.12.5' 'aiofiles==24.1.0' 'numpy==2.2.6' 'soundfile==0.13.1'
-      - name: Verify native Windows CLI fixture execution and ROCm JSON parsing
+      - name: Verify native Windows CLI fixtures under an OEM code page and ROCm JSON parsing
+        shell: cmd
         env:
           PYTHONUTF8: '1'
           PYTHONIOENCODING: utf-8
-        run: python -m unittest tests.test_cli_fixture tests.test_gpu_stats -v
+        run: |
+          chcp 437 >nul
+          python -m unittest tests.test_cli_fixture tests.test_gpu_stats -v
       - name: Verify Windows application and preparer startup and locks
         run: python ../tools/diagnostics/windows_import_checks.py
       - name: Retain Windows startup and lock evidence
@@ -354,6 +357,31 @@ jobs:
           tests.test_sound_design_delivery_export -v
       - name: Verify native Windows publication during active export downloads
         run: python -m unittest tests.test_export_download_sharing tests.test_sound_design_download -v
+      - name: Verify native Windows predecessor digests and legacy receipt admission
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: >-
+          python -m unittest tests.test_take_capture_admission
+          tests.test_automatic_take_history tests.test_project_scope_history -v
+      - name: Verify native Windows cache authority, ASR cleanup and HTTP reloads
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: >-
+          python -m unittest tests.test_project_uid_cache
+          tests.test_literal_pipeline_policy.LiteralPipelinePolicyTests.test_same_stat_script_rewrite_invalidates_cached_literal_policy
+          tests.test_preparer_dual_decode tests.test_lmstudio_endpoint
+          tests.test_lmstudio_native_reload tests.test_preparer_admission_cancel -v
+      - name: Verify native Windows symlink containment without privilege waivers
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: >-
+          python -m unittest tests.test_deepseek_text_helpers
+          tests.test_evaluation_directory_containment tests.test_preparer_run_manifest
+          tests.test_project_scope_assets tests.test_speech_verification_faults
+          tests.test_tts_asset_paths -v
       - name: Verify native Windows transaction, archive and cancellation handles
         env:
           PYTHONPATH: .

@@ -44,9 +44,14 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                     if held == 'audio':
                         core.process_state['audio']['running'] = True
                     else:
-                        code = "import fcntl,sys,time;h=open(sys.argv[1],'a');fcntl.flock(h,fcntl.LOCK_EX);print('held',flush=True);time.sleep(30)"
-                        holder = subprocess.Popen([sys.executable, '-c', code, str(lock)],stdout=subprocess.PIPE,text=True)
-                        self.assertEqual('held',holder.stdout.readline().strip())
+                        code = ("import sys,time;sys.path.insert(0," + repr(str(Path(__file__).resolve().parents[2])) + ");"
+                                "from alexandria_file_lock import acquire_exclusive_file_lock;"
+                                "h=open(sys.argv[1],'a');acquire_exclusive_file_lock(h.fileno());"
+                                "print('held',flush=True);time.sleep(30)")
+                        holder = subprocess.Popen([sys.executable, '-c', code, str(lock)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                        ready = holder.stdout.readline().strip()
+                        if ready != 'held':
+                            self.fail('Native lock child failed: ' + holder.communicate(timeout=3)[1])
                     with self.assertRaises(HTTPException) as raised:
                         runner.run_manifest(manifest,str(output))
                     self.assertEqual(400,raised.exception.status_code)
@@ -57,7 +62,7 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 finally:
                     core.process_state['audio']['running'] = False
                     if holder is not None:
-                        holder.terminate();holder.wait(timeout=3);holder.stdout.close()
+                        holder.terminate();holder.wait(timeout=3);holder.stdout.close();holder.stderr.close()
 
     def test_lease_covers_self_heal_inference_and_artifact_publication(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

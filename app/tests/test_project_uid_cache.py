@@ -56,6 +56,25 @@ class ProjectUidCacheTests(unittest.TestCase):
             os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
             self.assertTrue(manager.load_chunks()[0].get('uid'))
 
+    def test_write_cache_never_attests_an_unvalidated_destination_reread(self):
+        with tempfile.TemporaryDirectory() as root:
+            manager = ProjectManager(root)
+            path = Path(manager.chunks_path)
+            def publish_then_external_edit(rows, target, **kwargs):
+                written = atomic_json_write(rows, target, **kwargs)
+                before = path.stat()
+                raw = path.read_bytes()
+                changed = raw.replace(b'"uid": "abc"', b'"uid": ""').replace(b'"text": "A"', b'"text": "ABCD"')
+                self.assertNotEqual(raw, changed)
+                self.assertEqual(len(raw), len(changed))
+                path.write_bytes(changed)
+                os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+                return written
+            with patch('project.sys.platform', 'win32'):
+                with patch('project.atomic_json_write', side_effect=publish_then_external_edit):
+                    manager._save_chunks_locked([{'id': 0, 'uid': 'abc', 'text': 'A'}], uids_backfilled=True)
+                self.assertTrue(manager.load_chunks()[0].get('uid'))
+
     def test_status_updates_keep_the_cache_and_single_row_uid_changes_invalidate(self):
         with tempfile.TemporaryDirectory() as root:
             manager = ProjectManager(root)

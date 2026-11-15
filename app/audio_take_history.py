@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 import time
 import uuid
 
@@ -381,9 +382,11 @@ class AudioTakeHistory:
                         notice='Snapshots retain originating metadata. Browsing alone does not establish current restoration eligibility or change selection.')
 
     def capture(self, path, book_token, uid, captured, *, book_label='',
-                expected_source_version=None, cancel_check=None):
-        """Snapshot admitted bytes, optionally fenced to an earlier file version.
+                expected_source_version=None, expected_source_sha256=None, cancel_check=None):
+        """Snapshot admitted bytes, optionally fenced to an earlier file and digest.
 
+        Windows predecessor admission requires a digest because ctime records
+        creation, not changes. Legacy unarchived receipts fail closed there.
         Caller keeps book/source identity stable. A cancellation callback may
         return true or raise its owner's cancellation exception; it must not be
         called under a nonreentrant owner mutex. Interrupted copies stay charged.
@@ -395,6 +398,11 @@ class AudioTakeHistory:
                     or any(type(value) is not int for value in expected_source_version)):
                 raise ValueError('Invalid predecessor file version.')
             expected_source_version = tuple(expected_source_version)
+        if expected_source_sha256 is not None and (
+                type(expected_source_sha256) is not str or not _DIGEST.fullmatch(expected_source_sha256)):
+            raise ValueError('Invalid predecessor content digest.')
+        if sys.platform == 'win32' and expected_source_version is not None and expected_source_sha256 is None:
+            raise ValueError('Prior take lacks content evidence. Disable automatic history and regenerate this line; existing audio was preserved.')
         if type(book_token) is not str or not _DIGEST.fullmatch(book_token) or type(uid) is not str or not 0 < len(uid) <= 128:
             raise ValueError('Invalid take snapshot target.')
         # JSON round-trip makes an owned, finite, bounded record before reservation.
@@ -411,6 +419,8 @@ class AudioTakeHistory:
             if expected_source_version is not None and original != expected_source_version:
                 raise ValueError('Prior take changed since its metadata was captured; existing files were preserved.')
             digest, size = _hash(source, MAX_AUDIO_BYTES, cancel_check=cancel_check)
+            if expected_source_sha256 is not None and digest != expected_source_sha256:
+                raise ValueError('Prior take changed since its metadata was captured; existing files were preserved.')
             if _version(os.fstat(source.fileno())) != original or _version(path.stat()) != original:
                 raise ValueError('Selected take changed while hashing.')
             for row in document['records']:

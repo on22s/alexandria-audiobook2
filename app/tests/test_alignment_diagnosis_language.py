@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import get_bash_executable
 from unittest.mock import patch
 import wave
 
@@ -95,10 +96,14 @@ class AlignmentDiagnosisLanguageTests(unittest.TestCase):
                 (results / (name + '.json')).write_text('{}')
             import os
             capture = root / 'args'
-            result = subprocess.run(['bash', str(chain)], capture_output=True,
+            result = subprocess.run([get_bash_executable(), chain.as_posix()], capture_output=True,
                 text=True, timeout=10, env=dict(os.environ, FIXTURE_CAPTURE=str(capture)))
             self.assertEqual(0, result.returncode, result.stderr)
             args = capture.read_text().splitlines()
-            self.assertEqual(str(root / 'ab_test_runtime/aishell3_eval/build.json'),
-                             args[args.index('--builds') + 1])
+            built = args[args.index('--builds') + 1]
+            if os.name == 'nt':
+                converted = subprocess.run([get_bash_executable(), '-c', 'cygpath -am "$1"', 'fixture', built],
+                                           capture_output=True, text=True, check=True, timeout=10)
+                built = converted.stdout.strip()
+            self.assertEqual((root / 'ab_test_runtime/aishell3_eval/build.json').as_posix(), built)
             self.assertEqual('zh', args[args.index('--language') + 1])
