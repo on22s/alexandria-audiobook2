@@ -244,7 +244,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
         'aliases': get_review_sidecar_identity(args.alias_registry),
         'voice_config': get_review_sidecar_identity(args.remap_voice_config)}
-    if source_text is not None or any('source_span' in entry for entry in entries):
+    if source_text is not None or is_review_source_span_script(entries):
         identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
         identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
                                             if source_text is not None else None)
@@ -1161,9 +1161,15 @@ def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _sou
     return snapshot['text'] if snapshot is not None else None
 
 
+def is_review_source_span_script(entries):
+    """True when any entry carries a source_span. The one test for both the
+    receipt contract and source capture, so the two cannot disagree."""
+    return any('source_span' in entry for entry in entries)
+
+
 def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
     """Capture only a bound book source whose prepared coordinates verify."""
-    if not any('source_span' in entry for entry in entries):
+    if not is_review_source_span_script(entries):
         return None
     import hashlib
     from pathlib import Path
