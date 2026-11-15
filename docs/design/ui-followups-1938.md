@@ -346,3 +346,44 @@ transport without unsupported pass_fds. Legal native filenames preserve URL,
 glob, quoting and Unicode cases. The one POSIX SIGINT queue test now declares its
 existing Linux-tooling requirement; native cancellation has separate real
 process coverage. No symlink privilege failure is suppressed.
+
+
+### CI corrections after the native follow-up
+
+Hosted head `50e0becd34c0969d0eef5d43ad08df1de03a04e8` exposed two
+integration gaps and a Windows path-spelling defect. The rolling Linux shard
+ran 2,045 tests with four errors: the Windows receipt fixtures patched the
+shared `sys.platform`, making Linux libsndfile attempt its Windows-only wide
+filename API. The fixture now replaces only the history module's `sys` binding;
+real audio validation and both journal modes remain exercised.
+
+The native containment step could not import the evaluation module without
+librosa. Resampling now imports that runtime only when the embedding input
+actually needs a sample-rate conversion; containment and manifest refusal
+can run with their existing CPU dependencies. A fresh-process regression blocks
+librosa imports and checks that the real evaluation module still loads.
+
+The hosted Windows temp directory used a DOS short name in render rows and a
+long name in the resolved pilot root. Control admission now uses the shared
+plain-path validator before canonicalizing spelling, then retains the bounded,
+confined descriptor capture and proof digest check. A fail-first native test
+uses an actual DOS path from GetShortPathNameW. The POSIX branch uses an
+equivalent plain spelling, and the containment fixture also rejects a symlink
+to the same proof-matching control, so resolution cannot hide that alias.
+
+The focused native correction cohort passed 49 tests with zero failures,
+errors or skips. An overlapping broader run of 71 tests had zero assertion
+failures, four WinError 1314 errors at real symlink creation, and zero skips.
+These observations do not clear the broad native readiness limitation above.
+
+The required correction run of real Git Bash `ready.sh --shard 6/6` executed
+2,045 tests in 619.217 seconds: 26 failures, 47 errors and 263 skips. Of the
+47 error entries, 37 are WinError 1314 at fixture symlink creation. Other
+entries expose native filename/path, fixture JSON, cleanup and identity
+assumptions; the assertion failures also include archive hashes, receipt
+freshness, queue parsing and lexicon cache behavior. These remain unadjudicated
+under #1954. No equivalent full unchanged-base shard was run, so this record
+does not classify them as pre-existing. The release-verifier receipt is failed
+at the unit gate and later gates did not execute. Inventory/native-CI checks
+separately passed 26 tests with zero failures, errors or skips. The correction
+sources did not change after the readiness measurement.

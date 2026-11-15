@@ -5346,6 +5346,7 @@
   ],
   "test_evaluation_directory_containment": [
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_candidate_cleanup_rejects_escape_without_deleting_owned_or_outside_files",
+    "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_containment_module_import_does_not_require_resampling_runtime",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_escaped_ids_and_symlink_adapter_reject_before_generation",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_internal_candidate_symlink_does_not_delete_its_target",
     "tests.test_evaluation_directory_containment.EvaluationDirectoryContainmentTests.test_main_rejects_manifest_paths_before_model_initialization",
@@ -13670,6 +13671,7 @@
     "tests.test_speech_verification_editor.SpeechVerificationEditorTests.test_status_listing_and_review_agree_without_audio_hash_or_provider_work"
   ],
   "test_speech_verification_faults": [
+    "tests.test_speech_verification_faults.GetCasesTests.test_control_accepts_equivalent_plain_path_spellings",
     "tests.test_speech_verification_faults.GetCasesTests.test_fault_plan_per_group",
     "tests.test_speech_verification_faults.GetCasesTests.test_refuses_a_row_whose_proof_names_other_audio",
     "tests.test_speech_verification_faults.GetCasesTests.test_resume_keys_on_run_and_reuses_only_identical_inputs",

@@ -7,6 +7,27 @@ from tests.test_lora_evaluation import evaluation
 
 
 class EvaluationDirectoryContainmentTests(unittest.TestCase):
+    def test_containment_module_import_does_not_require_resampling_runtime(self):
+        import subprocess, sys
+        script = """
+import importlib.abc, importlib.util
+import sys
+class NoResampler(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'librosa' or fullname.startswith('librosa.'):
+            raise ModuleNotFoundError('Resampling runtime is unavailable')
+sys.meta_path.insert(0, NoResampler())
+spec = importlib.util.spec_from_file_location('containment_probe',
+    sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert callable(module.cleanup_candidates)
+assert callable(module.evaluate_adapter)
+"""
+        result = subprocess.run([sys.executable, '-c', script, evaluation.__file__],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_escaped_ids_and_symlink_adapter_reject_before_generation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp,'models');root.mkdir()

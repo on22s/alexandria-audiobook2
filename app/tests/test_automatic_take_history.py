@@ -185,14 +185,14 @@ class AutomaticTakeHistoryTests(unittest.TestCase):
                 manager._update_chunk_fields_by_uid(row['uid'], **{KEY: legacy})
                 before = copy.deepcopy(manager.load_chunks()[0])
                 original = previous.read_bytes()
-                with patch('audio_take_history.sys.platform', 'win32'):
+                with patch('audio_take_history.sys', SimpleNamespace(platform='win32')):
                     with self.assertRaisesRegex(ValueError, 'lacks content evidence'):
                         manager._update_generation_fields(copy.deepcopy(before), status='generating')
                 self.assertEqual(manager.load_chunks()[0], before)
                 self.assertEqual(previous.read_bytes(), original)
                 self.assertEqual(AudioTakeHistory(root).list()['total'], 0)
                 self.policy(manager, False)
-                with patch('audio_take_history.sys.platform', 'win32'):
+                with patch('audio_take_history.sys', SimpleNamespace(platform='win32')):
                     result = manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(fresh), 'NARRATOR')
                 self.assertEqual((root/result).read_bytes(), fresh.read_bytes())
                 self.assertIsNone(manager.load_chunks()[0][KEY])
@@ -207,7 +207,7 @@ class AutomaticTakeHistoryTests(unittest.TestCase):
                 legacy = {k: v for k, v in held[KEY].items() if k != 'source_sha256'}
                 legacy['version'] = 1
                 manager._update_chunk_fields_by_uid(row['uid'], **{KEY: legacy})
-                with patch('audio_take_history.sys.platform', 'win32'):
+                with patch('audio_take_history.sys', SimpleNamespace(platform='win32')):
                     result = manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(fresh), 'NARRATOR')
                 self.assertEqual((root/result).read_bytes(), fresh.read_bytes())
                 self.assertEqual((root/legacy['archive']['path']).read_bytes(), original)

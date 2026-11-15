@@ -11,7 +11,6 @@ import sys
 import time
 import uuid
 
-import librosa
 import numpy as np
 import soundfile as sf
 
@@ -149,6 +148,7 @@ def load_embedding_audio(path: str):
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
     if sample_rate != 16000:
+        import librosa
         audio = librosa.resample(audio, orig_sr=sample_rate, target_sr=16000)
     peak = np.max(np.abs(audio)) if len(audio) else 0.0
     if peak:
