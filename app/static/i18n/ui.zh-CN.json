@@ -3596,6 +3596,7 @@
   "script.review.start-failed": "启动审阅失败",
   "script.review.start-recovery": "在开始另一次审阅前，请查看当前审阅任务状态和设置中的测试连接。",
   "script.review.start.help": "运行第二轮 LLM 处理，修正说话人归属错误或格式问题。仅在生成的脚本有问题时需要。",
+  "script.review.stats.annotations": "，{count} 处标注修正",
   "script.review.stats.batches-failed": "，{count} 个批次失败",
   "script.review.stats.batches-skipped": "，{count} 个批次已跳过（显存）",
   "script.review.stats.changes": "{changes} 处更改：{text} 处文本，{speaker} 处说话者，{instruct} 处指令，+{added}/-{removed} 个条目",

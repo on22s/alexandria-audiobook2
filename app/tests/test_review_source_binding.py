@@ -62,14 +62,13 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertIn('source_span', review.REVIEW_SYSTEM_PROMPT)
         self.assertIn('restored from the original entries', review.REVIEW_SYSTEM_PROMPT)
 
-    def test_omitted_and_spoofed_metadata_produce_the_same_source_bound_result(self):
+    def test_omitted_and_spoofed_protected_metadata_produce_the_same_source_bound_result(self):
         source = [row('A bell rang.', spoken=False, source_span=[0, 12]),
                   row('Please open the gate.', spoken=True, source_span=[14, 35],
                       speaker_gender='female', speaker_age_group='adult', speaker_ageless=False)]
         minimal = [row(entry['text'], speaker='NARRATOR' if i == 0 else 'ALICE')
                    for i, entry in enumerate(source)]
-        spoofed = [{**entry, 'spoken': not source[i]['spoken'], 'source_span': [-1, -1],
-                    'speaker_gender': 'male', 'speaker_age_group': 'child', 'speaker_ageless': True}
+        spoofed = [{**entry, 'source_span': [-1, -1], 'provenance': {'untrusted': True}}
                    for i, entry in enumerate(minimal)]
         outputs = []
         for answer in (minimal, spoofed):
@@ -103,7 +102,7 @@ class ReviewSourceBindingTests(unittest.TestCase):
         reply = [{**self.source[0], 'pause_after': 0, 'speaker_gender': 'male',
                   'dialogue_provenance': {}, 'invented_metadata': True}, self.source[1]]
         output, _, _ = self.run_review(self.source, [reply])
-        self.assertEqual(self.source, output)
+        self.assertEqual([{**self.source[0], 'speaker_gender': 'male'}, self.source[1]], output)
 
     def test_punctuation_drift_recovers_labels_but_preserves_exact_source_text(self):
         reply = [row('And yet, Just turn your head.', speaker='ALICE'), self.source[1]]
@@ -187,14 +186,14 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertEqual(1, len(calls))
         self.assertEqual('accepted', attempts[0]['outcome'])
 
-    def test_exact_full_review_accepts_correction_but_ignores_model_role_fields(self):
+    def test_exact_full_review_accepts_correction_and_explicit_spoken_annotation(self):
         source = [row('Please wait beside the gate.', speaker='NARRATOR', spoken=False, type='NARRATOR',
                       source_span=[4, 30], pause_after=700)]
         reply = [row(source[0]['text'], speaker='ALICE', spoken=True)]
         output, calls, attempts = self.run_review(source, [reply])
         self.assertEqual(1, len(calls))
         self.assertEqual('accepted', attempts[0]['outcome'])
-        self.assertEqual([unresolved_row(source[0], speaker='ALICE')], output)
+        self.assertEqual([{**unresolved_row(source[0], speaker='ALICE'), 'spoken': True}], output)
         self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
         self.assertIn(review.REVIEW_ATTRIBUTION_RULE, calls[0]['messages'][-1]['content'])
 
@@ -374,7 +373,7 @@ class ReviewSourceBindingTests(unittest.TestCase):
         for speaker, expected_traits in (('BOB', traits), ('NARRATOR', {'spoken': False})):
             with self.subTest(speaker=speaker):
                 reply = [row('A first portion. A second portion.', speaker=speaker,
-                             speaker_gender='female', spoken=None, provenance={'spoofed': True})]
+                             provenance={'spoofed': True})]
                 output, calls, _ = self.run_review(source, [reply])
                 self.assertEqual(1, len(calls))
                 self.assertEqual([speaker, speaker], [entry['speaker'] for entry in output])
@@ -415,8 +414,8 @@ class ReviewSourceBindingTests(unittest.TestCase):
                         row('Third.', speaker='BOB', spoken=0)]):
             with self.subTest(donors=donors):
                 source = [original, *donors]
-                reply = [row(original['text'], speaker='BOB', spoken=True,
-                             speaker_gender='male'), *donors]
+                reply = [row(original['text'], speaker='BOB'),
+                         *[{key: donor[key] for key in ('speaker', 'text', 'instruct')} for donor in donors]]
                 before = copy.deepcopy(source)
                 output, quality = review.get_review_source_binding(source, reply)
                 self.assertTrue(quality['passed'])

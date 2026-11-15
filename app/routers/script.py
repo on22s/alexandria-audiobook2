@@ -33,7 +33,8 @@ from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
@@ -3410,7 +3411,16 @@ async def generate_script_resume():
 @router.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks, request: Optional[ReviewRequest] = None):
     """Review the current annotated script. Accepts empty POST or JSON body."""
-    return await asyncio.to_thread(_with_published_script, _start_review_script, background_tasks, request)
+    return await asyncio.to_thread(_with_review_startup, "review", _with_published_script, _start_review_script, background_tasks, request)
+
+
+def _get_review_startup_path(task_name):
+    return os.path.join(os.path.dirname(_task_log_path(task_name)), task_name + '-startup.log')
+
+
+def _with_review_startup(task_name, callback, *args):
+    path = _get_review_startup_path(task_name)
+    return ReviewStartupTrace(path).call('admission', callback, *args)
 
 
 def _with_published_script(callback, *args):
@@ -3433,6 +3443,12 @@ def _require_published_selection():
         raise HTTPException(status_code=409, detail=str(error)) from error
 
 
+def _run_review_worker(command, task_name, trace):
+    if trace is None:
+        return _run_published_script_process(command, task_name)
+    return trace.call('worker', _run_published_script_process, command, task_name)
+
+
 def _run_published_script_process(command, task_name):
     # Recheck after task ownership is claimed to close the admission race.
     try:
@@ -3442,6 +3458,8 @@ def _run_published_script_process(command, task_name):
         state['status'] = 'failed'
         state['return_code'] = 1
         state['logs'] = [f"Task {task_name} could not start: {error.detail}"]
+        from review_startup import event
+        event('publication_recheck_failed', error=error)
         return 1
     return run_process(command, task_name)
 
@@ -3457,12 +3475,12 @@ def _start_review_script(background_tasks, request):
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    schedule_claimed_background_task(background_tasks, "review", _run_published_script_process, cmd, "review")
+    schedule_claimed_background_task(background_tasks, "review", _run_review_worker, cmd, "review", REVIEW_STARTUP.get())
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 @router.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
-    return await asyncio.to_thread(_with_published_script, _start_contextual_review, request, background_tasks)
+    return await asyncio.to_thread(_with_review_startup, "review", _with_published_script, _start_contextual_review, request, background_tasks)
 
 
 def _start_contextual_review(request, background_tasks):
@@ -3493,9 +3511,9 @@ def _start_contextual_review(request, background_tasks):
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
     schedule_claimed_background_task(background_tasks, "review",
-        _run_published_script_process,
+        _run_review_worker,
         cmd,
-        "review"
+        "review", REVIEW_STARTUP.get()
     )
     return {
         "status": "started",
@@ -3697,6 +3715,10 @@ async def delete_cast_list():
 async def review_script_batch_start(request: BatchReviewRequest, background_tasks: BackgroundTasks):
     """Review multiple saved scripts from the Scripts library, in place.
     A shared alias registry keeps merged character names consistent across the batch."""
+    return await asyncio.to_thread(_with_review_startup, "batch_review", _start_batch_review, request, background_tasks)
+
+
+def _start_batch_review(request, background_tasks):
     check_global_gpu_lock("batch_review")
     if not request.script_names:
         raise HTTPException(status_code=400, detail="No scripts selected.")
@@ -3946,8 +3968,11 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
     destinations = [os.path.join(SCRIPTS_DIR, f"{secure_filename(name)}.json")
                     for name in names if secure_filename(name)]
+    trace = REVIEW_STARTUP.get()
+    def traced_run():
+        return trace.call('worker', _run) if trace else _run()
     schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task,
-                                    "batch_review", _run, saved_destinations=destinations)
+                                    "batch_review", traced_run, saved_destinations=destinations)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 
@@ -4760,6 +4785,21 @@ async def get_task_log(task_name: str, download: bool = False):
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
     log_path = _task_log_path(task_name)
+    trace_path = _get_review_startup_path(task_name)
+    trace = await asyncio.to_thread(read_trace, trace_path) if task_name in ('review', 'batch_review') else b''
+    if task_name in ('review', 'batch_review') and not trace and not os.path.exists(log_path):
+        trace = b'# No review startup events yet. Start a review, then download again.\n'
+    if trace:
+        def content():
+            yield b'# Review startup trace (correlate by id; worker log follows)\n'
+            yield trace
+            if os.path.exists(log_path):
+                yield b'\n# Worker log\n'
+                with open(log_path, 'rb') as stream:
+                    while chunk := stream.read(65536):
+                        yield chunk
+        headers = {'Content-Disposition': f'attachment; filename="{task_name}.log"'} if download else None
+        return StreamingResponse(content(), media_type='text/plain', headers=headers)
     if not os.path.exists(log_path):
         raise HTTPException(status_code=404, detail="No log file for this task yet.")
     filename = f"{task_name}.log"

@@ -54,7 +54,8 @@ class ReviewNarratorCorrectionTests(unittest.TestCase):
         request = '\n'.join(message['content'] for message in calls[0]['messages'])
         self.assertIn(review.REVIEW_ATTRIBUTION_RULE, calls[0]['messages'][0]['content'])
         self.assertEqual(1, request.count(review.REVIEW_ATTRIBUTION_RULE))
-        self.assertIn('Only return the fields required by the response format.', request)
+        self.assertIn('Return the required labels and any documented optional annotation corrections.', request)
+        self.assertNotIn('Only return the fields required by the response format.', request)
         self.assertNotIn('Preserve source text, order and metadata.', request)
         self.assertNotIn('must remain NARRATOR', calls[0]['messages'][0]['content'])
 

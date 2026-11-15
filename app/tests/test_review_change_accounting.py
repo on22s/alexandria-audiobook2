@@ -51,6 +51,30 @@ class ReviewAccountingTests(unittest.TestCase):
             review.main()
         return log.getvalue()
 
+    def test_annotation_only_edits_are_counted_in_cli_and_batch_summary(self):
+        for context in (0, 1):
+            with self.subTest(context=context), tempfile.TemporaryDirectory() as tmp:
+                original = get_rows(2)
+                source, output = Path(tmp, 'source.json'), Path(tmp, 'out.json')
+                source.write_text(json.dumps(original))
+                def respond(client, model, batch, *args, **kwargs):
+                    return [{**entry, 'speaker_age_group': 'adult'} for entry in batch]
+                log = self.run_cli(tmp, source, output, respond, context=context)
+                stats = core._extract_review_stats(log.splitlines())
+                self.assertEqual(2, stats['entries_changed'])
+                self.assertEqual(2, stats.get('annotations_changed'))
+                self.assertEqual(2, stats['total_changes'])
+                self.assertNotIn('No changes', log)
+                self.assertNotIn('No issues found', log)
+                self.assertEqual([{**entry, 'speaker_age_group': 'adult'} for entry in original],
+                                 json.loads(output.read_text()))
+
+    def test_live_batch_summaries_show_annotation_only_corrections(self):
+        stats = core._combine_pass_stats(get_stats(annotations_changed=5, entries_changed=5), None)
+        stats.update(books_done=1, total_changes=5)
+        self.assertIn('5 annotation correction(s)', core._format_book_summary(0, 1, '', 'Fixture', stats))
+        self.assertIn('Annotations: 5', core._format_pass_summary('Totals', stats, [], False))
+
     def checkpoint(self, output):
         return load_generation_checkpoint_document(review._checkpoint_path(str(output)))
 
@@ -298,10 +322,11 @@ class ReviewAccountingTests(unittest.TestCase):
             original = get_rows(); output = Path(tmp, 'out.json')
             self.save_owned(output, original, [(original[:3], original[:3])])
             path = Path(review._checkpoint_path(str(output))); data = self.checkpoint(output)
-            data['total_stats'].pop('entries_changed'); path.write_text(json.dumps(data))
+            data['total_stats'].pop('entries_changed'); data['total_stats'].pop('annotations_changed'); path.write_text(json.dumps(data))
             before = path.read_bytes()
             loaded = review.load_checkpoint(str(output), 2, 3, 0, original, execution_sha256='fixture')
             self.assertEqual(0, loaded['total_stats']['entries_changed'])
+            self.assertEqual(0, loaded['total_stats']['annotations_changed'])
             self.assertTrue(loaded['review_accounting']['inherited_unverified'])
             self.assertEqual(before, path.read_bytes())
 
@@ -336,6 +361,9 @@ const verified = {...stats, accounting_unverified: false, accounting_warning: ''
 assert.strictEqual(ctx._formatBookStats(verified), '3 changes: 1 text, 2 speaker, 0 instruct, +0/-0 entries');
 assert.strictEqual(ctx._formatTotalsLine('Totals', verified), 'Totals: 1 book(s), 3 total change(s) (1 text, 2 speaker, 0 instruct, +0/-0 entries)');
 assert.strictEqual(ctx._formatTotalsLine('Totals', null), 'Totals: no books finished yet');
+const annotated = {...verified, annotations_changed: 5, total_changes: 5};
+assert(ctx._formatBookStats(annotated).includes('5 annotation correction(s)'));
+assert(ctx._formatTotalsLine('Totals', annotated).includes('5 annotation correction(s)'));
 const partial = {...stats, partial: true, batches_failed: 1, batches_skipped_vram: 2};
 assert(ctx._formatBookStats(partial).startsWith('(partial'));
 assert(ctx._formatBookStats(partial).includes('2 batch(es) skipped (VRAM)'));

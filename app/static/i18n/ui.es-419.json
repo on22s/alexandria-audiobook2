@@ -3596,6 +3596,7 @@
   "script.review.start-failed": "No se pudo iniciar la revisión",
   "script.review.start-recovery": "Revisa el estado actual de la tarea de revisión y la prueba de conexión en Configuración antes de iniciar otra revisión.",
   "script.review.start.help": "Ejecuta una segunda pasada del LLM para corregir atribuciones de hablante erróneas o problemas de formato. Solo es necesario si el guion generado tiene problemas.",
+  "script.review.stats.annotations": ", {count} corrección(es) de anotaciones",
   "script.review.stats.batches-failed": ", {count} lotes fallidos",
   "script.review.stats.batches-skipped": ", {count} lotes omitidos (VRAM)",
   "script.review.stats.changes": "{changes} cambios: {text} de texto, {speaker} de hablante, {instruct} de indicación, +{added}/-{removed} entradas",

@@ -1,3 +1,18 @@
+if __name__ == '__main__':
+    import os as _startup_os
+    import sys as _startup_sys
+    from pathlib import Path as _StartupPath
+    from utils import get_runtime_data_dir as _startup_data_dir
+    from review_startup import ReviewStartupTrace, CURRENT as _STARTUP_CURRENT, ENV_ID, ENV_PATH
+    _startup_path = _startup_os.environ.get(ENV_PATH) or str(_StartupPath(_startup_data_dir(str(_StartupPath(__file__).resolve().parent.parent))) / 'logs' / 'api' / 'review-startup.log')
+    _startup_trace = ReviewStartupTrace(_startup_path, _startup_os.environ.get(ENV_ID))
+    _STARTUP_CURRENT.set(_startup_trace)
+    _startup_trace.event('cli_imports_started')
+    def _startup_exception(kind, error, traceback):
+        _startup_trace.event('cli_failed', error=error)
+        _startup_sys.__excepthook__(kind, error, traceback)
+    _startup_sys.excepthook = _startup_exception
+
 from chunk_status_journal import remove_chunk_snapshot
 import os
 import stat
@@ -38,6 +53,8 @@ from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
                               is_speaker_merge_allowed, get_resolved_speaker_merge_map,
                               get_validated_alias_graph, get_safe_alias_proposals)
 
+
+from review_startup import event as startup_event, bind_current as bind_startup_trace
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
 # A long batch review run can grow VRAM usage (KV cache + other GPU apps) until
@@ -229,7 +246,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
 
-REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed',
+REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed', 'annotations_changed',
                        'entries_changed', 'entries_added', 'entries_removed')
 
 
@@ -458,7 +475,8 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     data.setdefault("failed_batches", [])
     data.setdefault("total_stats", {})
     data["total_stats"].setdefault("batches_skipped_vram", 0)
-    migrated_counts = 'entries_changed' not in data['total_stats']
+    migrated_counts = any(key not in data['total_stats'] for key in ('entries_changed', 'annotations_changed'))
+    data['total_stats'].setdefault('annotations_changed', 0)
     data["total_stats"].setdefault("entries_changed", 0)
 
     failed_batches = sorted(data["failed_batches"])
@@ -925,34 +943,83 @@ REVIEW_ATTRIBUTION_RULE = (
     'Speaker labels, including NARRATOR, may be corrected using the text and context. '
     'Input speaker/type labels and Boolean spoken flags are fallible hints, not '
     'attribution locks. Use NARRATOR for actual narration; do not relabel it without '
-    'contextual evidence. Only return the fields required by the response format.')
+    'contextual evidence. Return the required labels and any documented optional annotation corrections.')
 
 
+from speaker_traits import GENDERS, AGE_GROUP_NAMES
+
+REVIEW_ANNOTATION_SCHEMA = {
+    'type': {'type': ['string', 'null'], 'enum': ['NARRATOR', 'SPOKEN', None]},
+    'spoken': {'type': ['boolean', 'null']},
+    'speaker_gender': {'type': ['string', 'null'], 'enum': [*GENDERS, None]},
+    'speaker_age_group': {'type': ['string', 'null'], 'enum': [*AGE_GROUP_NAMES, None]},
+    'speaker_ageless': {'type': ['boolean', 'null']},
+}
+REVIEW_ANNOTATION_RULE = (
+    'You may also return corrected annotations: type (NARRATOR or SPOKEN), spoken '
+    '(Boolean), speaker_gender (' + ', '.join(GENDERS) + '), speaker_age_group ('
+    + ', '.join(AGE_GROUP_NAMES) + '), speaker_ageless (Boolean). '
+    'Use the passage context and evidence for the corrected speaker at this point '
+    'in the story; do not invent traits. Omit type to retain the source role hint. '
+    'Omit other annotations to retain their existing value or known-speaker fallback. Use null only to explicitly clear an annotation. '
+    'Source text, source_span, provenance, pause_after and other source metadata '
+    'are protected: do not edit them; they are restored from the original entries. ')
 REVIEW_CLASSIC_RESPONSE_RULE = (
     'REVIEW RESPONSE CONTRACT (takes precedence over conflicting format instructions): '
     'Return a JSON array with speaker, text and instruct string fields in every entry. '
-    'Do not return input-only metadata such as spoken, source_span, type, '
-    'speaker_gender, speaker_age_group, speaker_ageless, pause_after or provenance. '
-    'Source spans, provenance and pauses are restored from the original entries after source-text validation; their omission does not remove them. '
-    'When a speaker changes, known attributes follow that corrected speaker; '
-    'unknown or conflicting speaker attributes are cleared and reported. '
-    'Preserve all text in its original order. Split or merge only when text and '
-    'source metadata can be preserved. Never omit speaker, text or instruct.')
-
-
+    + REVIEW_ANNOTATION_RULE +
+    'When a speaker changes and no explicit annotations are supplied, known '
+    'attributes follow that corrected speaker; unknown or conflicting attributes '
+    'are cleared and reported. Preserve all text in its original order. Split or '
+    'merge only when text and source metadata can be preserved. Never omit '
+    'speaker, text or instruct.')
 REVIEW_LABEL_SCHEMA = {"name": "review_labels", "schema": {
     "type": "array", "items": {"type": "object", "properties": {
         "n": {"type": "integer"}, "speaker": {"type": "string"},
-        "instruct": {"type": "string"}},
+        "instruct": {"type": "string"}, **REVIEW_ANNOTATION_SCHEMA},
         "required": ["n", "speaker", "instruct"], "additionalProperties": False}}}
 REVIEW_LABEL_SYSTEM = (
     'Review speaker identities and TTS delivery instructions for an audiobook. '
     'Use speech tags and surrounding context to correct the speaker of each entry. '
-    'Return ONLY a JSON array of {"n", "speaker", "instruct"}, one object per '
-    'input index, including unchanged entries. Speaker names are UPPERCASE; '
-    'narration uses NARRATOR. Never return text, change entry boundaries, or '
-    'label the surrounding context. Source text is immutable; only labels are editable. '
-    + REVIEW_ATTRIBUTION_RULE)
+    'Return ONLY a JSON array with n, speaker and instruct in each object, one '
+    'object per input index including unchanged entries. Speaker names are '
+    'UPPERCASE; narration uses NARRATOR. Never return text, change entry boundaries, '
+    'or label the surrounding context. ' + REVIEW_ANNOTATION_RULE + REVIEW_ATTRIBUTION_RULE)
+
+
+def get_review_annotations(entry):
+    return {key: copy.deepcopy(entry[key]) for key in REVIEW_ANNOTATION_SCHEMA if key in entry}
+
+
+def get_review_annotation_findings(entry, number):
+    findings = []
+    for key, value in get_review_annotations(entry).items():
+        schema = REVIEW_ANNOTATION_SCHEMA[key]
+        valid = (value is None or (type(value) is bool if 'boolean' in schema['type']
+                 else isinstance(value, str) and value in schema['enum']))
+        if not valid:
+            findings.append({'code': 'review_annotation_value', 'entry_number': number,
+                             'field': key, 'message': ('Review annotation ' + key + ' must be ' +
+                                 ('a Boolean or null.' if 'boolean' in schema['type'] else
+                                  ', '.join(str(value) for value in schema['enum']) + '.'))})
+    return findings
+
+
+
+def get_review_prompt_entry(entry):
+    """Show only contract-valid optional annotations; bind unchanged facts to source."""
+    invalid = {finding['field'] for finding in get_review_annotation_findings(entry, 0)}
+    return {key: copy.deepcopy(value) for key, value in entry.items()
+            if key != SCRIPT_POLICY_KEY and key not in invalid}
+
+
+def apply_review_annotations(entry, reply):
+    for key, value in get_review_annotations(reply).items():
+        if value is None:
+            entry.pop(key, None)
+        else:
+            entry[key] = value
+    return entry
 
 
 def get_review_source_narration(entry):
@@ -970,9 +1037,10 @@ def get_review_label_binding(batch_entries, entries):
         findings.append({"code": "review_label_alignment", "message": reason})
     else:
         for i, row in enumerate(ordered):
-            if set(row) != {"n", "speaker", "instruct"}:
+            findings.extend(get_review_annotation_findings(row, i + 1))
+            if not {"n", "speaker", "instruct"} <= set(row) or set(row) - {"n", "speaker", "instruct"} - set(REVIEW_ANNOTATION_SCHEMA):
                 findings.append({"code": "review_label_fields", "entry_number": i + 1,
-                                 "message": "Return only n, speaker and instruct."})
+                                 "message": "Return n, speaker, instruct and only the documented editable annotations."})
             for key in ("speaker", "instruct"):
                 if (not isinstance(row.get(key), str)
                         or (key == "speaker" and not row[key].strip())):
@@ -981,7 +1049,7 @@ def get_review_label_binding(batch_entries, entries):
     return ordered, {"passed": not findings, "findings": findings}
 
 
-def get_review_field_report(entries):
+def get_review_field_report(entries, *, validate_annotations=True):
     """Validate the common classic-review fields before source binding."""
     findings = []
     for number, entry in enumerate(entries, 1):
@@ -989,6 +1057,8 @@ def get_review_field_report(entries):
             findings.append({"code": "invalid_entry", "entry_number": number,
                              "message": "Review entries must be JSON objects."})
             continue
+        if validate_annotations:
+            findings.extend(get_review_annotation_findings(entry, number))
         missing = [key for key in ("speaker", "text", "instruct") if key not in entry]
         if missing:
             findings.append({"code": "missing_fields", "entry_number": number,
@@ -1045,7 +1115,7 @@ def get_review_labelled_entries(batch_entries, ordered):
         entry = {**copy.deepcopy(original), 'speaker': labels['speaker'],
                  'instruct': labels['instruct']}
         entry, warning = get_review_speaker_bound_entry(entry, [original], [], batch_entries)
-        bound.append(entry)
+        bound.append(apply_review_annotations(entry, labels))
         if warning:
             warnings.append({**warning, 'entry_number': number})
     return bound, warnings
@@ -1098,8 +1168,8 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
             source_ids, reply_ids = None, None
         if (source_ids is not None and source_ids == reply_ids
                 and len(set(source_ids)) == len(source_ids)):
-            labels = [{"n": i, "speaker": entry["speaker"], "instruct": entry["instruct"]}
-                      for i, entry in enumerate(entries)]
+            labels = [{"n": i, "speaker": entry["speaker"], "instruct": entry["instruct"],
+                       **get_review_annotations(entry)} for i, entry in enumerate(entries)]
             ordered, quality = get_review_label_binding(batch_entries, labels)
             if quality['passed']:
                 bound, warnings = get_review_labelled_entries(batch_entries, ordered)
@@ -1161,7 +1231,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                 row, warning = get_review_speaker_bound_entry(row,
                     [original for _, _, original in group],
                     [original for _, _, original in sources], batch_entries)
-                bound.append(row)
+                bound.append(apply_review_annotations(row, entry))
                 if warning:
                     warnings.append({**warning, 'entry_number': number})
         position = end + 1
@@ -1184,7 +1254,7 @@ def get_review_batch_status(entries, records):
 def get_review_partial_label_retention(batch_entries, entries, literal):
     """Retain labels only on exact, unique, same-position source text."""
     if (not entries
-            or not get_review_field_report(batch_entries)['passed']
+            or not get_review_field_report(batch_entries, validate_annotations=False)['passed']
             or not get_review_field_report(entries)['passed']):
         return None, None
     try:
@@ -1200,9 +1270,12 @@ def get_review_partial_label_retention(batch_entries, entries, literal):
                          and original['text'] == reply['text'])
         exact = (same_position and source_counts[source_ids[i]] == 1
                  and reply_counts[source_ids[i]] == 1)
-        changed = exact and any(original[key] != reply[key] for key in ('speaker', 'instruct'))
+        changed = exact and (any(original[key] != reply[key] for key in ('speaker', 'instruct'))
+                             or get_typed_metadata(apply_review_annotations(copy.deepcopy(original), reply))
+                             != get_typed_metadata(original))
         chosen = reply if exact else original
-        labels.append({'n': i, 'speaker': chosen['speaker'], 'instruct': chosen['instruct']})
+        labels.append({'n': i, 'speaker': chosen['speaker'], 'instruct': chosen['instruct'],
+                       **(get_review_annotations(chosen) if exact else {})})
         if exact and changed:
             retained.append(i)
         else:
@@ -1211,8 +1284,8 @@ def get_review_partial_label_retention(batch_entries, entries, literal):
     ordered, quality = get_review_label_binding(batch_entries, labels)
     if not retained or not quality['passed']:
         return None, None
-    proposed = [{**copy.deepcopy(original), 'speaker': row['speaker'], 'instruct': row['instruct']}
-                for original, row in zip(batch_entries, ordered)]
+    proposed = [{'text': original['text'], 'speaker': row['speaker'], 'instruct': row['instruct'],
+                 **get_review_annotations(row)} for original, row in zip(batch_entries, ordered)]
     bound, quality = get_review_source_binding(batch_entries, proposed, literal)
     if not quality['passed']:
         return None, None
@@ -1257,18 +1330,17 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     if previous_tail:
         context_parts.append("\nPrevious batch ended with:")
         for entry in previous_tail:
-            context_parts.append(json.dumps(entry, ensure_ascii=False))
+            context_parts.append(json.dumps(get_review_prompt_entry(entry), ensure_ascii=False))
 
     # Optional extra context (e.g. source snippet or surrounding entries)
     if source_context:
         context_parts.append(f"\nADDITIONAL REVIEW CONTEXT:\n{source_context}")
 
     context = "\n".join(context_parts)
-    batch_json = json.dumps([{k: v for k, v in e.items() if k != SCRIPT_POLICY_KEY}
-                             for e in batch_entries], indent=2, ensure_ascii=False)
+    batch_json = json.dumps([get_review_prompt_entry(e) for e in batch_entries], indent=2, ensure_ascii=False)
     if params.review_labels_only:
         sys_prompt = REVIEW_LABEL_SYSTEM
-        indexed = [{**{k: v for k, v in entry.items() if k != SCRIPT_POLICY_KEY}, "n": i}
+        indexed = [{**get_review_prompt_entry(entry), "n": i}
                    for i, entry in enumerate(batch_entries)]
         user_prompt = context + "\n\nENTRIES TO REVIEW:\n" + json.dumps(indexed, ensure_ascii=False)
         from three_pass_generate import get_exact_index_schema
@@ -1293,6 +1365,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         if attempt_observer:
             attempt_observer(attempt)
 
+    startup_event('model_request_started', batch=batch_num)
     entries = call_llm_for_entries(
         client, model_name, sys_prompt, user_prompt, request_params,
         log_name="review_responses.log",
@@ -1453,6 +1526,7 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
         "text_changed": 0,
         "speaker_changed": 0,
         "instruct_changed": 0,
+        "annotations_changed": 0,
         "entries_changed": 0,
         "entries_added": 0,
         "entries_removed": 0,
@@ -1462,6 +1536,9 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
     changed_entry_indices = set()
 
     def compare_pair(orig, corr, orig_index):
+        if get_typed_metadata(get_review_annotations(orig)) != get_typed_metadata(get_review_annotations(corr)):
+            changed_entry_indices.add(orig_index)
+            stats["annotations_changed"] += 1
         orig_text = orig.get("text", "")
         corr_text = corr.get("text", "")
         orig_speaker = orig.get("speaker") or ""
@@ -1551,6 +1628,7 @@ def main():
     parser.add_argument("--remap-voice-config",
                         help="Path to a voice_config.json whose keys should follow renamed speakers")
     args = parser.parse_args()
+    startup_event('arguments_parsed', context_window=args.context_window, dedupe=args.dedupe_speakers, force=args.force_review)
 
     # Locate the script to review (default: working annotated_script.json)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1663,7 +1741,9 @@ def main():
     config_path = get_app_config_path(data_dir, root, app_dir)
     if not os.path.exists(config_path):
         print("Warning: config.json not found. Using defaults.")
+    startup_event('config_load_started')
     config = load_app_config(config_path)
+    startup_event('config_loaded', entries=len(entries))
 
     llm_config = get_active_llm_config(config)
     base_url = llm_config.get("base_url", "http://localhost:11434/v1")
@@ -1723,6 +1803,7 @@ def main():
     # Runtime management follows the endpoint; the VRAM watchdog follows the
     # profile's declared ownership through the same policy as task admission.
     llm_mode = config.get("llm_mode", "local")
+    startup_event('model_setup_started')
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
     print(heal_msg)
@@ -1735,7 +1816,9 @@ def main():
     gen_params.hard_max_tokens = limits["max_output_tokens"] or 32768
     gen_params.max_tokens = min(gen_params.max_tokens, gen_params.hard_max_tokens)
 
+    startup_event('client_create_started')
     client = make_run_client(config, llm_config, llm_timeout_seconds())
+    startup_event('client_created')
 
     def is_active_llm_on_this_gpu():
         active_config = config
@@ -1749,7 +1832,7 @@ def main():
     if matched and not args.force_review:
         print(receipt_reason)
         print(f"Review complete: {len(entries)} -> {len(entries)} entries")
-        for label in ('Text changed', 'Speaker changed', 'Instruct changed', 'Entries changed',
+        for label in ('Text changed', 'Speaker changed', 'Instruct changed', 'Annotations changed', 'Entries changed',
                       'Entries added', 'Entries removed', 'Narrators merged', 'Speakers merged', 'Total changes'):
             print(f"  {label}: 0")
         print("Task review completed successfully.")
@@ -1763,6 +1846,7 @@ def main():
         "text_changed": 0,
         "speaker_changed": 0,
         "instruct_changed": 0,
+        "annotations_changed": 0,
         "entries_changed": 0,
         "entries_added": 0,
         "entries_removed": 0,
@@ -1790,9 +1874,11 @@ def main():
         _checkpoint_path(output_path), reset=checkpoint is None)
     remove_completed_review_receipt(output_path)
 
+    startup_event('concurrency_setup_started')
     wave_size = get_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
         ssh_alias=config.get("llm_remote_ssh"), status=lm_status, llm_config=llm_config)
+    startup_event('concurrency_setup_complete')
     if wave_size > 1:
         print(f"Using concurrency: {wave_size}")
 
@@ -1847,10 +1933,10 @@ def main():
             ]
             if before:
                 contextual_lines.append("\n--- PREVIOUS ENTRIES (Context Only) ---")
-                contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in before)
+                contextual_lines.extend(json.dumps(get_review_prompt_entry(e), ensure_ascii=False) for e in before)
             if after:
                 contextual_lines.append("\n--- NEXT ENTRIES (Context Only) ---")
-                contextual_lines.extend(json.dumps(e, ensure_ascii=False) for e in after)
+                contextual_lines.extend(json.dumps(get_review_prompt_entry(e), ensure_ascii=False) for e in after)
 
             batch_attempts = []
             corrected = review_batch(
@@ -1915,10 +2001,11 @@ def main():
             total_stats["speaker_changed"] += stats["speaker_changed"]
             total_stats["instruct_changed"] += stats["instruct_changed"]
             total_stats["entries_changed"] += stats["entries_changed"]
+            total_stats["annotations_changed"] += stats["annotations_changed"]
 
-            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+            changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"] + stats["annotations_changed"]
             if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
-                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct, {stats['annotations_changed']} annotations", end="")
                 if stats["entries_added"] or stats["entries_removed"]:
                     print(f", +{stats['entries_added']}/-{stats['entries_removed']} entries")
                 else:
@@ -1989,7 +2076,7 @@ def main():
                 return corrected, get_review_batch_status(corrected, batch_attempts)['status']
 
             with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
-                wave_results = list(executor.map(_run_one, zip(wave_indices, wave_batches)))
+                wave_results = list(executor.map(bind_startup_trace(_run_one), zip(wave_indices, wave_batches)))
 
             for i, batch, result in zip(wave_indices, wave_batches, wave_results):
                 source_offsets.append(min(len(entries), resume_offset +
@@ -2067,10 +2154,11 @@ def main():
                 total_stats["speaker_changed"] += stats["speaker_changed"]
                 total_stats["instruct_changed"] += stats["instruct_changed"]
                 total_stats["entries_changed"] += stats["entries_changed"]
+                total_stats["annotations_changed"] += stats["annotations_changed"]
 
-                changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"]
+                changes = stats["text_changed"] + stats["speaker_changed"] + stats["instruct_changed"] + stats["annotations_changed"]
                 if changes > 0 or stats["entries_added"] or stats["entries_removed"]:
-                    print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct", end="")
+                    print(f"  Changes: {stats['text_changed']} text, {stats['speaker_changed']} speaker, {stats['instruct_changed']} instruct, {stats['annotations_changed']} annotations", end="")
                     if stats["entries_added"] or stats["entries_removed"]:
                         print(f", +{stats['entries_added']}/-{stats['entries_removed']} entries")
                     else:
@@ -2197,7 +2285,7 @@ def main():
 
     # Final summary
     total_changes = (total_stats["text_changed"] + total_stats["speaker_changed"] +
-                     total_stats["instruct_changed"] + total_stats["entries_added"] +
+                     total_stats["instruct_changed"] + total_stats["annotations_changed"] + total_stats["entries_added"] +
                      total_stats["entries_removed"] + narrator_merges + speakers_merged)
 
     print(f"\n{'='*60}")
@@ -2209,6 +2297,7 @@ def main():
     print(f"  Text changed:    {total_stats['text_changed']}")
     print(f"  Speaker changed: {total_stats['speaker_changed']}")
     print(f"  Instruct changed:{total_stats['instruct_changed']}")
+    print(f"  Annotations changed: {total_stats['annotations_changed']}")
     print(f"  Entries changed: {total_stats['entries_changed']}")
     print(f"  Entries added:   {total_stats['entries_added']}")
     print(f"  Entries removed: {total_stats['entries_removed']}")
@@ -2263,4 +2352,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    startup_event('cli_imports_complete')
+    try:
+        main()
+    except SystemExit as error:
+        startup_event('cli_finished' if error.code in (0, None) else 'cli_failed', exit_code=error.code)
+        raise
+    startup_event('cli_finished')
