@@ -1050,18 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T11:45:35",
+  "written": "2026-11-15T13:54:00",
   "host": "RealMitch",
   "git": {
-   "commit": "208b0a33b5c1c0b0dd58244678023b9ff18bca5c",
-   "branch": "fix/1959-review-startup-diagnostics",
-   "dirty": true,
-   "source_state": "dirty:04fa73d3cd7e",
+   "commit": "5f13c2238e54b6d2e8d77dd0f985e5d69e2ce91f",
+   "branch": "chore/remove-token-budget-rule",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/tests/test_benchmark_review_mode.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
