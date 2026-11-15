@@ -4291,6 +4291,20 @@
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_pending_single_ack_after_dismissal",
     "tests.test_deepseek_voice_ui.VoiceUiTests.test_sample_ownership_then_edit_after_ack"
   ],
+  "test_deferred_failure_logging": [
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_auth_guard_records_without_credentials_and_challenges_as_before",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_browser_endpoint_strict_size_schema_and_server_rate_limit",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_browser_timer_and_pagehide_report_only_static_labels_locally",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_completion_failure_keeps_models_contract_without_logging_content",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_conservative_gpu_policy_fences_stay_true_and_dedupe",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_evaluation_unreadable_encoding_and_shapes_keep_fallback",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_guard_refusals_are_rate_limited_and_preserve_responses",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_legacy_llm_failure_uses_safe_bounded_files_and_keeps_response",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_limiter_expires_and_bounds_unique_resource_memory",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_optimize_legacy_evidence_rotates_without_touching_old_private_files",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_optional_evaluation_missing_is_normal_but_corruption_is_recorded",
+    "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_retry_persistence_and_restore_preserve_return_and_cleanup"
+  ],
   "test_delivery_direction": [
     "tests.test_delivery_direction.GapPauseTests.test_a_gap_sets_the_pause_after_the_previous_line",
     "tests.test_delivery_direction.GapPauseTests.test_a_longer_existing_pause_survives",

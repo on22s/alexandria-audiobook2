@@ -2603,8 +2603,9 @@ class ProjectManager:
             self._restore_and_release(chunk, history)
             return False, AUDIO_GENERATION_CANCELLED
         except Exception as write_error:
-            print(f"Warning: Failed to persist speech-retry failure for "
-                  f"{chunk.get('uid')}: {write_error}")
+            from review_startup import record_failure
+            record_failure('speech_retry_persist_failed', write_error, task='audio', resource=chunk.get('uid'),
+                           rate_limit_seconds=300)
             self._restore_and_release(chunk, history)
             return False, str(error)
 
@@ -2613,8 +2614,9 @@ class ProjectManager:
         try:
             self._restore_cancelled_generation(chunk, speech_retry_attempts=history)
         except Exception as restore_error:
-            print(f"Warning: Failed to restore cancelled generation for "
-                  f"{chunk.get('uid') if isinstance(chunk, dict) else None}: {restore_error}")
+            from review_startup import record_failure
+            record_failure('speech_retry_restore_failed', restore_error, task='audio',
+                           resource=chunk.get('uid') if isinstance(chunk, dict) else None, rate_limit_seconds=300)
 
     def _load_pause_defaults(self):
         """Return (pause_between_speakers_ms, pause_same_speaker_ms) from config."""

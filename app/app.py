@@ -174,6 +174,7 @@ if _AUTH_PASSWORD:
         if check_basic_auth(request.headers.get("Authorization", ""),
                              _AUTH_USERNAME, _AUTH_PASSWORD):
             return await call_next(request)
+        record_failure('http_auth_refused', task='http', status_code=401, rate_limit_seconds=60)
         return _StarletteResponse(
             "Authentication required", status_code=401,
             headers={"WWW-Authenticate": 'Basic realm="Alexandria"'})
@@ -198,6 +199,8 @@ async def _request_origin_gate(request, call_next):
     if refusal:
         from starlette.responses import PlainTextResponse
         kind, reason = refusal
+        record_failure('http_host_refused' if kind == 'host' else 'http_origin_refused',
+                       task='http', status_code=400 if kind == 'host' else 403, rate_limit_seconds=60)
         return PlainTextResponse(reason, status_code=400 if kind == "host" else 403)
     return await call_next(request)
 

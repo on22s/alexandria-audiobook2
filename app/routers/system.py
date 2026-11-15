@@ -5,15 +5,14 @@ import logging
 import os
 import threading
 import time
-import traceback
 from contextlib import nullcontext
-from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, StrictBool, StrictInt, ValidationError
+from starlette.requests import ClientDisconnect
 
 from config_settings import (AppConfig, GenerationConfig, LLMConfig, PromptConfig, PromptVariant,
                              TTSConfig, backup_damaged_app_config, load_app_config,
@@ -559,19 +558,46 @@ async def lmstudio_status():
     return status
 
 
-def _log_llm_failure(kind: str, detail: str) -> str:
-    """Write an LLM connection/optimize failure to logs/api/ and return the path."""
-    # Include microseconds so concurrent failures never truncate one another's
-    # diagnostic file (the old second-resolution name was collision-prone).
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    path = os.path.join(API_LOG_DIR, f"llm_{kind}_{ts}.log")
+def _log_llm_failure(kind: str, error=None, *, operation=None, resource=None) -> str:
+    """Return the legacy log path, retaining only bounded content-free evidence."""
+    if kind not in ('test', 'optimize'):
+        raise ValueError('Invalid LLM diagnostic kind')
+    path = os.path.join(API_LOG_DIR, f"llm_{kind}-latest.log")
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().isoformat()}] LLM {kind} failure\n\n{detail}\n")
-    except OSError as error:
-        record_failure('llm_log_write_failed', error, task='llm', resource=path)
+        record_failure('llm_test_failed' if kind == 'test' else 'llm_optimize_failed',
+                       error, task='llm', resource=resource, operation=operation, mirror_path=path)
+    except (OSError, TimeoutError) as persistence_error:
+        record_failure('llm_log_write_failed', persistence_error, task='llm', resource=path, rate_limit_seconds=60)
         return ""
     return path
+
+
+_BROWSER_FAILURE_STAGES = frozenset(('save_flush_timer', 'save_pagehide'))
+_BROWSER_ERROR_NAMES = frozenset(('Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError',
+                                  'NetworkError', 'SecurityError', 'QuotaExceededError',
+                                  'InvalidStateError', 'UnknownError'))
+
+
+@router.post('/api/logs/browser-failure', status_code=204)
+async def record_browser_failure(request: Request):
+    body = bytearray()
+    try:
+        async for chunk in request.stream():
+            if len(body) + len(chunk) > 256:
+                return Response(status_code=413)
+            body.extend(chunk)
+    except ClientDisconnect:
+        return Response(status_code=400)
+    try:
+        report = json.loads(body)
+    except (ValueError, UnicodeError):
+        return Response(status_code=400)
+    if (not isinstance(report, dict) or set(report) != {'stage', 'error_name'}
+            or not isinstance(report['stage'], str) or report['stage'] not in _BROWSER_FAILURE_STAGES
+            or not isinstance(report['error_name'], str) or report['error_name'] not in _BROWSER_ERROR_NAMES):
+        return Response(status_code=400)
+    record_failure(report['stage'], task='browser', operation=report['error_name'], rate_limit_seconds=60)
+    return Response(status_code=204)
 
 
 @router.post("/api/lmstudio/optimize")
@@ -624,7 +650,7 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
                 "the Setup tab's Remote LLM settings (run `tnr connect <id>` once first)."))
         ok, msg = apply_remote_lmstudio_settings(ssh_alias, model_name, req.enable, ownership["management_port"])
         if not ok:
-            log_path = _log_llm_failure("optimize", f"alias={ssh_alias} model={model_name}\n\n{msg}")
+            log_path = _log_llm_failure("optimize", operation='reload', resource=ssh_alias)
             raise HTTPException(status_code=502, detail=f"{msg}" + (f" (log: {log_path})" if log_path else ""))
         return _get_reload_response(msg)
 
@@ -660,9 +686,8 @@ def _run_llm_test(profile: dict) -> dict:
     try:
         models = [m.id for m in client.models.list().data]
     except Exception as e:
-        detail = f"base_url={base_url}\nGET /models failed:\n{traceback.format_exc()}"
         return {"ok": False, "step": "models", "error": str(e),
-                "log_file": _log_llm_failure("test", detail)}
+                "log_file": _log_llm_failure("test", e, operation='models', resource=base_url)}
     model_present = model_name in models if model_name else None
     # Step 2: tiny chat completion
     try:
@@ -673,11 +698,9 @@ def _run_llm_test(profile: dict) -> dict:
         )
         reply = (resp.choices[0].message.content or "").strip()
     except Exception as e:
-        detail = (f"base_url={base_url}\nmodel={model_name}\navailable={models}\n"
-                  f"chat completion failed:\n{traceback.format_exc()}")
         return {"ok": False, "step": "completion", "error": str(e),
                 "models": models, "model_present": model_present,
-                "log_file": _log_llm_failure("test", detail)}
+                "log_file": _log_llm_failure("test", e, operation='completion', resource=base_url)}
     return {"ok": True, "base_url": base_url, "model": model_name,
             "models": models, "model_present": model_present, "reply": reply,
             # Computed from the base_url actually tested (not the saved

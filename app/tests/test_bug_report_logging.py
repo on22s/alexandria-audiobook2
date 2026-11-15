@@ -167,8 +167,15 @@ class BugReportLoggingTests(unittest.TestCase):
 
     def test_llm_diagnostic_write_failure_is_not_silent(self):
         from routers import system
-        with patch.object(system, 'open', side_effect=OSError(PRIVATE), create=True), self.capture_failure('llm_log_write_failed', 'llm', error_type='OSError'):
-            self.assertEqual('', system._log_llm_failure('test', PRIVATE))
+        original_open = Path.open
+
+        def fail_legacy_open(path, *args, **kwargs):
+            if path.name == 'llm_test-latest.log':
+                raise OSError(PRIVATE)
+            return original_open(path, *args, **kwargs)
+
+        with patch.object(Path, 'open', fail_legacy_open), self.capture_failure('llm_log_write_failed', 'llm', error_type='OSError'):
+            self.assertEqual('', system._log_llm_failure('test', RuntimeError(PRIVATE)))
 
     def test_voicelab_probe_launch_timeout_and_decode_failures(self):
         from routers import voicelab
