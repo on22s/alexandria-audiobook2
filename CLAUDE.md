@@ -21,13 +21,6 @@ Don't "improve" adjacent code, comments, or formatting. Match existing style. Th
 Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate independently.
 
-### Rule 5 — Token Budgets Are Not Advisory
-Per-task: 4,000 tokens. Per-session: 30,000 tokens.
-If approaching budget, summarize and start fresh. Surface the breach.
-Exception: skill-driven workflows with their own stated effort budget (e.g.
-`/code-review`, `/code-review-20`) follow that budget instead; Rule 5 governs
-ad-hoc exploration and edits.
-
 ### Rule 6 — Read Before You Write
 Before adding code, read exports, immediate callers, shared utilities.
 If unsure why code is structured a certain way, ask.
