@@ -271,6 +271,19 @@ class ReviewSourceBindingTests(unittest.TestCase):
         output, _, _ = self.run_review(source, [reply])
         self.assertEqual([{**reply[0], 'provenance': {'section': 1}, 'pause_after': 700}], output)
 
+    def test_compatible_merge_keeps_review_whitespace_and_bound_source_facts(self):
+        source = [row('First phrase.', provenance={'section': 1}),
+                  row('Second phrase.', provenance={'section': 1}, pause_after=700)]
+        for separator in ('   ', '\t', '\n  '):
+            with self.subTest(separator=separator):
+                reply = [row('First phrase.' + separator + 'Second phrase.', speaker='NARRATOR')]
+                before = copy.deepcopy(reply)
+                output, _, attempts = self.run_review(source, [reply])
+                self.assertEqual([{**reply[0], 'provenance': {'section': 1},
+                                   'pause_after': 700}], output)
+                self.assertEqual(before, reply)
+                self.assertEqual('accepted', attempts[0]['outcome'])
+
     def test_lossless_merge_preserves_conflicting_metadata_and_interior_pauses_by_partitioning(self):
         for source in ([row('First phrase.', provenance={'section': 1}),
                         row('Second phrase.', provenance={'section': 2})],

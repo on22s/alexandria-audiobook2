@@ -1095,7 +1095,8 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                 start, stop, original = group[-1]
                 left, right = max(position, group[0][0]), min(end, stop)
                 row = {**copy.deepcopy(facts), "speaker": entry["speaker"],
-                       "text": text[left - position:right - position],
+                       "text": (entry["text"] if len(groups) == 1
+                                else text[left - position:right - position]),
                        "instruct": entry["instruct"]}
                 if right == stop and 'pause_after' in original:
                     row['pause_after'] = copy.deepcopy(original['pause_after'])

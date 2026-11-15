@@ -45,7 +45,7 @@ class LlmReviewTests(unittest.TestCase):
     def test_response_log_is_isolated_by_run_id(self):
         with patch.dict(os.environ, {"ALEXANDRIA_RUN_ID": "run_test"}):
             path = generate_script.get_response_log_path("llm_responses.log")
-        self.assertTrue(path.endswith("logs/responses/run_test/llm_responses.log"))
+        self.assertEqual(("logs", "responses", "run_test", "llm_responses.log"), Path(path).parts[-4:])
 
     @staticmethod
     def _client_with_responses(contents):

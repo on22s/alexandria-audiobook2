@@ -1050,23 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T05:46:30",
+  "written": "2026-11-15T08:11:44",
   "host": "RealMitch",
   "git": {
-   "commit": "e48f7da6c96f3dafef7a0add0747c91395eabd66",
+   "commit": "7799aa92334fcb61da5a74624e1b9835f3c132dd",
    "branch": "fix/1957-review-boundaries",
    "dirty": true,
-   "source_state": "dirty:9994bbea3b36",
+   "source_state": "dirty:92f90b5e7fae",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/completed_review_receipt.py",
     "M  app/review_script.py",
-    "M  app/tests/test_benchmark_review_mode.py",
-    "M  app/tests/test_completed_review_receipt.py",
-    "M  app/tests/test_manual_llm.py",
+    "M  app/tests/test_llm_review_regressions.py",
     "M  app/tests/test_review_source_binding.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  docs/design/script-review-attribution-1951.md"
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
