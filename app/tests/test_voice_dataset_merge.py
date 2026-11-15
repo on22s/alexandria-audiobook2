@@ -3,6 +3,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+from export_file_io import open_export_reader, replace_export_output
 import tempfile
 import unittest
 import zipfile
@@ -214,10 +215,10 @@ class MergeArtifactRecoveryTests(unittest.TestCase):
                 def open_replaced(path, *args, **kwargs):
                     if path == source and args == ('rb',):
                         if replace_before_open:
-                            os.replace(replacement, source)
+                            replace_export_output(replacement, source)
                             return real_open(path, *args, **kwargs)
-                        handle = real_open(path, *args, **kwargs)
-                        os.replace(replacement, source)
+                        handle = open_export_reader(path)
+                        replace_export_output(replacement, source)
                         return handle
                     return real_open(path, *args, **kwargs)
                 with patch.object(Path, 'open', open_replaced):

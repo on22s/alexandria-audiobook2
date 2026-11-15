@@ -1,6 +1,7 @@
 """Actual Node handlers/API queue over owned HTTP to native FastAPI row storage."""
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
+from tests.test_support import FramedHttpFixtureHandler
 import subprocess
 import threading
 import unittest
@@ -19,7 +20,7 @@ class DatasetDeltaQueueHttpTests(unittest.TestCase):
             rows=[{'text':'line '+str(i),'emotion':'warm','seed':0,'status':'done','audio_url':'/clip_'+str(i)+'.wav'} for i in range(200)]
             path.write_text(json.dumps({'description':'voice','global_seed':'0','samples':rows}))
             clip_bytes={p.name:p.read_bytes() for p in work.glob('*.wav')};requests=[]
-            class Handler(BaseHTTPRequestHandler):
+            class Handler(FramedHttpFixtureHandler):
                 def log_message(self,*args):pass
                 def do_GET(self):
                     if self.path=='/fixture/conflict':
@@ -31,7 +32,7 @@ class DatasetDeltaQueueHttpTests(unittest.TestCase):
                     body=self.rfile.read(int(self.headers['Content-Length']));requests.append({'path':self.path,'body':json.loads(body),'bytes':len(body)})
                     res=client.post(self.path,content=body,headers={'Content-Type':'application/json'});self.reply(res.status_code,res.content)
                 def reply(self,status,body):
-                    self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+                    self.send_fixture_response(status,body,headers=(('Content-Type','application/json'),))
             server=ThreadingHTTPServer(('127.0.0.1',0),Handler);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
             original=subprocess.run
             def bounded(*args,**kwargs):

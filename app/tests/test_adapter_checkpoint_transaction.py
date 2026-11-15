@@ -1,7 +1,6 @@
 """Whole adapter generations: actual tensor/PCM artifacts and process interruption."""
 from pathlib import Path
 import json
-import multiprocessing
 import os
 import shutil
 import subprocess
@@ -18,7 +17,8 @@ from adapter_checkpoint_transaction import (apply_adapter_checkpoint_locked, ens
     save_adapter_checkpoint, validate_adapter_checkpoint_generation)
 from adapter_publication import CLI_PUBLICATION_JOURNAL, NAMING_PUBLICATION_JOURNAL
 from lora_evidence import get_file_sha256
-from tests.test_support import write_test_adapter, assert_file_lock_released
+from utils import file_lock
+from tests.test_support import write_test_adapter, assert_file_lock_released, start_adapter_fixture_process
 
 SCRIPT=Path(__file__).resolve().parent.parent/'adapter_checkpoint_transaction.py'
 
@@ -37,6 +37,8 @@ def _files(root):
 
 
 def _crash_save(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move, journal, rmtree=subject._move, subject._save_journal, shutil.rmtree
     def moved(source,target):
@@ -56,6 +58,8 @@ def _crash_save(adapter, point):
 
 
 def _crash_recover(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,journal,rmtree=subject._move,subject._save_journal,shutil.rmtree
     def moved(source,target):
@@ -80,7 +84,7 @@ class AdapterCheckpointTransactionTests(unittest.TestCase):
         return adapter
 
     def child(self,target,*args):
-        process=multiprocessing.get_context('fork').Process(target=target,args=args);process.start();process.join(10)
+        process=start_adapter_fixture_process(target,*args);process.join(10)
         if process.is_alive():process.terminate();process.join(5);self.fail('owned child did not finish')
         return process.exitcode
 
@@ -168,7 +172,8 @@ class AdapterCheckpointTransactionTests(unittest.TestCase):
         for marker in (CLI_PUBLICATION_JOURNAL,NAMING_PUBLICATION_JOURNAL,'.checkpoint_swap.json'):
             with self.subTest(marker=marker),tempfile.TemporaryDirectory() as tmp:
                 adapter=self.fixture(Path(tmp));target=adapter/marker if marker=='.checkpoint_swap.json' else adapter.parent/marker;target.write_text('{broken')
-                (adapter.parent/'manifest.json.lock').touch()
+                with file_lock(str(adapter.parent/'manifest.json')):
+                    pass
                 before=_files(adapter.parent)
                 with self.assertRaises(ValueError):save_adapter_checkpoint(adapter,lambda path:_write(path))
                 self.assertEqual(before,_files(adapter.parent))
@@ -260,6 +265,8 @@ class CheckpointGenerationFamilyAdmissionTests(unittest.TestCase):
 
 
 def _crash_manifest_publish(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,journal,rmtree=subject._move,subject._save_journal,shutil.rmtree
     def moved(source,target):
@@ -278,6 +285,8 @@ def _crash_manifest_publish(adapter, point):
 
 
 def _crash_manifest_recover(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,save=subject._move,subject.save_adapter_publication_bytes
     def moved(source,target):

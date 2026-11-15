@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
+from export_file_io import open_export_reader
 
 import numpy as np
 import soundfile as sf
@@ -45,6 +46,18 @@ def training_pair(archive, folder):
     return Path(reference).read_bytes(), get_training_reference_text(str(folder), reference, samples)
 
 
+@contextlib.contextmanager
+def replaceable_archive_readers():
+    """Retain native archive handles while allowing the injected rename race."""
+    original=io.open
+    def shared(path, mode='r', *args, **kwargs):
+        if mode=='rb' and not isinstance(path,int):
+            return open_export_reader(path)
+        return original(path,mode,*args,**kwargs)
+    with patch.object(zipfile.io,'open',side_effect=shared):
+        yield
+
+
 class MergedReferenceProvenanceTests(unittest.TestCase):
     def test_opened_substitute_archive_cannot_claim_the_restored_admitted_source(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,7 +81,7 @@ class MergedReferenceProvenanceTests(unittest.TestCase):
                 finally:
                     source.unlink()
                     aside.rename(source)
-            with patch.object(zipfile.ZipFile, '__init__', open_substitute):
+            with replaceable_archive_readers(), patch.object(zipfile.ZipFile, '__init__', open_substitute):
                 try:
                     merge_voice_datasets([source], merged)
                 except ValueError:
@@ -123,7 +136,7 @@ class MergedReferenceProvenanceTests(unittest.TestCase):
                     finally:
                         source.unlink()
                         aside.rename(source)
-                with patch.object(voice_dataset_merge, '_get_reference_pair', side_effect=replace_then_rollback):
+                with replaceable_archive_readers(), patch.object(voice_dataset_merge, '_get_reference_pair', side_effect=replace_then_rollback):
                     self.assertEqual('merged', merge_voice_datasets([source], merged)['status'])
                 self.assertEqual(fingerprint, get_source_records([source]), 'path fingerprint cannot detect this rollback')
                 self.assertEqual((original, 'Original words.'), training_pair(merged, root/'extracted'))

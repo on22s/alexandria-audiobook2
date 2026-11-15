@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import core
 import run_history
+from export_file_io import open_export_reader, replace_export_output
 from run_history import (finish_run, get_run, list_runs, mark_interrupted_runs,
                          prune_runs, record_artifact, start_run, update_run)
 
@@ -67,9 +68,9 @@ class RunHistoryTests(unittest.TestCase):
             run_id = start_run(os.path.join(root, "history"), "review")
 
             def replace_after_open(filename, *args, **kwargs):
-                handle = real_open(filename, *args, **kwargs)
+                handle = open_export_reader(filename) if filename == path and args == ("rb",) else real_open(filename, *args, **kwargs)
                 if filename == path and args == ("rb",):
-                    os.replace(replacement, path)
+                    replace_export_output(replacement, path)
                 return handle
 
             with patch("run_history.open", side_effect=replace_after_open):

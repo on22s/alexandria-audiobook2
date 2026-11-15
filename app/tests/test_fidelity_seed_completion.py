@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import get_bash_executable, write_python_bash_fixture
 from unittest.mock import patch
 import wave
 import zipfile
@@ -136,7 +137,7 @@ class FidelitySeedCompletionTests(unittest.TestCase):
             document=self.make_document(seed,self.root/'ab_test_runtime'/name)
             text=json.dumps(document);(templates/(name+'.json')).write_text(text);(experiments/(name+'.json')).write_text(text)
         worker=self.root/'gpu_job.sh'
-        worker.write_text('#!'+sys.executable+'\n'+r'''
+        write_python_bash_fixture(worker, r'''
 import json,os,pathlib,sys
 args=sys.argv[2:];root=pathlib.Path.cwd()
 with open(root/'dispatches','a') as stream:stream.write(json.dumps(sys.argv[1:])+'\n')
@@ -144,12 +145,12 @@ seed=int(args[args.index('--seed')+1]);out=root/args[args.index('--out')+1]
 if os.environ.get('FAIL_WORKER')=='1':sys.exit(7)
 text=(root/'templates'/('library_fidelity_seed_'+str(seed)+'_n20.json')).read_text()
 out.write_text('{"partial":true}' if os.environ.get('PARTIAL_WORKER')=='1' else text)
-''');worker.chmod(0o755)
+''')
         self.env=dict(os.environ,ALEXANDRIA_VOICE_ZIPS=str(self.zips),
                       PYTHONPATH=str(REPO/'app'),WAIT_FOR_PID='')
 
     def run_native(self):
-        return subprocess.run(['bash',str(self.root/'run_chains/overnight_fidelity_replication_20260829.sh')],
+        return subprocess.run([get_bash_executable(),str(self.root/'run_chains/overnight_fidelity_replication_20260829.sh')],
                               env=self.env,cwd=self.root,capture_output=True,text=True,timeout=30)
 
     def test_native_complete_seeds_skip_without_models_or_config(self):

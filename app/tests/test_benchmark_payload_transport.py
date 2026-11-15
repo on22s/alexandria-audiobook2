@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -20,7 +21,7 @@ class BenchmarkPayloadTransportTests(unittest.TestCase):
         app.mkdir()
         original = Path(__file__).resolve().parent.parent
         for name in ('benchmark_remote_command.py', 'subprocess_ownership.py'):
-            (app / name).symlink_to(original / name)
+            shutil.copyfile(original / name, app / name)
         for name in WORKERS:
             # Replace stage execution only; exercise the real CLI and protocol.
             (app / (name + '.py')).write_text(

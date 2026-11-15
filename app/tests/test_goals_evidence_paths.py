@@ -88,7 +88,7 @@ class GoalsEvidence(unittest.TestCase):
             return True
         if "*" in path:
             import glob
-            return any(os.path.relpath(h, REPO) in self.tracked
+            return any(os.path.relpath(h, REPO).replace(os.sep, '/') in self.tracked
                        for h in glob.glob(full))
         if path.rstrip("/") + "/" in {t.rsplit("/", 1)[0] + "/" for t in self.tracked}:
             return True

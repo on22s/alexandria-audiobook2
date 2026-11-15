@@ -163,10 +163,11 @@ class CiEnvParityTests(unittest.TestCase):
         """
         import yaml
         jobs = yaml.safe_load(self._workflow())["jobs"]
-        self.assertEqual(["unit", "derived-files"], jobs["test"]["needs"])
+        self.assertEqual(["unit", "derived-files", "windows-portability"], jobs["test"]["needs"])
         test_conditions = [step.get("if", "") for step in jobs["test"]["steps"]]
         self.assertIn("needs.unit.result != 'success'", test_conditions)
         self.assertIn("needs.derived-files.result != 'success'", test_conditions)
+        self.assertIn("${{ !inputs.linux_only && needs.windows-portability.result != 'success' }}", test_conditions)
         derived_runs = "\n".join(step.get("run", "") for step in jobs["derived-files"]["steps"])
         for _gate, script in (("evidence_index", "tools/audit/audit_experiment_artifacts.py"),
                               ("legacy_audit", "tools/audit/audit_legacy_attribution.py"),
