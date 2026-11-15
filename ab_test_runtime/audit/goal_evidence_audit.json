@@ -1050,18 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T14:09:00",
+  "written": "2026-11-15T15:15:32",
   "host": "RealMitch",
   "git": {
-   "commit": "b11874cd0ddabd6e9e1de0218a958ff0cdc012fa",
+   "commit": "dda3123b6aeb0f0bb776ea6ca95a1135dc80db05",
    "branch": "fix/1958-review-source-spans",
-   "dirty": true,
-   "source_state": "dirty:e4e4dd833a92",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/tests/test_review_source_binding.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
