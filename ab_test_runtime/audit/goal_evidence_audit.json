@@ -1050,10 +1050,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T17:24:20",
+  "written": "2026-11-15T17:54:54",
   "host": "RealMitch",
   "git": {
-   "commit": "50a6143b47323cf93f39751c797a5846a82f005e",
+   "commit": "e13b3e285d7f7685cdaf26238fb265245720e4cf",
    "branch": "fix/1958-review-source-spans",
    "dirty": false,
    "source_state": "clean",
