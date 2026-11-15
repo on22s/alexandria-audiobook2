@@ -27,6 +27,7 @@ from llm_provider import is_api_key_reference
 from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
 from diagnostics import redact_text
+from review_startup import record_failure
 from persona_prompts import load_persona_prompts
 from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_remote_llm,
                                get_failover_llm_config,
@@ -567,7 +568,8 @@ def _log_llm_failure(kind: str, detail: str) -> str:
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"[{datetime.now().isoformat()}] LLM {kind} failure\n\n{detail}\n")
-    except OSError:
+    except OSError as error:
+        record_failure('llm_log_write_failed', error, task='llm', resource=path)
         return ""
     return path
 
@@ -708,6 +710,7 @@ async def llm_models(request: LlmModelsRequest):
     try:
         return {"models": await asyncio.to_thread(fetch)}
     except Exception as exc:                                    # noqa: BLE001
+        record_failure('llm_models_failed', exc, task='llm', resource=url)
         return {"models": [], "error": redact_text(str(exc))[:200]}
 
 @router.post("/api/llm/test")

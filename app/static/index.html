@@ -1490,6 +1490,7 @@
     <p data-i18n="setup.tts.recent-operations-in-this-app-process-acro" class="small text-muted mt-2">Recent operations in this app process, across books. Timings show observed work; unavailable stages are not zero. Nested and worker stage times can overlap. The report excludes source text, private book/speaker/reference names, paths, URLs and raw errors.</p>
     <button data-i18n="setup.tts.button" type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshTtsDiagnostics()">Refresh report</button>
     <button data-i18n="setup.tts.tts-diagnostics-download.button" type="button" class="btn btn-outline-secondary btn-sm" id="tts-diagnostics-download" onclick="downloadTtsDiagnostics()" disabled>Download support report</button>
+    <a data-i18n="setup.tts.failure-log-download" href="/api/logs/diagnostics?download=true" class="btn btn-outline-secondary btn-sm" download>Download failure log</a>
     <p data-i18n="setup.tts.no-timings-requested" id="tts-diagnostics-status" class="small mt-2" role="status">No timings requested.</p>
     <div id="tts-diagnostics-records" class="small text-break"></div>
     <p data-i18n="setup.tts.exact-download-contents-below-refresh-read" class="small mt-2">Exact download contents below. Refresh reads only this AA2 server; it never contacts a model server or uploads a report. Null means unobserved or excluded. Review before sharing separately.</p>

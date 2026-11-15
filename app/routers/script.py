@@ -34,7 +34,7 @@ from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace
+from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace, get_failure_log_path
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
@@ -4782,6 +4782,11 @@ async def manual_llm_response(reply: ManualReply):
 async def get_task_log(task_name: str, download: bool = False):
     """Serve the complete on-disk log for a task (the in-memory status only keeps a
     capped tail). Use ?download=true to download the file."""
+    if task_name == 'diagnostics':
+        trace = await asyncio.to_thread(read_trace, get_failure_log_path())
+        headers = {'Content-Disposition': 'attachment; filename="diagnostics.log"'} if download else None
+        return StreamingResponse(iter((trace or b'# No failure diagnostics recorded yet.\n',)),
+                                 media_type='text/plain', headers=headers)
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
     log_path = _task_log_path(task_name)

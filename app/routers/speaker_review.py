@@ -403,6 +403,7 @@ def _require_current(record):
 
 
 def _run_review(run_id, profile):
+    from review_startup import record_failure
     client = None
     record = None
     try:
@@ -432,6 +433,7 @@ def _run_review(run_id, profile):
                             verdict = reviewer(candidate, mode)
                             validate_verdict(verdict)
                         except Exception as exc:
+                            record_failure('speaker_candidate_failed', exc, task=TASK, resource=run_id)
                             # Provider errors can contain credentials and full private payloads.
                             result['error'] = type(exc).__name__
                         else:
@@ -448,6 +450,7 @@ def _run_review(run_id, profile):
         if record is not None:
             record.update(status='stale', error='Book, evidence, model profile, or aliases changed; preview again')
     except Exception as exc:
+        record_failure('speaker_review_failed', exc, task=TASK, resource=run_id)
         if record is not None:
             record.update(status='failed', error=type(exc).__name__)
     finally:

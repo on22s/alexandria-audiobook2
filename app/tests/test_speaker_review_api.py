@@ -151,8 +151,18 @@ class SpeakerReviewApiTests(unittest.TestCase):
             def review(candidate,mode):
                 self.calls.append(mode);raise RuntimeError('synthetic-secret private provider payload')
             return Fake(),review
-        with patch.object(r,'make_reviewer',side_effect=bad):
+        with patch.object(r,'make_reviewer',side_effect=bad), patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': self.tmp.name}), self.assertLogs('AlexandriaDiagnostics') as diagnostics:
             rid=self.start(sel,p);self.start(sel,p)
+        evidence = '\n'.join(diagnostics.output)
+        self.assertIn('speaker_candidate_failed', evidence)
+        self.assertIn('speaker_review', evidence)
+        self.assertIn('traceback', evidence)
+        self.assertIn('resource_id', evidence)
+        self.assertNotIn('synthetic-secret', evidence)
+        self.assertNotIn('private provider payload', evidence)
+        self.assertNotIn('Synthetic sentence', evidence)
+        self.assertNotIn(self.tmp.name, evidence)
+        self.assertEqual(40, len(diagnostics.records))
         self.assertEqual(len(self.calls),40)
         report=self.client.get('/api/speaker_review/'+rid).json();self.assertNotIn('synthetic-secret',json.dumps(report))
         self.assertFalse(any(row['can_apply'] for row in report['candidates']))
