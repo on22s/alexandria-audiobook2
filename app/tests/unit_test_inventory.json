@@ -2839,7 +2839,8 @@
   ],
   "test_chapter_download_boundary": [
     "tests.test_chapter_download_boundary.ChapterDownloadBoundaryTests.test_download_requires_listed_audio_and_correct_mime",
-    "tests.test_chapter_download_boundary.ChapterDownloadBoundaryTests.test_invalid_manifest_paths_never_become_zip_members_or_available_rows"
+    "tests.test_chapter_download_boundary.ChapterDownloadBoundaryTests.test_invalid_manifest_paths_never_become_zip_members_or_available_rows",
+    "tests.test_chapter_download_boundary.ChapterDownloadBoundaryTests.test_invalid_windows_names_are_rejected_before_file_lookup"
   ],
   "test_chapter_export": [
     "tests.test_chapter_export.ChapterGroupingTests.test_keyword_dialogue_and_sentences_stay_inside_real_chapters",
@@ -3929,7 +3930,10 @@
     "tests.test_corpus_report_labels.CorpusModeInputTests.test_pairing_modes_still_reject_each_missing_required_input",
     "tests.test_corpus_report_labels.CorpusReportLabelTests.test_aggregate_keeps_complete_timestamp_and_distinct_run_identity",
     "tests.test_corpus_report_labels.CorpusRunFailureTests.test_aggregate_failure_is_not_hidden_by_final_success_message",
-    "tests.test_corpus_report_labels.CorpusRunFailureTests.test_failed_pairs_remain_failures_after_later_success_and_aggregation"
+    "tests.test_corpus_report_labels.CorpusRunFailureTests.test_failed_pairs_remain_failures_after_later_success_and_aggregation",
+    "tests.test_corpus_report_labels.CorpusWorkerLaunchTests.test_missing_windows_bash_is_recorded_as_failure_without_dispatch",
+    "tests.test_corpus_report_labels.CorpusWorkerLaunchTests.test_posix_keeps_direct_execution_and_original_argv",
+    "tests.test_corpus_report_labels.CorpusWorkerLaunchTests.test_windows_resolves_bash_and_preserves_argument_boundaries"
   ],
   "test_corpus_review_regressions": [
     "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_corpus_dispatch_completes_and_rechecks_every_volume",
@@ -10118,6 +10122,7 @@
     "tests.test_pronunciation.CharacterFormsRuntimeTests.test_default_roster_paths_follow_runtime_root_and_explicit_paths_still_override",
     "tests.test_pronunciation.LexiconFailureDiagnosticsTests.test_actual_invalid_files_warn_and_cached_fallback_stays_nonblocking",
     "tests.test_pronunciation.LexiconFailureDiagnosticsTests.test_unexpected_pronunciation_processing_failure_warns_without_stopping_generation",
+    "tests.test_pronunciation.LexiconFileFingerprintTests.test_content_change_invalidates_cache_when_all_stat_fields_are_unchanged",
     "tests.test_pronunciation.LexiconFileFingerprintTests.test_equal_mtime_and_size_edit_refreshes_actual_respelling_and_evidence",
     "tests.test_pronunciation.LexiconFileFingerprintTests.test_same_timestamp_atomic_replacement_and_malformed_recovery_are_observed",
     "tests.test_pronunciation.LexiconTest.test_a_malformed_lexicon_degrades_to_no_substitution",
