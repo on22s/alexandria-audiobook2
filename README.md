@@ -197,6 +197,23 @@ a second machine). Then annotation and rendering can run together.
 - `GET /api/status/eta` and `GET /api/status/<task>` for anything that is running.
 - The **Reports** tab: run history with artifacts, and review checkpoints.
 
+For a bug report, open **Setup → Speech engine → TTS timing, loaded models and
+support report**, then **Download failure log**. The same download is available
+at GET /api/logs/diagnostics?download=true. It includes the latest bounded
+failure records and one rotated predecessor (logs/api/diagnostics-latest.log
+and .previous), not every historical failure. Records include task/stage,
+exception type, traceback frame locations, status/exit codes where available,
+and hashed resource identifiers. They omit exception messages, source lines,
+request bodies, credentials, book text and full user paths. A blank log means
+no evidence was retained, not that the app is error-free; a full/read-only disk
+can prevent persistence (check the server console warning).
+
+Attach the existing **support report** for runtime/OS/GPU information where
+available, and state your AA2 version or commit, what you clicked, and when.
+Review every attachment before sharing: older task and LLM response/request
+logs can contain private source text or provider details. Downloads stay local;
+the app does not automatically submit a bug report or upload these files.
+
 ## Your first audiobook
 
 Follow **Setup → Script → Voices → Editor → Result**. The screenshots show the existing

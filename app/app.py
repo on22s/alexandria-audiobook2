@@ -7,6 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from request_origin import get_request_refusal
 from fastapi.staticfiles import StaticFiles
+from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import PlainTextResponse
+from review_startup import record_failure
 from adapter_static import AdapterStaticFiles
 
 from core import (
@@ -111,7 +115,24 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Alexandria Audiobook", lifespan=lifespan)
-app.add_exception_handler(AppError, handle_app_error)
+async def handle_http_failure(request, error):
+    record_failure('http_request_refused', error, task='http', resource=request.url.path,
+                   operation=getattr(request.scope.get('route'), 'name', 'unmatched'),
+                   status_code=error.status_code, level=logging.WARNING if error.status_code < 500 else logging.ERROR)
+    if isinstance(error, AppError):
+        return await handle_app_error(request, error)
+    return await http_exception_handler(request, error)
+
+
+async def handle_request_failure(request, error):
+    record_failure('http_request_failed', error, task='http', resource=request.url.path,
+                   operation=getattr(request.scope.get('route'), 'name', 'unmatched'), status_code=500)
+    return PlainTextResponse('Internal Server Error', status_code=500)
+
+
+app.add_exception_handler(AppError, handle_http_failure)
+app.add_exception_handler(StarletteHTTPException, handle_http_failure)
+app.add_exception_handler(Exception, handle_request_failure)
 app.add_middleware(TaskClaimMiddleware)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

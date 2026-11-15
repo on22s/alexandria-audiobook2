@@ -4166,6 +4166,7 @@
   "setup.tts.cap.unknown": "No se pudo verificar por completo el esquema del servidor guardado. Consulta las operaciones desconocidas y los diagnósticos de abajo.",
   "setup.tts.cap.unsupported-voice": "El modo {mode} seleccionado no admite este tipo de voz. Su asignación se conserva. Elige una voz compatible o cambia de modo y guarda antes de generar. El servidor también comprueba los miembros del ensemble y las líneas de tiempo de versiones.",
   "setup.tts.exact-download-contents-below-refresh-read": "El contenido exacto de la descarga está abajo. Actualizar solo lee este servidor AA2; nunca contacta un servidor de modelos ni sube un informe. Null significa no observado o excluido. Revísalo antes de compartirlo por separado.",
+  "setup.tts.failure-log-download": "Descargar registro de fallos",
   "setup.tts.heading": "Motor de voz",
   "setup.tts.intro": "Elige dónde se generan las voces y el idioma usado para la síntesis. Asigna las voces de cada personaje en Voces.",
   "setup.tts.no-timings-requested": "No se solicitó ningún tiempo.",

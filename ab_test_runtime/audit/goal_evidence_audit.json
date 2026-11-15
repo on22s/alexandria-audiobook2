@@ -1050,17 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T11:45:35",
+  "written": "2026-11-15T13:47:35",
   "host": "RealMitch",
   "git": {
-   "commit": "208b0a33b5c1c0b0dd58244678023b9ff18bca5c",
-   "branch": "fix/1959-review-startup-diagnostics",
+   "commit": "cc7b4798498386ccc60e62f6e81b3dd5369632d4",
+   "branch": "feat/bug-report-logging",
    "dirty": true,
-   "source_state": "dirty:04fa73d3cd7e",
+   "source_state": "dirty:13e72f4c7c32",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_benchmark_review_mode.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/test_api_message_keys.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
