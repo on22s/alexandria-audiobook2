@@ -15,7 +15,7 @@ import promote_adapters as promotion
 from adapter_publication import CLI_PUBLICATION_JOURNAL
 from fastapi import HTTPException
 from routers import lora
-from tests.test_support import write_test_adapter, use_private_cpu_fixture_lock
+from tests.test_support import write_test_adapter, use_private_cpu_fixture_lock, start_adapter_fixture_process
 from utils import file_lock
 
 # An isolated saved source can reproduce the old defect without editing the tree.
@@ -29,7 +29,14 @@ def _files(path):
     return {str(p.relative_to(path)): p.read_bytes() for p in path.rglob("*") if p.is_file()}
 
 
-def _run_crash(operation, point):
+def _configure_child(fixture):
+    for name, path in zip(("MODELS", "SOURCE", "GATES", "BACKUPS"), fixture):
+        setattr(promotion, name, str(path))
+    promotion.GATE_PREFIX = "gate_promote__"
+
+
+def _run_crash(operation, point, fixture):
+    _configure_child(fixture)
     replace = os.replace
     def crash_after_replace(source, target):
         result = replace(source, target)
@@ -49,6 +56,58 @@ def _run_crash(operation, point):
             promotion.promote(["a", "b"], "stamp", False)
         else:
             promotion.rollback("stamp")
+
+
+def _run_observed_scores(fixture, ready, entered):
+    _configure_child(fixture)
+    scores = promotion.shipped_scores
+    lock = promotion.file_lock
+    @contextlib.contextmanager
+    def observed_lock(path, *args, **kwargs):
+        if not ready.is_set():
+            try:
+                with lock(path, timeout=0):
+                    raise AssertionError('parent manifest lock did not exclude child')
+            except TimeoutError:
+                ready.set()
+        with lock(path, *args, **kwargs):
+            yield
+    def observed_scores():
+        entered.set()
+        return scores()
+    with patch.object(promotion, "shipped_scores", side_effect=observed_scores), \
+         patch.object(promotion, "file_lock", side_effect=observed_lock):
+        os._exit(promotion.promote(["a", "b"], "stamp", False))
+
+
+def _run_recovery_crash(fixture, point):
+    _configure_child(fixture)
+    models, _source, _gates, backups = fixture
+    replace, remove, rmtree = os.replace, os.remove, promotion.shutil.rmtree
+    def replaced(source, target):
+        result = replace(source, target)
+        dst = Path(target)
+        reached = ((point == "adapter" and dst == models / "a")
+                   or (point == "manifest" and dst == models / "manifest.json"))
+        if point == "terminal" and dst.name == CLI_PUBLICATION_JOURNAL:
+            reached = json.loads(dst.read_text())["status"] == "recovered"
+        if reached:
+            os._exit(74)
+        return result
+    def removed(target, *args, **kwargs):
+        result = remove(target, *args, **kwargs)
+        if point == "receipt" and Path(target) == backups / "stamp.json":
+            os._exit(74)
+        return result
+    def cleaned(target, *args, **kwargs):
+        result = rmtree(target, *args, **kwargs)
+        if point == "cleanup" and Path(target).name.startswith(".promotion-"):
+            os._exit(74)
+        return result
+    with patch.object(promotion.os, "replace", side_effect=replaced), \
+         patch.object(promotion.os, "remove", side_effect=removed), \
+         patch.object(promotion.shutil, "rmtree", side_effect=cleaned):
+        promotion.recover_publication()
 
 
 class PromotionPublicationTransactionTests(unittest.TestCase):
@@ -75,6 +134,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
         (gates / "library_voice_fidelity_n10.json").write_text(json.dumps({
             "results": [{"adapter": n, "ecapa": 0.4} for n in ("a", "b")]}))
         (models / "manifest.json").write_bytes(b'[ {"id":"a","sample_count":3}, {"id":"b","sample_count":4}, {"id":"untouched","keep":9} ]\n')
+        with file_lock(str(models / "manifest.json")):
+            pass
         return models, source, gates, backups
 
     @contextlib.contextmanager
@@ -100,7 +161,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
             with self.configured(fixture), patch.object(promotion, "update_manifest", side_effect=OSError("metadata failed")):
                 with self.assertRaisesRegex(OSError, "metadata failed"):
                     promotion.promote(["a", "b"], "stamp", False)
-            expected = {**before, "manifest.json.lock": b""}
+            expected = before
             self.assertEqual(expected, _files(models))
             self.assertEqual(original_source, _files(source))
             self.assertFalse((backups / "stamp.json").exists())
@@ -114,8 +175,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 fixture = self.fixture(Path(tmp)); models, source, _gates, backups = fixture
                 before = _files(models); original_source = _files(source)
                 with self.configured(fixture):
-                    child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", point))
-                    child.start(); child.join(10)
+                    child = start_adapter_fixture_process(_run_crash, "promotion", point, fixture)
+                    child.join(10)
                     if child.is_alive():
                         child.kill(); child.join(5); self.fail("Crash fixture hung")
                     self.assertEqual(73, child.exitcode)
@@ -134,7 +195,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                         self.assertEqual((source / name / "adapter" / "adapter_model.safetensors").read_bytes(),
                                          (models / name / "adapter_model.safetensors").read_bytes())
                 else:
-                    self.assertEqual({**before, "manifest.json.lock": b""}, _files(models))
+                    self.assertEqual(before, _files(models))
                     self.assertFalse((backups / "stamp.json").exists())
                 self.assertEqual(original_source, _files(source))
                 self.assert_no_journal(models)
@@ -148,8 +209,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 with self.configured(fixture):
                     self.assertEqual(0, promotion.promote(["a", "b"], "stamp", False))
                     promoted = _files(models); receipt = (backups / "stamp.json").read_bytes()
-                    child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("rollback", point))
-                    child.start(); child.join(10)
+                    child = start_adapter_fixture_process(_run_crash, "rollback", point, fixture)
+                    child.join(10)
                     if child.is_alive():
                         child.kill(); child.join(5); self.fail("Rollback crash fixture hung")
                     self.assertEqual(73, child.exitcode)
@@ -197,20 +258,14 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
     def test_cli_checks_scores_only_after_shared_manifest_lock_admission(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self.fixture(Path(tmp)); models, _source, _gates, _backups = fixture
-            entered = multiprocessing.get_context("fork").Event()
-            def run():
-                scores = promotion.shipped_scores
-                def observed_scores():
-                    entered.set()
-                    return scores()
-                with patch.object(promotion, "shipped_scores", side_effect=observed_scores):
-                    os._exit(promotion.promote(["a", "b"], "stamp", False))
+            ready = multiprocessing.get_context("spawn").Event()
+            entered = multiprocessing.get_context("spawn").Event()
             with self.configured(fixture):
                 child = None
                 try:
                     with file_lock(str(models / "manifest.json")):
-                        child = multiprocessing.get_context("fork").Process(target=run)
-                        child.start()
+                        child = start_adapter_fixture_process(_run_observed_scores, fixture, ready, entered)
+                        self.assertTrue(ready.wait(10), "child did not reach promotion admission")
                         self.assertFalse(entered.wait(0.15))
                         self.assertTrue(child.is_alive())
                     child.join(10)
@@ -249,45 +304,19 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 fixture = self.fixture(Path(tmp)); models, _source, _gates, backups = fixture
                 before = _files(models)
                 with self.configured(fixture):
-                    child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", "receipt"))
-                    child.start(); child.join(10)
+                    child = start_adapter_fixture_process(_run_crash, "promotion", "receipt", fixture)
+                    child.join(10)
                     if child.is_alive():
                         child.kill(); child.join(5); self.fail("First crash fixture hung")
                     self.assertEqual(73, child.exitcode)
-                    def recover_then_crash():
-                        replace, remove, rmtree = os.replace, os.remove, promotion.shutil.rmtree
-                        def replaced(source, target):
-                            result = replace(source, target)
-                            dst = Path(target)
-                            reached = ((point == "adapter" and dst == models / "a")
-                                       or (point == "manifest" and dst == models / "manifest.json"))
-                            if point == "terminal" and dst.name == CLI_PUBLICATION_JOURNAL:
-                                reached = json.loads(dst.read_text())["status"] == "recovered"
-                            if reached:
-                                os._exit(74)
-                            return result
-                        def removed(target, *args, **kwargs):
-                            result = remove(target, *args, **kwargs)
-                            if point == "receipt" and Path(target) == backups / "stamp.json":
-                                os._exit(74)
-                            return result
-                        def cleaned(target, *args, **kwargs):
-                            result = rmtree(target, *args, **kwargs)
-                            if point == "cleanup" and Path(target).name.startswith(".promotion-"):
-                                os._exit(74)
-                            return result
-                        with patch.object(promotion.os, "replace", side_effect=replaced), \
-                             patch.object(promotion.os, "remove", side_effect=removed), \
-                             patch.object(promotion.shutil, "rmtree", side_effect=cleaned):
-                            promotion.recover_publication()
-                    child = multiprocessing.get_context("fork").Process(target=recover_then_crash)
-                    child.start(); child.join(10)
+                    child = start_adapter_fixture_process(_run_recovery_crash, fixture, point)
+                    child.join(10)
                     if child.is_alive():
                         child.kill(); child.join(5); self.fail("Recovery crash fixture hung")
                     self.assertEqual(74, child.exitcode)
                     self.assertTrue(promotion.recover_publication())
                     self.assertFalse(promotion.recover_publication())
-                self.assertEqual({**before, "manifest.json.lock": b""}, _files(models))
+                self.assertEqual(before, _files(models))
                 self.assertFalse((backups / "stamp.json").exists())
                 self.assert_no_journal(models)
 
@@ -295,8 +324,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self.fixture(Path(tmp)); models, _source, _gates, _backups = fixture
             with self.configured(fixture):
-                child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", "first"))
-                child.start(); child.join(10)
+                child = start_adapter_fixture_process(_run_crash, "promotion", "first", fixture)
+                child.join(10)
                 if child.is_alive():
                     child.kill(); child.join(5); self.fail("Corruption crash fixture hung")
                 self.assertEqual(73, child.exitcode)
@@ -316,8 +345,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self.fixture(Path(tmp)); models, _source, _gates, _backups = fixture
             with self.configured(fixture):
-                child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", "first"))
-                child.start(); child.join(10)
+                child = start_adapter_fixture_process(_run_crash, "promotion", "first", fixture)
+                child.join(10)
                 if child.is_alive():
                     child.kill(); child.join(5); self.fail("Dry-run crash fixture hung")
                 self.assertEqual(73, child.exitcode)
@@ -349,7 +378,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 self.assertTrue((backups / "stamp" / ".incomplete").is_file())
                 with self.assertRaisesRegex(ValueError, "invalid rollback"):
                     promotion.rollback("stamp")
-            self.assertEqual({**before, "manifest.json.lock": b""}, _files(models))
+            self.assertEqual(before, _files(models))
             self.assertFalse((backups / "stamp.json").exists())
             self.assert_no_journal(models)
 
@@ -359,8 +388,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
             fixture = self.fixture(Path(tmp)); models, _source, _gates, backups = fixture
             before = _files(models)
             with self.configured(fixture):
-                child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", "first"))
-                child.start(); child.join(10)
+                child = start_adapter_fixture_process(_run_crash, "promotion", "first", fixture)
+                child.join(10)
                 if child.is_alive():
                     child.kill(); child.join(5); self.fail("Original-loss crash fixture hung")
                 self.assertEqual(73, child.exitcode)
@@ -373,7 +402,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 self.assertEqual(damaged, _files(models))
                 shutil.copytree(backups / "stamp" / "a", original)
                 self.assertTrue(promotion.recover_publication())
-            self.assertEqual({**before, "manifest.json.lock": b""}, _files(models))
+            self.assertEqual(before, _files(models))
             self.assert_no_journal(models)
 
     def test_fresh_cli_recover_entrypoint_restores_then_is_idempotent(self):
@@ -391,8 +420,8 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
             models, _source, _gates, backups = fixture
             before = _files(models)
             with self.configured(fixture):
-                child = multiprocessing.get_context("fork").Process(target=_run_crash, args=("promotion", "receipt"))
-                child.start(); child.join(10)
+                child = start_adapter_fixture_process(_run_crash, "promotion", "receipt", fixture)
+                child.join(10)
                 if child.is_alive():
                     child.kill(); child.join(5); self.fail("CLI restart crash fixture hung")
                 self.assertEqual(73, child.exitcode)
@@ -408,7 +437,7 @@ class PromotionPublicationTransactionTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 if attempt == 0:
                     self.assertIn("recovered", result.stdout)
-            self.assertEqual({**before, "manifest.json.lock": b""}, _files(models))
+            self.assertEqual(before, _files(models))
             self.assertFalse((backups / "stamp.json").exists())
             self.assert_no_journal(models)
 

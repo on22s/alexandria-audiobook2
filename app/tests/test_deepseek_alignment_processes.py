@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_support import get_bash_executable, requires_linux_queue_tools
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import alexandria_alignment as alignment
@@ -42,21 +43,23 @@ class AlignmentProcessTests(unittest.TestCase):
             with self.subTest(used=used),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);probe=root/'rocm-smi';probe.write_text('#!/bin/bash\n'+''.join(f'echo "GPU[{i}] : VRAM Total Used Memory (B): {value}"\n' for i,value in enumerate(used)));probe.chmod(0o755)
                 command='source "$1"; sleep(){ :; }; STAGE_VRAM_WAIT=1; wait_for_server_vram_release'
-                result=subprocess.run(['bash','-c',command,'probe',str(ROOT/'run_chains/lib/server_cleanup.sh')],env={**os.environ,'PATH':str(root)+os.pathsep+os.environ['PATH']},capture_output=True,text=True,timeout=5)
+                result=subprocess.run([get_bash_executable(),'-c',command,'probe',str(ROOT/'run_chains/lib/server_cleanup.sh')],env={**os.environ,'PATH':str(root)+os.pathsep+os.environ['PATH']},capture_output=True,text=True,timeout=5)
                 self.assertEqual(expected,result.returncode,result.stdout+result.stderr)
                 if expected:self.assertNotIn('VRAM reclaimed',result.stdout)
                 elif used and None not in used:self.assertIn('VRAM reclaimed',result.stdout)
                 else:self.assertIn('unknown',result.stdout)
 
+    @unittest.skipIf(os.name == 'nt', 'requires POSIX process groups')
     def test_cleanup_refuses_the_wrapper_process_group(self):
         source = (ROOT / 'run_with_restart.sh').read_text()
         definition = re.search(r'^stop_preparer_group\(\) \{.*?^\}', source, re.M | re.S).group()
         command = definition + '\nCHILD_PGID=$(ps -o pgid= -p "$$"); CHILD_PGID=${CHILD_PGID//[[:space:]]/}; stop_preparer_group'
-        result = subprocess.run(['bash', '-c', command], capture_output=True, text=True,
+        result = subprocess.run([get_bash_executable(), '-c', command], capture_output=True, text=True,
                                 start_new_session=True, timeout=5)
         self.assertEqual(1, result.returncode)
         self.assertIn('REFUSING preparer cleanup', result.stderr)
 
+    @requires_linux_queue_tools
     def test_parent_death_reaps_live_group_before_clearing_reference(self):
         source=(ROOT/'run_with_restart.sh').read_text()
         definitions='\n'.join(re.findall(r'^(?:stop_preparer_group|cleanup_preparer|run_preparer)\(\) \{.*?^\}',source,re.M|re.S))
@@ -66,7 +69,7 @@ class AlignmentProcessTests(unittest.TestCase):
                 worker.write_text('import os,subprocess,sys\n'+('p=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\nopen(sys.argv[1],"w").write(str(p.pid))\nos.kill(os.getpid(),9)\n' if crashes else 'raise SystemExit(0)\n'))
                 shell.write_text(definitions+'\nPYTHON="$1";PREPARER="$2";CHILD_PGID=""\nrun_preparer "$3"\nrc=$?\nprintf "rc=%s pgid=%s\\n" "$rc" "$CHILD_PGID"\n')
                 try:
-                    result=subprocess.run(['bash',str(shell),sys.executable,str(worker),str(pidfile)],capture_output=True,text=True,timeout=30,start_new_session=True)
+                    result=subprocess.run([get_bash_executable(),str(shell),sys.executable,str(worker),str(pidfile)],capture_output=True,text=True,timeout=30,start_new_session=True)
                     self.assertIn(f'rc={137 if crashes else 0} pgid=\n',result.stdout)
                     if crashes:self.assertFalse(is_live(int(pidfile.read_text())),'descendant survived retry cleanup')
                     self.assertIsNone(unrelated.poll())

@@ -11,6 +11,7 @@ import unittest
 
 from tests.test_identity_gate_completion import make_inputs, measured_document
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import requires_linux_queue_tools
 
 REPO = Path(__file__).resolve().parents[2]
 BASELINES = ('husky_baritone_40s_m_2', 'husky_baritone_40s_m_scifi',
@@ -21,6 +22,7 @@ RANKS = ('breathy_alto_50s_f_fantasy', 'husky_baritone_20s_m_supernatural',
          'velvety_mezzo_30s_f_gothic', 'warm_alto_50s_f_gothic')
 
 
+@requires_linux_queue_tools
 class RemainingGoalChainTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()

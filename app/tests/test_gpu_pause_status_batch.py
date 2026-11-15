@@ -7,8 +7,9 @@ import subprocess
 import tempfile
 import time
 import unittest
+from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
 from tests.test_gpu_job import isolated_env, GPU_JOB
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, get_bash_executable
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = Path(os.environ.get('GPU_PAUSE_BASELINE_FILE', ROOT/'gpu_pause.sh'))
@@ -27,7 +28,7 @@ class PauseStatusBatchTests(unittest.TestCase):
                    'PATH':tmp+os.pathsep+os.environ['PATH']}
             for name, body in (('rocm-smi','exit 1'),('nvidia-smi','exit 1')):
                 p=root/name;p.write_text('#!/bin/sh\n'+body+'\n');p.chmod(0o755)
-            child=subprocess.Popen(['bash',str(wrapper),'long job'],env=env,start_new_session=True,
+            child=start_owned_subprocess([get_bash_executable(),str(wrapper),'long job'],env=env,
                                    stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             try:
                 deadline=time.monotonic()+3
@@ -36,11 +37,11 @@ class PauseStatusBatchTests(unittest.TestCase):
                 (root/'q.log').write_text('2026-10-01T00:00:00Z START    long job\n')
                 yield root, env, child
             finally:
-                if child.poll() is None:os.killpg(child.pid,signal.SIGTERM)
-                child.wait(timeout=3);child.stdin.close()
+                stop_owned_subprocess(child,timeout=3)
+                child.stdin.close()
 
     def status(self,env):
-        result=subprocess.run(['bash',str(SCRIPT),'status'],env=env,text=True,capture_output=True,timeout=10)
+        result=subprocess.run([get_bash_executable(),str(SCRIPT),'status'],env=env,text=True,capture_output=True,timeout=10)
         self.assertEqual(0,result.returncode,result.stderr);return result.stdout
 
     @requires_linux_queue_tools
@@ -86,7 +87,7 @@ class PauseStatusBatchTests(unittest.TestCase):
     def test_pending_native_start_token_rejects_reused_pid_and_legacy_marker(self):
         with self.fixture() as (root,env,child):
             pending=root/'pending';pending.mkdir();marker=pending/'waiting'
-            result=subprocess.run(['bash','-c','source "$1"; save_pending_marker "$2" waiting "$3" now','fixture',str(LIB),str(marker),str(child.pid)],capture_output=True,text=True)
+            result=subprocess.run([get_bash_executable(),'-c','source "$1"; save_pending_marker "$2" waiting "$3" now','fixture',str(LIB),str(marker),str(child.pid)],capture_output=True,text=True)
             self.assertEqual(0,result.returncode,result.stderr)
             self.assertIn('waiting: waiting',self.status(env))
             fields=marker.read_text().rstrip().split('\t');self.assertEqual(4,len(fields))
@@ -99,17 +100,17 @@ class PauseStatusBatchTests(unittest.TestCase):
     def test_idle_notification_counts_verified_markers_and_ignores_reused_pid(self):
         with self.fixture() as (root,env,child):
             pending=root/'pending';pending.mkdir();marker=pending/'waiting'
-            result=subprocess.run(['bash','-c','source "$1"; save_pending_marker "$2" waiting "$3" now','fixture',str(LIB),str(marker),str(child.pid)],capture_output=True,text=True)
+            result=subprocess.run([get_bash_executable(),'-c','source "$1"; save_pending_marker "$2" waiting "$3" now','fixture',str(LIB),str(marker),str(child.pid)],capture_output=True,text=True)
             self.assertEqual(0,result.returncode,result.stderr)
             notifier=root/'pterm';notifier.write_text('#!/bin/sh\nprintf notified >> "$NOTIFICATIONS"\n');notifier.chmod(0o755)
             source=Path(GPU_JOB).read_text();start=source.index('notify_if_idle() {');end=source.index('\n}',start)+2
             script=root/'notify.sh';script.write_text('source "$LIB"\n'+source[start:end]+'\nnotify_if_idle finished\n')
             env.update(LIB=str(LIB),PENDING_DIR=str(pending),PENDING_FILE=str(pending/'current'),
                        GPU_NOTIFY='1',GPU_NOTIFY_COOLDOWN='0',NAME='fixture',NOTIFICATIONS=str(root/'notifications'))
-            first=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=3)
+            first=subprocess.run([get_bash_executable(),str(script)],env=env,capture_output=True,text=True,timeout=3)
             self.assertEqual(0,first.returncode,first.stderr);self.assertFalse((root/'notifications').exists())
             fields=marker.read_text().rstrip().split('\t');fields[3]='wrong-boot:1';marker.write_text('\t'.join(fields)+'\n')
-            second=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=3)
+            second=subprocess.run([get_bash_executable(),str(script)],env=env,capture_output=True,text=True,timeout=3)
             self.assertEqual(0,second.returncode,second.stderr)
             self.assertEqual('notified',(root/'notifications').read_text())
 
@@ -118,7 +119,7 @@ class PauseStatusBatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);env=isolated_env(tmp,ALLOW_DIRTY_TREE='1',GPU_NOTIFY='0',REQUIRE_LLM='0')
             Path(env['GPU_PAUSE_FLAG']).write_text('held')
-            child=subprocess.Popen(['bash',GPU_JOB,'marker fixture','true'],env=env,
+            child=subprocess.Popen([get_bash_executable(),GPU_JOB,'marker fixture','true'],env=env,
                                    stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
             try:
                 deadline=time.monotonic()+5;fields=[]
@@ -130,7 +131,7 @@ class PauseStatusBatchTests(unittest.TestCase):
                     time.sleep(.01)
                 self.assertIsNone(child.poll());self.assertEqual(4,len(fields))
                 self.assertEqual(['marker fixture',str(child.pid)],fields[:2])
-                proof=subprocess.run(['bash','-c','source "$1"; get_pending_process_token "$2"','fixture',str(LIB),str(child.pid)],text=True,capture_output=True)
+                proof=subprocess.run([get_bash_executable(),'-c','source "$1"; get_pending_process_token "$2"','fixture',str(LIB),str(child.pid)],text=True,capture_output=True)
                 self.assertEqual(0,proof.returncode,proof.stderr);self.assertEqual(proof.stdout.strip(),fields[3])
                 self.assertNotIn('START',Path(env['GPU_QLOG']).read_text())
             finally:

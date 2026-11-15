@@ -7,9 +7,11 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+import errno
 from unittest.mock import Mock, patch
 
 import tts_vram_benchmark as benchmark
+from alexandria_file_lock import acquire_exclusive_file_lock, release_exclusive_file_lock
 
 
 class VramCliValidationTests(unittest.TestCase):
@@ -163,12 +165,11 @@ class VramSummaryHeadroomTests(unittest.TestCase):
 
 class VramCliLeaseTests(unittest.TestCase):
     def test_busy_kernel_lease_refuses_before_loading_engine(self):
-        import fcntl
         import os
         with tempfile.TemporaryDirectory() as tmp:
             lock = Path(tmp) / "gpu.lock"
             with open(lock, "a") as owner:
-                fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquire_exclusive_file_lock(owner.fileno())
                 with patch.dict(os.environ, {"GPU_LOCK": str(lock),
                         "ALEXANDRIA_GPU_LOCK_HELD": "", "ALEXANDRIA_GPU_LOCK_PID": ""}), \
                      patch.object(benchmark, "APP_DIR", tmp), \
@@ -191,7 +192,6 @@ class VramCliLeaseTests(unittest.TestCase):
                 self.run_scenario(phase)
 
     def run_scenario(self, failure):
-        import fcntl
         import os
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -201,8 +201,9 @@ class VramCliLeaseTests(unittest.TestCase):
             phases = []
             def check_held(phase):
                 with open(lock, "a") as contender:
-                    with self.assertRaises(BlockingIOError):
-                        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    with self.assertRaises(OSError) as busy:
+                        acquire_exclusive_file_lock(contender.fileno())
+                    self.assertIn(busy.exception.errno, (errno.EACCES, errno.EAGAIN))
                 phases.append(phase)
                 if phase == failure:
                     raise RuntimeError("injected " + phase)
@@ -239,8 +240,8 @@ class VramCliLeaseTests(unittest.TestCase):
                 else:
                     benchmark.main()
             with open(lock, "a") as contender:
-                fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(contender, fcntl.LOCK_UN)
+                acquire_exclusive_file_lock(contender.fileno())
+                release_exclusive_file_lock(contender.fileno())
             if failure:
                 self.assertFalse((app / "benchmark_results.json").exists())
             else:

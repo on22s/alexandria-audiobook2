@@ -2,6 +2,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -36,7 +37,7 @@ class CompareTerminalTextTests(unittest.TestCase):
                     'audio_filepath': attack + '.wav', 'start': 0, 'end': 1}]
         before = copy.deepcopy(entries)
         with tempfile.TemporaryDirectory() as root:
-            root = Path(root); source = root / ('metadata' + attack + '.jsonl')
+            root = Path(root); source = root / ('metadata' + ('\x9b2J\u202e' if os.name=='nt' else attack) + '.jsonl')
             source.write_text(json.dumps(entries[0]) + '\n')
             original_bytes = source.read_bytes()
             output = root / 'corrected.jsonl'; log = root / 'review.jsonl'
@@ -64,18 +65,22 @@ class CompareTerminalTextTests(unittest.TestCase):
 
     def test_checkpoint_warning_and_recovery_refusal_escape_owned_path(self):
         with tempfile.TemporaryDirectory() as root:
-            path = str(Path(root) / 'book\x1b]52;c;payload\x07.jsonl')
+            path_attack='\x9b2J\u202e' if os.name=='nt' else '\x1b]52;c;payload\x07'
+            escaped_attack='\\x9b2J\\u202e' if os.name=='nt' else '\\x1b]52;c;payload\\x07'
+            path = str(Path(root) / ('book'+path_attack+'.jsonl'))
             checkpoint = compare.checkpoint_path(path)
             checkpoint.write_text('{partial')
             capture = io.StringIO()
             with contextlib.redirect_stdout(capture):
                 self.assertEqual({'decisions': {}, 'cursor': 0}, compare.load_checkpoint(path))
-            self.assertNotIn('\x1b', capture.getvalue())
-            self.assertIn('\\x1b]52;c;payload\\x07', capture.getvalue())
+            for control in ('\x1b', '\x9b', '\u202e'):
+                self.assertNotIn(control, capture.getvalue())
+            self.assertIn(escaped_attack, capture.getvalue())
             checkpoint.unlink()
             journal = compare.checkpoint_journal_path(path); journal.write_text('{partial')
             with self.assertRaises(SystemExit) as error:
                 compare.load_checkpoint(path)
-            self.assertNotIn('\x1b', str(error.exception))
+            for control in ('\x1b', '\x9b', '\u202e'):
+                self.assertNotIn(control, str(error.exception))
             self.assertIn('missing', str(error.exception))
             self.assertEqual('{partial', journal.read_text())

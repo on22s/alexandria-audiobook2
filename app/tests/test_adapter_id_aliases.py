@@ -1,5 +1,6 @@
 """Persisted adapter IDs resolve through a single validated manifest map."""
 import copy
+import os
 import unittest
 from voice_manifest import get_adapter_id_alias_map,get_resolved_adapter_id
 
@@ -313,18 +314,22 @@ class AdapterIdAliasTests(unittest.TestCase):
 
     def test_public_naming_rejects_id_exchange_that_would_retarget_saved_voices(self):
         import json
+        from utils import file_lock
         from pathlib import Path
         import tempfile
         from tests.test_adapter_naming_transaction import NamingTransactionTests,_files
         from adapter_naming_transaction import apply_adapter_naming_locked,lock_adapter_naming
         with tempfile.TemporaryDirectory() as tmp:
-            models,rows=NamingTransactionTests().fixture(Path(tmp));before=_files(models)
+            models,rows=NamingTransactionTests().fixture(Path(tmp))
+            with file_lock(str(models/'manifest.json')):
+                pass
+            before=_files(models)
             swapped=copy.deepcopy(rows)
             swapped[0]['id']='raw_b';swapped[1]['id']='raw_a'
             with lock_adapter_naming(str(models),str(models/'manifest.json')):
                 with self.assertRaisesRegex(ValueError,'duplicate'):
                     apply_adapter_naming_locked(str(models),str(models/'manifest.json'),swapped,[('raw_a','raw_b'),('raw_b','raw_a')])
-            self.assertEqual({**before,'manifest.json.lock':b''},_files(models))
+            self.assertEqual(before,_files(models))
 
     def test_native_cli_old_absolute_and_relative_config_paths_resolve_same_bundle(self):
         from pathlib import Path
@@ -729,15 +734,17 @@ class AdapterIdAliasTests(unittest.TestCase):
         from tests.test_adapter_naming_transaction import NamingTransactionTests,_invoke
         with tempfile.TemporaryDirectory() as tmp:
             models,rows=NamingTransactionTests().fixture(Path(tmp))
-            filename='probe #100%?.wav';source=models/'raw_a'/'keep'/filename
+            filename=('probe #100%+.wav' if os.name=='nt' else 'probe #100%?.wav');source=models/'raw_a'/'keep'/filename
             source.write_bytes(b'exact nested probe bytes');expected=source.read_bytes()
             self.assertEqual(0,_invoke(models,'--apply'))
             app=FastAPI();app.mount('/lora_models',AdapterStaticFiles(directory=str(models)))
             with TestClient(app) as client:
-                url='/lora_models/raw_a/keep/probe%20%23100%25%3F.wav?test=one%20two'
+                from urllib.parse import quote
+                encoded=quote(filename,safe='')
+                url='/lora_models/raw_a/keep/'+encoded+'?test=one%20two'
                 redirect=client.get(url,follow_redirects=False)
                 self.assertEqual(307,redirect.status_code,redirect.text)
-                location=redirect.headers['location'];self.assertIn('probe%20%23100%25%3F.wav',location)
+                location=redirect.headers['location'];self.assertIn(encoded,location)
                 self.assertTrue(location.endswith('?test=one%20two'))
                 response=client.get(url);self.assertEqual(200,response.status_code,response.text)
                 self.assertEqual(expected,response.content)

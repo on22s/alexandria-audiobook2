@@ -93,6 +93,56 @@ def snapshot_fixture_files(root, *, lock_files=()):
     return result
 
 
+
+def _run_adapter_fixture_process(ready, target, args):
+    # Spawn starts a fresh interpreter. Warm the actual structural-validator
+    # dependencies before starting the transaction's existing hang deadline.
+    import peft
+    import safetensors
+    ready.set()
+    target(*args)
+
+
+def start_adapter_fixture_process(target, *args, startup_timeout=60):
+    """Start a real spawned adapter worker; bound imports separately from work.
+
+    Full-suite discovery followed by a cold Windows spawn can spend over ten
+    seconds importing PEFT/Transformers. Callers still join with their original
+    operation timeout after this handshake. Import failure and startup timeout
+    are failures, never skips or successful transaction evidence.
+    """
+    import multiprocessing
+    import time
+    context = multiprocessing.get_context('spawn')
+    ready = context.Event()
+    process = context.Process(target=_run_adapter_fixture_process,
+                              args=(ready, target, args))
+    process.start()
+    deadline = time.monotonic() + startup_timeout
+    while not ready.wait(min(0.1, max(0, deadline - time.monotonic()))):
+        alive = process.is_alive()
+        if not alive or time.monotonic() >= deadline:
+            if alive:
+                process.kill()
+            process.join(5)
+            reason = (f'timed out initializing after {startup_timeout}s' if alive
+                      else 'exited before initialization')
+            raise AssertionError(f'Adapter fixture {reason} (exitcode={process.exitcode})')
+    return process
+
+
+def write_python_bash_fixture(path, source):
+    """Write a Python payload with a launcher explicitly executed by native Bash."""
+    import shlex
+    path = Path(path)
+    payload = path.with_name(path.name + '.py')
+    payload.write_text(source, encoding='utf-8')
+    path.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' '
+                    + shlex.quote(str(payload)) + ' "$@"\n', encoding='utf-8')
+    path.chmod(0o755)
+    return path
+
+
 def write_python_cli_fixture(path, source):
     """Return a real host-executable Python fixture, including Windows CMD.
 
@@ -102,25 +152,20 @@ def write_python_cli_fixture(path, source):
     escaped by this test helper. Callers must wait for a running fixture before
     replacing its payload.
     """
-    import shlex
     path = Path(path)
+    if os.name != 'nt':
+        return write_python_bash_fixture(path, source)
     payload = path.with_name(path.name + '.py')
     payload.write_text(source, encoding='utf-8')
-    if os.name == 'nt':
-        launcher = path.with_name(path.name + '.cmd')
-        # CMD decodes batch contents using its console code page, even when
-        # Python is in UTF-8 mode. Select UTF-8 before reading a Unicode path.
-        launcher.write_text('@setlocal\n'
-                            '@for /f "tokens=2 delims=:" %%c in (\'chcp\') do @set "_AA2_FIXTURE_CP=%%c"\n'
-                            '@chcp 65001 >nul\n@"' + sys.executable + '" "' + str(payload) + '" %*\n'
-                            '@set "_AA2_FIXTURE_EXIT=%errorlevel%"\n'
-                            '@chcp %_AA2_FIXTURE_CP% >nul\n'
-                            '@exit /b %_AA2_FIXTURE_EXIT%\n', encoding='utf-8')
-    else:
-        launcher = path
-        launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' '
-                            + shlex.quote(str(payload)) + ' "$@"\n', encoding='utf-8')
-        launcher.chmod(0o755)
+    launcher = path.with_name(path.name + '.cmd')
+    # CMD decodes batch contents using its console code page, even when
+    # Python is in UTF-8 mode. Select UTF-8 before reading a Unicode path.
+    launcher.write_text('@setlocal\n'
+                        '@for /f "tokens=2 delims=:" %%c in (\'chcp\') do @set "_AA2_FIXTURE_CP=%%c"\n'
+                        '@chcp 65001 >nul\n@"' + sys.executable + '" "' + str(payload) + '" %*\n'
+                        '@set "_AA2_FIXTURE_EXIT=%errorlevel%"\n'
+                        '@chcp %_AA2_FIXTURE_CP% >nul\n'
+                        '@exit /b %_AA2_FIXTURE_EXIT%\n', encoding='utf-8')
     return launcher
 
 

@@ -55,6 +55,8 @@ print('CORS_RESULTS='+json.dumps(results))
                         kwargs['stderr'] = subprocess.STDOUT
                     return actual_start(command, **kwargs)
                 def run_probe(command, **kwargs):
+                    if '--url' not in command:
+                        return actual_run(command, **kwargs)
                     env = dict(kwargs['env'], FIXTURE_URL=command[command.index('--url')+1])
                     result = actual_run([sys.executable, '-c', probe], cwd=kwargs['cwd'], env=env,
                                         capture_output=True, text=True, timeout=20)

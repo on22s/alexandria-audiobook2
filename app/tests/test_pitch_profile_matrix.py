@@ -21,7 +21,7 @@ class PitchProfileMatrixTests(unittest.TestCase):
         self.assertTrue(rule)
         self.assertEqual(os.path.join(
             pitch.REPO, "app", "experiments", "pitch_profile_source_chunks.json"),
-            chunks)
+            os.path.normpath(chunks))
         for row in passages:
             self.assertEqual(64, len(row["source_sha256"]))
 

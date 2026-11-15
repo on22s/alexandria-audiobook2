@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from subprocess_ownership import run_owned_capture
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, write_python_cli_fixture, get_bash_executable
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -31,7 +31,7 @@ def write_captured_stderr(stderr,*,preserve_error=False):
 class MorningChainTests(unittest.TestCase):
     def git(self,*args):
         try:
-            result=run_owned_capture(['git','-C',str(self.root),*args],text=True,timeout=15)
+            result=run_owned_capture([shutil.which('git') or 'git','-C',str(self.root),*args],text=True,timeout=15)
         except subprocess.TimeoutExpired as error:
             write_captured_stderr(error.stderr,preserve_error=True)
             raise
@@ -70,7 +70,7 @@ raise SystemExit(7 if mode=='fail_full' else 0)
         path=self.root/relative;path.write_text(source);path.chmod(0o755)
 
     def run_chain(self,**env):
-        return run_owned_capture(['bash',str(self.root/'run_chains/morning_20260818.sh')],cwd=self.root.parent,env=dict(self.env,**env),text=True,timeout=15)
+        return run_owned_capture([get_bash_executable(),str(self.root/'run_chains/morning_20260818.sh')],cwd=self.root.parent,env=dict(self.env,**env),text=True,timeout=15)
 
     def write_late_git_writer(self):
         actual_git=shutil.which('git')
@@ -156,7 +156,8 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
     def test_git_replays_decoded_stderr_on_success_and_before_nonzero_error(self):
         for code in (0,7):
             with self.subTest(code=code):
-                self.write('bin/git',"#!/bin/sh\nprintf 'fixture output\\n'; printf 'fixture diagnostic\\n' >&2; exit "+str(code)+'\n')
+                write_python_cli_fixture(self.root/'bin/git',
+                    "import sys\nprint('fixture output')\nprint('fixture diagnostic',file=sys.stderr)\nraise SystemExit("+str(code)+")\n")
                 diagnostic=io.StringIO()
                 with patch.dict(os.environ,PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH']):
                     with contextlib.redirect_stderr(diagnostic):
@@ -196,7 +197,8 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
                    '#!/bin/sh\nprintf "%s\\n" "$FIXTURE_CHECK"; pwd; printf "diagnostic\\n" >&2; exit 7\n')
         result=self.run_chain(FIXTURE_CHECK='explicit environment')
         self.assertIsInstance(result,subprocess.CompletedProcess)
-        self.assertEqual((7,'explicit environment\n'+str(self.root.parent)+'\n','diagnostic\n'),
+        native_cwd=subprocess.check_output([get_bash_executable(),'-c','pwd'],cwd=self.root.parent,text=True).strip()
+        self.assertEqual((7,'explicit environment\n'+native_cwd+'\n','diagnostic\n'),
                          (result.returncode,result.stdout,result.stderr))
 
     @requires_linux_queue_tools
