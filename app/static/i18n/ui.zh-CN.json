@@ -4166,6 +4166,7 @@
   "setup.tts.cap.unknown": "无法完全验证已保存服务器 schema。请查看下面的未知操作和诊断信息。",
   "setup.tts.cap.unsupported-voice": "所选 {mode} 模式不支持此声音类型。其分配已保留。请在生成前选择一个受支持的声音，或切换模式并保存。合声成员和版本时间线也会由服务器检查。",
   "setup.tts.exact-download-contents-below-refresh-read": "下面是确切的下载内容。刷新只读取此 AA2 服务器；它绝不联系模型服务器或上传报告。Null 表示未观察到或已排除。单独分享前请先审阅。",
+  "setup.tts.failure-log-download": "下载故障日志",
   "setup.tts.heading": "语音引擎",
   "setup.tts.intro": "选择声音的生成位置以及合成使用的语言。在「声音」中为各个角色分配声音。",
   "setup.tts.no-timings-requested": "未请求任何计时。",
