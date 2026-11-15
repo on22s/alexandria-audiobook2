@@ -15,6 +15,7 @@ import sys
 
 from subprocess_ownership import (SUBPROCESS_TERMINATE_GRACE_SECONDS,
                                  start_owned_subprocess, stop_owned_subprocess, send_subprocess_signal, get_subprocess_lease_options,
+                                 log_subprocess_stop_fallback,
                                  terminate_windows_process_tree as terminate_owned_windows_process_tree)
 from voicelab_settings import get_voicelab_python
 import threading
@@ -1325,12 +1326,16 @@ def _cancel_task(state_key: str, not_running_msg: str, exited_msg: str):
         _send_signal_tree(proc if proc is not None else pid, signal.SIGTERM)
     except ProcessLookupError:
         raise HTTPException(status_code=400, detail=exited_msg)
-    except OSError:
+    except OSError as error:
         if (sys.platform == 'win32'
                 and getattr(proc, '_alexandria_windows_owner', None) is not None):
             from subprocess_ownership import is_subprocess_tree_running
             if is_subprocess_tree_running(proc):
-                logger.warning('Graceful cancellation failed; cancellation remains requested', exc_info=True)
+                message = 'Cancellation requested; waiting for the worker to stop. Windows cleanup remains pending.'
+                logs = state.setdefault('logs', [])
+                if not logs or logs[-1] != message:
+                    logs.append(message)
+                log_subprocess_stop_fallback(error, message)
                 return {"status": "cancel requested", "pid": pid}
         raise HTTPException(status_code=400, detail=exited_msg)
     return {"status": "cancel signal sent", "pid": pid}

@@ -83,6 +83,15 @@ class WindowsJobClosedError(OSError):
     """The owned job handle has already been released."""
 
 
+class WindowsGracefulTerminationRefused(OSError):
+    """taskkill declined a graceful stop; the job still owns forced cleanup."""
+    def __init__(self, pid, returncode, stderr=None):
+        self.pid = pid
+        self.returncode = returncode
+        self.stderr = stderr
+        super().__init__(f'Windows taskkill failed for job member {pid} (exit {returncode})')
+
+
 def _with_open_job(method):
     """Keep the kernel handle open for an entire operation."""
     @functools.wraps(method)
@@ -166,7 +175,9 @@ class WindowsSubprocessJob:
                     try:
                         subprocess.run(['taskkill', '/PID', str(pid)], check=True,
                                        capture_output=True, text=True, timeout=remaining)
-                    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+                    except subprocess.CalledProcessError as error:
+                        raise WindowsGracefulTerminationRefused(pid, error.returncode, error.stderr) from error
+                    except subprocess.TimeoutExpired as error:
                         raise OSError(f'Windows taskkill failed for job member {pid}') from error
             finally:
                 if not self.api.CloseHandle(process_handle):

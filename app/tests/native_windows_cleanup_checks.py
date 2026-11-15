@@ -54,9 +54,16 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
         state = dict(running=True, cancel=False, process=proc, pid=proc.pid)
         try:
             time.sleep(.3)
-            with patch.dict(core.process_state, {'_native_refusal': state}):
+            with patch.dict(core.process_state, {'_native_refusal': state}), \
+                 self.assertLogs('AlexandriaUI', level='WARNING') as captured:
                 result = core._cancel_task('_native_refusal', 'idle', 'exited')
             self.assertEqual('cancel requested', result['status'])
+            warnings = [record for record in captured.records
+                        if record.getMessage().startswith('Cancellation requested;')]
+            self.assertEqual(1, len(warnings))
+            self.assertIsNone(warnings[0].exc_info)
+            self.assertIn('taskkill exit', '\n'.join(captured.output))
+            self.assertIn('waiting for the worker to stop', state['logs'][-1])
             self.assertTrue(state['cancel'])
             self.assertTrue(is_subprocess_tree_running(proc))
             with patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .1):

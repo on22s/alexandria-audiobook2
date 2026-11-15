@@ -1050,22 +1050,21 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-14T18:09:13",
+  "written": "2026-11-15T03:15:52",
   "host": "RealMitch",
   "git": {
-   "commit": "50e0becd34c0969d0eef5d43ad08df1de03a04e8",
-   "branch": "fix/1938-native-windows-followup",
+   "commit": "7ca482f0e6c880f91083a32afc924a67787d4e14",
+   "branch": "fix/1960-review-cancellation",
    "dirty": true,
-   "source_state": "dirty:d29e058c5d0d",
+   "source_state": "dirty:4cbb2e3d60f5",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/experiments/speech_verification_faults.py",
-    "M  app/tests/test_automatic_take_history.py",
-    "M  app/tests/test_evaluation_directory_containment.py",
-    "M  app/tests/test_speech_verification_faults.py",
+    "M  app/core.py",
+    "M  app/subprocess_ownership.py",
+    "M  app/tests/native_windows_cleanup_checks.py",
+    "M  app/tests/test_windows_cleanup_escalation.py",
     "M  app/tests/unit_test_inventory.json",
-    "M  docs/design/ui-followups-1938.md",
-    "M  tools/voice_lab/evaluate_lora.py"
+    "M  app/windows_subprocess_job.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
