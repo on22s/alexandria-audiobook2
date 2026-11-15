@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T14:05:36",
+  "written": "2026-11-15T15:16:17",
   "host": "RealMitch",
   "git": {
-   "commit": "9848a8c1d0f5baccadd21588c9f642bdc5ecb569",
-   "branch": "chore/remove-token-budget-rule",
+   "commit": "3dedacd86c0c7d061ea7d885042ca7a974265f95",
+   "branch": "fix/windows-readiness-followup",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

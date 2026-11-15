@@ -32,6 +32,8 @@ raw WER would select for names that are easy to transcribe rather than right.
 from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
+import hashlib
+import io
 import json
 import logging
 import os
@@ -62,7 +64,7 @@ def _compile(entries):
 
 
 def load_lexicon(path=None, force=False):
-    """-> {name: respelling}. Cached on file identity, size and timestamps so edits take effect."""
+    """-> {name: respelling}. Cache parsed entries by file identity and content."""
     with _cache_lock:
         return _load_lexicon(path, force)
 
@@ -71,9 +73,14 @@ def _load_lexicon(path=None, force=False):
     """Load the cache while the caller holds its lock."""
     path = path or DEFAULT_PATH
     try:
-        stat = os.stat(path)
+        # Windows st_ctime is creation time. Hash the bytes we parse so an
+        # in-place edit with the same size and restored mtime cannot stay cached.
+        with open(path, "rb") as fh:
+            stat = os.fstat(fh.fileno())
+            content = fh.read()
         fingerprint = (stat.st_dev, stat.st_ino, stat.st_size,
-                       stat.st_mtime_ns, stat.st_ctime_ns)
+                       stat.st_mtime_ns, stat.st_ctime_ns,
+                       hashlib.sha256(content).digest())
     except OSError as error:
         if not isinstance(error, FileNotFoundError):
             logger.warning("Pronunciation lexicon unavailable at %s; continuing without substitutions: %s", path, error)
@@ -83,8 +90,7 @@ def _load_lexicon(path=None, force=False):
     if not force and _cache["path"] == path and _cache["fingerprint"] == fingerprint:
         return dict(_cache["entries"])
     try:
-        with open(path, encoding="utf-8") as fh:
-            raw = json.load(fh)
+        raw = json.load(io.StringIO(content.decode("utf-8")))
     except (ValueError, OSError) as error:
         # Retain nonblocking generation, but make the failed lexicon visible.
         logger.warning("Pronunciation lexicon invalid at %s; continuing without substitutions: %s", path, error)

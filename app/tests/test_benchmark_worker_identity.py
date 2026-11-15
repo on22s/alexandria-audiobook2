@@ -12,6 +12,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from tests.test_support import get_bash_executable, write_python_bash_fixture
 
 import benchmark_environment as env
 
@@ -65,14 +66,14 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         self.remote = Path(temp.name)/'worker checkout'
         git('clone',str(self.root),str(self.remote))
         self.python = Path(temp.name)/'selected python'
-        self.python.write_text('#!'+sys.executable+'\nimport sys,platform\nfrom importlib import metadata\n'
+        write_python_bash_fixture(self.python, 'import sys,platform\nfrom importlib import metadata\n'
             'platform.python_version=lambda:"3.99.worker"\n'
             'metadata.version=lambda name:"worker-"+name\nexec(sys.argv[2])\n')
         self.python.chmod(0o755)
         self.commands = []
         def execute(_alias,command,**kwargs):
             self.commands.append(command)
-            result = subprocess.run(['bash','-c',command],capture_output=True,text=True,timeout=10)
+            result = subprocess.run([get_bash_executable(),'-c',command],capture_output=True,text=True,timeout=10)
             return SimpleNamespace(returncode=result.returncode,stdout='decorative banner\n'+result.stdout,stderr=result.stderr)
         self.patchers = [patch.object(env,'_ssh_run',side_effect=execute),
             patch.object(env,'get_remote_gpu_name_and_backend',return_value=('fixture-gpu','fixture-backend')),
@@ -82,7 +83,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
 
     def collect(self,target):
         fn = env.collect_cpu_environment if target=='cpu' else env.collect_thunder_environment
-        kwargs = {'remote_root':str(self.remote),'remote_python':str(self.python)}
+        kwargs = {'remote_root':self.remote.as_posix(),'remote_python':self.python.as_posix()}
         kwargs = {k:v for k,v in kwargs.items() if k in inspect.signature(fn).parameters}
         return fn(str(self.root),'thunder' if target=='cpu' else 'fixture-ssh',
                   'fixture-ssh' if target=='cpu' else 'model',**kwargs)
@@ -91,13 +92,13 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         details = self.collect('llm')['details']
         self.assertEqual('3.99.worker',details['python_version'])
         self.assertEqual('worker-torch',details['packages']['torch'])
-        self.assertEqual(str(self.python),details['python_executable'])
+        self.assertEqual(self.python.as_posix(),details['python_executable'])
         revision = subprocess.run(['git','-C',str(self.remote),'rev-parse','HEAD'],capture_output=True,text=True,check=True).stdout.strip()
         self.assertEqual(revision,details['git_commit'])
         self.assertFalse(details['worktree']['dirty'])
         self.assertNotEqual(details['packages'],details['orchestrator_packages'])
         python_command = next(c for c in self.commands if ' -c ' in c)
-        self.assertEqual(str(self.python),shlex.split(python_command)[0])
+        self.assertEqual(self.python.as_posix(),shlex.split(python_command)[0])
 
     def test_cpu_fingerprint_separates_dirty_orchestrator_from_clean_worker(self):
         (self.root/'app/local_change.py').write_text('local-only fixture\n')
@@ -106,7 +107,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         self.assertFalse(details['worktree']['dirty'])
         self.assertTrue(details['orchestrator_worktree']['dirty'])
         self.assertNotEqual(details['worktree']['sha256'],details['orchestrator_worktree']['sha256'])
-        self.assertEqual(str(self.remote),details['remote_root'])
+        self.assertEqual(self.remote.as_posix(),details['remote_root'])
 
     def test_dirty_and_different_worker_checkouts_are_refused(self):
         (self.remote/'app/dirty.py').write_text('dirty fixture\n')
@@ -122,7 +123,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
 
     def test_runtime_without_checkout_observes_packages_from_selected_python(self):
         fn = env._get_remote_runtime_observations
-        kwargs = {'remote_python':str(self.python)} if 'remote_python' in inspect.signature(fn).parameters else {}
+        kwargs = {'remote_python':self.python.as_posix()} if 'remote_python' in inspect.signature(fn).parameters else {}
         details = fn('fixture-ssh',**kwargs)
         self.assertEqual('3.99.worker',details['python_version'])
         self.assertEqual('worker-fastapi',details['packages']['fastapi'])
