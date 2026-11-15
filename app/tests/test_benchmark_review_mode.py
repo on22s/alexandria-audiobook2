@@ -126,7 +126,18 @@ class BenchmarkReviewModeTests(unittest.TestCase):
         self.assertEqual(8192, result['params'][0].context_length)
         self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Gently.'}, SOURCE[1]], result['outputs'][0])
         schema = result['requests'][0]['response_format']['json_schema']['schema']
-        self.assertEqual({'n', 'speaker', 'instruct'}, set(schema['items']['properties']))
+        properties = schema['items']['properties']
+        required = {'n', 'speaker', 'instruct'}
+        annotations = {'type', 'spoken', 'speaker_gender', 'speaker_age_group', 'speaker_ageless'}
+        self.assertEqual(required | annotations, set(properties))
+        self.assertEqual(required, set(schema['items']['required']))
+        self.assertFalse(schema['items']['additionalProperties'])
+        self.assertEqual({'type': ['boolean', 'null']}, properties['spoken'])
+        self.assertEqual({'type': ['boolean', 'null']}, properties['speaker_ageless'])
+        self.assertEqual(['NARRATOR', 'SPOKEN', None], properties['type']['enum'])
+        self.assertIn('female', properties['speaker_gender']['enum'])
+        self.assertIn('adult', properties['speaker_age_group']['enum'])
+        self.assertNotIn('text', properties)
         self.assertEqual([0, 1], schema['items']['properties']['n']['enum'])
         self.assertEqual((2, 2), (schema['minItems'], schema['maxItems']))
         self.assertIn('Never return text', result['requests'][0]['messages'][0]['content'])
@@ -149,6 +160,32 @@ class BenchmarkReviewModeTests(unittest.TestCase):
         self.assertEqual('http://localhost:1234/v1', envelope['payload']['llm_config']['base_url'])
         self.assertNotIn('And yet', ' '.join(envelope['command']))
         self.assertIn('--payload-stdin', envelope['command'][-1])
+
+    def test_optional_annotations_survive_benchmark_transports_and_source_binding(self):
+        annotations = {'type': 'SPOKEN', 'spoken': True, 'speaker_gender': 'female',
+                       'speaker_age_group': 'adult', 'speaker_ageless': False}
+        for target in ('local', 'thunder'):
+            for indexed in (False, True):
+                with self.subTest(target=target, indexed=indexed):
+                    corrected = {'speaker': 'ALICE', 'instruct': 'Gently.', **annotations}
+                    corrected.update({'n': 0} if indexed else {'text': SOURCE[0]['text']})
+                    unchanged = LABELS[0] if indexed else SOURCE[1]
+                    result = run_native_benchmark(target, indexed, [corrected, unchanged])
+                    self.assertEqual('passed', result['report']['cases'][0]['status'])
+                    self.assertEqual([{**SOURCE[0], 'speaker': 'ALICE', 'instruct': 'Gently.',
+                                       **annotations}, SOURCE[1]], result['outputs'][0])
+                    self.assertEqual('accepted', result['report']['cases'][0]['attempts'][0]['outcome'])
+
+    def test_invalid_annotations_are_rejected_by_benchmark_transports(self):
+        for target in ('local', 'thunder'):
+            for indexed in (False, True):
+                with self.subTest(target=target, indexed=indexed):
+                    corrected = {'speaker': 'ALICE', 'instruct': 'Gently.', 'spoken': 'true'}
+                    corrected.update({'n': 0} if indexed else {'text': SOURCE[0]['text']})
+                    unchanged = LABELS[0] if indexed else SOURCE[1]
+                    result = run_native_benchmark(target, indexed, [corrected, unchanged])
+                    self.assertEqual('failed', result['report']['cases'][0]['status'])
+                    self.assertEqual([None], result['outputs'])
 
     def test_default_and_explicit_false_still_request_classic_review(self):
         for target in ('local', 'thunder'):
