@@ -20,6 +20,21 @@ SUBPROCESS_TERMINATE_GRACE_SECONDS = 10.0
 logger = logging.getLogger("AlexandriaUI")
 
 
+def log_subprocess_stop_fallback(error, message):
+    """Explain a taskkill refusal without flattening unexpected cleanup errors."""
+    if sys.platform == 'win32':
+        from windows_subprocess_job import WindowsGracefulTerminationRefused
+        if isinstance(error, WindowsGracefulTerminationRefused):
+            reason = (' '.join(error.stderr.split())[:512]
+                      if isinstance(error.stderr, str) else '')
+            logger.warning('%s (taskkill exit %s for owned process %s): %s',
+                           message, error.returncode, error.pid,
+                           reason or 'no diagnostic returned')
+            logger.debug('Windows graceful-stop refusal details', exc_info=True)
+            return
+    logger.warning(message, exc_info=True)
+
+
 def terminate_windows_process_tree(proc_or_pid, force=False, timeout=SUBPROCESS_TERMINATE_GRACE_SECONDS):
     """Terminate an owned Windows job, or dispatch a legacy tree operation."""
     owner = getattr(proc_or_pid, "_alexandria_windows_owner", None)
@@ -109,12 +124,13 @@ def stop_owned_subprocess(process, interrupt=False, timeout=5, *, force_after_gr
                 send_subprocess_signal(process, graceful_signal, termination_grace=timeout)
             except ProcessLookupError:
                 pass
-            except OSError:
+            except OSError as error:
                 if not force_after_grace and not (
                         sys.platform == 'win32'
                         and getattr(process, '_alexandria_windows_owner', None) is not None):
                     raise
-                logger.warning('Graceful subprocess stop failed; retaining forced cleanup', exc_info=True)
+                log_subprocess_stop_fallback(
+                    error, 'Graceful subprocess stop unavailable; retaining forced cleanup')
         if force_after_grace:
             deadline = time.monotonic() + timeout
         while is_subprocess_tree_running(process) and time.monotonic() < deadline:

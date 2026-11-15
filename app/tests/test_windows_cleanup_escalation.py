@@ -1,5 +1,8 @@
 """Cross-platform policy and failure routing for qualification cleanup."""
 from pathlib import Path
+from types import SimpleNamespace
+import builtins
+import logging
 import subprocess
 import sys
 import unittest
@@ -9,9 +12,121 @@ import core
 import verify_release as verifier
 import subprocess_ownership as ownership
 from windows_subprocess_owner import WindowsOwnerControl
+import windows_subprocess_job as jobs
+from tests.test_windows_subprocess_job import JobApiFixture
 
 
 class GracefulRefusalTests(unittest.TestCase):
+    def taskkill_refusal(self):
+        api = JobApiFixture()
+        api.counts = [1]
+        with patch.object(jobs, 'get_windows_job_api', return_value=api):
+            job = jobs.WindowsSubprocessJob()
+        self.addCleanup(job.close)
+        process = Mock(pid=100)
+        control = WindowsOwnerControl(job, process, Mock(), termination_grace=10)
+        process._alexandria_control = process._alexandria_windows_owner = control
+        return process, job, api
+
+    def test_taskkill_refusal_reports_pending_without_a_warning_traceback(self):
+        process, job, api = self.taskkill_refusal()
+        state = dict(running=True, cancel=False, process=process, pid=100, logs=[])
+        reason = 'requires force\n' + 'detail ' * 200
+        refusal = subprocess.CalledProcessError(1, ['taskkill'], stderr=reason)
+        changed = subprocess.CalledProcessError(1, ['taskkill'], stderr='access denied')
+        taskkill = SimpleNamespace(run=Mock(side_effect=[refusal, changed, refusal]),
+            CalledProcessError=subprocess.CalledProcessError, TimeoutExpired=subprocess.TimeoutExpired)
+        with patch.dict(core.process_state, {'_refusal': state}), \
+             patch.object(core, 'sys', SimpleNamespace(platform='win32')), \
+             patch.object(ownership, 'sys', SimpleNamespace(platform='win32')), \
+             patch.object(jobs, 'subprocess', taskkill), \
+             self.assertLogs('AlexandriaUI', level='DEBUG') as captured:
+            result = core._cancel_task('_refusal', 'idle', 'exited')
+            self.assertEqual(result, core._cancel_task('_refusal', 'idle', 'exited'))
+        self.assertEqual({'status': 'cancel requested', 'pid': 100}, result)
+        self.assertTrue(state['running'])
+        self.assertTrue(state['cancel'])
+        self.assertTrue(job.get_active_process_count())
+        self.assertIsNotNone(job.handle)
+        self.assertTrue(state['logs'], 'pending cleanup must be visible in the task log')
+        self.assertEqual(1, len(state['logs']))
+        self.assertIn('waiting for the worker to stop', state['logs'][-1])
+        self.assertIn('taskkill exit 1', '\n'.join(captured.output))
+        warnings = [record for record in captured.records if record.levelno == logging.WARNING
+                    and record.getMessage().startswith('Cancellation requested;')]
+        self.assertEqual(2, len(warnings))
+        self.assertIn('requires force', warnings[0].getMessage())
+        self.assertNotIn('\n', warnings[0].getMessage())
+        self.assertLessEqual(len(warnings[0].getMessage()), 800)
+        self.assertIn('access denied', warnings[1].getMessage())
+        self.assertTrue(all(record.exc_info is None for record in warnings))
+        details = [record for record in captured.records
+                   if record.getMessage() == 'Windows graceful-stop refusal details']
+        self.assertEqual(2, len(details))
+        for record, cause in zip(details, (refusal, changed)):
+            self.assertEqual(logging.DEBUG, record.levelno)
+            self.assertIs(cause, record.exc_info[1].__cause__)
+            self.assertEqual(cause.stderr, record.exc_info[1].stderr)
+        self.assertFalse(any(call[0] == 'terminate' for call in api.calls))
+        with patch.object(core, 'sys', SimpleNamespace(platform='win32')), \
+             patch.object(jobs, 'subprocess', taskkill), \
+             patch.object(core, 'time', SimpleNamespace(monotonic=Mock(side_effect=[1, 10.99, 11]))):
+            stamp, killed = core.apply_cancel_escalation(process, None, False)
+            self.assertEqual((1, False), (stamp, killed))
+            stamp, killed = core.apply_cancel_escalation(process, stamp, killed)
+            self.assertFalse(killed)
+            self.assertFalse(any(call[0] == 'terminate' for call in api.calls))
+            stamp, killed = core.apply_cancel_escalation(process, stamp, killed)
+        self.assertTrue(killed)
+        self.assertEqual(1, sum(call[0] == 'terminate' for call in api.calls))
+
+    def test_shared_stop_reports_taskkill_refusal_and_still_forces_cleanup(self):
+        process, job, api = self.taskkill_refusal()
+        taskkill = SimpleNamespace(run=Mock(side_effect=subprocess.CalledProcessError(1, ['taskkill'])),
+            CalledProcessError=subprocess.CalledProcessError, TimeoutExpired=subprocess.TimeoutExpired)
+        with patch.object(ownership, 'sys', SimpleNamespace(platform='win32')), \
+             patch.object(jobs, 'subprocess', taskkill), \
+             patch.object(ownership, 'time', SimpleNamespace(monotonic=Mock(side_effect=[0, 2]))), \
+             self.assertLogs('AlexandriaUI', level='WARNING') as captured:
+            ownership.stop_owned_subprocess(process, timeout=1)
+        warnings = [record for record in captured.records
+                    if record.getMessage().startswith('Graceful subprocess stop unavailable;')]
+        self.assertEqual(1, len(warnings))
+        self.assertIsNone(warnings[0].exc_info)
+        self.assertIn('taskkill exit 1', '\n'.join(captured.output))
+        self.assertEqual(1, sum(call[0] == 'terminate' for call in api.calls))
+        process.wait.assert_called_once_with(timeout=1)
+        self.assertIsNotNone(job.handle, 'cleanup ownership is released by its owner')
+
+    def test_posix_stop_diagnostics_do_not_require_the_windows_module(self):
+        original_import = builtins.__import__
+        def import_without_windows(name, *args, **kwargs):
+            if name == 'windows_subprocess_job':
+                raise ModuleNotFoundError(name)
+            return original_import(name, *args, **kwargs)
+        with patch.object(ownership, 'sys', SimpleNamespace(platform='linux')), \
+             patch('builtins.__import__', side_effect=import_without_windows), \
+             self.assertLogs('AlexandriaUI', level='WARNING') as captured:
+            try:
+                raise OSError('signal race')
+            except OSError as error:
+                ownership.log_subprocess_stop_fallback(error, 'Forced cleanup remains pending')
+        self.assertIn('signal race', '\n'.join(captured.output))
+        self.assertIsNotNone(captured.records[0].exc_info)
+
+    def test_unexpected_owned_stop_error_retains_its_warning_traceback(self):
+        process, _ = self.owned_process()
+        state = dict(running=True, cancel=False, process=process, pid=123)
+        with patch.dict(core.process_state, {'_refusal': state}), \
+             patch.object(core, 'sys', SimpleNamespace(platform='win32')), \
+             self.assertLogs('AlexandriaUI', level='WARNING') as captured:
+            result = core._cancel_task('_refusal', 'idle', 'exited')
+            core._cancel_task('_refusal', 'idle', 'exited')
+        self.assertEqual('cancel requested', result['status'])
+        self.assertEqual(2, len(captured.records))
+        self.assertTrue(all(record.exc_info is not None for record in captured.records))
+        self.assertIn('graceful refusal', '\n'.join(captured.output))
+
     def owned_process(self):
         process = Mock(pid=123)
         process.poll.return_value = None
