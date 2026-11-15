@@ -1050,15 +1050,23 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T15:16:17",
+  "written": "2026-11-15T17:25:23",
   "host": "RealMitch",
   "git": {
-   "commit": "3dedacd86c0c7d061ea7d885042ca7a974265f95",
-   "branch": "fix/windows-readiness-followup",
-   "dirty": false,
-   "source_state": "clean",
+   "commit": "f5da3e30200755d3b4eaca39e62594c098d6dcf3",
+   "branch": "fix/windows-preexisting-failures",
+   "dirty": true,
+   "source_state": "dirty:0761be511d47",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/routers/editor.py",
+    "M  app/tests/test_chapter_download_boundary.py",
+    "M  app/tests/test_runtime_regressions.py",
+    "M  app/tests/test_secure_filename_portability.py",
+    "M  app/tests/test_voicelab_health.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  app/utils.py"
+   ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
