@@ -23,8 +23,19 @@ cannot merge conflicting metadata or move a source pause. Partial retention stil
 retains original text, reports incomplete status and leaves failed batches retryable.
 The initial generation attribution gate remains unchanged.
 
-Review algorithm identity advances from 6 to 7 so completed receipts, resumable
-checkpoints and benchmark evidence from the old behavior are not reused.
+For #1958, classic review explicitly requests only the three string fields
+`speaker`, `text` and `instruct`. `spoken`, `source_span`, speaker demographics,
+pauses and provenance belong to the source, not the model response. They are
+restored from the original entries before publication; both a three-field reply
+and a reply echoing metadata go through the same binding. Model-supplied metadata
+cannot overwrite the originals. Missing required review fields still fail
+validation and retry. A fidelity pass means the source can be preserved, not that
+the model reproduced all input keys or made semantically correct speaker choices.
+
+The response contract also applies to custom and literal classic-review prompts.
+Index-only review keeps its separate `{n, speaker, instruct}` contract. Review
+algorithm identity is 8 for these prompt changes, invalidating older
+completed receipts, checkpoints and benchmark evidence.
 
 Regression fixtures are original synthetic sentences. The reporter's attachments
 were used only for local reproduction; their source and derived text are excluded

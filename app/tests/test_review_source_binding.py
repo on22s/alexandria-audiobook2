@@ -35,6 +35,55 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertEqual(before, source)
         return result, calls, attempts
 
+    def test_classic_response_contract_reaches_default_custom_and_literal_requests(self):
+        for custom, literal in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(custom=custom, literal=literal):
+                params = LLMGenParams(literal_source_preserving=literal,
+                    system_prompt='Custom reviewer.' if custom else None,
+                    user_prompt_template='{batch}' if custom else None)
+                output, calls, _ = self.run_review([row('The bell rang.')],
+                    [[row('The bell rang.')]], params=params)
+                self.assertIsNotNone(output)
+                system = calls[0]['messages'][0]['content']
+                self.assertIn('REVIEW RESPONSE CONTRACT', system)
+                self.assertIn('speaker, text and instruct', system)
+                self.assertIn('source_span', system)
+                self.assertIn('restored from the original entries', system)
+
+    def test_shipped_prompt_distinguishes_response_fields_from_input_metadata(self):
+        self.assertNotIn('same format as input', review.REVIEW_SYSTEM_PROMPT)
+        self.assertIn('source_span', review.REVIEW_SYSTEM_PROMPT)
+        self.assertIn('restored from the original entries', review.REVIEW_SYSTEM_PROMPT)
+
+    def test_omitted_and_spoofed_metadata_produce_the_same_source_bound_result(self):
+        source = [row('A bell rang.', spoken=False, source_span=[0, 12]),
+                  row('Please open the gate.', spoken=True, source_span=[14, 35],
+                      speaker_gender='female', speaker_age_group='adult', speaker_ageless=False)]
+        minimal = [row(entry['text'], speaker='NARRATOR' if i == 0 else 'ALICE')
+                   for i, entry in enumerate(source)]
+        spoofed = [{**entry, 'spoken': not source[i]['spoken'], 'source_span': [-1, -1],
+                    'speaker_gender': 'male', 'speaker_age_group': 'child', 'speaker_ageless': True}
+                   for i, entry in enumerate(minimal)]
+        outputs = []
+        for answer in (minimal, spoofed):
+            output, _, attempts = self.run_review(source, [answer])
+            self.assertEqual('accepted', attempts[0]['outcome'])
+            self.assertEqual([{**entry, 'speaker': minimal[i]['speaker']}
+                              for i, entry in enumerate(source)], output)
+            outputs.append(output)
+        self.assertEqual(*outputs)
+
+    def test_missing_required_review_fields_retry_instead_of_being_restored(self):
+        source = [row('The bell rang.')]
+        for key in ('speaker', 'text', 'instruct'):
+            with self.subTest(key=key):
+                incomplete = [{k: v for k, v in source[0].items() if k != key}]
+                output, calls, attempts = self.run_review(source, [incomplete, source])
+                self.assertEqual(source, output)
+                self.assertEqual(2, len(calls))
+                self.assertEqual('quality_rejected', attempts[0]['outcome'])
+                self.assertIn('missing_fields', attempts[0]['failure_codes'])
+
     def test_three_field_reply_preserves_all_metadata_and_original_whitespace(self):
         source = [{**self.source[0], 'text': '  And yet—\nJust turn your head.  '}, self.source[1]]
         reply = [row('And yet— Just turn your head.', speaker='ALICE'), self.source[1]]
@@ -269,7 +318,8 @@ class ReviewSourceBindingTests(unittest.TestCase):
         for labels_only in (False, True):
             with self.subTest(labels_only=labels_only), tempfile.TemporaryDirectory() as directory:
                 original = copy.deepcopy(self.source)
-                original[0].update(speaker='NARRATOR', type='NARRATOR', spoken=False)
+                original[0].update(speaker='NARRATOR', type='NARRATOR', spoken=False,
+                                   source_span=[0, 31], speaker_ageless=False)
                 source = Path(directory, 'fixture.json')
                 source.write_text(json.dumps(original), encoding='utf-8')
                 if labels_only:

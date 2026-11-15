@@ -70,7 +70,10 @@ class LiteralPipelinePolicyTests(unittest.TestCase):
         with patch.object(review, "wait_for_vram_headroom", return_value=True):
             output = review.review_batch(client, "fixture", original, 1, 1, params, max_retries=1)
         self.assertEqual(2, len(calls))
-        self.assertEqual(REVIEW_SYSTEM, calls[0]["messages"][0]["content"])
+        for call in calls:
+            self.assertEqual(REVIEW_SYSTEM + '\n\n' + review.REVIEW_CLASSIC_RESPONSE_RULE,
+                             call["messages"][0]["content"])
+        self.assertEqual(text, output[0]['text'])
         self.assertNotIn(SCRIPT_POLICY_KEY, calls[0]["messages"][1]["content"])
         retained = retain_literal_policy(output, get_literal_policy(original))
         self.assertEqual(get_literal_policy(original), get_literal_policy(retained))
