@@ -54,7 +54,8 @@ from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
                               get_validated_alias_graph, get_safe_alias_proposals)
 
 
-from review_startup import event as startup_event, bind_current as bind_startup_trace
+from review_startup import event as startup_event, bind_current as bind_startup_trace, record_failure
+from dialogue_spans import get_source_span_fragments
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
 # A long batch review run can grow VRAM usage (KV cache + other GPU apps) until
@@ -225,7 +226,7 @@ def _checkpoint_path(output_path):
 _entries_fingerprint = get_review_entries_fingerprint
 
 
-def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name):
+def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None):
     profiles = []
     for profile in (llm_config, get_failover_llm_config(config)):
         profiles.append({key: value for key, value in profile.items()
@@ -234,6 +235,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
+        'review_source_sha256': (get_review_entries_fingerprint(source_text) if source_text is not None else None),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
                    and (field.name != 'review_labels_only' or params.review_labels_only)},
@@ -1136,7 +1138,104 @@ def get_review_raw_text_slice(text, start, end):
     raise ValueError('Review fragment has no matching raw text interval')
 
 
-def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
+def verify_review_source_spans(entries, source_text):
+    """Require exact normalized slices and ordered, non-overlapping intervals."""
+    previous_end = 0
+    for entry in entries:
+        if 'source_span' not in entry:
+            continue
+        get_source_span_fragments(source_text, entry['text'], entry['source_span'], [entry['text']])
+        start, end = entry['source_span']
+        if start < previous_end:
+            raise ValueError('Source intervals overlap or are out of order')
+        previous_end = end
+
+
+def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
+    """Capture only a bound book source whose prepared coordinates verify."""
+    if not any('source_span' in entry for entry in entries):
+        return None
+    import hashlib
+    from pathlib import Path
+    from book_state_transaction import reuse_book_state, get_book_operation_token
+    from project_scope_files import capture_scope_file
+    from script_selection_binding import (_read_selection_state, _read_source_snapshot,
+        _path_digest, parse_script_binding, saved_binding_matches, check_binding_source,
+        is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES)
+    from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+    from generate_script import get_preprocessed_source
+    from three_pass_generate import prepare_source_text
+    try:
+        active = os.path.abspath(script_path) == os.path.abspath(os.path.join(data_dir, 'annotated_script.json'))
+        directory = data_dir if active else os.path.dirname(os.path.abspath(script_path))
+        name = BINDING_NAME if active else Path(script_path).stem + '.selection_binding.json'
+        with reuse_book_state(data_dir), file_lock(os.path.join(data_dir, 'state.json')):
+            state = _read_selection_state(data_dir, required=active)
+            _, raw_binding = capture_scope_file(directory, name, limit=MAX_BINDING_BYTES, include_bytes=True)
+            binding = parse_script_binding(raw_binding)
+            if not saved_binding_matches(binding, script_sha256=hashlib.sha256(script_bytes).hexdigest(),
+                                         entries=entries):
+                raise ValueError('Review script has no matching source binding')
+            selected = state.get('input_file_path')
+            if active:
+                if is_script_selection_pending(state) or not isinstance(selected, str):
+                    raise ValueError('Review source selection is unavailable')
+                candidates = [selected]
+            else:
+                candidates = [selected] if isinstance(selected, str) else []
+                uploads = Path(data_dir, 'uploads')
+                if uploads.is_dir():
+                    for path in uploads.iterdir():
+                        candidates.extend((str(path), path.as_posix(),
+                                           os.path.join(data_dir, 'uploads', path.name)))
+            paths = {path for path in candidates if _path_digest(path) == binding['source_path_sha256']}
+            if len(paths) != 1:
+                raise ValueError('Review source path cannot be verified')
+            source_path = paths.pop()
+            digest, raw = _read_source_snapshot(source_path, include_bytes=True, owning_root=data_dir)
+            if digest != binding['source_sha256']:
+                raise ValueError('Review source bytes changed')
+            if active:
+                check_binding_source(raw_binding, get_book_operation_token(data_dir, state=state),
+                                     digest, source_path=source_path)
+        decoded, _encoding = get_decoded_source_text(raw)
+        decoded = get_normalized_source_newlines(decoded)
+        policy = get_literal_policy(entries)
+        expected = policy.get('source_sha256') if policy else None
+        if Path(source_path).suffix.lower() == '.json':
+            if _source_depth:
+                raise ValueError('Review source binding chain is not an original book source')
+            source_entries = json.loads(raw)
+            if not isinstance(source_entries, list) or any(not isinstance(row, dict) for row in source_entries):
+                raise ValueError('Selected saved source is not a script')
+            text = get_review_source_text(data_dir, source_path, raw, source_entries, _source_depth=1)
+            if text is None or expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
+                raise ValueError('Selected saved source has no verified original coordinates')
+            verify_review_source_spans(entries, text)
+            return text
+        if policy and policy.get('input_sha256', digest) != digest:
+            raise ValueError('Literal source identity differs from the captured source')
+        sources = set()
+        for strip_front_matter in (False, True):
+            prepared, _report = get_preprocessed_source(decoded, strip_front_matter=strip_front_matter)
+            repaired, _report = prepare_source_text(prepared)
+            for text in (prepared, repaired):
+                if expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
+                    continue
+                try:
+                    verify_review_source_spans(entries, text)
+                except ValueError:
+                    continue
+                sources.add(text)
+        if len(sources) != 1:
+            raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
+        return sources.pop()
+    except (OSError, ValueError, TypeError, UnicodeError) as error:
+        record_failure('review_source_unavailable', error, task='review')
+        return None
+
+
+def get_review_source_binding(batch_entries, entries, literal_source_preserving=False, source_text=None):
     """Bind classic labels and immutable metadata to ordered source spans.
 
     Lossless boundary changes inherit only compatible source metadata. A model
@@ -1192,7 +1291,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     for original, text in zip(batch_entries, original_texts):
         source_spans.append((position, position + len(text), original))
         position += len(text) + 1
-    bound, warnings = [], []
+    bound, warnings, span_fragments = [], [], {}
     position = 0
     for number, (entry, text) in enumerate(zip(entries, reviewed_texts), 1):
         end = position + len(text)
@@ -1228,13 +1327,39 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     row['pause_after'] = copy.deepcopy(original['pause_after'])
                 if len(group) == 1 and start == left and stop == right:
                     row['text'] = original['text']
+                if 'source_span' in facts:
+                    if len(group) != 1:
+                        findings.append({'code': 'review_source_span_unverified',
+                                         'message': 'Review merged incompatible source intervals; retain originals.'})
+                    else:
+                        fragment = span_fragments.setdefault(start, {'original': original, 'rows': [],
+                                                                    'changed': False})
+                        fragment['rows'].append(row)
+                        fragment['changed'] |= left != start or right != stop
                 row, warning = get_review_speaker_bound_entry(row,
                     [original for _, _, original in group],
                     [original for _, _, original in sources], batch_entries)
-                bound.append(apply_review_annotations(row, entry))
+                row = apply_review_annotations(row, entry)
+                bound.append(row)
+                if 'source_span' in facts and len(group) == 1:
+                    span_fragments[start]['rows'][-1] = row
                 if warning:
                     warnings.append({**warning, 'entry_number': number})
         position = end + 1
+    if any(fragment['changed'] for fragment in span_fragments.values()):
+        try:
+            for fragment in span_fragments.values():
+                if not fragment['changed']:
+                    continue
+                original, rows = fragment['original'], fragment['rows']
+                spans = get_source_span_fragments(source_text, original['text'], original['source_span'],
+                                                  [row['text'] for row in rows])
+                for row, span in zip(rows, spans):
+                    row['source_span'] = span
+            verify_review_source_spans(bound, source_text)
+        except ValueError:
+            findings.append({'code': 'review_source_span_unverified', 'message': (
+                'Review fragments require verified, ordered source spans; retain original entries.')})
     return (None if findings else bound), {"passed": not findings, "findings": findings,
                                          'warnings': warnings}
 
@@ -1296,7 +1421,7 @@ def get_review_partial_label_retention(batch_entries, entries, literal):
 
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
                  previous_tail=None, source_context=None, max_retries=2,
-                 attempt_observer=None, retain_partial_labels=False):
+                 attempt_observer=None, retain_partial_labels=False, source_text=None):
     """Send a batch of script entries through the LLM for review and correction.
 
     Returns the corrected entries, or None if every attempt failed (so the caller
@@ -1358,7 +1483,11 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             return get_review_label_binding(batch_entries, entries)[1]
         if retain_partial_labels and attempt_observer is not None and attempts:
             candidate = (copy.deepcopy(entries), attempts[-1])
-        return get_review_source_binding(batch_entries, entries, literal)[1]
+        quality = get_review_source_binding(batch_entries, entries, literal, source_text)[1]
+        if any(finding['code'] == 'review_source_span_unverified' for finding in quality['findings']):
+            record_failure('review_source_span_rejected', task='review', batch=batch_num,
+                           entries=len(batch_entries))
+        return quality
 
     def observe(attempt):
         attempts.append(attempt)
@@ -1379,7 +1508,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             bound, warnings = get_review_labelled_entries(batch_entries, ordered)
             quality = {'warnings': warnings}
         else:
-            bound, quality = get_review_source_binding(batch_entries, entries, literal)
+            bound, quality = get_review_source_binding(batch_entries, entries, literal, source_text)
         for warning in quality.get('warnings', []):
             print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
         if quality.get('source_bound_label_recovery'):
@@ -1430,7 +1559,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
             client, model_name, part, batch_num, total_batches, params,
             previous_tail=(list(previous_tail or []) + combined)[-2:],
             source_context=source_context, max_retries=max_retries,
-            attempt_observer=attempt_observer)
+            attempt_observer=attempt_observer, source_text=source_text)
         if reviewed is None:
             failed = True
         else:
@@ -1442,7 +1571,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         for warning in warnings:
             print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
         return bound
-    bound, quality = get_review_source_binding(batch_entries, combined, literal)
+    bound, quality = get_review_source_binding(batch_entries, combined, literal, source_text)
     if quality['passed']:
         for warning in quality.get('warnings', []):
             print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
@@ -1827,7 +1956,10 @@ def main():
         return is_llm_on_this_gpu(active_config)
 
     source_sha256 = _entries_fingerprint(entries)
-    receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client, model_name)
+    review_source_text = (None if gen_params.review_labels_only else
+        get_review_source_text(data_dir, script_path, original_script_bytes, entries))
+    receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client,
+                                                         model_name, review_source_text)
     matched, receipt_reason = get_completed_review_match(script_path, output_path, source_sha256, receipt_fingerprint)
     if matched and not args.force_review:
         print(receipt_reason)
@@ -1943,6 +2075,7 @@ def main():
                 client, model_name, batch, batch_index, total_batches, gen_params,
                 previous_tail=None,  # contextual mode uses explicit before/after window instead
                 source_context="\n".join(contextual_lines),
+                source_text=review_source_text,
                 attempt_observer=batch_attempts.append, retain_partial_labels=True,
             )
             source_offsets.append(end)
@@ -2071,6 +2204,7 @@ def main():
                     client, model_name, batch, i, total_batches, gen_params,
                     previous_tail=wave_tail,
                     source_context=None,  # Mode 2: would pass source text chunk here
+                    source_text=review_source_text,
                     attempt_observer=batch_attempts.append, retain_partial_labels=True,
                 )
                 return corrected, get_review_batch_status(corrected, batch_attempts)['status']
@@ -2267,7 +2401,7 @@ def main():
     if review_complete:
         save_completed_review_receipt(script_path, output_path, source_sha256,
             _entries_fingerprint(output_entries), get_completed_review_fingerprint(
-                config, llm_config, gen_params, args, client, model_name))
+                config, llm_config, gen_params, args, client, model_name, review_source_text))
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the

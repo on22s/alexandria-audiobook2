@@ -55,12 +55,14 @@ class ManualClientTests(unittest.TestCase):
             client = ManualClient(directory); client.POLL_SECONDS = .01
             answer = _answer_when_pending(client, json.dumps(reply))
             try:
-                output = review_batch(client, 'manual', source, 1, 1, LLMGenParams(), max_retries=0)
+                output = review_batch(client, 'manual', source, 1, 1, LLMGenParams(), max_retries=0,
+                    source_text='Rain fell. Please open the gate.\n\nTake the blue cup.')
             finally:
                 answer.join(3)
             self.assertFalse(answer.is_alive())
-            self.assertEqual([{**source[0], 'text': 'Rain fell.'},
-                              {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE', 'spoken': True},
+            self.assertEqual([{**source[0], 'text': 'Rain fell.', 'source_span': [0, 10]},
+                              {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE',
+                               'spoken': True, 'source_span': [11, 32]},
                               source[1]], output)
             self.assertFalse(os.path.exists(client.pending_path))
             self.assertFalse(os.path.exists(client.response_path))
