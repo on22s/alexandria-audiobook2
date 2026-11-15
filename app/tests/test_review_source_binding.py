@@ -234,15 +234,17 @@ class ReviewSourceBindingTests(unittest.TestCase):
         self.assertEqual([False, True], [entry['spoken'] for entry in output])
         self.assertEqual(['ALICE', 'ALICE'], [entry['speaker'] for entry in output])
 
-    def test_full_review_refuses_merges_that_erase_boolean_role_facts(self):
+    def test_full_review_partitions_merges_to_preserve_boolean_role_facts(self):
         for spoken in ((0, False), (False, 0), (1, True), (True, 1)):
             with self.subTest(spoken=spoken):
                 source = [row('Rain fell.', speaker='NARRATOR', spoken=spoken[0]),
                           row('Wind rose.', speaker='NARRATOR', spoken=spoken[1])]
                 reply = [row('Rain fell. Wind rose.', speaker='NARRATOR')]
                 output, _, attempts = self.run_review(source, [reply])
-                self.assertIsNone(output)
-                self.assertIn('review_metadata_conflict', attempts[0]['failure_codes'])
+                self.assertEqual(source, output)
+                self.assertEqual('accepted', attempts[0]['outcome'])
+                for original, bound in zip(source, output):
+                    self.assertIs(type(original['spoken']), type(bound['spoken']))
         source = [row('Rain fell.', spoken=0), row('Wind rose.', spoken=0)]
         output, _, _ = self.run_review(source, [[row('Rain fell. Wind rose.')]])
         self.assertEqual(0, output[0]['spoken'])
@@ -269,25 +271,124 @@ class ReviewSourceBindingTests(unittest.TestCase):
         output, _, _ = self.run_review(source, [reply])
         self.assertEqual([{**reply[0], 'provenance': {'section': 1}, 'pause_after': 700}], output)
 
-    def test_lossless_merge_rejects_metadata_conflicts_or_an_interior_pause(self):
-        for source, code in (([row('First phrase.', provenance={'section': 1}),
-                              row('Second phrase.', provenance={'section': 2})], 'review_metadata_conflict'),
-                             ([row('First phrase.', speaker_gender='female'),
-                               row('Second phrase.')], 'review_metadata_conflict'),
-                             ([row('First phrase.', pause_after=700),
-                               row('Second phrase.')], 'review_pause_boundary')):
-            with self.subTest(code=code):
+    def test_lossless_merge_preserves_conflicting_metadata_and_interior_pauses_by_partitioning(self):
+        for source in ([row('First phrase.', provenance={'section': 1}),
+                        row('Second phrase.', provenance={'section': 2})],
+                       [row('First phrase.', speaker_gender='female'), row('Second phrase.')],
+                       [row('First phrase.', pause_after=700), row('Second phrase.')],
+                       [row('First phrase.', pause_after=0), row('Second phrase.')]):
+            with self.subTest(source=source):
                 output, _, attempts = self.run_review(source, [[row('First phrase. Second phrase.')]])
-                self.assertIsNone(output)
-                self.assertIn(code, attempts[0]['failure_codes'])
+                self.assertEqual(source, output)
+                self.assertEqual('accepted', attempts[0]['outcome'])
 
     def test_changed_boundaries_with_equal_count_do_not_borrow_metadata(self):
         source = [row('First phrase. Next words.', provenance={'section': 1}),
                   row('Last phrase.', provenance={'section': 2})]
         reply = [row('First phrase.'), row('Next words. Last phrase.')]
         output, _, attempts = self.run_review(source, [reply])
-        self.assertIsNone(output)
-        self.assertIn('review_metadata_conflict', attempts[0]['failure_codes'])
+        self.assertEqual([row('First phrase.', provenance={'section': 1}),
+                          row('Next words.', provenance={'section': 1}),
+                          row('Last phrase.', provenance={'section': 2})], output)
+        self.assertEqual('accepted', attempts[0]['outcome'])
+
+    def test_portion_reassignment_crossing_source_metadata_works_in_both_directions(self):
+        for before, after in (('NARRATOR', 'ALICE'), ('ALICE', 'NARRATOR')):
+            for literal in (False, True):
+                with self.subTest(before=before, after=after, literal=literal):
+                    source = [row('Rain fell. Please open the gate.', speaker=before,
+                                  spoken=False, source_span=[0, 32], pause_after=700),
+                              row('Take the blue cup.', speaker=after, spoken=True,
+                                  source_span=[34, 52], speaker_gender='female',
+                                  speaker_age_group='adult', speaker_ageless=False, pause_after=0)]
+                    reply = [row('Rain fell.', speaker=before),
+                             row('Please open the gate. Take the blue cup.', speaker=after)]
+                    output, calls, attempts = self.run_review(source, [reply],
+                        params=LLMGenParams(literal_source_preserving=literal))
+                    first = {key: value for key, value in source[0].items() if key != 'pause_after'}
+                    self.assertEqual([{**first, 'text': 'Rain fell.'},
+                                      {**source[0], 'text': 'Please open the gate.', 'speaker': after},
+                                      source[1]], output)
+                    self.assertNotIn('pause_after', output[0])
+                    self.assertEqual([700, 0], [entry['pause_after'] for entry in output[1:]])
+                    self.assertEqual(1, len(calls))
+                    self.assertEqual('accepted', attempts[0]['outcome'])
+
+    def test_partitioning_preserves_nested_json_types_that_compare_equal_in_python(self):
+        source = [row('First phrase.', provenance={'flag': False}),
+                  row('Second phrase.', provenance={'flag': 0})]
+        output, _, _ = self.run_review(source, [[row('First phrase. Second phrase.')]])
+        self.assertEqual(source, output)
+        self.assertIs(type(output[0]['provenance']['flag']), bool)
+        self.assertIs(type(output[1]['provenance']['flag']), int)
+
+    def test_optional_narrator_merging_cannot_undo_nested_metadata_protection(self):
+        source = [row('Rain fell.', speaker='NARRATOR', spoken=True, provenance={'flag': False}),
+                  row('Wind rose.', speaker='NARRATOR', spoken=True, provenance={'flag': 0})]
+        output, _, _ = self.run_review(source, [[row('Rain fell. Wind rose.', speaker='NARRATOR')]])
+        merged, count = review.merge_consecutive_narrators(output)
+        self.assertEqual(source, merged)
+        self.assertEqual(0, count)
+        self.assertIs(type(merged[0]['provenance']['flag']), bool)
+        self.assertIs(type(merged[1]['provenance']['flag']), int)
+
+    def test_only_incompatible_boundaries_partition_otherwise_compatible_neighbours(self):
+        source = [row('First phrase.', provenance={'section': 1}),
+                  row('Second phrase.', provenance={'section': 1}),
+                  row('Third phrase.', provenance={'section': 2})]
+        output, _, _ = self.run_review(source, [[row('First phrase. Second phrase. Third phrase.')]])
+        self.assertEqual([row('First phrase. Second phrase.', provenance={'section': 1}),
+                          source[2]], output)
+
+    def test_generated_boundary_overlays_preserve_word_labels_metadata_pauses_and_inputs(self):
+        words = ['Alpha', '猫', 'café', 'delta', 'echo', 'foxtrot']
+        def partitions(mask):
+            start = 0
+            for end in range(1, len(words) + 1):
+                if end == len(words) or mask & (1 << (end - 1)):
+                    yield words[start:end]
+                    start = end
+        for source_mask in range(1 << (len(words) - 1)):
+            source, owner, pauses, cursor = [], {}, [], 0
+            for i, part in enumerate(partitions(source_mask)):
+                metadata = {'source_span': [cursor, cursor + len(part)],
+                            'provenance': {'owner': i, 'flags': [False, 0, True, 1]}}
+                entry = row(' \n '.join(part), **metadata)
+                cursor += len(part)
+                if i % 2 == 0:
+                    entry['pause_after'] = i * 100
+                    pauses.append((cursor, i * 100))
+                source.append(entry)
+                owner.update({word: metadata for word in part})
+            for reply_mask in range(1 << (len(words) - 1)):
+                with self.subTest(source_mask=source_mask, reply_mask=reply_mask):
+                    reply, labels = [], {}
+                    for i, part in enumerate(partitions(reply_mask)):
+                        speaker = 'ALICE' if i % 2 else 'NARRATOR'
+                        instruction = f'Direction {i}.'
+                        reply.append({**row(' '.join(part), speaker=speaker,
+                                            source_span=[-1, -1], provenance={'untrusted': True}),
+                                      'instruct': instruction})
+                        labels.update({word: (speaker, instruction) for word in part})
+                    before_source, before_reply = copy.deepcopy(source), copy.deepcopy(reply)
+                    output, quality = review.get_review_source_binding(source, reply)
+                    self.assertTrue(quality['passed'], quality)
+                    self.assertEqual(source, before_source)
+                    self.assertEqual(reply, before_reply)
+                    self.assertEqual(words, [word for entry in output for word in entry['text'].split()])
+                    actual_pauses, cursor = [], 0
+                    for entry in output:
+                        for word in entry['text'].split():
+                            self.assertEqual(labels[word], (entry['speaker'], entry['instruct']))
+                            self.assertEqual(owner[word], {key: value for key, value in entry.items()
+                                if key not in ('speaker', 'text', 'instruct', 'pause_after')})
+                        cursor += len(entry['text'].split())
+                        if 'pause_after' in entry:
+                            actual_pauses.append((cursor, entry['pause_after']))
+                    self.assertEqual(pauses, actual_pauses)
+                    rebound, report = review.get_review_source_binding(source, output)
+                    self.assertTrue(report['passed'], report)
+                    self.assertEqual(output, rebound)
 
     def test_literal_punctuation_recovery_keeps_policy_and_does_not_accept_unverifiable_words(self):
         source = bind_literal_policy(self.source[0]['text'], [self.source[0]])
@@ -345,6 +446,50 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     review.main()
                 saved = json.loads(source.read_text(encoding='utf-8'))
                 self.assertEqual([{**original[0], 'speaker': 'ALICE'}, original[1]], saved)
+                self.assertEqual(1, len(calls))
+                self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
+                self.assertTrue(Path(str(source) + '.review_completed.json').exists())
+
+    def test_cli_publishes_portion_reassignment_in_sequential_and_contextual_modes(self):
+        for context_window, nested_narrators in ((0, False), (1, False), (0, True), (1, True)):
+            with self.subTest(context_window=context_window, nested_narrators=nested_narrators), \
+                    tempfile.TemporaryDirectory() as directory:
+                original = [row('Rain fell. Please open the gate.', speaker='NARRATOR',
+                                spoken=False, source_span=[0, 32], pause_after=700),
+                            row('Take the blue cup.', spoken=True, source_span=[34, 52],
+                                speaker_gender='female', speaker_ageless=False)]
+                reply = [row('Rain fell.', speaker='NARRATOR'),
+                         row('Please open the gate. Take the blue cup.')]
+                expected = [{**original[0], 'text': 'Rain fell.'},
+                            {**original[0], 'text': 'Please open the gate.', 'speaker': 'ALICE'},
+                            original[1]]
+                expected[0].pop('pause_after')
+                if nested_narrators:
+                    original = [row('Rain fell.', speaker='NARRATOR', spoken=True,
+                                    provenance={'flag': False}),
+                                row('Wind rose.', speaker='NARRATOR', spoken=True,
+                                    provenance={'flag': 0})]
+                    reply = [row('Rain fell. Wind rose.', speaker='NARRATOR')]
+                    expected = copy.deepcopy(original)
+                source = Path(directory, 'fixture.json')
+                source.write_text(json.dumps(original), encoding='utf-8')
+                client, calls = client_for([(reply, 'stop')])
+                config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                          'generation': {'review_batch_size': 2, 'merge_narrators': True}}
+                with ExitStack() as stack:
+                    stack.enter_context(redirect_stdout(io.StringIO()))
+                    stack.enter_context(patch.object(review.sys, 'argv',
+                        ['review', '--input', str(source), '--context-window', str(context_window)]))
+                    for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                                        ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                        ('get_active_llm_config', config['llm_remote']),
+                                        ('make_run_client', client), ('get_cached_or_benchmarked_concurrency', 1),
+                                        ('get_current_status', {'loaded': False})):
+                        stack.enter_context(patch.object(review, name, return_value=value))
+                    stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                                    side_effect=AssertionError('No GPU calls')))
+                    review.main()
+                self.assertEqual(expected, json.loads(source.read_text(encoding='utf-8')))
                 self.assertEqual(1, len(calls))
                 self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
                 self.assertTrue(Path(str(source) + '.review_completed.json').exists())

@@ -1050,24 +1050,23 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T04:42:15",
+  "written": "2026-11-15T05:46:30",
   "host": "RealMitch",
   "git": {
-   "commit": "0787314bf85d99040d4cc04fcc61bcee8dc8beaf",
-   "branch": "fix/1958-review-schema",
+   "commit": "e48f7da6c96f3dafef7a0add0747c91395eabd66",
+   "branch": "fix/1957-review-boundaries",
    "dirty": true,
-   "source_state": "dirty:592e1d9e7e93",
+   "source_state": "dirty:9994bbea3b36",
    "source_state_detail": null,
    "modified_tracked_files": [
     "M  app/completed_review_receipt.py",
     "M  app/review_script.py",
     "M  app/tests/test_benchmark_review_mode.py",
     "M  app/tests/test_completed_review_receipt.py",
-    "M  app/tests/test_literal_pipeline_policy.py",
+    "M  app/tests/test_manual_llm.py",
     "M  app/tests/test_review_source_binding.py",
     "M  app/tests/unit_test_inventory.json",
-    "M  docs/design/script-review-attribution-1951.md",
-    "M  review_prompts.txt"
+    "M  docs/design/script-review-attribution-1951.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",

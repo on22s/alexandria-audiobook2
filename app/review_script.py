@@ -865,9 +865,8 @@ def _is_section_break(text):
 
 
 def get_typed_metadata(entry):
-    """Return type-tagged metadata for every non-text key in entry."""
-    return {key: (type(value).__name__, value)
-            for key, value in entry.items() if key != "text"}
+    """Return a recursive JSON-type-preserving identity of non-text fields."""
+    return _entries_fingerprint({key: value for key, value in entry.items() if key != 'text'})
 
 
 def merge_consecutive_narrators(entries, max_merged_length=800):
@@ -1012,8 +1011,9 @@ def get_review_text_identity(text):
 def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
     """Bind classic labels and immutable metadata to ordered source spans.
 
-    Lossless boundary changes inherit only metadata shared by every overlapping
-    source entry. A pause stays on its source end; merging over it is refused.
+    Lossless boundary changes inherit only compatible source metadata. A model
+    entry crossing conflicting metadata or a pause is partitioned at the source
+    boundaries, retaining its labels without moving or discarding source facts.
     Punctuation drift can recover labels only for unique, unchanged per-entry
     word sequences, using the same label contract as index-only review.
     """
@@ -1076,22 +1076,32 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                      if key not in ('speaker', 'text', 'instruct', 'pause_after')}
                     for _, _, original in sources]
         source_roles = [get_review_source_narration(original) for _, _, original in sources]
-        if (not sources or any(value != metadata[0] for value in metadata[1:])
-                or any(role is not source_roles[0] for role in source_roles[1:])):
+        if not sources:
             findings.append({"code": "review_metadata_conflict", "entry_number": number,
-                             "message": "A review boundary crosses conflicting source metadata."})
-        elif any('pause_after' in original and stop < end for _, stop, original in sources):
-            findings.append({"code": "review_pause_boundary", "entry_number": number,
-                             "message": "A review boundary would move an explicit source pause."})
+                             "message": "A reviewed entry has no matching source span."})
         else:
-            row = {**copy.deepcopy(metadata[0]), "speaker": entry["speaker"],
-                   "text": entry["text"], "instruct": entry["instruct"]}
-            start, stop, original = sources[-1]
-            if stop == end and 'pause_after' in original:
-                row['pause_after'] = copy.deepcopy(original['pause_after'])
-            if len(sources) == 1 and start == position and stop == end:
-                row['text'] = original['text']
-            bound.append(row)
+            # JSON identity also distinguishes nested bool/int values which
+            # compare equal in Python. Never collapse distinct source facts.
+            identities = [get_typed_metadata(value) for value in metadata]
+            groups = []
+            for i, source in enumerate(sources):
+                if (i == 0 or identities[i] != identities[i - 1]
+                        or source_roles[i] is not source_roles[i - 1]
+                        or 'pause_after' in sources[i - 1][2]):
+                    groups.append(([source], metadata[i]))
+                else:
+                    groups[-1][0].append(source)
+            for group, facts in groups:
+                start, stop, original = group[-1]
+                left, right = max(position, group[0][0]), min(end, stop)
+                row = {**copy.deepcopy(facts), "speaker": entry["speaker"],
+                       "text": text[left - position:right - position],
+                       "instruct": entry["instruct"]}
+                if right == stop and 'pause_after' in original:
+                    row['pause_after'] = copy.deepcopy(original['pause_after'])
+                if len(group) == 1 and start == left and stop == right:
+                    row['text'] = original['text']
+                bound.append(row)
         position = end + 1
     return (None if findings else bound), {"passed": not findings, "findings": findings}
 

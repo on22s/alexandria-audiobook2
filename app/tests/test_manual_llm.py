@@ -40,6 +40,31 @@ def _answer_when_pending(client, content, mismatch_first=False):
 
 class ManualClientTests(unittest.TestCase):
 
+    def test_review_portion_reassignment_preserves_metadata_through_manual_transport(self):
+        from contextlib import redirect_stdout
+        import io
+        from generate_script import LLMGenParams
+        from review_script import review_batch
+        source = [{'speaker': 'NARRATOR', 'text': 'Rain fell. Please open the gate.',
+                   'instruct': '', 'spoken': False, 'source_span': [0, 32]},
+                  {'speaker': 'ALICE', 'text': 'Take the blue cup.', 'instruct': '',
+                   'spoken': True, 'source_span': [34, 52], 'pause_after': 700}]
+        reply = [{'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': ''},
+                 {'speaker': 'ALICE', 'text': 'Please open the gate. Take the blue cup.', 'instruct': ''}]
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
+            client = ManualClient(directory); client.POLL_SECONDS = .01
+            answer = _answer_when_pending(client, json.dumps(reply))
+            try:
+                output = review_batch(client, 'manual', source, 1, 1, LLMGenParams(), max_retries=0)
+            finally:
+                answer.join(3)
+            self.assertFalse(answer.is_alive())
+            self.assertEqual([{**source[0], 'text': 'Rain fell.'},
+                              {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE'},
+                              source[1]], output)
+            self.assertFalse(os.path.exists(client.pending_path))
+            self.assertFalse(os.path.exists(client.response_path))
+
     def test_cancelled_call_does_not_bind_cancellation_to_a_reused_client(self):
         from llm_provider import apply_manual_cancellation, ManualRequestCancelled
         with tempfile.TemporaryDirectory() as tmp:

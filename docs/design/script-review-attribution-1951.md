@@ -19,7 +19,7 @@ source metadata and explicit pauses remain validated. The model cannot overwrite
 spoken, type, source spans or private provenance. The corrected speaker drives
 voice grouping; preserved quote-derived fields remain source hints. Source-aligned
 comparison tools retain their frozen segmentation contract. A lossless boundary change still
-cannot merge conflicting metadata or move a source pause. Partial retention still
+cannot discard conflicting metadata or move a source pause. Partial retention still
 retains original text, reports incomplete status and leaves failed batches retryable.
 The initial generation attribution gate remains unchanged.
 
@@ -34,8 +34,26 @@ the model reproduced all input keys or made semantically correct speaker choices
 
 The response contract also applies to custom and literal classic-review prompts.
 Index-only review keeps its separate `{n, speaker, instruct}` contract. Review
-algorithm identity is 8 for these prompt changes, invalidating older
+algorithm identity is 9 for the current review semantics, invalidating older
 completed receipts, checkpoints and benchmark evidence.
+
+For #1957, a full-text response may move part of an entry between narrator and
+character labels even when the resulting model entry overlaps different source
+metadata. Binding partitions that model entry at the original source boundaries
+where facts differ or an interior pause must be retained. Each fragment keeps the
+model's speaker/instruct and only its own source entry's metadata, with a pause
+attached only at that source entry's end. An inherited source span retains its
+original enclosing scope; the reviewer cannot invent new offsets or replace it
+with a neighbour's span. Compatible source entries may still merge.
+
+This applies by default through the shared classic and literal review binder,
+including sequential/contextual CLI, batch, manual transport and benchmarks.
+Index-only review retains its fixed boundaries. Complete ordered text remains
+mandatory; truncation, missing words and unbound text remain rejected. Metadata
+comparison distinguishes nested Boolean and numeric values as well as strings.
+Regression coverage generates 1,024 source/response boundary overlays and checks
+word ownership, model labels, metadata, pause positions, input immutability and
+binding idempotence without adding a testing dependency.
 
 Regression fixtures are original synthetic sentences. The reporter's attachments
 were used only for local reproduction; their source and derived text are excluded

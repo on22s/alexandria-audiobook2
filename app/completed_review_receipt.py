@@ -5,9 +5,9 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-# v8 makes the classic response/source-metadata contract explicit, including
-# custom and literal prompts. Do not reuse evidence made under the old prompt.
-REVIEW_ALGORITHM_VERSION = 8
+# v9 partitions reviewed entries at incompatible source metadata/pause
+# boundaries. Do not reuse evidence produced by the old rejection policy.
+REVIEW_ALGORITHM_VERSION = 9
 
 
 def get_review_entries_fingerprint(entries):
