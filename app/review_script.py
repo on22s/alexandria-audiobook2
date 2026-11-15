@@ -33,8 +33,8 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, resolve_api_key)
-from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, get_review_entries_fingerprint,
-    get_review_sidecar_identity, get_completed_review_match,
+from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
+    get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_receipt_path, save_completed_review_receipt, remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
@@ -226,7 +226,8 @@ def _checkpoint_path(output_path):
 _entries_fingerprint = get_review_entries_fingerprint
 
 
-def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None):
+def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
+                                     *, entries=()):
     profiles = []
     for profile in (llm_config, get_failover_llm_config(config)):
         profiles.append({key: value for key, value in profile.items()
@@ -235,7 +236,6 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
-        'review_source_sha256': (get_review_entries_fingerprint(source_text) if source_text is not None else None),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
                    and (field.name != 'review_labels_only' or params.review_labels_only)},
@@ -244,6 +244,10 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
         'aliases': get_review_sidecar_identity(args.alias_registry),
         'voice_config': get_review_sidecar_identity(args.remap_voice_config)}
+    if source_text is not None or any('source_span' in entry for entry in entries):
+        identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
+        identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
+                                            if source_text is not None else None)
     # Store only a digest, never profile credentials or private headers.
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
@@ -1152,6 +1156,12 @@ def verify_review_source_spans(entries, source_text):
 
 
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
+    snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries,
+                                         _source_depth=_source_depth)
+    return snapshot['text'] if snapshot is not None else None
+
+
+def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
     """Capture only a bound book source whose prepared coordinates verify."""
     if not any('source_span' in entry for entry in entries):
         return None
@@ -1198,6 +1208,11 @@ def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _sou
             if active:
                 check_binding_source(raw_binding, get_book_operation_token(data_dir, state=state),
                                      digest, source_path=source_path)
+            identity = {'book_token': get_book_operation_token(data_dir, state=state) if active else None,
+                        'source_path': source_path if active else None,
+                        'sources': [{'source_path': source_path, 'source_sha256': digest,
+                                     'binding_path': os.path.join(directory, name),
+                                     'binding_sha256': hashlib.sha256(raw_binding).hexdigest()}]}
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
         policy = get_literal_policy(entries)
@@ -1208,11 +1223,13 @@ def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _sou
             source_entries = json.loads(raw)
             if not isinstance(source_entries, list) or any(not isinstance(row, dict) for row in source_entries):
                 raise ValueError('Selected saved source is not a script')
-            text = get_review_source_text(data_dir, source_path, raw, source_entries, _source_depth=1)
+            original = get_review_source_snapshot(data_dir, source_path, raw, source_entries, _source_depth=1)
+            text = original['text'] if original is not None else None
             if text is None or expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
                 raise ValueError('Selected saved source has no verified original coordinates')
             verify_review_source_spans(entries, text)
-            return text
+            identity['sources'].extend(original['identity']['sources'])
+            return {'text': text, 'identity': identity}
         if policy and policy.get('input_sha256', digest) != digest:
             raise ValueError('Literal source identity differs from the captured source')
         sources = set()
@@ -1229,7 +1246,7 @@ def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _sou
                 sources.add(text)
         if len(sources) != 1:
             raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
-        return sources.pop()
+        return {'text': sources.pop(), 'identity': identity}
     except (OSError, ValueError, TypeError, UnicodeError) as error:
         record_failure('review_source_unavailable', error, task='review')
         return None
@@ -1956,10 +1973,12 @@ def main():
         return is_llm_on_this_gpu(active_config)
 
     source_sha256 = _entries_fingerprint(entries)
-    review_source_text = (None if gen_params.review_labels_only else
-        get_review_source_text(data_dir, script_path, original_script_bytes, entries))
+    review_source_snapshot = (None if gen_params.review_labels_only else
+        get_review_source_snapshot(data_dir, script_path, original_script_bytes, entries))
+    review_source_text = review_source_snapshot['text'] if review_source_snapshot is not None else None
+    review_source_identity = review_source_snapshot['identity'] if review_source_snapshot is not None else None
     receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client,
-                                                         model_name, review_source_text)
+                                                         model_name, review_source_text, entries=entries)
     matched, receipt_reason = get_completed_review_match(script_path, output_path, source_sha256, receipt_fingerprint)
     if matched and not args.force_review:
         print(receipt_reason)
@@ -2382,7 +2401,8 @@ def main():
         moved = publish_controlled_script_edit(data_dir, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
-            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging)
+            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
+            expected_source_identity=review_source_identity)
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     elif saved_review:
@@ -2390,7 +2410,8 @@ def main():
         moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
-            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging)
+            remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
+            expected_source_identity=review_source_identity)
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
@@ -2401,7 +2422,7 @@ def main():
     if review_complete:
         save_completed_review_receipt(script_path, output_path, source_sha256,
             _entries_fingerprint(output_entries), get_completed_review_fingerprint(
-                config, llm_config, gen_params, args, client, model_name, review_source_text))
+                config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries))
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the

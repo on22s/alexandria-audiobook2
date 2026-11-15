@@ -1,6 +1,6 @@
 """Review remaps verified source coordinates or leaves the original script intact."""
 import copy
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 import hashlib
 import io
 from itertools import product
@@ -48,6 +48,194 @@ def create_book(directory, *, saved=False, raw=RAW, source=None):
 
 
 class ReviewSourceSpanTests(unittest.TestCase):
+    @contextmanager
+    def cli(self, directory, client, *, script=None, labels_only=False):
+        config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                  'generation': {'review_batch_size': 2, 'merge_narrators': True}}
+        with ExitStack() as stack:
+            stdout = stack.enter_context(redirect_stdout(io.StringIO()))
+            stack.enter_context(patch('generate_script.time.sleep'))
+            argv = ['review'] + (['--input', str(script)] if script else [])
+            if labels_only:
+                argv.append('--labels-only')
+            stack.enter_context(patch.object(review.sys, 'argv', argv))
+            for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                                ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                ('get_active_llm_config', config['llm_remote']),
+                                ('make_run_client', client), ('get_cached_or_benchmarked_concurrency', 1),
+                                ('get_current_status', {'loaded': False})):
+                stack.enter_context(patch.object(review, name, return_value=value))
+            stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                            side_effect=AssertionError('No GPU calls')))
+            yield stdout
+
+    def test_publication_refuses_identical_script_from_replaced_source_book(self):
+        for saved in (False, True):
+            with self.subTest(saved=saved), tempfile.TemporaryDirectory() as directory:
+                source = copy.deepcopy(SOURCE)
+                source[0]['source_span'] = [0, 33]
+                source[1]['source_span'] = [35, 53]
+                raw_a = 'Rain  fell. Please open the gate.\n\nTake the blue cup.'
+                raw_b = 'Rain fell. Please  open the gate.\n\nTake the blue cup.'
+                script, _, _ = create_book(directory, saved=saved, raw=raw_a, source=source)
+                original = script.read_bytes()
+                chunks = Path(directory, 'chunks.json')
+                chunks.write_bytes(b'[{"book":"B"}]')
+                client, calls = client_for([(REPLY, 'stop')])
+                create = client.chat.completions.create
+                replacement_files = {}
+                def replace_book(**kwargs):
+                    response = create(**kwargs)
+                    state_path = Path(directory, 'state.json')
+                    state = json.loads(state_path.read_text(encoding='utf-8'))
+                    state.update(active_book_id='book-B', book_generation=2)
+                    source_path = Path(directory, 'uploads', 'book-B.txt')
+                    source_path.write_bytes(raw_b.encode('utf-8'))
+                    state['input_file_path'] = str(source_path)
+                    state_path.write_text(json.dumps(state), encoding='utf-8')
+                    binding = make_script_selection_binding(get_book_operation_token(directory),
+                        hashlib.sha256(source_path.read_bytes()).hexdigest(), original,
+                        source_path=str(source_path))
+                    script.with_suffix('.selection_binding.json').write_text(json.dumps(binding), encoding='utf-8')
+                    for path in (state_path, source_path, script.with_suffix('.selection_binding.json')):
+                        replacement_files[path] = path.read_bytes()
+                    return response
+                client.chat.completions.create = replace_book
+                with self.cli(directory, client, script=script if saved else None), \
+                        patch('review_startup.record_failure') as diagnostic:
+                    with self.assertRaisesRegex(ValueError, 'source.*changed during review'):
+                        review.main()
+                self.assertEqual(1, len(calls))
+                self.assertEqual(original, script.read_bytes())
+                self.assertEqual(b'[{"book":"B"}]', chunks.read_bytes())
+                self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+                for path, expected in replacement_files.items():
+                    self.assertEqual(expected, path.read_bytes())
+                diagnostic.assert_called_once_with('review_source_identity_changed', task='review')
+
+    def test_publication_refuses_each_captured_identity_change(self):
+        for saved, mutation in product((False, True), ('token', 'path', 'bytes', 'binding')):
+            with self.subTest(saved=saved, mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                script, source_path, _ = create_book(directory, saved=saved)
+                original = script.read_bytes()
+                client, _ = client_for([(REPLY, 'stop')])
+                create = client.chat.completions.create
+                def mutate(**kwargs):
+                    response = create(**kwargs)
+                    state_path = Path(directory, 'state.json')
+                    state = json.loads(state_path.read_text(encoding='utf-8'))
+                    if mutation == 'token':
+                        state['book_generation'] += 1
+                    elif mutation == 'path':
+                        replacement = source_path.with_name('replacement.txt')
+                        replacement.write_bytes(source_path.read_bytes())
+                        state['input_file_path'] = str(replacement)
+                    elif mutation == 'bytes':
+                        source_path.write_bytes(RAW.replace('Rain', 'Hail').encode('utf-8'))
+                    state_path.write_text(json.dumps(state), encoding='utf-8')
+                    binding = make_script_selection_binding(get_book_operation_token(directory),
+                        hashlib.sha256(Path(state['input_file_path']).read_bytes()).hexdigest(), original,
+                        source_path=state['input_file_path'])
+                    binding_path = script.with_suffix('.selection_binding.json')
+                    if mutation != 'bytes':
+                        binding_path.write_text(json.dumps(binding) + (' ' if mutation == 'binding' else ''), encoding='utf-8')
+                    return response
+                client.chat.completions.create = mutate
+                with self.cli(directory, client, script=script if saved else None):
+                    with self.assertRaisesRegex(ValueError, 'source.*changed during review'):
+                        review.main()
+                self.assertEqual(original, script.read_bytes())
+                self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+
+    def test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model(self):
+        for labels_only in (False, True):
+            with self.subTest(labels_only=labels_only), tempfile.TemporaryDirectory() as directory:
+                source = copy.deepcopy(SOURCE)
+                for entry in source:
+                    del entry['source_span']
+                script, _, _ = create_book(directory, source=source)
+                reply = ([{'n': index, 'speaker': entry['speaker'], 'instruct': entry['instruct']}
+                          for index, entry in enumerate(source)] if labels_only else source)
+                client, calls = client_for([(reply, 'stop'), (reply, 'stop')])
+                with self.cli(directory, client, labels_only=labels_only) as stdout:
+                    fingerprint_identity = review.get_run_fingerprint_identity
+                    def legacy_identity(identity):
+                        identity = {key: value for key, value in identity.items()
+                                    if key != 'review_source_sha256'}
+                        identity['algorithm'] = 11
+                        return fingerprint_identity(identity)
+                    with patch.object(review, 'get_run_fingerprint_identity', side_effect=legacy_identity):
+                        review.main()
+                    self.assertEqual(1, len(calls))
+                    receipt_path = Path(str(script) + '.review_completed.json')
+                    receipt = receipt_path.read_bytes()
+                    review.main()
+                self.assertEqual(1, len(calls))
+                self.assertEqual(receipt, receipt_path.read_bytes())
+                self.assertIn('No changes since the completed review', stdout.getvalue())
+
+    def test_loaded_saved_source_lineage_is_fenced_through_publication(self):
+        for mutation in ('unchanged', 'bytes', 'binding'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                saved, source_path, _ = create_book(directory, saved=True)
+                state_path = Path(directory, 'state.json')
+                state = json.loads(state_path.read_text(encoding='utf-8'))
+                state['input_file_path'] = str(saved)
+                state_path.write_text(json.dumps(state), encoding='utf-8')
+                script = Path(directory, 'annotated_script.json')
+                original = saved.read_bytes()
+                script.write_bytes(original)
+                binding = make_script_selection_binding(get_book_operation_token(directory),
+                    hashlib.sha256(original).hexdigest(), original, source_path=str(saved))
+                script.with_suffix('.selection_binding.json').write_text(json.dumps(binding), encoding='utf-8')
+                client, _ = client_for([(REPLY, 'stop')])
+                create = client.chat.completions.create
+                def mutate(**kwargs):
+                    response = create(**kwargs)
+                    if mutation == 'bytes':
+                        source_path.write_bytes(RAW.replace('Rain', 'Hail').encode('utf-8'))
+                    elif mutation == 'binding':
+                        binding_path = saved.with_suffix('.selection_binding.json')
+                        binding_path.write_bytes(binding_path.read_bytes() + b' ')
+                    return response
+                client.chat.completions.create = mutate
+                with self.cli(directory, client):
+                    if mutation == 'unchanged':
+                        review.main()
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'source.*changed during review'):
+                            review.main()
+                if mutation == 'unchanged':
+                    self.assert_mapped(json.loads(script.read_bytes()), RAW)
+                else:
+                    self.assertEqual(original, script.read_bytes())
+                self.assertEqual(mutation == 'unchanged', Path(str(script) + '.review_completed.json').exists())
+
+    def test_prior_span_receipts_are_invalidated_and_new_receipts_are_reused(self):
+        for version in (11, 12):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = create_book(directory)
+                client, calls = client_for([(SOURCE, 'stop'), (SOURCE, 'stop')])
+                with self.cli(directory, client) as stdout:
+                    fingerprint_identity = review.get_run_fingerprint_identity
+                    def legacy_identity(identity):
+                        identity = dict(identity)
+                        identity['algorithm'] = version
+                        if version == 11:
+                            identity.pop('review_source_sha256', None)
+                        return fingerprint_identity(identity)
+                    with patch.object(review, 'get_run_fingerprint_identity', side_effect=legacy_identity):
+                        review.main()
+                    self.assertEqual(1, len(calls))
+                    review.main()
+                    self.assertEqual(2, len(calls))
+                    receipt_path = Path(str(script) + '.review_completed.json')
+                    receipt = receipt_path.read_bytes()
+                    review.main()
+                    self.assertEqual(2, len(calls))
+                    self.assertEqual(receipt, receipt_path.read_bytes())
+                self.assertIn('No changes since the completed review', stdout.getvalue())
+
     def run_reply(self, source=SOURCE, reply=REPLY, source_text=None, literal=False):
         original = copy.deepcopy(source)
         client, calls = client_for([(reply, 'stop')])

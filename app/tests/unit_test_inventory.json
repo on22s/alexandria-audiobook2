@@ -11832,12 +11832,17 @@
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_cli_remaps_verified_source_or_keeps_original_entries_with_checkpoint",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_invalid_source_or_original_spans_refuse_instead_of_inventing_offsets",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_loaded_saved_book_follows_only_its_verified_original_source_binding",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_loaded_saved_source_lineage_is_fenced_through_publication",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_missing_source_refuses_split_in_ordinary_and_literal_modes",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_overlapping_original_spans_are_not_published_as_a_remapped_result",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_prior_span_receipts_are_invalidated_and_new_receipts_are_reused",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_publication_refuses_each_captured_identity_change",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_publication_refuses_identical_script_from_replaced_source_book",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_quote_and_whitespace_offsets_use_the_existing_dialogue_map",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_rejected_split_records_content_free_failure_evidence",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_repeated_text_cannot_remap_outside_the_original_span",
-    "tests.test_review_source_spans.ReviewSourceSpanTests.test_single_original_entry_split_also_gets_disjoint_exact_spans"
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_single_original_entry_split_also_gets_disjoint_exact_spans",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model"
   ],
   "test_review_startup_diagnostics": [
     "tests.test_review_startup_diagnostics.ReviewLogModeMarkupTests.test_each_review_mode_contains_its_own_always_available_log_link",
