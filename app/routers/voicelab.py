@@ -154,6 +154,7 @@ class VoiceLabRequest(BaseModel):
 
 def _probe_voicelab_interpreter(rocm_python: str) -> dict:
     """Read Torch/device/dependency state from the interpreter that will run ML stages."""
+    from review_startup import record_failure
     code = (
         "import importlib.util,json,torch; "
         "ok=torch.cuda.is_available(); "
@@ -170,8 +171,14 @@ def _probe_voicelab_interpreter(rocm_python: str) -> dict:
                                 text=True, timeout=20, check=False,
                                 env=_rocm_env(rocm_python))
         lines = [line for line in result.stdout.splitlines() if line.strip()]
-        return json.loads(lines[-1]) if result.returncode == 0 and lines else {}
-    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        if result.returncode != 0 or not lines:
+            record_failure('voicelab_probe_unavailable', task='voicelab', resource=rocm_python,
+                           exit_code=result.returncode, level=logging.WARNING)
+            return {}
+        return json.loads(lines[-1])
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as error:
+        record_failure('voicelab_probe_failed', error, task='voicelab', resource=rocm_python,
+                       level=logging.WARNING)
         return {}
 
 

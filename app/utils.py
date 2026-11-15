@@ -256,13 +256,16 @@ def safe_load_json(path, default=None):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"Corrupted/unreadable JSON at {path}, using default: {e}")
+        logger.warning('Corrupted/unreadable JSON; using default (%s)', type(e).__name__)
+        from review_startup import record_failure
+        record_failure('json_load_failed', e, task='storage', resource=path, level=logging.WARNING)
         return default
     if default is not None and not isinstance(data, type(default)):
-        logger.warning(
-            f"Unexpected JSON shape at {path} (expected {type(default).__name__}, "
-            f"got {type(data).__name__}), using default"
-        )
+        logger.warning('Unexpected JSON shape (expected %s, got %s); using default',
+                       type(default).__name__, type(data).__name__)
+        from review_startup import record_failure
+        record_failure('json_shape_invalid', task='storage', resource=path, level=logging.WARNING,
+                       expected_type=type(default).__name__, actual_type=type(data).__name__)
         return default
     return data
 
