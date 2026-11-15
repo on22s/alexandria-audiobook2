@@ -20,7 +20,10 @@ class EditorSpeechVerificationTests(unittest.TestCase):
     @contextmanager
     def fixture(self):
         source=publication.SpeechVerificationPublicationTests()
-        with source.fixture() as (root,manager,before,prior,flags):
+        # Exercise the qualified change-time receipt policy independently of
+        # the host. Native Windows historical-only behavior has separate tests.
+        with patch('speech_verification_receipt._ctime_attests_change', return_value=True), \
+                source.fixture() as (root,manager,before,prior,flags):
             with patch('speech_verification.verify_finished_speech',side_effect=lambda path,text,*a,**kw:get_report(path,text)):
                 self.assertTrue(source.generate(manager,'single'))
             row=copy.deepcopy(manager.load_chunks()[0]);path=root/row['audio_path']

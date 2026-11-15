@@ -169,6 +169,28 @@ def save_corpus_report(index, output_dir):
     return 1 if failures or not attempted else 0
 
 
+def get_worker_command(repo, audio, source, output, summary, model, fallback):
+    command = [str(repo / 'run_with_restart.sh'), '--audio', str(audio), '--source', str(source),
+        '--model', model, '--output', str(output),
+        '--summary-output', str(summary), '--chunk-size', '10.0', '--lang', 'en']
+    if fallback:
+        command += ['--fallback-model', fallback]
+    if sys.platform == 'win32':
+        app_dir = str(Path(__file__).resolve().parent / 'app')
+        if app_dir not in sys.path:
+            sys.path.insert(0, app_dir)
+        from experiments.manifest import _source_probe_shell
+        shell, detail = _source_probe_shell()
+        if shell is None:
+            raise ValueError(f'Bash is required to launch the corpus worker on Windows: {detail}')
+        command[0] = (repo / 'run_with_restart.sh').as_posix()
+        for option, path in (('--audio', audio), ('--source', source),
+                             ('--output', output), ('--summary-output', summary)):
+            command[command.index(option) + 1] = path.as_posix()
+        command.insert(0, shell)
+    return command
+
+
 def run_corpus(repo, pairs_path, output_dir, model, fallback):
     if not isinstance(model, str) or not model.strip():
         raise ValueError('--model is required when running --pairs')
@@ -204,11 +226,7 @@ def run_corpus(repo, pairs_path, output_dir, model, fallback):
                 options={'summary_output': str(summary), 'output': str(output), 'model': model,
                          'fallback_model': fallback, 'chunk_size': 10.0, 'lang': 'en'})
             save_index()
-            command = [str(repo / 'run_with_restart.sh'), '--audio', str(audio), '--source', str(source),
-                '--model', model, '--output', str(output),
-                '--summary-output', str(summary), '--chunk-size', '10.0', '--lang', 'en']
-            if fallback:
-                command += ['--fallback-model', fallback]
+            command = get_worker_command(repo, audio, source, output, summary, model, fallback)
             result = subprocess.run(command, cwd=repo)
             row['worker_exit'] = result.returncode
             if result.returncode:
