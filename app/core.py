@@ -44,6 +44,7 @@ from run_history import finish_run, prune_runs, record_artifact, start_run
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 from task_ownership import (acquire_task_lease, ensure_startup_recovery, get_task_resource_path,
                             ensure_task_resources_available, TaskOwnershipBusy)
+from review_startup import record_failure
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -471,8 +472,8 @@ def _init_task_log(task_name: str, extra_header: str = "") -> str:
     try:
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"# {task_name} log — {time.strftime('%Y-%m-%d %H:%M:%S')}\n{extra_header}")
-    except OSError:
-        pass
+    except OSError as error:
+        record_failure('task_log_create_failed', error, task=task_name, resource=log_path)
     return log_path
 
 
@@ -1407,7 +1408,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
         callback()
     except Exception as e:
         error = str(e)
-        logger.exception("Background task %s failed: %s", task_name, e)
+        record_failure('background_task_failed', e, task=task_name, resource=run_id)
         state.setdefault("logs", []).append(f"Error: {e}")
         if "status" in state:
             state["status"] = "failed"
@@ -1502,10 +1503,12 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     log_fh = None
     log_lines_since_flush = 0
     last_flush_time = time.time()
+    task_name = next((name for name, task_state in process_state.items() if task_state is state), 'subprocess')
     if log_file:
         try:
             log_fh = open(log_file, "a", encoding="utf-8")
-        except OSError:
+        except OSError as error:
+            record_failure('worker_log_open_failed', error, task=task_name, resource=log_file)
             log_fh = None
     process = None
     reader = None
@@ -1546,7 +1549,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                     q.put(line)
             except Exception as e:
                 # Log the error so we know why the reader died
-                logger.error(f"Subprocess reader thread failed: {e}")
+                record_failure('worker_reader_failed', e, task=task_name, resource=log_file)
             finally:
                 # Always put None sentinel even if iteration failed
                 try:
@@ -1629,8 +1632,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                                 log_lines_since_flush = 0
                                 last_flush_time = now
                         except OSError as e:
+                            record_failure('worker_log_write_failed', e, task=task_name, resource=log_file)
                             # Log write failed (e.g., disk full). Notify user and close file handle.
-                            log_entries.append(f"WARNING: Log file write failed ({e}). Subsequent logs will only appear in memory.")
+                            log_entries.append(f"WARNING: Log file write failed ({type(e).__name__}). Subsequent logs will only appear in memory.")
                             try:
                                 log_fh.close()
                             except OSError:
@@ -1670,11 +1674,15 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             except subprocess.TimeoutExpired:
                 continue
         review_startup_event('subprocess_finished', exit_code=process.returncode, child_pid=process.pid)
+        if process.returncode and not state.get('cancel'):
+            record_failure('worker_exit_failed', task=task_name, resource=log_file, exit_code=process.returncode)
         return process.returncode, own_lines
 
     except BaseException as error:
         from review_startup import event as review_startup_event
         review_startup_event('subprocess_failed', error=error)
+        if not isinstance(error, (asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
+            record_failure('worker_stream_failed', error, task=task_name, resource=log_file)
         if process is not None:
             try:
                 ensure_failed_subprocess_stopped(process, state)

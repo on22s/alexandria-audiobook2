@@ -80,10 +80,27 @@ class AppErrorHandlerTests(unittest.TestCase):
         self.assertEqual({}, error.message_values)
 
     def test_the_application_registers_the_handler_for_app_error(self):
+        """The real app may wrap the handler to record failure evidence, but the
+        response contract pinned above must be byte-identical through it."""
+        from unittest.mock import patch
         import app as application
-        self.assertIn(core.AppError, application.app.exception_handlers)
-        self.assertEqual(core.handle_app_error,
-                         application.app.exception_handlers[core.AppError])
+        handlers = application.app.exception_handlers
+        self.assertIn(core.AppError, handlers)
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+        self.assertIn(StarletteHTTPException, handlers)
+        api = build_app()
+        api.add_exception_handler(core.AppError, handlers[core.AppError])
+        api.add_exception_handler(StarletteHTTPException, handlers[StarletteHTTPException])
+        with patch.object(application, 'record_failure') as record:
+            client = TestClient(api)
+            for path in ('/app-error', '/app-error-values', '/app-error-headers', '/http-exception'):
+                with self.subTest(path=path):
+                    real, reference = client.get(path), self.client.get(path)
+                    self.assertEqual(reference.status_code, real.status_code)
+                    self.assertEqual(reference.content, real.content)
+                    self.assertEqual(reference.headers.get('www-authenticate'),
+                                     real.headers.get('www-authenticate'))
+        self.assertEqual(4, record.call_count)
 
 
 if __name__ == '__main__':
