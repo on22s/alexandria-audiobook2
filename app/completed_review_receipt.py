@@ -5,9 +5,9 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-# v8 makes the classic response/source-metadata contract explicit, including
-# custom and literal prompts. Do not reuse evidence made under the old prompt.
-REVIEW_ALGORITHM_VERSION = 8
+# v10 rebinds speaker annotations after label corrections while preserving
+# source provenance and pause boundaries. Earlier receipts must be re-reviewed.
+REVIEW_ALGORITHM_VERSION = 10
 
 
 def get_review_entries_fingerprint(entries):

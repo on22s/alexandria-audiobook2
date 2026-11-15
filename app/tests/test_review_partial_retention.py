@@ -133,7 +133,7 @@ class PartialRetentionTests(unittest.TestCase):
         output, calls, records = self.run_review([reply], source=source)
         self.assertEqual(1, len(calls))
         self.assertEqual(['accepted'], [record['outcome'] for record in records])
-        self.assertEqual([{**source[0], 'speaker': 'ALICE'}], output)
+        self.assertEqual([{**{k: v for k, v in source[0].items() if k != 'spoken'}, 'speaker': 'ALICE'}], output)
         self.assertIsNot(source[0]['source_span'], output[0]['source_span'])
         self.assertEqual('complete', review.get_review_batch_status(output, records)['status'])
 
@@ -180,7 +180,8 @@ class PartialRetentionTests(unittest.TestCase):
         source[2]['text'] = source[1]['text']
         output, calls, records = self.run_review([get_reply(source)] * 3, source=source)
         self.assertEqual(3, len(calls))
-        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
+        self.assertEqual([{**{k: v for k, v in source[0].items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
         self.assertEqual([0], review.get_review_batch_status(output, records)['partial_retention']['retained_positions'])
 
     def test_duplicate_identity_anywhere_in_candidate_cannot_authorize_that_label(self):
@@ -204,7 +205,8 @@ class PartialRetentionTests(unittest.TestCase):
         output, calls, records = self.run_review([reply] * 3, source=source)
         safe = [i for i in range(24) if i != 17]
         self.assertEqual(3, len(calls))
-        self.assertEqual([{**row, 'speaker': 'ALICE', 'instruct': 'Calmly.'} if i in safe else row
+        self.assertEqual([{**{k: v for k, v in row.items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Calmly.'} if i in safe else row
                           for i, row in enumerate(source)], output)
         status = review.get_review_batch_status(output, records)
         self.assertEqual('partial', status['status'])
@@ -215,7 +217,8 @@ class PartialRetentionTests(unittest.TestCase):
         source[0].update(spoken=True, speaker='NARRATOR', type='NARRATOR')
         reply = get_reply(source)
         output, calls, records = self.run_review([reply] * 3, source=source)
-        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'},
+        self.assertEqual([{**{k: v for k, v in source[0].items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Calmly.'},
                           *source[1:]], output)
         self.assertIsNot(source[0]['provenance'], output[0]['provenance'])
         self.assertEqual(3, len(calls))
@@ -230,7 +233,8 @@ class PartialRetentionTests(unittest.TestCase):
         source = copy.deepcopy(SOURCE)
         source[0].update(speaker='NARRATOR', spoken=False, type='NARRATOR')
         output, calls, records = self.run_review([get_reply(source)] * 3, source=source)
-        self.assertEqual([{**source[0], 'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
+        self.assertEqual([{**{k: v for k, v in source[0].items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Calmly.'}, *source[1:]], output)
         self.assertEqual(3, len(calls))
         status = review.get_review_batch_status(output, records)
         self.assertEqual('partial', status['status'])

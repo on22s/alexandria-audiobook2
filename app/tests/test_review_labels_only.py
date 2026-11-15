@@ -107,7 +107,8 @@ class ReviewLabelsTests(unittest.TestCase):
         client, calls = client_for([(labels, 'stop')])
         out = review_batch(client, 'm', batch, 1, 1,
                            LLMGenParams(review_labels_only=True), max_retries=0)
-        self.assertEqual([{**entry, 'speaker': 'ALICE', 'instruct': 'Calmly.'}
+        self.assertEqual([{**{k: v for k, v in entry.items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Calmly.'}
                           for entry in before], out)
         self.assertEqual(before, batch)
         self.assertEqual(1, len(calls))
