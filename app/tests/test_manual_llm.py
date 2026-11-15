@@ -60,7 +60,7 @@ class ManualClientTests(unittest.TestCase):
                 answer.join(3)
             self.assertFalse(answer.is_alive())
             self.assertEqual([{**source[0], 'text': 'Rain fell.'},
-                              {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE'},
+                              {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE', 'spoken': True},
                               source[1]], output)
             self.assertFalse(os.path.exists(client.pending_path))
             self.assertFalse(os.path.exists(client.response_path))

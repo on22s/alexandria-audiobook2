@@ -162,7 +162,7 @@ class CompletedReviewReceiptTests(unittest.TestCase):
             profile = {'base_url': 'http://fixture/v1', 'model_name': 'model', 'api_key': 'env:RECEIPT_TEST_KEY'}
             def key(cfg=config, llm=profile, par=params, options=args, model='model'):
                 return review.get_completed_review_fingerprint(cfg, llm, par, options, object(), model)
-            for previous_version in (7, 8):
+            for previous_version in (7, 8, 9):
                 with patch.object(review, 'REVIEW_ALGORITHM_VERSION', previous_version):
                     old_review_contract = key()
                 self.assertNotEqual(old_review_contract, key())

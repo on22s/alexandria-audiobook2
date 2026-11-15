@@ -172,7 +172,7 @@ class BenchmarkReviewModeTests(unittest.TestCase):
         reply = [{'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': ''},
                  {'speaker': 'ALICE', 'text': 'Please open the gate. Take the blue cup.', 'instruct': ''}]
         expected = [{**source[0], 'text': 'Rain fell.'},
-                    {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE'}, source[1]]
+                    {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE', 'spoken': True}, source[1]]
         expected[0].pop('pause_after')
         for target in ('local', 'thunder'):
             with self.subTest(target=target), patch.object(sys.modules[__name__], 'SOURCE', source):

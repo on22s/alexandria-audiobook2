@@ -1,6 +1,6 @@
 # Experimental labels-only review
 
-Full-text review can reject useful speaker corrections when the model changes punctuation or moves text (#1174). Experimental labels-only review requests one `{n, speaker, instruct}` object per source entry. Code binds the validated labels back to deep copies of the originals, preserving text, entry order, metadata and literal-source policy.
+Full-text review can reject useful speaker corrections when the model changes punctuation or moves text (#1174). Experimental labels-only review requests one `{n, speaker, instruct}` object per source entry. Code binds the validated labels back to deep copies of the originals, preserving text, entry order, source provenance, pauses and literal-source policy. When a speaker changes, the four speaker annotations (`speaker_gender`, `speaker_age_group`, `speaker_ageless`, `spoken`) follow an unambiguous known target speaker in the original batch. When stale annotations exist, unknown or conflicting target annotations are cleared with a warning, as in classic review.
 
 Run `review_script.py --labels-only`, or set `prompts.review_labels_only` to true in configuration. This mode uses its own labels-only prompt, rather than the custom full-text review templates. It is off by default. The ordinary review remains available for lossless boundary changes; the labels-only model response cannot split or merge source entries. Existing configured post-processing, including consecutive-narrator merging, still runs afterward.
 

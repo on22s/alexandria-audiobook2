@@ -5,9 +5,9 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-# v9 partitions reviewed entries at incompatible source metadata/pause
-# boundaries. Do not reuse evidence produced by the old rejection policy.
-REVIEW_ALGORITHM_VERSION = 9
+# v10 rebinds speaker annotations after label corrections while preserving
+# source provenance and pause boundaries. Earlier receipts must be re-reviewed.
+REVIEW_ALGORITHM_VERSION = 10
 
 
 def get_review_entries_fingerprint(entries):

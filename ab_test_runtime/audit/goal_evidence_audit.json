@@ -1050,19 +1050,28 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T08:11:44",
+  "written": "2026-11-15T09:23:20",
   "host": "RealMitch",
   "git": {
-   "commit": "7799aa92334fcb61da5a74624e1b9835f3c132dd",
+   "commit": "d5720c55d5e89ed361dbc946f12b011508a601e0",
    "branch": "fix/1957-review-boundaries",
    "dirty": true,
-   "source_state": "dirty:92f90b5e7fae",
+   "source_state": "dirty:1cd8fdb5b2aa",
    "source_state_detail": null,
    "modified_tracked_files": [
+    "M  app/completed_review_receipt.py",
     "M  app/review_script.py",
-    "M  app/tests/test_llm_review_regressions.py",
+    "M  app/tests/test_benchmark_review_mode.py",
+    "M  app/tests/test_completed_review_receipt.py",
+    "M  app/tests/test_manual_llm.py",
+    "M  app/tests/test_review_labels_only.py",
+    "M  app/tests/test_review_narrator_correction.py",
+    "M  app/tests/test_review_partial_retention.py",
     "M  app/tests/test_review_source_binding.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/tests/unit_test_inventory.json",
+    "M  docs/design/script-review-attribution-1951.md",
+    "M  docs/features/labels-only-review.md",
+    "M  review_prompts.txt"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",

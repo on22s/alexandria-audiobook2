@@ -933,8 +933,9 @@ REVIEW_CLASSIC_RESPONSE_RULE = (
     'Return a JSON array with speaker, text and instruct string fields in every entry. '
     'Do not return input-only metadata such as spoken, source_span, type, '
     'speaker_gender, speaker_age_group, speaker_ageless, pause_after or provenance. '
-    'Those fields are restored from the original entries after source-text validation; '
-    'their omission from the response does not remove them from the saved script. '
+    'Source spans, provenance and pauses are restored from the original entries after source-text validation; their omission does not remove them. '
+    'When a speaker changes, known attributes follow that corrected speaker; '
+    'unknown or conflicting speaker attributes are cleared and reported. '
     'Preserve all text in its original order. Split or merge only when text and '
     'source metadata can be preserved. Never omit speaker, text or instruct.')
 
@@ -1008,6 +1009,63 @@ def get_review_text_identity(text):
     return get_word_identity([text])['sha256'], symbols
 
 
+REVIEW_SPEAKER_FIELDS = ('speaker_gender', 'speaker_age_group', 'speaker_ageless', 'spoken')
+
+
+def get_review_speaker_bound_entry(entry, original_entries, reference_entries, batch_entries):
+    """Rebind changed speaker annotations without moving source provenance."""
+    target = entry['speaker'].strip().casefold()
+    if all(str(original.get('speaker', '')).strip().casefold() == target
+           for original in original_entries):
+        return entry, None
+    def matching(rows):
+        return [row for row in rows
+                if str(row.get('speaker', '')).strip().casefold() == target]
+    donors = matching(reference_entries) or matching(batch_entries)
+    states = [{key: copy.deepcopy(row[key]) for key in REVIEW_SPEAKER_FIELDS if key in row}
+              for row in donors]
+    identities = {get_typed_metadata(state) for state in states}
+    # A nearby overlapping target entry is stronger evidence than a whole-batch
+    # roster. Never choose between conflicting temporal states or invent traits.
+    result = {key: value for key, value in entry.items() if key not in REVIEW_SPEAKER_FIELDS}
+    if len(identities) == 1 and states[0]:
+        result.update(states[0])
+        return result, None
+    if not any(key in entry for key in REVIEW_SPEAKER_FIELDS):
+        return result, None
+    return result, {'code': 'review_speaker_metadata_unresolved', 'message': (
+        'Corrected speaker attributes are unknown or conflicting; stale speaker '
+        'attributes were cleared. Source text, provenance and pauses were retained.')}
+
+
+def get_review_labelled_entries(batch_entries, ordered):
+    """Apply index labels and the same speaker-annotation policy as full review."""
+    bound, warnings = [], []
+    for number, (original, labels) in enumerate(zip(batch_entries, ordered), 1):
+        entry = {**copy.deepcopy(original), 'speaker': labels['speaker'],
+                 'instruct': labels['instruct']}
+        entry, warning = get_review_speaker_bound_entry(entry, [original], [], batch_entries)
+        bound.append(entry)
+        if warning:
+            warnings.append({**warning, 'entry_number': number})
+    return bound, warnings
+
+
+def get_review_raw_text_slice(text, start, end):
+    """Map a normalized token interval back to the reviewer's exact whitespace."""
+    position, left = 0, None
+    for match in re.finditer(r'\S+', text):
+        stop = position + len(match.group())
+        if left is None and position <= start < stop:
+            left = match.start() + start - position
+        if position < end <= stop:
+            if left is None:
+                break
+            return text[left:match.start() + end - position]
+        position = stop + 1
+    raise ValueError('Review fragment has no matching raw text interval')
+
+
 def get_review_source_binding(batch_entries, entries, literal_source_preserving=False):
     """Bind classic labels and immutable metadata to ordered source spans.
 
@@ -1044,10 +1102,8 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                       for i, entry in enumerate(entries)]
             ordered, quality = get_review_label_binding(batch_entries, labels)
             if quality['passed']:
-                bound = [{**copy.deepcopy(original), "speaker": row["speaker"],
-                          "instruct": row["instruct"]}
-                         for original, row in zip(batch_entries, ordered)]
-                return bound, {**quality, "source_bound_label_recovery": True}
+                bound, warnings = get_review_labelled_entries(batch_entries, ordered)
+                return bound, {**quality, "source_bound_label_recovery": True, 'warnings': warnings}
             return None, quality
         if literal_source_preserving:
             audit = audit_literal_words(original_text, entries)
@@ -1066,7 +1122,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     for original, text in zip(batch_entries, original_texts):
         source_spans.append((position, position + len(text), original))
         position += len(text) + 1
-    bound = []
+    bound, warnings = [], []
     position = 0
     for number, (entry, text) in enumerate(zip(entries, reviewed_texts), 1):
         end = position + len(text)
@@ -1096,15 +1152,21 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                 left, right = max(position, group[0][0]), min(end, stop)
                 row = {**copy.deepcopy(facts), "speaker": entry["speaker"],
                        "text": (entry["text"] if len(groups) == 1
-                                else text[left - position:right - position]),
+                                else get_review_raw_text_slice(entry["text"], left - position, right - position)),
                        "instruct": entry["instruct"]}
                 if right == stop and 'pause_after' in original:
                     row['pause_after'] = copy.deepcopy(original['pause_after'])
                 if len(group) == 1 and start == left and stop == right:
                     row['text'] = original['text']
+                row, warning = get_review_speaker_bound_entry(row,
+                    [original for _, _, original in group],
+                    [original for _, _, original in sources], batch_entries)
                 bound.append(row)
+                if warning:
+                    warnings.append({**warning, 'entry_number': number})
         position = end + 1
-    return (None if findings else bound), {"passed": not findings, "findings": findings}
+    return (None if findings else bound), {"passed": not findings, "findings": findings,
+                                         'warnings': warnings}
 
 
 REVIEW_PARTIAL_EVENT = 'review_partial_label_retention'
@@ -1156,7 +1218,7 @@ def get_review_partial_label_retention(batch_entries, entries, literal):
         return None, None
     return bound, {'event': REVIEW_PARTIAL_EVENT, 'status': 'partial',
                    'retained_positions': retained, 'skipped_positions': skipped,
-                   'reason': 'strict_stop_quality_exhausted'}
+                   'reason': 'strict_stop_quality_exhausted', 'warnings': quality.get('warnings', [])}
 
 
 def review_batch(client, model_name, batch_entries, batch_num, total_batches, params,
@@ -1241,10 +1303,12 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     if entries:
         if params.review_labels_only:
             ordered, _ = get_review_label_binding(batch_entries, entries)
-            return [{**copy.deepcopy(original), "speaker": row["speaker"],
-                     "instruct": row["instruct"]}
-                    for original, row in zip(batch_entries, ordered)]
-        bound, quality = get_review_source_binding(batch_entries, entries, literal)
+            bound, warnings = get_review_labelled_entries(batch_entries, ordered)
+            quality = {'warnings': warnings}
+        else:
+            bound, quality = get_review_source_binding(batch_entries, entries, literal)
+        for warning in quality.get('warnings', []):
+            print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
         if quality.get('source_bound_label_recovery'):
             print("  Recovered source-bound review labels after punctuation drift; original text retained.")
         return bound
@@ -1265,6 +1329,8 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
                     for i, attempt in enumerate(attempts))):
         retained, status = get_review_partial_label_retention(batch_entries, candidate[0], literal)
         if retained is not None:
+            for warning in status['warnings']:
+                print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
             attempt_observer({**status, 'source_attempt': attempts[-1]['attempt']})
             return retained
     # Keep the caller's checkpoint batch intact: adapt only the requests,
@@ -1299,9 +1365,16 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     if failed:
         return None
     if params.review_labels_only:
-        return combined
+        bound, warnings = get_review_labelled_entries(batch_entries, combined)
+        for warning in warnings:
+            print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
+        return bound
     bound, quality = get_review_source_binding(batch_entries, combined, literal)
-    return bound if quality['passed'] else None
+    if quality['passed']:
+        for warning in quality.get('warnings', []):
+            print(f"Warning: {warning['code']} (entry {warning['entry_number']}): {warning['message']}")
+        return bound
+    return None
 
 
 def normalize_text(text):
