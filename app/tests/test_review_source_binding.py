@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from dialogue_spans import mark_entries
 from generate_script import LLMGenParams
 from literal_policy import bind_literal_policy, get_literal_policy
 import review_script as review
@@ -337,6 +338,62 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     self.assertEqual([700, 0], [entry['pause_after'] for entry in output[1:]])
                     self.assertEqual(1, len(calls))
                     self.assertEqual('accepted', attempts[0]['outcome'])
+
+    def test_portion_reassignment_remaps_source_spans_to_each_fragment(self):
+        source_text = 'Rain fell. Please open the gate.\n\nTake the blue cup.'
+        source = [row('Rain fell. Please open the gate.', speaker='NARRATOR',
+                      spoken=False, provenance={'metadata': 'X'},
+                      source_span=[0, 32], pause_after=700),
+                  row('Take the blue cup.', spoken=True, provenance={'metadata': 'Y'},
+                      source_span=[34, 52], speaker_gender='female', pause_after=0)]
+        reply = [row('Rain fell.', speaker='NARRATOR'),
+                 row('Please open the gate. Take the blue cup.')]
+        before = copy.deepcopy(source)
+        for literal in (False, True):
+            with self.subTest(literal=literal):
+                client, calls = client_for([(reply, 'stop')])
+                attempts = []
+                with redirect_stdout(io.StringIO()):
+                    output = review.review_batch(client, 'fixture', source, 1, 1,
+                        LLMGenParams(literal_source_preserving=literal), max_retries=0,
+                        attempt_observer=attempts.append)
+                self.assertEqual(before, source)
+                self.assertEqual(1, len(calls))
+                self.assertEqual('accepted', attempts[0]['outcome'])
+                self.assertEqual(['Rain fell.', 'Please open the gate.', 'Take the blue cup.'],
+                                 [entry['text'] for entry in output])
+                self.assertEqual(['NARRATOR', 'ALICE', 'ALICE'],
+                                 [entry['speaker'] for entry in output])
+                self.assertEqual(['X', 'X', 'Y'],
+                                 [entry['provenance']['metadata'] for entry in output])
+                self.assertEqual([False, True, True], [entry['spoken'] for entry in output])
+                self.assertNotIn('pause_after', output[0])
+                self.assertEqual([700, 0], [entry['pause_after'] for entry in output[1:]])
+                self.assertEqual([[0, 10], [11, 32], [34, 52]],
+                                 [entry['source_span'] for entry in output],
+                                 json.dumps(output, ensure_ascii=False, indent=2))
+                for entry in output:
+                    self.assertEqual(entry['text'], source_text[slice(*entry['source_span'])])
+                for previous, current in zip(output, output[1:]):
+                    self.assertLessEqual(previous['source_span'][1], current['source_span'][0])
+
+    def test_raw_source_split_offsets_are_not_recoverable_from_whole_entry_spans(self):
+        source = [row('Rain fell. Please  open the gate.', speaker='NARRATOR'),
+                  row('Take the blue cup.')]
+        fragments = [row('Rain fell.', speaker='NARRATOR'),
+                     row('Please open the gate.'), row('Take the blue cup.')]
+        raw_sources = ['Rain  fell. Please open the gate.\n\nTake the blue cup.',
+                       'Rain fell. Please  open the gate.\n\nTake the blue cup.']
+        originals = [mark_entries(source, raw) for raw in raw_sources]
+        self.assertEqual(originals[0], originals[1])
+        self.assertEqual([[0, 33], [35, 53]],
+                         [entry['source_span'] for entry in originals[0]])
+        self.assertEqual(len(source[0]['text']),
+                         originals[0][0]['source_span'][1] - originals[0][0]['source_span'][0])
+        mapped = [[entry['source_span'] for entry in mark_entries(fragments, raw)]
+                  for raw in raw_sources]
+        self.assertEqual([[[0, 11], [12, 33], [35, 53]],
+                          [[0, 10], [11, 33], [35, 53]]], mapped)
 
     def test_partitioning_preserves_nested_json_types_that_compare_equal_in_python(self):
         source = [row('First phrase.', provenance={'flag': False}),
