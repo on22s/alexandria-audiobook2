@@ -1050,26 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T13:56:49",
+  "written": "2026-11-15T13:58:14",
   "host": "RealMitch",
   "git": {
-   "commit": "b11874cd0ddabd6e9e1de0218a958ff0cdc012fa",
+   "commit": "9f11a0c6b1bb1ca045756561d222a73a6d821e35",
    "branch": "fix/windows-readiness-followup",
-   "dirty": true,
-   "source_state": "dirty:cd851b1fceb7",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  app/pronunciation.py",
-    "M  app/routers/editor.py",
-    "M  app/tests/test_benchmark_worker_identity.py",
-    "M  app/tests/test_chapter_download_boundary.py",
-    "M  app/tests/test_corpus_report_labels.py",
-    "M  app/tests/test_editor_speech_verification.py",
-    "M  app/tests/test_pronunciation.py",
-    "M  app/tests/test_support.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  corpus_run_report.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
