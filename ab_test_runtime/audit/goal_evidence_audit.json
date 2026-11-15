@@ -1050,17 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T14:05:12",
+  "written": "2026-11-15T14:05:36",
   "host": "RealMitch",
   "git": {
-   "commit": "80e604f7fcaf25a2b8e5c9ca335d95d9a057ac29",
+   "commit": "9848a8c1d0f5baccadd21588c9f642bdc5ecb569",
    "branch": "chore/remove-token-budget-rule",
-   "dirty": true,
-   "source_state": "dirty:55e2f9eb128e",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    " M GOALS.md"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
