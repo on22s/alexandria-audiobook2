@@ -28,7 +28,8 @@ class ReviewNarratorCorrectionTests(unittest.TestCase):
         return output, calls, attempts
 
     def assert_corrected(self, output):
-        self.assertEqual([{**self.source[0], 'speaker': 'ALICE', 'instruct': 'Softly.'}], output)
+        self.assertEqual([{**{k: v for k, v in self.source[0].items() if k != 'spoken'},
+                           'speaker': 'ALICE', 'instruct': 'Softly.'}], output)
         self.assertIsNot(self.source[0]['source_span'], output[0]['source_span'])
         self.assertIsNot(self.source[0]['provenance'], output[0]['provenance'])
 
@@ -70,7 +71,8 @@ class ReviewNarratorCorrectionTests(unittest.TestCase):
                     output = review.review_batch(client, 'fixture', source, 1, 1,
                         LLMGenParams(review_labels_only=labels_only,
                                      literal_source_preserving=literal), max_retries=0)
-                self.assertEqual([{**before[0], 'speaker': 'NARRATOR'}], output)
+                self.assertEqual([{**{k: v for k, v in before[0].items() if k != 'spoken'},
+                                   'speaker': 'NARRATOR'}], output)
                 self.assertEqual(before, source)
                 self.assertEqual(1, len(calls))
                 self.assertIsNot(source[0]['provenance'], output[0]['provenance'])

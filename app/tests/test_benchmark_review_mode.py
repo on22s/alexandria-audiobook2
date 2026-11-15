@@ -164,6 +164,25 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                     self.assertEqual(SOURCE, rows)
                     self.assertNotIn('n', rows[0])
 
+    def test_classic_worker_and_local_benchmark_accept_source_safe_boundary_partitions(self):
+        source = [{'speaker': 'NARRATOR', 'text': 'Rain fell. Please open the gate.',
+                   'instruct': '', 'spoken': False, 'source_span': [0, 32], 'pause_after': 700},
+                  {'speaker': 'ALICE', 'text': 'Take the blue cup.', 'instruct': '',
+                   'spoken': True, 'source_span': [34, 52]}]
+        reply = [{'speaker': 'NARRATOR', 'text': 'Rain fell.', 'instruct': ''},
+                 {'speaker': 'ALICE', 'text': 'Please open the gate. Take the blue cup.', 'instruct': ''}]
+        expected = [{**source[0], 'text': 'Rain fell.'},
+                    {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE', 'spoken': True}, source[1]]
+        expected[0].pop('pause_after')
+        for target in ('local', 'thunder'):
+            with self.subTest(target=target), patch.object(sys.modules[__name__], 'SOURCE', source):
+                result = run_native_benchmark(target, False, reply)
+                self.assertEqual('passed', result['report']['cases'][0]['status'])
+                self.assertEqual(3, result['report']['cases'][0]['entry_count'])
+                if target == 'local':
+                    self.assertEqual(expected, result['outputs'][0])
+                self.assertEqual('accepted', result['report']['cases'][0]['attempts'][0]['outcome'])
+
     def test_selected_mode_keeps_index_and_label_validation(self):
         for reply, code in ((LABELS[:1], 'review_label_alignment'),
                             ([LABELS[0], LABELS[0]], 'review_label_alignment'),
