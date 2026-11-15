@@ -8637,7 +8637,8 @@
     "tests.test_native_windows_readiness_runner.NativeReadinessEvidenceTests.test_import_exceptions_retain_failed_setup_evidence",
     "tests.test_native_windows_readiness_runner.NativeReadinessEvidenceTests.test_neither_portable_nor_symlink_group_can_pass_with_a_skip",
     "tests.test_native_windows_readiness_runner.NativeReadinessEvidenceTests.test_success_retains_checkout_group_and_exact_execution_count",
-    "tests.test_native_windows_readiness_runner.NativeReadinessEvidenceTests.test_wrong_host_retains_refusal_without_git_or_suite_loading"
+    "tests.test_native_windows_readiness_runner.NativeReadinessEvidenceTests.test_wrong_host_retains_refusal_without_git_or_suite_loading",
+    "tests.test_native_windows_readiness_runner.PortabilityDependencyEncodingTests.test_actual_workflow_reads_utf8_requirements_under_ansi_default"
   ],
   "test_native_windows_sound_temp_root_runner": [
     "tests.test_native_windows_sound_temp_root_runner.NativeSoundRunnerFailureTests.test_cleanup_failure_aborts_without_receipt",

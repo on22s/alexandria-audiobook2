@@ -153,3 +153,24 @@ class EvidenceWriteFailureTests(unittest.TestCase):
                 start_adapter_fixture_process(Mock())
         process.kill.assert_not_called()
         process.join.assert_called_once_with(5)
+
+
+class PortabilityDependencyEncodingTests(unittest.TestCase):
+    def test_actual_workflow_reads_utf8_requirements_under_ansi_default(self):
+        import textwrap
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / '.github/workflows/tests.yml').read_text(encoding='utf-8')
+        step = workflow.split('      - name: Install CPU-only portability test dependencies', 1)[1]
+        script = textwrap.dedent(step.split("@'", 1)[1].split("'@ | python -", 1)[0])
+        # Match the hosted Windows ANSI default, including an invalid CP1252 byte.
+        payload = (root / 'app/requirements.txt').read_bytes() + b'\n# UTF-8: \xe3\x81\x82\n'
+        def read_text(path, encoding=None, **kwargs):
+            self.assertEqual('requirements.txt', str(path))
+            return payload.decode(encoding or 'cp1252')
+        with patch.object(Path, 'read_text', autospec=True, side_effect=read_text), \
+             patch.object(Path, 'write_text', autospec=True) as write:
+            exec(compile(script, '<workflow dependency selection>', 'exec'), {})
+        output = write.call_args.args[1].splitlines()
+        self.assertIn('numpy==2.2.6', output)
+        self.assertTrue(any(line.startswith('peft==') for line in output))
+        self.assertFalse(any(line.startswith('torch') for line in output))

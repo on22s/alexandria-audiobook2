@@ -421,10 +421,10 @@ jobs:
           names = {'fastapi', 'starlette', 'uvicorn', 'pydantic', 'pydub', 'Pillow',
                    'requests', 'openai', 'httpx2', 'soundfile', 'numpy', 'rapidfuzz',
                    'librosa', 'transformers', 'peft', 'python-multipart', 'aiofiles'}
-          selected = [line for line in Path('requirements.txt').read_text().splitlines()
+          selected = [line for line in Path('requirements.txt').read_text(encoding='utf-8').splitlines()
                       if re.split(r'[<>=!~\[]', line)[0] in names]
           assert {re.split(r'[<>=!~\[]', line)[0] for line in selected} == names
-          Path('native-readiness-requirements.txt').write_text('\n'.join(selected)+'\n')
+          Path('native-readiness-requirements.txt').write_text('\n'.join(selected)+'\n', encoding='utf-8')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install -r native-readiness-requirements.txt 'httpx==0.28.1'
