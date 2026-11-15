@@ -1050,10 +1050,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T15:16:04",
+  "written": "2026-11-15T15:16:17",
   "host": "RealMitch",
   "git": {
-   "commit": "9f94e02adaf233b51642f05a82d5bba184cf13d4",
+   "commit": "3dedacd86c0c7d061ea7d885042ca7a974265f95",
    "branch": "fix/windows-readiness-followup",
    "dirty": false,
    "source_state": "clean",
