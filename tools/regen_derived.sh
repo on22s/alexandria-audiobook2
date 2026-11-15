@@ -114,6 +114,27 @@ quiet=0
 [ "${1:-}" = "--quiet" ] && quiet=1
 say() { [ "$quiet" = 1 ] || echo "$@"; }
 
+if [ -f "$REPO/GOALS.md" ] && grep -q 'met goals begin at line [0-9]' "$REPO/GOALS.md"; then
+    "$python" - "$REPO/GOALS.md" <<'PY' || exit 1
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+original = path.read_bytes()
+lines = original.splitlines(keepends=True)
+line = next((index for index, content in enumerate(lines, 1)
+             if content.startswith(b"# Part II")), None)
+if line is not None and len(lines) >= 30:
+    lines[29] = re.sub(rb"met goals begin at line [0-9]+",
+                       b"met goals begin at line " + str(line).encode("ascii"), lines[29])
+    updated = b"".join(lines)
+    if updated != original:
+        path.write_bytes(updated)
+PY
+    say "   GOALS.md line pointer"
+fi
+
 for script in audit_experiment_artifacts audit_legacy_attribution collect_results; do
     ( cd "$REPO" && "$python" "$REPO/tools/audit/$script.py" >/dev/null 2>&1 ) || {
         echo "regen_derived: $script FAILED" >&2; exit 1; }
@@ -128,17 +149,3 @@ say "   ui english catalog"
 ( cd "$REPO/app" && "$python" update_test_inventory.py >/dev/null ) || {
     echo "regen_derived: update_test_inventory FAILED" >&2; exit 1; }
 say "   unit test inventory"
-
-# Older GOALS.md headers carried this pointer. Keep rebuilding it for the
-# pointer-only resolver, but never classify the surrounding prose as derived.
-if [ -f "$REPO/GOALS.md" ]; then
-    line=$(grep -n '^# Part II' "$REPO/GOALS.md" | cut -d: -f1)
-    if [ -n "${line:-}" ]; then
-        # -i.bak: GNU and BSD (macOS) sed both accept an attached suffix.
-        sed -i.bak "30s/met goals begin at line [0-9]*/met goals begin at line $line/" \
-            "$REPO/GOALS.md"
-        # Unconditional: a stray backup would leave the tree dirty for gpu_job.sh.
-        rm -f "$REPO/GOALS.md.bak"
-        say "   GOALS.md line pointer"
-    fi
-fi

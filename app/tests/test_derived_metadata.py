@@ -182,6 +182,22 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertEqual('2000-01-01T00:00:00',
                              json.loads(kept)['provenance']['written'])
 
+    def test_goal_audit_keeps_verified_clean_provenance_across_ref_only_changes(self):
+        from copy import deepcopy
+        from experiments.goal_evidence_audit import _same_except_write_time
+        old = {'rows': [], 'provenance': self.verifiable_provenance()}
+        old['provenance']['git']['branch'] = 'previous-branch'
+        new = deepcopy(old)
+        new['provenance']['git'].update({'commit': '1' * 40, 'branch': 'new-branch'})
+        self.assertTrue(_same_except_write_time(old, new))
+        for field, value in (('dirty', True), ('harness_sha256', '0' * 64)):
+            with self.subTest(field=field):
+                changed = deepcopy(new)
+                changed['provenance']['git'][field] = value
+                self.assertFalse(_same_except_write_time(old, changed))
+        old['provenance']['git']['commit'] = '0' * 40
+        self.assertFalse(_same_except_write_time(old, new))
+
     def test_goal_audit_repairs_corrupt_output_only_in_generation_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -321,6 +337,40 @@ class DerivedMetadataTests(unittest.TestCase):
         return subprocess.run([get_bash_executable(),str(root/name),*args],cwd=root,capture_output=True,text=True,timeout=10,
                               env=fixture_environment())
 
+    def test_goals_pointer_update_preserves_crlf_before_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.fixture(root)
+            goals = root / 'GOALS.md'
+            original = b'header\r\n' * 29 + b'met goals begin at line 99\r\n# Part II - Met\r\n'
+            goals.write_bytes(original)
+            payload = root / 'app/env/bin/fixture_interpreter.py'
+            with payload.open('a', encoding='utf-8') as handle:
+                handle.write('\nif sys.argv[1].endswith("goal_evidence_audit.py"):\n'
+                             ' (root/"audit_goals").write_bytes((root/"GOALS.md").read_bytes())\n')
+            result = self.run_script(root, 'tools/regen_derived.sh', '--quiet')
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            expected = original.replace(b'line 99', b'line 31')
+            self.assertEqual(expected, goals.read_bytes())
+            self.assertEqual(expected, (root / 'audit_goals').read_bytes())
+            self.assertFalse((root / 'GOALS.md.bak').exists())
+
+    def test_goals_pointer_noop_preserves_bytes_and_file_identity(self):
+        for pointer in (b'met goals begin at line 31', b'no line pointer here'):
+            with self.subTest(pointer=pointer), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.fixture(root)
+                goals = root / 'GOALS.md'
+                original = b'header\r\n' * 29 + pointer + b'\r\n# Part II - Met\r\n'
+                goals.write_bytes(original)
+                os.utime(goals, ns=(1_000_000_000, 1_000_000_000))
+                before = goals.stat()
+                result = self.run_script(root, 'tools/regen_derived.sh', '--quiet')
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(original, goals.read_bytes())
+                self.assertEqual(before.st_mtime_ns, goals.stat().st_mtime_ns)
+                self.assertEqual(before.st_ino, goals.stat().st_ino)
+
     def test_fixture_environment_ignores_ambient_override_and_leaves_caller_intact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)
@@ -418,7 +468,8 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             self.assertEqual(['--metadata',''],(root/'queries').read_text().splitlines())
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
-            self.assertEqual(7,len(calls));self.assertEqual('-',calls[0][0])
+            self.assertEqual(8,len(calls))
+            self.assertEqual(['-', '-'], [args[0] for args in calls[:2]])
             self.assertEqual('',git('diff','--name-only','--diff-filter=U').stdout)
             self.assertNotIn('<<<<<<<',(root/'GOALS.md').read_text())
             self.assertIn('met goals begin at line 32',(root/'GOALS.md').read_text())

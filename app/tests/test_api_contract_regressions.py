@@ -380,8 +380,42 @@ class ApiContractTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             openapi_path, routes_path = api_contract.write_snapshots(app_module.app, tmp)
-            self.assertEqual(api_contract.OPENAPI_SNAPSHOT.read_bytes(), openapi_path.read_bytes())
-            self.assertEqual(api_contract.ROUTES_SNAPSHOT.read_bytes(), routes_path.read_bytes())
+            for expected, actual in ((api_contract.OPENAPI_SNAPSHOT, openapi_path),
+                                     (api_contract.ROUTES_SNAPSHOT, routes_path)):
+                self.assertEqual(expected.read_bytes().replace(b'\r\n', b'\n'),
+                                 actual.read_bytes().replace(b'\r\n', b'\n'))
+
+    def test_api_contract_regeneration_matches_crlf_checkout_without_rewriting_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = [root / 'openapi.json', root / 'routes.json']
+            originals = []
+            for source, target in zip(
+                    (api_contract.OPENAPI_SNAPSHOT, api_contract.ROUTES_SNAPSHOT), paths):
+                content = source.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+                target.write_bytes(content)
+                originals.append(content)
+            with patch.object(api_contract, 'OPENAPI_SNAPSHOT', paths[0]), \
+                    patch.object(api_contract, 'ROUTES_SNAPSHOT', paths[1]):
+                self.test_api_contract_snapshots_match_and_regenerate_deterministically()
+            self.assertEqual(originals, [path.read_bytes() for path in paths])
+
+    def test_api_contract_byte_comparison_rejects_non_newline_drift(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = [root / 'openapi.json', root / 'routes.json']
+            for source, target in zip(
+                    (api_contract.OPENAPI_SNAPSHOT, api_contract.ROUTES_SNAPSHOT), paths):
+                target.write_bytes(source.read_bytes().replace(b'\r\n', b'\n'))
+            for target in paths:
+                with self.subTest(snapshot=target.name):
+                    original = target.read_bytes()
+                    target.write_bytes(original.replace(b'\n', b' \n', 1))
+                    with patch.object(api_contract, 'OPENAPI_SNAPSHOT', paths[0]), \
+                            patch.object(api_contract, 'ROUTES_SNAPSHOT', paths[1]), \
+                            self.assertRaises(AssertionError):
+                        self.test_api_contract_snapshots_match_and_regenerate_deterministically()
+                    target.write_bytes(original)
 
     def test_api_contract_diff_summarizes_routes_operations_and_schemas(self):
         route = lambda path, name: {

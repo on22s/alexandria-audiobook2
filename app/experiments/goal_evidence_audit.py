@@ -55,7 +55,7 @@ def _provenance_error(value):
 
 
 def _same_except_write_time(existing, document):
-    """True when only provenance's volatile write stamp would change."""
+    """Keep an identical audit's verified clean origin across ref-only changes."""
     if not isinstance(existing, dict) or not isinstance(document, dict):
         return False
     old = existing.get("provenance")
@@ -68,8 +68,22 @@ def _same_except_write_time(existing, document):
     new_body = {k: v for k, v in document.items() if k != "provenance"}
     if old_body != new_body:
         return False
-    return ({k: v for k, v in old.items() if k != "written"}
-            == {k: v for k, v in new.items() if k != "written"})
+    old_stable = {k: v for k, v in old.items() if k != "written"}
+    new_stable = {k: v for k, v in new.items() if k != "written"}
+    if old_stable == new_stable:
+        return True
+    old_git, new_git = old.get("git"), new.get("git")
+    if not isinstance(old_git, dict) or not isinstance(new_git, dict):
+        return False
+    if old_git.get("dirty") is not False or new_git.get("dirty") is not False:
+        return False
+    old_stable["git"] = {k: v for k, v in old_git.items() if k not in ("commit", "branch")}
+    new_stable["git"] = {k: v for k, v in new_git.items() if k not in ("commit", "branch")}
+    if old_stable != new_stable:
+        return False
+    from experiments.provenance import check_harness_provenance
+    status, _ = check_harness_provenance(old)
+    return status == "verified"
 
 
 def load_audit(path):
