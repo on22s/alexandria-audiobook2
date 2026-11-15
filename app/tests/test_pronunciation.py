@@ -278,6 +278,20 @@ class NormalizationIntegrationTest(unittest.TestCase):
 
 
 class LexiconFileFingerprintTests(unittest.TestCase):
+    def test_content_change_invalidates_cache_when_all_stat_fields_are_unchanged(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "pronunciation.json")
+            path.write_text(json.dumps({"names": {"Aeliana": "First"}}), encoding="utf-8")
+            frozen = path.stat()
+            with patch.object(pronunciation.os, "stat", return_value=frozen), \
+                    patch.object(pronunciation.os, "fstat", return_value=frozen):
+                self.assertEqual("First", apply_pronunciation("Aeliana", str(path))[0])
+                path.write_text(json.dumps({"names": {"Aeliana": "Other"}}), encoding="utf-8")
+                self.assertEqual("Other", apply_pronunciation("Aeliana", str(path))[0])
+                with patch.object(pronunciation.json, "load", side_effect=AssertionError("unchanged content reparsed")):
+                    self.assertEqual("Other", apply_pronunciation("Aeliana", str(path))[0])
+
     def test_equal_mtime_and_size_edit_refreshes_actual_respelling_and_evidence(self):
         from pathlib import Path
         from unittest.mock import patch

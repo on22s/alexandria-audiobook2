@@ -601,3 +601,12 @@ def get_quarantined_path(case, root, path):
     case.assertFalse((root / books.JOURNAL).exists())
     case.assertFalse((root / workspace_name).exists())
     return quarantines[0].joinpath(books.QUARANTINE_WORKSPACE, *rest)
+
+
+def create_test_symlink_or_skip(link, target):
+    try:
+        Path(link).symlink_to(target)
+    except OSError as exc:
+        if os.name == 'nt' and getattr(exc, 'winerror', None) == 1314:
+            raise unittest.SkipTest('Windows symlink creation requires privileges (WinError 1314)') from exc
+        raise

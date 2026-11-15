@@ -1050,17 +1050,25 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T11:45:35",
+  "written": "2026-11-15T13:56:49",
   "host": "RealMitch",
   "git": {
-   "commit": "208b0a33b5c1c0b0dd58244678023b9ff18bca5c",
-   "branch": "fix/1959-review-startup-diagnostics",
+   "commit": "b11874cd0ddabd6e9e1de0218a958ff0cdc012fa",
+   "branch": "fix/windows-readiness-followup",
    "dirty": true,
-   "source_state": "dirty:04fa73d3cd7e",
+   "source_state": "dirty:cd851b1fceb7",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_benchmark_review_mode.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/pronunciation.py",
+    "M  app/routers/editor.py",
+    "M  app/tests/test_benchmark_worker_identity.py",
+    "M  app/tests/test_chapter_download_boundary.py",
+    "M  app/tests/test_corpus_report_labels.py",
+    "M  app/tests/test_editor_speech_verification.py",
+    "M  app/tests/test_pronunciation.py",
+    "M  app/tests/test_support.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  corpus_run_report.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",

@@ -10,6 +10,7 @@ import zipfile
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import editor
+from tests.test_support import create_test_symlink_or_skip
 
 
 class ChapterDownloadBoundaryTests(unittest.TestCase):
@@ -21,9 +22,14 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
             outside = root / 'secret.wav'
             outside.write_bytes(b'outside secret')
             (out / 'good.wav').write_bytes(b'valid chapter')
-            (out / 'escape.wav').symlink_to(outside)
-            for name in ('../secret.wav', str(outside), 'escape.wav', 'manifest.json', 'missing.wav'):
+            (out / 'good.wav:stream.wav').write_bytes(b'not a chapter')
+            for name in ('../secret.wav', '..\\secret.wav', str(outside),
+                         'C:\\secret.wav', 'C:secret.wav', 'good.wav:stream.wav',
+                         'CON.wav', 'NUL.mp3', 'COM1.wav', 'LPT1.mp3',
+                         'manifest.json', 'missing.wav', 'escape.wav'):
                 with self.subTest(name=name):
+                    if name == 'escape.wav':
+                        create_test_symlink_or_skip(out / name, outside)
                     (out / 'manifest.json').write_text(json.dumps({'chapters': [
                         {'index': 0, 'file': name}, {'index': 1, 'file': 'good.wav'}]}))
                     app = FastAPI(); app.include_router(editor.router)
@@ -31,6 +37,8 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
                         listing = client.get('/api/chapter_exports').json()
                         self.assertFalse(listing['chapters'][0]['exists'])
                         self.assertEqual(0, listing['chapters'][0]['bytes'])
+                        if '/' not in name and '\\' not in name:
+                            self.assertEqual(404, client.get('/api/chapter_exports/file/' + name).status_code)
                         response = client.get('/api/chapter_exports/zip')
                         self.assertEqual(200, response.status_code)
                         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
@@ -43,7 +51,6 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); out = root / editor.CHAPTER_EXPORT_DIR; out.mkdir()
             (root / 'outside.wav').write_bytes(b'secret')
-            (out / 'escape.wav').symlink_to(root / 'outside.wav')
             for name in ('chapter.WAV', 'chapter.MP3', 'stray.wav', 'notes.txt'):
                 (out / name).write_bytes(name.encode())
             (out / 'manifest.json').write_text(json.dumps({'chapters': [
@@ -51,7 +58,7 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
                     ('chapter.WAV', 'chapter.MP3', 'escape.wav', 'notes.txt'))]}))
             app = FastAPI(); app.include_router(editor.router)
             with patch.object(editor, 'DATA_DIR', str(root)), TestClient(app) as client:
-                for name in ('manifest.json', 'stray.wav', 'escape.wav', 'notes.txt'):
+                for name in ('manifest.json', 'stray.wav', 'notes.txt'):
                     with self.subTest(name=name):
                         self.assertEqual(404, client.get('/api/chapter_exports/file/' + name).status_code)
                 for name, mime in (('chapter.WAV', 'audio/wav'), ('chapter.MP3', 'audio/mpeg')):
@@ -59,3 +66,16 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
                     self.assertEqual(200, response.status_code)
                     self.assertEqual(mime, response.headers['content-type'])
                     self.assertEqual(name.encode(), response.content)
+                with self.subTest(name='escape.wav'):
+                    create_test_symlink_or_skip(out / 'escape.wav', root / 'outside.wav')
+                    self.assertEqual(404, client.get('/api/chapter_exports/file/escape.wav').status_code)
+
+    def test_invalid_windows_names_are_rejected_before_file_lookup(self):
+        for name in ('a:b.wav', 'C:chapter.wav', 'C:\\chapter.wav', '..\\chapter.wav',
+                     'CON.wav', 'con.mp3', 'NUL.wav', 'AUX.mp3', 'PRN.wav',
+                     'COM1.wav', 'LPT9.mp3', 'CONIN$.wav', 'COM\u00b9.wav'):
+            with self.subTest(name=name), patch.object(editor.os.path, 'isfile') as isfile:
+                with self.assertRaises(editor.HTTPException) as raised:
+                    editor._exported_chapter_path(name)
+                self.assertEqual(404, raised.exception.status_code)
+                isfile.assert_not_called()
