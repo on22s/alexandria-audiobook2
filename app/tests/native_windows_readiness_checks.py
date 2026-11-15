@@ -13,6 +13,7 @@ import traceback
 import unittest
 
 SUITES = (
+    'tests.test_native_windows_readiness_runner.NativePathSpellingTests',
     'tests.test_promotion_publication_transaction',
     'tests.test_adapter_checkpoint_transaction.AdapterCheckpointTransactionTests.test_hard_exit_before_commit_restores_original_after_commit_keeps_new_on_fresh_cli',
     'tests.test_adapter_checkpoint_transaction.AdapterCheckpointTransactionTests.test_interrupted_recovery_resumes_after_each_native_restore_and_terminal_cleanup',

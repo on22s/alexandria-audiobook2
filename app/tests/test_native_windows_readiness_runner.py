@@ -174,3 +174,123 @@ class PortabilityDependencyEncodingTests(unittest.TestCase):
         self.assertIn('numpy==2.2.6', output)
         self.assertTrue(any(line.startswith('peft==') for line in output))
         self.assertFalse(any(line.startswith('torch') for line in output))
+
+
+def get_native_directory_spelling(case, root):
+    import os
+    if os.name != 'nt':
+        return root / '..' / root.name
+    import ctypes
+    api = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+    api.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+    api.restype = ctypes.c_uint32
+    buffer = ctypes.create_unicode_buffer(32768)
+    size = api(str(root), buffer, len(buffer))
+    case.assertTrue(0 < size < len(buffer), 'Native short path lookup failed')
+    alias = Path(buffer.value)
+    case.assertNotEqual(alias, root, 'Native qualification requires distinct DOS short names')
+    case.assertTrue(os.path.samefile(alias, root))
+    return alias
+
+
+class NativePathSpellingTests(unittest.TestCase):
+    def test_zip_publication_accepts_native_short_directory_spelling(self):
+        import alexandria_zip_publication as publication
+        with tempfile.TemporaryDirectory(prefix='aa2 portability long directory ') as tmp:
+            alias = get_native_directory_spelling(self, Path(tmp).resolve())
+            output = alias / 'dataset.zip'
+            output.write_bytes(b'original archive')
+            with publication.ensure_zip_sources_readable([output]):
+                self.assertEqual(b'original archive', output.read_bytes())
+
+    def test_checkpoint_crash_fixture_matches_native_short_directory_spelling(self):
+        from tests.test_adapter_checkpoint_transaction import (
+            AdapterCheckpointTransactionTests, _crash_save, _files)
+        with tempfile.TemporaryDirectory(prefix='aa2 checkpoint long directory ') as tmp:
+            alias = get_native_directory_spelling(self, Path(tmp).resolve())
+            helper = AdapterCheckpointTransactionTests()
+            adapter = helper.fixture(alias)
+            before = _files(adapter)
+            self.assertEqual(79, helper.child(_crash_save, adapter, 'replacement'))
+            helper.recover(adapter)
+            self.assertEqual(before, _files(adapter))
+
+    def test_zip_publication_refuses_links_in_each_directory_component(self):
+        import stat
+        from types import SimpleNamespace
+        import alexandria_zip_publication as publication
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            parent = root / 'nested'
+            parent.mkdir()
+            output = parent / 'dataset.zip'
+            output.write_bytes(b'original archive')
+            original = Path.lstat
+            for target in (root, parent, output):
+                for mode, attributes in ((stat.S_IFLNK, 0), (stat.S_IFDIR, 0x400)):
+                    with self.subTest(component=target.name, mode=mode, attributes=attributes):
+                        def lstat(path):
+                            if path == target:
+                                return SimpleNamespace(st_mode=mode, st_file_attributes=attributes)
+                            return original(path)
+                        with patch.object(Path, 'lstat', autospec=True, side_effect=lstat), \
+                             patch.object(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400, create=True):
+                            with self.assertRaisesRegex(publication.ZipPublicationError, 'symlink'):
+                                with publication.ensure_zip_sources_readable([output]):
+                                    self.fail('Linked directory was admitted')
+
+    def test_zip_publication_refuses_native_directory_links(self):
+        import os
+        import stat
+        import alexandria_zip_publication as publication
+        with tempfile.TemporaryDirectory(prefix='aa2 native linked directory ') as tmp:
+            root = Path(tmp).resolve()
+            target = root / 'real'
+            target.mkdir()
+            (target / 'nested').mkdir()
+            source = root / 'source.zip'
+            source.write_bytes(b'original archive')
+            link = root / 'linked.zip'
+            if os.name == 'nt':
+                made = subprocess.run(['cmd', '/d', '/c', 'mklink', '/J', str(link), str(target)],
+                                      capture_output=True, text=True)
+                self.assertEqual(0, made.returncode, made.stdout + made.stderr)
+                self.assertTrue(link.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+            else:
+                link.symlink_to(target, target_is_directory=True)
+                self.assertTrue(link.is_symlink())
+            try:
+                for output in (link, link / 'dataset.zip', link / 'nested' / 'dataset.zip'):
+                    with self.subTest(output=str(output)):
+                        with self.assertRaisesRegex(publication.ZipPublicationError, 'symlink'):
+                            with publication.ensure_zip_sources_readable([output]):
+                                self.fail('Native linked source was admitted')
+                        with self.assertRaisesRegex(publication.ZipPublicationError, 'symlink'):
+                            with publication.ensure_zip_sources_readable([source], destination=output):
+                                self.fail('Native linked destination was admitted')
+                self.assertEqual(b'original archive', source.read_bytes())
+                self.assertEqual(['nested'], [path.name for path in target.iterdir()])
+            finally:
+                if os.name == 'nt':
+                    link.rmdir()
+                else:
+                    link.unlink()
+
+    def test_zip_source_aliases_share_admission_and_refuse_self_merge(self):
+        import alexandria_zip_publication as publication
+        with tempfile.TemporaryDirectory(prefix='aa2 zip alias collision ') as tmp:
+            root = Path(tmp).resolve()
+            alias = get_native_directory_spelling(self, root)
+            output = root / 'dataset.zip'
+            output.write_bytes(b'original archive')
+            spelled = alias / output.name
+            for source, destination in ((spelled, output), (output, spelled)):
+                with self.subTest(source=str(source)):
+                    with self.assertRaisesRegex(publication.ZipPublicationError, 'source ZIP family'):
+                        with publication.ensure_zip_sources_readable([source], destination=destination):
+                            self.fail('Source alias was admitted as a merge destination')
+            with patch.object(publication, 'ensure_zip_family_readable',
+                              wraps=publication.ensure_zip_family_readable) as admit:
+                with publication.ensure_zip_sources_readable([output, spelled]):
+                    self.assertEqual(1, admit.call_count)
+            self.assertEqual(b'original archive', output.read_bytes())

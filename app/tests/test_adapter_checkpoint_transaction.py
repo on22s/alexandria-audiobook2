@@ -37,6 +37,8 @@ def _files(root):
 
 
 def _crash_save(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move, journal, rmtree=subject._move, subject._save_journal, shutil.rmtree
     def moved(source,target):
@@ -56,6 +58,8 @@ def _crash_save(adapter, point):
 
 
 def _crash_recover(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,journal,rmtree=subject._move,subject._save_journal,shutil.rmtree
     def moved(source,target):
@@ -261,6 +265,8 @@ class CheckpointGenerationFamilyAdmissionTests(unittest.TestCase):
 
 
 def _crash_manifest_publish(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,journal,rmtree=subject._move,subject._save_journal,shutil.rmtree
     def moved(source,target):
@@ -279,6 +285,8 @@ def _crash_manifest_publish(adapter, point):
 
 
 def _crash_manifest_recover(adapter, point):
+    # Production canonicalizes the parent before moving the generation.
+    adapter = Path(adapter).parent.resolve() / Path(adapter).name
     import adapter_checkpoint_transaction as subject
     move,save=subject._move,subject.save_adapter_publication_bytes
     def moved(source,target):

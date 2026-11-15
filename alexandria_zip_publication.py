@@ -25,9 +25,18 @@ def _get_output(path):
     output = Path(os.path.abspath(path))
     if '\\' in output.name:
         raise ZipPublicationError('Invalid ZIP output name')
-    if output.parent.is_symlink() or output.parent.resolve() != output.parent:
-        raise ZipPublicationError('ZIP output directory must not contain a symlink')
-    return output
+    # Windows resolve() expands DOS short names, which are ordinary paths.
+    # Inspect the named directory components instead of comparing spellings.
+    for component in (*reversed(output.parents), output):
+        try:
+            info = component.lstat()
+        except FileNotFoundError:
+            continue  # A publication destination may not exist yet.
+        if (stat.S_ISLNK(info.st_mode)
+                or getattr(info, 'st_file_attributes', 0)
+                & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)):
+            raise ZipPublicationError('ZIP output path must not contain a symlink')
+    return output.resolve()
 
 
 def _get_names(output, names):
@@ -182,7 +191,7 @@ def ensure_zip_sources_readable(paths, expected=None, destination=None):
             if expected is not None and snapshot != expected[key]:
                 raise ZipPublicationError(f'ZIP family changed since collection: {path.name}')
             if destination is not None:
-                target = Path(os.path.abspath(destination))
+                target = _get_output(destination)
                 if target == output or (target.parent == output.parent and target.name in snapshot['files']):
                     raise ZipPublicationError('Merge destination belongs to a source ZIP family')
             result[key] = snapshot

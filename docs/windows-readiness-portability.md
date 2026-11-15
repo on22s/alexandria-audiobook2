@@ -17,6 +17,15 @@ promotion crashes/recovery, real file-lock admission, shared-delete replacement
 races, native shell launchers, HTTP framing, terminal escaping and path handling.
 Spawned adapter workers have a bounded 60-second dependency initialization
 handshake; their transaction hang deadline remains ten seconds after readiness.
+The portable suite also requires distinct native DOS short directory spellings
+on Windows. ZIP admission checks each ancestor for actual symlinks/reparse
+points rather than equating a different resolved spelling with a link. Admitted paths
+are canonicalized before family locks and merge-destination collision checks so
+short and long spellings retain one identity. A real native junction regression
+also checks source and destination rejection at the output leaf, parent, and
+deeper ancestor; this supplements the separate real-symlink gate. Checkpoint
+crash fixtures compare canonical parent spellings so each injected interruption
+still reaches the real publication/recovery move under short TEMP paths.
 It does not use live LLM, TTS or GPU inference.
 
 The `windows-portability` job in `tests.yml` runs this gate and retains its JSON
