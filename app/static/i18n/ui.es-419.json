@@ -5118,8 +5118,6 @@
   "voice.card.lora-adapter-aria": "Voz LoRA entrenada para {name}",
   "voice.card.lora-adapter-empty": "-- Selecciona un adaptador entrenado --",
   "voice.card.lora-style-aria": "Estilo de voz LoRA para {name}",
-  "voice.card.mark-persona": "Marcar persona como revisada",
-  "voice.card.mark-voice": "Marcar voz como revisada",
   "voice.card.more-candidates": "Generar más candidatos",
   "voice.card.more-candidates-aria": "Generar más candidatos de voz para {name}",
   "voice.card.not-downloaded": "(sin descargar)",
@@ -6142,5 +6140,17 @@
   "setup.llm.active.saved": "En uso: {active}",
   "casting.coverage.combination": "{book} · {value}: {count}",
   "casting.taxonomy.count": "{label} ({count})",
-  "setup.llm.active.loading": "Comprobando la ubicación guardada…"
+  "setup.llm.active.loading": "Comprobando la ubicación guardada…",
+  "voice.card.review-persona": "Revisar personaje",
+  "voice.card.review-voice": "Revisar voz",
+  "voice.card.persona-approved": "Personaje aprobado",
+  "voice.card.persona-reviewed": "Personaje revisado",
+  "voice.card.persona-rejected": "Personaje rechazado",
+  "voice.card.voice-approved": "Voz aprobada",
+  "voice.card.voice-reviewed": "Voz revisada",
+  "voice.card.voice-rejected": "Voz rechazada",
+  "voices.review.show-buttons": "Mostrar botones de revisión",
+  "voice.review.saved": "Se guardó el estado de revisión de {speaker}.",
+  "voice.review.save-error": "No se pudo actualizar la aprobación",
+  "voice.review.save-recovery": "Vuelve a cargar Voces para comprobar la aprobación actual antes de reintentar. Las asignaciones de voz siguen disponibles."
 }

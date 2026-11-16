@@ -2687,6 +2687,10 @@
                     <h4 class="m-0"><span class="step-indicator step-active">3</span><span data-i18n="voices.header.title">Voice Configuration</span></h4>
                     <div class="d-flex align-items-center gap-3">
                         <span id="voices-ready-count" class="text-muted small"></span>
+                        <label class="voice-review-toggle small" for="voices-show-reviews">
+                            <input type="checkbox" role="switch" id="voices-show-reviews" checked onchange="setVoiceReviewVisibility(this.checked)">
+                            <span data-i18n="voices.review.show-buttons">Show review buttons</span>
+                        </label>
                         <label class="small me-2" for="voices-state-filter" data-i18n="voices.filter.show-cards">Show cards</label>
                         <select id="voices-state-filter" class="form-select form-select-sm w-auto" onchange="onToggleHideReady()">
                             <option value="all" data-i18n="voices.filter.all">Show all</option><option value="states" data-i18n="voices.filter.states">Characters with state cards</option><option value="single" data-i18n="voices.filter.single">Characters without state cards</option>

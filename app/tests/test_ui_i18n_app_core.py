@@ -189,9 +189,10 @@ for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
  const markup=context.createVoiceCard({name:'SYNTHETIC',config:{persona_status:'future-state',voice_status:'approved'}},0);
  assert(markup.includes(context.t('voice.review.unknown','Unknown status')));
  assert(markup.includes('future-state'));
- const review=addNode({'class':'voice-review-labels','data-persona-status':'unreviewed','data-voice-status':'unassigned'},'unreviewed');
+ const review=addNode({'class':'voice-review-actions','data-persona-status':'unreviewed','data-voice-status':'unassigned'},'');
  context.renderVoiceLocaleChrome();
- assert(review.textContent.includes(context.getVoiceReviewStatusLabel('unreviewed')));
+ assert(review.getAttribute('aria-description').includes(context.getVoiceReviewStatusLabel('unreviewed')));
+ assert.equal(review.textContent, '');
 }
 ''')
 

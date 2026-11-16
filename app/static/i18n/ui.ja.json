@@ -5118,8 +5118,6 @@
   "voice.card.lora-adapter-aria": "{name} の学習済み LoRA の声",
   "voice.card.lora-adapter-empty": "-- 学習済みアダプターを選択 --",
   "voice.card.lora-style-aria": "{name} の LoRA 音声スタイル",
-  "voice.card.mark-persona": "ペルソナをレビュー済みにする",
-  "voice.card.mark-voice": "声をレビュー済みにする",
   "voice.card.more-candidates": "候補をさらに生成",
   "voice.card.more-candidates-aria": "{name} の声の候補をさらに生成",
   "voice.card.not-downloaded": "（未ダウンロード）",
@@ -6142,5 +6140,17 @@
   "setup.llm.active.saved": "使用中：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "保存済みの場所を確認中…"
+  "setup.llm.active.loading": "保存済みの場所を確認中…",
+  "voice.card.review-persona": "人物設定を確認",
+  "voice.card.review-voice": "音声を確認",
+  "voice.card.persona-approved": "人物設定を承認済み",
+  "voice.card.persona-reviewed": "人物設定を確認済み",
+  "voice.card.persona-rejected": "人物設定を却下済み",
+  "voice.card.voice-approved": "音声を承認済み",
+  "voice.card.voice-reviewed": "音声を確認済み",
+  "voice.card.voice-rejected": "音声を却下済み",
+  "voices.review.show-buttons": "確認ボタンを表示",
+  "voice.review.saved": "{speaker} の確認状態を保存しました。",
+  "voice.review.save-error": "承認状態の更新に失敗しました",
+  "voice.review.save-recovery": "音声画面を再読み込みし、現在の承認状態を確認してから再試行してください。音声の割り当ては引き続き利用できます。"
 }

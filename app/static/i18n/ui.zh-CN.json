@@ -5118,8 +5118,6 @@
   "voice.card.lora-adapter-aria": "{name} 的训练好的 LoRA 声音",
   "voice.card.lora-adapter-empty": "-- 选择训练好的适配器 --",
   "voice.card.lora-style-aria": "{name} 的 LoRA 声音风格",
-  "voice.card.mark-persona": "标记人物设定为已审阅",
-  "voice.card.mark-voice": "标记声音为已审阅",
   "voice.card.more-candidates": "生成更多候选",
   "voice.card.more-candidates-aria": "为 {name} 生成更多声音候选",
   "voice.card.not-downloaded": "（未下载）",
@@ -6142,5 +6140,17 @@
   "setup.llm.active.saved": "当前：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "正在检查已保存的位置…"
+  "setup.llm.active.loading": "正在检查已保存的位置…",
+  "voice.card.review-persona": "审核角色设定",
+  "voice.card.review-voice": "审核声音",
+  "voice.card.persona-approved": "角色设定已批准",
+  "voice.card.persona-reviewed": "角色设定已审核",
+  "voice.card.persona-rejected": "角色设定已拒绝",
+  "voice.card.voice-approved": "声音已批准",
+  "voice.card.voice-reviewed": "声音已审核",
+  "voice.card.voice-rejected": "声音已拒绝",
+  "voices.review.show-buttons": "显示审核按钮",
+  "voice.review.saved": "已保存 {speaker} 的审核状态。",
+  "voice.review.save-error": "审核状态更新失败",
+  "voice.review.save-recovery": "重新加载声音页面，确认当前审核状态后再试。声音分配仍然可用。"
 }
