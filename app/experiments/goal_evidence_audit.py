@@ -77,13 +77,17 @@ def _same_except_write_time(existing, document):
         return False
     if old_git.get("dirty") is not False or new_git.get("dirty") is not False:
         return False
-    old_stable["git"] = {k: v for k, v in old_git.items() if k not in ("commit", "branch")}
-    new_stable["git"] = {k: v for k, v in new_git.items() if k not in ("commit", "branch")}
+    ignored = {"commit", "branch"}
+    has_proofs = "harness_commit_proof" in old_git and "harness_commit_proof" in new_git
+    if has_proofs:
+        ignored.add("harness_commit_proof")
+    old_stable["git"] = {k: v for k, v in old_git.items() if k not in ignored}
+    new_stable["git"] = {k: v for k, v in new_git.items() if k not in ignored}
     if old_stable != new_stable:
         return False
     from experiments.provenance import check_harness_provenance
-    status, _ = check_harness_provenance(old)
-    return status == "verified"
+    return all(check_harness_provenance(value)[0] == "verified"
+               for value in ((old, new) if has_proofs else (old,)))
 
 
 def load_audit(path):

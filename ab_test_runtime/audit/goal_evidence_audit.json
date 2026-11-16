@@ -1050,17 +1050,22 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T17:48:04",
+  "written": "2026-11-15T18:32:06",
   "host": "RealMitch",
   "git": {
-   "commit": "b737428f16b64f37d5217b0619b59667c6f1f023",
+   "commit": "d0b6619708866d3ca98e8ef7072be750db2bbcd4",
    "branch": "fix/windows-line-ending-determinism",
-   "dirty": false,
-   "source_state": "clean",
+   "dirty": true,
+   "source_state": "dirty:87e03337baf9",
    "source_state_detail": null,
-   "modified_tracked_files": null,
+   "modified_tracked_files": [
+    "M  app/experiments/goal_evidence_audit.py",
+    "M  app/experiments/provenance.py",
+    "M  app/tests/test_experiment_provenance.py",
+    "M  app/tests/unit_test_inventory.json"
+   ],
    "untracked_harness_files": null,
-   "harness_sha256": "e89cd21456a75c4186e2b1304f842748c08d9ee2c79bb8ef9310afa269d706a8",
+   "harness_sha256": "19b65f13ed901d18b46fd32c0c869867c1a112789baf38650694b7e29d0beec8",
    "harness_sha256_scheme": "sha256-lf-v1"
   },
   "args": {

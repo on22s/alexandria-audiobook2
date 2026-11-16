@@ -1,4 +1,7 @@
+import base64
+import copy
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -71,6 +74,120 @@ class ReproducibleHarnessTests(unittest.TestCase):
         return {"git": {"commit": commit, "harness_sha256": fingerprint,
                         "dirty": dirty,
                         "harness_sha256_scheme": HARNESS_DIGEST_SCHEME}}
+
+    def commit_proof(self, commit):
+        def read(object_type, revision):
+            return base64.b64encode(subprocess.check_output(
+                ["git", "cat-file", object_type, revision], cwd=self.repo)).decode("ascii")
+        return {"scheme": "git-commit-tree-v1", "commit": read("commit", commit),
+                "trees": [read("tree", commit + "^{tree}"),
+                          read("tree", commit + ":app")]}
+
+    def squash_clone(self):
+        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=self.repo, check=True)
+        base = self.commit("base\n")
+        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True)
+        (self.harness / "probe.py").write_bytes(b"captured\r\n")
+        subprocess.run(["git", "add", "app/experiments/probe.py"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "captured"], cwd=self.repo, check=True)
+        captured = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=self.repo))
+        fingerprint = _source_fingerprint(str(self.harness))
+        self.assertEqual(fingerprint, get_harness_sha256_at_commit(str(self.repo), captured))
+        block = self.block(captured, fingerprint, False)
+        block["git"]["harness_commit_proof"] = self.commit_proof(captured)
+        (self.repo / "audit.json").write_text(json.dumps(block), encoding="utf-8")
+        subprocess.run(["git", "add", "audit.json"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "capture audit"], cwd=self.repo, check=True)
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True)
+        subprocess.run(["git", "merge", "--squash", "feature"], cwd=self.repo,
+                       capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "squashed feature"], cwd=self.repo, check=True)
+        clone = self.repo / "main-only-clone"
+        subprocess.run(["git", "clone", "-q", "--no-local", "--single-branch", "--branch", "main",
+                        "--config", "core.autocrlf=false", str(self.repo), str(clone)], check=True)
+        missing = subprocess.run(["git", "cat-file", "-e", captured + "^{commit}"],
+                                 cwd=clone, capture_output=True)
+        self.assertNotEqual(0, missing.returncode, "clone accidentally retained the PR-only commit")
+        return clone, block, base
+
+    def test_clean_crlf_audit_verifies_after_squash_without_pr_commit_objects(self):
+        clone, block, unused_base = self.squash_clone()
+        expected = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True).strip()
+        self.assertEqual("verified", check_harness_provenance(block, str(clone))[0])
+        self.assertEqual(expected, get_reproducible_harness_source(block, str(clone)))
+        self.assertNotEqual(0, subprocess.run(
+            ["git", "cat-file", "-e", block["git"]["commit"] + "^{commit}"],
+            cwd=clone, capture_output=True).returncode)
+        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=clone))
+
+    def test_squash_proof_cannot_rescue_false_commit_hash_content_or_source_state(self):
+        clone, block, base = self.squash_clone()
+        mutations = [
+            ("false commit", lambda git: git.update(commit="0" * 40)),
+            ("known inconsistent commit", lambda git: git.update(
+                commit=base, harness_commit_proof=self.commit_proof(base))),
+            ("wrong content", lambda git: git.update(harness_sha256="0" * 64)),
+            ("unknown source", lambda git: git.update(dirty=None)),
+            ("dirty source", lambda git: git.update(dirty=True)),
+            ("missing proof", lambda git: git.pop("harness_commit_proof")),
+            ("legacy scheme", lambda git: git.pop("harness_sha256_scheme")),
+            ("wrong proof scheme", lambda git: git["harness_commit_proof"].update(scheme="future")),
+            ("invalid base64", lambda git: git["harness_commit_proof"].update(commit="!")),
+            ("missing tree", lambda git: git["harness_commit_proof"]["trees"].pop()),
+            ("changed tree", lambda git: git["harness_commit_proof"]["trees"].__setitem__(
+                0, base64.b64encode(b"different tree").decode("ascii"))),
+        ]
+        for name, mutate in mutations:
+            with self.subTest(case=name):
+                changed = copy.deepcopy(block)
+                mutate(changed["git"])
+                self.assertNotEqual("verified", check_harness_provenance(changed, str(clone))[0])
+
+    def test_provenance_captures_commit_tree_proof_only_for_clean_source(self):
+        from experiments.provenance import provenance
+        commit = self.commit("capture\n")
+        fingerprint = get_harness_sha256_at_commit(str(self.repo), commit)
+        for dirty in (False, True, None):
+            with self.subTest(dirty=dirty), \
+                    patch("experiments.provenance.REPO", str(self.repo)), \
+                    patch("experiments.manifest._git_state", return_value=self.block(
+                        commit, fingerprint, dirty)["git"]):
+                captured = provenance("fixture.py")
+                self.assertEqual(dirty is False, "harness_commit_proof" in captured["git"])
+                if dirty is False:
+                    self.assertEqual(self.commit_proof(commit), captured["git"]["harness_commit_proof"])
+
+    def test_squash_proof_recovers_historical_source_but_not_unrelated_objects(self):
+        clone, block, base = self.squash_clone()
+        squash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True).strip()
+        (clone / "app/experiments/probe.py").write_text("later\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=clone, check=True)
+        subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                        "commit", "-q", "-m", "later harness"], cwd=clone, check=True)
+        self.assertEqual(squash, get_reproducible_harness_source(block, str(clone)))
+        subprocess.run(["git", "checkout", "-q", "--detach", base], cwd=clone, check=True)
+        self.assertIsNone(get_reproducible_harness_source(block, str(clone)))
+
+    def test_verified_commit_proofs_do_not_churn_an_identical_audit(self):
+        from experiments.goal_evidence_audit import _same_except_write_time
+        first = self.commit("unchanged\n")
+        fingerprint = get_harness_sha256_at_commit(str(self.repo), first)
+        old = self.block(first, fingerprint, False)
+        old["git"]["harness_commit_proof"] = self.commit_proof(first)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "new ref only"],
+                       cwd=self.repo, check=True)
+        second = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        new = self.block(second, fingerprint, False)
+        new["git"]["harness_commit_proof"] = self.commit_proof(second)
+        verify = check_harness_provenance
+        with patch("experiments.provenance.check_harness_provenance",
+                   side_effect=lambda value: verify(value, str(self.repo))):
+            self.assertTrue(_same_except_write_time(
+                {"rows": [], "provenance": old}, {"rows": [], "provenance": new}))
+            new["git"]["harness_commit_proof"]["commit"] = "!"
+            self.assertFalse(_same_except_write_time(
+                {"rows": [], "provenance": old}, {"rows": [], "provenance": new}))
 
     def test_bare_import_retains_script_metadata_without_the_app_package(self):
         script = """import sys
