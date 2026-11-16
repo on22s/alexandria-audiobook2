@@ -2674,7 +2674,8 @@
     , "tests.test_casting_catalog.CastingMarkTests.test_marks_merge_and_persist"
   ]
   , "test_casting_layout": [
-    "tests.test_casting_layout.CastingLayoutTests.test_research_assets_load_in_order_and_reuse_host_theme"
+    "tests.test_casting_layout.CastingLayoutTests.test_play_all_is_at_the_top_of_the_results_list"
+    , "tests.test_casting_layout.CastingLayoutTests.test_research_assets_load_in_order_and_reuse_host_theme"
     , "tests.test_casting_layout.CastingLayoutTests.test_research_sidebar_and_results_are_siblings_with_stable_hooks"
   ]
   , "test_casting_research": [
