@@ -1050,17 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-16T05:18:49",
+  "written": "2026-11-16T07:20:52",
   "host": "RealMitch",
   "git": {
-   "commit": "fcc84529ffe81800d59a1891c021752189e792db",
-   "branch": "fix/1978-failure-log-button",
+   "commit": "6647f15266ede2528961bc62a51198441d55a087",
+   "branch": "fix/flaky-dataset-delta-queue-test",
    "dirty": true,
-   "source_state": "dirty:218bc7d17e10",
+   "source_state": "dirty:8638eaf3192d",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/static/index.html",
-    "M  app/tests/test_bug_report_logging.py"
+    "M  app/tests/test_dataset_delta_queue_http.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f49202d6532a833735867c4ef2721903035a4c9ba3c0b1c0174494163d3d0244",

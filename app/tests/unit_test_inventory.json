@@ -4082,6 +4082,8 @@
     "tests.test_dataset_create_dialog_js.DatasetCreateDialogJsTests.test_native_callback_validation_and_selection_ownership"
   ],
   "test_dataset_delta_queue_http": [
+    "tests.test_dataset_delta_queue_http.DatasetDeltaQueueHttpTests.test_held_save_refuses_a_flush_that_never_reaches_the_response",
+    "tests.test_dataset_delta_queue_http.DatasetDeltaQueueHttpTests.test_held_save_releases_the_response_when_the_interleaved_assertion_fails",
     "tests.test_dataset_delta_queue_http.DatasetDeltaQueueHttpTests.test_real_payload_reduction_coalescing_revision_chaining_structural_saves_and_conflict"
   ],
   "test_dataset_html_render_js": [
@@ -4185,6 +4187,8 @@
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_restore_active_dataset_selects_exact_owner_and_awaits_its_load",
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_running_or_starting_batch_keeps_project_and_poller",
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_sample_delete_cancel_and_changed_owner_preserve_rows",
+    "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_scenario_must_finish_its_awaited_assertions",
+    "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_scenario_timeout_reports_the_last_phase",
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_scientific_seed_values_reach_generation_and_export_without_truncation",
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_status_responses_cannot_overwrite_pending_or_completed_optimization",
     "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_training_save_flushes_rows_and_marks_later_edits_or_regeneration_stale",
