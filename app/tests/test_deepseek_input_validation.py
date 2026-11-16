@@ -1,5 +1,6 @@
 """Invalid inputs fail before publication; cached valid inputs track edits."""
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -14,6 +15,7 @@ import evaluation_reviews
 import gold_set_builder
 import gpu_progress
 import prompt_loader
+import utils
 import voice_clustering
 from pydantic import ValidationError
 from routers.lora import ReviewSubmitRequest
@@ -21,6 +23,111 @@ from tests.test_evaluation_reviews import _mk, _fp
 
 
 class DeepSeekInputValidationTests(unittest.TestCase):
+    def test_prompt_snapshot_aba_does_not_cache_parsed_bytes_under_another_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            first = b'alpha---SEPARATOR---user'
+            second = b'bravo---SEPARATOR---user'
+            path.write_bytes(first)
+            original = path.stat()
+            cache = {}
+
+            @contextlib.contextmanager
+            def alternate(*args, **kwargs):
+                path.write_bytes(second)
+                with open(*args, **kwargs) as source:
+                    yield source
+                path.write_bytes(first)
+
+            with patch('os.stat', return_value=original), patch('os.fstat', return_value=original), \
+                 patch('utils.get_file_cache_token', return_value=None, create=True):
+                with patch.object(prompt_loader, 'open', side_effect=alternate, create=True):
+                    self.assertEqual(('bravo', 'user'),
+                                     prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+                self.assertEqual(hashlib.sha256(second).digest(), cache['content_hash'])
+                self.assertEqual(first, path.read_bytes())
+                self.assertEqual(('alpha', 'user'),
+                                 prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+                self.assertEqual(hashlib.sha256(first).digest(), cache['content_hash'])
+
+    def test_warm_prompt_cache_does_not_read_or_hash_unchanged_content(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_bytes(b'alpha---SEPARATOR---user')
+            cache = {}
+            expected = prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            with patch('utils.open', side_effect=AssertionError('redundant content read'), create=True), \
+                 patch('utils.hashlib.sha256', side_effect=AssertionError('redundant hash')):
+                self.assertEqual(expected, prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+
+    def test_binary_snapshot_preserves_universal_newline_prompt_decoding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            payload = b'first\r\nline\rlast---SEPARATOR---user\r\nline'
+            path.write_bytes(payload)
+            cache = {}
+            self.assertEqual(('first\nline\nlast', 'user\nline'),
+                             prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+            self.assertEqual(hashlib.sha256(payload).digest(), cache['content_hash'])
+
+    def test_unchanged_snapshot_refreshes_a_changed_prompt_token(self):
+        for payload, token_field in ((b'alpha---SEPARATOR---user', 'file_token'),
+                                     (b'malformed', 'malformed_token')):
+            with self.subTest(token_field=token_field), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp, 'prompts.txt')
+                path.write_bytes(payload)
+                cache = {}
+
+                def load():
+                    if token_field == 'malformed_token':
+                        with self.assertRaisesRegex(RuntimeError, 'malformed'):
+                            prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+                    else:
+                        self.assertEqual(('alpha', 'user'),
+                                         prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+
+                load()
+                with patch('utils.get_file_cache_token', return_value=('changed',)):
+                    load()
+                    self.assertEqual(('changed',), cache[token_field])
+                    with patch('utils.hashlib.sha256', side_effect=AssertionError('redundant hash')):
+                        load()
+
+    def test_native_change_query_failure_requires_hashing_instead_of_a_cache_hit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_bytes(b'alpha---SEPARATOR---user')
+            cache = {}
+            load = lambda: prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            self.assertEqual(('alpha', 'user'), load())
+            original = path.stat()
+            with patch('utils.sys.platform', 'win32'), \
+                 patch('utils._get_windows_file_cache_token', side_effect=OSError('query failed')), \
+                 patch('os.stat', return_value=original), patch('os.fstat', return_value=original):
+                self.assertIsNone(utils.get_file_cache_token(path))
+                path.write_bytes(b'bravo---SEPARATOR---user')
+                self.assertEqual(('bravo', 'user'), load())
+                with patch('utils.open', side_effect=PermissionError('fixture denied'), create=True), \
+                     patch.object(prompt_loader, 'open', side_effect=PermissionError('fixture denied'), create=True):
+                    with self.assertRaisesRegex(RuntimeError, 'Error reading'):
+                        load()
+
+    def test_cheap_change_token_tracks_a_preserved_mtime_in_place_edit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'content.bin')
+            path.write_bytes(b'alpha')
+            original = path.stat()
+            token = utils.get_file_cache_token(path)
+            self.assertIsNotNone(token)
+            time.sleep(0.05)
+            path.write_bytes(b'bravo')
+            os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+            self.assertNotEqual(token, utils.get_file_cache_token(path))
+            if os.name == 'nt':
+                current = path.stat()
+                self.assertEqual((original.st_ino, original.st_size, original.st_mtime_ns, original.st_ctime_ns),
+                                 (current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns))
+
     def test_missing_timezone_data_keeps_measured_queue_eta(self):
         with tempfile.TemporaryDirectory() as tmp:
             now = time.monotonic()
@@ -94,3 +201,73 @@ class DeepSeekInputValidationTests(unittest.TestCase):
             self.assertEqual(('other', 'user'), load())
             with patch.object(prompt_loader, 'open', side_effect=AssertionError('redundant read'), create=True):
                 self.assertEqual(('other', 'user'), load())
+
+    def test_prompt_cache_checks_content_when_all_stat_fields_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_text('first---SEPARATOR---user')
+            original = path.stat()
+            cache = {}
+            load = lambda: prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            with patch('os.stat', return_value=original), patch('os.fstat', return_value=original), \
+                 patch('utils.get_file_cache_token', return_value=None):
+                self.assertEqual(('first', 'user'), load())
+                path.write_text('other---SEPARATOR---user')
+                self.assertEqual(('other', 'user'), load())
+                path.write_text('other---SEPARATOR---    ')
+                with self.assertRaisesRegex(RuntimeError, 'malformed'):
+                    load()
+                path.write_text('fixed---SEPARATOR---user')
+                self.assertEqual(('fixed', 'user'), load())
+                self.assertEqual(4, len(cache))
+
+    def test_content_version_hashes_all_bytes_in_bounded_blocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'content.bin')
+            payload = b'x' * (128 * 1024) + b'end'
+            path.write_bytes(payload)
+            with path.open('rb') as source, \
+                 patch.object(source, 'read', wraps=source.read) as read, \
+                 patch('utils.open', return_value=source, create=True):
+                captured, (version, digest, token) = utils.read_file_snapshot(path)
+            self.assertEqual(payload, captured)
+            self.assertEqual(hashlib.sha256(payload).digest(), digest)
+            self.assertEqual(len(payload), version[2])
+            self.assertEqual(4, read.call_count)
+            self.assertTrue(all(call.args == (64 * 1024,) for call in read.call_args_list))
+
+    def test_content_version_refuses_a_file_changed_during_hashing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'content.bin')
+            path.write_bytes(b'first')
+            original = path.stat()
+
+            def changed_stat(descriptor):
+                path.write_bytes(b'changed length')
+                return original
+
+            with patch('utils.os.fstat', side_effect=changed_stat):
+                with self.assertRaisesRegex(OSError, 'File changed while capturing snapshot'):
+                    utils.read_file_snapshot(path)
+
+    def test_prompt_read_race_does_not_publish_a_cache_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_text('first---SEPARATOR---user')
+            cache = {}
+            load = lambda: prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            self.assertEqual(('first', 'user'), load())
+            before = dict(cache)
+            path.write_text('other-longer---SEPARATOR---user')
+
+            @contextlib.contextmanager
+            def read_then_edit(*args, **kwargs):
+                with open(*args, **kwargs) as source:
+                    yield source
+                path.write_text('third---SEPARATOR---user')
+
+            with patch('prompt_loader.open', side_effect=read_then_edit, create=True):
+                with self.assertRaisesRegex(RuntimeError, 'File changed while capturing snapshot'):
+                    load()
+            self.assertEqual(before, cache)
+            self.assertEqual(('third', 'user'), load())

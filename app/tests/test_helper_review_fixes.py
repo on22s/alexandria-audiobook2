@@ -265,9 +265,12 @@ class PromptFileFailureTests(unittest.TestCase):
                     before = dict(cache)
                     with self.assertRaisesRegex(RuntimeError, 'malformed'):
                         load_prompts_file(path, num_parts, 'missing', 'malformed', cache)
-                    self.assertEqual(before, {key: value for key, value in cache.items() if key != 'malformed_version'})
+                    self.assertEqual(before, {key: value for key, value in cache.items()
+                                              if key not in ('malformed_version', 'malformed_hash', 'malformed_token')})
                     stat = path.stat()
-                    self.assertEqual((stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns), cache['malformed_version'])
+                    self.assertEqual(((stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns),
+                                      utils.hashlib.sha256(path.read_bytes()).digest()),
+                                     (cache['malformed_version'], cache['malformed_hash']))
             path.write_text(' system ---SEPARATOR--- user ', encoding='utf-8')
             cache = {}
             self.assertEqual(('system', 'user'), load_prompts_file(path, 2, 'missing', 'malformed', cache))

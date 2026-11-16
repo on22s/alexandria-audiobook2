@@ -13,8 +13,96 @@ import hmac
 import base64
 import uuid
 import unicodedata
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
+
+
+def _get_stat_file_identity(snapshot):
+    fields = ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
+    return tuple(getattr(snapshot, field) for field in fields)
+
+
+@lru_cache(maxsize=1)
+def _get_windows_file_cache_api():
+    import ctypes
+    from windows_export_staging_directory import _api, _FileInformation
+
+    class FileBasicInformation(ctypes.Structure):
+        _fields_ = [('created', ctypes.c_int64), ('accessed', ctypes.c_int64),
+                    ('written', ctypes.c_int64), ('changed', ctypes.c_int64),
+                    ('attributes', ctypes.c_uint32)]
+
+    api = _api()
+    api.GetFileInformationByHandleEx.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                                ctypes.c_void_p, ctypes.c_uint32]
+    api.GetFileInformationByHandleEx.restype = ctypes.c_int
+    return api, FileBasicInformation, _FileInformation
+
+
+def _get_windows_file_cache_token(path, descriptor):
+    import ctypes
+    import msvcrt
+
+    api, basic_type, information_type = _get_windows_file_cache_api()
+    owned = descriptor is None
+    handle = (api.CreateFileW(os.fsdecode(path), 0x80, 7, None, 3, 0, None)
+              if owned else msvcrt.get_osfhandle(descriptor))
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        basic, information = basic_type(), information_type()
+        if not api.GetFileInformationByHandleEx(handle, 0, ctypes.byref(basic), ctypes.sizeof(basic)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if not api.GetFileInformationByHandle(handle, ctypes.byref(information)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return (information.volume, (information.index_high << 32) | information.index_low,
+                (information.size_high << 32) | information.size_low, basic.written, basic.changed)
+    finally:
+        if owned and not api.CloseHandle(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+
+def get_file_cache_token(path, *, descriptor=None):
+    """Return a cheap change identity, or None to require a content snapshot.
+
+    POSIX ctime is a change time. Windows requires FileBasicInfo.ChangeTime,
+    not os.stat's creation time; failed native queries never authorize a hit.
+    """
+    if sys.platform == 'win32':
+        try:
+            return _get_windows_file_cache_token(path, descriptor)
+        except (OSError, AttributeError):
+            return None
+    return _get_stat_file_identity(os.stat(path) if descriptor is None else os.fstat(descriptor))
+
+
+def read_file_snapshot(path, *, opener=None):
+    """Capture bytes and (stat identity, SHA-256, cheap token) from one read.
+
+    Hash and parsing consumers use the same bytes. Reads use 64 KiB blocks;
+    O(file size) snapshot memory is temporary and is never stored in caches.
+    """
+    before = os.stat(path)
+    version = _get_stat_file_identity(before)
+    token = get_file_cache_token(path)
+    digest = hashlib.sha256()
+    blocks = []
+    with (opener or open)(path, 'rb') as source:
+        opened = os.fstat(source.fileno())
+        for block in iter(lambda: source.read(64 * 1024), b''):
+            digest.update(block)
+            blocks.append(block)
+        after = os.fstat(source.fileno())
+        descriptor_token = get_file_cache_token(path, descriptor=source.fileno())
+    current = os.stat(path)
+    current_token = get_file_cache_token(path)
+    payload = b''.join(blocks)
+    if (len(payload) != before.st_size or
+            any(_get_stat_file_identity(snapshot) != version for snapshot in (opened, after, current)) or
+            token is not None and (descriptor_token != token or current_token != token)):
+        raise OSError(errno.EAGAIN, 'File changed while capturing snapshot', os.fspath(path))
+    return payload, (version, digest.digest(), token)
 
 
 def get_unsafe_text_controls(text):
@@ -243,10 +331,11 @@ def secure_filename(filename: str) -> str:
 
 # --- Atomic JSON write (write-to-temp + rename) ---
 
-def safe_load_json(path, default=None):
+def safe_load_json(path, default=None, *, content=None):
     """Load JSON from `path`, returning `default` if missing, empty, or corrupted.
 
-    If `default` is a dict/list, a successfully-parsed value of a different
+    Optional binary `content` is an already validated snapshot, parsed without
+    reopening the path. If `default` is a dict/list, a value of a different
     type (e.g. a config.json truncated to "null" or "[]") is also treated as
     corrupted. Most callers pass a dict/list default and call .get()/iterate
     on the result immediately with no type check of their own - without this,
@@ -256,11 +345,14 @@ def safe_load_json(path, default=None):
     (e.g. to distinguish a missing file from a non-dict one themselves) should
     pass default=None, which skips this check entirely.
     """
-    if not os.path.exists(path):
+    if content is None and not os.path.exists(path):
         return default
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        if content is None:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = json.loads(content.decode('utf-8'))
     except (OSError, json.JSONDecodeError, ValueError) as e:
         logger.warning('Corrupted/unreadable JSON; using default (%s)', type(e).__name__)
         from review_startup import record_failure
