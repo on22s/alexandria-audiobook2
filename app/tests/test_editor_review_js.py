@@ -50,6 +50,15 @@ let completed=false;process.on('beforeExit',()=>assert(completed,'scenario must 
 
 
 class EditorReviewJsTests(unittest.TestCase):
+    def test_phone_review_stays_compact_only_when_no_actionable_findings(self):
+        self.run_js(r'''
+const details=el('editor-review-details','details');details.open=false;
+context.API.get=async()=>({book_token:context.chunkSnapshotBookToken,revision:context.chunkSnapshotRevision,rows:context.cachedChunks.map(chunk=>({id:chunk.id,uid:chunk.uid,issues:[],audio:'not_rendered',drift:'not_rendered'}))});
+await context.refreshEditorReview();assert.equal(details.open,false);
+context.API.get=async()=>facts();await context.refreshEditorReview();assert.equal(details.open,true);
+details.open=false;context.markEditorReviewStale();assert.equal(details.open,true);
+''')
+
     def test_outlier_input_error_keeps_unrelated_findings_visible(self):
         self.run_js(r'''
 const savedFacts=facts;context.API.get=async()=>({...savedFacts(),outlier_error:'Cannot read voice_config.json; restore or repair it before checking.'});

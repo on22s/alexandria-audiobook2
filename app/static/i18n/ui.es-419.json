@@ -5655,5 +5655,15 @@
   "script.ingest.obsolete": "La instantánea de importación está desactualizada",
   "help.action.copyvoicelabfailuredetails": "Copia los detalles técnicos mostrados, incluidas las rutas privadas. Revísalos y oculta los datos privados antes de compartirlos.",
   "help.action.openvoicelabsettings": "Abre los ajustes del proceso para corregir las rutas de dependencias faltantes sin iniciar tareas.",
-  "help.action.openscriptworkspace": "Abre Guion para elegir una fuente o revisar su estado de publicación. No inicia la generación."
+  "help.action.openscriptworkspace": "Abre Guion para elegir una fuente o revisar su estado de publicación. No inicia la generación.",
+  "setup.phone.tools": "Ayuda de idioma y herramientas de configuración",
+  "casting.phone.filters": "Filtros y herramientas de biblioteca",
+  "casting.phone.tools": "Selección, reproducción y repartos guardados",
+  "casting.phone.voices": "Abrir Voces",
+  "casting.phone.designer": "Abrir Diseñador",
+  "casting.phone.voices-help": "Abre Voces para generar las personalidades de los personajes de este libro.",
+  "casting.phone.designer-help": "Abre Diseñador para crear y guardar una voz sintética.",
+  "editor.phone.review": "Detalles y comprobaciones de revisión",
+  "editor.phone.summary": "Hay {count} líneas por revisar. Las líneas sin audio o sin comprobar no están aprobadas.",
+  "setup.phone.workflow": "Accesos del flujo de trabajo"
 }

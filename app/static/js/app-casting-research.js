@@ -1169,6 +1169,11 @@
             ui.selectionCount.textContent = scope;
             const blocked = writesBlocked();
             const count = st.selection.size;
+            const tools = document.querySelector('#casting-tool-details');
+            if (tools) {
+                tools.dataset.actionable = String(count > 0);
+                if (count) { tools.open = true; }
+            }
             for (const control of [ui.selectFiltered, ui.selectPage, ui.invert, ui.clearSelection]) {
                 control.disabled = blocked;
             }
