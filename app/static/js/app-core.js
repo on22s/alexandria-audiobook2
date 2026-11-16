@@ -5282,6 +5282,33 @@
             }
         }
 
+        function getVoiceSectionStorageKey(speaker, version) {
+            return 'alex-voice-section-collapsed-' + encodeURIComponent(JSON.stringify([speaker, version || '', 'persona-review']));
+        }
+
+        function isVoiceSectionOpen(speaker, version) {
+            const key = getVoiceSectionStorageKey(speaker, version);
+            if (window._voiceSectionStates?.has(key)) { return window._voiceSectionStates.get(key); }
+            try { return window.localStorage.getItem(key) !== 'true'; } catch (error) { return true; }
+        }
+
+        function saveVoiceSectionState(details) {
+            if (!details.isConnected) { return; }
+            const card = details.closest('.voice-card');
+            const key = getVoiceSectionStorageKey(card.dataset.voice, card.dataset.version);
+            if (!window._voiceSectionStates) { window._voiceSectionStates = new Map(); }
+            window._voiceSectionStates.set(key, details.open);
+            details.querySelector('summary').setAttribute('aria-expanded', String(details.open));
+            try { window.localStorage.setItem(key, String(!details.open)); } catch (error) { }
+        }
+
+        function setVoiceSectionsOpen(open) {
+            for (const details of document.querySelectorAll('#voices-list .voice-card-advanced')) {
+                details.open = open;
+                saveVoiceSectionState(details);
+            }
+        }
+
         function createVoiceCard(voice, index) {
             const roster = ensureVoiceRosterCache();
             const config = voice.config || {};
@@ -5292,6 +5319,7 @@
                 ? [config.voice, ...AVAILABLE_VOICES] : AVAILABLE_VOICES;
 
             const ready = !!config.ready;
+            const sectionOpen = isVoiceSectionOpen(voice.name, voice.version_id);
             return `
                 <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-version="${escapeHtml(voice.version_id || '')}" data-has-states="${voice.persona_states?.length ? '1' : '0'}" data-ready="${ready ? '1' : '0'}">
                     <div class="card-body">
@@ -5303,8 +5331,8 @@
                                     <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
                                 </div>
                                 <p class="small voice-next-step">${config.ready ? uiMessageMarkup('voices.essential.ready', 'Ready is explicitly selected. Review persona and voice approvals separately.') : uiMessageMarkup('voices.essential.next', 'Next: pick a voice, listen, then mark Ready.')}</p>
-                                <details class="voice-card-advanced workflow-disclosure">
-                                    <summary>${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
+                                <details class="voice-card-advanced workflow-disclosure" ${sectionOpen ? 'open' : ''} ontoggle="saveVoiceSectionState(this)">
+                                    <summary data-voice-focus-key="persona-review" aria-expanded="${sectionOpen}">${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${uiMessageMarkup('voice.card.regenerate', 'Regenerate persona')}</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${uiMessageMarkup('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -5759,7 +5787,7 @@
                 || (document.activeElement !== document.body && document.activeElement !== snapshot.control)) { return; }
             const card = Array.from(container.querySelectorAll('.voice-card')).find(row => row.dataset.voice === snapshot.speaker && (row.dataset.version || '') === (snapshot.version || ''));
             if (!card) { return; }
-            const controls = Array.from(card.querySelectorAll('button,input,select,textarea'));
+            const controls = Array.from(card.querySelectorAll('button,input,select,textarea,summary'));
             const control = controls.includes(snapshot.control) ? snapshot.control : controls.find(field => field.tagName === snapshot.tag
                 && (snapshot.key ? field.getAttribute('data-voice-focus-key') === snapshot.key
                     : snapshot.label ? field.getAttribute('aria-label') === snapshot.label
@@ -6022,6 +6050,9 @@
                 }
                 updateNarratorPreviewFields();
                 const container = document.getElementById('voices-list');
+                for (const details of container.querySelectorAll?.('.voice-card-advanced') || []) {
+                    saveVoiceSectionState(details);
+                }
                 const focus = getVoiceListFocusSnapshot(container, _voiceCardsBookToken);
                 const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
                 if (voices.length === 0) {
