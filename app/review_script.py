@@ -193,6 +193,7 @@ def wait_for_vram_headroom(fail_fast=False):
     waited = 0
     last_reported = 0
     while waited < VRAM_MAX_WAIT:
+        ensure_review_not_cancelled()
         time.sleep(VRAM_POLL_INTERVAL)
         waited += VRAM_POLL_INTERVAL
         
@@ -1502,6 +1503,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     by a distinct terminal observer event; those batches remain incomplete.
     """
     def ensure_secondary_admission(profile):
+        ensure_review_not_cancelled()
         if params.request_admission is not None and not params.request_admission(profile):
             return False
         config = {"llm": profile["config"],
@@ -1813,7 +1815,20 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
     return stats
 
 
+def ensure_review_not_cancelled():
+    """Stop between review transactions, retaining the last durable checkpoint."""
+    path = os.environ.get('ALEXANDRIA_REVIEW_CANCEL_FILE')
+    if path:
+        try:
+            os.stat(path)
+        except FileNotFoundError:
+            return
+        print('Review cancelled; saved checkpoint retained.', flush=True)
+        raise SystemExit(0)
+
+
 def main():
+    ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
@@ -2118,6 +2133,7 @@ def main():
 
         unreviewed_remainder = []
         for offset_idx, start in enumerate(range(resume_offset, len(entries), batch_size)):
+            ensure_review_not_cancelled()
             batch_index = completed_batches + 1 + offset_idx
 
             end = min(len(entries), start + batch_size)
@@ -2251,6 +2267,7 @@ def main():
         # fast when VRAM is already full before any batch (#1114).
         first_check_done = threading.Event()
         for wave_start in range(0, len(remaining_batches), wave_size):
+            ensure_review_not_cancelled()
             wave_batches = remaining_batches[wave_start:wave_start + wave_size]
             wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
             # Every batch in this wave gets the SAME previous_tail (from the end of
@@ -2265,6 +2282,7 @@ def main():
                 print(f"\nReviewing batch {wave_indices[0]}/{total_batches} ({len(wave_batches[0])} entries)...")
 
             def _run_one(item):
+                ensure_review_not_cancelled()
                 i, batch = item
                 if is_active_llm_on_this_gpu():
                     with vram_lock:
@@ -2420,6 +2438,7 @@ def main():
     # Speaker de-duplication: merge aliases that are the same character.
     # Skipped on a VRAM abort since this step makes additional LLM calls,
     # which is exactly what we're trying to avoid when VRAM is already low.
+    ensure_review_not_cancelled()
     dedupe_map = {}
     registry_staging = ({} if ((active_review or saved_review) and args.alias_registry
                                and args.dedupe_speakers) else None)
@@ -2455,6 +2474,7 @@ def main():
     # Keep active script identity and old chunks in the same recoverable commit.
     if active_review:
         from script_selection_binding import publish_controlled_script_edit
+        ensure_review_not_cancelled()
         moved = publish_controlled_script_edit(data_dir, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
@@ -2464,6 +2484,7 @@ def main():
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     elif saved_review:
         from script_selection_binding import publish_saved_script_edit
+        ensure_review_not_cancelled()
         moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
@@ -2472,6 +2493,7 @@ def main():
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
+        ensure_review_not_cancelled()
         atomic_json_write(output_entries, output_path)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the

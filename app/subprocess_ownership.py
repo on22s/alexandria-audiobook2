@@ -71,8 +71,15 @@ def send_subprocess_signal(proc_or_pid, sig, termination_grace=SUBPROCESS_TERMIN
 
     Accepts a Popen or a bare pid. Raises ProcessLookupError/OSError like
     proc.send_signal so existing callers' handlers still catch an already-exited
-    process. Windows termination uses taskkill's tree operation; other Windows
-    signals and unresolved POSIX groups retain direct-process dispatch."""
+    process. Windows review workers first receive their private cooperative
+    cancel file; other Windows termination retains the job/taskkill operation.
+    Other signals and unresolved POSIX groups retain direct-process dispatch."""
+    cancel_path = getattr(proc_or_pid, '_alexandria_cancel_path', None)
+    if (sys.platform == 'win32' and sig == signal.SIGTERM
+            and isinstance(cancel_path, str)
+            and getattr(proc_or_pid, '_alexandria_windows_owner', None) is not None):
+        Path(cancel_path).touch(exist_ok=True)
+        return
     control = getattr(proc_or_pid, "_alexandria_control", None)
     if control is not None:
         control.sendall(f"{int(sig)}\n".encode())

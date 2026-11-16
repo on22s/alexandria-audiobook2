@@ -11751,6 +11751,7 @@
   "test_review_checkpoint_deltas": [
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_actual_full_review_cli_uses_one_delta_writer_and_retires_its_scope",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_atomic_failure_keeps_previous_or_published_batch_and_next_save_recovers",
+    "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_cooperative_cancel_keeps_completed_checkpoint_and_can_resume",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_failed_rewind_compaction_and_owned_artifact_cleanup",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_rejected_corrupt_checkpoint_starts_a_new_durable_epoch",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_serializes_each_corrected_entry_once_and_native_resume_preserves_every_batch",
@@ -17074,14 +17075,17 @@
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_acknowledges_refusal_only_for_live_owned_job",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_does_not_hide_owned_job_query_failure",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_capture_preserves_timeout_after_refused_graceful_stop",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_legacy_force_still_targets_only_the_recorded_pid_and_tree",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_owned_windows_graceful_refusal_still_forces_and_waits",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_posix_cancel_keeps_signal_channel_without_creating_windows_file",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_posix_stop_diagnostics_do_not_require_the_windows_module",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_cancel_still_arms_force_escalation",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_graceful_stop_does_not_hide_force_failure",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_shared_stop_reports_taskkill_refusal_and_still_forces_cleanup",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_taskkill_refusal_reports_pending_without_a_warning_traceback",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unexpected_owned_stop_error_retains_its_warning_traceback",
-    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unowned_graceful_failure_remains_visible"
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unowned_graceful_failure_remains_visible",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_windows_review_cancel_signals_private_file_without_taskkill"
   ],
   "test_windows_export_qualification": [
     "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_junction_refusal_cannot_be_inferred_from_unrelated_failure",
