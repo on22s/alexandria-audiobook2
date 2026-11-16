@@ -692,6 +692,116 @@ assert.strictEqual(posts.length, 3, 'an earlier restore must preserve the newer 
 assert.strictEqual(posts[2].data.at_index, 4);
 ''')
 
+    def run_delete_scenario(self, scenario):
+        self.run_scenario(r'''
+const deadline = setTimeout(() => { throw new Error('Delete scenario did not complete'); }, 5000);
+context.currentBookFilename = 'book';
+context.chunkSnapshotBook = 'book';
+context.chunkSnapshotBookToken = 'a'.repeat(64);
+run('cachedChunks = [1,2,3].map(id => ({id,uid:"row"+id}));');
+load('function captureChunkMutation(', 'window.insertChunkAfter =');
+load('let _lastDeleted =', 'window.stopOthers =');
+context.API._handleError = async () => {};
+context.loadChunks = async () => {};
+context.bootstrap = {Toast:class { show() {} static getInstance() { return {hide() {}}; } }};
+context.document.createElement = () => ({set innerHTML(value) {
+    const labels = new Map();
+    this.firstElementChild = {addEventListener() {},remove() {},querySelector(selector) {
+        if (!labels.has(selector)) { labels.set(selector,{dataset:{},setAttribute(){},addEventListener(){}}); }
+        return labels.get(selector);
+    }};
+}});
+elements['toast-container'] = {appendChild() {}};
+elements['editor-undo-delete'] = {dataset:{},setAttribute() {},removeAttribute() {}};
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return {promise,resolve}; };
+const response = receipt => ({json:async () => ({deleted:{speaker:'Synthetic',text:receipt},undo_token:receipt})});
+const flush = async () => { for (let turn=0;turn<20;turn++) { await Promise.resolve(); } };
+''' + scenario + '\nclearTimeout(deadline);')
+
+    def test_delete_admission_waits_for_receipt_and_refresh_before_reindexing(self):
+        self.run_delete_scenario(r'''
+const firstReply = deferred();
+const secondReply = deferred();
+const firstBody = deferred();
+const refresh = deferred();
+const requests = [];
+context.fetch = url => { requests.push(url); return requests.length === 1 ? firstReply.promise : secondReply.promise; };
+context.loadChunks = async () => { if (requests.length === 1) { await refresh.promise; run('cachedChunks = [{id:1,uid:"row2"},{id:2,uid:"row3"}];'); } };
+const first = context.deleteChunk(1);
+const second = context.deleteChunk(2);
+await flush();
+secondReply.resolve(response('second'));
+await flush();
+assert.strictEqual(requests.length,1,'a reordered second reply must not publish before the first receipt');
+firstReply.resolve({json:() => firstBody.promise});
+await flush();
+assert.strictEqual(requests.length,1,'HTTP headers are not a published receipt');
+firstBody.resolve({deleted:{speaker:'Synthetic',text:'first'},undo_token:'first'});
+await flush();
+assert.strictEqual(requests.length,1,'the queued UID needs the refreshed row index');
+refresh.resolve();
+await Promise.all([first,second]);
+const secondRequest = new URL(requests[1],'http://fixture');
+assert.strictEqual(secondRequest.pathname,'/api/chunks/1');
+assert.strictEqual(secondRequest.searchParams.get('expected_uid'),'row2');
+assert.strictEqual(secondRequest.searchParams.get('expected_book_token'),'a'.repeat(64));
+assert.deepStrictEqual(plain(run('_deletedChunks.map(receipt => receipt.undo_token)')),['first','second']);
+const serverOrder = ['first','second'];
+context.API.post = async (url,data) => { assert.strictEqual(data.undo_token,serverOrder.pop()); posts.push({url,data}); };
+await context.undoDeleteChunk();
+await context.undoDeleteChunk();
+assert.strictEqual(serverOrder.length,0);
+assert.deepStrictEqual(posts.map(post => post.data.at_index),[1,1]);
+''')
+
+    def test_failed_undo_preserves_other_receipts_including_new_deletions(self):
+        self.run_delete_scenario(r'''
+context.fetch = async url => response(new URL(url,'http://fixture').searchParams.get('expected_uid'));
+await context.deleteChunk(1);
+await context.deleteChunk(2);
+const refusal = deferred();
+context.API.post = () => refusal.promise;
+const undo = context.undoDeleteChunk();
+await context.deleteChunk(3);
+refusal.resolve(Promise.reject(Object.assign(new Error('revision conflict'),{status:409})));
+await undo;
+assert.deepStrictEqual(plain(run('_deletedChunks.map(receipt => receipt.undo_token)')),['row1','row3']);
+await context.undoDeleteChunk();
+assert.deepStrictEqual(plain(run('_deletedChunks.map(receipt => receipt.undo_token)')),['row1']);
+context.API.post = async (url,data) => posts.push({url,data});
+await context.undoDeleteChunk();
+assert.strictEqual(posts[0].data.undo_token,'row1');
+''')
+
+    def test_queued_delete_refuses_changed_book_and_missing_uid(self):
+        self.run_delete_scenario(r'''
+const reply = deferred();
+const requests = [];
+context.fetch = url => { requests.push(url); return reply.promise; };
+const first = context.deleteChunk(1);
+const queued = context.deleteChunk(2);
+await flush();
+context.chunkSnapshotBookToken = 'b'.repeat(64);
+reply.resolve(response('stale'));
+await Promise.all([first,queued]);
+assert.strictEqual(requests.length,1);
+assert.strictEqual(run('_deletedChunks.length'),0);
+context.chunkSnapshotBookToken = 'a'.repeat(64);
+context.fetch = async url => { requests.push(url); return response('current'); };
+context.loadChunks = async () => run('cachedChunks = [{id:1,uid:"row3"}];');
+await Promise.all([context.deleteChunk(1),context.deleteChunk(2)]);
+assert.strictEqual(requests.length,2,'a missing original UID must not delete its replacement row');
+''')
+
+    def test_failed_delete_releases_queue(self):
+        self.run_delete_scenario(r'''
+let calls = 0;
+context.fetch = async () => { calls++; if (calls === 1) { throw new Error('offline'); } return response('second'); };
+await Promise.all([context.deleteChunk(1),context.deleteChunk(2)]);
+assert.strictEqual(calls,2);
+assert.deepStrictEqual(plain(run('_deletedChunks.map(receipt => receipt.undo_token)')),['second']);
+''')
+
     def test_row_save_includes_speaker_select_and_waits_for_post(self):
         self.run_scenario(r'''
 run('let chunkSnapshotBookToken="book-token";');

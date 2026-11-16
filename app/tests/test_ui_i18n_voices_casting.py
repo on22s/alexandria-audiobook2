@@ -106,6 +106,38 @@ class LocaleTestCase(unittest.TestCase):
         return '\n'.join(calls)
 
 
+class DeleteUndoLocaleTests(LocaleTestCase):
+    def test_undo_count_pluralizes_and_repaints_on_live_locale_changes(self):
+        self.run_node(self.catalogs_js() + r'''
+const button = addNode({id:'editor-undo-delete'});
+const coreSource = fs.readFileSync(''' + js(str(STATIC / 'js' / 'app-core.js')) + r''','utf8');
+vm.runInContext(coreSource.slice(coreSource.indexOf('let _lastDeleted ='),coreSource.indexOf('let _undoToastSequence =')),context);
+const settingsSource = fs.readFileSync(''' + js(str(STATIC / 'js' / 'app-settings.js')) + r''','utf8');
+vm.runInContext(settingsSource.slice(0,settingsSource.indexOf('// Setup discovery reads labels')),context);
+const systemSource = fs.readFileSync(''' + js(str(STATIC / 'js' / 'app-workbench.js')) + r''','utf8');
+const statusStart = systemSource.indexOf('function applySystemStatusText(');
+assert(statusStart >= 0);
+vm.runInContext(systemSource.slice(statusStart,systemSource.indexOf('let _systemStatsPending',statusStart)),context);
+for (const locale of ['en','ja','es-419','zh-CN','qps-ploc']) {
+    await context.applyUiLocale(locale);
+    for (const count of [0,1,2]) {
+        vm.runInContext('_deletedChunks.length=0;_deletedChunks.push(...Array(' + count + ').fill({toastId:"synthetic"}));renderDeleteUndo();',context);
+        assert.strictEqual(button.hidden,count === 0);
+        if (count) {
+            const expected = vm.runInContext('t("editor.delete.undo-count-"+pluralForm(' + count + '),"Undo last deletion ({count} deletion' + (count === 1 ? '' : 's') + ' available)",{count:' + count + '})',context);
+            assert.strictEqual(button.textContent,expected);
+            assert(expected.length>0);
+            if (locale === 'es-419') { assert(button.textContent.includes(count === 1 ? '1 disponible)' : '2 disponibles)')); }
+        }
+    }
+}
+vm.runInContext('_deletedChunks.length=0;_deletedChunks.push({toastId:"synthetic"});',context);
+await context.applyUiLocaleAndSearchStatus('ja');
+await context.applyUiLocaleAndSearchStatus('es-419');
+assert(button.textContent.includes('1 disponible)'),button.textContent);
+''', modules=(STATIC / 'js' / 'app-i18n.js',))
+
+
 class MarkupRenderTests(LocaleTestCase):
     def test_voices_and_casting_nodes_paint_each_locale_and_restore_english(self):
         for locale in LOCALES:

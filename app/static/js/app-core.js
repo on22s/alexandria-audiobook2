@@ -8787,49 +8787,69 @@
             _lastDeleted = deleted || null;
             if (!button) { return; }
             button.hidden = !deleted;
-            if (deleted) { setUiMessage(button, 'editor.delete.undo-count', 'Undo last deletion ({count} available)', {count: _deletedChunks.length}); }
+            if (deleted) {
+                const count = _deletedChunks.length;
+                if (pluralForm(count) === 'one') {
+                    setUiMessage(button, 'editor.delete.undo-count-one', 'Undo last deletion ({count} deletion available)', {count});
+                } else {
+                    setUiMessage(button, 'editor.delete.undo-count-many', 'Undo last deletion ({count} deletions available)', {count});
+                }
+            }
         }
         let _undoToastSequence = 0;
+        let _deleteChunkQueue = Promise.resolve();
 
         window.deleteChunk = async (id) => {
             try {
                 const context = captureChunkMutation(id);
-                const res = await fetch(`/api/chunks/${id}?${context.query}`, { method: 'DELETE' });
-                await API._handleError(res);
-                const data = await res.json();
-                if (!context.isCurrent()) { return; }
+                const uid = cachedChunks.find(chunk => chunk.id === id).uid;
+                const previous = _deleteChunkQueue;
+                let release;
+                _deleteChunkQueue = new Promise(resolve => { release = resolve; });
+                try {
+                    await previous;
+                    if (!context.isCurrent()) { return; }
+                    const currentId = cachedChunks.find(chunk => chunk.uid === uid)?.id;
+                    const request = captureChunkMutation(currentId);
+                    const res = await fetch(`/api/chunks/${currentId}?${request.query}`, { method: 'DELETE' });
+                    await API._handleError(res);
+                    const data = await res.json();
+                    if (!context.isCurrent()) { return; }
 
-                // Store for undo
-                const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
-                _deletedChunks.push({ chunk: data.deleted, at_index: id, undo_token: data.undo_token, toastId, book: currentBookFilename, bookToken: chunkSnapshotBookToken });
-                if (_deletedChunks.length > 128) { _deletedChunks.shift(); }
-                renderDeleteUndo();
+                    // Store for undo
+                    const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
+                    _deletedChunks.push({ chunk: data.deleted, at_index: currentId, undo_token: data.undo_token, toastId, book: currentBookFilename, bookToken: chunkSnapshotBookToken });
+                    if (_deletedChunks.length > 128) { _deletedChunks.shift(); }
+                    renderDeleteUndo();
 
-                // Show toast with undo action
-                const container = document.getElementById('toast-container');
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = `
-                    <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
-                        <div class="d-flex">
-                            <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
-                                <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
+                    // Show toast with undo action
+                    const container = document.getElementById('toast-container');
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = `
+                        <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
+                            <div class="d-flex">
+                                <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
+                                    <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
+                                </div>
+                                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(t('core.toast.dismiss', 'Dismiss notification'))}"></button>
                             </div>
-                            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(t('core.toast.dismiss', 'Dismiss notification'))}"></button>
-                        </div>
-                    </div>`;
-                const el = wrapper.firstElementChild;
-                setUiMessage(el.querySelector('.deleted-line-summary'), 'editor.delete.summary', 'Line deleted ({speaker}: "{text}...")', {speaker: data.deleted.speaker, text: (data.deleted.text || '').substring(0, 40)});
-                setUiMessage(el.querySelector('a'), 'editor.delete.undo', 'Undo');
-                el.querySelector('a').addEventListener('click', (event) => {
-                    event.preventDefault();
-                    undoDeleteChunk(toastId);
-                });
-                container.appendChild(el);
-                const toast = new bootstrap.Toast(el, { delay: 8000 });
-                toast.show();
-                el.addEventListener('hidden.bs.toast', () => { el.remove(); });
+                        </div>`;
+                    const el = wrapper.firstElementChild;
+                    setUiMessage(el.querySelector('.deleted-line-summary'), 'editor.delete.summary', 'Line deleted ({speaker}: "{text}...")', {speaker: data.deleted.speaker, text: (data.deleted.text || '').substring(0, 40)});
+                    setUiMessage(el.querySelector('a'), 'editor.delete.undo', 'Undo');
+                    el.querySelector('a').addEventListener('click', (event) => {
+                        event.preventDefault();
+                        undoDeleteChunk(toastId);
+                    });
+                    container.appendChild(el);
+                    const toast = new bootstrap.Toast(el, { delay: 8000 });
+                    toast.show();
+                    el.addEventListener('hidden.bs.toast', () => { el.remove(); });
 
-                await loadChunks(true);
+                    await loadChunks(true);
+                } finally {
+                    release();
+                }
             } catch (e) {
                 showActionError("Failed to delete line", e, "Refresh the Editor and check whether the line was removed before deleting again. Use Undo if the completed deletion is still offered.", "error");
             }
@@ -8869,7 +8889,6 @@
                 showToast(t('editor.delete.restored', 'Line restored'), 'success');
                 await loadChunks(true);
             } catch (e) {
-                _deletedChunks.length = 0;
                 showActionError("Undo failed", e, "Refresh the Editor and check whether the deleted line was restored before using Undo again.", "error");
             } finally {
                 if (button) { button.disabled = false; }
