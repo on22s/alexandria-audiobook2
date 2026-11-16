@@ -1,10 +1,12 @@
 """Truthful prerequisite, empty, locale and dependency states in real SPA code."""
 from pathlib import Path
 from html.parser import HTMLParser
+import json
 import subprocess
 import unittest
 
 from tests.test_ui_help_js import DOM_FIXTURE
+from tts_capabilities import get_tts_capability_modes
 
 STATIC = Path(__file__).resolve().parent.parent / 'static/js'
 SETUP = r'''
@@ -77,7 +79,7 @@ assert.equal(table.children[0],row);
 ''')
 
     def test_locale_repaints_retained_capabilities_without_checking_server(self):
-        self.run_js(r'''
+        self.run_js('const modes=' + json.dumps(get_tts_capability_modes()) + ';\n' + r'''
 document.documentElement=new Element('html');add('tts-mode').value='local';
 const summary=add('tts-capability-summary');summary.setAttribute('data-i18n','setup.tts.backend-capabilities-have-not-loaded-exist');summary.textContent='Backend capabilities have not loaded. Existing settings are preserved.';
 run(source('app-i18n.js'));run(source('app-tts-capabilities.js'));
@@ -88,7 +90,7 @@ for(const locale of ['en','es-419','ja','zh-CN']){
  run('uiCatalogs.set('+JSON.stringify(locale)+',{messages:'+fs.readFileSync(require('path').join(process.argv[1],'../i18n/ui.'+locale+'.json'),'utf8')+'});');
 }
 await context.applyUiLocaleAndSearchStatus('en');assert.match(summary.textContent,/unavailable|not loaded/);
-context.setTtsCapabilityModes({local:{description:'Local synthesis',language_note:'Local language',controls:{},voice_types:{}},external:{description:'External synthesis',language_note:'Remote language',controls:{},voice_types:{}},mlx:{description:'Apple MLX',language_note:'MLX language',controls:{},voice_types:{}}});
+context.setTtsCapabilityModes(modes);
 for(const mode of ['local','external','mlx']){
  document.getElementById('tts-mode').value=mode;context.applyTtsCapabilityGuidance();
  for(const locale of ['es-419','ja','zh-CN','en']){

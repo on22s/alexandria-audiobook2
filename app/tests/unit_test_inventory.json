@@ -15474,7 +15474,8 @@
   "test_tts_capability_guidance": [
     "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_and_native_dispatch_agree_for_every_voice_category",
     "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_never_initializes_engine_or_contacts_a_server",
-    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_fresh_descriptors_cannot_mutate_dispatch_and_unknown_mode_refuses"
+    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_fresh_descriptors_cannot_mutate_dispatch_and_unknown_mode_refuses",
+    "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_server_message_keys_match_the_english_catalog"
   ],
   "test_tts_capability_guidance_js": [
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_blank_saved_timeout_uses_same_default_as_configuration_save",
@@ -15490,6 +15491,7 @@
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_external_capabilities_unsaved_mismatch_and_edit_clear_report",
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_mode_changes_preserve_assignment_fields_and_warn_without_posting",
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_real_route_admission_is_bounded_and_releases_on_bad_body",
+    "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_summary_uses_server_message_keys_and_current_english_fallbacks",
     "tests.test_tts_capability_guidance_js.TtsCapabilityGuidanceJsTests.test_supported_report_requires_endpoint_adapter_and_parameters"
   ],
   "test_tts_clip_view": [
@@ -15719,6 +15721,9 @@
     "tests.test_ui_batch_a_js.UiBatchAJsTests.test_voicelab_paths_are_expandable_not_readiness_help"
   ],
   "test_ui_catalog_parity": [
+    "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_changed_server_text_is_harvested_without_a_javascript_copy",
+    "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_incomplete_or_dynamic_server_messages_are_rejected",
+    "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_only_exact_server_capability_pairs_allow_dynamic_translation",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_dropped_placeholder_is_rejected",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_help_source_may_stay_english_but_a_message_may_not",
     "tests.test_ui_catalog_parity.CheckerFixtureTests.test_a_key_with_uppercase_or_spaces_is_rejected",

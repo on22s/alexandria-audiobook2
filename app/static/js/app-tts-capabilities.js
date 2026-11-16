@@ -25,15 +25,9 @@ function applyTtsCapabilityGuidance() {
         return;
     }
     if (summary) {
-        const descriptions = {
-            local: t('setup.tts.cap.local.description', 'Local synthesis supports custom, cloned, LoRA, designed and ensemble voices. Ensemble members must each be valid.'),
-            external: t('setup.tts.cap.external.description', 'External synthesis supports custom and cloned voices, plus ensembles of supported members. LoRA and designed voices require local mode.'),
-            mlx: t('setup.tts.cap.mlx.description', 'Apple MLX (experimental, Apple Silicon only) supports custom, cloned, designed and LoRA voices in a separate MLX environment. Ensemble voices require local mode.')};
-        const notes = {
-            local: t('setup.tts.cap.local.note', 'The language setting is passed to the local Qwen3-TTS model.'),
-            external: t('setup.tts.cap.external.note', 'The language setting is sent to the server; its supported languages are not verified here.'),
-            mlx: t('setup.tts.cap.mlx.note', 'The language setting is passed to the MLX Qwen3-TTS model.')};
-        summary.textContent = t('setup.tts.cap.summary', '{description} {note} AA2 returns completed audio files; playback is not incremental. Mode edits apply to generation only after Save Configuration.', {description: descriptions[mode] || capability.description, note: notes[mode] || capability.language_note})
+        const description = t(capability.description_key, capability.description);
+        const note = t(capability.language_note_key, capability.language_note);
+        summary.textContent = t('setup.tts.cap.summary', '{description} {note} AA2 returns completed audio files; playback is not incremental. Mode edits apply to generation only after Save Configuration.', {description, note})
             + ' ' + t('setup.tts.cap.not-readiness', 'Capability metadata does not mean a model or server is loaded or ready.');
     }
     for (const [control, id] of Object.entries({server: 'tts-url-group', external_timeout: 'tts-external-timeout-group', device: 'tts-device-group', local_options: 'tts-local-options'})) {

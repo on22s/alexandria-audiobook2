@@ -1,6 +1,6 @@
 """Every translated UI catalog must carry exactly the source's keys and meaning.
 
-The English text lives in index.html and at each t() call site; ui.en.json is
+The English text lives in index.html, literal t() calls and keyed server contracts; ui.en.json is
 harvested from that source by tools/i18n/extract_ui_catalog.py. These tests are
 the gate between the two: key set equality in both directions, placeholder and
 protected-token parity, no untranslated copy, the safety review rule, and the
@@ -15,6 +15,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -257,6 +258,62 @@ class CheckerFixtureTests(unittest.TestCase):
         payload = catalog('zh-CN', ZH_FIXTURE)
         payload['_meta']['locale'] = 'zh-TW'
         self.assertRejected(payload, ENGLISH_FIXTURE, 'zh-CN', '_meta.locale')
+
+
+class CapabilityCatalogHarvestTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            'extract_ui_catalog', ROOT / 'tools' / 'i18n' / 'extract_ui_catalog.py')
+        cls.extractor = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.extractor)
+
+    def test_changed_server_text_is_harvested_without_a_javascript_copy(self):
+        descriptor = {'description_key': 'test.server.description', 'description': 'Updated backend description.',
+                      'language_note_key': 'test.server.note', 'language_note': 'Updated language note.'}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'tts_capabilities.py'
+            path.write_text('_BACKENDS = ' + repr({'external': descriptor}), encoding='utf-8')
+            messages = {}
+            self.extractor.harvest_tts_capabilities(path, messages)
+        self.assertEqual({'test.server.description': descriptor['description'],
+                          'test.server.note': descriptor['language_note']}, messages)
+
+    def test_incomplete_or_dynamic_server_messages_are_rejected(self):
+        descriptor = {'description_key': 'test.server.description', 'description': 'Description.',
+                      'language_note_key': 'test.server.note', 'language_note': 'Language note.'}
+        sources = ['_BACKENDS = build_backends()', '_BACKENDS = {}']
+        for field in descriptor:
+            broken = dict(descriptor)
+            broken[field] = ''
+            sources.append('_BACKENDS = ' + repr({'external': broken}))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'tts_capabilities.py'
+            for source in sources:
+                with self.subTest(source=source):
+                    path.write_text(source, encoding='utf-8')
+                    with self.assertRaises(self.extractor.HarvestError):
+                        self.extractor.harvest_tts_capabilities(path, {})
+
+    def test_only_exact_server_capability_pairs_allow_dynamic_translation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'app-tts-capabilities.js'
+            path.write_text("t(capability.description_key, capability.description);"
+                            "t(capability.language_note_key, capability.language_note);"
+                            "t('test.literal', 'Literal English');", encoding='utf-8')
+            messages = {}
+            self.extractor.harvest_js(path, messages)
+            self.assertEqual({'test.literal': 'Literal English'}, messages)
+            for source in ('t(capability.description_key, capability.language_note);',
+                           't(arbitrary.key, arbitrary.text);'):
+                with self.subTest(source=source):
+                    path.write_text(source, encoding='utf-8')
+                    with self.assertRaises(self.extractor.HarvestError):
+                        self.extractor.harvest_js(path, {})
+            path = Path(directory) / 'another-renderer.js'
+            path.write_text('t(capability.description_key, capability.description);', encoding='utf-8')
+            with self.assertRaises(self.extractor.HarvestError):
+                self.extractor.harvest_js(path, {})
 
 
 class RealCatalogTests(unittest.TestCase):
