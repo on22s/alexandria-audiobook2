@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T17:54:54",
+  "written": "2026-11-15T18:16:50",
   "host": "RealMitch",
   "git": {
-   "commit": "e13b3e285d7f7685cdaf26238fb265245720e4cf",
-   "branch": "fix/1958-review-source-spans",
+   "commit": "3bf76c3a420499f4251c70bc680dc8ecc4fcad4f",
+   "branch": "fix/windows-preexisting-failures",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

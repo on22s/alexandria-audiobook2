@@ -12539,6 +12539,7 @@
     "tests.test_second_english_selection.SecondEnglishSelectionTests.test_validated_snapshot_survives_input_replacement_during_generation"
   ],
   "test_secure_filename_portability": [
+    "tests.test_secure_filename_portability.PortableFilenameTests.test_reserved_device_check_matches_windows_component_rules",
     "tests.test_secure_filename_portability.PortableFilenameTests.test_reserved_devices_and_trailing_dots_spaces_are_normalized",
     "tests.test_secure_filename_portability.PortableFilenameTests.test_utf8_byte_cap_preserves_complete_codepoints_and_actual_staging_file"
   ],

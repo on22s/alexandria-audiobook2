@@ -356,7 +356,8 @@ class VoiceLabMpsProbeTests(unittest.TestCase):
 
     def test_actual_selected_interpreter_probe_and_backend_specific_admission(self):
         from pathlib import Path
-        import sys
+        import subprocess
+        import venv
         from unittest.mock import patch
         from routers import voicelab as v
         for backend in ('mps', 'cuda', 'cpu'):
@@ -364,15 +365,20 @@ class VoiceLabMpsProbeTests(unittest.TestCase):
                 root = Path(tmp)
                 (root / '_deduped').mkdir()
                 (root / '_deduped' / 'count.zip').write_bytes(b'counting fixture')
-                interpreter = root / 'synthetic-python'
-                interpreter.write_text('#!'+sys.executable+'\n'+
-                    'import sys,types,importlib.util\n'+
-                    'torch=types.SimpleNamespace(__version__="synthetic",version=types.SimpleNamespace(hip=None),'+
+                runtime = root / 'synthetic runtime'
+                venv.EnvBuilder(with_pip=False, symlinks=os.name != 'nt').create(runtime)
+                interpreter = runtime / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
+                site = Path(subprocess.check_output(
+                    [str(interpreter), '-c', 'import sysconfig; print(sysconfig.get_path("purelib"))'],
+                    text=True, timeout=20).strip())
+                (site / 'torch.py').write_text(
+                    'import types\n__version__="synthetic"\nversion=types.SimpleNamespace(hip=None)\n'+
                     'cuda=types.SimpleNamespace(is_available=lambda:'+str(backend=='cuda')+','+
-                    'get_device_name=lambda n:"Synthetic GPU",mem_get_info=lambda:(12*1024**3,16*1024**3)),'+
-                    'backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda:'+str(backend=='mps')+')))\n'+
-                    'sys.modules["torch"]=torch\nimportlib.util.find_spec=lambda name:object()\nexec(sys.argv[2])\n')
-                interpreter.chmod(0o700)
+                    'get_device_name=lambda n:"Synthetic GPU",mem_get_info=lambda:(12*1024**3,16*1024**3))'+
+                    '\nbackends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda:'+str(backend=='mps')+'))\n',
+                    encoding='utf-8')
+                for dependency in ('speechbrain', 'librosa', 'peft', 'llama_cpp'):
+                    (site / (dependency + '.py')).write_text('', encoding='utf-8')
                 cfg = {'zips_dir': tmp, 'rocm_python': str(interpreter), 'profiler_model': '', 'epub_dirs': []}
                 with patch.object(v, 'DATA_DIR', tmp):
                     probe = v._probe_voicelab_interpreter(str(interpreter))
@@ -384,6 +390,8 @@ class VoiceLabMpsProbeTests(unittest.TestCase):
                             self.assertIsNone(report['runtime']['free_vram_gb'])
                 self.assertEqual(backend=='mps', probe.get('mps_available'))
                 self.assertEqual(backend=='cuda', probe.get('cuda_available'))
+                self.assertEqual('synthetic', probe.get('torch'))
+                self.assertTrue(all(probe['deps'].values()))
 
 
 if __name__ == "__main__":

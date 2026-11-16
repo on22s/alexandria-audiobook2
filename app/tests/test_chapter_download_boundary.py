@@ -73,7 +73,8 @@ class ChapterDownloadBoundaryTests(unittest.TestCase):
     def test_invalid_windows_names_are_rejected_before_file_lookup(self):
         for name in ('a:b.wav', 'C:chapter.wav', 'C:\\chapter.wav', '..\\chapter.wav',
                      'CON.wav', 'con.mp3', 'NUL.wav', 'AUX.mp3', 'PRN.wav',
-                     'COM1.wav', 'LPT9.mp3', 'CONIN$.wav', 'COM\u00b9.wav'):
+                     'COM1.wav', 'LPT9.mp3', 'CONIN$.wav', 'CONOUT$.mp3',
+                     'COM\u00b9.wav', 'COM\u00b2.mp3', 'LPT\u00b3.wav', 'con .wav'):
             with self.subTest(name=name), patch.object(editor.os.path, 'isfile') as isfile:
                 with self.assertRaises(editor.HTTPException) as raised:
                     editor._exported_chapter_path(name)
