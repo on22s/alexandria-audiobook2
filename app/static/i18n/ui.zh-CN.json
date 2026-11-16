@@ -5789,6 +5789,8 @@
   "workspace.guidance.the-script-is-saved-but-no-completed-review-matches": "脚本已保存，但没有与当前条目匹配的完成审阅记录。",
   "workspace.guidance.the-three-pass-manifest-could-not-be-read": "无法读取三遍处理清单。",
   "workspace.guidance.the-three-pass-manifest-records-a-failed-script-run": "三遍处理清单记录了一次失败的脚本任务。",
+  "setup.prompts.user-prompt.template-hint": "（模板：流水线会填充 {roster} 和 {batch}）",
+  "setup.prompts.user-prompt.passage-hint": "（流水线会在指令周围添加 ROSTER 行和带标记的 PASSAGE）",
   "workspace.manifest.incomplete": "未完成",
   "workspace.manifest.publishing": "正在发布",
   "workspace.name.no-book-selected": "未选择书籍",

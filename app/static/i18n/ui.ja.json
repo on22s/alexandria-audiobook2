@@ -5789,6 +5789,8 @@
   "workspace.guidance.the-script-is-saved-but-no-completed-review-matches": "台本は保存されていますが、現在の項目に一致する審査完了の記録はありません。",
   "workspace.guidance.the-three-pass-manifest-could-not-be-read": "3 パス処理のマニフェストを読み取れませんでした。",
   "workspace.guidance.the-three-pass-manifest-records-a-failed-script-run": "3 パス処理のマニフェストに台本処理の失敗が記録されています。",
+  "setup.prompts.user-prompt.template-hint": "（テンプレート：処理が {roster} と {batch} を埋め込みます）",
+  "setup.prompts.user-prompt.passage-hint": "（処理が指示の前後に ROSTER 行とマーク付き PASSAGE を追加します）",
   "workspace.manifest.incomplete": "未完了",
   "workspace.manifest.publishing": "公開処理中",
   "workspace.name.no-book-selected": "本が選択されていません",

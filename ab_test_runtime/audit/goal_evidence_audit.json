@@ -1050,17 +1050,22 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-16T07:50:44",
+  "written": "2026-11-16T07:56:53",
   "host": "RealMitch",
   "git": {
-   "commit": "5adf31ad2a7450f5f062157e9ce646387420d50b",
+   "commit": "616f2dee26f04a15d698e4a85d8e276136940d08",
    "branch": "ui/batch-d-locale-stability",
    "dirty": true,
-   "source_state": "dirty:9409e67e0477",
+   "source_state": "dirty:172626a3a1ca",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_dataset_delta_queue_http.py",
-    "M  app/tests/test_dataset_ui_ownership_js.py"
+    "M  app/static/i18n/ui.en.json",
+    "M  app/static/i18n/ui.es-419.json",
+    "M  app/static/i18n/ui.ja.json",
+    "M  app/static/i18n/ui.zh-CN.json",
+    "M  app/static/js/app-core.js",
+    "M  app/tests/test_prompt_preset_transactions_js.py",
+    "M  app/tests/test_workspace_guidance.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f49202d6532a833735867c4ef2721903035a4c9ba3c0b1c0174494163d3d0244",

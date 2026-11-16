@@ -1784,10 +1784,12 @@
             document.getElementById('prompt-example-block').hidden = variant !== 'michel2_shot';
             document.getElementById('prompt-preset-description').textContent = preset.description || '';
             document.getElementById('prompt-preset-variant-badge').textContent = 'shape: ' + variant;
-            document.getElementById('user-prompt-hint').textContent = (
-                ['default', 'aliases', 'incremental', 'continuity'].includes(variant)
-                    ? '(a template: the pipeline fills {roster} and {batch})'
-                    : '(the pipeline adds the ROSTER line and the marked PASSAGE around it)');
+            const hint = document.getElementById('user-prompt-hint');
+            if (['default', 'aliases', 'incremental', 'continuity'].includes(variant)) {
+                setUiMessage(hint, 'setup.prompts.user-prompt.template-hint', '(a template: the pipeline fills {roster} and {batch})', {roster: '{roster}', batch: '{batch}'});
+            } else {
+                setUiMessage(hint, 'setup.prompts.user-prompt.passage-hint', '(the pipeline adds the ROSTER line and the marked PASSAGE around it)');
+            }
             document.getElementById('prompt-preview-panel').hidden = true;
         }
 

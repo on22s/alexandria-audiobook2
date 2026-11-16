@@ -66,6 +66,29 @@ class WorkspaceGuidanceJsTests(unittest.TestCase):
     from tests.test_ui_batch_a_js import UiBatchAJsTests
     run_js = UiBatchAJsTests.run_js
 
+    def test_prompt_preset_hint_keeps_its_key_and_literal_tokens_on_live_switch(self):
+        self.run_js(r'''
+run(source('app-i18n.js'));
+for(const id of ['system-prompt','user-prompt','prompt-example','prompt-example-block','prompt-preset-description','prompt-preset-variant-badge','user-prompt-hint','prompt-preview-panel']){add(id);}
+run('let promptPresets=[{name:"SYNTHETIC template",variant:"default"},{name:"SYNTHETIC passage",variant:"michel2_shot"}];let activePromptPreset="";');
+run(section('app-core.js','function applyPromptPreset(','// What the save sends:'));
+for(const locale of ['en','ja','es-419','zh-CN']){
+ run('uiCatalogs.set('+JSON.stringify(locale)+',{messages:'+fs.readFileSync(require('path').join(process.argv[1],'../i18n/ui.'+locale+'.json'),'utf8')+'});');
+}
+for(const index of [0,1]){
+ context.applyPromptPreset(index);
+ const node=document.getElementById('user-prompt-hint');
+ const key=index===0?'setup.prompts.user-prompt.template-hint':'setup.prompts.user-prompt.passage-hint';
+ const english=index===0?'(a template: the pipeline fills {roster} and {batch})':'(the pipeline adds the ROSTER line and the marked PASSAGE around it)';
+ for(const locale of ['qps-ploc','ja','es-419','zh-CN','en']){
+  await context.applyUiLocale(locale);
+  assert.strictEqual(node.textContent,context.t(key,english,{roster:'{roster}',batch:'{batch}'}));
+  if(index===0){assert(node.textContent.includes('{roster}')&&node.textContent.includes('{batch}'));}
+ }
+}
+assert.strictEqual(context.getUiCatalogMisses().length,0);
+''')
+
     def test_manifest_status_interpolation_is_keyed_and_translated(self):
         payload = with_workspace_guidance(lambda: {
             'evidence': get_workspace_message('workspace.evidence.manifest-state',

@@ -5708,6 +5708,8 @@
   "workspace.guidance.continue-with-script": "Continuar con Guion",
   "workspace.guidance.choose-a-book-or-generate-its-annotated-script": "Elige un libro o genera su guion anotado.",
   "workspace.name.unnamed": "Libro actual (sin nombre)",
+  "setup.prompts.user-prompt.template-hint": "(una plantilla: el proceso completa {roster} y {batch})",
+  "setup.prompts.user-prompt.passage-hint": "(el proceso agrega la línea ROSTER y el PASSAGE marcado alrededor de la instrucción)",
   "workspace.manifest.incomplete": "incompleto",
   "workspace.manifest.publishing": "en publicación",
   "workspace.name.no-book-selected": "Ningún libro seleccionado",

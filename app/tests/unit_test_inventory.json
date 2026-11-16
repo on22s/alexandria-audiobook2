@@ -17177,6 +17177,7 @@
   "test_workspace_guidance": [
     "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_eta_uses_the_task_dispatcher_and_repaints_without_polling",
     "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_manifest_status_interpolation_is_keyed_and_translated",
+    "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_prompt_preset_hint_keeps_its_key_and_literal_tokens_on_live_switch",
     "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_safety_retains_english_but_feedback_repaints_without_english_secondary",
     "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_saved_library_repaints_without_replacing_selection_or_repeating_load",
     "tests.test_workspace_guidance.WorkspaceGuidanceJsTests.test_server_guidance_uses_locale_plurals_and_live_switch_without_fetch",
