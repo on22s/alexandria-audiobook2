@@ -9,8 +9,8 @@ import core
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from routers import script
-from completed_review_receipt import get_review_receipt_path
+from routers import editor, script
+from completed_review_receipt import get_review_progress_paths, get_review_receipt_path
 from tests import test_llm_review_regressions as fixtures
 
 REQUIRE_PUBLISHED_SCRIPT = script._require_published_script
@@ -45,6 +45,7 @@ class ReviewStartOverTests(unittest.TestCase):
         self.schedule = self.stack.enter_context(patch.object(script, 'schedule_claimed_background_task'))
         self.stack.enter_context(patch.object(script, '_get_review_startup_path', return_value=str(self.root / 'startup.log')))
         app = FastAPI()
+        app.add_exception_handler(core.AppError, core.handle_app_error)
         app.include_router(script.router)
         self.client = self.stack.enter_context(TestClient(app))
 
@@ -97,6 +98,105 @@ class ReviewStartOverTests(unittest.TestCase):
         self.assertNotIn('private path', response.text)
         self.release.assert_called_once_with('review', 'claim', pending_only=True)
         self.register.assert_not_called()
+        self.assert_preserved()
+
+    def test_registration_refusal_discloses_discard_without_rolling_back(self):
+        self.register.side_effect = core.register_claimed_background_task
+        for endpoint in ('/api/review_script', '/api/review_script_contextual'):
+            with self.subTest(endpoint=endpoint), patch.object(core, '_task_claims', {}), \
+                 patch.object(core, '_gpu_leases', {}):
+                self.checkpoint.write_text('{}')
+                self.receipt.write_text('{}')
+                response = self.post(endpoint)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertFalse(self.checkpoint.exists())
+                self.assertFalse(self.receipt.exists())
+                self.assert_preserved()
+                body = response.json()
+                self.assertEqual('error.review.restart_reservation_lost', body.get('message_key'))
+                self.assertIn('was discarded', body['detail'])
+                self.assertIn('reservation is no longer active', body['detail'])
+                self.assertIn('Start Review to begin from batch 1', body['detail'])
+        self.assertEqual(2, self.release.call_count)
+        self.assertIn('restart_registration_failed', (self.root / 'startup.log').read_text())
+
+    def test_receipt_deletion_failure_discloses_partial_discard(self):
+        for endpoint in ('/api/review_script', '/api/review_script_contextual'):
+            with self.subTest(endpoint=endpoint), patch(
+                    'completed_review_receipt.remove_completed_review_receipt',
+                    side_effect=PermissionError('private receipt path')):
+                self.checkpoint.write_text('{}')
+                receipt_before = self.receipt.read_bytes()
+                response = self.post(endpoint)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertFalse(self.checkpoint.exists())
+                self.assertEqual(receipt_before, self.receipt.read_bytes())
+                self.assert_preserved()
+                body = response.json()
+                self.assertEqual('error.review.restart_receipt_discard_failed', body.get('message_key'))
+                self.assertIn('checkpoint was discarded', body['detail'])
+                self.assertIn('receipt was kept', body['detail'])
+                self.assertIn("new review didn't start", body['detail'])
+                self.assertNotIn('private receipt path', response.text)
+                self.assertIn('review again even if nothing changed', body['detail'])
+        self.assertEqual(2, self.release.call_count)
+        self.register.assert_not_called()
+        self.assertNotIn('private receipt path', (self.root / 'startup.log').read_text())
+        response = self.post(start_over=False, force_review=True)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertIn('--force-review', self.schedule.call_args.args[3])
+        self.assertFalse(self.checkpoint.exists())
+        self.assertTrue(self.receipt.exists())
+        self.assert_preserved()
+
+    def test_unexpected_registration_failure_discloses_discard_without_private_reason(self):
+        self.register.side_effect = RuntimeError('private registration reason')
+        response = self.post()
+        self.assertEqual(500, response.status_code, response.text)
+        self.assertEqual('error.review.restart_start_failed', response.json().get('message_key'))
+        self.assertIn('was discarded', response.json()['detail'])
+        self.assertFalse(self.checkpoint.exists())
+        self.assertFalse(self.receipt.exists())
+        self.release.assert_called_once_with('review', 'claim', pending_only=True)
+        self.assert_preserved()
+        self.assertNotIn('private registration reason', response.text)
+        self.assertNotIn('private registration reason', (self.root / 'startup.log').read_text())
+
+    def test_checkpoint_cleanup_failure_discloses_possible_partial_discard(self):
+        def remove_header_then_fail(*args, **kwargs):
+            self.checkpoint.unlink()
+            raise PermissionError('private shard path')
+        with patch.object(script, 'remove_generation_shard_checkpoint', side_effect=remove_header_then_fail):
+            response = self.post()
+        self.assertEqual(409, response.status_code, response.text)
+        self.assertIn('some progress may already have been discarded', response.json()['detail'])
+        self.assertFalse(self.checkpoint.exists())
+        self.assertTrue(self.receipt.exists())
+        self.register.assert_not_called()
+        self.release.assert_called_once_with('review', 'claim', pending_only=True)
+        self.assert_preserved()
+        self.assertNotIn('private shard path', response.text)
+
+    def test_resume_listing_and_discard_share_progress_paths(self):
+        import review_script
+        checkpoint_path, receipt_path = get_review_progress_paths(str(self.path))
+        self.assertEqual(str(self.checkpoint), checkpoint_path)
+        self.assertEqual(str(self.receipt), receipt_path)
+        self.assertEqual(checkpoint_path, review_script._checkpoint_path(str(self.path)))
+        self.assertEqual(receipt_path, get_review_receipt_path(str(self.path)))
+        saved = self.root / 'scripts'
+        saved.mkdir()
+        saved_checkpoint = Path(get_review_progress_paths(str(saved / 'saved.json'))[0])
+        saved_checkpoint.write_text('{"completed_batches": 1}')
+        self.checkpoint.write_text('{"completed_batches": 1}')
+        with patch.object(editor, 'SCRIPT_PATH', str(self.path)), \
+             patch.object(editor, 'SCRIPTS_DIR', str(saved)):
+            self.assertCountEqual(['(active script)', 'saved'],
+                                  [row['book'] for row in editor._get_review_checkpoint_rows()])
+            response = self.post()
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual(['saved'], [row['book'] for row in editor._get_review_checkpoint_rows()])
+        self.assertFalse(Path(receipt_path).exists())
         self.assert_preserved()
 
     def test_next_native_review_starts_with_first_current_entry(self):

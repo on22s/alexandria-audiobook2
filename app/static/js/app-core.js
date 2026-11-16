@@ -3949,7 +3949,7 @@
                 await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked(), ...restart });
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
+                _onReviewDone({status: 'failed', logs: [describeApiError(e)]});
                 showActionError(t('script.review.start-failed', 'Failed to start review'), e, t('script.review.start-recovery', 'Check the current review task state and Test Connection in Setup before starting another review.'));
             }
         }
@@ -3982,7 +3982,7 @@
                 }
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
+                _onReviewDone({status: 'failed', logs: [describeApiError(e)]});
                 showActionError(t('script.review.contextual-failed', 'Failed to start contextual review'), e, t('script.review.contextual-recovery', 'Check the review task state, context window and Test Connection in Setup before starting another review.'));
             }
         }

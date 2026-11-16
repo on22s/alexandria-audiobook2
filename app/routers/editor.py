@@ -2,6 +2,7 @@ from audio_generation_owner import AUDIO_GENERATION_CANCELLED, AudioGenerationCa
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
+from completed_review_receipt import get_review_progress_paths
 from book_state_transaction import ensure_book_state, get_book_operation_identity
 from task_ownership import ensure_startup_recovery
 import asyncio
@@ -3239,9 +3240,9 @@ def _get_review_checkpoint_snapshot():
 
 def _get_review_checkpoint_rows():
     out = []
-    suffix = ".review_checkpoint.json"
+    suffix = get_review_progress_paths('')[0]
 
-    active_cp = SCRIPT_PATH + suffix
+    active_cp = get_review_progress_paths(SCRIPT_PATH)[0]
     if os.path.exists(active_cp):
         s = _summarize_review_checkpoint(active_cp)
         if s:

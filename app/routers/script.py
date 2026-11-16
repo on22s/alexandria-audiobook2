@@ -3493,18 +3493,28 @@ def _require_review_restart_book(request):
 
 def discard_review_progress(output_path):
     """Retire review-owned progress only; never rewrite the current script."""
-    from completed_review_receipt import remove_completed_review_receipt
+    from completed_review_receipt import get_review_progress_paths, remove_completed_review_receipt
     from review_startup import event
-    checkpoint_path = output_path + '.review_checkpoint.json'
+    checkpoint_path = get_review_progress_paths(output_path)[0]
+    checkpoint_discarded = False
     try:
         with file_lock(checkpoint_path):
             remove_generation_shard_checkpoint(checkpoint_path, locked=True)
+            checkpoint_discarded = True
             remove_completed_review_receipt(output_path)
-    except (OSError, TimeoutError) as error:
+    except Exception as error:
         event('checkpoint_discard_failed', error=error)
+        if checkpoint_discarded:
+            raise AppError(409, (
+                "The review checkpoint was discarded, but the completed-review receipt was kept "
+                "because it could not be removed; the new review didn't start. The script and edits "
+                "were kept. Enable the option to review again even if nothing changed, then "
+                "Start Review to begin from batch 1."), key='error.review.restart_receipt_discard_failed') from error
         raise AppError(409, (
-            'Review progress could not be discarded. The script and edits were kept; '
-            'check the review log before trying Start over again.'),
+            "Review checkpoint cleanup failed; some progress may already have been discarded. "
+            "The completed-review receipt, script and edits were kept, and the new review didn't "
+            "start. Check the review log before retrying; progress may need further cleanup "
+            "before starting from batch 1."),
             key='error.review.restart_discard_failed') from error
     event('checkpoint_discarded')
 
@@ -3514,17 +3524,33 @@ def _schedule_review_start(background_tasks, request, command):
         return schedule_claimed_background_task(background_tasks, 'review',
             _run_review_worker, command, 'review', REVIEW_STARTUP.get())
     claim_id = None
+    progress_discarded = False
     try:
         with ensure_book_state(DATA_DIR):
             _require_review_restart_book(request)
             _require_published_script()
             claim_id = reserve_background_task('review')
             discard_review_progress(SCRIPT_PATH)
+            progress_discarded = True
             return register_claimed_background_task(background_tasks, 'review', claim_id,
                 _run_review_worker, command, 'review', REVIEW_STARTUP.get())
-    except BaseException:
+    except BaseException as error:
         if claim_id is not None:
             release_gpu_task_claim('review', claim_id, pending_only=True)
+        if progress_discarded and isinstance(error, Exception):
+            from review_startup import event
+            event('restart_registration_failed', error=error)
+            if isinstance(error, HTTPException) and error.detail == 'Task reservation is no longer active':
+                raise AppError(error.status_code, (
+                    "Review progress (checkpoint and completed-review receipt) was discarded, but "
+                    "the new review didn't start because its task reservation is no longer active. "
+                    "The script and edits were kept. Start Review to begin from batch 1."),
+                    key='error.review.restart_reservation_lost') from error
+            raise AppError(error.status_code if isinstance(error, HTTPException) else 500, (
+                "Review progress (checkpoint and completed-review receipt) was discarded, but the "
+                "new review didn't start because its background task could not be registered. "
+                "The script and edits were kept. Check the review log, then Start Review to begin "
+                "from batch 1."), key='error.review.restart_start_failed') from error
         raise
 
 @router.post("/api/review_script_contextual")
