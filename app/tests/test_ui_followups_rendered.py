@@ -147,14 +147,57 @@ def get_browser_result(source, width, timeout=30):
             worker.join(timeout=5)
 
 
+def get_localized_page_source():
+    source = (STATIC / 'index.html').read_text(encoding='utf-8')
+    source = re.sub(r'<script\b[^>]*>.*?</script>', '', source, flags=re.S | re.I)
+    def stylesheet(match):
+        filename = match.group(1).split('?')[0].removeprefix('/static/')
+        return '<style>' + (STATIC / filename).read_text(encoding='utf-8') + '</style>'
+    source = re.sub(r'<link\b[^>]*href="(/static/[^\"]+)"[^>]*>', stylesheet, source)
+    return source
+
+
 class RenderedUiFollowupTests(unittest.TestCase):
+    def test_populated_collection_keeps_locale_overflow_inside_its_container(self):
+        from collection_overview import _unreadable_book_row
+        source = get_localized_page_source()
+        scripts = (STATIC / 'js/app-i18n.js').read_text(encoding='utf-8')
+        scripts += '\n' + (STATIC / 'js/app-workspace.js').read_text(encoding='utf-8')
+        for locale in ('zh-CN', 'ja', 'es-419'):
+            messages = json.loads((STATIC / f'i18n/ui.{locale}.json').read_text(encoding='utf-8'))
+            scripts += '\nuiCatalogs.set(' + json.dumps(locale) + ',{messages:' + json.dumps(messages) + '});'
+        row = _unreadable_book_row('.', 'SYNTHETIC Locale Evidence', ValueError())
+        scripts += '\nconst row=' + json.dumps(row) + ';\n' + r'''
+        (async()=>{
+            const rows=[];
+            for(const pane of document.querySelectorAll('.tab-content')){pane.style.display='none';}
+            document.getElementById('home-tab').style.display='block';
+            for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
+                await applyUiLocale(locale);
+                renderCollectionOverview([row]);
+                await new Promise(resolve=>requestAnimationFrame(resolve));
+                const container=document.getElementById('workspace-collection');
+                rows.push({locale,width:innerWidth,scroll:document.documentElement.scrollWidth,
+                           overflow:getComputedStyle(container).overflowX,text:container.textContent});
+            }
+            await fetch('/results',{method:'POST',body:JSON.stringify({rows})});
+        })();
+        '''
+        source = source.replace('</body>', '<script>' + scripts + '</script></body>')
+        for width in (390, 1440):
+            frame = '<iframe style="border:0;width:' + str(width) + 'px;height:1000px" srcdoc="' + html.escape(source, quote=True) + '"></iframe>'
+            result = get_browser_result(frame, 1600)
+            self.assertNotIn('error', result, result)
+            self.assertEqual(5, len(result['rows']))
+            for row in result['rows']:
+                with self.subTest(width=width, locale=row['locale']):
+                    self.assertLessEqual(row['scroll'], row['width'])
+                    self.assertEqual('auto', row['overflow'])
+                    if row['locale'] != 'en':
+                        self.assertNotIn('Inspect saved book', row['text'])
+
     def test_script_header_wraps_in_all_locales_at_phone_and_desktop_widths(self):
-        source = (STATIC / 'index.html').read_text(encoding='utf-8')
-        source = re.sub(r'<script\b[^>]*>.*?</script>', '', source, flags=re.S | re.I)
-        def stylesheet(match):
-            filename = match.group(1).split('?')[0].removeprefix('/static/')
-            return '<style>' + (STATIC / filename).read_text(encoding='utf-8') + '</style>'
-        source = re.sub(r'<link\b[^>]*href="(/static/[^\"]+)"[^>]*>', stylesheet, source)
+        source = get_localized_page_source()
         scripts = (STATIC / 'js/app-i18n.js').read_text(encoding='utf-8')
         for locale in ('zh-CN', 'ja', 'es-419'):
             messages = json.loads((STATIC / f'i18n/ui.{locale}.json').read_text(encoding='utf-8'))

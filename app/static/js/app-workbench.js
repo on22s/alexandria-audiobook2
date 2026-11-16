@@ -896,6 +896,19 @@
         // Always-visible "what's running and how long until it's done" indicator,
         // shown next to the GPU/disk stats so it's visible from any tab.
         let _etaStatusPending = false;
+        let _etaStatusSnapshot = null;
+        function renderEtaLocaleChrome() {
+            const eta = _etaStatusSnapshot;
+            if (!eta?.running) { return; }
+            let text = eta.task ? getTaskLabel(eta.task) : eta.label;
+            if (eta.progress) { text = t('core.eta.with-progress', '{label} — {progress}', {label: text, progress: eta.progress}); }
+            if (eta.eta_seconds != null) {
+                text = t('core.eta.with-remaining', '{label} (ETA {remaining})', {label: text, remaining: formatDuration(eta.eta_seconds)});
+            } else if (eta.elapsed_seconds != null) {
+                text = t('core.eta.with-elapsed', '{label} (running {elapsed})', {label: text, elapsed: formatDuration(eta.elapsed_seconds)});
+            }
+            applySystemStatusText('sys-eta-val', text);
+        }
         async function updateEtaStatus() {
             if (_etaStatusPending) { return; }
             const wrap = document.getElementById('sys-eta');
@@ -903,21 +916,16 @@
             _etaStatusPending = true;
             try {
                 const eta = await API.get('/api/status/eta');
+                _etaStatusSnapshot = eta;
                 if (!eta.running) {
                     if (wrap.style.display !== 'none') { wrap.style.display = 'none'; }
                     return;
                 }
-                let text = eta.label;
-                if (eta.progress) { text = t('core.eta.with-progress', '{label} — {progress}', {label: text, progress: eta.progress}); }
-                if (eta.eta_seconds != null) {
-                    text = t('core.eta.with-remaining', '{label} (ETA {remaining})', {label: text, remaining: formatDuration(eta.eta_seconds)});
-                } else if (eta.elapsed_seconds != null) {
-                    text = t('core.eta.with-elapsed', '{label} (running {elapsed})', {label: text, elapsed: formatDuration(eta.elapsed_seconds)});
-                }
-                applySystemStatusText('sys-eta-val', text);
+                renderEtaLocaleChrome();
                 if (valEl.title) { valEl.title = ''; }
                 if (wrap.style.display !== 'flex') { wrap.style.display = 'flex'; }
             } catch (e) {
+                _etaStatusSnapshot = null;
                 console.error('Failed to update ETA status', e);
                 if (wrap.style.display !== 'none' && valEl.textContent) {
                     if (!valEl.title) { valEl.title = valEl.textContent; }

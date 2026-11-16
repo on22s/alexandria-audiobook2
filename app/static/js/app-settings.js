@@ -25,6 +25,8 @@ function changeUiLocale(locale) {
 function renderUiLocaleChrome() {
     renderSetupSearchStatus();
     if (typeof renderThemeControl === 'function') { renderThemeControl(); }
+    if (typeof renderWorkspaceLocaleChrome === 'function') { renderWorkspaceLocaleChrome(); }
+    if (typeof renderEtaLocaleChrome === 'function') { renderEtaLocaleChrome(); }
     if (typeof renderVoiceLocaleChrome === 'function') { renderVoiceLocaleChrome(); }
     if (typeof applyTtsCapabilityGuidance === 'function') { applyTtsCapabilityGuidance(); }
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }

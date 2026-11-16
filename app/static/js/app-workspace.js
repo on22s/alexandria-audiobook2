@@ -14,6 +14,7 @@ let workspaceBookSnapshot = null;
 let workspaceBookPending = null;
 let workspaceMonitorEpoch = 0;
 let workspaceContinuePending = false;
+let workspaceSavedBookPending = false;
 let workspaceMonitorPending = false;
 let workspacePollTimer = null;
 let workspacePreviousRunning = false;
@@ -22,6 +23,29 @@ let workspaceLibrarySignature = null;
 let collectionOverviewRequest = 0;
 let collectionOverviewPending = null;
 let collectionOverviewLimit = 50;
+let collectionOverviewSnapshot = null;
+
+function getWorkspaceGuidance(row, field) {
+    const form = row[field + '_forms']?.[pluralForm(row[field + '_quantity'])];
+    const key = form?.key || row[field + '_key'];
+    const english = form?.template || row[field + '_template'] || row[field];
+    const values = {...row[field + '_values']};
+    for (const name of Object.keys(values)) {
+        if (values[name + '_key']) {
+            values[name] = getWorkspaceGuidance(values, name);
+        }
+    }
+    return key ? t(key, english, values) : row[field];
+}
+
+function renderWorkspaceLocaleChrome() {
+    if (workspaceBookSnapshot) {
+        renderBookWorkspace(workspaceBookSnapshot);
+    }
+    if (collectionOverviewSnapshot) {
+        renderCollectionOverview(collectionOverviewSnapshot);
+    }
+}
 
 function isWorkspaceVisible() {
     return currentTabName === 'home' && document.visibilityState !== 'hidden';
@@ -47,10 +71,10 @@ function renderBookWorkspace(data) {
         empty.hidden = data.script.entries !== 0 || data.cast.total !== 0 || !!currentBookFilename || !!window._selectedUploadIdentity;
         document.querySelector('#workspace-stages').hidden = !empty.hidden;
     }
-    document.getElementById('workspace-book-name').textContent = data.name;
-    document.getElementById('workspace-next-reason').textContent = data.next.reason;
+    document.getElementById('workspace-book-name').textContent = getWorkspaceGuidance(data, 'name');
+    document.getElementById('workspace-next-reason').textContent = getWorkspaceGuidance(data.next, 'reason');
     const button = document.getElementById('workspace-continue');
-    button.textContent = data.next.label;
+    button.textContent = getWorkspaceGuidance(data.next, 'label');
     button.disabled = workspaceContinuePending;
     const audio = data.audio;
     const review = audio.review;
@@ -71,7 +95,7 @@ function renderBookWorkspace(data) {
         renderWorkspaceStage(t('home.workspace.stage.cast', 'Cast'), t('home.workspace.cast.summary', 'Characters: {total} · need preparation: {pending}', {total: data.cast.total, pending: data.cast.pending}), t('home.workspace.cast.help', 'Finish preparing characters in Voices, then listen to their samples.')),
         renderWorkspaceStage(t('home.workspace.stage.audio', 'Audio'), audio.status === 'unavailable' ? t('home.workspace.audio.progress-unavailable', 'Progress unavailable')
             : audio.total ? t('home.workspace.audio.files', 'Files present: {present} / {total}', {present: audio.present, total: audio.total}) : t('home.workspace.not-prepared', 'Not prepared'),
-            `${audio.message}${speech}${audio.failed || audio.missing ? ' ' + t('home.workspace.audio.failures', '{failed} failed; {missing} done rows have missing audio.', {failed: audio.failed, missing: audio.missing}) : ''}`),
+            `${getWorkspaceGuidance(audio, 'message')}${speech}${audio.failed || audio.missing ? ' ' + t('home.workspace.audio.failures', '{failed} failed; {missing} done rows have missing audio.', {failed: audio.failed, missing: audio.missing}) : ''}`),
         renderWorkspaceStage(t('home.workspace.stage.export', 'Export'), outputs || t('home.workspace.not-inspected', 'Not inspected'), exportNote)
     );
 }
@@ -92,21 +116,22 @@ function renderWorkspaceLibrary(books) {
         title.textContent = book.name;
         const description = document.createElement('div');
         description.className = 'small text-muted mb-2';
-        description.textContent = t('home.workspace.library.script-saved', 'Script saved · {voices}', {voices: book.has_voice_config ? t('home.workspace.library.voices-saved', 'voice settings file saved') : t('home.workspace.library.voices-missing', 'no saved voice settings file')});
+        setUiMessage(description, 'home.workspace.library.script-saved', 'Script saved · {voices}', () => ({voices: book.has_voice_config ? t('home.workspace.library.voices-saved', 'voice settings file saved') : t('home.workspace.library.voices-missing', 'no saved voice settings file')}));
         const load = document.createElement('button');
         load.type = 'button';
         load.className = 'btn btn-outline-secondary btn-sm';
-        load.textContent = t('home.workspace.library.load', 'Load saved book…');
+        setUiMessage(load, 'home.workspace.library.load', 'Load saved book…');
         load.setAttribute('data-help-key', 'openWorkspaceSavedBook');
         load.addEventListener('click', () => openWorkspaceSavedBook(book.name, load));
         const checkLabel = document.createElement('label');
         checkLabel.className = 'small d-block mt-2';
         const check = document.createElement('input');
         check.type = 'checkbox';
+        check.className = 'me-1';
         check.setAttribute('data-collection-select', book.name);
         check.checked = selected.has(book.name);
         const checkText = document.createElement('span');
-        checkText.textContent = ' ' + t('home.workspace.library.select', 'Select {book} for collection overview', {book: book.name});
+        setUiMessage(checkText, 'home.workspace.library.select', 'Select {book} for collection overview', {book: book.name});
         checkLabel.append(check, checkText);
         row.append(title, description, load, checkLabel);
         container.appendChild(row);
@@ -138,6 +163,7 @@ function isCollectionRowLoadable(row) {
 }
 
 function renderCollectionOverview(rows) {
+    collectionOverviewSnapshot = rows;
     const container = document.getElementById('workspace-collection');
     container.replaceChildren();
     const table = document.createElement('table');
@@ -163,28 +189,31 @@ function renderCollectionOverview(rows) {
         bookId.textContent = t('home.workspace.collection.id', 'ID {id}{active} · revision {revision}', {id: row.book_id, active: row.is_active ? ' · ' + t('home.workspace.collection.active', 'active') : '', revision: isCollectionDigest(row.revision) ? row.revision.slice(0, 12) : t('home.workspace.collection.unknown', 'unknown')});
         bookCell.append(bookTitle, bookId);
         const stageCell = document.createElement('td');
-        stageCell.textContent = row.overall;
+        stageCell.textContent = getWorkspaceGuidance(row, 'overall');
+        stageCell.title = row.overall;
         const evidenceCell = document.createElement('td');
         const evidence = document.createElement('ul');
         evidence.className = 'small mb-0';
         for (const [label, stage] of [[t('home.workspace.stage.script', 'Script'), row.script], [t('home.workspace.stage.review', 'Review'), row.review], [t('home.workspace.stage.voices', 'Voices'), row.voices], [t('home.workspace.stage.render', 'Render/export'), row.render]]) {
             const item = document.createElement('li');
-            item.textContent = `${label}: ${stage.status} — ${stage.evidence}`;
+            item.textContent = `${label}: ${getWorkspaceGuidance(stage, 'status')} — ${getWorkspaceGuidance(stage, 'evidence')}`;
+            item.title = stage.status;
             evidence.appendChild(item);
         }
         evidenceCell.appendChild(evidence);
         const nextCell = document.createElement('td');
         nextCell.className = 'small';
-        nextCell.textContent = `${row.next.label} — ${row.next.reason}`;
+        nextCell.textContent = `${getWorkspaceGuidance(row.next, 'label')} — ${getWorkspaceGuidance(row.next, 'reason')}`;
         const openCell = document.createElement('td');
         const open = document.createElement('button');
         open.type = 'button';
         open.className = 'btn btn-outline-secondary btn-sm';
+        open.disabled = workspaceSavedBookPending;
         open.textContent = t('home.workspace.collection.load', 'Load this book…');
         open.setAttribute('data-help-key', 'openWorkspaceSavedBook');
         if (!isCollectionRowLoadable(row)) {
             open.disabled = true;
-            open.title = row.loadable === false ? row.script.evidence
+            open.title = row.loadable === false ? getWorkspaceGuidance(row.script, 'evidence')
                 : t('home.workspace.collection.no-proof', 'No valid revision proof for this book; show the overview again before loading.');
         }
         open.addEventListener('click', () => openCollectionBook(row, open));
@@ -197,6 +226,7 @@ function renderCollectionOverview(rows) {
 }
 
 async function showCollectionOverview() {
+    collectionOverviewSnapshot = null;
     const selectionEpoch = window._bookSelectionEpoch || 0;
     const names = collectionSelectedNames();
     const signature = JSON.stringify([selectionEpoch, names]);
@@ -251,7 +281,7 @@ async function showCollectionOverview() {
 async function openCollectionBook(row, button) {
     if (!isCollectionRowLoadable(row)) {
         document.getElementById('workspace-collection-feedback').textContent =
-            row.loadable === false ? row.script.evidence
+            row.loadable === false ? getWorkspaceGuidance(row.script, 'evidence')
                 : t('safety.home.collection.no-proof', 'This book has no valid revision proof. Nothing was loaded; show the overview again before loading.');
         return;
     }
@@ -372,10 +402,12 @@ async function continueBookWorkspace() {
 }
 
 async function openWorkspaceSavedBook(name, button, expectedRevision = null) {
+    if (workspaceSavedBookPending) { return; }
+    workspaceSavedBookPending = true;
     button.disabled = true;
     try { await loadScript(name, expectedRevision); }
     catch (error) { showActionError(t('home.workspace.load.failed', 'Could not load the saved book'), error, t('home.workspace.load.recovery', 'Review the currently selected book before trying Load again; its reply may have been lost.')); }
-    finally { button.disabled = false; await refreshBookWorkspace(); }
+    finally { workspaceSavedBookPending = false; button.disabled = false; await refreshBookWorkspace(); }
 }
 
 function getWorkspaceTaskTab(name) {
@@ -481,6 +513,7 @@ window.invalidateBookWorkspace = function () {
     const hadSnapshot = !!workspaceBookSnapshot && (workspaceBookSnapshot.script?.entries > 0 || workspaceBookSnapshot.cast?.total > 0)
         || !!document.querySelector('#workspace-collection')?.children.length;
     ++collectionOverviewRequest;
+    collectionOverviewSnapshot = null;
     document.getElementById('workspace-collection')?.replaceChildren();
     const feedback = document.getElementById('workspace-collection-feedback');
     if (feedback) { feedback.textContent = hadSnapshot ? t('safety.home.collection.active-changed', 'The active book changed. Show the collection overview again.') : ''; }

@@ -10,6 +10,7 @@ SOURCE = Path(__file__).resolve().parents[1] / 'static/js/app-translated-edition
 CORE = Path(__file__).resolve().parents[1] / 'static/js/app-core.js'
 INDEX = Path(__file__).resolve().parents[1] / 'static/index.html'
 SETUP = r'''
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}for(const node of nodes){this.appendChild(node);}};
 const text=node=>node.textContent+node.children.map(text).join('');
@@ -132,7 +133,7 @@ class TranslatedEditionJSTests(unittest.TestCase):
 
     def run_real_panel_js(self, script):
         script = "let finished=false;process.on('beforeExit',()=>assert(finished,'Test did not finish'));\n" + script.replace('})().catch', '})().then(()=>{finished=true;}).catch')
-        result = subprocess.run(['node', '-e', DOM_FIXTURE + _real_panel_setup() + script, str(SOURCE)],
+        result = subprocess.run(['node', '-e', DOM_FIXTURE + "vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);" + _real_panel_setup() + script, str(SOURCE)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 

@@ -363,7 +363,7 @@ class KeyingTests(LocaleTestCase):
             ('app-single-voice.js', "t('safety.single_voice.recovery.nothing'"),
             ('app-speaker-review.js', "t('speaker_review.budget'"),
             ('app-speaker-review.js', "t('safety.speaker_review.report.stale'"),
-            ('app-project-scope.js', "t('scope.choices'"),
+            ('app-project-scope.js', "uiMessage('scope.choices'"),
             ('app-translated-edition.js', "t('translation.proposal.heading'"),
             ('app-tts-capabilities.js', "t('setup.tts.cap.report.heading'"),
             ('app-tts-diagnostics.js', "t('tts_diag.record'"),

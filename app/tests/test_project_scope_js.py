@@ -6,6 +6,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 SOURCE=Path(__file__).resolve().parents[1]/'static/js/app-project-scope.js'
 SETUP=r'''
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}for(const node of nodes){this.appendChild(node);}};
 const text=node=>node.textContent+node.children.map(text).join('');

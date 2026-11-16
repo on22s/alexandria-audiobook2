@@ -14,7 +14,7 @@
                         month: 'short', day: 'numeric', year: 'numeric'
                     });
                     const voiceBadge = s.has_voice_config
-                        ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('script.saved.badge-title', 'Includes voice configuration'))}">${escapeHtml(t('script.saved.voices-badge', 'voices'))}</span>`
+                        ? `<span class="badge bg-info ms-2" data-i18n-attr="title:script.saved.badge-title" title="${escapeHtml(t('script.saved.badge-title', 'Includes voice configuration'))}">${uiMessageMarkup('script.saved.voices-badge', 'voices')}</span>`
                         : '';
                     return `
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 border-bottom">
@@ -23,12 +23,19 @@
                                 <small class="text-muted ms-2">${date}</small>
                             </div>
                             <div class="flex-shrink-0">
-                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${getInlineStringArgument(s.name)})'><i class="fas fa-stethoscope me-1"></i>${escapeHtml(t('script.saved.audit', 'Audit'))}</button>
-                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${getInlineStringArgument(s.name)})'><i class="fas fa-upload me-1"></i>${escapeHtml(t('script.saved.load', 'Load'))}</button>
-                                <button class="btn btn-sm btn-outline-danger" aria-label="${escapeHtml(t('script.saved.delete-aria', 'Delete saved script {name}', {name: s.name}))}" onclick='deleteScript(${getInlineStringArgument(s.name)})'><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-info me-1" onclick='auditSavedScript(${getInlineStringArgument(s.name)})'><i class="fas fa-stethoscope me-1"></i>${uiMessageMarkup('script.saved.audit', 'Audit')}</button>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick='loadScript(${getInlineStringArgument(s.name)})'><i class="fas fa-upload me-1"></i>${uiMessageMarkup('script.saved.load', 'Load')}</button>
+                                <button class="btn btn-sm btn-outline-danger" data-i18n-attr="aria-label:script.saved.delete-aria" data-i18n-values="${escapeHtml(JSON.stringify({name: s.name}))}" aria-label="${escapeHtml(t('script.saved.delete-aria', 'Delete saved script {name}', {name: s.name}))}" onclick='deleteScript(${getInlineStringArgument(s.name)})'><i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                 }).join('');
+                for (const badge of container.querySelectorAll('[data-i18n-attr="title:script.saved.badge-title"]')) {
+                    renderUiMessage(badge, uiMessage('script.saved.badge-title', 'Includes voice configuration'), 'title');
+                }
+                for (const button of container.querySelectorAll('[data-i18n-attr="aria-label:script.saved.delete-aria"]')) {
+                    renderUiMessage(button, uiMessage('script.saved.delete-aria', 'Delete saved script {name}', JSON.parse(button.getAttribute('data-i18n-values'))), 'aria-label');
+                }
+                applyUiCatalog(container);
             });
         }
 
