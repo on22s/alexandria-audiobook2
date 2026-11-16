@@ -6,6 +6,8 @@ if sys.platform != 'win32':
     raise SystemExit(2)
 
 import contextlib
+import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -27,6 +29,129 @@ def _base_python():
 
 
 class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
+    def _cancel_review_tree(self, cooperative, fail_force=False):
+        import core
+        import review_script as review
+        from windows_subprocess_job import WindowsSubprocessJob
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / 'book.json'
+            rows = [{'speaker': 'ANN', 'text': 'Saved.', 'instruct': 'Plain.'}]
+            output.write_text(json.dumps(rows), encoding='utf-8')
+            review.save_checkpoint(str(output), 1, 2, 1, 0, rows, {}, None,
+                                   [1], [], 'source', None)
+            before = {path: path.read_bytes() for path in root.rglob('*') if path.is_file()}
+            ready = root / 'ready.json'
+            child_code = (
+                'import os,time,pathlib; '
+                'path=pathlib.Path(os.environ.get("ALEXANDRIA_REVIEW_CANCEL_FILE", "missing")); '
+                + ('\nwhile not path.exists(): time.sleep(.02)' if cooperative else 'time.sleep(60)'))
+            worker = (
+                'import ctypes,json,os,pathlib,subprocess,sys,time\n'
+                'ctypes.windll.kernel32.FreeConsole()\n'
+                + ('from review_script import ensure_review_not_cancelled\n' if cooperative else '')
+                +
+                f'child=subprocess.Popen([sys.executable,"-c",{child_code!r}],'
+                'creationflags=subprocess.DETACHED_PROCESS)\n'
+                f'pathlib.Path({str(ready)!r}).write_text(json.dumps('
+                '[os.getpid(),child.pid,bool(ctypes.windll.kernel32.GetConsoleWindow())]))\n'
+                + ('while True:\n ensure_review_not_cancelled()\n time.sleep(.02)\n'
+                   if cooperative else 'time.sleep(60)\n'))
+            state = dict(running=False, cancel=False, status='idle', logs=[],
+                         process=None, pid=None, processes=[], return_code=None)
+            processes, closed_counts, forced = [], [], []
+            watchdog = threading.Event()
+            real_terminate = WindowsSubprocessJob.terminate
+            real_close = WindowsSubprocessJob.close
+            def start(*args, **kwargs):
+                process = start_owned_subprocess(*args, creationflags=subprocess.DETACHED_PROCESS, **kwargs)
+                processes.append(process)
+                return process
+            def terminate(job, exit_code=1):
+                forced.append(time.monotonic())
+                if fail_force and len(forced) == 1:
+                    raise OSError('injected review force-stop failure')
+                return real_terminate(job, exit_code)
+            def close(job):
+                closed_counts.append(job.get_active_process_count())
+                return real_close(job)
+            def rescue():
+                watchdog.set()
+                for process in processes:
+                    real_terminate(process._alexandria_windows_owner.job)
+            timer = threading.Timer(25, rescue)
+            thread = threading.Thread(target=core.run_process,
+                args=([sys.executable, '-u', '-c', worker], 'review', os.getcwd()))
+            try:
+                with patch.dict(core.process_state, {'review': state}), \
+                     patch.object(core, '_init_task_log', return_value=str(root / 'review.log')), \
+                     patch.object(core, 'start_owned_subprocess', side_effect=start), \
+                     patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .5), \
+                     patch.object(WindowsSubprocessJob, 'terminate', new=terminate), \
+                     patch.object(WindowsSubprocessJob, 'close', new=close), \
+                     self.assertLogs('AlexandriaUI', level='INFO') as captured:
+                    timer.start()
+                    thread.start()
+                    deadline = time.monotonic() + 15
+                    while not ready.exists() and thread.is_alive() and time.monotonic() < deadline:
+                        time.sleep(.02)
+                    self.assertTrue(ready.exists(), state['logs'])
+                    worker_pid, child_pid, has_console = json.loads(ready.read_text())
+                    self.assertFalse(has_console, 'fixture worker unexpectedly has a console')
+                    job = processes[0]._alexandria_windows_owner.job
+                    self.assertIn(worker_pid, job.get_process_ids())
+                    self.assertIn(child_pid, job.get_process_ids())
+                    requested = time.monotonic()
+                    core._cancel_task('review', 'idle', 'exited')
+                    thread.join(20)
+                self.assertFalse(thread.is_alive(), 'cancel did not complete within its bound')
+                self.assertFalse(watchdog.is_set(), 'cancel required watchdog cleanup')
+                self.assertEqual([0], closed_counts)
+                self.assertFalse(is_subprocess_tree_running(processes[0]))
+                self.assertIsNotNone(processes[0].poll())
+                self.assertFalse(state['running'])
+                self.assertIsNone(state['process'])
+                self.assertIsNone(state['pid'])
+                self.assertEqual([], state['processes'])
+                self.assertEqual('failed' if fail_force else 'cancelled', state['status'])
+                if fail_force:
+                    self.assertNotIn('Task review cancelled.', state['logs'])
+                    self.assertTrue(any(record.levelno >= logging.ERROR for record in captured.records))
+                    self.assertIn('injected review force-stop failure', '\n'.join(state['logs']))
+                else:
+                    self.assertFalse(any(record.levelno >= logging.WARNING for record in captured.records), captured.output)
+                    self.assertNotIn('ERROR:', '\n'.join(state['logs']))
+                    self.assertIn('Task review cancelled.', state['logs'])
+                if cooperative:
+                    self.assertEqual([], forced, 'cooperative review needed forced termination')
+                else:
+                    self.assertGreaterEqual(forced[0] - requested, .5)
+                    if not fail_force:
+                        self.assertIn('force-terminated', '\n'.join(state['logs']))
+                self.assertEqual(before, {path: path.read_bytes() for path in before})
+                with patch.object(review, '_entries_fingerprint', return_value='source'):
+                    resumed = review.load_checkpoint(str(output), 2, 1, 0, rows)
+                self.assertEqual(1, resumed['completed_batches'])
+                self.assertEqual(rows, resumed['all_corrected'])
+            finally:
+                timer.cancel()
+                timer.join(2)
+                for process in processes:
+                    if is_subprocess_tree_running(process):
+                        real_terminate(process._alexandria_windows_owner.job)
+                thread.join(5)
+                for process in processes:
+                    self._close_owned(process)
+
+    def test_review_cooperative_cancel_stops_real_headless_tree(self):
+        self._cancel_review_tree(cooperative=True)
+
+    def test_review_force_cancel_stops_real_detached_tree_and_keeps_checkpoint(self):
+        self._cancel_review_tree(cooperative=False)
+
+    def test_review_force_failure_is_not_reported_as_cancelled(self):
+        self._cancel_review_tree(cooperative=False, fail_force=True)
+
     def _start_owned_sleep(self, termination_grace=1, **extra):
         return start_owned_subprocess(
             [_base_python(), "-c", "import time; time.sleep(30)"],
@@ -371,7 +496,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 7 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 10 and not result.skipped else 1
 
 
 if __name__ == '__main__':

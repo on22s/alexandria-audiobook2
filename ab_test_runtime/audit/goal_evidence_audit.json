@@ -1050,16 +1050,22 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-16T04:45:52",
+  "written": "2026-11-16T05:30:51",
   "host": "RealMitch",
   "git": {
-   "commit": "00272b970f888eb015f25d2d47fdf9e39a762aee",
-   "branch": "ui/batch-c-phone-layout",
+   "commit": "fcc84529ffe81800d59a1891c021752189e792db",
+   "branch": "fix/1977-review-cancel-windows-terminate",
    "dirty": true,
-   "source_state": "dirty:8ca7bbffdb66",
+   "source_state": "dirty:6847a48860a3",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_local_ui_assets.py"
+    "M  app/core.py",
+    "M  app/review_script.py",
+    "M  app/subprocess_ownership.py",
+    "M  app/tests/native_windows_cleanup_checks.py",
+    "M  app/tests/test_review_checkpoint_deltas.py",
+    "M  app/tests/test_windows_cleanup_escalation.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "f49202d6532a833735867c4ef2721903035a4c9ba3c0b1c0174494163d3d0244",
