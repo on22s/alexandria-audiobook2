@@ -58,7 +58,7 @@ const context = {
     document: {getElementById: id => elements[id] || null,createElement:tag=>({tag,children:[],setAttribute(name,value){this[name]=value;},append(...nodes){this.children.push(...nodes);}})},
     API: {
         get: async path => {
-            if (path === '/api/status') {registryFetches++;return {persona:{running:runningTask==='persona'},script:{running:runningTask==='script'}};}
+            if (path === '/api/status') {registryFetches++;return {persona:{running:runningTask==='persona',ownership_unconfirmed:false},script:{running:runningTask==='script',ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};}
             if (path === '/api/manual_llm/pending') { return {pending}; }
             if (path.startsWith('/api/status/')) {
                 const task = path.split('/').pop(); statusFetches.push(task);

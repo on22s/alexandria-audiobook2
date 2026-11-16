@@ -80,7 +80,7 @@ assert.equal(attached.book_token,book);assert(requests.includes('/api/status/out
 
     def test_remote_persona_and_local_voicelab_both_restore(self):
         self.run_js(r"""
-statuses={persona:{running:true},voicelab:{running:true}};await ctx.reattachRunningPollers();
+statuses={persona:{running:true,ownership_unconfirmed:false},voicelab:{running:true,ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};await ctx.reattachRunningPollers();
 assert.deepStrictEqual(calls,['persona','voicelab']);assert(el('btn-voicelab-start').disabled);assert.strictEqual(requests[0],'/api/status');
 assert(!requests.includes('/api/status/persona'));assert(!requests.includes('/api/status/voicelab'));
 """)

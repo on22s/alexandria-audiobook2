@@ -60,7 +60,7 @@ for (const mode of ['running','idle','unavailable']) {
             if (url === '/api/status') {
                 await gate;
                 if (mode === 'unavailable') { throw new Error('registry unavailable'); }
-                return {voicelab:{running:mode==='running'}};
+                return {voicelab:{running:mode==='running',ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};
             }
             if (url.startsWith('/api/status/voicelab')) {
                 await gate;

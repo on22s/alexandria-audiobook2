@@ -236,11 +236,12 @@ finished=true;
     def test_monitor_keeps_disclosure_nodes_and_withholds_eta_for_paused_manual_and_cancel(self):
         self.run_js(r'''
 (async()=>{
- responses['/api/status']={script:{running:true},new_task:{running:true}};
+ responses['/api/status']={script:{running:true,ownership_unconfirmed:false},new_task:{running:true,ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};
  responses['/api/status/new_task']={running:true,logs:['<img onerror=bad()>']};
  for(const flags of [{paused:true},{manual_request:{id:'one'}},{cancel:true}]){
   responses['/api/status/script']={running:true,logs:['Step 2 (speakers): 2/4','Retrying... 2 of 3'],eta:{eta_seconds:999,elapsed_seconds:30},...flags};
   await context.refreshWorkspaceMonitor();
+  assert(!requests.includes('/api/status/failed_owner'));assert(!vm.runInContext('workspaceTaskViews.has("failed_owner")',context));
   const view=vm.runInContext('workspaceTaskViews.get("script")',context);
   assert(!view.activity.textContent.includes('999'));assert(view.timing.textContent.includes('withheld'));
   if(!flags.cancel){assert(view.activity.textContent.includes('Retrying'));}

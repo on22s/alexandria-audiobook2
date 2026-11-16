@@ -121,7 +121,7 @@ def assert_chunk0_done(context_label):
 
 
 def wait_for_task(task, timeout=120, poll_interval=2):
-    """Poll /api/status/{task} until it stops running or timeout is reached."""
+    """Wait for an idle task with no unconfirmed process ownership."""
     deadline = time.time() + timeout
     last_status_code = None
     last_body = None
@@ -133,15 +133,18 @@ def wait_for_task(task, timeout=120, poll_interval=2):
         # non-bool running flag in a malformed 200 body must never
         # falsely pass the final bounded cleanup proof (the production
         # status contract is always bool from core.is_task_running).
-        if r.status_code == 200 and r.json().get("running") is False:
-            return True
+        if r.status_code == 200:
+            state = r.json()
+            if (state.get("running") is False
+                    and state.get("ownership_unconfirmed", False) is False):
+                return True
         time.sleep(poll_interval)
     if last_status_code != 200:
         print(f"  [wait_for_task:{task}] timed out after {timeout}s - last poll returned "
               f"status {last_status_code}: {last_body!r} (broken endpoint, not just slow)")
     else:
-        print(f"  [wait_for_task:{task}] timed out after {timeout}s - still running "
-              f"(last poll: 200 OK, running=true)")
+        print(f"  [wait_for_task:{task}] timed out after {timeout}s - ownership not confirmed idle "
+              f"(last poll: 200 OK, status={last_body!r})")
     return False
 
 
