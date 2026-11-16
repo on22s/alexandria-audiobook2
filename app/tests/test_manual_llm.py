@@ -69,6 +69,76 @@ def _answer_pending(client, content, **kwargs):
 
 class ManualClientTests(unittest.TestCase):
 
+    def test_unreadable_pending_preserves_live_owner_and_answerability(self):
+        from pathlib import Path
+        from manual_llm_context import apply_manual_cancellation
+        from utils import file_lock
+        with tempfile.TemporaryDirectory() as directory:
+            first = ManualClient(directory)
+            second = ManualClient(directory)
+            first.POLL_SECONDS = second.POLL_SECONDS = .01
+            stopped = threading.Event()
+            answers = {}
+            failures = []
+            def request_first():
+                try:
+                    with apply_manual_cancellation(stopped.is_set):
+                        answers['first'] = first.create(model='fixture', messages=[]).choices[0].message.content
+                except Exception as error:
+                    failures.append(error)
+            worker = threading.Thread(target=request_first, daemon=True)
+            worker.start()
+            try:
+                deadline = time.monotonic() + 3
+                while not os.path.exists(first.pending_path) and time.monotonic() < deadline:
+                    time.sleep(.01)
+                with file_lock(first.pending_path):
+                    original = Path(first.pending_path).read_bytes()
+                pending = json.loads(original)
+                original_open = open
+                def fail_pending_read(path, *args, **kwargs):
+                    if os.fspath(path) == first.pending_path:
+                        raise PermissionError('synthetic sharing violation')
+                    return original_open(path, *args, **kwargs)
+                deadline = time.monotonic() + 1
+                with patch('builtins.open', side_effect=fail_pending_read), \
+                     apply_manual_cancellation(lambda: time.monotonic() >= deadline):
+                    with self.assertRaises(core.AppError) as raised:
+                        second.create(model='fixture', messages=[])
+                self.assertEqual(503, raised.exception.status_code)
+                self.assertEqual('error.manual_llm.pending_read_failed', raised.exception.message_key)
+                self.assertEqual(original, Path(first.pending_path).read_bytes())
+                self.assertTrue(llm_provider.is_manual_request_owner_alive(pending))
+                with patch.object(script, 'DATA_DIR', directory):
+                    accepted = asyncio.run(script.manual_llm_response(
+                        script.ManualReply(id=pending['id'], content='Still answerable')))
+                self.assertTrue(accepted['accepted'])
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual({'first': 'Still answerable'}, answers)
+                self.assertEqual([], failures)
+                self.assertFalse(os.path.exists(first.pending_path))
+            finally:
+                stopped.set()
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+
+    def test_corrupt_pending_is_not_replaceable(self):
+        from pathlib import Path
+        from manual_llm_context import apply_manual_cancellation
+        for contents in (b'{', b'null', b'[]', b'{}', b'{"id": ""}', b'\xff'):
+            with self.subTest(contents=contents), tempfile.TemporaryDirectory() as directory:
+                client = ManualClient(directory)
+                os.makedirs(client.dir, exist_ok=True)
+                Path(client.pending_path).write_bytes(contents)
+                deadline = time.monotonic() + 1
+                with apply_manual_cancellation(lambda: time.monotonic() >= deadline):
+                    with self.assertRaises(core.AppError) as raised:
+                        client.create(model='fixture', messages=[])
+                self.assertEqual(503, raised.exception.status_code)
+                self.assertEqual(contents, Path(client.pending_path).read_bytes())
+                self.assertFalse(os.path.exists(client.response_path))
+
     def test_failed_atomic_replacement_preserves_stale_pending(self):
         import errno
         from pathlib import Path
@@ -646,6 +716,38 @@ class ManualEndpointTests(unittest.TestCase):
 
 
 class ManualPendingOwnershipTests(unittest.TestCase):
+    def assert_pending_storage_error(self, method, route):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(script.router)
+        api.add_exception_handler(core.AppError, core.handle_app_error)
+        for failure in (PermissionError('synthetic sharing violation'), ValueError('synthetic corrupt JSON')):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                path = self.write_pending(directory)
+                original = path.read_bytes()
+                original_open = open
+                def fail_pending_read(filename, *args, **kwargs):
+                    if os.fspath(filename) == str(path):
+                        raise failure
+                    return original_open(filename, *args, **kwargs)
+                with patch.object(script, 'DATA_DIR', directory), \
+                     patch('builtins.open', side_effect=fail_pending_read):
+                    with TestClient(api) as client:
+                        response = client.request(method, route, **(
+                            {'json': {'id': 'old-casting', 'content': 'Answer'}} if method == 'POST' else {}))
+                self.assertEqual(503, response.status_code)
+                self.assertEqual({'detail': 'The pending manual LLM request could not be read. Try again.',
+                                  'message_key': 'error.manual_llm.pending_read_failed'}, response.json())
+                self.assertEqual(original, path.read_bytes())
+                self.assertFalse(path.with_name('response.json').exists())
+
+    def test_pending_route_reports_storage_error_instead_of_no_request(self):
+        self.assert_pending_storage_error('GET', '/api/manual_llm/pending')
+
+    def test_reply_route_reports_storage_error_instead_of_no_request(self):
+        self.assert_pending_storage_error('POST', '/api/manual_llm/response')
+
     """An old casting prompt must not become a new design task's request."""
 
     def test_reply_revalidates_identity_after_acquiring_slot_lock(self):

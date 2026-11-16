@@ -481,6 +481,23 @@ def manual_llm_dir(data_dir):
     return os.path.join(data_dir, MANUAL_DIR_NAME)
 
 
+def read_manual_pending_locked(path):
+    """Read an occupied slot strictly while the caller holds its file lock."""
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            pending = json.load(handle)
+        if not isinstance(pending, dict) or not isinstance(pending.get("id"), str) or not pending["id"]:
+            raise ValueError("Invalid manual LLM pending request")
+        return pending
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as error:
+        from core import AppError
+        raise AppError(503, "The pending manual LLM request could not be read. Try again.",
+                       key="error.manual_llm.pending_read_failed") from error
+
+
 def get_manual_llm_data_dir():
     """The data directory whose manual_llm/ the page serves: an explicit parent
     directory for isolated children, otherwise this process's data directory.
@@ -603,7 +620,7 @@ class ManualClient:
         import json
         import uuid
         from types import SimpleNamespace
-        from utils import atomic_json_write, file_lock, safe_load_json
+        from utils import atomic_json_write, file_lock
         os.makedirs(self.dir, exist_ok=True)
         self.sequence += 1
         request = {
@@ -620,6 +637,7 @@ class ManualClient:
         }
         with _manual_request_owners_lock:
             _manual_request_owners[request["id"]] = threading.current_thread()
+        claimed = False
         try:
             # The one visible prompt is a queue slot shared by all clients. Hold
             # the short file lock only while claiming it; human replies can take
@@ -628,15 +646,14 @@ class ManualClient:
                 ensure_manual_request_active()
                 with file_lock(self.pending_path):
                     ensure_manual_request_active()
-                    pending = safe_load_json(self.pending_path, None)
-                    if not os.path.exists(self.pending_path) or (
-                            not isinstance(pending, dict) or not pending.get("id") or
-                            not is_manual_request_owner_alive(pending)):
+                    pending = read_manual_pending_locked(self.pending_path)
+                    if pending is None or not is_manual_request_owner_alive(pending):
                         try:
                             os.remove(self.response_path)
                         except FileNotFoundError:
                             pass
                         atomic_json_write(request, self.pending_path)
+                        claimed = True
                         break
                 time.sleep(self.POLL_SECONDS)
             while True:
@@ -664,15 +681,16 @@ class ManualClient:
         finally:
             with _manual_request_owners_lock:
                 _manual_request_owners.pop(request["id"], None)
-            with file_lock(self.pending_path):
-                # Only the request owner may release this queue slot.
-                current = safe_load_json(self.pending_path, None)
-                if isinstance(current, dict) and current.get("id") == request["id"]:
-                    try:
-                        os.remove(self.response_path)
-                    except FileNotFoundError:
-                        pass
-                    os.remove(self.pending_path)
+            if claimed:
+                with file_lock(self.pending_path):
+                    # Only the request owner may release this queue slot.
+                    current = read_manual_pending_locked(self.pending_path)
+                    if current is not None and current.get("id") == request["id"]:
+                        try:
+                            os.remove(self.response_path)
+                        except FileNotFoundError:
+                            pass
+                        os.remove(self.pending_path)
 
 
 class _ManualChat:

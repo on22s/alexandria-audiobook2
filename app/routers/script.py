@@ -39,7 +39,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
 from diagnostics import redact_text
-from llm_provider import MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive
+from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
+                          read_manual_pending_locked)
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -4824,9 +4825,8 @@ def _stage_hint(logs):
 
 
 def _read_manual_pending_locked(path):
-    data = safe_load_json(path, None)
-    return (data if isinstance(data, dict) and data.get("id")
-            and is_manual_request_owner_alive(data) else None)
+    data = read_manual_pending_locked(path)
+    return data if data is not None and is_manual_request_owner_alive(data) else None
 
 
 def read_manual_pending():
