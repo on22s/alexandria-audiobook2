@@ -10,20 +10,33 @@ boxes ran with it OFF: two instruments under one name. Same class of drift as
 #670's roster fallback.
 """
 import glob
-import json
 import os
 import sys
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "app"))
+sys.path.insert(0, REPO)
 from experiments.lora_serving_eval import is_attestation_gate_off  # noqa: E402
+from tools.audit.audit_legacy_attribution import read_gold_fixture  # noqa: E402
 
 FIXTURES = os.path.join(REPO, "app", "fixtures")
 
 
 def committed(pattern):
     return sorted(glob.glob(os.path.join(FIXTURES, pattern)))
+
+
+def read_committed(path):
+    """Load a committed gold fixture through the tracked-link-aware reader.
+
+    Four gold fixtures are committed as mode-120000 links. With
+    core.symlinks=false Git materialises them as files holding the target
+    path, which is not JSON. The shared reader resolves both forms and
+    refuses a pointer that is not the tracked one.
+    """
+    rel = os.path.relpath(path, REPO).replace(os.sep, "/")
+    return read_gold_fixture(path, rel)[1]
 
 
 class AttestationGateFallback(unittest.TestCase):
@@ -33,14 +46,14 @@ class AttestationGateFallback(unittest.TestCase):
         self.assertGreaterEqual(len(paths), 9, "expected at least the nine evaluation fixtures "
                                 "(generated ones are gitignored, #667)")
         on = [os.path.basename(p) for p in paths
-              if not is_attestation_gate_off(json.load(open(p, encoding="utf-8")))]
+              if not is_attestation_gate_off(read_committed(p))]
         self.assertEqual([], on, "these PDNC fixtures would run with the gate ON")
 
     def test_the_old_rule_fails_them(self):
         """Pin the discrimination: the pre-fix expression left the gate on."""
         paths = committed("attribution_gold_pdnc_*.json")
         old_rule_off = [p for p in paths
-                        if json.load(open(p, encoding="utf-8")).get("roster_additions", {}).get("attest_in_source")]
+                        if read_committed(p).get("roster_additions", {}).get("attest_in_source")]
         self.assertLess(len(old_rule_off), len(paths),
                         "every committed fixture now carries the block; this test "
                         "has stopped discriminating")
@@ -49,7 +62,7 @@ class AttestationGateFallback(unittest.TestCase):
         others = [p for p in committed("attribution_gold_*.json") if "_pdnc_" not in p]
         self.assertTrue(others)
         off = [os.path.basename(p) for p in others
-               if is_attestation_gate_off(json.load(open(p, encoding="utf-8")))]
+               if is_attestation_gate_off(read_committed(p))]
         self.assertEqual([], off, "the gate must stay on for non-PDNC gold")
 
     def test_an_explicit_block_still_decides(self):
