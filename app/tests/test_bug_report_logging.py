@@ -274,20 +274,53 @@ class BugReportLoggingTests(unittest.TestCase):
     def test_failure_download_is_discoverable_and_empty_state_is_explicit(self):
         from html.parser import HTMLParser
         from routers import script
-        links = []
 
         class LinkParser(HTMLParser):
-            def handle_starttag(self, tag, attrs):
-                if tag == 'a':
-                    links.append(dict(attrs))
+            def __init__(self):
+                super().__init__()
+                self.stack = []
+                self.links = []
+                self.notes = []
 
-        LinkParser().feed(Path(core.STATIC_DIR, 'index.html').read_text(encoding='utf-8'))
-        self.assertTrue(any(link.get('href') == '/api/logs/diagnostics?download=true' and 'download' in link for link in links))
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if any(attributes.get('id') == 'settings-tts' for _, attributes in self.stack):
+                    if tag == 'a' and attrs.get('data-i18n') == 'setup.tts.failure-log-download':
+                        self.links.append((attrs, list(self.stack)))
+                    if attrs.get('data-i18n') == 'diagnostics.failure-log.privacy':
+                        self.notes.append((attrs, list(self.stack)))
+                if tag not in {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}:
+                    self.stack.append((tag, attrs))
+
+            def handle_endtag(self, tag):
+                for index in range(len(self.stack) - 1, -1, -1):
+                    if self.stack[index][0] == tag:
+                        del self.stack[index:]
+                        break
+
+        parser = LinkParser()
+        parser.feed(Path(core.STATIC_DIR, 'index.html').read_text(encoding='utf-8'))
+        self.assertEqual(1, len(parser.links))
+        self.assertEqual(1, len(parser.notes))
+        link, _ = parser.links[0]
+        note, _ = parser.notes[0]
+        self.assertEqual('/api/logs/diagnostics?download=true', link.get('href'))
+        self.assertIn('download', link)
+        for attrs, ancestors in parser.links + parser.notes:
+            self.assertNotIn('details', [tag for tag, _ in ancestors], 'Failure download and privacy note must not be buried in a disclosure')
+            for attributes in [attrs] + [attributes for _, attributes in ancestors if attributes.get('id') != 'settings-tts']:
+                self.assertNotIn('hidden', attributes)
+                self.assertNotIn('data-setup-advanced', attributes)
+                self.assertNotIn('data-setup-advanced-section', attributes)
+                self.assertFalse({'d-none', 'settings-advanced'} & set(attributes.get('class', '').split()))
+                self.assertNotIn('display:none', attributes.get('style', '').replace(' ', ''))
+        self.assertEqual(note.get('id'), link.get('aria-describedby'))
         application = FastAPI()
         application.include_router(script.router)
         with TestClient(application) as client:
-            response = client.get('/api/logs/diagnostics?download=true')
+            response = client.get(link['href'])
         self.assertEqual(200, response.status_code)
+        self.assertEqual('attachment; filename="diagnostics.log"', response.headers['Content-Disposition'])
         self.assertIn('No failure diagnostics recorded yet', response.text)
 
     def test_diagnostic_disk_failure_still_has_safe_console_evidence(self):
