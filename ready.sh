@@ -98,4 +98,4 @@ echo "   nothing unstaged"
 
 echo
 echo "== release verifier =="
-( cd "$REPO/app" && "$python" verify_release.py --skip-evidence-recheck "$@" )
+( cd "$REPO/app" && "$python" verify_release.py --skip-evidence-recheck --local-units "$@" )
