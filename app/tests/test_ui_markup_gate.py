@@ -88,6 +88,12 @@ KEEP_ENGLISH = frozenset({
     'zh-CN', 'ja',
     # HTTP header names are identifiers too (app-core.js checked downloads).
     'content-length',
+    # Local browser-failure reports: fixed stage/error vocabulary and fetch
+    # protocol identifiers, never rendered as UI text (#1972).
+    'save_flush_timer', 'save_pagehide',
+    'Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError',
+    'NetworkError', 'SecurityError', 'QuotaExceededError', 'InvalidStateError', 'UnknownError',
+    'POST', 'same-origin', 'Content-Type', 'application/json',
     # Bootstrap class lists on the connection-test result: styling, not copy.
     'ms-2 small text-danger', 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2',
 })

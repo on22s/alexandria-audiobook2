@@ -1120,7 +1120,7 @@
                 pending = { value: JSON.parse(JSON.stringify(value)), revision: ++revision };
                 onDirty();
                 clearTimeout(timer);
-                timer = setTimeout(() => { flush().catch(() => {}); }, delay);
+                timer = setTimeout(() => { flush().catch(error => { reportBrowserFailure('save_flush_timer', error); }); }, delay);
             }
 
             function isDirty() {
@@ -1179,6 +1179,29 @@
             const buttons = taskStartClaims.get(taskName) || [];
             taskStartClaims.delete(taskName);
             buttons.forEach(button => { button.disabled = false; });
+        }
+
+        function reportBrowserFailure(stage, error) {
+            if (!['save_flush_timer', 'save_pagehide'].includes(stage)) { return; }
+            try {
+                const names = ['Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError',
+                    'NetworkError', 'SecurityError', 'QuotaExceededError', 'InvalidStateError', 'UnknownError'];
+                const errorName = error && names.includes(error.name) ? error.name : 'UnknownError';
+                const now = Date.now();
+                let state = reportBrowserFailure.state;
+                if (!state || now - state.started >= 60000) {
+                    state = {started: now, reported: new Set()};
+                    reportBrowserFailure.state = state;
+                }
+                const key = stage + ':' + errorName;
+                if (state.reported.has(key) || state.reported.size >= 5) { return; }
+                state.reported.add(key);
+                fetch('/api/logs/browser-failure', {
+                    method: 'POST', credentials: 'same-origin', redirect: 'error', keepalive: true,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({stage: stage, error_name: errorName})
+                }).catch(() => {});
+            } catch (_reportError) {}
         }
 
         // --- API Helpers ---
@@ -7639,7 +7662,7 @@
         }
 
         // pagehide is best-effort; the synchronous draft is the reload/closure safety net.
-        window.addEventListener('pagehide', () => { flushVoiceSaves().catch(() => {}); });
+        window.addEventListener('pagehide', () => { flushVoiceSaves().catch(error => { reportBrowserFailure('save_pagehide', error); }); });
         window.addEventListener('beforeunload', event => {
             if (voiceSaveQueue.isDirty()) { event.preventDefault(); event.returnValue = ''; }
         });

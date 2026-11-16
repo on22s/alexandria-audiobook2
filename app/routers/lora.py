@@ -314,13 +314,26 @@ def _get_candidate_summary(entry: dict, adapter_dir: str, synthesis_settings=Non
     skipped = skipped if isinstance(skipped, list) else []
     recommendation = {}
     stored_evaluation = {}
+    evaluation_path = os.path.join(adapter_dir, "evaluation.json")
+    from review_startup import record_failure
     try:
-        with open(os.path.join(adapter_dir, "evaluation.json"), encoding="utf-8") as handle:
+        with open(evaluation_path, encoding="utf-8") as handle:
             stored_evaluation = json.load(handle)
         if isinstance(stored_evaluation, dict):
-            recommendation = stored_evaluation.get("candidate_recommendation") or {}
-    except (OSError, json.JSONDecodeError):
+            recommendation = stored_evaluation.get("candidate_recommendation")
+            if recommendation is None:
+                recommendation = {}
+            elif not isinstance(recommendation, dict):
+                record_failure('candidate_evaluation_shape_invalid', task='lora', resource=evaluation_path,
+                               expected_type='dict', actual_type=type(recommendation).__name__, rate_limit_seconds=300)
+        else:
+            record_failure('candidate_evaluation_shape_invalid', task='lora', resource=evaluation_path,
+                           expected_type='dict', actual_type=type(stored_evaluation).__name__, rate_limit_seconds=300)
+    except FileNotFoundError:
         pass
+    except (OSError, ValueError) as error:
+        record_failure('candidate_evaluation_load_failed', error, task='lora', resource=evaluation_path,
+                       rate_limit_seconds=300)
     recommendation = recommendation if isinstance(recommendation, dict) else {}
     settings = synthesis_settings
     if settings is None:

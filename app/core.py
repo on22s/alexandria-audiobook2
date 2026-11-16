@@ -665,7 +665,8 @@ def is_llm_on_this_gpu(config) -> bool:
         if explicit is not None:
             return bool(explicit)
         return not is_remote_llm(config.get("llm_mode", "local"), llm.get("base_url", ""))
-    except Exception:
+    except Exception as error:
+        record_failure('gpu_policy_read_failed', error, task='gpu_lock', rate_limit_seconds=300)
         return True
 
 
@@ -673,7 +674,8 @@ def llm_is_on_this_gpu() -> bool:
     """Read the active config through the shared local-GPU dispatch policy."""
     try:
         return is_llm_on_this_gpu(load_app_config(CONFIG_PATH))
-    except Exception:
+    except Exception as error:
+        record_failure('gpu_config_read_failed', error, task='gpu_lock', rate_limit_seconds=300)
         return True
 
 
