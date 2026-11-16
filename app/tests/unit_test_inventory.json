@@ -3307,6 +3307,8 @@
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_redraws_same_ids_and_status_when_text_changes",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_managed_refresh_does_not_paint_prior_book_response_while_new_read_waits",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_progress_tracks_full_delta_playback_and_empty_snapshots",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_rendered_text_and_delivery_names_identify_each_line",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_reused_id_with_changed_uid_refuses_delta_and_preserves_old_identity",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_same_length_replacements_reorders_and_playback_restore_correct_rows",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged"
@@ -15751,9 +15753,13 @@
   ],
   "test_ui_contract": [
     "tests.test_ui_contract.UIContractTests.test_error_toasts_are_assertive_but_other_toasts_are_polite",
+    "tests.test_ui_contract.UIContractTests.test_logs_are_explicitly_keyboard_focusable_named_regions",
     "tests.test_ui_contract.UIContractTests.test_pass_prompt_defaults_have_a_server_and_browser_path",
     "tests.test_ui_contract.UIContractTests.test_primary_navigation_is_keyboard_addressable",
+    "tests.test_ui_contract.UIContractTests.test_render_progress_has_named_numeric_initial_state",
     "tests.test_ui_contract.UIContractTests.test_reset_preserves_numbered_prompt_presets",
+    "tests.test_ui_contract.UIContractTests.test_system_status_preserves_navigation_list_semantics",
+    "tests.test_ui_contract.UIContractTests.test_theme_text_and_input_border_contrast",
     "tests.test_ui_contract.UIContractTests.test_ui_docs_cover_required_review_dimensions"
   ],
   "test_ui_followups": [
@@ -16663,6 +16669,7 @@
     "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_pointer_keyboard_focus_disabled_and_redraw_delegation",
     "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_programmatic_alias_assignment_requires_population",
     "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_saved_book_load_installs_roster_before_editor_rows_and_unchanged_poll",
+    "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_speaker_name_identifies_line_without_using_untrusted_speaker_text",
     "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_startup_waits_for_configuration_before_roster_ownership"
   ],
   "test_voice_script_speakers": [
