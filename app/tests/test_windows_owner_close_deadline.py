@@ -106,12 +106,54 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
         self.assertIsNotNone(self.job.handle)
         self.directory.cleanup.assert_not_called()
 
-    def test_unknown_error_is_not_retried(self):
+    def test_invalid_parameter_is_not_retried(self):
         with patch.object(jobs.ctypes, 'get_last_error', return_value=87), \
              patch.object(owner.logging, 'exception'), \
              self.assertRaisesRegex(OSError, 'failed without retry.*Win32 error 87'):
             self.control.close()
         self.assertEqual([], self.delays)
+        self.assertIsNotNone(self.job.handle)
+
+    def test_codeless_termination_failure_retries_then_proves_zero_membership(self):
+        failure = OSError('injected unknown termination failure')
+        attempts = []
+        def terminate():
+            attempts.append(self.job.handle)
+            if len(attempts) == 1:
+                raise failure
+            self.api.counts = [0]
+        with patch.object(self.job, 'terminate', side_effect=terminate), \
+             patch.object(owner.logging, 'exception'):
+            self.control.close()
+        self.assertEqual([.05], self.delays)
+        self.assertEqual(2, len(attempts))
+        self.assertIsNone(self.job.handle)
+        self.directory.cleanup.assert_called_once_with()
+
+    def test_codeless_failure_exhausts_deadline_and_preserves_cause_and_ownership(self):
+        failure = OSError('injected unknown termination failure')
+        with patch.object(self.job, 'terminate', side_effect=failure) as terminate, \
+             patch.object(owner.logging, 'exception'), \
+             self.assertRaisesRegex(owner.WindowsOwnerCleanupError,
+                                    'deadline exceeded.*Win32 error None.*not proven dead') as raised:
+            self.control.close()
+        self.assertIs(failure, raised.exception.__cause__)
+        self.assertEqual(10, self.clock)
+        self.assertGreater(terminate.call_count, 1)
+        self.assertIn(self.control, owner._retained_windows_owners)
+        self.assertIs(self.control, raised.exception.owner)
+        self.assertIsNotNone(self.job.handle)
+        self.assertFalse(any(call[0] == 'close' for call in self.api.calls))
+        self.directory.cleanup.assert_not_called()
+
+    def test_unrecognized_numeric_error_uses_bounded_retry(self):
+        with patch.object(jobs.ctypes, 'get_last_error', return_value=9999), \
+             patch.object(owner.logging, 'exception'), \
+             self.assertRaisesRegex(owner.WindowsOwnerCleanupError,
+                                    'deadline exceeded.*Win32 error 9999'):
+            self.control.close()
+        self.assertEqual(10, self.clock)
+        self.assertGreater(len(self.delays), 1)
         self.assertIsNotNone(self.job.handle)
 
     def test_transient_termination_failure_retries_then_proves_zero_membership(self):
@@ -144,13 +186,18 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
     def test_failed_task_retains_gpu_and_task_leases_until_confirmed_shutdown(self):
         self.check_failed_task()
 
+    def test_codeless_failure_marks_task_failed_and_retains_leases(self):
+        with patch.object(self.job, 'terminate',
+                          side_effect=OSError('injected unknown termination failure')):
+            self.check_failed_task(error_code=None)
+
     def test_failed_admission_retains_gpu_and_task_leases_until_confirmed_shutdown(self):
         self.check_failed_task(admission=True)
 
     def test_published_script_cleanup_failure_never_reports_success(self):
         self.check_failed_task(task_name='script', published=True)
 
-    def check_failed_task(self, admission=False, task_name='review', published=False):
+    def check_failed_task(self, admission=False, task_name='review', published=False, error_code=5):
         state = copy.deepcopy(core.process_state)
         for task in state.values():
             task['running'] = False
@@ -182,7 +229,7 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
             task = state[task_name]
             self.assertFalse(task['running'])
             self.assertEqual('failed', task['status'])
-            self.assertIn('Win32 error 5', '\n'.join(task['logs']))
+            self.assertIn(f'Win32 error {error_code}', '\n'.join(task['logs']))
             self.assertIn('not proven dead', '\n'.join(task['logs']))
             self.assertIs(self.process, task['process'])
             self.assertIn(self.process, task['processes'])

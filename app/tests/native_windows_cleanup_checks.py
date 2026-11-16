@@ -262,9 +262,10 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                         with patch.object(core, 'start_owned_subprocess', side_effect=start), \
                              patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .05), \
                              patch.object(WindowsSubprocessJob, 'terminate', new=terminate):
-                            with self.assertRaisesRegex(OSError, 'injected force failure 1'):
+                            with self.assertRaisesRegex(OSError, 'injected force failure 1') as raised:
                                 core._stream_subprocess_to_logs(
                                     [_base_python(), '-c', 'import time; time.sleep(30)'], os.getcwd(), state)
+                        self.assertNotIsInstance(raised.exception, core.WindowsOwnerCleanupError)
                         self.assertEqual(failures + 1, len(attempts))
                         self.assertFalse(watchdog.is_set(), 'stream cancellation hung until watchdog')
                         self.assertEqual(1, len(set(attempts)), 'cleanup changed owned jobs')
@@ -285,6 +286,33 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
         finally:
             unrelated.terminate()
             unrelated.wait(timeout=3)
+
+    def test_codeless_force_failure_deadline_preserves_cause_and_live_ownership(self):
+        import windows_subprocess_owner as owner
+        process = self._start_owned_sleep()
+        control = process._alexandria_windows_owner
+        handle = control.job.handle
+        failure = OSError('injected persistent force failure')
+        try:
+            with patch.object(control.job, 'terminate', side_effect=failure) as terminate, \
+                 patch.object(owner, 'WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS', .15):
+                started = time.monotonic()
+                with self.assertRaisesRegex(owner.WindowsOwnerCleanupError,
+                        'deadline exceeded.*Win32 error None.*not proven dead') as raised:
+                    control.close()
+            self.assertLess(time.monotonic() - started, 2)
+            self.assertGreater(terminate.call_count, 1)
+            self.assertIs(failure, raised.exception.__cause__)
+            self.assertIs(control, raised.exception.owner)
+            self.assertIs(raised.exception, control.cleanup_error)
+            self.assertIn(control, owner._retained_windows_owners)
+            self.assertEqual(handle, control.job.handle)
+            self.assertGreater(control.job.get_active_process_count(), 0)
+            self.assertTrue(is_subprocess_tree_running(process))
+            self.assertIsNone(process.poll())
+            self.assertTrue(Path(control.directory.name).is_dir())
+        finally:
+            self._close_owned(process)
 
     def test_verifier_stop_process_group_honors_full_grace_then_forces(
         self,
@@ -496,7 +524,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 10 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 11 and not result.skipped else 1
 
 
 if __name__ == '__main__':

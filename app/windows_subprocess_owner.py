@@ -18,7 +18,10 @@ from windows_subprocess_job import (WindowsSubprocessJob, get_windows_job_api,
 
 
 WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS = 10.0
-WINDOWS_OWNER_RETRYABLE_ERRORS = frozenset({170, 1237, 1460})
+# Access denied, invalid handle and invalid parameter cannot recover by waiting.
+# All other codes, including a missing code, retry within the same deadline:
+# an unknown error is not evidence of a permanent failure or a stopped tree.
+WINDOWS_OWNER_PERMANENT_ERRORS = frozenset({5, 6, 87})
 _retained_windows_owners = set()
 
 
@@ -116,7 +119,7 @@ class WindowsOwnerControl:
                     reported = True
                 remaining = deadline - time.monotonic()
                 code = getattr(error, 'winerror', None) or error.errno
-                if code not in WINDOWS_OWNER_RETRYABLE_ERRORS or remaining <= 0:
+                if code in WINDOWS_OWNER_PERMANENT_ERRORS or remaining <= 0:
                     from review_startup import record_failure
                     failure = WindowsOwnerCleanupError(self, error, deadline_exceeded=remaining <= 0)
                     self.cleanup_error = failure

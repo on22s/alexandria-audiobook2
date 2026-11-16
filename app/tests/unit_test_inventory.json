@@ -17209,16 +17209,20 @@
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ]
   , "test_windows_owner_close_deadline": [
-    "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failed_admission_retains_gpu_and_task_leases_until_confirmed_shutdown"
+    "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_failure_exhausts_deadline_and_preserves_cause_and_ownership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_failure_marks_task_failed_and_retains_leases"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_termination_failure_retries_then_proves_zero_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failed_admission_retains_gpu_and_task_leases_until_confirmed_shutdown"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failed_task_retains_gpu_and_task_leases_until_confirmed_shutdown"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_invalid_handle_query_failure_retains_unknown_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_invalid_parameter_is_not_retried"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_permanent_termination_failure_is_bounded_and_retains_ownership"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_published_script_cleanup_failure_never_reports_success"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_successful_termination_without_zero_membership_is_also_bounded"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_failure_exhausts_deadline_with_backoff_and_retains_ownership"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_failure_returns_within_real_wall_clock_deadline"
     , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_termination_failure_retries_then_proves_zero_membership"
-    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_unknown_error_is_not_retried"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_unrecognized_numeric_error_uses_bounded_retry"
   ]
   , "test_windows_owner_lifecycle": [
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_completed_owner_receipt_survives_transient_sharing_denial"

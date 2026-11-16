@@ -23,13 +23,18 @@ class TaskDiscoveryTests(unittest.TestCase):
 
     def test_native_http_includes_dynamic_tasks_without_handles_or_logs(self):
         states={'review':{'running':True,'logs':['private log'],'process':object()},
-                'future_task':{'running':True,'processes':[object()]},'idle':{'running':False}}
+                'future_task':{'running':True,'processes':[object()]},'idle':{'running':False},
+                'failed_owner':{'running':False,'status':'failed','_windows_cleanup_failed':True,
+                                'logs':['private failure'],'process':object()}}
         before={name:dict(state) for name,state in states.items()}
         app=FastAPI();app.include_router(script.router)
         with patch.object(script,'process_state',states),TestClient(app) as client:
             res=client.get('/api/status')
             self.assertEqual(200,res.status_code,res.text)
-            self.assertEqual({'review':{'running':True},'future_task':{'running':True},'idle':{'running':False}},res.json())
+            self.assertEqual({'review':{'running':True,'ownership_unconfirmed':False},
+                              'future_task':{'running':True,'ownership_unconfirmed':False},
+                              'idle':{'running':False,'ownership_unconfirmed':False},
+                              'failed_owner':{'running':False,'ownership_unconfirmed':True}},res.json())
             self.assertEqual(before,states)
             self.assertEqual(404,client.get('/api/status/missing').status_code)
 
