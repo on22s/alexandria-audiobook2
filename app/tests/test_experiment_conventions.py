@@ -17,9 +17,13 @@ import ast
 import json
 import os
 import re
+import sys
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = os.path.dirname(ROOT)
+sys.path.insert(0, REPO)
+from tools.audit.audit_legacy_attribution import read_gold_fixture  # noqa: E402
 EXPERIMENTS = os.path.join(ROOT, "experiments")
 FIXTURES = os.path.join(ROOT, "fixtures")
 CHAINS = os.path.join(os.path.dirname(ROOT), "run_chains")
@@ -28,6 +32,25 @@ CHAINS = os.path.join(os.path.dirname(ROOT), "run_chains")
 def experiment_paths():
     return [os.path.join(EXPERIMENTS, n) for n in sorted(os.listdir(EXPERIMENTS))
             if n.endswith(".py") and not n.startswith("_")]
+
+
+def read_fixture(path):
+    """Read any committed fixture, resolving a materialized 120000 alias.
+
+    read_gold_fixture is the repo's one tracked-link resolver, but it insists
+    the result be a gold JSON object; these checks cover other shapes too.
+    Parse ordinary JSON here and hand only the pointer case to that reader,
+    which validates the target against Git's index before following it. An
+    edited pointer is then refused rather than mistaken for bad JSON.
+    """
+    rel = os.path.relpath(path, REPO).replace(os.sep, "/")
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except ValueError:
+        raw, _ = read_gold_fixture(path, rel)
+    return json.loads(raw.decode("utf-8"))
 
 
 class ProvenanceArityTests(unittest.TestCase):
@@ -103,12 +126,11 @@ class FixtureIntegrityTests(unittest.TestCase):
 
     def test_every_fixture_parses(self):
         for path in self._fixtures():
-            with open(path, encoding="utf-8") as fh:
-                try:
-                    json.load(fh)
-                except Exception as exc:
-                    self.fail("%s is not valid JSON: %s"
-                              % (os.path.basename(path), exc))
+            try:
+                read_fixture(path)
+            except Exception as exc:
+                self.fail("%s is not a readable committed fixture: %s"
+                          % (os.path.basename(path), exc))
 
     def test_attribution_fixtures_have_entries_with_the_expected_keys(self):
         checked = 0
@@ -116,8 +138,7 @@ class FixtureIntegrityTests(unittest.TestCase):
             name = os.path.basename(path)
             if not name.startswith("attribution_gold"):
                 continue
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
+            data = read_fixture(path)
             if not isinstance(data, dict) or "entries" not in data:
                 continue
             entries = data["entries"]
@@ -134,8 +155,7 @@ class FixtureIntegrityTests(unittest.TestCase):
     def test_no_fixture_entry_id_is_duplicated(self):
         for path in self._fixtures():
             name = os.path.basename(path)
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
+            data = read_fixture(path)
             if not isinstance(data, dict):
                 continue
             entries = data.get("entries")
