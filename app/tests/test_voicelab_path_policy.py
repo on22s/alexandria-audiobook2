@@ -11,6 +11,7 @@ import core
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import voicelab as v
+from tests.test_support import create_test_symlink_or_skip
 
 
 class VoiceLabPathPolicyTests(unittest.TestCase):
@@ -37,9 +38,16 @@ class VoiceLabPathPolicyTests(unittest.TestCase):
 
     def test_save_rejects_generated_roots_and_symlinks_without_changing_config(self):
         alias = self.root / 'alias'
-        alias.symlink_to(self.bad, target_is_directory=True)
+        paths = [str(self.bad), 'uploads']
+        try:
+            create_test_symlink_or_skip(alias, self.bad, target_is_directory=True)
+            paths.insert(1, str(alias))
+        except unittest.SkipTest as skip:
+            # Only the symlink case needs the privilege; keep every other refusal.
+            with self.subTest(path='alias'):
+                self.skipTest(str(skip))
         before = self.config.read_bytes()
-        for path in (str(self.bad), str(alias), 'uploads'):
+        for path in paths:
             for field, value in (('zips_dir', path), ('epub_dirs', [os.path.relpath(self.bad) if path == 'uploads' else path])):
                 with self.subTest(field=field, path=path):
                     response = self.client.post('/api/voicelab/config', json={field: value})
@@ -87,7 +95,7 @@ class VoiceLabPathPolicyTests(unittest.TestCase):
 
     def test_profile_runtime_rechecks_epub_symlink_before_launch(self):
         alias = self.root / 'epubs'
-        alias.symlink_to(self.good, target_is_directory=True)
+        create_test_symlink_or_skip(alias, self.good, target_is_directory=True)
         interpreter = self.good / 'python'
         interpreter.write_text('fixture')
         interpreter.chmod(0o700)

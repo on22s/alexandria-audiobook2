@@ -344,9 +344,36 @@ def _add_staged_registry(data_dir, staging, registry, replacements):
         replacements[registry.name] = staging['after']
 
 
+def verify_review_source_identity(data_dir, expected):
+    """Fence captured coordinates while the caller holds publication admission."""
+    if expected is None:
+        return
+    from book_state_transaction import get_book_operation_token
+    from project_scope_files import capture_scope_file
+    from review_startup import record_failure
+
+    try:
+        if expected['book_token'] is not None:
+            state = _read_selection_state(data_dir, required=True)
+            if (is_script_selection_pending(state)
+                    or get_book_operation_token(data_dir, state=state) != expected['book_token']
+                    or state.get('input_file_path') != expected['source_path']):
+                raise ValueError('Review selection differs from its capture')
+        for source in expected['sources']:
+            relative = os.path.relpath(source['binding_path'], data_dir).replace(os.sep, '/')
+            proof, _ = capture_scope_file(data_dir, relative, limit=MAX_BINDING_BYTES)
+            if (proof['sha256'] != source['binding_sha256']
+                    or _source_digest(source['source_path'], owning_root=data_dir) != source['source_sha256']):
+                raise ValueError('Review source differs from its capture')
+    except (OSError, ValueError, TypeError, KeyError):
+        record_failure('review_source_identity_changed', task='review')
+        raise ValueError('Review source identity changed during review; edits were preserved') from None
+
+
 def publish_controlled_script_edit(data_dir, old_script, new_script, *,
                                    voice_config_path=None, voice_mapping=None,
-                                   remap_voice_config=None, registry_staging=None):
+                                   remap_voice_config=None, registry_staging=None,
+                                   expected_source_identity=None):
     """Publish a review edit and its voice remap in one recoverable commit."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state
@@ -377,6 +404,7 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
         _, current = capture_scope_file(data_dir, script.name, limit=512 * 1024**2, include_bytes=True)
         if current != old_script:
             raise ValueError('Active script changed during review; edits were preserved')
+        verify_review_source_identity(data_dir, expected_source_identity)
         binding = _binding_for_controlled_edit_locked(data_dir, old_script, new_script)
         replacements = {script.name: new_script}
         if binding is not None:
@@ -429,7 +457,7 @@ def saved_script_is_active_source(data_dir, script_path):
 
 def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, new_script, *,
                               voice_config_path=None, voice_mapping=None, remap_voice_config=None,
-                              registry_staging=None):
+                              registry_staging=None, expected_source_identity=None):
     """Commit a saved review and its companions after exact-input validation."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state, ensure_saved_book_state
@@ -466,6 +494,7 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         _, current = capture_scope_file(scripts_dir, script.name, limit=512 * 1024**2, include_bytes=True)
         if current != old_script:
             raise ValueError('Saved script changed during review; edits were preserved')
+        verify_review_source_identity(data_dir, expected_source_identity)
         _, raw_binding = capture_scope_file(scripts_dir, binding.name, limit=MAX_BINDING_BYTES, include_bytes=True)
         binding_bytes = updated_saved_binding(raw_binding, old_script, new_script)
         publication_bytes = get_saved_publication_source_bytes(str(script), new_script)

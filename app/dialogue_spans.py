@@ -242,6 +242,32 @@ def _normalize_with_offsets(value):
     return "".join(characters), offsets
 
 
+def get_source_span_fragments(source_text, original_text, source_span, fragments):
+    """Map an ordered partition within one established raw-source interval."""
+    if (not isinstance(source_text, str) or not isinstance(source_span, (list, tuple))
+            or len(source_span) != 2 or any(type(offset) is not int for offset in source_span)):
+        raise ValueError('Source span requires verified text and character offsets')
+    start, end = source_span
+    if not 0 <= start < end <= len(source_text):
+        raise ValueError('Source span is outside the verified text')
+    normalized, offsets = _normalize_with_offsets(source_text[start:end])
+    needles = [_normalize(fragment) for fragment in fragments]
+    if (not normalized or normalized != _normalize(original_text)
+            or not needles or not all(needles) or ' '.join(needles) != normalized):
+        raise ValueError('Source fragments do not partition the original interval')
+    spans, cursor, previous_end = [], 0, start
+    for needle in needles:
+        left = start + offsets[cursor]
+        right = start + offsets[cursor + len(needle) - 1] + 1
+        if (not start <= left < right <= end or left < previous_end
+                or _normalize(source_text[left:right]) != needle):
+            raise ValueError('Source fragment offsets could not be verified')
+        spans.append([left, right])
+        previous_end = right
+        cursor += len(needle) + 1
+    return spans
+
+
 def get_source_match_positions(source, needles):
     """Index all exact pattern occurrences in one shared source traversal."""
     edges, failures, outputs, terminal = [{}], [0], [0], [None]

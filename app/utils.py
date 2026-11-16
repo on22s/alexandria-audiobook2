@@ -205,6 +205,13 @@ def warn_unparseable_llm_json(what: str, raw: str, fallback_action: str) -> None
 
 # --- Filename Sanitization ---
 
+def is_windows_reserved_device_name(filename: str) -> bool:
+    """Return whether a filename component names a reserved Windows device."""
+    device_name = filename.split(".", 1)[0].split(":", 1)[0].rstrip(" ").upper()
+    return re.fullmatch(r"CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|(?:COM|LPT)[1-9¹²³]",
+                        device_name) is not None
+
+
 def secure_filename(filename: str) -> str:
     """Sanitize a filename to prevent path-traversal attacks.
 
@@ -223,8 +230,7 @@ def secure_filename(filename: str) -> str:
     filename = filename.lstrip(". ")
     filename = re.sub(r"[^\w\-. ]", "_", filename)
     filename = filename.rstrip(". ")
-    device_name = filename.split(".", 1)[0].rstrip(" ").upper()
-    if re.fullmatch(r"CON|PRN|AUX|NUL|(?:COM|LPT)[1-9¹²³]", device_name):
+    if is_windows_reserved_device_name(filename):
         filename = "_" + filename
     encoded = filename.encode("utf-8")
     if len(encoded) > 150:

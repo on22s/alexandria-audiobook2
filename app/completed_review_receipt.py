@@ -5,9 +5,8 @@ import os
 from utils import atomic_json_write
 
 VERSION = 1
-# v11 permits validated explicit annotation corrections in both review modes
-# while preserving source facts. Earlier receipts must be re-reviewed.
 REVIEW_ALGORITHM_VERSION = 11
+REVIEW_SOURCE_SPAN_ALGORITHM_VERSION = 13
 
 
 def get_review_entries_fingerprint(entries):

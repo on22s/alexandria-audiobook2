@@ -634,6 +634,9 @@ class PartialPublicationTests(unittest.TestCase):
                 prior_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             new_env = benchmark.get_benchmark_execution_environment(manifest, base, config)
             self.assertNotEqual(prior_env, new_env)
+            with patch.object(receipt, 'REVIEW_SOURCE_SPAN_ALGORITHM_VERSION', 12):
+                prior_spans = benchmark.get_benchmark_execution_environment(manifest, base, config)
+            self.assertNotEqual(prior_spans, new_env)
             labels_config = copy.deepcopy(config); labels_config['prompts']['review_labels_only'] = True
             self.assertNotEqual(new_env, benchmark.get_benchmark_execution_environment(manifest, base, labels_config))
             report = benchmark.build_benchmark_report(manifest, prior_env)

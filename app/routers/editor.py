@@ -1,6 +1,6 @@
 from audio_generation_owner import AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from book_state_transaction import ensure_book_state, get_book_operation_identity
 from task_ownership import ensure_startup_recovery
@@ -63,7 +63,7 @@ from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from editor_poll_snapshot import EditorPollSnapshots, get_snapshot_digest
 from editor_review_facts import get_editor_review_facts
 from speech_verification_receipt import get_speech_verification_chunk_view
-from utils import safe_load_json, is_path_inside
+from utils import safe_load_json, is_path_inside, is_windows_reserved_device_name
 from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      DEFAULT_CHAPTER_TEMPLATE, get_chapter_export_rows, get_chapter_selection, get_index_selection,
                      get_chunk_generation_requests, get_playback_pause_plan,
@@ -1827,7 +1827,7 @@ def _exported_chapter_path(name):
     safe = os.path.basename(name)
     path = os.path.join(_chapter_export_dir(), safe)
     if (safe != name or "\\" in name or ":" in name
-            or PureWindowsPath(name).is_reserved()
+            or is_windows_reserved_device_name(name)
             or os.path.splitext(safe)[1].lower() not in {".mp3", ".wav"}
             or not is_path_inside(path, _chapter_export_dir())
             or not os.path.isfile(path)):
