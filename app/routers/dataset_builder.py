@@ -401,6 +401,9 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
         }
     except HTTPException:
         raise
+    except core.WindowsOwnerCleanupError as error:
+        core._retain_windows_owner_failure(process_state['dataset_builder'], error)
+        raise
     except Exception as e:
         logger.exception("Dataset builder sample generation failed")
         # Mark as error in state
@@ -527,6 +530,8 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                         "description": description,
                     }
                     completed += 1
+                except core.WindowsOwnerCleanupError:
+                    raise
                 except Exception as e:
                     logger.error(f"Dataset builder sample {idx} failed: {e}")
                     process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
@@ -538,6 +543,8 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
             process_state["dataset_builder"]["logs"].append(
                 f"[DONE] Generated {completed}/{total} samples"
             )
+        except core.WindowsOwnerCleanupError:
+            raise
         except Exception as e:
             logger.exception("Dataset builder batch generation crashed")
             process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")

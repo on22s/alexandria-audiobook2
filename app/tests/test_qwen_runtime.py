@@ -96,6 +96,19 @@ class CapabilityTests(unittest.TestCase):
         self.assertFalse(capability["available"])
         self.assertIn("exit code 3", capability["reason"])
 
+    def test_probe_cleanup_failure_is_not_downgraded_to_unavailable(self):
+        from types import SimpleNamespace
+        from windows_subprocess_owner import WindowsOwnerCleanupError
+        model = self._complete()
+        failure = WindowsOwnerCleanupError(
+            SimpleNamespace(job=SimpleNamespace(get_process_ids=lambda **kwargs: [9001]),
+                            process=SimpleNamespace(pid=9001)), OSError(5, 'denied'))
+        with unittest.mock.patch.dict(os.environ, {'ALEXANDRIA_QWEN_MODEL': str(model), 'ALEXANDRIA_QWEN_PYTHON': sys.executable}), \
+             unittest.mock.patch.object(qr, 'run_owned_capture', side_effect=failure), \
+             self.assertRaises(WindowsOwnerCleanupError) as raised:
+            qr.get_qwen_capability(str(self.root))
+        self.assertIs(failure, raised.exception)
+
     def test_probe_compile(self):
         # The default production probe must at least compile.
         compile(qr._PROBE_SOURCE, "<probe>", "exec")

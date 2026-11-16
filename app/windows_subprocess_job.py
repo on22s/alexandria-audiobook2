@@ -133,7 +133,7 @@ class WindowsSubprocessJob:
         return get_windows_job_active_process_count(self.api, self.handle)
 
     @_with_open_job
-    def get_process_ids(self):
+    def get_process_ids(self, *, max_queries=None):
         capacity = 16
         while True:
             class ProcessIds(ctypes.Structure):
@@ -148,6 +148,10 @@ class WindowsSubprocessJob:
                 if information.returned > capacity:
                     raise OSError('Invalid job process membership buffer')
                 return list(information.ids[:information.returned])
+            if max_queries is not None:
+                max_queries -= 1
+                if max_queries <= 0:
+                    raise OSError(234, 'Windows job process membership kept changing during its bounded query')
             capacity = max(capacity * 2, information.assigned)
 
     @_with_open_job

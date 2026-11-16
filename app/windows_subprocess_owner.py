@@ -18,6 +18,7 @@ from windows_subprocess_job import (WindowsSubprocessJob, get_windows_job_api,
 
 
 WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS = 10.0
+WINDOWS_OWNER_RECOVERY_RETRY_SECONDS = 30.0
 # Access denied, invalid handle and invalid parameter cannot recover by waiting.
 # All other codes, including a missing code, retry within the same deadline:
 # an unknown error is not evidence of a permanent failure or a stopped tree.
@@ -29,8 +30,15 @@ class WindowsOwnerCleanupError(OSError):
     def __init__(self, owner, error, *, deadline_exceeded=False):
         code = getattr(error, 'winerror', None) or error.errno
         reason = 'deadline exceeded' if deadline_exceeded else 'failed without retry'
+        try:
+            members = ', '.join(str(pid) for pid in owner.job.get_process_ids(max_queries=8))
+            membership = f'Job member PIDs: {members or "none observed"}.'
+        except OSError:
+            membership = f'Job member PIDs unavailable; supervisor PID {owner.process.pid}.'
         super().__init__(code, f'Windows owner cleanup {reason} (Win32 error {code}); '
-                         'owned process tree not proven dead; retaining ownership and task/GPU leases')
+                         'owned process tree not proven dead; retaining ownership and task/GPU leases. '
+                         f'{membership} End the owned processes in Task Manager or restart the app. '
+                         'The retained locks release automatically once the job is confirmed empty.')
         self.owner = owner
 
 
@@ -84,6 +92,7 @@ class WindowsOwnerControl:
         self.directory = directory
         self._close_lock = threading.Lock()
         self.cleanup_error = None
+        self._cleanup_retry_at = 0
         self.cancel_directory = None
         from subprocess_ownership import SUBPROCESS_TERMINATE_GRACE_SECONDS
         self.termination_grace = (SUBPROCESS_TERMINATE_GRACE_SECONDS if termination_grace is None
@@ -96,6 +105,21 @@ class WindowsOwnerControl:
 
     def terminate(self):
         self.job.terminate()
+
+    @_serialize_owner_close
+    def retry_termination(self):
+        """Attempt retained cleanup at most once per interval; access denied needs operator recovery."""
+        if (self.job.handle is None or self.cleanup_error is None
+                or self.cleanup_error.errno == 5 or time.monotonic() < self._cleanup_retry_at):
+            return
+        self._cleanup_retry_at = time.monotonic() + WINDOWS_OWNER_RECOVERY_RETRY_SECONDS
+        try:
+            self.job.terminate()
+        except OSError as error:
+            failure = WindowsOwnerCleanupError(self, error)
+            self.cleanup_error = failure
+            logging.error('%s', failure)
+            raise failure from error
 
     @_serialize_owner_close
     def close(self):
@@ -123,6 +147,7 @@ class WindowsOwnerControl:
                     from review_startup import record_failure
                     failure = WindowsOwnerCleanupError(self, error, deadline_exceeded=remaining <= 0)
                     self.cleanup_error = failure
+                    self._cleanup_retry_at = time.monotonic() + WINDOWS_OWNER_RECOVERY_RETRY_SECONDS
                     _retained_windows_owners.add(self)
                     logging.error('%s', failure)
                     record_failure('windows_owner_cleanup_failed', failure, task='subprocess_owner')

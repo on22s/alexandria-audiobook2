@@ -256,7 +256,9 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                         self.assertGreater(job.get_active_process_count(), 0)
                         attempts.append(job.handle)
                         if len(attempts) <= failures:
-                            raise OSError(f'injected force failure {len(attempts)}')
+                            failure = OSError(170, f'injected force failure {len(attempts)}')
+                            failure.winerror = 170
+                            raise failure
                         return real_terminate(job, exit_code)
                     try:
                         with patch.object(core, 'start_owned_subprocess', side_effect=start), \
@@ -313,6 +315,89 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
             self.assertTrue(Path(control.directory.name).is_dir())
         finally:
             self._close_owned(process)
+
+    def test_cancelled_benchmark_permanent_cleanup_failure_retains_real_leases(self):
+        import core
+        import benchmark_execution as execution
+        import benchmark_runner as benchmark
+        import windows_subprocess_owner as owner
+        from experiments.gpu_guard import acquire_gpu_lock
+        from task_ownership import acquire_task_lease, TaskOwnershipBusy
+        for batched in (False, True):
+            with self.subTest(batched=batched), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                process = self._start_owned_sleep()
+                control = process._alexandria_windows_owner
+                real_terminate = control.job.terminate
+                task_lease = acquire_task_lease(root, 'benchmark', set())
+                gpu_lease = acquire_gpu_lock(str(root / 'gpu.lock'))
+                state = dict(running=True, cancel=False, status='running', processes=[],
+                             process=None, pid=None, logs=[], tasks=[])
+                claims = {'benchmark': {'id': 'native-benchmark', 'phase': 'pending', 'lease': task_lease}}
+                leases = {'benchmark': gpu_lease}
+                failure = OSError(5, 'injected permanent benchmark force failure')
+                failure.winerror = 5
+                manifest = {'stage': 'synthetic', 'fixtures': [{'id': 'one'}], 'repetitions': 1}
+                report_path = str(root / 'report.json')
+                def start(*args, **kwargs):
+                    state['cancel'] = True
+                    return process
+                def execute(*args):
+                    return execution.run_benchmark_subprocess(['synthetic-worker'])
+                loop = benchmark.run_benchmark_batch if batched else benchmark.run_benchmark_repetitions
+                stage = benchmark.wrap_benchmark_cancellation(
+                    lambda manifest, environment, path, state: loop(
+                        manifest, environment, path, state, execute, report={'cases': []}))
+                try:
+                    with patch.object(core, 'process_state', {'benchmark': state}), \
+                         patch.object(core, '_task_claims', claims), \
+                         patch.object(core, '_gpu_leases', leases), \
+                         patch.object(core, 'RUN_HISTORY_DIR', str(root / 'history')), \
+                         patch.object(core, 'CANCEL_TERMINATE_GRACE_SECONDS', .05), \
+                         patch.object(core, 'release_gpu_lock', wraps=core.release_gpu_lock) as release, \
+                         patch.object(execution, 'get_benchmark_process_options', return_value={}), \
+                         patch.object(execution, 'start_owned_subprocess', side_effect=start), \
+                         patch.object(control.job, 'request_termination', side_effect=OSError(5, 'injected graceful refusal')), \
+                         patch.object(control.job, 'terminate', side_effect=failure):
+                        core._run_owned_background_task('benchmark', 'native-benchmark',
+                            lambda: core._run_claimed_background_task('benchmark',
+                                lambda: stage(manifest, {}, report_path, state)))
+                        self.assertEqual('failed', state['status'], state['logs'])
+                        self.assertFalse(state['running'])
+                        self.assertTrue(state.get('_windows_cleanup_failed'))
+                        self.assertEqual('cleanup_failed', claims['benchmark']['phase'])
+                        self.assertIn(process, state['processes'])
+                        self.assertIs(process, state['process'])
+                        self.assertIs(failure, control.cleanup_error.__cause__)
+                        self.assertIsNotNone(control.job.handle)
+                        self.assertGreaterEqual(control.job.get_active_process_count(), 2)
+                        self.assertIsNone(process.poll())
+                        self.assertTrue(core.is_task_running('benchmark'))
+                        self.assertFalse(gpu_lease.closed)
+                        self.assertFalse(task_lease.closed)
+                        release.assert_not_called()
+                        with self.assertRaises(TaskOwnershipBusy):
+                            acquire_task_lease(root, 'benchmark', set())
+                        with self.assertRaises(RuntimeError):
+                            acquire_gpu_lock(str(root / 'gpu.lock'))
+                        message = '\n'.join(state['logs'])
+                        self.assertIn('Win32 error 5', message)
+                        self.assertIn('not proven dead', message)
+                        self.assertIn('Task Manager', message)
+                        self.assertFalse(Path(report_path).exists(), 'cleanup failure became a cancelled report')
+                        real_terminate()
+                        control.job.ensure_stopped(deadline=time.monotonic() + 5)
+                        core._reap_gpu_leases()
+                        self.assertEqual({}, claims)
+                        self.assertEqual({}, leases)
+                        self.assertTrue(gpu_lease.closed)
+                        self.assertTrue(task_lease.closed)
+                        self.assertIsNone(control.job.handle)
+                        release.assert_called_once_with(gpu_lease)
+                finally:
+                    self._close_owned(process)
+                    gpu_lease.close()
+                    task_lease.close()
 
     def test_verifier_stop_process_group_honors_full_grace_then_forces(
         self,
@@ -524,7 +609,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 11 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 12 and not result.skipped else 1
 
 
 if __name__ == '__main__':

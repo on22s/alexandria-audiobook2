@@ -14,6 +14,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 from pydantic import field_validator
+from windows_subprocess_owner import WindowsOwnerCleanupError
 
 from core import (
     API_LOG_DIR,
@@ -920,6 +921,8 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
 
             try:
                 rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path, env=env)
+            except WindowsOwnerCleanupError:
+                raise
             except Exception as e:
                 state["logs"].append(f"[{stage}] error launching: {e}")
                 state["tasks"][i]["status"] = "failed"

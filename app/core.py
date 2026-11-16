@@ -814,6 +814,8 @@ def _reap_gpu_leases():
                 for control in _get_retained_windows_controls(state):
                     if control.job.get_active_process_count() == 0:
                         control.close()
+                    else:
+                        control.retry_termination()
                 release_gpu_task_claim(name, claim_id)
             except OSError as error:
                 record_failure('windows_owner_recovery_failed', error, task=name, rate_limit_seconds=300)
@@ -1322,6 +1324,9 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                 state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
                 if "status" in state: state["status"] = "failed"
 
+    except WindowsOwnerCleanupError as error:
+        _retain_windows_owner_failure(state, error)
+        raise
     except Exception as e:
         # Catch-all so we always clean up the task state even if the exception
         # is unexpected (e.g. AttributeError, KeyError from internal bugs).
@@ -1768,6 +1773,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
         if process is not None and not isinstance(error, WindowsOwnerCleanupError):
             try:
                 ensure_failed_subprocess_stopped(process, state)
+            except WindowsOwnerCleanupError as cleanup_error:
+                _retain_windows_owner_failure(state, cleanup_error)
+                raise
             except BaseException:
                 logger.exception("Failed to stop subprocess after stream failure")
         raise
