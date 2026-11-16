@@ -20,6 +20,9 @@ const uiCatalogMisses = [];
 const uiAuthoredText = new WeakMap();
 const uiAuthoredHtml = new WeakMap();
 const uiAuthoredAttrs = new WeakMap();
+const uiRuntimeValues = new WeakMap();
+const uiRuntimeAttributes = new WeakMap();
+const UI_MESSAGE = Symbol();
 let uiLocale = UI_LOCALE_DEFAULT;
 
 function normalizeUiLocale(locale) {
@@ -140,10 +143,7 @@ function applyUiSentenceJoins(root, locale = getUiLocale()) {
 }
 
 function pluralForm(count, locale = getUiLocale()) {
-    if (locale === 'zh-CN' || locale === 'ja') {
-        return 'many';
-    }
-    return count === 1 ? 'one' : 'many';
+    return new Intl.PluralRules(getIntlUiLocale(locale)).select(count) === 'one' ? 'one' : 'many';
 }
 
 function formatUiNumber(value) {
@@ -319,6 +319,13 @@ function renderUiLocaleOptions() {
 }
 
 function readUiMessageValues(node, english) {
+    if (uiRuntimeValues.has(node)) {
+        const values = uiRuntimeValues.get(node);
+        return typeof values === 'function' ? values() : values;
+    }
+    if (node.hasAttribute('data-i18n-values')) {
+        return JSON.parse(node.getAttribute('data-i18n-values'));
+    }
     if (node.hasAttribute('data-i18n-count')) {
         return {count: Number(node.getAttribute('data-i18n-count'))};
     }
@@ -356,7 +363,7 @@ function applyUiCatalog(root = document) {
     const locale = getUiLocale();
     for (const node of root.querySelectorAll('[data-i18n]')) {
         if (!uiAuthoredText.has(node)) {
-            uiAuthoredText.set(node, node.textContent);
+            uiAuthoredText.set(node, node.getAttribute('data-i18n-source') || node.textContent);
         }
         const key = node.getAttribute('data-i18n');
         if (key.startsWith('safety.')) {
@@ -378,7 +385,8 @@ function applyUiCatalog(root = document) {
         for (const entry of node.getAttribute('data-i18n-attr').split(',')) {
             const [attribute, key] = entry.split(':').map(part => part.trim());
             if (!attribute || !key) { continue; }
-            node.setAttribute(attribute, t(key, authored.get(attribute), readUiMessageValues(node, authored.get(attribute)), locale));
+            const values = uiRuntimeAttributes.get(node)?.get(attribute) || readUiMessageValues(node, authored.get(attribute));
+            node.setAttribute(attribute, t(key, authored.get(attribute), values, locale));
         }
     }
     applyUiSentenceJoins(root, locale);
@@ -386,6 +394,48 @@ function applyUiCatalog(root = document) {
 
 // A keyed node created by JS (preview headings). The English is registered
 // before painting so the next sweep keeps the source text, not the translation.
+function setUiMessage(node, key, english, values = {}) {
+    node.setAttribute('data-i18n', key);
+    uiAuthoredText.set(node, english);
+    uiRuntimeValues.set(node, typeof values === 'function' ? values : {...values});
+    node.textContent = t(key, english, readUiMessageValues(node, english));
+    return node;
+}
+
+function uiMessage(key, english, values = {}) {
+    return {[UI_MESSAGE]: true, key, english, values, toString() { return t(key, english, values); }};
+}
+
+function renderUiMessage(node, message, attribute = null) {
+    if (!message?.[UI_MESSAGE]) {
+        if (attribute) { node.setAttribute(attribute, String(message)); }
+        else {
+            if (uiAuthoredText.has(node)) {
+                node.removeAttribute('data-i18n');
+                uiAuthoredText.delete(node);
+                uiRuntimeValues.delete(node);
+            }
+            node.textContent = String(message);
+        }
+        return;
+    }
+    if (!attribute) {
+        setUiMessage(node, message.key, message.english, message.values);
+        return;
+    }
+    const entries = (node.getAttribute('data-i18n-attr') || '').split(',').filter(entry => entry && !entry.startsWith(attribute + ':'));
+    entries.push(attribute + ':' + message.key);
+    node.setAttribute('data-i18n-attr', entries.join(','));
+    captureUiAuthoredAttributes(node).set(attribute, message.english);
+    if (!uiRuntimeAttributes.has(node)) { uiRuntimeAttributes.set(node, new Map()); }
+    uiRuntimeAttributes.get(node).set(attribute, {...message.values});
+    node.setAttribute(attribute, String(message));
+}
+
+function uiMessageMarkup(key, english, values = {}) {
+    return `<span data-i18n="${escapeHtml(key)}" data-i18n-source="${escapeHtml(english)}" data-i18n-values="${escapeHtml(JSON.stringify(values))}">${escapeHtml(t(key, english, values))}</span>`;
+}
+
 function createUiMessageNode(tag, key, english) {
     const node = document.createElement(tag);
     node.setAttribute('data-i18n', key);

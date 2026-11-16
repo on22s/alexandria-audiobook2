@@ -860,6 +860,7 @@
         function getItemHelpText(control, locale = getUiLocale()) {
             if (control.type === 'hidden') { return ''; }
             if (control.type === 'file' && (control.hidden || control.style.display === 'none')) { return ''; }
+            if (control.id === 'theme-toggle' && control.getAttribute('aria-label')) { return control.getAttribute('aria-label'); }
             if (getHelpEntry(FIELD_HELP, control.id)) { return getFieldHelpText(FIELD_HELP[control.id], control.id, locale); }
             if (getHelpEntry(ITEM_HELP, control.id)) { return formatHelpText(getHelpCatalogKey('ITEM_HELP', control.id), ITEM_HELP[control.id], locale); }
             if (control.dataset.helpKey && getHelpEntry(ACTION_HELP, control.dataset.helpKey)) { return formatHelpText(getHelpCatalogKey('ACTION_HELP', control.dataset.helpKey), ACTION_HELP[control.dataset.helpKey], locale); }

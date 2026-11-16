@@ -22,7 +22,7 @@ for (const [count, label] of [[2,'Voice changes (1 change)'],[3,'Voice changes (
         assert(html.includes(`value="${type}"`));
     }
     for (const label of ['Custom voice','Built-in LoRA voice','Clone voice','LoRA voice','Voice Design','Character ensemble']) {
-        assert(html.includes(`>${label}</label>`));
+        assert(new RegExp(`<label[^>]*>[\\s\\S]*?<span[^>]*>${label}</span></label>`).test(html));
     }
 }
 for (const states of [[],[state]]) {
@@ -506,6 +506,8 @@ const context = {
     localStorage:{getItem(){return null;},setItem(){},removeItem(){}}
 };
 context.window = context;
+vm.createContext(context);
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
 vm.createContext(context);context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
 context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),context);
 const run = code => vm.runInContext(code, context);
@@ -653,7 +655,11 @@ context.bootstrap = {Toast:class {
 context.document.createElement = () => ({
     set innerHTML(value) {
         const id = value.match(/id="([^"]+)"/)[1];
-        const node = {id,addEventListener() {},remove() {},querySelector: () => ({addEventListener() {}})};
+        const labels = new Map();
+        const node = {id,addEventListener() {},remove() {},querySelector: selector => {
+            if (!labels.has(selector)) { labels.set(selector,{setAttribute(){},addEventListener(){}}); }
+            return labels.get(selector);
+        }};
         this.firstElementChild = node;
         toastNodes.push(node);
     }

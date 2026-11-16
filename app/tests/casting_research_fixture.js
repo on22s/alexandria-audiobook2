@@ -352,6 +352,25 @@ const firstBatch = env => batchCalls(env)[0];
 const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting/lifecycle/batch');
 
 (async () => {
+    {
+        const localeEnv = setup();
+        await localeEnv.w.loadCastingLibrary(); await settle();
+        const field = $(localeEnv, 'research-view-name');
+        field.value = 'Synthetic unsaved view';field.focus();
+        const status = $(localeEnv, 'research-bulk-status');
+        for (const locale of ['en', 'zh-CN', 'ja', 'es-419', 'qps-ploc']) {
+            if (!['en', 'qps-ploc'].includes(locale)) {
+                const messages = JSON.parse(fs.readFileSync(path.join(root, 'app/static/i18n/ui.' + locale + '.json'), 'utf8'));
+                localeEnv.w.eval('uiCatalogs.set(' + JSON.stringify(locale) + ',{messages:' + JSON.stringify(messages) + '})');
+            }
+            localeEnv.w.applyUiLocale(locale);
+            eq($(localeEnv, 'research-page-size').attrs['aria-label'], localeEnv.w.t('research.page.voices-per-page', 'Voices per page'));
+            eq(status.children[0].textContent, localeEnv.w.t('research.bulk.status-none', 'Status: no change'));
+            eq(status.children[1].textContent, localeEnv.w.t('casting.status.unreviewed', 'Unreviewed'));
+            eq(field.value, 'Synthetic unsaved view');
+            ok(localeEnv.w.document.activeElement === field, 'locale switch preserves the original focused field');
+        }
+    }
     let env = setup();
     await env.w.loadCastingLibrary(); await settle();
     {
