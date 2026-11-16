@@ -176,6 +176,7 @@
             'single-voice-source': {what: 'Speaker whose existing voice to review for book-wide use. Preview lists every affected speaker before anything is applied.'},
 
             // Voices tab
+            'voices-show-reviews': {what: 'Show or hide the persona and voice review buttons on every voice card. This display preference is saved in this browser when storage is available; it does not change saved review statuses.'},
             'voices-state-filter': {what: 'Show all characters, or only those with or without state cards (per-state voices, e.g. a time skip).'},
             'voices-hide-ready': {what: 'Hide characters already marked ready.'},
             'narrator-strategy': {what: 'How the narrator voice is chosen: one global voice, or varied by scene focus, chapter, focus character, or the character’s gender and age.'},

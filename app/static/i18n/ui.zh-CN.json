@@ -2058,6 +2058,7 @@
   "help.field.voices-hide-ready.what": "隐藏已标记为就绪的角色。",
   "help.field.voices-keep-in-library.what": "在替换当前声音之前，将其保存到库中。",
   "help.field.voices-scope.what": "只给尚无声音的角色分配声音，或给所有角色分配（替换当前声音）。",
+  "help.field.voices-show-reviews.what": "显示或隐藏所有声音卡片上的角色设定和声音审核按钮。浏览器存储可用时会保存此显示偏好；不会更改已保存的审核状态。",
   "help.field.voices-state-filter.what": "显示所有角色，或只显示有/无状态卡片的角色（按状态变化的声音，例如 时间跳跃）。",
   "help.item.alias-row-remove": "从编辑器中移除此别名行。保存别名以保留编辑。",
   "help.item.auto-config-banner": "关闭建议设置提示，同时保留表单中显示的值。",

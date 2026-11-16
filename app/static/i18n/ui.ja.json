@@ -2058,6 +2058,7 @@
   "help.field.voices-hide-ready.what": "すでに準備完了とマークされた登場人物を隠します。",
   "help.field.voices-keep-in-library.what": "現在の声を置き換える前にライブラリへ保存します。",
   "help.field.voices-scope.what": "声がまだない登場人物にだけ割り当てるか、すべての登場人物に割り当てる（現在の声を置き換える）かを選びます。",
+  "help.field.voices-show-reviews.what": "すべての音声カードで、人物設定と音声のレビューボタンを表示または非表示にします。ブラウザーの保存領域を利用できる場合は表示設定を保存します。保存済みのレビュー状態は変わりません。",
   "help.field.voices-state-filter.what": "すべての登場人物を表示するか、状態カードがある/ない登場人物だけを表示します（状態ごとの声、例：時間跳躍）。",
   "help.item.alias-row-remove": "このエイリアス行をエディターから削除します。編集を残すにはエイリアスを保存してください。",
   "help.item.auto-config-banner": "フォームに表示されている値を保ったまま、推奨設定の通知を閉じます。",

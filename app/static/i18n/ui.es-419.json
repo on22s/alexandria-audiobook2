@@ -2058,6 +2058,7 @@
   "help.field.voices-hide-ready.what": "Oculta los personajes ya marcados como listos.",
   "help.field.voices-keep-in-library.what": "Guarda las voces actuales en la biblioteca antes de reemplazarlas.",
   "help.field.voices-scope.what": "Asigna voces solo a los personajes que no tienen, o a todos los personajes (reemplazando las voces actuales).",
+  "help.field.voices-show-reviews.what": "Muestra u oculta los botones de revisión del perfil y la voz en todas las tarjetas de voz. Si el almacenamiento está disponible, esta preferencia se guarda en este navegador; no cambia los estados de revisión guardados.",
   "help.field.voices-state-filter.what": "Muestra todos los personajes, o solo los que tienen o no tarjetas de estado (voces por estado, p. ej. un salto temporal).",
   "help.item.alias-row-remove": "Elimina esta fila de alias del editor. Guarda los alias para conservar la edición.",
   "help.item.auto-config-banner": "Descarta el aviso de ajustes sugeridos y conserva los valores mostrados en el formulario.",

@@ -2376,6 +2376,7 @@
   "help.field.voices-hide-ready.what": "Hide characters already marked ready.",
   "help.field.voices-keep-in-library.what": "Save the current voices to the library before they are replaced.",
   "help.field.voices-scope.what": "Assign voices only to characters that have none, or to every character (replacing current voices).",
+  "help.field.voices-show-reviews.what": "Show or hide the persona and voice review buttons on every voice card. This display preference is saved in this browser when storage is available; it does not change saved review statuses.",
   "help.field.voices-state-filter.what": "Show all characters, or only those with or without state cards (per-state voices, e.g. a time skip).",
   "help.item.alias-row-remove": "Remove this alias row from the editor. Save the aliases to retain the edit.",
   "help.item.auto-config-banner": "Dismiss the suggested-settings notice while keeping the values shown in the form.",
