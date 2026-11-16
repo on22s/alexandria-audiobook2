@@ -333,7 +333,7 @@ const dropdown={classList:{add:name=>dropdownClasses.add(name),remove:name=>drop
 const link={dataset:{tab:'voices'},closest:()=>inAdvanced?{}:null,classList:{remove(){},add(){}},removeAttribute(){},setAttribute(){},addEventListener(name,fn){assert.strictEqual(name,'click');handler=fn;}};
 // The Advanced dropdown toggle is a .nav-link with no data-tab.
 const toggleLink={dataset:{},classList:{remove(){},add(){}},removeAttribute(){},setAttribute(){},addEventListener(name,fn){assert.strictEqual(name,'click');toggleHandler=fn;}};
-c.ctx.document.querySelectorAll=selector=>selector==='.nav-link'?[link,toggleLink]:[{style:{}}];c.ctx.document.getElementById=id=>id==='advancedNavDropdown'?dropdown:{style:{},classList:{contains:()=>false}};c.ctx.rememberTab=()=>{};c.ctx.loadVoices=(...args)=>loads.push(args);
+c.ctx.document.querySelectorAll=selector=>selector==='.nav-link'?[link,toggleLink]:[{style:{}}];c.ctx.document.getElementById=id=>id==='skip-main-link'?null:id==='advancedNavDropdown'?dropdown:{style:{},classList:{contains:()=>false}};c.ctx.rememberTab=()=>{};c.ctx.loadVoices=(...args)=>loads.push(args);
 c.ctx.window=c.ctx;c.ctx.location={hash:'#setup'};c.ctx.history={pushState:(_s,_t,hash)=>c.ctx.location.hash=hash};c.ctx.addEventListener=()=>{};
 c.ctx.toggleEditorTools=open=>{assert.strictEqual(open,false);drawerCloses++;};
 const a=source.indexOf('const TAB_STORAGE_KEY =');const b=source.indexOf('// --- LLM model picker:',a);assert(a>=0&&b>a);vm.runInContext(source.slice(a,b),c.ctx);

@@ -3874,6 +3874,7 @@
   "test_core_dom_inputs_js": [
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_actual_config_loader_displays_filenames_as_text",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_collapsed_nav_closes_through_the_actual_large_breakpoint",
+    "tests.test_core_dom_inputs_js.CoreDomInputTests.test_skip_link_preserves_route_and_visible_tab_while_focusing_main",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_tab_restore_uses_exact_existing_names_and_storage_failure_is_safe"
   ],
   "test_core_log_render_js": [

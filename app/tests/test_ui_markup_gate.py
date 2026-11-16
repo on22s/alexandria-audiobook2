@@ -30,6 +30,7 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    '(prefers-reduced-motion: reduce)',
     # #1938 DOM IDs, tag/selector names and slider ARIA wiring, never copy.
     'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
     'llm-test-help', 'script-ingest-${id}-state', 'script-ingest-metadata', 'script-ingest-feedback',
