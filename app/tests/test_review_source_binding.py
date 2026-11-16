@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from dialogue_spans import mark_entries
 from generate_script import LLMGenParams
 from literal_policy import bind_literal_policy, get_literal_policy
 import review_script as review
@@ -326,10 +327,12 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     reply = [row('Rain fell.', speaker=before),
                              row('Please open the gate. Take the blue cup.', speaker=after)]
                     output, calls, attempts = self.run_review(source, [reply],
-                        params=LLMGenParams(literal_source_preserving=literal))
+                        params=LLMGenParams(literal_source_preserving=literal),
+                        source_text='Rain fell. Please open the gate.\n\nTake the blue cup.')
                     first = {key: value for key, value in source[0].items() if key != 'pause_after'}
-                    self.assertEqual([{**first, 'text': 'Rain fell.'},
+                    self.assertEqual([{**first, 'text': 'Rain fell.', 'source_span': [0, 10]},
                                       {**source[0], 'text': 'Please open the gate.', 'speaker': after,
+                                       'source_span': [11, 32],
                                        **{key: source[1][key] for key in ('spoken', 'speaker_gender',
                                             'speaker_age_group', 'speaker_ageless')}},
                                       source[1]], output)
@@ -337,6 +340,62 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     self.assertEqual([700, 0], [entry['pause_after'] for entry in output[1:]])
                     self.assertEqual(1, len(calls))
                     self.assertEqual('accepted', attempts[0]['outcome'])
+
+    def test_portion_reassignment_remaps_source_spans_to_each_fragment(self):
+        source_text = 'Rain fell. Please open the gate.\n\nTake the blue cup.'
+        source = [row('Rain fell. Please open the gate.', speaker='NARRATOR',
+                      spoken=False, provenance={'metadata': 'X'},
+                      source_span=[0, 32], pause_after=700),
+                  row('Take the blue cup.', spoken=True, provenance={'metadata': 'Y'},
+                      source_span=[34, 52], speaker_gender='female', pause_after=0)]
+        reply = [row('Rain fell.', speaker='NARRATOR'),
+                 row('Please open the gate. Take the blue cup.')]
+        before = copy.deepcopy(source)
+        for literal in (False, True):
+            with self.subTest(literal=literal):
+                client, calls = client_for([(reply, 'stop')])
+                attempts = []
+                with redirect_stdout(io.StringIO()):
+                    output = review.review_batch(client, 'fixture', source, 1, 1,
+                        LLMGenParams(literal_source_preserving=literal), max_retries=0,
+                        attempt_observer=attempts.append, source_text=source_text)
+                self.assertEqual(before, source)
+                self.assertEqual(1, len(calls))
+                self.assertEqual('accepted', attempts[0]['outcome'])
+                self.assertEqual(['Rain fell.', 'Please open the gate.', 'Take the blue cup.'],
+                                 [entry['text'] for entry in output])
+                self.assertEqual(['NARRATOR', 'ALICE', 'ALICE'],
+                                 [entry['speaker'] for entry in output])
+                self.assertEqual(['X', 'X', 'Y'],
+                                 [entry['provenance']['metadata'] for entry in output])
+                self.assertEqual([False, True, True], [entry['spoken'] for entry in output])
+                self.assertNotIn('pause_after', output[0])
+                self.assertEqual([700, 0], [entry['pause_after'] for entry in output[1:]])
+                self.assertEqual([[0, 10], [11, 32], [34, 52]],
+                                 [entry['source_span'] for entry in output],
+                                 json.dumps(output, ensure_ascii=False, indent=2))
+                for entry in output:
+                    self.assertEqual(entry['text'], source_text[slice(*entry['source_span'])])
+                for previous, current in zip(output, output[1:]):
+                    self.assertLessEqual(previous['source_span'][1], current['source_span'][0])
+
+    def test_raw_source_split_offsets_are_not_recoverable_from_whole_entry_spans(self):
+        source = [row('Rain fell. Please  open the gate.', speaker='NARRATOR'),
+                  row('Take the blue cup.')]
+        fragments = [row('Rain fell.', speaker='NARRATOR'),
+                     row('Please open the gate.'), row('Take the blue cup.')]
+        raw_sources = ['Rain  fell. Please open the gate.\n\nTake the blue cup.',
+                       'Rain fell. Please  open the gate.\n\nTake the blue cup.']
+        originals = [mark_entries(source, raw) for raw in raw_sources]
+        self.assertEqual(originals[0], originals[1])
+        self.assertEqual([[0, 33], [35, 53]],
+                         [entry['source_span'] for entry in originals[0]])
+        self.assertEqual(len(source[0]['text']),
+                         originals[0][0]['source_span'][1] - originals[0][0]['source_span'][0])
+        mapped = [[entry['source_span'] for entry in mark_entries(fragments, raw)]
+                  for raw in raw_sources]
+        self.assertEqual([[[0, 11], [12, 33], [35, 53]],
+                          [[0, 10], [11, 33], [35, 53]]], mapped)
 
     def test_partitioning_preserves_nested_json_types_that_compare_equal_in_python(self):
         source = [row('First phrase.', provenance={'flag': False}),
@@ -453,15 +512,17 @@ class ReviewSourceBindingTests(unittest.TestCase):
     def test_partitioned_partial_fragments_preserve_internal_review_whitespace(self):
         for space in ('  ', '\t', '\n  '):
             with self.subTest(space=space):
-                source = [row('Hello there. Please open the gate.', source_span=[0, 33]),
-                          row('Take the blue cup.', speaker='BOB', source_span=[35, 53])]
+                source = [row('Hello there. Please open the gate.', source_span=[0, 34]),
+                          row('Take the blue cup.', speaker='BOB', source_span=[36, 54])]
                 reply = [row('Hello there.'),
                          row('Please' + space + 'open the gate. Take the blue', speaker='BOB'),
                          row('cup.', speaker='BOB')]
-                output, _, _ = self.run_review(source, [reply])
+                output, _, _ = self.run_review(source, [reply],
+                    source_text='Hello there. Please open the gate.\n\nTake the blue cup.')
                 self.assertEqual('Please' + space + 'open the gate.', output[1]['text'])
                 self.assertEqual('Take the blue', output[2]['text'])
-                self.assertEqual(source[0]['source_span'], output[1]['source_span'])
+                self.assertEqual([[0, 12], [13, 34], [36, 49], [50, 54]],
+                                 [entry['source_span'] for entry in output])
 
     def test_unchanged_speaker_retains_per_line_temporal_states(self):
         source = [row('First.', spoken=True, speaker_age_group='child'),
@@ -520,6 +581,7 @@ class ReviewSourceBindingTests(unittest.TestCase):
 
     def test_generated_boundary_overlays_preserve_word_labels_metadata_pauses_and_inputs(self):
         words = ['Alpha', '猫', 'café', 'delta', 'echo', 'foxtrot']
+        raw = ' \n '.join(words)
         def partitions(mask):
             start = 0
             for end in range(1, len(words) + 1):
@@ -527,15 +589,17 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     yield words[start:end]
                     start = end
         for source_mask in range(1 << (len(words) - 1)):
-            source, owner, pauses, cursor = [], {}, [], 0
+            source, owner, pauses, cursor, word_cursor = [], {}, [], 0, 0
             for i, part in enumerate(partitions(source_mask)):
-                metadata = {'source_span': [cursor, cursor + len(part)],
+                text = ' \n '.join(part)
+                metadata = {'source_span': [cursor, cursor + len(text)],
                             'provenance': {'owner': i, 'flags': [False, 0, True, 1]}}
-                entry = row(' \n '.join(part), **metadata)
-                cursor += len(part)
+                entry = row(text, **metadata)
+                cursor += len(text) + 3
+                word_cursor += len(part)
                 if i % 2 == 0:
                     entry['pause_after'] = i * 100
-                    pauses.append((cursor, i * 100))
+                    pauses.append((word_cursor, i * 100))
                 source.append(entry)
                 owner.update({word: metadata for word in part})
             for reply_mask in range(1 << (len(words) - 1)):
@@ -549,7 +613,7 @@ class ReviewSourceBindingTests(unittest.TestCase):
                                       'instruct': instruction})
                         labels.update({word: (speaker, instruction) for word in part})
                     before_source, before_reply = copy.deepcopy(source), copy.deepcopy(reply)
-                    output, quality = review.get_review_source_binding(source, reply)
+                    output, quality = review.get_review_source_binding(source, reply, source_text=raw)
                     self.assertTrue(quality['passed'], quality)
                     self.assertEqual(source, before_source)
                     self.assertEqual(reply, before_reply)
@@ -558,13 +622,17 @@ class ReviewSourceBindingTests(unittest.TestCase):
                     for entry in output:
                         for word in entry['text'].split():
                             self.assertEqual(labels[word], (entry['speaker'], entry['instruct']))
-                            self.assertEqual(owner[word], {key: value for key, value in entry.items()
-                                if key not in ('speaker', 'text', 'instruct', 'pause_after')})
+                            self.assertEqual(owner[word]['provenance'], entry['provenance'])
+                            self.assertLessEqual(owner[word]['source_span'][0], entry['source_span'][0])
+                            self.assertLessEqual(entry['source_span'][1], owner[word]['source_span'][1])
+                        self.assertEqual(entry['text'].split(), raw[slice(*entry['source_span'])].split())
                         cursor += len(entry['text'].split())
                         if 'pause_after' in entry:
                             actual_pauses.append((cursor, entry['pause_after']))
                     self.assertEqual(pauses, actual_pauses)
-                    rebound, report = review.get_review_source_binding(source, output)
+                    self.assertTrue(all(previous['source_span'][1] <= current['source_span'][0]
+                                        for previous, current in zip(output, output[1:])))
+                    rebound, report = review.get_review_source_binding(source, output, source_text=raw)
                     self.assertTrue(report['passed'], report)
                     self.assertEqual(output, rebound)
 
@@ -629,6 +697,7 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 self.assertTrue(Path(str(source) + '.review_completed.json').exists())
 
     def test_cli_publishes_portion_reassignment_in_sequential_and_contextual_modes(self):
+        from tests.test_review_source_spans import create_book
         for context_window, nested_narrators in ((0, False), (1, False), (0, True), (1, True)):
             with self.subTest(context_window=context_window, nested_narrators=nested_narrators), \
                     tempfile.TemporaryDirectory() as directory:
@@ -638,8 +707,9 @@ class ReviewSourceBindingTests(unittest.TestCase):
                                 speaker_gender='female', speaker_ageless=False)]
                 reply = [row('Rain fell.', speaker='NARRATOR'),
                          row('Please open the gate. Take the blue cup.')]
-                expected = [{**original[0], 'text': 'Rain fell.'},
+                expected = [{**original[0], 'text': 'Rain fell.', 'source_span': [0, 10]},
                             {**original[0], 'text': 'Please open the gate.', 'speaker': 'ALICE',
+                              'source_span': [11, 32],
                               'spoken': True, 'speaker_gender': 'female', 'speaker_ageless': False},
                             original[1]]
                 expected[0].pop('pause_after')
@@ -650,8 +720,8 @@ class ReviewSourceBindingTests(unittest.TestCase):
                                     provenance={'flag': 0})]
                     reply = [row('Rain fell. Wind rose.', speaker='NARRATOR')]
                     expected = copy.deepcopy(original)
-                source = Path(directory, 'fixture.json')
-                source.write_text(json.dumps(original), encoding='utf-8')
+                source, _, _ = create_book(directory, source=original,
+                    raw='\n\n'.join(entry['text'] for entry in original))
                 client, calls = client_for([(reply, 'stop')])
                 config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
                           'generation': {'review_batch_size': 2, 'merge_narrators': True}}
