@@ -639,6 +639,7 @@
         };
 
         const ITEM_HELP = {
+            'skip-main-link': 'Move keyboard focus to the main content, bypassing the navigation menu. No settings change and no task starts.',
             'editor-line-waveform-retry': 'Try reading the selected take again after a waveform error. This only refreshes the sketch; it does not regenerate or change the audio.',
             'btn-editor-batch': 'Open the batch actions for the script: regenerate, repair or export several lines at once. Nothing runs until you pick an action.',
             'editor-tools-toggle': 'Open or close the tool drawer, which keeps the sound, rendition, mix, pronunciation, chapter and repair panels beside the line editor without leaving this tab.',

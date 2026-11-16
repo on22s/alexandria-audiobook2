@@ -5,6 +5,18 @@ import unittest
 
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
 class UiGuidanceJsTests(unittest.TestCase):
+    def test_theme_switch_finishes_color_transitions_without_finishing_other_motion(self):
+        self.run_js(r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'utf8');
+const finished=[],fields={};let theme='light';
+class ColorTransition{constructor(property){this.transitionProperty=property;}finish(){finished.push(this.transitionProperty);}}
+const transitions=['background-color','color','border-left-color','box-shadow','transform'].map(property=>new ColorTransition(property));
+transitions.push({transitionProperty:'background-color',finish(){throw Error('A progress animation must not be finished');}});
+const context={CSSTransition:ColorTransition,localStorage:{setItem(){}},document:{documentElement:{removeAttribute(){theme='light';},setAttribute(name,value){theme=value;},getAttribute(){return theme;}},getAnimations(){assert.equal(theme,'night');return transitions;},getElementById:id=>fields[id]||(fields[id]={setAttribute(){}})}};
+vm.createContext(context);const start=source.indexOf('const THEMES =');vm.runInContext(source.slice(start,source.indexOf('// Sync button label/icon',start)),context);
+context.applyTheme('night');assert.deepEqual(finished,['background-color','color','border-left-color','box-shadow']);assert.equal(theme,'night');
+''')
+
     def test_pending_auto_config_preserves_edits_and_ignores_older_requests(self):
         self.run_js(r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
 const fields={},toasts=[],requests=[];const el=id=>fields[id]??={value:'initial',checked:false,style:{},innerHTML:'',scrollIntoView(){}};

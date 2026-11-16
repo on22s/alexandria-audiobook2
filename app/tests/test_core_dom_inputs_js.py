@@ -40,6 +40,35 @@ c.window.location.hash='#bad"selector';c.events.popstate();c.events.hashchange()
 const old=c.loads.length;c.ctx.activateTab('unknown');assert.strictEqual(c.loads.length,old);assert.deepStrictEqual(c.pushes,['#editor']);
 ''')
 
+    def test_skip_link_preserves_route_and_visible_tab_while_focusing_main(self):
+        self.run_js(r'''
+for(const tabName of ['editor','voices','setup']){
+ for(const reducedMotion of [false,true]){
+  const events={},tabs={},loads=[],scrolls=[],skipHandlers={};
+  const links=['setup','voices','editor'].map(name=>({dataset:{tab:name},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){},addEventListener(){}}));
+  for(const name of ['setup','voices','editor']){tabs[name+'-tab']={style:{display:name==='setup'?'block':'none'}};}
+  const window={location:{hash:'#'+tabName},history:{replaceState(_state,_title,hash){window.location.hash=hash;},pushState(){throw Error('Skipping must not push history');}},addEventListener:(event,handler)=>events[event]=handler,matchMedia(query){assert.equal(query,'(prefers-reduced-motion: reduce)');return {matches:reducedMotion};}};
+  const main={id:'main-content',focus(options){assert.equal(options.preventScroll,true);document.activeElement=main;},scrollIntoView:options=>scrolls.push(options)};
+  const skip={addEventListener:(event,handler)=>skipHandlers[event]=handler};
+  const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:id==='main-content'?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
+  const context={window,document,localStorage:{getItem:()=>null,setItem(){}},loadChunks:()=>loads.push('editor'),loadVoices:()=>loads.push('voices'),pollLmStudioStatus:()=>loads.push('setup')};
+  vm.createContext(context);vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),context);
+  context.restoreTab();const initialLoads=loads.length;
+  for(const activation of ['pointer','Enter-generated click']){
+   document.activeElement=skip;let prevented=false;
+   skipHandlers.click?.({preventDefault(){prevented=true;}});
+   if(!prevented){window.location.hash='#main-content';events.hashchange();document.activeElement=main;}
+   assert.equal(window.location.hash,'#'+tabName,tabName+' '+activation+' preserves hash');
+   assert.deepEqual(Object.keys(tabs).filter(id=>tabs[id].style.display==='block'),[tabName+'-tab'],'visible tab unchanged');
+   assert.strictEqual(document.activeElement,main,'main receives focus');
+   assert.equal(loads.length,initialLoads,'skipping must not reload tab data');
+   assert.equal(scrolls.at(-1).block,'start');
+   assert.equal(scrolls.at(-1).behavior,reducedMotion?'instant':'smooth');
+  }
+ }
+}
+''')
+
     def test_actual_config_loader_displays_filenames_as_text(self):
         names = ['normal.epub', '<img src=x onerror="boom()">.epub', '</span><script>boom()</script>', "日本語 & 'quotes' \"test\""]
         output = self.run_js('const names=' + json.dumps(names) + r''';
