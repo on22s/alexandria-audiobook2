@@ -38,6 +38,24 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_rendered_text_and_delivery_names_identify_each_line(self):
+        self.run_js(r'''
+ctx.API.get=async()=>[chunk(0),chunk(7)];await ctx.loadChunks(true);
+for(const line of [1,8]){
+ assert(body.innerHTML.includes('aria-label="Text for line '+line+'"'));
+ assert(body.innerHTML.includes('aria-label="Delivery instruction for line '+line+'"'));
+}
+''')
+
+    def test_progress_tracks_full_delta_playback_and_empty_snapshots(self):
+        self.run_js(r'''
+const progress=element('full-progress-bar');let snapshot=[chunk(0,'done'),chunk(1),chunk(2)];
+ctx.API.get=async()=>snapshot;await ctx.loadChunks(true);assert.equal(progress.ariaValueNow,'33');
+snapshot=[chunk(0,'done'),chunk(1,'done'),chunk(2)];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'67');
+playing=true;snapshot=snapshot.map(row=>({...row,status:'done'}));await ctx.loadChunks();assert.equal(progress.ariaValueNow,'100');
+playing=false;snapshot=[];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'0');assert.equal(progress.style.width,'0%');assert.equal(progress.innerText,'0% (0/0)');
+''')
+
     def test_cancel_reconciles_optimistic_rows_without_forcing_redraw_or_losing_controls(self):
         self.run_js(r'''
 const updateStart=source.indexOf('function updateChunkRow(chunk)');run(source.slice(updateStart,source.indexOf('function ensureChunkRefresh(',updateStart)));

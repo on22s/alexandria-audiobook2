@@ -64,13 +64,13 @@
             --bg-navbar:      #212529;
             --bg-modal:       #ffffff;
             --text-primary:   #212529;
-            --text-muted:     #6c757d;
+            --text-muted:     #606970;
             --text-heading:   #212529;
             --border-color:   rgba(0,0,0,0.125);
-            --border-input:   #dee2e6;
+            --border-input:   #858b92;
             --shadow:         rgba(0,0,0,0.1);
             --step-bg:        #e9ecef;
-            --step-color:     #6c757d;
+            --step-color:     #606970;
             --hr-color:       rgba(0,0,0,0.1);
             --badge-muted-bg: #6c757d;
             --log-bg:         #1e1e1e;
@@ -106,7 +106,7 @@
             --border-input:   #6d7d95;
             --shadow:         rgba(0,0,0,0.35);
             --step-bg:        #363d50;
-            --step-color:     #8896a8;
+            --step-color:     #a3afc2;
             --hr-color:       rgba(255,255,255,0.08);
             --badge-muted-bg: #4a5568;
             --log-bg:         #111419;
@@ -134,7 +134,7 @@
             --border-input:   #6d7d95;
             --shadow:         rgba(0,0,0,0.7);
             --step-bg:        #1e1e1e;
-            --step-color:     #5a5a5a;
+            --step-color:     #909090;
             --hr-color:       rgba(255,255,255,0.08);
             --badge-muted-bg: #2a2a2a;
             --log-bg:         #000000;
@@ -160,7 +160,7 @@
             --text-muted:     #8aa0b3;
             --text-heading:   #f5fbff;
             --border-color:   rgba(0,240,255,0.22);
-            --border-input:   #2b4355;
+            --border-input:   #65849b;
             --shadow:         rgba(0,0,0,0.65);
             --step-bg:        #202a3d;
             --step-color:     #8aa0b3;
@@ -275,10 +275,12 @@
         /* Shared interaction language. Keep keyboard focus visible without
            changing the layout or relying on a color-only indication. */
         :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-            outline: 3px solid var(--focus-ring);
+            outline: 3px solid var(--accent-strong);
             outline-offset: 2px;
         }
         .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
+        .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); }
+        .btn-outline-info { --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong); }
         .btn:not(:disabled):hover { filter: brightness(1.06); }
         .btn:not(:disabled):active { transform: translateY(1px); }
         .btn:disabled, .btn.disabled { cursor: not-allowed; opacity: 0.62; }
@@ -313,10 +315,10 @@
         .form-control:focus, .form-select:focus {
             background-color: var(--bg-input);
             color: var(--text-primary);
-            border-color: #0d6efd;
+            border-color: var(--accent-strong);
             box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.2);
         }
-        .form-control::placeholder { color: var(--text-muted); opacity: 0.7; }
+        .form-control::placeholder { color: var(--text-muted); opacity: 1; }
         .form-control[readonly] { background-color: var(--bg-card-header); }
         /* File inputs: the native "Choose File" button defaults to a bright
            system control that doesn't follow the dark themes. Style it to
@@ -390,6 +392,7 @@
         /* Misc */
         hr { border-color: var(--hr-color); opacity: 1; }
         .text-muted { color: var(--text-muted) !important; }
+        code { color: var(--text-primary); }
         h1,h2,h3,h4,h5,h6 { color: var(--text-heading); }
         .list-group-item {
             background-color: var(--bg-card);
@@ -1141,14 +1144,14 @@
                         </ul>
                     </li>
                 </ul>
-                <ul class="navbar-nav ms-auto align-items-center gap-2">
-                    <li class="nav-item">
+                <div class="navbar-nav ms-auto align-items-center gap-2">
+                    <div class="nav-item">
                         <button data-i18n-attr="title:shell.theme.theme-toggle.title,aria-label:shell.theme.theme-toggle.aria-label" id="theme-toggle" onclick="cycleTheme()" title="Current theme: Light. Switch to Night." aria-label="Current theme: Light. Switch to Night.">
                             <i id="theme-icon" class="fas fa-sun"></i>
                             <span data-i18n="shell.theme.label" id="theme-label">Theme: Light</span>
                         </button>
-                    </li>
-                    <li data-i18n-attr="title:shell.nav.title,aria-label:shell.nav.aria-label" class="nav-item small d-flex align-items-center status-cluster" title="System Status" aria-label="System status" role="status" aria-live="polite" aria-atomic="true">
+                    </div>
+                    <div data-i18n-attr="title:shell.nav.title,aria-label:shell.nav.aria-label" class="nav-item small d-flex align-items-center status-cluster" title="System Status" aria-label="System status" role="status" aria-live="polite" aria-atomic="true">
                         <span class="status-pill">
                         <span data-i18n-attr="title:shell.sys-build.sys-build.title" id="sys-build" class="text-light d-flex align-items-center" title="Runtime build"><i class="fas fa-code-branch me-1 text-secondary"></i><span data-i18n="shell.status.build.label" class="visually-hidden">Runtime build: </span><span data-i18n-skip id="sys-build-val" style="font-family: monospace;">build ?</span></span>
                         <span id="sys-eta" class="text-light align-items-center" style="display: none;"><i class="fas fa-clock me-1 text-secondary"></i><span data-i18n="shell.status.eta.label" class="visually-hidden">Time remaining: </span><span id="sys-eta-val" style="font-family: monospace;"></span></span>
@@ -1156,8 +1159,8 @@
                         <span id="sys-disk" class="text-light d-flex align-items-center"><i class="fas fa-hdd me-1 text-secondary"></i><span data-i18n="shell.status.disk.label" class="visually-hidden">Free disk space: </span><span data-i18n="shell.status.unavailable" id="sys-disk-val" style="font-family: monospace;">Unavailable</span><span id="sys-disk-warning" class="visually-hidden"></span></span>
                         </span>
                         <span id="sys-status-error" class="text-warning small ms-2"></span>
-                    </li>
-                </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
@@ -2639,7 +2642,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div id="script-activity" class="small text-muted px-2 py-1 border-bottom" hidden></div>
-                    <div id="script-logs" class="log-window"></div>
+                    <div id="script-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:script.logs.title" aria-label="Generation Logs"></div>
                 </div>
             </div>
         </div>
@@ -2802,7 +2805,7 @@
              <div class="card">
                 <div class="card-header" data-i18n="voices.logs.title">Voice Parsing Logs</div>
                 <div class="card-body p-0">
-                    <div id="voices-logs" class="log-window" style="height: 150px;"></div>
+                    <div id="voices-logs" class="log-window" style="height: 150px;" tabindex="0" role="region" data-i18n-attr="aria-label:voices.logs.title" aria-label="Voice Parsing Logs"></div>
                 </div>
             </div>
         </div>
@@ -3219,7 +3222,7 @@
                     <div id="preparer-progress-section" class="mt-4" style="display:none;">
                         <hr>
                         <h5 class="mb-2" data-i18n="preparer.logs.title">Execution Logs</h5>
-                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;"></div>
+                        <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;" tabindex="0" role="region" data-i18n-attr="aria-label:preparer.logs.title" aria-label="Execution Logs"></div>
                     </div>
 
                     <div class="mt-4">
@@ -3367,7 +3370,7 @@
                     </span>
                 </div>
                 <div class="card-body p-0">
-                    <div id="voicelab-logs" class="log-window"></div>
+                    <div id="voicelab-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:voicelab.logs.title" aria-label="Voice Lab Logs"></div>
                 </div>
             </div>
         </div>
@@ -3523,7 +3526,7 @@
                                 </div>
                             </div>
                             <div class="col-md-8">
-                                <div id="lora-train-logs" class="log-window" style="height: 200px;"></div>
+                                <div id="lora-train-logs" class="log-window" style="height: 200px;" tabindex="0" role="region" data-i18n-attr="aria-label:training.logs.title" aria-label="Training Logs"></div>
                             </div>
                         </div>
                     </div>
@@ -3669,7 +3672,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
-                            <span class="badge bg-secondary-subtle text-secondary small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate | R: Re-render | E: Edit text</span></span>
+                            <span class="badge bg-secondary-subtle text-dark small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate | R: Re-render | E: Edit text</span></span>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <div class="btn-group btn-group-sm" role="group">
@@ -3693,7 +3696,7 @@
                 <div class="card-body">
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
-                         <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
+                         <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="width: 0%">0%</div>
                      </div>
                      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                          <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" data-i18n-attr="title:editor.integrity.button-title" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i><span data-i18n="editor.integrity.button">Text integrity</span></button>
@@ -4249,7 +4252,7 @@
                     </button>
                 </div>
                 <div class="card-body p-0">
-                    <div id="audio-logs" class="log-window"></div>
+                    <div id="audio-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:audio.logs.title" aria-label="Generation Logs"></div>
                 </div>
             </div>
         </div>

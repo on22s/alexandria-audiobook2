@@ -1,4 +1,5 @@
 """Static contracts for UI behavior that is easy to regress silently."""
+import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -11,14 +12,79 @@ class _NavigationParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.tabs = []
+        self.nodes = []
+        self.stack = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
+        self.nodes.append((tag, values, tuple(self.stack)))
         if tag == "a" and values.get("data-tab"):
             self.tabs.append(values)
+        if tag not in {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if tag in self.stack:
+            self.stack = self.stack[:len(self.stack) - 1 - self.stack[::-1].index(tag)]
 
 
 class UIContractTests(unittest.TestCase):
+    def test_logs_are_explicitly_keyboard_focusable_named_regions(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        logs = [attrs for _, attrs, _ in parser.nodes if 'log-window' in attrs.get('class', '').split()]
+        self.assertEqual(6, len(logs))
+        for attrs in logs:
+            with self.subTest(log=attrs['id']):
+                self.assertEqual('0', attrs.get('tabindex'))
+                self.assertEqual('region', attrs.get('role'))
+                self.assertTrue(attrs.get('aria-label'))
+
+    def test_render_progress_has_named_numeric_initial_state(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        progress = next(attrs for _, attrs, _ in parser.nodes if attrs.get('id') == 'full-progress-bar')
+        self.assertEqual('progressbar', progress['role'])
+        self.assertTrue(progress.get('aria-label'))
+        self.assertEqual(('0', '100', '0'), tuple(progress.get(name) for name in ('aria-valuemin', 'aria-valuemax', 'aria-valuenow')))
+
+    def test_system_status_preserves_navigation_list_semantics(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        statuses = [(tag, attrs, parents) for tag, attrs, parents in parser.nodes if 'status-cluster' in attrs.get('class', '').split()]
+        self.assertEqual(1, len(statuses))
+        tag, status, parents = statuses[0]
+        self.assertEqual('div', tag)
+        self.assertNotIn('ul', parents)
+        self.assertEqual(('status', 'polite', 'true'), tuple(status.get(name) for name in ('role', 'aria-live', 'aria-atomic')))
+        self.assertTrue(status.get('aria-label'))
+
+    def test_theme_text_and_input_border_contrast(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+
+        def luminance(color):
+            channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4 for value in channels]
+            return sum(value * weight for value, weight in zip(linear, (.2126, .7152, .0722)))
+
+        def contrast(first, second):
+            bright, dark = sorted((luminance(first), luminance(second)), reverse=True)
+            return (bright + .05) / (dark + .05)
+
+        base = dict(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6});', re.search(r':root\s*\{([^}]+)', source)[1]))
+        for theme in ('light', 'night', 'super-night', 'cyberpunk'):
+            tokens = dict(base)
+            if theme != 'light':
+                block = re.search(r'html\[data-theme="' + theme + r'"\]\s*\{([^}]+)', source)[1]
+                tokens.update(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6});', block))
+            for foreground in ('--text-primary', '--text-muted', '--text-heading', '--border-input'):
+                for background in ('--bg-page', '--bg-card', '--bg-card-header', '--bg-input', '--bg-modal'):
+                    with self.subTest(theme=theme, foreground=foreground, background=background):
+                        self.assertGreaterEqual(contrast(tokens[foreground], tokens[background]), 3 if foreground == '--border-input' else 4.5)
+            for foreground, background in (('--step-color', '--step-bg'), ('--log-color', '--log-bg')):
+                with self.subTest(theme=theme, foreground=foreground):
+                    self.assertGreaterEqual(contrast(tokens[foreground], tokens[background]), 4.5)
+
     def test_primary_navigation_is_keyboard_addressable(self):
         parser = _NavigationParser()
         parser.feed((STATIC / "index.html").read_text(encoding="utf-8"))
