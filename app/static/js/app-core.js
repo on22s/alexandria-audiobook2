@@ -2122,9 +2122,15 @@
         function renderActiveLlmModeBadge() {
             const badge = document.getElementById('llm-active-mode-badge');
             if (!badge) { return; }
-            const labels = { local: 'Local', remote: 'Remote (Thunder / network)' };
-            badge.textContent = 'Active: ' + labels[savedLlmMode] + (currentLlmMode !== savedLlmMode
-                ? ' · Selected: ' + labels[currentLlmMode] + ' — Save to apply' : '');
+            const values = () => ({
+                active: savedLlmMode === 'remote' ? t('setup.llm.active.remote', 'Remote (Thunder / network)') : t('setup.llm.active.local', 'Local'),
+                selected: currentLlmMode === 'remote' ? t('setup.llm.active.remote', 'Remote (Thunder / network)') : t('setup.llm.active.local', 'Local')
+            });
+            if (currentLlmMode !== savedLlmMode) {
+                setUiMessage(badge, 'setup.llm.active.pending', 'Active: {active} · Selected: {selected} — Save to apply', values);
+            } else {
+                setUiMessage(badge, 'setup.llm.active.saved', 'Active: {active}', values);
+            }
         }
 
         function onLlmModeChange(isInit) {

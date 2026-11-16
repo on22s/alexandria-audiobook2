@@ -30,6 +30,9 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    'data-advanced-intro', 'alex-advanced-intro-collapsed-', 'advanced-intro-heading',
+    'advanced-intro-toggle', 'advanced-intro-', 'aria-controls', 'fw-bold mb-1',
+    'advanced-intro', 'aria-labelledby', 'DOMContentLoaded',
     '(active script)', 'review-batch-mode',
     'btn-review-fresh', 'btn-review-contextual-fresh', 'btn-review-batch-fresh',
     'btn-review-script', 'btn-review-script-contextual', 'btn-review-batch-start',
@@ -179,6 +182,7 @@ MARKUP_BASELINE = {
 # string that is caught before display, server-backed data (pair names, stage
 # names, status tokens) and the template HTML that embeds the keyed t() calls.
 JS_BASELINE = {
+    'app-advanced-intros.js': 0, 'app-casting-labels.js': 0,
     'app-phone-layout.js': 0,
     'app-ui-followups.js': 0,
     'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
