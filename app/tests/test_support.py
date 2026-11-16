@@ -1,3 +1,14 @@
+"""Shared synthetic fixtures and portable capability gates.
+
+can_symlink() caches real file and directory link attempts once per process;
+@skip_unless_symlink skips only when that probe fails, with its explicit reason.
+can_fork() checks multiprocessing's available start methods, not the OS name.
+get_fixture_process_context() defaults to spawn: targets must be module-level,
+picklable callables with explicit arguments, not inherited globals or closures.
+Use require_fork=True only for fixtures whose semantics need inherited state;
+it raises SkipTest when fork is unavailable. Consumers opt in separately.
+"""
+
 from contextlib import ExitStack, contextmanager, nullcontext
 import functools
 from http.server import BaseHTTPRequestHandler
@@ -11,6 +22,56 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+
+
+@functools.lru_cache(maxsize=1)
+def _probe_symlink():
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        file_target = root / 'file'
+        file_target.touch()
+        directory_target = root / 'directory'
+        directory_target.mkdir()
+        try:
+            os.symlink(file_target, root / 'file-link', target_is_directory=False)
+            os.symlink(directory_target, root / 'directory-link', target_is_directory=True)
+        except (OSError, NotImplementedError, AttributeError) as error:
+            winerror = getattr(error, 'winerror', None)
+            if winerror == 1314:
+                detail = 'WinError 1314; enable Developer Mode or run elevated'
+            elif winerror is not None:
+                detail = f'WinError {winerror}'
+            elif getattr(error, 'errno', None) is not None:
+                detail = f'errno {error.errno}'
+            else:
+                detail = type(error).__name__
+            return False, f'symlink creation not permitted ({detail})'
+    return True, ''
+
+
+def can_symlink():
+    """Return the cached result of real file and directory symlink attempts."""
+    return _probe_symlink()[0]
+
+
+def skip_unless_symlink(test):
+    """Decorate a test or TestCase with the cached capability and skip reason."""
+    supported, reason = _probe_symlink()
+    return unittest.skipUnless(supported, reason)(test)
+
+
+def can_fork():
+    """Return whether multiprocessing offers the fork start method."""
+    import multiprocessing
+    return 'fork' in multiprocessing.get_all_start_methods()
+
+
+def get_fixture_process_context(*, require_fork=False):
+    """Use portable spawn unless inherited-state semantics require fork."""
+    import multiprocessing
+    if require_fork and not can_fork():
+        raise unittest.SkipTest('fork start method is unavailable; use a spawn-safe fixture')
+    return multiprocessing.get_context('fork' if require_fork else 'spawn')
 
 
 class FramedHttpFixtureHandler(BaseHTTPRequestHandler):
@@ -610,3 +671,123 @@ def create_test_symlink_or_skip(link, target, target_is_directory=False):
         if os.name == 'nt' and getattr(exc, 'winerror', None) == 1314:
             raise unittest.SkipTest('Windows symlink creation requires privileges (WinError 1314)') from exc
         raise
+
+
+class FixtureCapabilityTests(unittest.TestCase):
+    def setUp(self):
+        _probe_symlink.cache_clear()
+        self.addCleanup(_probe_symlink.cache_clear)
+
+    def test_symlink_errors_are_cached_with_explicit_skip_reasons(self):
+        privilege_error = OSError('privilege not held')
+        privilege_error.winerror = 1314
+        for error, detail in (
+                (OSError(13, 'permission denied'), 'errno 13'),
+                (privilege_error, 'WinError 1314; enable Developer Mode or run elevated'),
+                (NotImplementedError(), 'NotImplementedError'),
+                (AttributeError(), 'AttributeError')):
+            with self.subTest(error=type(error).__name__, detail=detail):
+                _probe_symlink.cache_clear()
+                with patch.object(os, 'symlink', side_effect=error) as symlink:
+                    self.assertFalse(can_symlink())
+                    self.assertFalse(can_symlink())
+                    decorated = skip_unless_symlink(lambda: self.fail('unsupported body ran'))
+                    with self.assertRaises(unittest.SkipTest) as skipped:
+                        decorated()
+                    self.assertEqual(str(skipped.exception),
+                                     f'symlink creation not permitted ({detail})')
+                    symlink.assert_called_once()
+
+    def test_missing_symlink_attribute_is_unsupported(self):
+        with patch.object(os, 'symlink'):
+            del os.symlink
+            self.assertFalse(can_symlink())
+            self.assertIn('AttributeError', _probe_symlink()[1])
+
+    def test_supported_symlink_probe_is_cached_and_runs_body(self):
+        with patch.object(os, 'symlink') as symlink:
+            self.assertTrue(can_symlink())
+            self.assertTrue(can_symlink())
+            self.assertEqual(skip_unless_symlink(lambda: 'ran')(), 'ran')
+            self.assertEqual(symlink.call_count, 2)
+            self.assertEqual([call.kwargs['target_is_directory']
+                              for call in symlink.call_args_list], [False, True])
+
+    def test_directory_symlink_denial_is_not_hidden_by_file_support(self):
+        with patch.object(os, 'symlink', side_effect=[None, OSError(13, 'denied')]) as symlink:
+            self.assertFalse(can_symlink())
+            self.assertFalse(can_symlink())
+            self.assertEqual(symlink.call_count, 2)
+
+    def test_unexpected_probe_failure_is_not_a_skip(self):
+        with patch.object(os, 'symlink', side_effect=RuntimeError('unexpected')):
+            with self.assertRaisesRegex(RuntimeError, 'unexpected'):
+                can_symlink()
+
+    def test_temp_setup_failure_is_not_a_capability_skip(self):
+        with patch.object(tempfile, 'TemporaryDirectory', side_effect=OSError('no temp space')):
+            with self.assertRaisesRegex(OSError, 'no temp space'):
+                can_symlink()
+
+    def test_temp_cleanup_failure_is_not_a_capability_skip(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        with patch.object(tempfile, 'TemporaryDirectory', return_value=directory), \
+                patch.object(directory, 'cleanup', side_effect=OSError('temp cleanup denied')):
+            with self.assertRaisesRegex(OSError, 'temp cleanup denied'):
+                can_symlink()
+            self.assertEqual(_probe_symlink.cache_info().currsize, 0)
+
+    def test_real_symlink_probe_cleans_its_temporary_directory(self):
+        with patch.object(os, 'symlink', wraps=os.symlink) as symlink:
+            supported = can_symlink()
+            self.assertIsInstance(supported, bool)
+            self.assertEqual(_probe_symlink()[1] == '', supported)
+            for call in symlink.call_args_list:
+                self.assertFalse(Path(call.args[1]).parent.exists())
+
+    def test_fork_requirement_skips_but_spawn_remains_available(self):
+        import multiprocessing
+        with patch.object(multiprocessing, 'get_all_start_methods', return_value=['spawn']):
+            self.assertFalse(can_fork())
+            self.assertEqual(get_fixture_process_context().get_start_method(), 'spawn')
+            with self.assertRaisesRegex(unittest.SkipTest, 'fork start method is unavailable'):
+                get_fixture_process_context(require_fork=True)
+
+    def test_available_fork_context_is_selected_explicitly(self):
+        import multiprocessing
+        with patch.object(multiprocessing, 'get_all_start_methods', return_value=['fork', 'spawn']), \
+                patch.object(multiprocessing, 'get_context') as get_context:
+            self.assertTrue(can_fork())
+            self.assertIs(get_fixture_process_context(require_fork=True), get_context.return_value)
+            get_context.assert_called_once_with('fork')
+
+    def test_spawn_context_runs_a_real_picklable_worker(self):
+        context = get_fixture_process_context()
+        receiver, sender = context.Pipe(duplex=False)
+        process = context.Process(target=_report_fixture_process, args=(sender,))
+        try:
+            process.start()
+            sender.close()
+            process.join(timeout=30)
+            self.assertFalse(process.is_alive(), 'spawn fixture worker timed out')
+            self.assertEqual(process.exitcode, 0)
+            self.assertTrue(receiver.poll(5), 'spawn fixture worker sent no result')
+            child_pid, method = receiver.recv()
+            self.assertNotEqual(child_pid, os.getpid())
+            self.assertEqual(method, 'spawn')
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=30)
+            receiver.close()
+            sender.close()
+            process.close()
+
+
+def _report_fixture_process(sender):
+    import multiprocessing
+    try:
+        sender.send((os.getpid(), multiprocessing.get_start_method()))
+    finally:
+        sender.close()
