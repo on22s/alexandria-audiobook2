@@ -8,6 +8,10 @@ import unittest
 import attribution_accuracy as accuracy
 from experiments.scoring import same_speaker
 
+REPO = Path(accuracy.__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+from tools.audit.audit_legacy_attribution import read_gold_fixture  # noqa: E402
+
 
 class PhoneticIdentityTests(unittest.TestCase):
     def test_key_collisions_are_not_identity_evidence(self):
@@ -46,7 +50,10 @@ class PhoneticIdentityTests(unittest.TestCase):
                         self.assertNotIn(key, result, f'duplicate fixture key: {key}')
                         result[key] = value
                     return result
-                gold = json.loads((root / name).read_text(), object_pairs_hook=unique_keys)
+                path = root / name
+                rel = path.absolute().relative_to(REPO).as_posix()
+                raw, _ = read_gold_fixture(str(path), rel)
+                gold = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_keys)
                 self.assertEqual('mushoku16', gold['book'])
                 self.assertTrue(accuracy.same_person_phonetic('RUDEUS', 'RUDIUS', [],
                                                             accuracy.get_phonetic_alias_groups(gold)))
