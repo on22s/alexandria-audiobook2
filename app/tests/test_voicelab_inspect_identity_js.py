@@ -9,6 +9,8 @@ SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const fields={},requests=[];const el=id=>fields[id]||(fields[id]={value:'',innerHTML:''});
 const ctx={window:null,t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),document:{getElementById:el},escapeHtml:text=>String(text).replaceAll('<','&lt;'),API:{get:url=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,resolve,reject});return promise;}}};ctx.window=ctx;vm.createContext(ctx);{const guidanceCore=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
+ctx.document.querySelector=selector=>el(selector.slice(1));
+vm.runInContext(source.slice(source.indexOf('const voicelabFailureDetails ='),source.indexOf('async function loadVoicelabConfig()')),ctx);
 const first=source.includes('let _voicelabInspectRequest =')?source.indexOf('let _voicelabInspectRequest ='):source.indexOf('window.voicelabInspect =');vm.runInContext(source.slice(first,source.indexOf('function _vlSetRunning(',first)),ctx);
 const result=count=>({narrator_count:count,manifest:{trained:count,profiled:count},quality:{zip_count:count}});
 '''
@@ -34,5 +36,5 @@ for(const failure of [false,true]){
  el('vl-zips_dir').value='A';const pending=ctx.voicelabInspect();const a=requests.at(-1);el('vl-zips_dir').value='B';const before=el('vl-inspect').innerHTML;if(failure){a.reject(Error('old failure'));}else{a.resolve(result(1));}await pending;assert.strictEqual(el('vl-inspect').innerHTML,before);
 }
 const run=ctx.voicelabInspect('/actual/run');const a=requests.at(-1);el('vl-zips_dir').value='unrelated form';a.resolve(result(3));await run;assert.match(el('vl-inspect').innerHTML,/3 narrator folders/);assert.strictEqual(a.url,'/api/voicelab/inspect?zips_dir=%2Factual%2Frun');
-const current=ctx.voicelabInspect();requests.at(-1).reject(Error('<current unavailable>'));await current;assert.match(el('vl-inspect').innerHTML,/&lt;current unavailable>/);
+const current=ctx.voicelabInspect();requests.at(-1).reject(Error('<current unavailable>'));await current;assert.match(el('vl-inspect').innerHTML,/inspection failed/);assert(!el('vl-inspect').innerHTML.includes('<current unavailable>'));assert.match(el('voicelab-diagnostics-text').textContent,/<current unavailable>/);
 ''')

@@ -52,7 +52,7 @@ class Element {
  fire(name,event={}){event.target??=this;event.prevented=false;event.stopped=false;event.preventDefault=()=>{event.prevented=true;};event.stopPropagation=()=>{event.stopped=true;};for(let n=this;n&&!event.stopped;n=n.parentElement){for(const callback of n.listeners[name]||[]){callback(event);}}return event;}
 }
 const body=new Element('body');const observers=[],tooltipCalls=[],instances=new WeakMap();
-const document={nodeType:9,body,createElement:tag=>new Element(tag),getElementById:id=>body.querySelectorAll('[id]').find(n=>n.id===id)||null,querySelectorAll:selector=>body.querySelectorAll(selector)};
+const document={nodeType:9,body,createElement:tag=>new Element(tag),getElementById:id=>body.querySelectorAll('[id]').find(n=>n.id===id)||null,querySelectorAll:selector=>body.querySelectorAll(selector),querySelector:selector=>body.querySelectorAll(selector)[0]||null};
 function Tooltip(target,options){tooltipCalls.push({target,options});}Tooltip.getInstance=node=>instances.get(node)||null;
 const context={window:{},document,bootstrap:{Tooltip},MutationObserver:class {constructor(callback){this.callback=callback;observers.push(this);}observe(target,options){this.target=target;this.options=options;}}};
 context.window.listeners={};
