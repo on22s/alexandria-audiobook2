@@ -513,18 +513,21 @@ def _clear_directory_fd(fd):
             os.unlink(entry.name, dir_fd=fd)
 
 
-def _remove_owned_dir(path, identity):
+def _remove_owned_dir(path, identity, admitted_children=None):
     """Clear an owned staging directory without deleting a path replacement.
 
     Leave the empty root in place. Windows handles pin its identity and deny
-    replacement during cleanup; POSIX clears through the opened descriptor.
+    replacement during cleanup and verify creation-time child identities;
+    POSIX clears through the opened descriptor.
     Refusals are reported rather than silently leaving owned content behind.
     """
     try:
         if os.name == 'nt':
             from windows_export_staging_directory import WindowsStageDirectory
             with WindowsStageDirectory(path, identity) as directory:
-                directory.remove_contents(frozenset())
+                if admitted_children is None:
+                    admitted_children = {}
+                directory.remove_contents(frozenset(), admitted_children=admitted_children)
             return
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         fd = os.open(path, flags)
@@ -620,6 +623,7 @@ def build_blind_package(run_dir, package_dir, public_path, key_path, *, seed=Non
     temporary = Path(tempfile.mkdtemp(prefix=package_dir.name + '.building-',
                                        dir=str(package_dir.parent)))
     stage_identity = _path_identity(temporary)
+    stage_children = {}
     _chmod(temporary, 0o755)
     key_temp = public_temp = None
     temporary_moved = False
@@ -642,7 +646,10 @@ def build_blind_package(run_dir, package_dir, public_path, key_path, *, seed=Non
                 with _capture_audio_snapshot(source) as (snapshot, captured):
                     if captured['sha256'] != item['audio']['sha256']:
                         raise ContinuityEvaluationError('pair audio changed before packaging')
-                    shutil.copy2(snapshot, destination)
+                    with destination.open('xb') as owned:
+                        created = os.fstat(owned.fileno())
+                        stage_children[(filename,)] = created.st_dev, created.st_ino
+                        shutil.copy2(snapshot, destination)
                 _chmod(destination, 0o644)
                 validate_generated_audio(str(destination), 'packaged continuity audio')
                 digest = file_sha256(destination)
@@ -703,11 +710,26 @@ def build_blind_package(run_dir, package_dir, public_path, key_path, *, seed=Non
     except BaseException:
         raise
     finally:
-        if not temporary_moved:
-            _remove_owned_dir(temporary, stage_identity)
-        for path in (key_temp, public_temp):
-            if path is not None:
-                Path(path).unlink(missing_ok=True)
+        cleanup_errors = []
+        try:
+            if not temporary_moved:
+                _remove_owned_dir(temporary, stage_identity, stage_children)
+        except Exception as error:
+            cleanup_errors.append(error)
+        finally:
+            for path in (key_temp, public_temp):
+                if path is not None:
+                    try:
+                        Path(path).unlink(missing_ok=True)
+                    except Exception as error:
+                        cleanup_errors.append(error)
+        if len(cleanup_errors) == 1:
+            raise cleanup_errors[0]
+        if cleanup_errors:
+            error = ContinuityEvaluationError(
+                'package cleanup refused: ' + '; '.join(str(error) for error in cleanup_errors))
+            error.cleanup_errors = tuple(cleanup_errors)
+            raise error from cleanup_errors[0]
 
 
 def _load_package(package_dir, public_path, key_path):

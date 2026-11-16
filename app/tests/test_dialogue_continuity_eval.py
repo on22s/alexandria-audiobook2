@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -477,16 +478,17 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         path.mkdir()
         (path / 'owned.txt').write_text('owned')
         identity = ev._path_identity(path)
+        admitted = {('owned.txt',): ev._path_identity(path / 'owned.txt')}
         if os.name == 'nt':
             from windows_export_staging_directory import WindowsStageDirectory
             real_remove = WindowsStageDirectory.remove_contents
-            def attempt_swap(directory, retained_names):
+            def attempt_swap(directory, retained_names, **kwargs):
                 with self.assertRaises(OSError):
                     path.rename(self.root / 'moved-owned')
                 self.assertEqual(identity, ev._path_identity(path))
-                return real_remove(directory, retained_names)
+                return real_remove(directory, retained_names, **kwargs)
             with patch.object(WindowsStageDirectory, 'remove_contents', new=attempt_swap):
-                ev._remove_owned_dir(path, identity)
+                ev._remove_owned_dir(path, identity, admitted)
             self.assertFalse((path / 'owned.txt').exists())
             self.assertFalse((self.root / 'moved-owned').exists())
             return
@@ -497,7 +499,7 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
             (path / 'foreign.txt').write_text('foreign')
             return real_clear(fd)
         with patch.object(ev, '_clear_directory_fd', side_effect=swap):
-            ev._remove_owned_dir(path, identity)
+            ev._remove_owned_dir(path, identity, admitted)
         self.assertEqual('foreign', (path / 'foreign.txt').read_text())
         self.assertFalse((self.root / 'moved-owned' / 'owned.txt').exists())
 
@@ -508,7 +510,10 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         nested = path / 'nested'
         nested.mkdir()
         (nested / 'audio.wav').write_bytes(b'owned audio')
-        ev._remove_owned_dir(path, ev._path_identity(path))
+        admitted = {('owned.txt',): ev._path_identity(path / 'owned.txt'),
+                    ('nested',): ev._path_identity(nested),
+                    ('nested', 'audio.wav'): ev._path_identity(nested / 'audio.wav')}
+        ev._remove_owned_dir(path, ev._path_identity(path), admitted)
         self.assertFalse((path / 'owned.txt').exists())
         self.assertEqual([], list(path.iterdir()))
 
@@ -526,25 +531,6 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         self.assertEqual('foreign', (path / 'foreign.txt').read_text())
         self.assertEqual('owned', (moved / 'owned.txt').read_text())
 
-    def test_directory_cleanup_reports_failure_without_deleting_contents(self):
-        path = self.root / 'staging'
-        path.mkdir()
-        owned = path / 'owned.txt'
-        owned.write_text('owned')
-        identity = ev._path_identity(path)
-        if os.name == 'nt':
-            from windows_export_staging_directory import _Handle
-            target = patch.object(_Handle, 'delete', side_effect=PermissionError('fixture refusal'))
-        else:
-            target = patch.object(ev.os, 'unlink', side_effect=PermissionError('fixture refusal'))
-        with target:
-            with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused') as caught:
-                ev._remove_owned_dir(path, identity)
-        self.assertIsInstance(caught.exception.__cause__, PermissionError)
-        self.assertEqual('owned', owned.read_text())
-        ev._remove_owned_dir(path, identity)
-        self.assertEqual([], list(path.iterdir()))
-
     def test_packaging_collision_preserves_foreign_public_file(self):
         self.run_eval()
         public = self.root / 'collision-public.json'
@@ -558,6 +544,180 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
                 ev.build_blind_package(self.root / 'run', self.root / 'public-collision-package',
                                        public, self.root / 'public-collision-key.json')
         self.assertEqual('foreign', public.read_text())
+
+    def _assert_swapped_package_child_survives(self, directory):
+        self.run_eval(rows=(0,))
+        swapped = []
+        def replace_child(filename, label):
+            payload = Path(filename)
+            payload.rename(self.root / 'original.wav')
+            foreign = self.root / 'foreign'
+            if directory:
+                foreign.mkdir()
+                (foreign / 'keep.txt').write_bytes(b'foreign directory')
+            else:
+                foreign.write_bytes(b'foreign file')
+            foreign.rename(payload)
+            swapped.append(payload)
+            raise RuntimeError('fixture packaging failure')
+        with patch.object(ev, 'validate_generated_audio', side_effect=replace_child):
+            with self.assertRaises(Exception) as caught:
+                ev.build_blind_package(self.root / 'run', self.root / 'package',
+                                       self.root / 'public.json', self.root / 'key.json')
+        self.assertEqual(1, len(swapped))
+        foreign = swapped[0] / 'keep.txt' if directory else swapped[0]
+        self.assertTrue(foreign.exists(), 'cleanup deleted the swapped-in foreign child')
+        self.assertEqual(b'foreign directory' if directory else b'foreign file',
+                         foreign.read_bytes())
+        self.assertIsInstance(caught.exception, ev.ContinuityEvaluationError)
+        self.assertIn('cleanup refused', str(caught.exception))
+        swapped[0].parent.rename(self.root / 'preserved-stage')
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows child identity protection')
+    def test_windows_cleanup_preserves_swapped_in_file(self):
+        self._assert_swapped_package_child_survives(directory=False)
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows child identity protection')
+    def test_windows_cleanup_preserves_swapped_in_nonempty_directory(self):
+        self._assert_swapped_package_child_survives(directory=True)
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows child identity protection')
+    def test_windows_cleanup_preserves_replaced_owned_directory(self):
+        path = self.root / 'staging'
+        path.mkdir()
+        child = path / 'nested'
+        child.mkdir()
+        admitted = {('nested',): ev._path_identity(child)}
+        (child / 'owned.wav').write_bytes(b'owned audio')
+        admitted[('nested', 'owned.wav')] = ev._path_identity(child / 'owned.wav')
+        child.rename(self.root / 'original-directory')
+        foreign = self.root / 'foreign-directory'
+        foreign.mkdir()
+        (foreign / 'keep.txt').write_bytes(b'foreign directory')
+        foreign.rename(child)
+        with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused'):
+            ev._remove_owned_dir(path, ev._path_identity(path), admitted)
+        self.assertEqual(b'foreign directory', (child / 'keep.txt').read_bytes())
+        child.rename(self.root / 'preserved-foreign-directory')
+        path.rename(self.root / 'released-stage')
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows child identity protection')
+    def test_windows_cleanup_refuses_unadmitted_child(self):
+        path = self.root / 'staging'
+        path.mkdir()
+        identity = ev._path_identity(path)
+        foreign = path / 'unadmitted.wav'
+        foreign.write_bytes(b'foreign audio')
+        with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused') as caught:
+            ev._remove_owned_dir(path, identity, {})
+        self.assertIn('not admitted', str(caught.exception.__cause__))
+        self.assertEqual(b'foreign audio', foreign.read_bytes())
+
+    def test_packaging_cleanup_reports_all_failures_and_attempts_both_manifests(self):
+        self.run_eval(rows=(0,))
+        package = self.root / 'package'
+        directory_error = ev.ContinuityEvaluationError('owned staging cleanup refused')
+        attempted = []
+        original_unlink = Path.unlink
+        def refuse_manifest(path, *args, **kwargs):
+            if path.name.startswith(('key.json.building-', 'public.json.building-')):
+                attempted.append(path)
+                raise PermissionError(f'manifest cleanup refused: {path.name}')
+            return original_unlink(path, *args, **kwargs)
+        with patch.object(ev, 'move_source_upload_exclusively',
+                          side_effect=OSError('fixture publication failure')), \
+                patch.object(ev, '_remove_owned_dir', side_effect=directory_error), \
+                patch.object(Path, 'unlink', new=refuse_manifest):
+            with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'package cleanup refused') as caught:
+                ev.build_blind_package(self.root / 'run', package,
+                                       self.root / 'public.json', self.root / 'key.json')
+        self.assertEqual(2, len(attempted))
+        self.assertEqual({'key.json', 'public.json'},
+                         {path.name.split('.building-')[0] for path in attempted})
+        self.assertIs(directory_error, caught.exception.__cause__)
+        self.assertEqual(3, len(caught.exception.cleanup_errors))
+        for path in attempted:
+            self.assertIn(path.name, str(caught.exception))
+
+    def test_packaging_partial_copy_is_owned_and_cleaned(self):
+        self.run_eval(rows=(0,))
+        copied = []
+        def fail_copy(source, destination):
+            Path(destination).write_bytes(b'partial owned audio')
+            copied.append(Path(destination))
+            raise RuntimeError('fixture partial copy failure')
+        with patch.object(ev.shutil, 'copy2', side_effect=fail_copy):
+            with self.assertRaisesRegex(RuntimeError, 'partial copy failure'):
+                ev.build_blind_package(self.root / 'run', self.root / 'package',
+                                       self.root / 'public.json', self.root / 'key.json')
+        self.assertEqual(1, len(copied))
+        self.assertFalse(copied[0].exists())
+        self.assertEqual([], list(copied[0].parent.iterdir()))
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows file sharing')
+    def test_windows_directory_refusal_still_removes_both_manifests(self):
+        self.run_eval(rows=(0,))
+        package = self.root / 'package'
+        locked = []
+        def refuse_publication(source, destination):
+            self.assertEqual(package, Path(destination))
+            payload = next(Path(source).glob('*.wav'))
+            locked.append((payload, payload.open('rb'), payload.read_bytes()))
+            raise OSError('fixture publication failure')
+        try:
+            with patch.object(ev, 'move_source_upload_exclusively',
+                              side_effect=refuse_publication):
+                with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused'):
+                    ev.build_blind_package(self.root / 'run', package,
+                                           self.root / 'public.json', self.root / 'key.json')
+            self.assertEqual(1, len(locked))
+            payload, stream, original = locked[0]
+            self.assertFalse(stream.closed)
+            self.assertEqual(original, payload.read_bytes())
+            self.assertEqual([], list(self.root.glob('key.json.building-*')))
+            self.assertEqual([], list(self.root.glob('public.json.building-*')))
+        finally:
+            for payload, stream, original in locked:
+                stream.close()
+
+    def _assert_native_cleanup_obstruction_is_retryable(self, readonly):
+        path = self.root / 'staging'
+        path.mkdir()
+        owned = path / 'owned.wav'
+        owned.write_bytes(b'owned audio')
+        identity = ev._path_identity(path)
+        admitted = {('owned.wav',): ev._path_identity(owned)}
+        stream = None
+        try:
+            if readonly:
+                owned.chmod(stat.S_IREAD)
+            else:
+                stream = owned.open('rb')
+            with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused') as caught:
+                ev._remove_owned_dir(path, identity, admitted)
+            self.assertIsInstance(caught.exception.__cause__, OSError)
+            self.assertEqual(5 if readonly else 32, caught.exception.__cause__.winerror)
+            self.assertEqual(b'owned audio', owned.read_bytes())
+        finally:
+            if stream is not None:
+                stream.close()
+            owned.chmod(stat.S_IREAD | stat.S_IWRITE)
+        moved = self.root / 'moved-stage'
+        path.rename(moved)
+        moved.rename(path)
+        renamed = path / 'renamed.wav'
+        owned.rename(renamed)
+        renamed.rename(owned)
+        ev._remove_owned_dir(path, identity, admitted)
+        self.assertEqual([], list(path.iterdir()))
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows read-only deletion refusal')
+    def test_windows_cleanup_readonly_file_refuses_releases_handles_and_retries(self):
+        self._assert_native_cleanup_obstruction_is_retryable(readonly=True)
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows file sharing')
+    def test_windows_cleanup_locked_file_refuses_releases_handles_and_retries(self):
+        self._assert_native_cleanup_obstruction_is_retryable(readonly=False)
 
     def test_answers_are_bound_to_one_package_randomization(self):
         self.run_eval()
