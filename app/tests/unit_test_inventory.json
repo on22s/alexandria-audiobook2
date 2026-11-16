@@ -14363,7 +14363,19 @@
     , "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_detector_fires_on_the_import_that_broke_ci"
     , "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_set_is_read_from_the_files_that_define_it"
   ]
-  , "test_support": []
+  , "test_support": [
+    "tests.test_support.FixtureCapabilityTests.test_available_fork_context_is_selected_explicitly"
+    , "tests.test_support.FixtureCapabilityTests.test_directory_symlink_denial_is_not_hidden_by_file_support"
+    , "tests.test_support.FixtureCapabilityTests.test_fork_requirement_skips_but_spawn_remains_available"
+    , "tests.test_support.FixtureCapabilityTests.test_missing_symlink_attribute_is_unsupported"
+    , "tests.test_support.FixtureCapabilityTests.test_real_symlink_probe_cleans_its_temporary_directory"
+    , "tests.test_support.FixtureCapabilityTests.test_spawn_context_runs_a_real_picklable_worker"
+    , "tests.test_support.FixtureCapabilityTests.test_supported_symlink_probe_is_cached_and_runs_body"
+    , "tests.test_support.FixtureCapabilityTests.test_symlink_errors_are_cached_with_explicit_skip_reasons"
+    , "tests.test_support.FixtureCapabilityTests.test_temp_cleanup_failure_is_not_a_capability_skip"
+    , "tests.test_support.FixtureCapabilityTests.test_temp_setup_failure_is_not_a_capability_skip"
+    , "tests.test_support.FixtureCapabilityTests.test_unexpected_probe_failure_is_not_a_skip"
+  ]
   , "test_synthesis_audio": [
     "tests.test_synthesis_audio.SynthesisAudioTests.test_adaptive_gap_tops_up_and_trims_actual_quiet_frames_with_a_cap"
     , "tests.test_synthesis_audio.SynthesisAudioTests.test_cancellation_inside_final_publication_lock_preserves_prior_output"
