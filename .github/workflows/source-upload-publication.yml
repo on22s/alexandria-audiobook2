@@ -1,5 +1,6 @@
 name: source upload publication
 on:
+  merge_group:
   pull_request:
     paths:
       - 'app/source_upload_publication.py'
@@ -20,6 +21,7 @@ permissions:
   contents: read
 jobs:
   native:
+    name: source-upload (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:

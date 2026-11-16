@@ -1,5 +1,6 @@
 name: external TTS lifetime
 on:
+  merge_group:
   pull_request:
     paths:
       - 'app/external_tts_*.py'
@@ -23,6 +24,7 @@ permissions:
   contents: read
 jobs:
   native:
+    name: external-tts (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:

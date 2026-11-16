@@ -13,6 +13,21 @@ import experiments.replay_artifact as replay
 
 
 class CollectorSnapshotTests(unittest.TestCase):
+    def test_regeneration_keeps_report_bytes_across_calendar_days(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audit, experiments, paths = self.fixture(root)
+            native_strftime = collector.time.strftime
+            with patch.object(collector.time, 'strftime', side_effect=lambda fmt, *args:
+                              '2000-01-01' if fmt == '%Y-%m-%d' else native_strftime(fmt, *args)):
+                self.run_collector(root, audit, experiments, paths)
+            before = [(root / name).read_bytes() for name in ('RESULTS_INDEX.md', 'results_index.csv')]
+            with patch.object(collector.time, 'strftime', side_effect=lambda fmt, *args:
+                              '2099-12-31' if fmt == '%Y-%m-%d' else native_strftime(fmt, *args)):
+                self.run_collector(root, audit, experiments, paths)
+            self.assertEqual(before, [(root / name).read_bytes()
+                                      for name in ('RESULTS_INDEX.md', 'results_index.csv')])
+
     def fixture(self, root):
         audit=root/'ab_test_runtime/audit';audit.mkdir(parents=True)
         experiments=root/'ab_test_runtime/experiments';experiments.mkdir()

@@ -1,6 +1,7 @@
 name: rolling Ubuntu qualification
 
 on:
+  merge_group:
   pull_request:
     paths:
       - .github/workflows/tests.yml

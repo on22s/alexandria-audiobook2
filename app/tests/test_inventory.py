@@ -486,6 +486,14 @@ class InventoryCheckWarningTests(unittest.TestCase):
 
 
 class AtomicInventoryWriterTests(unittest.TestCase):
+    def test_serialization_has_one_sorted_module_entry_per_line(self):
+        from update_test_inventory import format_inventory
+        inventory = {'test_z': ['z.b', 'z.a'], 'test_a': ['a.b', 'a.a']}
+        rendered = format_inventory(inventory)
+        self.assertEqual(4, len(rendered.splitlines()))
+        self.assertLess(rendered.index('test_a'), rendered.index('test_z'))
+        self.assertEqual({key: sorted(value) for key, value in inventory.items()}, json.loads(rendered))
+
     def test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory(self):
         import tempfile
         from unittest.mock import patch

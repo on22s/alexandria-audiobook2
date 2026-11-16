@@ -15,7 +15,17 @@ CANNOT_VERIFY = 2
 
 def format_inventory(inventory):
     """Return the deterministic on-disk representation of an inventory."""
-    return json.dumps(inventory, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    entries = ["  " + json.dumps(name, ensure_ascii=False) + ": "
+               + json.dumps(sorted(inventory[name]), ensure_ascii=False)
+               for name in sorted(inventory)]
+    return "{\n" + ",\n".join(entries) + "\n}\n"
+
+
+class InventoryEncoder(json.JSONEncoder):
+    """Use the inventory format through the shared atomic JSON writer."""
+
+    def iterencode(self, value, _one_shot=False):
+        yield format_inventory(value)
 
 
 def get_inventory_differences(expected, actual):
@@ -51,7 +61,8 @@ def write_inventory(path=INVENTORY_PATH, *, module_names=None):
                 for key, ids in inventory.items())):
             raise ValueError('Existing inventory is not a module-to-test-ID mapping')
         inventory.update(get_unit_test_inventory(module_names=module_names))
-    atomic_json_write(dict(sorted(inventory.items())), str(path), newline="\n")
+    if not path.exists() or path.read_bytes() != format_inventory(inventory).encode("utf-8"):
+        atomic_json_write(inventory, str(path), newline="\n", encoder=InventoryEncoder)
     return path
 
 

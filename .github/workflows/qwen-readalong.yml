@@ -1,5 +1,6 @@
 name: qwen read-aloud
 on:
+  merge_group:
   pull_request:
     paths:
       - 'app/**'
@@ -9,6 +10,7 @@ permissions:
   contents: read
 jobs:
   native:
+    name: qwen-readalong (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:

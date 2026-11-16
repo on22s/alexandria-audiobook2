@@ -1,5 +1,6 @@
 name: reports checkJs
 on:
+  merge_group:
   pull_request:
     paths:
       - 'app/static/js/app-reports.js'
@@ -14,6 +15,7 @@ permissions:
   contents: read
 jobs:
   candidate:
+    name: reports-checkjs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:

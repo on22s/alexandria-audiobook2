@@ -189,8 +189,12 @@ class DerivedMetadataTests(unittest.TestCase):
         old['provenance']['git']['branch'] = 'previous-branch'
         new = deepcopy(old)
         new['provenance']['git'].update({'commit': '1' * 40, 'branch': 'new-branch'})
-        self.assertTrue(_same_except_write_time(old, new))
-        for field, value in (('dirty', True), ('harness_sha256', '0' * 64)):
+        with mock.patch('experiments.provenance.check_harness_provenance',
+                        return_value=('verified', 'fixture')) as verify:
+            self.assertTrue(_same_except_write_time(old, new))
+            self.assertEqual([mock.call(old['provenance'], require_current=True),
+                              mock.call(new['provenance'], require_current=True)], verify.call_args_list)
+        for field, value in (('harness_sha256_scheme', 'unknown'), ('harness_sha256', '0' * 64)):
             with self.subTest(field=field):
                 changed = deepcopy(new)
                 changed['provenance']['git'][field] = value
@@ -245,7 +249,7 @@ class DerivedMetadataTests(unittest.TestCase):
             self.assertNotEqual('2000-01-01T00:00:00',
                                 document['provenance']['written'])
 
-    def test_goal_audit_rewrites_when_recorded_host_changes(self):
+    def test_goal_audit_retains_origin_when_only_recorded_host_differs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             goals, audit, output = self.goal_audit_fixture(root)
@@ -257,11 +261,10 @@ class DerivedMetadataTests(unittest.TestCase):
             result = self.run_goal_audit(root, goals, audit, output)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             document = json.loads(output.read_text(encoding='utf-8'))
-            self.assertEqual(platform.node(), document['provenance']['host'])
-            self.assertNotEqual('2000-01-01T00:00:00',
-                                document['provenance']['written'])
+            self.assertEqual('stale-host', document['provenance']['host'])
+            self.assertEqual('2000-01-01T00:00:00', document['provenance']['written'])
 
-    def test_goal_audit_rewrites_when_recorded_input_path_changes(self):
+    def test_goal_audit_retains_origin_when_equivalent_input_path_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             goals, audit, output = self.goal_audit_fixture(root)
@@ -271,9 +274,8 @@ class DerivedMetadataTests(unittest.TestCase):
             result = self.run_goal_audit(root, other, audit, output)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             document = json.loads(output.read_text(encoding='utf-8'))
-            self.assertEqual('goals-2.md', document['provenance']['args']['goals'])
-            self.assertNotEqual('2000-01-01T00:00:00',
-                                document['provenance']['written'])
+            self.assertEqual('goals.md', document['provenance']['args']['goals'])
+            self.assertEqual('2000-01-01T00:00:00', document['provenance']['written'])
 
     def test_goal_audit_repairs_recorded_provenance_error(self):
         with tempfile.TemporaryDirectory() as tmp:

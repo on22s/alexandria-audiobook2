@@ -3,6 +3,7 @@ name: macOS subprocess ownership
 # Native subprocess containment and caller checks, CPU only.
 # Model construction is stubbed; native ownership and kernel leases are real.
 on:
+  merge_group:
   pull_request:
     paths:
       - '.github/workflows/macos-owner-probe.yml'

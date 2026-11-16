@@ -55,7 +55,7 @@ def _provenance_error(value):
 
 
 def _same_except_write_time(existing, document):
-    """Keep an identical audit's verified clean origin across ref-only changes."""
+    """Retain a verified origin while the body and current harness agree."""
     if not isinstance(existing, dict) or not isinstance(document, dict):
         return False
     old = existing.get("provenance")
@@ -68,26 +68,15 @@ def _same_except_write_time(existing, document):
     new_body = {k: v for k, v in document.items() if k != "provenance"}
     if old_body != new_body:
         return False
-    old_stable = {k: v for k, v in old.items() if k != "written"}
-    new_stable = {k: v for k, v in new.items() if k != "written"}
-    if old_stable == new_stable:
-        return True
     old_git, new_git = old.get("git"), new.get("git")
     if not isinstance(old_git, dict) or not isinstance(new_git, dict):
         return False
-    if old_git.get("dirty") is not False or new_git.get("dirty") is not False:
-        return False
-    ignored = {"commit", "branch"}
-    has_proofs = "harness_commit_proof" in old_git and "harness_commit_proof" in new_git
-    if has_proofs:
-        ignored.add("harness_commit_proof")
-    old_stable["git"] = {k: v for k, v in old_git.items() if k not in ignored}
-    new_stable["git"] = {k: v for k, v in new_git.items() if k not in ignored}
-    if old_stable != new_stable:
+    identity = ("harness_sha256", "harness_sha256_scheme")
+    if any(old_git.get(key) != new_git.get(key) for key in identity):
         return False
     from experiments.provenance import check_harness_provenance
-    return all(check_harness_provenance(value)[0] == "verified"
-               for value in ((old, new) if has_proofs else (old,)))
+    return all(check_harness_provenance(value, require_current=True)[0] == "verified"
+               for value in (old, new))
 
 
 def load_audit(path):
