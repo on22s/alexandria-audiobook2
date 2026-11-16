@@ -28,7 +28,8 @@ class VoiceRosterDropdownTests(unittest.TestCase):
     def test_speaker_name_identifies_line_without_using_untrusted_speaker_text(self):
         self.run_js(r'''
 const markup=context.buildSpeakerSelect({id:7,speaker:'<script>synthetic</script>'});
-assert(markup.includes('aria-label="Speaker for line 8"'));
+assert(markup.includes('<label class="visually-hidden" for="chunk-speaker-7">Speaker for line 8</label>'));
+assert(markup.includes('<select id="chunk-speaker-7"'));
 assert(markup.includes('&lt;script&gt;synthetic&lt;/script&gt;'));
 assert(!markup.includes('<script>'));
 ''')

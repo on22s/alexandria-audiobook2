@@ -71,6 +71,8 @@
             --shadow:         rgba(0,0,0,0.1);
             --step-bg:        #e9ecef;
             --step-color:     #606970;
+            --progress-bg:    #146c43;
+            --progress-text:  #ffffff;
             --hr-color:       rgba(0,0,0,0.1);
             --badge-muted-bg: #6c757d;
             --log-bg:         #1e1e1e;
@@ -279,8 +281,9 @@
             outline-offset: 2px;
         }
         .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
-        .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); }
+        .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--text-muted); --bs-btn-hover-border-color: var(--text-muted); --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--text-muted); --bs-btn-active-border-color: var(--text-muted); }
         .btn-outline-info { --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong); }
+        #full-progress-bar { background-color: var(--progress-bg) !important; color: var(--progress-text); }
         .btn:not(:disabled):hover { filter: brightness(1.06); }
         .btn:not(:disabled):active { transform: translateY(1px); }
         .btn:disabled, .btn.disabled { cursor: not-allowed; opacity: 0.62; }
@@ -392,6 +395,7 @@
         /* Misc */
         hr { border-color: var(--hr-color); opacity: 1; }
         .text-muted { color: var(--text-muted) !important; }
+        .text-secondary { color: var(--text-muted) !important; }
         code { color: var(--text-primary); }
         h1,h2,h3,h4,h5,h6 { color: var(--text-heading); }
         .list-group-item {
@@ -871,13 +875,13 @@
             --bg-navbar: #293640;
             --bg-modal: #f9f6f7;
             --text-primary: #343139;
-            --text-muted: #6c6068;
+            --text-muted: #645860;
             --text-heading: #672d42;
             --border-color: #cdbfc7;
-            --border-input: #a28a96;
+            --border-input: #907480;
             --shadow: rgba(63,43,54,0.12);
             --step-bg: #e4dde1;
-            --step-color: #6c6068;
+            --step-color: #645860;
             --hr-color: #cdbfc7;
             --badge-muted-bg: #6c6068;
             --log-bg: #293640;
@@ -905,7 +909,7 @@
             --text-muted: #a4bfbe;
             --text-heading: #eafffc;
             --border-color: #3a555b;
-            --border-input: #55767a;
+            --border-input: #64858a;
             --shadow: rgba(0,0,0,0.4);
             --step-bg: #2b4148;
             --step-color: #a4bfbe;
@@ -966,6 +970,7 @@
         html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link:not(.dropdown-item) {
             color: var(--nav-accent);
         }
+        html[data-theme="bread"] .nav-section-label { color: var(--nav-accent); }
         html:is([data-theme="bread"], [data-theme="leek"]) .navbar .nav-link.active,
         html:is([data-theme="bread"], [data-theme="leek"]) .step-active {
             background-color: var(--accent);
@@ -987,10 +992,16 @@
         html[data-theme="bread"] .bg-body { background-color: var(--bg-page) !important; }
         html:is([data-theme="bread"], [data-theme="leek"]) .form-control::placeholder { opacity: 1; }
         html[data-theme="bread"] .btn-outline-info {
-            --bs-btn-color: #117084;
-            --bs-btn-border-color: #117084;
+            --bs-btn-color: var(--accent-strong);
+            --bs-btn-border-color: var(--accent-strong);
+            --bs-btn-hover-color: var(--accent-ink);
+            --bs-btn-hover-bg: var(--accent-strong);
+            --bs-btn-hover-border-color: var(--accent-strong);
+            --bs-btn-active-color: var(--accent-ink);
+            --bs-btn-active-bg: var(--accent-strong);
+            --bs-btn-active-border-color: var(--accent-strong);
         }
-        html[data-theme="bread"] .text-info { color: #117084 !important; }
+        html[data-theme="bread"] .text-info { color: var(--accent-strong) !important; }
         html[data-theme="leek"] .form-select {
             --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a4bfbe' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
         }
@@ -1084,7 +1095,7 @@
         .script-ingest-steps-list { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; list-style: none; margin: 0; padding: 0; counter-reset: ingest-step; }
         .script-ingest-steps-list > li { counter-increment: ingest-step; display: flex; align-items: center; gap: .35rem; }
         .script-ingest-steps-list > li::before { content: counter(ingest-step); display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border-radius: 999px; background: var(--accent-soft); color: var(--text-primary); font-size: .72rem; font-weight: 700; }
-        .script-ingest-steps-list .btn { padding: .05rem .3rem; text-decoration: none; }
+        .script-ingest-steps-list .btn { padding: .05rem .3rem; text-decoration: none; --bs-btn-color: var(--accent-strong); --bs-btn-hover-color: var(--accent-strong); --bs-btn-active-color: var(--accent-strong); }
         .script-ingest-steps-list .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
         /* Connection-test results: one pill per checked fact, so a model that is
            missing from the server list cannot hide inside a sentence. */
@@ -1109,6 +1120,7 @@
     </script>
 </head>
 <body>
+    <a id="skip-main-link" class="visually-hidden-focusable position-fixed top-0 start-0 btn btn-primary" style="z-index:1100;" href="#main-content" data-i18n="shell.skip-content">Skip to main content</a>
     <!-- Non-destructive stale-build notice: shown only when the backend build
          differs from the build this tab was served with. Never auto-reloads. -->
     <div id="stale-build-banner" class="alert alert-warning alert-dismissible mb-0 rounded-0 text-center" style="display:none;" role="alert">
@@ -1165,7 +1177,7 @@
         </div>
     </nav>
 
-    <div class="container-wide">
+    <main id="main-content" class="container-wide" tabindex="-1">
 
         <div id="manual-llm-status" class="small mt-2" role="status" aria-live="polite"></div>
         <div data-i18n-attr="aria-label:shell.manual-llm.manual-llm-panel.aria-label" id="manual-llm-panel" class="p-2 border-bottom bg-light" role="region" aria-label="Manual model request" hidden>
@@ -3714,7 +3726,7 @@
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
-                         <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="width: 0%">0%</div>
+                         <div id="full-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-busy="true" style="width: 100%"><span data-i18n="editor.render.progress-loading">Loading rendering progress…</span></div>
                      </div>
                      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                          <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" data-i18n-attr="title:editor.integrity.button-title" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i><span data-i18n="editor.integrity.button">Text integrity</span></button>
@@ -4339,7 +4351,7 @@
             </div>
         </div>
 
-    </div>
+    </main>
 
     <!-- Toast container -->
     <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1090;"></div>

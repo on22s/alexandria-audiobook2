@@ -38,19 +38,29 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_progress_value_text_does_not_depend_on_layout_text_readback(self):
+        self.run_js(r'''
+const progress=element('full-progress-bar');let written='';
+Object.defineProperty(progress,'innerText',{get:()=>'',set:value=>{written=value;}});
+ctx.API.get=async()=>[chunk(0),chunk(1)];await ctx.loadChunks(true);
+assert.equal(written,'0% (0/2)');assert.equal(progress.ariaValueText,'Rendered 0 of 2 lines (0%)');
+''')
+
     def test_rendered_text_and_delivery_names_identify_each_line(self):
         self.run_js(r'''
 ctx.API.get=async()=>[chunk(0),chunk(7)];await ctx.loadChunks(true);
 for(const line of [1,8]){
- assert(body.innerHTML.includes('aria-label="Text for line '+line+'"'));
- assert(body.innerHTML.includes('aria-label="Delivery instruction for line '+line+'"'));
+ assert(body.innerHTML.includes('<label class="visually-hidden" for="chunk-text-'+(line-1)+'">Text for line '+line+'</label>'));
+ assert(body.innerHTML.includes('<textarea id="chunk-text-'+(line-1)+'"'));
+ assert(body.innerHTML.includes('<label class="visually-hidden" for="chunk-instruct-'+(line-1)+'">Delivery instruction for line '+line+'</label>'));
+ assert(body.innerHTML.includes('<textarea id="chunk-instruct-'+(line-1)+'"'));
 }
 ''')
 
     def test_progress_tracks_full_delta_playback_and_empty_snapshots(self):
         self.run_js(r'''
 const progress=element('full-progress-bar');let snapshot=[chunk(0,'done'),chunk(1),chunk(2)];
-ctx.API.get=async()=>snapshot;await ctx.loadChunks(true);assert.equal(progress.ariaValueNow,'33');
+ctx.API.get=async()=>snapshot;await ctx.loadChunks(true);assert.equal(progress.ariaValueNow,'33');assert.equal(progress.ariaValueText,'Rendered 1 of 3 lines (33%)');assert.equal(progress.ariaBusy,'false');
 snapshot=[chunk(0,'done'),chunk(1,'done'),chunk(2)];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'67');
 playing=true;snapshot=snapshot.map(row=>({...row,status:'done'}));await ctx.loadChunks();assert.equal(progress.ariaValueNow,'100');
 playing=false;snapshot=[];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'0');assert.equal(progress.style.width,'0%');assert.equal(progress.innerText,'0% (0/0)');
@@ -224,7 +234,7 @@ let rows=[],markup='',data;
 const tbody={get children(){return rows;},querySelectorAll:()=>rows,querySelector:selector=>rows.find(row=>selector.includes('"'+row.dataset.id+'"'))};
 Object.defineProperty(tbody,'innerHTML',{get:()=>markup,set(value){markup=value;document.activeElement=document.body;rows=[];
 for(const m of value.matchAll(/<tr data-id="(\d+)"[\s\S]*?<\/tr>/g)){
- const html=m[0],fields={'.chunk-text':control(html.match(/chunk-text[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-instruct':control(html.match(/chunk-instruct[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-pause-after':control(html.match(/chunk-pause-after[^>]*value="([^"]*)"/)[1]),'select':control('Narrator')};
+ const html=m[0],fields={'.chunk-text':control(html.match(/<textarea[^>]*class="[^"]*chunk-text[^"]*"[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-instruct':control(html.match(/<textarea[^>]*class="[^"]*chunk-instruct[^"]*"[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-pause-after':control(html.match(/chunk-pause-after[^>]*value="([^"]*)"/)[1]),'select':control('Narrator')};
  const pause={classList:classes()},btn={innerHTML:'',closest:()=>row};
  const row={dataset:{id:m[1],uid:html.match(/data-uid="([^"]*)"/)[1],bookToken:html.match(/data-book-token="([^"]*)"/)[1]},classList:classes(),fields,querySelector:selector=>selector==='.chunk-toggle-btn'?btn:fields[selector],querySelectorAll:selector=>selector==='.chunk-text, .chunk-instruct'?[fields['.chunk-text'],fields['.chunk-instruct']]:selector==='.chunk-pause-row'?[pause]:[],pause,btn};rows.push(row);
 }}});

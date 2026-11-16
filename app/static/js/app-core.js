@@ -1026,6 +1026,14 @@
             const button = document.getElementById('theme-toggle');
             button.title = action;
             button.setAttribute('aria-label', action);
+            if (typeof CSSTransition !== 'undefined') {
+                for (const transition of document.getAnimations()) {
+                    const property = transition.transitionProperty;
+                    if (transition instanceof CSSTransition && (property === 'color' || property.endsWith('-color') || property === 'box-shadow')) {
+                        transition.finish();
+                    }
+                }
+            }
             try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
         }
 
@@ -7878,7 +7886,7 @@
             const current = (chunk.speaker || '').trim();
             const label = current && !roster.editorSet.has(current) ? `${current} (custom)` : current;
             const option = `<option value="${escapeHtml(current)}" selected>${escapeHtml(label || '-- No speaker selected --')}</option>`;
-            return `<select class="form-select form-select-sm" aria-label="${escapeHtml(t('core.editor.speaker-line', 'Speaker for line {line}', {line: chunk.id + 1}))}" data-voice-roster="speaker" data-roster-book="${escapeHtml(roster.book)}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)">${option}</select>`;
+            return `<label class="visually-hidden" for="chunk-speaker-${chunk.id}">${escapeHtml(t('core.editor.speaker-line', 'Speaker for line {line}', {line: chunk.id + 1}))}</label><select id="chunk-speaker-${chunk.id}" class="form-select form-select-sm" data-voice-roster="speaker" data-roster-book="${escapeHtml(roster.book)}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)">${option}</select>`;
         }
 
         // Check if any audio is currently playing
@@ -8226,9 +8234,13 @@
             const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
             const progressBar = document.getElementById('full-progress-bar');
             if (progressBar) {
+                const valueText = `${percentage}% (${completed}/${total})`;
                 progressBar.style.width = `${percentage}%`;
-                progressBar.innerText = `${percentage}% (${completed}/${total})`;
+                progressBar.innerText = valueText;
                 progressBar.ariaValueNow = String(percentage);
+                progressBar.ariaValueText = t('core.editor.render-progress-value', 'Rendered {completed} of {total} lines ({percentage}%)', {completed, total, percentage});
+                progressBar.ariaBusy = 'false';
+                progressBar.classList?.remove('progress-bar-animated');
             }
             if (chunks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
@@ -8326,9 +8338,9 @@
                                 <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
                             </td>
                             <td>${buildSpeakerSelect(chunk)}</td>
-                            <td><textarea class="form-control form-control-sm chunk-text" rows="2" aria-label="${escapeHtml(t('core.editor.text-line', 'Text for line {line}', {line: chunk.id + 1}))}" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
+                            <td><label class="visually-hidden" for="chunk-text-${chunk.id}">${escapeHtml(t('core.editor.text-line', 'Text for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-text-${chunk.id}" class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
                             <td>
-                                <textarea class="form-control form-control-sm chunk-instruct" rows="2" aria-label="${escapeHtml(t('core.editor.delivery-line', 'Delivery instruction for line {line}', {line: chunk.id + 1}))}" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="${escapeHtml(t('core.editor.delivery-title', 'Delivery instruction (3-8 words)'))}">${escapeHtml(chunk.instruct || '')}</textarea>
+                                <label class="visually-hidden" for="chunk-instruct-${chunk.id}">${escapeHtml(t('core.editor.delivery-line', 'Delivery instruction for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-instruct-${chunk.id}" class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="${escapeHtml(t('core.editor.delivery-title', 'Delivery instruction (3-8 words)'))}">${escapeHtml(chunk.instruct || '')}</textarea>
                                 <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
                                     <small class="text-muted text-nowrap">${escapeHtml(t('core.editor.pause-after', 'Pause after (ms):'))}</small>
                                     <input type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="${escapeHtml(t('core.editor.pause-default', 'default'))}" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
