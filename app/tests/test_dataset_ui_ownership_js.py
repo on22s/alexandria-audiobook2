@@ -367,7 +367,7 @@ const start=source.indexOf('let prepBatchQueue ='),end=source.indexOf('// List/d
 assert(start>=0 && end>start);run(source.slice(start,end));
 const audio={name:'fixture.wav'};
 elements['prep-batch-mode']={checked:false};
-elements['prep-audio-file']={files:[audio]};
+elements['prep-audio-file']={removeAttribute(name){delete this[name];},files:[audio]};
 elements['prep-source-file']={files:[]};
 context.FormData=class{constructor(){this.fields=[];}append(key,value){this.fields.push([key,value]);}};
 context.getNumFieldValue=(_id,fallback)=>fallback;
@@ -510,7 +510,7 @@ const context = {
     localStorage: {removeItem() {}},
     document: {createTextNode: text => ({textContent:text}), getElementById(id) {
         if (!elements[id]) {
-            elements[id] = {value: '', style: {}, innerHTML: '', innerText: '', scrollHeight:0, clientHeight:0, scrollTop:0, appendChild(node) { this.innerText += node.textContent; }};
+            elements[id] = {removeAttribute(name) {delete this[name];}, value: '', style: {}, innerHTML: '', innerText: '', scrollHeight:0, clientHeight:0, scrollTop:0, appendChild(node) { this.innerText += node.textContent; }};
         }
         return elements[id];
     }},

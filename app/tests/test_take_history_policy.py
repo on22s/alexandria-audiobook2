@@ -104,7 +104,9 @@ class TakeHistoryPolicyTests(unittest.TestCase):
                 'expected_book_token': request['expected_book_token'], 'expected_uid':'line'})
             self.assertEqual(response.status_code, 200, response.text)
             receipt = editor._deleted_chunk_receipts[response.json()['undo_token']]
-            receipt['created'] -= 61
+            receipt['created'] -= 120
+            self.assertEqual(client.post('/api/take_snapshots/action', json=action).status_code, 409)
+            receipt['created'] -= editor._DELETED_CHUNK_UNDO_TTL_SECONDS
             self.assertEqual(client.post('/api/take_snapshots/action', json=action).status_code, 200)
 
     def test_deep_private_receipt_refuses_reads_and_edits_before_copy_or_mutation(self):

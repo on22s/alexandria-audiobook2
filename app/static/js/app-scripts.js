@@ -346,8 +346,10 @@
             const statusEl = document.getElementById('design-status');
             const previewContainer = document.getElementById('design-preview-container');
 
-            if (!description) { showToast(t('designer.preview.needs-description', 'Please enter a voice description.'), 'warning'); return; }
-            if (!sampleText) { showToast(t('designer.preview.needs-sample', 'Please enter sample text.'), 'warning'); return; }
+            setFieldFeedback('design-description');
+            setFieldFeedback('design-sample-text');
+            if (!description) { setFieldFeedback('design-description', createUiMessageNode('span', 'designer.preview.needs-description', 'Please enter a voice description.')); return; }
+            if (!sampleText) { setFieldFeedback('design-sample-text', createUiMessageNode('span', 'designer.preview.needs-sample', 'Please enter sample text.')); return; }
 
             const generation = window._designerGeneration || 0;
             const request = {};

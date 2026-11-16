@@ -423,6 +423,7 @@
             'autoConfigureSettings': 'Inspect the available hardware and fill suggested TTS settings into this form. Review and Save to apply them.',
             'loadConfig': 'Reload saved app settings into this form.',
             'toggleLlmKeyVisibility': 'Show or conceal the API key in this form. This changes its display, not the saved key.',
+            'undoDeleteChunk': 'Restore the last deleted line using its server receipt. Recent deletions can be undone in reverse order for 30 minutes; other revisions or book changes refuse recovery.',
             'testLlmConnection': 'Contact the configured model endpoint to check that it can answer a test request.',
             'loadMissingPromptDefaults': 'Fill missing prompt fields with defaults while keeping existing prompt edits.',
             'savePromptPreset': 'Save the current prompt settings under a preset name for later reuse.',

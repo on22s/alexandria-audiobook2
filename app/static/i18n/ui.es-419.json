@@ -5820,5 +5820,18 @@
   "workspace.state.render_incomplete": "Audio incompleto",
   "workspace.state.stale": "Desactualizado",
   "workspace.state.unavailable": "No disponible",
-  "workspace.state.unknown": "Desconocido"
+  "workspace.state.unknown": "Desconocido",
+  "setup.llm.url-invalid": "Ingresa una URL HTTP o HTTPS con un servidor y sin credenciales incrustadas.",
+  "editor.loading-wait": "Espera a que termine de cargar el Editor antes de modificar una línea.",
+  "editor.delete.undo-count": "Deshacer última eliminación ({count} disponibles)",
+  "editor.delete.nothing": "No hay eliminaciones para deshacer",
+  "editor.delete.restored": "Línea restaurada",
+  "editor.delete.stale": "El libro cambió y ya no se puede deshacer. Actualiza el Editor.",
+  "editor.delete.undo-help": "Deshaz las eliminaciones recientes en orden inverso durante un máximo de 30 minutos. Otras ediciones, generaciones de audio o cambios de libro pueden impedir la recuperación. El servidor rechaza revisiones modificadas.",
+  "voices.essential.help": "Elige una voz, escucha una muestra y luego márcala explícitamente como Lista. Las aprobaciones de personalidad y voz siguen siendo independientes; Lista no aprueba ninguna.",
+  "voices.advanced.title": "Avanzado: narrador, personalidades, sugerencias y voz para todo el libro",
+  "voices.card.advanced": "Revisión de personalidad, versiones, diseño y alias",
+  "voices.essential.ready": "Se seleccionó Lista explícitamente. Revisa las aprobaciones de personalidad y voz por separado.",
+  "voices.essential.next": "Siguiente: elige una voz, escúchala y márcala como Lista.",
+  "help.action.undodeletechunk": "Restaura la última línea eliminada con su comprobante del servidor. Puedes deshacer eliminaciones en orden inverso durante 30 minutos; otras revisiones o cambios de libro impiden recuperarlas."
 }

@@ -203,7 +203,7 @@ const c={window:{},document:{getElementById:el},currentLlmMode:'local',getEdited
  t:(k,s,v={})=>s.replace(/\{(\w+)\}/g,(_,n)=>v[n])};
 vm.createContext(c);vm.runInContext(fs.readFileSync(root+'/js/app-ui-followups.js','utf8'),c);
 const core=fs.readFileSync(root+'/js/app-core.js','utf8');
-vm.runInContext(core.slice(core.indexOf('async function testLlmConnection('),core.indexOf('const generationControlFields')),c);
+c.URL=URL;vm.runInContext(core.slice(core.indexOf('function setFieldFeedback('),core.indexOf('function showConfirm(')),c);vm.runInContext(core.slice(core.indexOf('async function testLlmConnection('),core.indexOf('const generationControlFields')),c);
 let finished=false;process.on('beforeExit',()=>assert(finished));
 (async()=>{const pending=c.testLlmConnection();assert(el('llm-test-result').innerHTML.includes('spinner-border'));
  resolve({ok:false,step:'models',error:'offline'});await pending;

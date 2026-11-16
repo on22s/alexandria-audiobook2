@@ -3298,6 +3298,7 @@
   "test_chunk_refresh_js": [
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_actual_batch_poll_fetches_and_renders_once_without_second_timer",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_batch_completion_uses_starting_book_and_row_uids",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_book_switch_during_yield_stops_old_row_publication",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_cancel_reconciles_optimistic_rows_without_forcing_redraw_or_losing_controls",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_compact_deltas_keep_existing_rows_and_forced_refresh_gets_full_snapshot",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_duplicate_delta_ids_refuse_before_replacing_cached_rows_and_recover_full",
@@ -3306,6 +3307,7 @@
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_forced_redraw_retains_only_same_chunk_and_audio",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_preserves_uid_owned_drafts_focus_and_expansion",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_redraws_same_ids_and_status_when_text_changes",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_large_snapshot_yields_and_preserves_exact_all_row_scope",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_managed_refresh_does_not_paint_prior_book_response_while_new_read_waits",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_progress_tracks_full_delta_playback_and_empty_snapshots",
@@ -15796,6 +15798,17 @@
     "tests.test_ui_batch_a_js.UiBatchAJsTests.test_initial_workspace_invalidation_does_not_claim_active_book_changed",
     "tests.test_ui_batch_a_js.UiBatchAJsTests.test_locale_repaints_retained_capabilities_without_checking_server",
     "tests.test_ui_batch_a_js.UiBatchAJsTests.test_voicelab_paths_are_expandable_not_readiness_help"
+  ],
+  "test_ui_batch_e": [
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_durable_undo_is_outside_editor_drawer",
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_editor_yields_between_bounded_batches",
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_real_field_feedback_preserves_descriptions_and_clears_on_edit",
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_required_feedback_is_associated_before_work",
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_voices_have_essential_first_disclosures",
+    "tests.test_ui_batch_e.BatchEUndoTests.test_book_generation_and_expired_receipts_refuse_without_writing",
+    "tests.test_ui_batch_e.BatchEUndoTests.test_changed_revision_refuses_restore_without_writing",
+    "tests.test_ui_batch_e.BatchEUndoTests.test_multiple_deletes_restore_lifo_after_eight_seconds",
+    "tests.test_ui_batch_e.BatchEUndoTests.test_out_of_order_restore_refuses_then_latest_restores"
   ],
   "test_ui_catalog_parity": [
     "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_changed_server_text_is_harvested_without_a_javascript_copy",

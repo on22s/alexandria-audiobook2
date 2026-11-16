@@ -665,6 +665,7 @@ context.document.createElement = () => ({
     }
 });
 elements['toast-container'] = {appendChild() {}};
+elements['editor-undo-delete'] = {dataset:{}, setAttribute(name,value) { this[name]=value; }, removeAttribute(name) { delete this[name]; }};
 await context.deleteChunk(1);
 await context.deleteChunk(2);
 await context.undoDeleteChunk(toastNodes[0].id);

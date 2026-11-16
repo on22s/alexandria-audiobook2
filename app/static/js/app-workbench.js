@@ -1347,7 +1347,8 @@
             if (isBatch) { return _startBatchPreparer(); }
 
             const audioFile = document.getElementById('prep-audio-file').files[0];
-            if (!audioFile) { showToast(t('preparer.start.no-audio', 'Audio file required'), 'error'); return; }
+            setFieldFeedback('prep-audio-file');
+            if (!audioFile) { setFieldFeedback('prep-audio-file', createUiMessageNode('span', 'preparer.start.no-audio', 'Audio file required')); return; }
 
             const picker = window.preparerChannelPicker;
             const channelSelection = picker ? picker.getSelection() : {channel: 'mix', token: null};
