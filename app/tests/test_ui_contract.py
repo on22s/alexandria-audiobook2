@@ -1,4 +1,6 @@
 """Static contracts for UI behavior that is easy to regress silently."""
+import json
+import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -11,14 +13,122 @@ class _NavigationParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.tabs = []
+        self.nodes = []
+        self.stack = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
+        self.nodes.append((tag, values, tuple(self.stack)))
         if tag == "a" and values.get("data-tab"):
             self.tabs.append(values)
+        if tag not in {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if tag in self.stack:
+            self.stack = self.stack[:len(self.stack) - 1 - self.stack[::-1].index(tag)]
 
 
 class UIContractTests(unittest.TestCase):
+    def test_bread_navigation_label_uses_palette_color(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+        rule = re.search(r'html\[data-theme="bread"\] \.nav-section-label\s*\{([^}]+)', source)
+        self.assertIsNotNone(rule)
+        self.assertIn('color: var(--nav-accent)', rule[1])
+
+    def test_secondary_text_uses_semantic_theme_color(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+        rule = re.search(r'(?m)^\s*\.text-secondary\s*\{([^}]+)', source)
+        self.assertIsNotNone(rule)
+        self.assertIn('color: var(--text-muted) !important', rule[1])
+
+    def test_script_links_use_semantic_theme_text_in_every_state(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+        link_rule = re.search(r'\.script-ingest-steps-list \.btn\s*\{([^}]+)', source)[1]
+        for state in ('color', 'hover-color', 'active-color'):
+            self.assertIn('--bs-btn-' + state + ': var(--accent-strong)', link_rule)
+
+    def test_keyboard_skip_link_targets_single_focusable_main(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        mains = [attrs for tag, attrs, _ in parser.nodes if tag == 'main']
+        self.assertEqual(1, len(mains))
+        self.assertEqual('-1', mains[0].get('tabindex'))
+        skip = next(attrs for tag, attrs, _ in parser.nodes if tag == 'a' and attrs.get('href') == '#' + mains[0]['id'])
+        self.assertIn('visually-hidden-focusable', skip.get('class', '').split())
+        self.assertEqual('shell.skip-content', skip.get('data-i18n'))
+
+    def test_logs_are_explicitly_keyboard_focusable_named_regions(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        logs = [attrs for _, attrs, _ in parser.nodes if 'log-window' in attrs.get('class', '').split() or attrs.get('id') == 'dsb-logs']
+        self.assertEqual(7, len(logs))
+        for attrs in logs:
+            with self.subTest(log=attrs['id']):
+                self.assertEqual('0', attrs.get('tabindex'))
+                self.assertEqual('region', attrs.get('role'))
+                self.assertTrue(attrs.get('aria-label'))
+                self.assertIn('aria-label:', attrs.get('data-i18n-attr', ''))
+        self.assertEqual(7, len({attrs['aria-label'] for attrs in logs}))
+        for catalog_path in sorted((STATIC / 'i18n').glob('ui.*.json')):
+            catalog = json.loads(catalog_path.read_text(encoding='utf-8'))
+            with self.subTest(catalog=catalog_path.name):
+                names = [catalog[attrs['data-i18n-attr'].split('aria-label:')[1]] for attrs in logs]
+                self.assertTrue(all(names))
+                self.assertEqual(7, len(set(names)))
+
+    def test_render_progress_has_named_numeric_initial_state(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        progress = next(attrs for _, attrs, _ in parser.nodes if attrs.get('id') == 'full-progress-bar')
+        self.assertEqual('progressbar', progress['role'])
+        self.assertTrue(progress.get('aria-label'))
+        self.assertEqual(('0', '100'), tuple(progress.get(name) for name in ('aria-valuemin', 'aria-valuemax')))
+        self.assertNotIn('aria-valuenow', progress)
+        self.assertEqual('true', progress.get('aria-busy'))
+
+    def test_system_status_preserves_navigation_list_semantics(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        statuses = [(tag, attrs, parents) for tag, attrs, parents in parser.nodes if 'status-cluster' in attrs.get('class', '').split()]
+        self.assertEqual(1, len(statuses))
+        tag, status, parents = statuses[0]
+        self.assertEqual('div', tag)
+        self.assertNotIn('ul', parents)
+        self.assertEqual(('status', 'polite', 'true'), tuple(status.get(name) for name in ('role', 'aria-live', 'aria-atomic')))
+        self.assertTrue(status.get('aria-label'))
+
+    def test_theme_text_and_input_border_contrast(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+
+        def luminance(color):
+            channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4 for value in channels]
+            return sum(value * weight for value, weight in zip(linear, (.2126, .7152, .0722)))
+
+        def contrast(first, second):
+            bright, dark = sorted((luminance(first), luminance(second)), reverse=True)
+            return (bright + .05) / (dark + .05)
+
+        base = dict(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6});', re.search(r':root\s*\{([^}]+)', source)[1]))
+        for theme in ('light', 'night', 'super-night', 'cyberpunk', 'bread', 'leek'):
+            tokens = dict(base)
+            if theme != 'light':
+                for block in re.finditer(r'html\[data-theme="' + theme + r'"\]\s*\{([^}]+)', source):
+                    tokens.update(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6});', block[1]))
+            for foreground in ('--text-primary', '--text-muted', '--text-heading', '--accent-strong', '--border-input'):
+                for background in ('--bg-page', '--bg-card', '--bg-card-header', '--bg-input', '--bg-modal'):
+                    with self.subTest(theme=theme, foreground=foreground, background=background):
+                        self.assertGreaterEqual(contrast(tokens[foreground], tokens[background]), 3 if foreground == '--border-input' else 4.5)
+            self.assertIn('--progress-bg', tokens)
+            self.assertIn('--progress-text', tokens)
+            for foreground, background in (('--step-color', '--step-bg'), ('--log-color', '--log-bg'), ('--progress-text', '--progress-bg')):
+                with self.subTest(theme=theme, foreground=foreground):
+                    self.assertGreaterEqual(contrast(tokens[foreground], tokens[background]), 4.5)
+            progress_channels = [int(tokens['--progress-bg'][index:index + 2], 16) for index in (1, 3, 5)]
+            stripe = '#' + ''.join(f'{round(channel * .85 + 255 * .15):02x}' for channel in progress_channels)
+            self.assertGreaterEqual(contrast(tokens['--progress-text'], stripe), 4.5)
+
     def test_primary_navigation_is_keyboard_addressable(self):
         parser = _NavigationParser()
         parser.feed((STATIC / "index.html").read_text(encoding="utf-8"))
