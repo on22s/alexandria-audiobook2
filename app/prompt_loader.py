@@ -16,12 +16,15 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     """
     try:
         token = utils.get_file_cache_token(path)
-        if token is not None:
-            if cache.get('malformed_token') == token:
-                raise RuntimeError(malformed_msg)
-            if cache.get('file_token') == token and cache.get('prompts') is not None:
-                return cache['prompts']
-        payload, (file_version, content_hash, token) = utils.read_file_snapshot(path, opener=open)
+        malformed_match = token is not None and cache.get('malformed_token') == token
+        valid_match = token is not None and cache.get('file_token') == token
+        if malformed_match and utils.is_file_cache_token_trusted(token, cache.get('malformed_captured_at_ns')):
+            raise RuntimeError(malformed_msg)
+        if (valid_match and cache.get('prompts') is not None and
+                utils.is_file_cache_token_trusted(token, cache.get('file_captured_at_ns'))):
+            return cache['prompts']
+        payload, (file_version, content_hash, token, captured_at_ns) = utils.read_file_snapshot(
+            path, opener=None if malformed_match or valid_match else open)
     except FileNotFoundError:
         raise RuntimeError(missing_msg)
     except OSError as exc:
@@ -30,10 +33,12 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
     if (cache.get("malformed_version") == file_version and
             cache.get("malformed_hash") == content_hash):
         cache['malformed_token'] = token
+        cache['malformed_captured_at_ns'] = captured_at_ns
         raise RuntimeError(malformed_msg)
     if (cache.get("file_version") == file_version and
             cache.get("content_hash") == content_hash and cache.get("prompts") is not None):
         cache['file_token'] = token
+        cache['file_captured_at_ns'] = captured_at_ns
         return cache["prompts"]
 
     try:
@@ -50,6 +55,7 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
         cache["malformed_version"] = file_version
         cache["malformed_hash"] = content_hash
         cache["malformed_token"] = token
+        cache["malformed_captured_at_ns"] = captured_at_ns
         raise RuntimeError(malformed_msg)
 
     prompts = tuple(p.strip() for p in parts)
@@ -57,12 +63,15 @@ def load_prompts_file(path, num_parts, missing_msg, malformed_msg, cache):
         cache["malformed_version"] = file_version
         cache["malformed_hash"] = content_hash
         cache["malformed_token"] = token
+        cache["malformed_captured_at_ns"] = captured_at_ns
         raise RuntimeError(malformed_msg)
     cache.pop("malformed_version", None)
     cache.pop("malformed_hash", None)
     cache.pop("malformed_token", None)
+    cache.pop("malformed_captured_at_ns", None)
     cache["file_version"] = file_version
     cache["content_hash"] = content_hash
     cache["file_token"] = token
+    cache["file_captured_at_ns"] = captured_at_ns
     cache["prompts"] = prompts
     return prompts

@@ -23,6 +23,54 @@ from tests.test_evaluation_reviews import _mk, _fp
 
 
 class DeepSeekInputValidationTests(unittest.TestCase):
+    def test_rapid_preserved_mtime_prompt_edits_return_every_written_content(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_bytes(b'alpha---SEPARATOR---user')
+            original = path.stat()
+            cache = {}
+            load = lambda: prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            self.assertEqual(('alpha', 'user'), load())
+            for iteration in range(500):
+                expected = 'bravo' if iteration % 2 == 0 else 'alpha'
+                path.write_bytes((expected + '---SEPARATOR---user').encode())
+                os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+                self.assertEqual((expected, 'user'), load(), f'write {iteration}')
+
+    def test_recent_equal_prompt_token_revalidates_content_until_recaptured_safely(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_bytes(b'alpha---SEPARATOR---user')
+            token = utils.get_file_cache_token(path)
+            cache = {}
+            load = lambda: prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+            with patch('utils.get_file_cache_token', return_value=token):
+                self.assertEqual(('alpha', 'user'), load())
+                path.write_bytes(b'bravo---SEPARATOR---user')
+                self.assertEqual(('bravo', 'user'), load())
+                with patch('utils.time.time_ns', return_value=time.time_ns() + 3_000_000_000):
+                    with patch('utils.read_file_snapshot', wraps=utils.read_file_snapshot) as capture:
+                        self.assertEqual(('bravo', 'user'), load())
+                        self.assertEqual(1, capture.call_count)
+                    with patch('utils.hashlib.sha256', side_effect=AssertionError('redundant hash')):
+                        self.assertEqual(('bravo', 'user'), load())
+
+    def test_recent_equal_negative_prompt_token_does_not_hide_repairs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'prompts.txt')
+            path.write_bytes(b'     ---SEPARATOR---user')
+            original = path.stat()
+            token = utils.get_file_cache_token(path)
+            cache = {}
+            with patch('utils.get_file_cache_token', return_value=token):
+                with self.assertRaisesRegex(RuntimeError, 'malformed'):
+                    prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
+                path.write_bytes(b'bravo---SEPARATOR---user')
+                os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+                self.assertEqual(('bravo', 'user'),
+                                 prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
+                self.assertNotIn('malformed_captured_at_ns', cache)
+
     def test_prompt_snapshot_aba_does_not_cache_parsed_bytes_under_another_digest(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'prompts.txt')
@@ -51,9 +99,11 @@ class DeepSeekInputValidationTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(first).digest(), cache['content_hash'])
 
     def test_warm_prompt_cache_does_not_read_or_hash_unchanged_content(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch('utils.time.time_ns', wraps=time.time_ns) as clock:
             path = Path(tmp, 'prompts.txt')
             path.write_bytes(b'alpha---SEPARATOR---user')
+            clock.return_value = time.time_ns() + 3_000_000_000
             cache = {}
             expected = prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache)
             with patch('utils.open', side_effect=AssertionError('redundant content read'), create=True), \
@@ -73,9 +123,11 @@ class DeepSeekInputValidationTests(unittest.TestCase):
     def test_unchanged_snapshot_refreshes_a_changed_prompt_token(self):
         for payload, token_field in ((b'alpha---SEPARATOR---user', 'file_token'),
                                      (b'malformed', 'malformed_token')):
-            with self.subTest(token_field=token_field), tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(token_field=token_field), tempfile.TemporaryDirectory() as tmp, \
+                 patch('utils.time.time_ns', wraps=time.time_ns) as clock:
                 path = Path(tmp, 'prompts.txt')
                 path.write_bytes(payload)
+                clock.return_value = time.time_ns() + 3_000_000_000
                 cache = {}
 
                 def load():
@@ -87,9 +139,11 @@ class DeepSeekInputValidationTests(unittest.TestCase):
                                          prompt_loader.load_prompts_file(path, 2, 'missing', 'malformed', cache))
 
                 load()
-                with patch('utils.get_file_cache_token', return_value=('changed',)):
+                changed = list(utils.get_file_cache_token(path))
+                changed[3] += 1
+                with patch('utils.get_file_cache_token', return_value=tuple(changed)):
                     load()
-                    self.assertEqual(('changed',), cache[token_field])
+                    self.assertEqual(tuple(changed), cache[token_field])
                     with patch('utils.hashlib.sha256', side_effect=AssertionError('redundant hash')):
                         load()
 
@@ -219,7 +273,7 @@ class DeepSeekInputValidationTests(unittest.TestCase):
                     load()
                 path.write_text('fixed---SEPARATOR---user')
                 self.assertEqual(('fixed', 'user'), load())
-                self.assertEqual(4, len(cache))
+                self.assertEqual(5, len(cache))
 
     def test_content_version_hashes_all_bytes_in_bounded_blocks(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -229,12 +283,29 @@ class DeepSeekInputValidationTests(unittest.TestCase):
             with path.open('rb') as source, \
                  patch.object(source, 'read', wraps=source.read) as read, \
                  patch('utils.open', return_value=source, create=True):
-                captured, (version, digest, token) = utils.read_file_snapshot(path)
+                captured, (version, digest, token, captured_at_ns) = utils.read_file_snapshot(path)
             self.assertEqual(payload, captured)
             self.assertEqual(hashlib.sha256(payload).digest(), digest)
             self.assertEqual(len(payload), version[2])
+            self.assertLessEqual(captured_at_ns, time.time_ns())
             self.assertEqual(4, read.call_count)
             self.assertTrue(all(call.args == (64 * 1024,) for call in read.call_args_list))
+
+    def test_racy_cache_window_is_strict_and_clock_rollback_refuses_metadata_hits(self):
+        changed_at_ns = 1_800_000_000_000_000_000
+        for platform in ('win32', 'linux'):
+            timestamp = (changed_at_ns // 100 + 116444736000000000
+                         if platform == 'win32' else changed_at_ns)
+            token = (1, 2, 3, 4, timestamp)
+            captured_at_ns = changed_at_ns + 2_000_000_001
+            with self.subTest(platform=platform), patch('utils.sys.platform', platform), \
+                 patch('utils.time.time_ns', return_value=captured_at_ns):
+                self.assertFalse(utils.is_file_cache_token_trusted(None, captured_at_ns))
+                self.assertFalse(utils.is_file_cache_token_trusted(token, None))
+                self.assertFalse(utils.is_file_cache_token_trusted(token, changed_at_ns))
+                self.assertFalse(utils.is_file_cache_token_trusted(token, captured_at_ns - 1))
+                self.assertTrue(utils.is_file_cache_token_trusted(token, captured_at_ns))
+                self.assertFalse(utils.is_file_cache_token_trusted(token, captured_at_ns + 1))
 
     def test_content_version_refuses_a_file_changed_during_hashing(self):
         with tempfile.TemporaryDirectory() as tmp:

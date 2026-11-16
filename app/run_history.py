@@ -175,9 +175,9 @@ def list_runs(history_dir, limit=100):
     """Return newest complete records, reading only requested rows once indexed.
 
     The first scan (or changed files) loads sorting metadata. Every listing
-    checks cheap platform change tokens, capturing and hashing only changed
-    files (or when native change-time queries fail). Sorting metadata is parsed
-    from those exact captured bytes; JSON payloads are not cached.
+    checks cheap platform change tokens, capturing and hashing changed or
+    recently written files (or when native change-time queries fail). Sorting
+    metadata is parsed from those exact captured bytes; JSON payloads are not cached.
     """
     try:
         limit = int(limit)
@@ -204,7 +204,8 @@ def list_runs(history_dir, limit=100):
                 cache.pop(name, None)
                 continue
             metadata = cache.get(name)
-            if metadata is None or version is None or metadata[0][2] != version:
+            if (metadata is None or version is None or metadata[0][2] != version or
+                    not utils.is_file_cache_token_trusted(version, metadata[0][3])):
                 record, stable_version = _get_run_with_version(path)
                 if stable_version is None:
                     cache.pop(name, None)

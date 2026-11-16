@@ -8,7 +8,10 @@ from unittest.mock import patch
 import os
 import sys
 
+from tests.test_support import can_symlink, skip_unless_symlink
+
 ROOT = Path(__file__).resolve().parents[2]
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 spec = importlib.util.spec_from_file_location(
@@ -103,6 +106,7 @@ class PreparerRunManifestTests(unittest.TestCase):
             manifest.write_json_atomic({'bad': object()}, target)
         self.assertEqual('{"complete":true}', target.read_text())
 
+    @skip_unless_symlink
     def test_symlinked_work_directory_is_refused(self):
         target = self.root / 'other'
         target.mkdir()
@@ -139,10 +143,13 @@ class PreparerRunManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(manifest.RunStateError, 'not owned'):
             manifest.validate_scratch_path(self.work, identity, self.audio)
         scratch = self.root / 'custom-scratch.wav'
-        scratch.symlink_to(self.root / 'missing.wav')
-        with self.assertRaisesRegex(manifest.RunStateError, 'not owned'):
-            manifest.validate_scratch_path(self.work, identity, scratch)
-        scratch.unlink()
+        with self.subTest('dangling symlink'):
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
+            scratch.symlink_to(self.root / 'missing.wav')
+            with self.assertRaisesRegex(manifest.RunStateError, 'not owned'):
+                manifest.validate_scratch_path(self.work, identity, scratch)
+            scratch.unlink()
         manifest.validate_scratch_path(self.work, identity, scratch)
         scratch.write_bytes(b'generated')
         manifest.mark_artifact_complete(self.work, identity, 'scratch', scratch)

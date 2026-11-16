@@ -77,12 +77,29 @@ def get_file_cache_token(path, *, descriptor=None):
     return _get_stat_file_identity(os.stat(path) if descriptor is None else os.fstat(descriptor))
 
 
+def is_file_cache_token_trusted(token, captured_at_ns):
+    """Allow metadata-only hits only after a capture outside the racy window.
+
+    Windows FILETIME and Python's wall clock share the system-time source;
+    convert its 100 ns ticks since 1601 to Unix nanoseconds before comparing.
+    A two-second margin covers coarse/lazy timestamps on both platforms.
+    """
+    if token is None or captured_at_ns is None:
+        return False
+    changed_at_ns = ((token[4] - 116444736000000000) * 100
+                     if sys.platform == 'win32' else token[4])
+    return (changed_at_ns > 0 and captured_at_ns - changed_at_ns > 2_000_000_000
+            and time.time_ns() >= captured_at_ns)
+
+
 def read_file_snapshot(path, *, opener=None):
-    """Capture bytes and (stat identity, SHA-256, cheap token) from one read.
+    """Capture bytes and (stat identity, SHA-256, cheap token, capture time).
 
     Hash and parsing consumers use the same bytes. Reads use 64 KiB blocks;
     O(file size) snapshot memory is temporary and is never stored in caches.
+    Capture-start wall time makes long reads conservative for racy-clean checks.
     """
+    captured_at_ns = time.time_ns()
     before = os.stat(path)
     version = _get_stat_file_identity(before)
     token = get_file_cache_token(path)
@@ -102,7 +119,7 @@ def read_file_snapshot(path, *, opener=None):
             any(_get_stat_file_identity(snapshot) != version for snapshot in (opened, after, current)) or
             token is not None and (descriptor_token != token or current_token != token)):
         raise OSError(errno.EAGAIN, 'File changed while capturing snapshot', os.fspath(path))
-    return payload, (version, digest.digest(), token)
+    return payload, (version, digest.digest(), token, captured_at_ns)
 
 
 def get_unsafe_text_controls(text):

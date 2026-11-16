@@ -2,7 +2,6 @@
 import asyncio
 import contextlib
 import io
-import multiprocessing
 import os
 import queue
 import tempfile
@@ -16,6 +15,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException, UploadFile
 from routers import dataset_builder as builder, lora
+from tests.test_support import get_fixture_process_context
+
+
+def _crash_during_dataset_publication(root):
+    """Spawn-safe child target: abandon a private stage via process death."""
+    from dataset_publication import apply_dataset_publication
+    with apply_dataset_publication(root, 'voice') as stage:
+        (Path(stage) / 'partial.wav').write_bytes(b'partial private bytes')
+        os._exit(77)
 
 
 class DatasetPublicationTests(unittest.TestCase):
@@ -96,7 +104,7 @@ class DatasetPublicationTests(unittest.TestCase):
 
     def test_two_native_processes_cannot_interleave_same_destination_saves(self):
         # Fork is the native Linux evidence here; do not imply Windows coverage.
-        context=multiprocessing.get_context('fork')
+        context=get_fixture_process_context(require_fork=True)
         with self.fixture() as (_,_,work,output,_,_):
             entered=context.Event();release=context.Event();attempted=context.Event();results=context.Queue()
             def save(hold):
@@ -130,19 +138,22 @@ class DatasetPublicationTests(unittest.TestCase):
 
     def test_interrupted_private_stage_is_hidden_and_does_not_block_a_new_publish(self):
         from dataset_publication import apply_dataset_publication
-        context=multiprocessing.get_context('fork')
+        context=get_fixture_process_context()
         with tempfile.TemporaryDirectory() as tmp,patch.object(lora,'LORA_DATASETS_DIR',tmp):
-            def crash():
-                with apply_dataset_publication(tmp,'voice') as stage:
-                    (Path(stage)/'partial.wav').write_bytes(b'partial private bytes')
-                    os._exit(77)
-            process=context.Process(target=crash);process.start();process.join(5)
+            process=context.Process(target=_crash_during_dataset_publication,args=(tmp,))
+            process.start()
+            # A spawn child must re-import this module before it can crash;
+            # keep a bounded deadline that absorbs that cold-start cost.
+            process.join(30)
             try:self.assertEqual(77,process.exitcode)
             finally:
                 if process.is_alive():process.terminate();process.join()
             self.assertFalse((Path(tmp)/'voice').exists());self.assertEqual([],asyncio.run(lora.lora_list_datasets()))
             abandoned=[p for p in Path(tmp).iterdir() if p.is_dir() and p.name.startswith('.dataset-stage-')];self.assertEqual(1,len(abandoned))
-            self.assertEqual(0, os.stat(abandoned[0]).st_mode & 0o077)
+            # Directory privacy is enforced by POSIX mode bits only; Windows
+            # synthesizes st_mode from attributes, so this evidence is POSIX-only.
+            if os.name != 'nt':
+                self.assertEqual(0, os.stat(abandoned[0]).st_mode & 0o077)
             with apply_dataset_publication(tmp,'voice') as stage:
                 (Path(stage)/'metadata.jsonl').write_text('{"text":"complete"}\n')
             self.assertEqual([{'dataset_id':'voice','sample_count':1}],asyncio.run(lora.lora_list_datasets()))
