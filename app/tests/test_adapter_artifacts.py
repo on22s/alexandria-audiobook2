@@ -65,8 +65,12 @@ class AdapterReusePublicationTests(unittest.TestCase):
                 snapshot={p.relative_to(root):p.read_bytes() for p in root.rglob('*') if p.is_file()}
                 self.assertIsNone(batch.adapter_exists(str(root),'speaker',[{'id':'renamed','dataset_id':'speaker'}]))
                 self.assertIsNone(batch.adapter_exists(str(root),'speaker',[]))
-                self.assertEqual({**snapshot,Path('manifest.json.lock'):b''},
-                                 {p.relative_to(root):p.read_bytes() for p in root.rglob('*') if p.is_file()})
+                actual={p.relative_to(root):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                # Windows byte-range locks initialize the released sidecar with one NUL byte;
+                # POSIX leaves it empty. Neither is user-data mutation.
+                if actual.get(Path('manifest.json.lock')) == b'\x00':
+                    actual[Path('manifest.json.lock')] = b''
+                self.assertEqual({**snapshot,Path('manifest.json.lock'):b''}, actual)
                 write_test_adapter(root/'complete')
                 self.assertEqual(str(root/'complete'),batch.adapter_exists(str(root),'speaker',[
                     {'id':'renamed','dataset_id':'speaker'},{'id':'complete','dataset_id':'speaker'}]))
