@@ -9,6 +9,16 @@ SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
 
 
 class CoreDomInputTests(unittest.TestCase):
+    def test_phone_disclosures_follow_breakpoints_and_keep_actionable_review_open(self):
+        self.run_js(r'''
+const details=[{open:true},{open:true}], media={matches:true,addEventListener(event,handler){assert.equal(event,'change');this.change=handler;}};
+const sandbox={window:{matchMedia(query){assert.equal(query,'(max-width: 575px)');return media;}},document:{querySelectorAll(query){assert.equal(query,'[data-phone-disclosure]');return details;}}};
+vm.runInNewContext(fs.readFileSync(process.argv[1].replace('app-core.js','app-phone-layout.js'),'utf8'),sandbox);
+assert(details.every(item=>!item.open));details[0].open=true;
+assert.equal(details[0].open,true);media.matches=false;media.change();assert(details.every(item=>item.open));
+details[0].dataset={actionable:'true'};media.matches=true;media.change();assert.equal(details[0].open,true);assert.equal(details[1].open,false);
+''')
+
     def run_js(self, code):
         script = "const fs=require('fs'),vm=require('vm'),assert=require('assert');const source=fs.readFileSync(process.argv[1],'utf8');\n" + code
         result = subprocess.run(['node', '-e', script, str(SOURCE)], capture_output=True, text=True, timeout=10)

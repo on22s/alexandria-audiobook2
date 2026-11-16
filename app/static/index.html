@@ -1118,6 +1118,7 @@
             if (t && t !== 'light') { document.documentElement.setAttribute('data-theme', t); }
         })();
     </script>
+    <link rel="stylesheet" href="/static/css/phone-layout.css?v=__APP_BUILD__">
 </head>
 <body>
     <a id="skip-main-link" class="visually-hidden-focusable position-fixed top-0 start-0 btn btn-primary" style="z-index:1100;" href="#main-content" data-i18n="shell.skip-content">Skip to main content</a>
@@ -1276,11 +1277,6 @@
                     <aside class="settings-sidebar" id="setup-settings-overview">
                         <div data-i18n="setup.overview.title" class="settings-sidebar-title">Setup workspace</div>
                         <p data-i18n="setup.overview.choose-an-area-to-work-on" class="small text-muted">Choose an area to work on.</p>
-                        <label class="form-check form-switch mb-1" for="setup-expert-toggle">
-                            <input class="form-check-input" type="checkbox" role="switch" id="setup-expert-toggle" onchange="setSetupExpertMode(this.checked)">
-                            <span data-i18n="setup.expert.label" class="form-check-label small">Expert settings</span>
-                        </label>
-                        <div data-i18n="setup.expert.hint" class="form-text mt-0 mb-3">Turn on to show limits, timing, generation, strategy and prompt controls.</div>
                         <div class="settings-mobile"><label data-i18n="setup.overview.category.label" class="form-label" for="setup-settings-category">Settings category</label>
                         <select class="form-select mb-3" id="setup-settings-category" onchange="openSetupSettingsSection(this.value, false)">
                             <optgroup data-i18n-attr="label:setup.overview.essential" label="Essential Setup">
@@ -1308,8 +1304,15 @@
                         </nav>
                         <label data-i18n="setup.locale.label" class="form-label mt-3" for="setup-ui-locale">Interface language</label>
                         <select id="setup-ui-locale" class="form-select" aria-describedby="setup-ui-locale-hint setup-ui-locale-status" onchange="changeUiLocale(this.value)"><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ja">日本語</option><option value="es-419">Español (Latinoamérica)</option><option value="qps-ploc">Pseudo-English (layout test, not a translation)</option></select>
-                        <div data-i18n="setup.locale.hint" id="setup-ui-locale-hint" class="form-text">The whole interface follows this language. A locale marked (draft) is a machine draft with no native review yet, so safety warnings also show the English beneath. Task logs stay English. This preference is browser-local, never changes the book, TTS or transcription language, and offers no RTL locale.</div>
                         <div id="setup-ui-locale-status" class="form-text" role="status"></div>
+                        <details id="setup-phone-tools" data-phone-disclosure open>
+                            <summary data-i18n="setup.phone.tools">Language help &amp; settings tools</summary>
+                        <div data-i18n="setup.locale.hint" id="setup-ui-locale-hint" class="form-text">The whole interface follows this language. A locale marked (draft) is a machine draft with no native review yet, so safety warnings also show the English beneath. Task logs stay English. This preference is browser-local, never changes the book, TTS or transcription language, and offers no RTL locale.</div>
+                        <label class="form-check form-switch mb-1" for="setup-expert-toggle">
+                            <input class="form-check-input" type="checkbox" role="switch" id="setup-expert-toggle" onchange="setSetupExpertMode(this.checked)">
+                            <span data-i18n="setup.expert.label" class="form-check-label small">Expert settings</span>
+                        </label>
+                        <div data-i18n="setup.expert.hint" class="form-text mt-0 mb-3">Turn on to show limits, timing, generation, strategy and prompt controls.</div>
                         <div class="settings-finder">                        <label class="form-label" for="setup-settings-search" data-i18n="setup.finder.label">Find a setting</label>
                         <div class="d-flex align-items-center gap-2">
                             <input type="search" class="form-control" id="setup-settings-search" data-i18n-attr="placeholder:setup.finder.placeholder" maxlength="120" placeholder="Try context, memory, language or retries" aria-describedby="setup-settings-search-hint" aria-controls="setup-settings-results" oninput="renderSetupSettingsSearch()" onkeydown="onSetupSettingsSearchKeydown(event)">
@@ -1320,6 +1323,7 @@
                         <div id="setup-settings-results" class="settings-search-results" hidden></div>
 </div>
                         <p data-i18n="setup.overview.looking-for-character-voices-or-line-edits" class="small text-muted mt-3 mb-0">Looking for character voices or line edits? Use Voices or Editor in the main navigation.</p>
+                        </details>
                     </aside>
                     <form id="config-form">
                         <div class="config-save-bar d-flex flex-wrap align-items-center gap-2 mb-3 p-2 border rounded">
@@ -1349,12 +1353,13 @@
 <section id="settings-llm" class="settings-section" data-settings-section="Connection" aria-labelledby="settings-llm-heading">
 <h5 data-i18n="setup.llm.heading" id="settings-llm-heading" tabindex="-1">Connection</h5>
 <p data-i18n="setup.llm.intro" class="settings-intro">Connect the language model that reads your book and identifies speakers. Each location keeps its own profile.</p>
-<div class="workflow-disclosure mb-3">
+<details id="setup-workflow-guide" data-phone-disclosure open class="workflow-disclosure mb-3">
+    <summary data-i18n="setup.phone.workflow">Workflow shortcuts</summary>
     <p class="small" data-i18n="setup.basic.destinations">Basic workflow: connect here, preview the narrator in Voices, then choose rendering speed in Speech engine and review output in Result. Each setting has one home.</p>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openBasicWorkflowControl('voices', '#voices-tab')" data-i18n="setup.basic.narrator">Narrator voice and preview</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openSetupSettingsSection('settings-tts')" data-i18n="setup.basic.speed">Speech quality and speed</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openBasicWorkflowControl('audio', '#export-quality-options')" data-i18n="setup.basic.output">Output and integrity checks</button>
-</div>
+</details>
 
                         <div class="mb-3">
                             <label class="form-label" for="llm-mode"><span data-i18n="setup.llm.llm-mode.label">LLM Location</span> <span data-i18n-skip id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
@@ -2908,7 +2913,53 @@
                 <p class="text-muted mb-0" data-i18n="casting.intro">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
             </div>
             <div id="casting-workspace" class="casting-workspace">
+            <section class="casting-result-summary">
+                <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
+                <span id="casting-summary" class="text-muted small ms-auto" role="status" aria-live="polite"></span>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button type="button" class="btn btn-outline-primary" onclick="document.querySelector('[data-tab=voices]').click()" data-i18n="casting.phone.voices" data-i18n-attr="title:casting.phone.voices-help" title="Open Voices to generate character personas for this book.">Open Voices</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="document.querySelector('[data-tab=designer]').click()" data-i18n="casting.phone.designer" data-i18n-attr="title:casting.phone.designer-help" title="Open Designer to create and save a synthetic voice.">Open Designer</button>
+                </div>
+            </section>
+            <div class="card casting-main">
+                <div class="card-body">
+                    <div id="casting-results"><p class="text-muted mb-0" data-i18n="casting.results.empty">Open this tab to load the casting library.</p></div>
+                    <div id="casting-pagination" class="mt-3" data-i18n-attr="aria-label:casting.pagination.aria" aria-label="Results navigation"></div>
+                    <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden data-i18n="casting.more">Load more</button></div>
+                </div>
+                <details id="casting-tool-details" data-phone-disclosure open>
+                <summary class="card-header" data-i18n="casting.phone.tools">Selection, playback &amp; saved casts</summary>
+                <div class="card-body">
+                    <div class="casting-research-row mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i><span data-i18n="casting.play-all">Play all</span></button>
+                        <span id="casting-playback-status" class="small" role="status" aria-live="polite"></span>
+
+                    </div>
+                    <div id="casting-research-toolbar" class="casting-research-toolbar mb-3" data-i18n-attr="aria-label:casting.research.aria" aria-label="Research controls"></div>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <select id="casting-health" class="form-select form-select-sm w-auto" data-i18n-attr="aria-label:casting.health.aria" aria-label="Data health filter"><option value="" data-i18n="casting.health.all">All data health</option></select>
+                        <span id="casting-health-counts" class="small" role="status"></span>
+                    </div>
+                    <div id="casting-skipped" class="small mb-2"></div>
+                    <details class="mb-3"><summary data-i18n="casting.coverage.title">Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
+                    <details class="border rounded p-2 mb-3">
+                        <summary data-i18n="casting.saved.title">Saved casts &amp; character assignment</summary>
+                        <p class="small text-muted mt-2" data-i18n="casting.saved.intro">Saved casts map voices to named characters. Review the mappings before applying them to the active book. Research collections only organize voices.</p>
+                        <label for="casting-collection" class="small" data-i18n="casting.saved.label">Saved cast</label>
+                        <select id="casting-collection" class="form-select form-select-sm" data-i18n-attr="aria-label:casting.saved.label" aria-label="Saved cast"><option value="" data-i18n="casting.saved.empty">Choose a saved cast</option></select>
+                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" data-i18n-attr="aria-label:casting.saved.new-name,placeholder:casting.saved.new-name" aria-label="New saved cast name" placeholder="New saved cast name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary" data-i18n="casting.saved.create">Create saved cast</button></div>
+                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2" data-i18n="casting.saved.review">Review saved cast for active book</button>
+                        <div id="casting-collection-review" class="mt-2"></div>
+                    </details>
+                    <div class="small text-muted mb-2" data-i18n="safety.casting.similarity_unavailable">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
+
+                    <details class="mt-3"><summary data-i18n="casting.activity.title">Studio activity</summary><div id="casting-activity" class="small mt-2" aria-live="polite"></div></details>
+                </div>
+            </details>
+            </div>
             <aside class="card casting-sidebar mb-3" data-i18n-attr="aria-label:casting.filters.aria" aria-label="Voice filters">
+            <details id="casting-filter-details" data-phone-disclosure open>
+                <summary class="card-header" data-i18n="casting.phone.filters">Filters &amp; library tools</summary>
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="m-0" data-i18n="casting.find.title">Find voices</h5>
                     <button type="button" class="btn btn-sm btn-outline-primary" id="casting-refresh"><i class="fas fa-sync me-1"></i><span data-i18n="casting.refresh">Refresh</span></button>
@@ -2957,38 +3008,8 @@
                     </div>
                     <div id="casting-research" class="mt-3"></div>
                 </div>
+            </details>
             </aside>
-            <div class="card casting-main">
-                <div class="card-body">
-                    <div class="casting-research-row mb-3">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="casting-play-all"><i class="fas fa-play me-1"></i><span data-i18n="casting.play-all">Play all</span></button>
-                        <span id="casting-playback-status" class="small" role="status" aria-live="polite"></span>
-                        <span id="casting-summary" class="text-muted small ms-auto" role="status" aria-live="polite"></span>
-                    </div>
-                    <div id="casting-research-toolbar" class="casting-research-toolbar mb-3" data-i18n-attr="aria-label:casting.research.aria" aria-label="Research controls"></div>
-                    <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
-                    <div class="d-flex flex-wrap gap-2 mb-2">
-                        <select id="casting-health" class="form-select form-select-sm w-auto" data-i18n-attr="aria-label:casting.health.aria" aria-label="Data health filter"><option value="" data-i18n="casting.health.all">All data health</option></select>
-                        <span id="casting-health-counts" class="small" role="status"></span>
-                    </div>
-                    <div id="casting-skipped" class="small mb-2"></div>
-                    <details class="mb-3"><summary data-i18n="casting.coverage.title">Coverage of the current view</summary><div id="casting-coverage" class="table-responsive"></div></details>
-                    <details class="border rounded p-2 mb-3">
-                        <summary data-i18n="casting.saved.title">Saved casts &amp; character assignment</summary>
-                        <p class="small text-muted mt-2" data-i18n="casting.saved.intro">Saved casts map voices to named characters. Review the mappings before applying them to the active book. Research collections only organize voices.</p>
-                        <label for="casting-collection" class="small" data-i18n="casting.saved.label">Saved cast</label>
-                        <select id="casting-collection" class="form-select form-select-sm" data-i18n-attr="aria-label:casting.saved.label" aria-label="Saved cast"><option value="" data-i18n="casting.saved.empty">Choose a saved cast</option></select>
-                        <div class="input-group input-group-sm mt-2"><input id="casting-collection-name" class="form-control" maxlength="200" data-i18n-attr="aria-label:casting.saved.new-name,placeholder:casting.saved.new-name" aria-label="New saved cast name" placeholder="New saved cast name"><button id="casting-create-collection" type="button" class="btn btn-outline-secondary" data-i18n="casting.saved.create">Create saved cast</button></div>
-                        <button id="casting-match-collection" type="button" class="btn btn-sm btn-outline-success mt-2" data-i18n="casting.saved.review">Review saved cast for active book</button>
-                        <div id="casting-collection-review" class="mt-2"></div>
-                    </details>
-                    <div class="small text-muted mb-2" data-i18n="safety.casting.similarity_unavailable">Audio similarity is not available: ECAPA has not passed the required regenerated-speaker controls. Name variants are not proof of the same voice.</div>
-                    <div id="casting-results"><p class="text-muted mb-0" data-i18n="casting.results.empty">Open this tab to load the casting library.</p></div>
-                    <div id="casting-pagination" class="mt-3" data-i18n-attr="aria-label:casting.pagination.aria" aria-label="Results navigation"></div>
-                    <div class="text-center mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="casting-more" hidden data-i18n="casting.more">Load more</button></div>
-                    <details class="mt-3"><summary data-i18n="casting.activity.title">Studio activity</summary><div id="casting-activity" class="small mt-2" aria-live="polite"></div></details>
-                </div>
-            </div>
             </div>
             <div class="modal fade" id="casting-review-modal" tabindex="-1" aria-labelledby="casting-review-title" aria-hidden="true">
                 <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -3851,11 +3872,13 @@
 
                      <div class="editor-review-layout">
                        <div class="editor-review-main">
-                         <section class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
+                         <section id="editor-quality-panel" class="editor-review-panel mb-3" aria-labelledby="editor-quality-title">
                              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                                  <h5 id="editor-quality-title" class="m-0" data-i18n="editor.queue.title">Take review queue</h5>
                                  <button type="button" class="btn btn-outline-secondary btn-sm" onclick="loadChunks(false)" data-i18n="editor.queue.refresh">Refresh review</button>
                              </div>
+                             <details id="editor-review-details" data-phone-disclosure open>
+                                 <summary data-i18n="editor.phone.review">Review details &amp; checks</summary>
                              <p class="small mt-2 mb-2" data-i18n="editor.queue.intro">Saved findings and missing speech evidence, not a quality certificate. Inspect the selected take or compare retained candidates without running a model or changing audio. Listen before explicitly choosing Check &amp; restore; existing compatibility, retention and cancellation controls still apply. Historical evidence is not a current approval.</p>
                              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                                  <label for="editor-quality-filter" data-i18n="editor.queue.filter-label">Show</label>
@@ -3870,10 +3893,12 @@
                                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-outlier-cancel" onclick="cancelOutlierCheck()" data-i18n="editor.queue.cancel-outliers" data-i18n-attr="title:editor.queue.cancel-outliers-title" title="Cancel this acoustic scan without publishing partial results." disabled>Cancel outlier check</button>
                                  <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="chk-drift-only" onchange="applyDriftFilter()"><label class="form-check-label" for="chk-drift-only" data-i18n="editor.queue.drift-only">Show only drift in table</label></div>
                              </div>
-                             <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2" data-i18n="editor.queue.status-default">Review facts have not been loaded.</p>
                              <p id="editor-quality-binding" class="small text-break" role="status"></p>
                              <p id="editor-outlier-caveat" class="small" data-i18n="editor.queue.outlier-caveat">Experimental acoustic proxies, not an emotion or quality judgement. At least eight comparable takes per metric are required. Unavailable is not clean. Listen before regenerating.</p>
                              <p id="editor-outlier-status" class="small" role="status" data-i18n="editor.queue.outlier-status-default">No acoustic scan started.</p>
+                             <p id="editor-quality-status" role="status" aria-live="polite" class="small mb-2" data-i18n="editor.queue.status-default">Review facts have not been loaded.</p>
+                             </details>
+                             <p id="editor-phone-status" class="small mb-2" role="status" aria-live="polite"></p>
                              <div id="editor-quality-list"></div>
                              <button type="button" id="editor-quality-more" class="btn btn-outline-secondary btn-sm mt-2" onclick="showMoreEditorFindings()" hidden data-i18n="editor.queue.show-more">Show 50 more</button>
                          </section>
@@ -4486,6 +4511,7 @@
     <script src="/static/js/app-casting-research.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-casting.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-repair.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-phone-layout.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-editor-review.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-word-timing.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-take-history.js?v=__APP_BUILD__"></script>

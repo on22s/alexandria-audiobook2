@@ -456,9 +456,15 @@ function renderEditorQualityInbox(resetLimit = false) {
     const more = document.getElementById('editor-quality-more');
     const binding = document.getElementById('editor-quality-binding');
     const current = isEditorReviewSnapshotCurrent();
+    const phoneStatus = document.getElementById('editor-phone-status');
     if (binding) { binding.textContent = editorReviewData ? t('editor.review.queue.binding', '{kind} · book {book} · revision {revision}', {kind: current ? t('editor.review.queue.binding-saved', 'Saved snapshot') : t('editor.review.queue.binding-stale', 'Stale or pending-edit snapshot'), book: editorReviewData.book_token, revision: editorReviewData.revision}) : t('editor.review.queue.binding-none', 'Book/revision evidence has not been loaded.'); }
+    const details = document.getElementById('editor-review-details');
+    const panel = document.getElementById('editor-quality-panel');
     if (!current) {
+        if (details && editorReviewData?.rows.some(row => row.issues.length)) { details.open = true; }
+        if (panel) { panel.dataset.empty = 'false'; }
         status.textContent = t('editor.review.queue.stale', 'Saved review facts are unavailable or out of date. Refresh review; any displayed findings are from an earlier reading.');
+        if (phoneStatus) { phoneStatus.textContent = status.textContent; }
         list.querySelectorAll('button').forEach(button => { button.disabled = true; });
         more.hidden = true;
         return;
@@ -466,6 +472,13 @@ function renderEditorQualityInbox(resetLimit = false) {
     const filter = document.getElementById('editor-quality-filter').value;
     const rows = editorReviewData.rows.map(row => ({...row, issues: [...row.issues,
         ...(row.audio === 'present' && (!row.speech || row.speech === 'not_checked') && !row.issues.includes('speech_historical') ? ['speech_not_checked'] : [])]}));
+    const actionable = rows.some(row => row.issues.length) || !!editorReviewData.outlier_error;
+    if (phoneStatus) { phoneStatus.textContent = t('editor.phone.summary', '{count} lines need review. Unrendered or unchecked lines are not approved.', {count: rows.filter(row => row.issues.length).length}); }
+    if (panel) { panel.dataset.empty = String(!actionable); }
+    if (details) {
+        details.dataset.actionable = String(actionable);
+        if (actionable) { details.open = true; }
+    }
     const matches = rows.filter(row => filter === 'all_lines' || (row.issues.length && (filter === 'all' || row.issues.includes(filter))));
     const unmeasured = rows.filter(row => row.drift === 'unmeasured').length;
     const unavailable = rows.filter(row => row.drift === 'unavailable').length;

@@ -8356,8 +8356,8 @@
                                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="${escapeHtml(t('core.editor.suggest-gap-title', 'Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.'))}">${escapeHtml(t('core.editor.suggest-gap', 'Suggest gap'))}</button>
                                 </div>
                             </td>
-                            <td><span class="badge bg-${statusColor}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
-                            <td>
+                            <td data-phone-label="${escapeHtml(t('editor.table.status', 'Status'))}"><span class="badge bg-${statusColor}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
+                            <td data-phone-label="${escapeHtml(t('editor.table.audio-actions', 'Audio / Actions'))}">
                                 <div class="chunk-actions d-flex align-items-center gap-2">
                                     ${actionArea}
                                     ${audioPlayer}

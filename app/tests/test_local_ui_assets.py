@@ -61,6 +61,8 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-casting.js?v=__APP_BUILD__',
                           '/static/js/app-casting-research.js?v=__APP_BUILD__',
                           '/static/css/casting.css?v=__APP_BUILD__',
+                          '/static/css/phone-layout.css?v=__APP_BUILD__',
+                          '/static/js/app-phone-layout.js?v=__APP_BUILD__',
                           '/static/js/app-publication.js?v=__APP_BUILD__',
                           '/static/js/app-publication-validation.js?v=__APP_BUILD__',
                           '/static/js/app-pronunciation.js?v=__APP_BUILD__',
@@ -89,6 +91,8 @@ class LocalUiAssetTests(unittest.TestCase):
         self.assertIn(('/static/js/app-readalong.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-settings.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-ui-followups.js?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/css/phone-layout.css?v=__APP_BUILD__', None), resources)
+        self.assertIn(('/static/js/app-phone-layout.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-publication.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-take-history.js?v=__APP_BUILD__', None), resources)
         self.assertIn(('/static/js/app-sound-assets.js?v=__APP_BUILD__', None), resources)

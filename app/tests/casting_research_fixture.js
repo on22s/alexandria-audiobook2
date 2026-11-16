@@ -40,6 +40,7 @@ const HTML = `
       <div id="casting-collection-review"></div>
       <div id="casting-load-status"></div>
     </div>
+    <details id="casting-tool-details"></details>
     <div id="casting-research-toolbar"></div>
     <div id="casting-results"></div>
     <button id="casting-more" type="button" hidden>Load more</button>
@@ -468,7 +469,10 @@ const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting
     await change(env, $(env, 'research-circle-blue'), false);
     eq($(env, 'research-circle-blue').checked, false);
 
+    $(env, 'tool-details').open = false;
     await click(env, $(env, 'research-select-filtered'));
+    eq($(env, 'tool-details').open, true, 'selecting voices reveals the selection-dependent controls');
+    eq($(env, 'tool-details').dataset.actionable, 'true');
     includes($(env, 'research-selection-count').textContent, '5 selected of 5 filtered');
     await change(env, $(env, 'research-bulk-priority'), 'high');
     let batch = firstBatch(env);
@@ -486,6 +490,8 @@ const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting
     await click(env, $(env, 'research-redo'));
     eq(env.serverMarks['persona/dh/abel'].priority, 'high');
     await click(env, $(env, 'research-clear-selection'));
+    eq($(env, 'tool-details').dataset.actionable, 'false');
+    ok($(env, 'research-bulk-priority').disabled, 'clearing selection disables bulk writes');
     includes($(env, 'research-selection-count').textContent, 'No voices selected');
     await click(env, $(env, 'research-select-page'));
     includes($(env, 'research-selection-count').textContent, '5 selected');

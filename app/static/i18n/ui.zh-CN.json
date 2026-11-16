@@ -5655,5 +5655,15 @@
   "script.ingest.obsolete": "摄取状态快照已过期",
   "help.action.copyvoicelabfailuredetails": "复制显示的技术失败详情（包含私密路径）。分享前请检查并隐去敏感信息。",
   "help.action.openvoicelabsettings": "打开流水线设置以修正缺失依赖项的路径，不会启动任务。",
-  "help.action.openscriptworkspace": "打开脚本以选择源文件或检查其发布状态，不会启动生成。"
+  "help.action.openscriptworkspace": "打开脚本以选择源文件或检查其发布状态，不会启动生成。",
+  "setup.phone.tools": "语言帮助与设置工具",
+  "casting.phone.filters": "筛选与语音库工具",
+  "casting.phone.tools": "选择、播放与已保存的配音阵容",
+  "casting.phone.voices": "打开角色语音",
+  "casting.phone.designer": "打开设计器",
+  "casting.phone.voices-help": "打开角色语音，为本书生成角色人设。",
+  "casting.phone.designer-help": "打开设计器，创建并保存合成语音。",
+  "editor.phone.review": "审阅详情与检查",
+  "editor.phone.summary": "{count} 行需要审阅。未生成音频或未经检查的行不代表已获认可。",
+  "setup.phone.workflow": "工作流程快捷入口"
 }
