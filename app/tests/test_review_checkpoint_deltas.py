@@ -29,6 +29,37 @@ def save(output, rows, batch, writer, failed=None, output_hash=None):
 
 
 class ReviewCheckpointDeltaTests(unittest.TestCase):
+    def test_cooperative_cancel_keeps_completed_checkpoint_and_can_resume(self):
+        from tests import test_llm_review_regressions as fixtures
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'book.json'
+            cancel = Path(temporary) / 'cancel'
+            rows = [{'speaker': 'ANN', 'text': f'Original line {index}.', 'instruct': 'Plain.'}
+                    for index in range(3)]
+            output.write_text(json.dumps(rows), encoding='utf-8')
+            original = output.read_bytes()
+            native_save = review.save_checkpoint
+            def save_then_cancel(*args, **kwargs):
+                result = native_save(*args, **kwargs)
+                cancel.touch()
+                return result
+            with patch.dict(os.environ, {'ALEXANDRIA_REVIEW_CANCEL_FILE': str(cancel)}), \
+                 patch.object(review, 'save_checkpoint', side_effect=save_then_cancel):
+                with self.assertRaises(SystemExit) as stopped:
+                    fixtures.ReviewVramTests().run_review(output, [True] * 4,
+                        lambda client, model, batch, *args, **kwargs: batch,
+                        lambda *args, **kwargs: self.fail('cancel reached dedupe'))
+            self.assertEqual(0, stopped.exception.code)
+            self.assertEqual(original, output.read_bytes())
+            checkpoint = review.load_checkpoint(str(output), 3, 1, 0, rows)
+            self.assertEqual(1, checkpoint['completed_batches'])
+            self.assertEqual(rows[:1], checkpoint['all_corrected'])
+            fixtures.ReviewVramTests().run_review(output, [True] * 4,
+                lambda client, model, batch, *args, **kwargs: batch,
+                lambda *args, **kwargs: ({}, 0, []))
+            self.assertEqual(rows, json.loads(output.read_text(encoding='utf-8')))
+            self.assertFalse(Path(review._checkpoint_path(str(output))).exists())
+
     def test_serializes_each_corrected_entry_once_and_native_resume_preserves_every_batch(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'book.json'
