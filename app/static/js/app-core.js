@@ -5298,8 +5298,7 @@
             let state = window._voiceSectionStates.get(bookId);
             if (!state) {
                 state = {sections: {}, updatedAt: 0};
-                try {
-                    const stored = JSON.parse(window.localStorage.getItem(getVoiceSectionStorageKey(bookId)));
+                try { const stored = JSON.parse(window.localStorage.getItem(getVoiceSectionStorageKey(bookId)));
                     if (stored?.sections && typeof stored.sections === 'object' && !Array.isArray(stored.sections)) {
                         state.sections = Object.fromEntries(Object.entries(stored.sections)
                             .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
@@ -5324,28 +5323,30 @@
             state.sections = Object.fromEntries(Object.entries(sections)
                 .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
             state.updatedAt = Date.now();
-            try {
-                const storage = window.localStorage;
-                if (storage.getItem('alex-voice-sections-migrated') !== 'true') {
-                    for (let index = storage.length - 1; index >= 0; index--) {
-                        const key = storage.key(index);
-                        if (key?.startsWith('alex-voice-section-collapsed-')) { storage.removeItem(key); }
-                    }
-                    storage.setItem('alex-voice-sections-migrated', 'true');
+            let keys = [];
+            let migrated = false;
+            try { keys = Array.from({length: window.localStorage.length}, (_, index) => window.localStorage.key(index)); migrated = window.localStorage.getItem('alex-voice-sections-migrated') === 'true';
+            } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            if (!migrated) {
+                for (const key of keys) {
+                    if (!key?.startsWith('alex-voice-section-collapsed-')) { continue; }
+                    try { window.localStorage.removeItem(key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
                 }
-                const currentKey = getVoiceSectionStorageKey(bookId);
-                const books = [];
-                for (let index = 0; index < storage.length; index++) {
-                    const key = storage.key(index);
-                    if (!key?.startsWith('alex-voice-sections:') || key === currentKey) { continue; }
-                    let updatedAt = 0;
-                    try { updatedAt = Number(JSON.parse(storage.getItem(key))?.updatedAt) || 0; } catch (error) { }
-                    books.push({key, updatedAt});
-                }
-                books.sort((left, right) => right.updatedAt - left.updatedAt);
-                books.slice(VOICE_SECTION_LIMITS.books - 1).forEach(book => storage.removeItem(book.key));
-                storage.setItem(currentKey, JSON.stringify(state));
-            } catch (error) { console.warn?.('Could not persist voice section state.', error); }
+                try { window.localStorage.setItem('alex-voice-sections-migrated', 'true'); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            const currentKey = getVoiceSectionStorageKey(bookId);
+            const books = [];
+            for (const key of keys) {
+                if (!key?.startsWith('alex-voice-sections:') || key === currentKey) { continue; }
+                let updatedAt = 0;
+                try { updatedAt = Number(JSON.parse(window.localStorage.getItem(key))?.updatedAt) || 0; } catch (error) { }
+                books.push({key, updatedAt});
+            }
+            books.sort((left, right) => right.updatedAt - left.updatedAt);
+            for (const book of books.slice(VOICE_SECTION_LIMITS.books - 1)) {
+                try { window.localStorage.removeItem(book.key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            try { window.localStorage.setItem(currentKey, JSON.stringify(state)); } catch (error) { console.warn?.('Could not persist voice section state.', error); }
         }
 
         function pruneVoiceSectionStates(bookId, voices) {
