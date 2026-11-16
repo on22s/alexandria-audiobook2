@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import sound_design_staging as staging
+from tests.test_support import skip_unless_symlink
 
 
 class SoundRenderStagingTests(unittest.TestCase):
@@ -53,6 +54,7 @@ class SoundRenderStagingTests(unittest.TestCase):
                 (stage / 'candidate').write_bytes(b'123')
         self.assertFalse(stage.exists())
 
+    @skip_unless_symlink
     def test_unsafe_old_stages_refuse_without_touching_target(self):
         outside = self.root / 'source'; outside.write_bytes(b'original')
         directory = self.root / staging.DIRECTORY; directory.mkdir()

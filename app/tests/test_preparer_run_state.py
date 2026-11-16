@@ -11,8 +11,10 @@ import wave
 from unittest.mock import patch
 from types import SimpleNamespace
 
+from tests.test_support import can_symlink
 
 ROOT = Path(__file__).resolve().parents[2]
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 sys.path.insert(0, str(ROOT))
 spec = importlib.util.spec_from_file_location(
     'test_alexandria_preparer_run_state',
@@ -82,10 +84,13 @@ class PreparerRunStateTests(unittest.TestCase):
                 with self.assertRaises(preparer.RunStateError):
                     preparer._load_existing_checkpoint(self.work)
         sample.unlink()
-        sample.symlink_to(self.root / 'outside.wav')
-        self.write_checkpoint(entry)
-        with self.assertRaisesRegex(preparer.RunStateError, 'symlink'):
-            preparer._load_existing_checkpoint(self.work)
+        with self.subTest('symlink'):
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
+            sample.symlink_to(self.root / 'outside.wav')
+            self.write_checkpoint(entry)
+            with self.assertRaisesRegex(preparer.RunStateError, 'symlink'):
+                preparer._load_existing_checkpoint(self.work)
 
     def test_failed_tail_repair_preserves_checkpoint_and_samples_then_retry_recovers(self):
         real_open=open;real_temporary=tempfile.NamedTemporaryFile

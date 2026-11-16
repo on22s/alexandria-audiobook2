@@ -10,7 +10,9 @@ from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
 from routers import dataset_builder
-from tests.test_support import use_private_cpu_fixture_lock
+from tests.test_support import can_symlink, use_private_cpu_fixture_lock
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class DatasetBuilderRegressionTests(unittest.TestCase):
@@ -110,18 +112,26 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
             outside_root = Path(outside)
             outside_sentinel = outside_root / "outside_sentinel.txt"
             outside_sentinel.write_bytes(b"outside must survive")
-            (self.root / "escape_link").symlink_to(outside_root, target_is_directory=True)
-            (self.root / "root_link").symlink_to(self.root, target_is_directory=True)
+            symlink_available = can_symlink()
+            if symlink_available:
+                (self.root / "escape_link").symlink_to(outside_root, target_is_directory=True)
+                (self.root / "root_link").symlink_to(self.root, target_is_directory=True)
             with patch.object(dataset_builder.shutil, "rmtree") as remove:
                 for name in ("", ".", "..", "voice/..", str(self.root), str(outside_root),
                              "escape_link", "root_link"):
-                    with self.subTest(name=name), self.assertRaises(HTTPException) as raised:
-                        asyncio.run(dataset_builder.dataset_builder_delete(name))
-                    self.assertEqual(400, raised.exception.status_code)
+                    with self.subTest(name=name):
+                        if name in ("escape_link", "root_link") and not symlink_available:
+                            self.skipTest(_SYMLINK_SKIP_REASON)
+                        with self.assertRaises(HTTPException) as raised:
+                            asyncio.run(dataset_builder.dataset_builder_delete(name))
+                        self.assertEqual(400, raised.exception.status_code)
                 with TestClient(app) as client:
                     for path in ("%2e", "%2e%2e", "voice%2f..", "escape_link", "root_link"):
-                        response = client.delete("/api/dataset_builder/" + path)
-                        self.assertIn(response.status_code, (400, 404), response.text)
+                        with self.subTest(path=path):
+                            if path in ("escape_link", "root_link") and not symlink_available:
+                                self.skipTest(_SYMLINK_SKIP_REASON)
+                            response = client.delete("/api/dataset_builder/" + path)
+                            self.assertIn(response.status_code, (400, 404), response.text)
                 remove.assert_not_called()
             self.assertEqual(b"outside must survive", outside_sentinel.read_bytes())
         self.assertEqual(b"root must survive", sentinel.read_bytes())
