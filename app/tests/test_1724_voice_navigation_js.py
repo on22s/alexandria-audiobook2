@@ -109,7 +109,9 @@ async function untilSettled(){
  let pending=null;
  while(Date.now()<deadline&&!pending){pending=vm.runInContext('loadVoices.pending',context);if(!pending){await new Promise(r=>setTimeout(r,10));}}
  assert(pending,'activateTab must start an owned loadVoices load');
- await Promise.race([pending,new Promise((_,reject)=>setTimeout(()=>reject(new Error('owned loadVoices did not settle within its bounded deadline')),15000))]);
+ let timer;
+ try{await Promise.race([pending,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('owned loadVoices did not settle within its bounded deadline')),15000);})]);}
+ finally{clearTimeout(timer);}
  assert(vm.runInContext('_voiceSaveSnapshot',context),'voices must finish loading');
  await new Promise(r=>setTimeout(r,20));
 }
@@ -270,6 +272,36 @@ let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must fi
 '''
         result = subprocess.run(['node', '-e', code, str(CORE)],
                                 capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
+class NavigationTimerOwnershipTests(unittest.TestCase):
+    def test_settled_rejected_and_stalled_loads_release_only_the_owned_deadline(self):
+        start = _HARNESS.index('async function untilSettled()')
+        source = _HARNESS[start:_HARNESS.index('let finished=', start)]
+        code = r'''
+const assert=require('assert'),vm=require('vm');
+(async()=>{
+ for(const outcome of ['resolved','rejected','stalled']){
+  const timers=new Map();let sequence=0;
+  const pending=outcome==='resolved'?Promise.resolve():outcome==='rejected'?Promise.reject(Error('load failed')):new Promise(()=>{});
+  const context={vm:{runInContext:expression=>expression==='loadVoices.pending'?pending:true},context:{},assert,Date,Promise,
+   setTimeout(callback,delay){const identifier=++sequence;if(delay===15000){timers.set(identifier,{callback,delay});}else{queueMicrotask(callback);}return identifier;},
+   clearTimeout(identifier){timers.delete(identifier);}};
+  vm.runInNewContext(process.argv[1],context);
+  const completed=context.untilSettled();
+  assert.strictEqual(timers.size,1,'pending load must retain its real deadline');
+  if(outcome==='stalled'){
+   const timer=[...timers.values()][0];assert.strictEqual(timer.delay,15000);timer.callback();
+   await assert.rejects(completed,/owned loadVoices did not settle within its bounded deadline/);
+  }else if(outcome==='rejected'){await assert.rejects(completed,/load failed/);}
+  else{await completed;}
+  assert.strictEqual(timers.size,0,outcome+': fixture must release the owned deadline timer');
+ }
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', code, source], capture_output=True,
+                                text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
