@@ -170,13 +170,15 @@ _HELD_UPLOAD_DETAIL = (
 class ReviewRequest(BaseModel):
     dedupe_speakers: bool = True
     force_review: bool = False
+    start_over: bool = False
+    book_token: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{64}$')
 
-class ContextualReviewRequest(BaseModel):
+class ContextualReviewRequest(ReviewRequest):
     window_size: int = 4
     dedupe_speakers: bool = True
     force_review: bool = False
 
-class BatchReviewRequest(BaseModel):
+class BatchReviewRequest(ReviewRequest):
     script_names: List[str] = Field(max_length=MAX_SCRIPT_BATCH_ITEMS)  # library names without .json
     context_window: int = 0            # >0 enables contextual review
     dedupe_speakers: bool = True       # merge same-character aliases, consistent across the batch
@@ -3429,7 +3431,8 @@ def _with_published_script(callback, *args):
 
 
 def _require_published_script():
-    with ensure_book_state(DATA_DIR):
+    from book_state_transaction import reuse_book_state
+    with reuse_book_state(DATA_DIR):
         _require_published_selection()
         if not os.path.exists(SCRIPT_PATH):
             raise HTTPException(status_code=400, detail="No annotated script found. Generate a script first.")
@@ -3471,12 +3474,58 @@ def _start_review_script(background_tasks, request):
     check_global_gpu_lock("review")
 
     cmd = [sys.executable, "-u", "review_script.py"]
-    cmd += get_review_force_args(request.force_review)
+    cmd += get_review_force_args(request.force_review or request.start_over)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    schedule_claimed_background_task(background_tasks, "review", _run_review_worker, cmd, "review", REVIEW_STARTUP.get())
+    _schedule_review_start(background_tasks, request, cmd)
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
+
+
+def _require_review_restart_book(request):
+    from book_state_transaction import get_book_operation_token
+    if not request.book_token or request.book_token != get_book_operation_token(DATA_DIR):
+        raise AppError(409, (
+            'The book changed or Start over was not confirmed. '
+            'Review the current book and confirm again; saved progress was preserved.'),
+            key='safety.review.restart_book_changed')
+
+
+def discard_review_progress(output_path):
+    """Retire review-owned progress only; never rewrite the current script."""
+    from completed_review_receipt import remove_completed_review_receipt
+    from review_startup import event
+    checkpoint_path = output_path + '.review_checkpoint.json'
+    try:
+        with file_lock(checkpoint_path):
+            remove_generation_shard_checkpoint(checkpoint_path, locked=True)
+            remove_completed_review_receipt(output_path)
+    except (OSError, TimeoutError) as error:
+        event('checkpoint_discard_failed', error=error)
+        raise AppError(409, (
+            'Review progress could not be discarded. The script and edits were kept; '
+            'check the review log before trying Start over again.'),
+            key='error.review.restart_discard_failed') from error
+    event('checkpoint_discarded')
+
+
+def _schedule_review_start(background_tasks, request, command):
+    if not request.start_over:
+        return schedule_claimed_background_task(background_tasks, 'review',
+            _run_review_worker, command, 'review', REVIEW_STARTUP.get())
+    claim_id = None
+    try:
+        with ensure_book_state(DATA_DIR):
+            _require_review_restart_book(request)
+            _require_published_script()
+            claim_id = reserve_background_task('review')
+            discard_review_progress(SCRIPT_PATH)
+            return register_claimed_background_task(background_tasks, 'review', claim_id,
+                _run_review_worker, command, 'review', REVIEW_STARTUP.get())
+    except BaseException:
+        if claim_id is not None:
+            release_gpu_task_claim('review', claim_id, pending_only=True)
+        raise
 
 @router.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
@@ -3506,15 +3555,11 @@ def _start_contextual_review(request, background_tasks):
 
     estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
     cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
-    cmd += get_review_force_args(request.force_review)
+    cmd += get_review_force_args(request.force_review or request.start_over)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    schedule_claimed_background_task(background_tasks, "review",
-        _run_review_worker,
-        cmd,
-        "review", REVIEW_STARTUP.get()
-    )
+    _schedule_review_start(background_tasks, request, cmd)
     return {
         "status": "started",
         "mode": "contextual",
@@ -3837,7 +3882,10 @@ def _start_batch_review(request, background_tasks):
                     should_clear = True
 
             if should_clear:
-                clear_checkpoint(script_path)
+                if request.start_over:
+                    discard_review_progress(script_path)
+                else:
+                    clear_checkpoint(script_path)
 
             cmd = [
                 sys.executable, "-u",
@@ -3847,7 +3895,7 @@ def _start_batch_review(request, background_tasks):
             ]
             if window > 0:
                 cmd += ["--context-window", str(window)]
-            cmd += get_review_force_args(request.force_review, backward=tag == " [bwd]")
+            cmd += get_review_force_args(request.force_review or request.start_over, backward=tag == " [bwd]")
             if dedupe:
                 cmd += ["--dedupe-speakers", "--alias-registry", registry_path]
                 companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
@@ -3971,8 +4019,11 @@ def _start_batch_review(request, background_tasks):
     trace = REVIEW_STARTUP.get()
     def traced_run():
         return trace.call('worker', _run) if trace else _run()
-    schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task,
-                                    "batch_review", traced_run, saved_destinations=destinations)
+    with ensure_book_state(DATA_DIR):
+        if request.start_over:
+            _require_review_restart_book(request)
+        schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task,
+                                        "batch_review", traced_run, saved_destinations=destinations)
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 

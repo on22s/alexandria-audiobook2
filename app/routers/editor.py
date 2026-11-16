@@ -3213,7 +3213,7 @@ def _summarize_review_checkpoint(path: str) -> Optional[dict]:
 async def list_review_checkpoints():
     """List saved review checkpoints (what's done + where a re-run resumes), plus
     the live pass/order if a batch review is currently running."""
-    out = await asyncio.to_thread(_get_review_checkpoint_rows)
+    out, book_token = await asyncio.to_thread(_get_review_checkpoint_snapshot)
 
     # Live pass/order while a bidirectional batch is mid-flight.
     bstate = process_state.get("batch_review", {})
@@ -3228,7 +3228,13 @@ async def list_review_checkpoints():
                 for t in bstate.get("tasks", []) if isinstance(t, dict)
             ],
         }
-    return {"checkpoints": out, "live": live}
+    return {"checkpoints": out, "live": live, "book_token": book_token}
+
+
+def _get_review_checkpoint_snapshot():
+    from book_state_transaction import get_book_operation_token
+    with ensure_book_state(DATA_DIR):
+        return _get_review_checkpoint_rows(), get_book_operation_token(DATA_DIR)
 
 
 def _get_review_checkpoint_rows():
