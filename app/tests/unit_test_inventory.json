@@ -3304,6 +3304,7 @@
   , "test_chunk_refresh_js": [
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_actual_batch_poll_fetches_and_renders_once_without_second_timer"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_batch_completion_uses_starting_book_and_row_uids"
+    , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_book_switch_during_yield_stops_old_row_publication"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_cancel_reconciles_optimistic_rows_without_forcing_redraw_or_losing_controls"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_compact_deltas_keep_existing_rows_and_forced_refresh_gets_full_snapshot"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_duplicate_delta_ids_refuse_before_replacing_cached_rows_and_recover_full"
@@ -3312,6 +3313,7 @@
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_forced_redraw_retains_only_same_chunk_and_audio"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_preserves_uid_owned_drafts_focus_and_expansion"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_full_snapshot_redraws_same_ids_and_status_when_text_changes"
+    , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_large_snapshot_yields_and_preserves_exact_all_row_scope"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_managed_refresh_does_not_paint_prior_book_response_while_new_read_waits"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost"
     , "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_progress_tracks_full_delta_playback_and_empty_snapshots"
@@ -5067,14 +5069,18 @@
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_cast_refresh_clears_suggestions_only_when_selected_cast_changes"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_clone_card_identity_uses_the_library_directory_and_exact_filename"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_custom_voice_options_preserve_a_saved_voice_outside_the_builtin_list"
+    , "tests.test_editor_safety_js.EditorSafetyJsTests.test_delete_admission_waits_for_receipt_and_refresh_before_reindexing"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_drift_start_is_disabled_before_post_and_recovers_on_every_terminal_path"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_drift_toast_does_not_treat_ten_or_hundred_flags_as_zero"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_export_failures_do_not_download_and_explicit_success_does"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_failed_alias_refresh_preserves_edits_and_disarms_save_until_retry"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_failed_batch_start_refreshes_optimistic_rows_but_not_unsaved_edits"
+    , "tests.test_editor_safety_js.EditorSafetyJsTests.test_failed_delete_releases_queue"
+    , "tests.test_editor_safety_js.EditorSafetyJsTests.test_failed_undo_preserves_other_receipts_including_new_deletions"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_individual_personas_share_custom_context_parser"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_old_undo_toast_cannot_restore_latest_deletion"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_partial_alias_rows_block_whole_map_save_but_blank_rows_allow_clear"
+    , "tests.test_editor_safety_js.EditorSafetyJsTests.test_queued_delete_refuses_changed_book_and_missing_uid"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_row_save_includes_speaker_select_and_waits_for_post"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_start_over_does_not_restart_after_stop_status_error"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_suggested_candidates_refresh_cards_and_autosave_metadata_without_losing_edits"
@@ -15842,6 +15848,17 @@
     , "tests.test_ui_batch_a_js.UiBatchAJsTests.test_locale_repaints_retained_capabilities_without_checking_server"
     , "tests.test_ui_batch_a_js.UiBatchAJsTests.test_voicelab_paths_are_expandable_not_readiness_help"
   ]
+  , "test_ui_batch_e": [
+    "tests.test_ui_batch_e.BatchEMarkupTests.test_durable_undo_is_outside_editor_drawer"
+    , "tests.test_ui_batch_e.BatchEMarkupTests.test_editor_yields_between_bounded_batches"
+    , "tests.test_ui_batch_e.BatchEMarkupTests.test_real_field_feedback_preserves_descriptions_and_clears_on_edit"
+    , "tests.test_ui_batch_e.BatchEMarkupTests.test_required_feedback_is_associated_before_work"
+    , "tests.test_ui_batch_e.BatchEMarkupTests.test_voices_have_essential_first_disclosures"
+    , "tests.test_ui_batch_e.BatchEUndoTests.test_book_generation_and_expired_receipts_refuse_without_writing"
+    , "tests.test_ui_batch_e.BatchEUndoTests.test_changed_revision_refuses_restore_without_writing"
+    , "tests.test_ui_batch_e.BatchEUndoTests.test_multiple_deletes_restore_lifo_after_eight_seconds"
+    , "tests.test_ui_batch_e.BatchEUndoTests.test_out_of_order_restore_refuses_then_latest_restores"
+  ]
   , "test_ui_catalog_parity": [
     "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_changed_server_text_is_harvested_without_a_javascript_copy"
     , "tests.test_ui_catalog_parity.CapabilityCatalogHarvestTests.test_incomplete_or_dynamic_server_messages_are_rejected"
@@ -16073,7 +16090,8 @@
     , "tests.test_ui_i18n_training_lab.TrainingLabKeyingTests.test_panes_are_keyed"
   ]
   , "test_ui_i18n_voices_casting": [
-    "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_missing_catalog_key_keeps_its_english"
+    "tests.test_ui_i18n_voices_casting.DeleteUndoLocaleTests.test_undo_count_pluralizes_and_repaints_on_live_locale_changes"
+    , "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_missing_catalog_key_keeps_its_english"
     , "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_a_safety_node_keeps_english_below_each_translation"
     , "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_casting_notes_placeholder_follows_the_locale"
     , "tests.test_ui_i18n_voices_casting.MarkupRenderTests.test_voices_and_casting_nodes_paint_each_locale_and_restore_english"

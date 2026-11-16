@@ -271,6 +271,32 @@
             return translated + '\n' + english;
         }
 
+        function setFieldFeedback(fieldId, message = null) {
+            const field = document.getElementById(fieldId);
+            let error = document.getElementById(fieldId + '-error');
+            if (!message) {
+                field.removeAttribute('aria-invalid');
+                if (error) { error.hidden = true; }
+                return;
+            }
+            if (!error) {
+                error = document.createElement('div');
+                error.id = fieldId + '-error';
+                error.className = 'field-error small mt-1';
+                error.setAttribute('role', 'alert');
+                field.insertAdjacentElement('afterend', error);
+                const described = new Set((field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+                described.add(error.id);
+                field.setAttribute('aria-describedby', [...described].join(' '));
+                field.addEventListener('input', () => setFieldFeedback(fieldId));
+                field.addEventListener('change', () => setFieldFeedback(fieldId));
+            }
+            error.replaceChildren(message);
+            error.hidden = false;
+            field.setAttribute('aria-invalid', 'true');
+            field.focus();
+        }
+
         function showConfirm(message, {title = t('core.confirm.title', 'Confirm action'), actionLabel = t('core.confirm.continue', 'Continue'), danger = false} = {}) {
             const confirmation = confirmQueue.then(() => new Promise((resolve, reject) => {
                 const body = document.getElementById('confirmModalBody');
@@ -2130,11 +2156,14 @@
             const btn = document.getElementById('llm-test-btn');
             const out = document.getElementById('llm-test-result');
             const baseUrl = document.getElementById('llm-url').value.trim();
-            if (!baseUrl) {
-                out.className = 'ms-2 small text-danger';
-                out.innerHTML = '<i class="fas fa-times me-1"></i>Enter a Base URL before testing.';
+            try {
+                const url = new URL(baseUrl);
+                if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) { throw new Error(); }
+            } catch (_) {
+                setFieldFeedback('llm-url', createUiMessageNode('span', 'setup.llm.url-invalid', 'Enter an HTTP or HTTPS URL with a host and no embedded credentials.'));
                 return;
             }
+            setFieldFeedback('llm-url');
             const request = {};
             testLlmConnection.request = request;
             const mode = currentLlmMode;
@@ -5269,6 +5298,13 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('voice.card.alias-of', 'Alias of {alias}', {alias: getEffectiveVoiceAlias(config)}))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? getVoiceLineCountMarkup(window._lineCounts[voice.name]) : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? getVoiceLineCountMarkup(voice.state_line_count, true) : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <div class="form-check form-switch small">
+                                    <input class="form-check-input voice-ready" aria-label="${escapeHtml(t('voice.card.ready-aria', 'Ready for audio generation for {name}', {name: label}))}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
+                                    <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
+                                </div>
+                                <p class="small voice-next-step">${config.ready ? uiMessageMarkup('voices.essential.ready', 'Ready is explicitly selected. Review persona and voice approvals separately.') : uiMessageMarkup('voices.essential.next', 'Next: pick a voice, listen, then mark Ready.')}</p>
+                                <details class="voice-card-advanced workflow-disclosure">
+                                    <summary>${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${uiMessageMarkup('voice.card.regenerate', 'Regenerate persona')}</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${uiMessageMarkup('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -5299,16 +5335,13 @@
                                 ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.voice-changes-aria', 'Load voice changes for {name}', {name: label}))}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>${escapeHtml(voice.traits.states.length === 2 ? t('voice.card.voice-changes.one', 'Voice changes ({count} change)', {count: 1}) : t('voice.card.voice-changes.many', 'Voice changes ({count} changes)', {count: voice.traits.states.length - 1}))}</button><div class="form-text">${uiMessageMarkup('voice.card.voice-changes-help', 'Review which voice is used before and after each change.')}</div><div class="voice-state-rows"></div></div>` : ''}
                                 <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.more-candidates-aria', 'Generate more voice candidates for {name}', {name: label}))}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>${uiMessageMarkup('voice.card.more-candidates', 'Generate more candidates')}</button>
                                 <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates, config.active_candidate)}</div>
-                                <div class="form-check form-switch small">
-                                    <input class="form-check-input voice-ready" aria-label="${escapeHtml(t('voice.card.ready-aria', 'Ready for audio generation for {name}', {name: label}))}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
-                                    <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
-                                </div>
                                 ${voice.version_id ? `<label class="form-label small mt-1">${uiMessageMarkup('voice.card.state-seed', 'State seed')}<input class="form-control form-control-sm voice-seed" type="number" min="-1" max="4294967295" aria-label="${escapeHtml(t('voice.card.seed-aria', 'Seed for {name}', {name: label}))}" value="${escapeHtml(String(config.seed ?? '-1'))}"></label>` : ''}
                                 <div class="form-text small text-muted mt-1">${uiMessageMarkup('voice.card.alias-label', 'Alias of:')}</div>
                                 <select class="form-select form-select-sm alias-select mt-1" data-voice-roster="alias" data-roster-book="${escapeHtml(roster.book)}" ${voice.version_id ? 'disabled' : ''} aria-label="${escapeHtml(t('voice.card.alias-target-aria', 'Alias target for {name}', {name: label}))}">
                                     <option value="" data-i18n="voice.card.alias-none" data-i18n-source="-- None --">${t('voice.card.alias-none', '-- None --')}</option>
                                     ${renderInitialAliasOptions(voice)}
                                 </select>
+                                </details>
                             </div>
                             <div class="col-md-9">
                                 <div class="mb-2">
@@ -6003,7 +6036,7 @@
                     releaseStaleSingleVoiceFenceLocal();
                     return loadVoices.publishedResult;
                 }
-                container.innerHTML = getVoiceSeedRepairMarkup(ownSnapshot) + getStateVoiceCardsMarkup(voices);
+                container.innerHTML = getStateVoiceCardsMarkup(voices) + getVoiceSeedRepairMarkup(ownSnapshot);
                 window.stopOrphanedVoicePreview?.();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;
@@ -7622,6 +7655,11 @@
             if (card) {
                 card.dataset.ready = box.checked ? '1' : '0';
                 card.classList.toggle('border-success', box.checked);
+                const summary = card.querySelector?.('.voice-next-step');
+                if (summary) {
+                    if (box.checked) { setUiMessage(summary, 'voices.essential.ready', 'Ready is explicitly selected. Review persona and voice approvals separately.'); }
+                    else { setUiMessage(summary, 'voices.essential.next', 'Next: pick a voice, listen, then mark Ready.'); }
+                }
             }
             renderReadyCount();
             onToggleHideReady();
@@ -8490,120 +8528,154 @@
                     }
                 });
             } else {
-                const editorFields = [
-                    ['.chunk-text', 'text'], ['.chunk-instruct', 'instruct'],
-                    ['.chunk-pause-after', 'pause_after'], ['select', 'speaker']
-                ];
-                const drafts = new Map();
-                if (chunkSnapshotBook === refreshBook) {
-                    const previous = new Map(cachedChunks.map(chunk => [String(chunk.id), chunk]));
-                    for (const row of tbody.querySelectorAll?.('.chunk-row') || []) {
-                        const chunk = previous.get(row.dataset.id);
-                        if (!chunk?.uid) { continue; }
-                        const controls = editorFields.map(([selector, key]) => {
-                            const field = row.querySelector(selector);
-                            if (!field) { return null; }
-                            return {selector, value: field.value,
-                                dirty: getEditorFieldValue(key, field.value, String(chunk[key] ?? '')) !== String(chunk[key] ?? ''),
-                                focused: field === document.activeElement,
-                                selectionStart: field.selectionStart, selectionEnd: field.selectionEnd,
-                                selectionDirection: field.selectionDirection};
-                        }).filter(Boolean);
-                        drafts.set(chunk.uid, {expanded: row.classList.contains('expanded'), controls});
-                    }
-                }
-                // Keep an unchanged audition when rebuilding the surrounding rows.
-                const playingAudio = Array.from(document.querySelectorAll('#chunks-table-body .chunk-audio'))
-                    .find(audio => !audio.paused && !audio.ended);
-                const playingChunk = playingAudio
-                    ? cachedChunks.find(chunk => String(chunk.id) === playingAudio.dataset.id) : null;
-                const retainedChunk = refreshBook === currentBookFilename && playingChunk?.uid && chunks.find(chunk => chunk.uid === playingChunk.uid
-                    && chunk.audio_path && getChunkAudioIdentity(chunk) === getChunkAudioIdentity(playingChunk));
-                const playbackTime = playingAudio?.currentTime;
-                // Full redraw needed
-                tbody.innerHTML = chunks.map(chunk => {
-                    const statusColor = chunk.status === 'done' ? 'success' :
-                                      chunk.status === 'generating' ? 'warning' :
-                                      chunk.status === 'error' ? 'danger' : 'secondary';
-
-                    const audioPlayer = chunk.audio_path ?
-                        `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
-                        `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`;
-
-                    const actionArea = chunk.status === 'generating' ?
-                        `<div class="progress" style="width: 100px; height: 20px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
-                         </div>` :
-                        `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
-
-                    return `
-                        <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
-                            <td class="text-center align-middle" style="white-space:nowrap;">
-                                <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
-                            </td>
-                            <td>${buildSpeakerSelect(chunk)}</td>
-                            <td><label class="visually-hidden" for="chunk-text-${chunk.id}">${escapeHtml(t('core.editor.text-line', 'Text for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-text-${chunk.id}" class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
-                            <td>
-                                <label class="visually-hidden" for="chunk-instruct-${chunk.id}">${escapeHtml(t('core.editor.delivery-line', 'Delivery instruction for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-instruct-${chunk.id}" class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="${escapeHtml(t('core.editor.delivery-title', 'Delivery instruction (3-8 words)'))}">${escapeHtml(chunk.instruct || '')}</textarea>
-                                <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
-                                    <small class="text-muted text-nowrap">${escapeHtml(t('core.editor.pause-after', 'Pause after (ms):'))}</small>
-                                    <label class="visually-hidden" for="chunk-pause-after-${chunk.id}">${escapeHtml(t('core.editor.pause-line', 'Pause after line {line} (milliseconds)', {line: chunk.id + 1}))}</label>
-                                    <input id="chunk-pause-after-${chunk.id}" type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="${escapeHtml(t('core.editor.pause-default', 'default'))}" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="${escapeHtml(t('core.editor.suggest-gap-title', 'Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.'))}">${escapeHtml(t('core.editor.suggest-gap', 'Suggest gap'))}</button>
-                                </div>
-                            </td>
-                            <td data-phone-label="${escapeHtml(t('editor.table.status', 'Status'))}"><span class="badge bg-${statusColor} chunk-status-label" data-status="${escapeHtml(chunk.status)}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
-                            <td data-phone-label="${escapeHtml(t('editor.table.audio-actions', 'Audio / Actions'))}">
-                                <div class="chunk-actions d-flex align-items-center gap-2">
-                                    ${actionArea}
-                                    ${audioPlayer}
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-                for (const chunk of chunks) {
-                    const draft = drafts.get(chunk.uid);
-                    const row = draft && tbody.querySelector(`tr[data-id="${chunk.id}"]`);
-                    if (!row) { continue; }
-                    for (const saved of draft.controls) {
-                        const field = row.querySelector(saved.selector);
-                        if (!field) { continue; }
-                        if (saved.dirty) {
-                            if (saved.selector === 'select' && !Array.from(field.options).some(option => option.value === saved.value)) {
-                                const option = document.createElement('option');
-                                option.value = saved.value;
-                                option.textContent = saved.value + ' (custom)';
-                                field.appendChild(option);
-                            }
-                            field.value = saved.value;
-                        }
-                        if (saved.focused) {
-                            field.focus({preventScroll: true});
-                            if (typeof saved.selectionStart === 'number' && field.setSelectionRange) {
-                                field.setSelectionRange(saved.selectionStart, saved.selectionEnd, saved.selectionDirection);
-                            }
+                const renderBatchSize = 20;
+                const yieldRender = async () => {
+                    if (globalThis.scheduler?.yield) { await globalThis.scheduler.yield(); }
+                    else { await new Promise(resolve => setTimeout(resolve, 0)); }
+                };
+                const activeField = document.activeElement;
+                tbody.setAttribute('aria-busy', 'true');
+                tbody.inert = true;
+                try {
+                    const editorFields = [
+                        ['.chunk-text', 'text'], ['.chunk-instruct', 'instruct'],
+                        ['.chunk-pause-after', 'pause_after'], ['select', 'speaker']
+                    ];
+                    const drafts = new Map();
+                    if (chunkSnapshotBook === refreshBook) {
+                        const previous = new Map(cachedChunks.map(chunk => [String(chunk.id), chunk]));
+                        const previousRows = Array.from(tbody.querySelectorAll?.('.chunk-row') || []);
+                        for (const [rowIndex, row] of previousRows.entries()) {
+                            if (rowIndex && rowIndex % renderBatchSize === 0) { await yieldRender(); }
+                            const chunk = previous.get(row.dataset.id);
+                            if (!chunk?.uid) { continue; }
+                            const controls = editorFields.map(([selector, key]) => {
+                                const field = row.querySelector(selector);
+                                if (!field) { return null; }
+                                return {selector, value: field.value,
+                                    dirty: getEditorFieldValue(key, field.value, String(chunk[key] ?? '')) !== String(chunk[key] ?? ''),
+                                    focused: field === activeField,
+                                    selectionStart: field.selectionStart, selectionEnd: field.selectionEnd,
+                                    selectionDirection: field.selectionDirection};
+                            }).filter(control => control && (control.dirty || control.focused));
+                            const expanded = row.classList.contains('expanded');
+                            if (expanded || controls.length) { drafts.set(chunk.uid, {expanded, controls}); }
                         }
                     }
-                    if (draft.expanded) { window.toggleChunkExpand(row.querySelector('.chunk-toggle-btn')); }
-                }
-                if (retainedChunk) {
-                    const replacement = tbody.querySelector(`audio.chunk-audio[data-id="${retainedChunk.id}"]`);
-                    if (replacement) {
-                        playingAudio.dataset.id = String(retainedChunk.id);
-                        playingAudio.setAttribute('onplay', `stopOthers(${retainedChunk.id})`);
-                        playingAudio.addEventListener('loadedmetadata', () => {
-                            if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { return; }
-                            playingAudio.currentTime = playbackTime;
-                            void playingAudio.play().then(() => {
-                                if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { playingAudio.pause(); }
-                            }).catch(() => {
-                                showToast('The editor refreshed, but playback could not resume. Press Play on the chunk to continue listening.', 'warning');
-                            });
-                        }, {once: true});
-                        replacement.replaceWith(playingAudio);
-                        playingAudio.load();
+                    // Keep an unchanged audition when rebuilding the surrounding rows.
+                    const playingAudio = Array.from(document.querySelectorAll('#chunks-table-body .chunk-audio'))
+                        .find(audio => !audio.paused && !audio.ended);
+                    const playingChunk = playingAudio
+                        ? cachedChunks.find(chunk => String(chunk.id) === playingAudio.dataset.id) : null;
+                    const retainedChunk = refreshBook === currentBookFilename && playingChunk?.uid && chunks.find(chunk => chunk.uid === playingChunk.uid
+                        && chunk.audio_path && getChunkAudioIdentity(chunk) === getChunkAudioIdentity(playingChunk));
+                    const playbackTime = playingAudio?.currentTime;
+                    // Full redraw needed
+                    const renderChunk = chunk => {
+                        const statusColor = chunk.status === 'done' ? 'success' :
+                                          chunk.status === 'generating' ? 'warning' :
+                                          chunk.status === 'error' ? 'danger' : 'secondary';
+
+                        const audioPlayer = chunk.audio_path ?
+                            `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
+                            `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`;
+
+                        const actionArea = chunk.status === 'generating' ?
+                            `<div class="progress" style="width: 100px; height: 20px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
+                             </div>` :
+                            `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
+
+                        return `
+                            <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
+                                <td class="text-center align-middle" style="white-space:nowrap;">
+                                    <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
+                                </td>
+                                <td>${buildSpeakerSelect(chunk)}</td>
+                                <td><label class="visually-hidden" for="chunk-text-${chunk.id}">${escapeHtml(t('core.editor.text-line', 'Text for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-text-${chunk.id}" class="form-control form-control-sm chunk-text" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${escapeHtml(chunk.text)}</textarea></td>
+                                <td>
+                                    <label class="visually-hidden" for="chunk-instruct-${chunk.id}">${escapeHtml(t('core.editor.delivery-line', 'Delivery instruction for line {line}', {line: chunk.id + 1}))}</label><textarea id="chunk-instruct-${chunk.id}" class="form-control form-control-sm chunk-instruct" rows="2" onchange="updateChunk(${chunk.id}, 'instruct', this.value)" title="${escapeHtml(t('core.editor.delivery-title', 'Delivery instruction (3-8 words)'))}">${escapeHtml(chunk.instruct || '')}</textarea>
+                                    <div class="chunk-pause-row d-none mt-1 align-items-center gap-1">
+                                        <small class="text-muted text-nowrap">${escapeHtml(t('core.editor.pause-after', 'Pause after (ms):'))}</small>
+                                        <label class="visually-hidden" for="chunk-pause-after-${chunk.id}">${escapeHtml(t('core.editor.pause-line', 'Pause after line {line} (milliseconds)', {line: chunk.id + 1}))}</label>
+                                        <input id="chunk-pause-after-${chunk.id}" type="number" class="form-control form-control-sm chunk-pause-after" style="width:80px;" value="${chunk.pause_after ?? ''}" placeholder="${escapeHtml(t('core.editor.pause-default', 'default'))}" min="0"${typeof maxPauseMs !== 'undefined' && maxPauseMs != null ? ` max="${maxPauseMs}"` : ''} step="50" onchange="updateChunk(${chunk.id}, 'pause_after', this.value === '' ? null : parseInt(this.value))">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="${escapeHtml(t('core.editor.suggest-gap-title', 'Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.'))}">${escapeHtml(t('core.editor.suggest-gap', 'Suggest gap'))}</button>
+                                    </div>
+                                </td>
+                                <td data-phone-label="${escapeHtml(t('editor.table.status', 'Status'))}"><span class="badge bg-${statusColor} chunk-status-label" data-status="${escapeHtml(chunk.status)}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
+                                <td data-phone-label="${escapeHtml(t('editor.table.audio-actions', 'Audio / Actions'))}">
+                                    <div class="chunk-actions d-flex align-items-center gap-2">
+                                        ${actionArea}
+                                        ${audioPlayer}
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    };
+                    if (refreshBook !== currentBookFilename || chunkSnapshotBookToken !== snapshot.book_token) { return cachedChunks; }
+                    cachedChunks = chunks;
+                    chunkSnapshotBook = refreshBook;
+                    chunkSnapshotRevision = snapshot.revision;
+                    const previousRows = Array.from(tbody.children);
+                    if (previousRows.length > renderBatchSize) {
+                        for (const [rowIndex, row] of previousRows.entries()) {
+                            row.remove();
+                            if ((rowIndex + 1) % renderBatchSize === 0) { await yieldRender(); }
+                        }
+                    } else { tbody.innerHTML = ''; }
+                    for (let offset = 0; offset < chunks.length; offset += renderBatchSize) {
+                        if (refreshBook !== currentBookFilename || chunkSnapshotBookToken !== snapshot.book_token) { return cachedChunks; }
+                        tbody.insertAdjacentHTML('beforeend', chunks.slice(offset, offset + renderBatchSize).map(renderChunk).join(''));
+                        if (offset + renderBatchSize < chunks.length) { await yieldRender(); }
                     }
+                    if (refreshBook !== currentBookFilename || chunkSnapshotBookToken !== snapshot.book_token) { return cachedChunks; }
+                    tbody.inert = false;
+                    for (const chunk of chunks) {
+                        const draft = drafts.get(chunk.uid);
+                        const row = draft && tbody.querySelector(`tr[data-id="${chunk.id}"]`);
+                        if (!row) { continue; }
+                        for (const saved of draft.controls) {
+                            const field = row.querySelector(saved.selector);
+                            if (!field) { continue; }
+                            if (saved.dirty) {
+                                if (saved.selector === 'select' && !Array.from(field.options).some(option => option.value === saved.value)) {
+                                    const option = document.createElement('option');
+                                    option.value = saved.value;
+                                    option.textContent = saved.value + ' (custom)';
+                                    field.appendChild(option);
+                                }
+                                field.value = saved.value;
+                            }
+                            if (saved.focused) {
+                                field.focus({preventScroll: true});
+                                if (typeof saved.selectionStart === 'number' && field.setSelectionRange) {
+                                    field.setSelectionRange(saved.selectionStart, saved.selectionEnd, saved.selectionDirection);
+                                }
+                            }
+                        }
+                        if (draft.expanded) { window.toggleChunkExpand(row.querySelector('.chunk-toggle-btn')); }
+                    }
+                    if (retainedChunk) {
+                        const replacement = tbody.querySelector(`audio.chunk-audio[data-id="${retainedChunk.id}"]`);
+                        if (replacement) {
+                            playingAudio.dataset.id = String(retainedChunk.id);
+                            playingAudio.setAttribute('onplay', `stopOthers(${retainedChunk.id})`);
+                            playingAudio.addEventListener('loadedmetadata', () => {
+                                if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { return; }
+                                playingAudio.currentTime = playbackTime;
+                                void playingAudio.play().then(() => {
+                                    if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { playingAudio.pause(); }
+                                }).catch(() => {
+                                    showToast('The editor refreshed, but playback could not resume. Press Play on the chunk to continue listening.', 'warning');
+                                });
+                            }, {once: true});
+                            replacement.replaceWith(playingAudio);
+                            playingAudio.load();
+                        }
+                    }
+                } finally {
+                    tbody.inert = false;
+                    tbody.setAttribute('aria-busy', 'false');
                 }
             }
 
@@ -8654,6 +8726,9 @@
             const book = currentBookFilename;
             const token = chunkSnapshotBookToken;
             const uid = cachedChunks.find(chunk => chunk.id === id)?.uid;
+            if (document.getElementById('chunks-table-body')?.getAttribute?.('aria-busy') === 'true') {
+                throw new Error(t('editor.loading-wait', 'Wait for the Editor to finish loading before changing a line.'));
+            }
             if (!token || !uid || chunkSnapshotBook !== book) {
                 throw new Error('Reload the Editor before changing this row.');
             }
@@ -8705,64 +8780,98 @@
         };
 
         let _lastDeleted = null;
-        let _undoTimer = null;
+        const _deletedChunks = [];
+        function renderDeleteUndo() {
+            const button = document.getElementById('editor-undo-delete');
+            const deleted = _deletedChunks.at(-1);
+            _lastDeleted = deleted || null;
+            if (!button) { return; }
+            button.hidden = !deleted;
+            if (deleted) {
+                const count = _deletedChunks.length;
+                if (pluralForm(count) === 'one') {
+                    setUiMessage(button, 'editor.delete.undo-count-one', 'Undo last deletion ({count} deletion available)', {count});
+                } else {
+                    setUiMessage(button, 'editor.delete.undo-count-many', 'Undo last deletion ({count} deletions available)', {count});
+                }
+            }
+        }
         let _undoToastSequence = 0;
+        let _deleteChunkQueue = Promise.resolve();
 
         window.deleteChunk = async (id) => {
             try {
                 const context = captureChunkMutation(id);
-                const res = await fetch(`/api/chunks/${id}?${context.query}`, { method: 'DELETE' });
-                await API._handleError(res);
-                const data = await res.json();
-                if (!context.isCurrent()) { return; }
+                const uid = cachedChunks.find(chunk => chunk.id === id).uid;
+                const previous = _deleteChunkQueue;
+                let release;
+                _deleteChunkQueue = new Promise(resolve => { release = resolve; });
+                try {
+                    await previous;
+                    if (!context.isCurrent()) { return; }
+                    const currentId = cachedChunks.find(chunk => chunk.uid === uid)?.id;
+                    const request = captureChunkMutation(currentId);
+                    const res = await fetch(`/api/chunks/${currentId}?${request.query}`, { method: 'DELETE' });
+                    await API._handleError(res);
+                    const data = await res.json();
+                    if (!context.isCurrent()) { return; }
 
-                // Store for undo
-                const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
-                _lastDeleted = { chunk: data.deleted, at_index: id, undo_token: data.undo_token, toastId };
-                clearTimeout(_undoTimer);
+                    // Store for undo
+                    const toastId = 'toast-undo-' + Date.now() + '-' + (++_undoToastSequence);
+                    _deletedChunks.push({ chunk: data.deleted, at_index: currentId, undo_token: data.undo_token, toastId, book: currentBookFilename, bookToken: chunkSnapshotBookToken });
+                    if (_deletedChunks.length > 128) { _deletedChunks.shift(); }
+                    renderDeleteUndo();
 
-                // Show toast with undo action
-                const container = document.getElementById('toast-container');
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = `
-                    <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
-                        <div class="d-flex">
-                            <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
-                                <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
+                    // Show toast with undo action
+                    const container = document.getElementById('toast-container');
+                    const wrapper = document.createElement('div');
+                    wrapper.innerHTML = `
+                        <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
+                            <div class="d-flex">
+                                <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
+                                    <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
+                                </div>
+                                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(t('core.toast.dismiss', 'Dismiss notification'))}"></button>
                             </div>
-                            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
-                        </div>
-                    </div>`;
-                const el = wrapper.firstElementChild;
-                setUiMessage(el.querySelector('.deleted-line-summary'), 'editor.delete.summary', 'Line deleted ({speaker}: "{text}...")', {speaker: data.deleted.speaker, text: (data.deleted.text || '').substring(0, 40)});
-                setUiMessage(el.querySelector('a'), 'editor.delete.undo', 'Undo');
-                el.querySelector('a').addEventListener('click', (event) => {
-                    event.preventDefault();
-                    undoDeleteChunk(toastId);
-                });
-                container.appendChild(el);
-                const toast = new bootstrap.Toast(el, { delay: 8000 });
-                toast.show();
-                el.addEventListener('hidden.bs.toast', () => { el.remove(); });
+                        </div>`;
+                    const el = wrapper.firstElementChild;
+                    setUiMessage(el.querySelector('.deleted-line-summary'), 'editor.delete.summary', 'Line deleted ({speaker}: "{text}...")', {speaker: data.deleted.speaker, text: (data.deleted.text || '').substring(0, 40)});
+                    setUiMessage(el.querySelector('a'), 'editor.delete.undo', 'Undo');
+                    el.querySelector('a').addEventListener('click', (event) => {
+                        event.preventDefault();
+                        undoDeleteChunk(toastId);
+                    });
+                    container.appendChild(el);
+                    const toast = new bootstrap.Toast(el, { delay: 8000 });
+                    toast.show();
+                    el.addEventListener('hidden.bs.toast', () => { el.remove(); });
 
-                // Clear undo data after timeout
-                _undoTimer = setTimeout(() => { _lastDeleted = null; }, 8000);
-
-                await loadChunks(true);
+                    await loadChunks(true);
+                } finally {
+                    release();
+                }
             } catch (e) {
                 showActionError("Failed to delete line", e, "Refresh the Editor and check whether the line was removed before deleting again. Use Undo if the completed deletion is still offered.", "error");
             }
         };
 
-        window.undoDeleteChunk = async (toastId) => {
+        window.undoDeleteChunk = async (toastId = _lastDeleted?.toastId) => {
             if (!_lastDeleted || _lastDeleted.toastId !== toastId) {
-                showToast('Nothing to undo', 'warning');
+                showToast(t('editor.delete.nothing', 'Nothing to undo'), 'warning');
                 return;
             }
 
             const deleted = _lastDeleted;
+            if (deleted.book !== currentBookFilename || deleted.bookToken !== chunkSnapshotBookToken) {
+                _deletedChunks.length = 0;
+                renderDeleteUndo();
+                showToast(t('editor.delete.stale', 'Undo is unavailable because the book changed. Refresh the Editor.'), 'warning');
+                return;
+            }
+            _deletedChunks.pop();
             _lastDeleted = null;
-            clearTimeout(_undoTimer);
+            const button = document.getElementById('editor-undo-delete');
+            if (button) { button.disabled = true; }
             try {
                 await API.post('/api/chunks/restore', {
                     chunk: deleted.chunk,
@@ -8777,14 +8886,13 @@
                     if (toast) { toast.hide(); }
                 }
 
-                if (_lastDeleted === deleted) {
-                    _lastDeleted = null;
-                    clearTimeout(_undoTimer);
-                }
-                showToast('Line restored', 'success');
+                showToast(t('editor.delete.restored', 'Line restored'), 'success');
                 await loadChunks(true);
             } catch (e) {
                 showActionError("Undo failed", e, "Refresh the Editor and check whether the deleted line was restored before using Undo again.", "error");
+            } finally {
+                if (button) { button.disabled = false; }
+                renderDeleteUndo();
             }
         };
 

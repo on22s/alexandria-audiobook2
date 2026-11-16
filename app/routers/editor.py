@@ -665,6 +665,7 @@ def _get_editor_quality_sync(expected_book_token):
                     voice_config=voices)}
 
 
+_DELETED_CHUNK_UNDO_TTL_SECONDS = 1800
 _deleted_chunk_receipts = {}
 
 
@@ -673,7 +674,7 @@ def _get_undo_take_rows():
     book = get_editor_book_identity(os.path.dirname(SCRIPT_PATH))
     now = time.monotonic()
     return [receipt['chunk'] for receipt in _deleted_chunk_receipts.values()
-            if receipt['book'] == book and now - receipt['created'] <= 60]
+            if receipt['book'] == book and now - receipt['created'] <= _DELETED_CHUNK_UNDO_TTL_SECONDS]
 
 
 
@@ -770,18 +771,24 @@ def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root, timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
+        before_revision = get_snapshot_digest(project_manager.load_chunks())
         result = project_manager.delete_chunk(index)
         if result is None:
             return None
         deleted, chunks = result
         now = time.monotonic()
         for token, receipt in list(_deleted_chunk_receipts.items()):
-            if now - receipt['created'] > 60:
+            if now - receipt['created'] > _DELETED_CHUNK_UNDO_TTL_SECONDS:
                 del _deleted_chunk_receipts[token]
         while len(_deleted_chunk_receipts) >= 128:
             del _deleted_chunk_receipts[next(iter(_deleted_chunk_receipts))]
+        identity = get_editor_book_identity(root)
+        revision = get_snapshot_digest(chunks)
+        for receipt in _deleted_chunk_receipts.values():
+            if receipt['book'] == identity and receipt.get('revision') == before_revision:
+                receipt['revision'] = revision
         token = uuid.uuid4().hex
-        _deleted_chunk_receipts[token] = {'created': now, 'book': get_editor_book_identity(root),
+        _deleted_chunk_receipts[token] = {'created': now, 'book': identity, 'revision': revision,
             'chunk': copy.deepcopy(deleted), 'index': index}
         return deleted, chunks, token
 
@@ -790,13 +797,22 @@ def apply_chunk_restore(request):
     root = os.path.dirname(SCRIPT_PATH)
     with ensure_book_state(root, timeout=0.25):
         receipt = _deleted_chunk_receipts.get(request.undo_token)
-        if (receipt is None or time.monotonic() - receipt['created'] > 60
+        revision = get_snapshot_digest(project_manager.load_chunks())
+        latest = next((token for token in reversed(_deleted_chunk_receipts)
+            if _deleted_chunk_receipts[token]['book'] == get_editor_book_identity(root)
+            and _deleted_chunk_receipts[token].get('revision') == revision), None)
+        if (receipt is None or time.monotonic() - receipt['created'] > _DELETED_CHUNK_UNDO_TTL_SECONDS
+                or request.undo_token != latest or receipt.get('revision') != revision
                 or receipt['book'] != get_editor_book_identity(root)
                 or request.chunk != receipt['chunk'] or request.at_index != receipt['index']):
             raise HTTPException(status_code=409, detail='Undo expired or belongs to another book or deletion; refresh the Editor')
         chunks = project_manager.restore_chunk(receipt['index'], copy.deepcopy(receipt['chunk']))
         if chunks is not None:
             del _deleted_chunk_receipts[request.undo_token]
+            restored_revision = get_snapshot_digest(chunks)
+            for previous in _deleted_chunk_receipts.values():
+                if previous['book'] == receipt['book'] and previous.get('revision') == revision:
+                    previous['revision'] = restored_revision
         return chunks
 
 

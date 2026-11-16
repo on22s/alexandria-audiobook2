@@ -546,6 +546,10 @@
         html[data-theme="super-night"] { --card-elevation: 0 2px 10px rgba(255,255,255,.035); }
         html[data-theme="bread"] { --card-elevation: 0 3px 12px rgba(91,48,64,.10); }
         html[data-theme="leek"] { --card-elevation: 0 3px 12px rgba(0,25,28,.25); }
+        .field-error { color: var(--text-primary); border-left: 4px solid var(--accent); padding-left: .6rem; }
+        [aria-invalid="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+        #chunks-table-body .chunk-row { content-visibility: auto; contain-intrinsic-size: auto 90px; }
+        #chunks-table-body[aria-busy="true"] { pointer-events: none; }
         #chunks-table-body tr[data-render-state] > td:first-child { border-left: 4px solid var(--border-color); }
         #chunks-table-body tr[data-render-state="rendered"] > td:first-child { border-left-color: #198754; }
         #chunks-table-body tr[data-render-state="pending"] > td:first-child { border-left-color: var(--text-muted); }
@@ -2698,6 +2702,10 @@
                 <div class="card-body">
                     <p data-i18n="voices.intro">Voices are detected from the generated script. Changes are saved automatically.</p>
                     <div id="voice-save-drafts" aria-live="polite"></div>
+                    <p class="small" id="voice-essential-help" data-i18n="voices.essential.help">Pick a voice, listen to a sample, then explicitly mark Ready. Persona and voice approvals remain separate; Ready does not approve either.</p>
+                    <div id="voices-list"></div>
+                    <details id="voices-advanced" class="workflow-disclosure mb-3">
+                    <summary data-i18n="voices.advanced.title">Advanced: narrator, personas, suggestions and book-wide voice</summary>
                     <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                         <div class="input-group input-group-sm" style="width: 240px;">
                             <label class="input-group-text" for="narrator-strategy" data-i18n="voices.narrator.label">Narrator selection</label>
@@ -2805,7 +2813,7 @@
                             <button class="btn btn-outline-primary" type="button" onclick="previewSingleVoiceBook()" data-i18n="voices.single.review">Review book-wide voice</button>
                         </div>
                     </section>
-                    <div id="voices-list"></div>
+                    </details>
                 </div>
             </div>
 
@@ -3770,6 +3778,10 @@
                      <div id="text-diff-panel" class="card mb-3" style="display:none;"></div>
                      <div id="delivery-review-panel" class="alert alert-warning mb-3" style="display:none;"></div>
                      <div id="editor-drawer-scrim" class="editor-drawer-scrim" hidden aria-hidden="true" onclick="toggleEditorTools(false)"></div>
+                     <div class="mb-2">
+                         <button type="button" class="btn btn-outline-secondary" id="editor-undo-delete" hidden onclick="undoDeleteChunk()" aria-describedby="editor-undo-help" data-help-key="undoDeleteChunk" data-i18n="editor.delete.undo">Undo</button>
+                         <p class="form-text" id="editor-undo-help" data-i18n="editor.delete.undo-help">Undo recent deletions in reverse order for up to 30 minutes. Other edits, renders or book changes can invalidate recovery. The server refuses changed revisions.</p>
+                     </div>
                      <section id="editor-tool-drawer" class="editor-drawer" hidden role="dialog" tabindex="-1" aria-modal="true" aria-label="Editor tools" data-i18n-attr="aria-label:editor.tools.aria">
                          <div class="editor-drawer-header">
                              <div class="editor-drawer-tabs" role="group">

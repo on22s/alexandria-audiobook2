@@ -108,7 +108,7 @@ process.on('beforeExit',()=>assert(done,'report failure checks must complete'));
 const s=fs.readFileSync(process.argv[1],'utf8');let messages=[],posts=[],refreshes=0,done=false;
 let failure=new TypeError('Failed to fetch');
 const c={window:{},showToast:(...a)=>messages.push(a),API:{post:async(p,b)=>{posts.push(p);if(failure){throw failure;}}},
-loadChunks:async()=>refreshes++, URLSearchParams, currentBookFilename:"book-a", chunkSnapshotBook:"book-a",
+document:{getElementById:()=>null}, loadChunks:async()=>refreshes++, URLSearchParams, currentBookFilename:"book-a", chunkSnapshotBook:"book-a",
 chunkSnapshotBookToken:"book-token-a", cachedChunks:[{id:7,uid:"row-7"}]};vm.createContext(c);Object.assign(c,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});
 vm.runInContext(s.slice(s.indexOf("function captureChunkMutation("),s.indexOf("window.insertChunkAfter =")),c);
 vm.runInContext(s.slice(s.indexOf('function showActionError('),s.indexOf('function showConfirm(')),c);
@@ -156,7 +156,7 @@ process.on('beforeExit',()=>assert(done,'export admission checks must complete')
         base = Path(__file__).resolve().parent.parent / 'static/js'
         code = r'''const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const core=fs.readFileSync(process.argv[1],'utf8'),s=fs.readFileSync(process.argv[2],'utf8');
-const fields={'design-description':{value:'Warm 日本語 voice'},'design-sample-text':{value:'Hello café.'},
+const fields={'design-description':{removeAttribute(name){delete this[name];},value:'Warm 日本語 voice'},'design-sample-text':{removeAttribute(name){delete this[name];},value:'Hello café.'},
 'design-status':{},'design-preview-container':{style:{}},'btn-design-preview':{disabled:false}};
 let failure=new TypeError('Failed to fetch'),done=false;
 const c={window:{},document:{getElementById:id=>fields[id]},

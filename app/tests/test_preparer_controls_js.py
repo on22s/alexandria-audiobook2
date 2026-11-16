@@ -16,7 +16,7 @@ context.document.createElement=()=>({innerHTML:'',textContent:'',firstElementChi
 context.createAudioChannelPicker=()=>({getSelection:()=>({channel:'mix',token:null}),dispose(){}});
 elements['prep-batch-queue-body']={innerHTML:'',appendChild(){}};
 elements['preparer-logs']={style:{},innerText:'',scrollTop:0,clientHeight:0,appendChild(node){this.innerText+=node.textContent;},scrollHeight:0};
-elements['prep-audio-file']={files:[new File(['single bytes'],'single.wav')]};
+elements['prep-audio-file']={files:[new File(['single bytes'],'single.wav')],removeAttribute(name){delete this[name];}};
 elements['prep-source-file']={files:[]};
 elements['prep-batch-files']={files:[new File(['batch bytes'],'batch.wav')]};
 elements['prep-batch-mode']={checked:false};

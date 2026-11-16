@@ -4,7 +4,7 @@ import asyncio
 import copy
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from fastapi import HTTPException
 import core
@@ -91,7 +91,9 @@ class GpuClaimRouteTests(unittest.TestCase):
         project.update_chunk.return_value = {"instruct": "neutral"}
         project.insert_chunk.return_value = [{}]
         project.restore_chunk.return_value = [{}]
-        project.delete_chunk.return_value = ({}, [{}])
+        snapshot = [{"id": 0, "uid": "row", "speaker": "Synthetic", "text": "Placeholder line."}]
+        project.load_chunks.return_value = snapshot
+        project.delete_chunk.return_value = (snapshot[0], [])
         with patch.object(core, "process_state", state), \
              patch.object(core, "llm_is_on_this_gpu", return_value=True), \
              patch.object(editor, "process_state", state), \
@@ -112,7 +114,13 @@ class GpuClaimRouteTests(unittest.TestCase):
             state["audio"]["running"] = False
             for operation in operations:
                 asyncio.run(operation())
-            self.assertEqual(4, len(project.mock_calls))
+            self.assertEqual([
+                call.update_chunk(0, {"text": "new"}),
+                call.insert_chunk(0),
+                call.restore_chunk(0, {}),
+                call.load_chunks(),
+                call.delete_chunk(0),
+            ], project.mock_calls)
 
     @use_private_cpu_fixture_lock()
     def test_suggestion_and_optimize_refuse_a_conflicting_gpu_task(self):

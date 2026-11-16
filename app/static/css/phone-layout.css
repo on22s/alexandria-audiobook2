@@ -25,6 +25,7 @@
     .form-switch .form-check-input { margin-top: .25rem; }
     .d-flex > *, .input-group > *, .tab-content, .card, .card-body { min-width: 0; }
     .input-group { flex-wrap: wrap; }
+    #voices-advanced .input-group-text { white-space: normal; overflow-wrap: anywhere; }
     .input-group > .btn { flex-shrink: 1; }
     .navbar-brand { white-space: normal; max-width: calc(100% - 4.5rem); }
     .navbar-brand .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }

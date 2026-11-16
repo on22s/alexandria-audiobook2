@@ -31,6 +31,7 @@ function renderUiLocaleChrome() {
     if (typeof applyTtsCapabilityGuidance === 'function') { applyTtsCapabilityGuidance(); }
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
     if (typeof renderFollowupLocaleChrome === 'function') { renderFollowupLocaleChrome(); }
+    if (typeof renderDeleteUndo === 'function') { renderDeleteUndo(); }
 }
 
 function applyUiLocaleAndSearchStatus(locale) {

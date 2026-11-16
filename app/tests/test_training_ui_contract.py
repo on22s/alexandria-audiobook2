@@ -11,8 +11,8 @@ SETUP = r"""
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const source=fs.readFileSync(process.argv[1],'utf8'),core=fs.readFileSync(process.argv[2],'utf8');
 const elements={},toasts=[];
-function element(id){return elements[id]||(elements[id]={value:'',innerHTML:'',style:{},classList:{add(){},remove(){},replace(){}}});}
-const ctx={window:null,document:{getElementById:element},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,confirm:()=>true,console,Date:{now:()=>1700000000000}};ctx.window=ctx;
+function element(id){return elements[id]||(elements[id]={value:'',innerHTML:'',style:{},removeAttribute(name){delete this[name];},classList:{add(){},remove(){},replace(){}}});}
+const ctx={URL,window:null,document:{getElementById:element},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,confirm:()=>true,console,Date:{now:()=>1700000000000}};ctx.window=ctx;
 vm.createContext(ctx);Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),getIntlUiLocale:()=> 'en'});vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);
 const a=core.indexOf('const API = {'),b=core.indexOf('// --- Setup Tab ---',a);vm.runInContext(core.slice(a,b),ctx);
 const c=core.indexOf('function escapeHtml('),d=core.indexOf('// Parse a numeric input',c);vm.runInContext(core.slice(c,d),ctx);

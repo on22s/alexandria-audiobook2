@@ -11,6 +11,7 @@ const fields={},timers=new Map(),errors=[],updates=[];let timerId=0,draws=0,play
 const element=id=>fields[id]||(fields[id]={value:'',style:{},children:[],attributes:{},setAttribute(name,value){this.attributes[name]=String(value);},getAttribute(name){return this.attributes[name]??null;},removeAttribute(name){delete this.attributes[name];}});
 const body=element('chunks-table-body');let html='';
 Object.defineProperty(body,'innerHTML',{get:()=>html,set:value=>{html=value;draws++;body.children=[...value.matchAll(/<tr data-id="(\d+)"/g)].map(match=>({dataset:{id:match[1],uid:(value.slice(match.index).match(/data-uid="([^"]*)"/)||[])[1],bookToken:(value.slice(match.index).match(/data-book-token="([^"]*)"/)||[])[1]},children:[{},{},{},{},{},{}]}));if(!body.children.length){body.children=[{children:[{}]}];}}});
+body.insertAdjacentHTML=(position,value)=>{assert.equal(position,'beforeend');body.innerHTML=html+value;};
 const ctx={URLSearchParams,window:null,currentBookFilename:'A',console:{log:()=>{},error:(...args)=>errors.push(args)},document:{getElementById:element,querySelector:()=>null,querySelectorAll:()=>[]},API:{},Date,
  setTimeout:(callback,delay)=>{const id=++timerId;timers.set(id,{callback,delay});return id;},clearTimeout:id=>timers.delete(id),
  refreshEditorIntegrity:async()=>{},refreshRuntimeEstimate:async()=>{},invalidateEditorIntegrity:()=>{},isAudioPlaying:()=>playing,buildSpeakerSelect:chunk=>chunk.speaker||'',_driftBadge:()=>'',_driftKey:drift=>JSON.stringify(drift),updateChunkRow:chunk=>updates.push(chunk.id)};ctx.window=ctx;
@@ -38,6 +39,27 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
 
 
 class ChunkRefreshJsTests(unittest.TestCase):
+    def test_large_snapshot_yields_and_preserves_exact_all_row_scope(self):
+        self.run_js(r'''
+const batches=[];ctx.scheduler={yield:async()=>{assert.strictEqual(body.inert,true);assert.strictEqual(body.getAttribute('aria-busy'),'true');batches.push(ids().length);await turn();}};
+ctx.API.get=async()=>Array.from({length:100},(_,index)=>chunk(index));
+await ctx.ensureChunkRefresh(true);
+assert.deepStrictEqual(ids(),Array.from({length:100},(_,index)=>String(index)));
+assert.deepStrictEqual(batches,[20,40,60,80]);
+assert.strictEqual(run('cachedChunks.length'),100);
+assert.strictEqual(body.getAttribute('aria-busy'),'false');assert.strictEqual(body.inert,false);
+''')
+
+    def test_book_switch_during_yield_stops_old_row_publication(self):
+        self.run_js(r'''
+ctx.scheduler={yield:async()=>{ctx.currentBookFilename='B';await turn();}};
+ctx.API.get=async()=>Array.from({length:100},(_,index)=>chunk(index));
+await ctx.ensureChunkRefresh(true);
+assert.strictEqual(ids().length,20);
+assert.strictEqual(body.getAttribute('aria-busy'),'false');assert.strictEqual(body.inert,false);
+assert.notStrictEqual(run('chunkSnapshotBook'),ctx.currentBookFilename);
+''')
+
     def test_progress_value_text_does_not_depend_on_layout_text_readback(self):
         self.run_js(r'''
 const progress=element('full-progress-bar');let written='';
@@ -233,7 +255,7 @@ const document={body:{},activeElement:null,getElementById:id=>id==='chunks-table
 function classes(){const values=new Set();return{contains:k=>values.has(k),add:k=>values.add(k),remove:k=>values.delete(k),toggle(k){if(values.has(k)){values.delete(k);return false;}values.add(k);return true;}};}
 function control(value){return{value:String(value),options:[{value:'Narrator'}],appendChild(option){this.options.push(option);},style:{},scrollHeight:100,selectionStart:1,selectionEnd:4,selectionDirection:'forward',focus(){document.activeElement=this;},setSelectionRange(a,b,d){this.selectionStart=a;this.selectionEnd=b;this.selectionDirection=d;}};}
 let rows=[],markup='',data;
-const tbody={get children(){return rows;},querySelectorAll:()=>rows,querySelector:selector=>rows.find(row=>selector.includes('"'+row.dataset.id+'"'))};
+const tbody={setAttribute(name,value){this[name]=value;},insertAdjacentHTML(position,value){assert.equal(position,'beforeend');this.innerHTML=markup+value;},get children(){return rows;},querySelectorAll:()=>rows,querySelector:selector=>rows.find(row=>selector.includes('"'+row.dataset.id+'"'))};
 Object.defineProperty(tbody,'innerHTML',{get:()=>markup,set(value){markup=value;document.activeElement=document.body;rows=[];
 for(const m of value.matchAll(/<tr data-id="(\d+)"[\s\S]*?<\/tr>/g)){
  const html=m[0],fields={'.chunk-text':control(html.match(/<textarea[^>]*class="[^"]*chunk-text[^"]*"[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-instruct':control(html.match(/<textarea[^>]*class="[^"]*chunk-instruct[^"]*"[^>]*>([\s\S]*?)<\/textarea>/)[1]),'.chunk-pause-after':control(html.match(/chunk-pause-after[^>]*value="([^"]*)"/)[1]),'select':control('Narrator')};
