@@ -1050,10 +1050,10 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T17:58:08",
+  "written": "2026-11-15T18:16:16",
   "host": "RealMitch",
   "git": {
-   "commit": "1913bcc148f0ce1392efa917ba2824125d6644a8",
+   "commit": "2e067b4ceae7533f4f2ce1e729323695273ec483",
    "branch": "feat/logging-deferred-gaps",
    "dirty": false,
    "source_state": "clean",
