@@ -30,6 +30,9 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    '(active script)', 'review-batch-mode',
+    'btn-review-fresh', 'btn-review-contextual-fresh', 'btn-review-batch-fresh',
+    'btn-review-script', 'btn-review-script-contextual', 'btn-review-batch-start',
     'data-i18n-values', 'data-i18n-source', 'aria-label',
     'use strict', '(max-width: 575px)', 'editor-review-details', 'editor-quality-panel', 'editor-phone-status',
     '(prefers-reduced-motion: reduce)',

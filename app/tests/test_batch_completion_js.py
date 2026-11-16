@@ -55,8 +55,10 @@ audio={running:true};snapshot=[chunk(1,'pending')];const data=await poll.fetch()
         setup = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const fields={},recovery=[],notifications=[];let poll;
+const refreshReviewRestart=()=>{};
 const el=id=>fields[id]||(fields[id]={style:{},disabled:true,innerHTML:''});
 const ctx={document:{getElementById:el},API:{},createTaskLogRenderer:()=>()=>{},_startPolling:(key,fetch,options)=>{assert.strictEqual(key,'batch_review');poll=options;},_showTaskRecoveryPanel:(...args)=>recovery.push(args),notifyJobDone:task=>notifications.push(task)};
+ctx.refreshReviewRestart=refreshReviewRestart;
 vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en',escapeHtml:value=>String(value)});const begin=source.includes('function getBatchOutcome(')?source.indexOf('function getBatchOutcome('):source.indexOf('function pollReviewBatch()');
 vm.runInContext(source.slice(begin,source.indexOf('// --- Persona Generation ---',begin)),ctx);
 '''
