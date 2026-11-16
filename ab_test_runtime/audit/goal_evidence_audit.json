@@ -1050,19 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T18:16:26",
+  "written": "2026-11-15T18:16:50",
   "host": "RealMitch",
   "git": {
-   "commit": "730caac5b9340c0c85635ae7bb469a14067f9644",
+   "commit": "3bf76c3a420499f4251c70bc680dc8ecc4fcad4f",
    "branch": "fix/windows-preexisting-failures",
-   "dirty": true,
-   "source_state": "dirty:f5e3d01174a0",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    " M GOALS.md",
-    "M  app/tests/test_support.py",
-    "M  app/tests/test_voicelab_path_policy.py"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
