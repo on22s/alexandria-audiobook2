@@ -242,26 +242,47 @@ def _normalize_with_offsets(value):
     return "".join(characters), offsets
 
 
+class SourceSpanError(ValueError):
+    def __init__(self, reason_code, *, fragment_number=None, entry_number=None):
+        self.reason_code = reason_code
+        self.fragment_number = fragment_number
+        self.entry_number = entry_number
+        super().__init__(f'Source span verification failed: reason={reason_code}; '
+                         f'entry={entry_number}; fragment={fragment_number}')
+
+
 def get_source_span_fragments(source_text, original_text, source_span, fragments):
     """Map an ordered partition within one established raw-source interval."""
-    if (not isinstance(source_text, str) or not isinstance(source_span, (list, tuple))
+    if not isinstance(source_text, str):
+        raise SourceSpanError('source_unavailable', fragment_number=1)
+    if (not isinstance(source_span, (list, tuple))
             or len(source_span) != 2 or any(type(offset) is not int for offset in source_span)):
-        raise ValueError('Source span requires verified text and character offsets')
+        raise SourceSpanError('invalid_span', fragment_number=1)
     start, end = source_span
     if not 0 <= start < end <= len(source_text):
-        raise ValueError('Source span is outside the verified text')
+        raise SourceSpanError('span_out_of_bounds', fragment_number=1)
     normalized, offsets = _normalize_with_offsets(source_text[start:end])
     needles = [_normalize(fragment) for fragment in fragments]
-    if (not normalized or normalized != _normalize(original_text)
-            or not needles or not all(needles) or ' '.join(needles) != normalized):
-        raise ValueError('Source fragments do not partition the original interval')
+    if not normalized or normalized != _normalize(original_text):
+        raise SourceSpanError('source_text_mismatch', fragment_number=1)
+    cursor = 0
+    for number, needle in enumerate(needles, 1):
+        if not needle or not normalized.startswith(needle, cursor):
+            raise SourceSpanError('fragment_partition_mismatch', fragment_number=number)
+        cursor += len(needle)
+        if number < len(needles):
+            if normalized[cursor:cursor + 1] != ' ':
+                raise SourceSpanError('fragment_partition_mismatch', fragment_number=number)
+            cursor += 1
+    if not needles or cursor != len(normalized):
+        raise SourceSpanError('fragment_partition_mismatch', fragment_number=len(needles) or 1)
     spans, cursor, previous_end = [], 0, start
-    for needle in needles:
+    for number, needle in enumerate(needles, 1):
         left = start + offsets[cursor]
         right = start + offsets[cursor + len(needle) - 1] + 1
         if (not start <= left < right <= end or left < previous_end
                 or _normalize(source_text[left:right]) != needle):
-            raise ValueError('Source fragment offsets could not be verified')
+            raise SourceSpanError('fragment_offsets_unverified', fragment_number=number)
         spans.append([left, right])
         previous_end = right
         cursor += len(needle) + 1
