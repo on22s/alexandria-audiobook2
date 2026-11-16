@@ -37,4 +37,5 @@ for(const failure of [false,true]){
 }
 const run=ctx.voicelabInspect('/actual/run');const a=requests.at(-1);el('vl-zips_dir').value='unrelated form';a.resolve(result(3));await run;assert.match(el('vl-inspect').innerHTML,/3 narrator folders/);assert.strictEqual(a.url,'/api/voicelab/inspect?zips_dir=%2Factual%2Frun');
 const current=ctx.voicelabInspect();requests.at(-1).reject(Error('<current unavailable>'));await current;assert.match(el('vl-inspect').innerHTML,/inspection failed/);assert(!el('vl-inspect').innerHTML.includes('<current unavailable>'));assert.match(el('voicelab-diagnostics-text').textContent,/<current unavailable>/);
+assert.match(el('vl-inspect').innerHTML,/<div class="alert alert-warning mb-0">/);assert(!el('vl-inspect').innerHTML.includes('text-danger'));
 ''')

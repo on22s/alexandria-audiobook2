@@ -143,7 +143,7 @@
             } catch (e) {
                 if (!isCurrent()) { return; }
                 renderVoicelabFailureDetails('inspect', describeApiError(e));
-                el.innerHTML = `<span class="text-danger">${escapeHtml(t('voicelab.inspect.failed-short', 'Voice Lab inspection failed. Check the ZIP directory and configured interpreter, then inspect again. Expand Failure details for the technical reason.'))}</span>`;
+                el.innerHTML = `<div class="alert alert-warning mb-0">${escapeHtml(t('voicelab.inspect.failed-short', 'Voice Lab inspection failed. Check the ZIP directory and configured interpreter, then inspect again. Expand Failure details for the technical reason.'))}</div>`;
             }
         };
 

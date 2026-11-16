@@ -72,7 +72,9 @@ const status=document.getElementById('chunk-load-status');
 assert.match(status.innerHTML,/no published script/);assert.match(status.innerHTML,/previous book files were preserved/);
 assert(!status.innerHTML.includes('<unsafe>'));assert.match(status.innerHTML,/Open Script/);assert(!status.innerHTML.includes('Retry chunks'));
 assert.match(status.innerHTML,/\/api\/logs\/diagnostics\?download=true/);assert.match(status.innerHTML,/Review.*sharing/);assert.match(status.innerHTML,/support report/);
+assert.match(status.innerHTML,/<div class="alert alert-warning mb-2">/);assert(!status.innerHTML.includes('text-warning'));
 error=Object.assign(Error('HTTP 503'),{status:503});await context.loadChunks(true);assert.match(status.innerHTML,/Retry chunks/);
+assert.match(status.innerHTML,/<div class="alert alert-warning mb-2">/);assert(!status.innerHTML.includes('text-warning'));
 assert(!status.innerHTML.includes('no published script'));
 error=TypeError('Failed to fetch');await context.loadChunks(true);assert.match(status.innerHTML,/Retry chunks/);
 assert.equal(table.children[0],row);
@@ -135,7 +137,7 @@ run('let castListRequest=0,castListLoaded=false,castListMutationPending=false;')
 let snapshot='[]';context.getCastListEditorSnapshot=()=>snapshot;
 context.API={get:async()=>{throw Object.assign(Error('No input file selected'),{status:400,messageKey:'error.generation.no_input'});}};
 run(section('app-core.js','async function loadCastList(show)','window.addCastListRow'));
-await context.loadCastList(false);assert.match(status.textContent,/No book selected/);assert(!status.textContent.includes('rows were kept'));
+await context.loadCastList(false);assert.match(status.textContent,/No book selected/);assert.match(status.textContent,/Choose a source above/);assert(!status.textContent.includes('rows were kept'));
 snapshot='[["Mira",""]]';await context.loadCastList(false);assert.match(status.textContent,/rows were kept/);
 ''')
 

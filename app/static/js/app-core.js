@@ -4224,7 +4224,7 @@
                 if (request !== castListRequest || book !== currentBookFilename) { return; }
                 if (!book && !window._selectedUploadIdentity && editorSnapshot === '[]'
                         && e.status === 400 && e.messageKey === 'error.generation.no_input') {
-                    document.getElementById('cast-list-status').textContent = t('script.cast_list.empty', 'No book selected. Choose a source in Script to begin.');
+                    document.getElementById('cast-list-status').textContent = t('script.cast_list.empty', 'No book selected. Choose a source above to begin.');
                     return;
                 }
                 document.getElementById('cast-list-status').textContent = getActionErrorMessage(
@@ -8159,7 +8159,7 @@
                 }
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
-                    status.innerHTML = `<span class="text-warning">${escapeHtml(message)}</span> `
+                    status.innerHTML = `<div class="alert alert-warning mb-2">${escapeHtml(message)}</div> `
                         + (refused
                             ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="openScriptWorkspace" onclick="activateTab('script')">${escapeHtml(t('home.workspace.open-script', 'Open Script'))}</button>`
                             : `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`)
