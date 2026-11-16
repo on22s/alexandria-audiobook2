@@ -7,8 +7,9 @@ Keep BLOCKED_MODULES aligned with .github/workflows/tests.yml.
 """
 
 import sys
-import json
-from pathlib import Path
+import time
+
+from utils import atomic_json_write
 
 # CI now installs every ML import required for CPU structural checks.
 BLOCKED_MODULES = ()
@@ -80,38 +81,89 @@ def main(argv=None):
         receipt_path = argv[position + 1]
         del argv[position:position + 2]
     test_ids = []
+    result_holder = [None]
+    completed = 0
+    active_test = None
+    clock = time.monotonic
+    started = clock()
+    last_published = 0.0
+
+    def publish(*, complete=False, status=None, force=False):
+        nonlocal last_published
+        if receipt_path is None or (not force and clock() - last_published < 5):
+            return
+        result = result_holder[0]
+        successful = result is not None and result.wasSuccessful()
+        payload = {
+            'schema_version': 1,
+            'shard': shard,
+            'status': status or ('passed' if complete and successful and result.testsRun
+                                 and not result.skipped else 'failed' if complete else 'running'),
+            'complete': complete,
+            'tests_ran': result.testsRun if result else 0,
+            'tests_completed': completed,
+            'test_ids': test_ids,
+            'failures': len(result.failures) if result else 0,
+            'errors': len(result.errors) if result else 0,
+            'skips': len(result.skipped) if result else 0,
+            'expected_failures': len(result.expectedFailures) if result else 0,
+            'unexpected_successes': len(result.unexpectedSuccesses) if result else 0,
+            'failure_ids': [test.id() for test, _ in result.failures] if result else [],
+            'error_ids': [test.id() for test, _ in result.errors] if result else [],
+            'active_test': active_test,
+            'duration_seconds': round(clock() - started, 3),
+        }
+        atomic_json_write(payload, str(receipt_path), allow_nonatomic_fallback=False)
+        last_published = clock()
 
     class RecordedResult(unittest.TextTestResult):
+        def __init__(self, *arguments, **kwargs):
+            super().__init__(*arguments, **kwargs)
+            result_holder[0] = self
+
         def startTest(self, test):
+            nonlocal active_test
             test_ids.append(test.id())
             super().startTest(test)
+            active_test = test.id()
+            publish(force=len(test_ids) == 1)
+
+        def stopTest(self, test):
+            nonlocal completed, active_test
+            super().stopTest(test)
+            completed += 1
+            active_test = None
+            publish()
 
     class RecordedRunner(unittest.TextTestRunner):
         def __init__(self, **kwargs):
             super().__init__(resultclass=RecordedResult, **kwargs)
     argv, shard = pop_shard_option(argv)
-    block_ml_imports()
-    if shard is None:
-        runner = unittest.main(module=None, argv=["python -m ci_env"] + argv,
-                               testRunner=RecordedRunner, exit=False)
-    else:
-        from unit_test_sharding import get_module_durations, get_sharded_suite, parse_shard_spec
-        try:
-            index, count = parse_shard_spec(shard)
-            durations = get_module_durations()
-        except ValueError as error:
-            raise SystemExit(f"ci_env: {error}") from error
+    publish(force=True)
+    try:
+        block_ml_imports()
+        if shard is None:
+            runner = unittest.main(module=None, argv=["python -m ci_env"] + argv,
+                                   testRunner=RecordedRunner, exit=False)
+        else:
+            from unit_test_sharding import get_module_durations, get_sharded_suite, parse_shard_spec
+            try:
+                index, count = parse_shard_spec(shard)
+                durations = get_module_durations()
+            except ValueError as error:
+                raise SystemExit(f"ci_env: {error}") from error
 
-        class ShardedProgram(unittest.TestProgram):
-            def runTests(self):
-                # self.test is the full discovered suite; keep this shard's modules.
-                self.test = get_sharded_suite(self.test, index, count, durations)
-                super().runTests()
+            class ShardedProgram(unittest.TestProgram):
+                def runTests(self):
+                    self.test = get_sharded_suite(self.test, index, count, durations)
+                    super().runTests()
 
-        runner = ShardedProgram(module=None, argv=["python -m ci_env"] + argv,
-                                testRunner=RecordedRunner, exit=False)
-    if receipt_path is not None:
-        Path(receipt_path).write_text(json.dumps({"test_ids": test_ids}), encoding="utf-8")
+            runner = ShardedProgram(module=None, argv=["python -m ci_env"] + argv,
+                                    testRunner=RecordedRunner, exit=False)
+    except BaseException as error:
+        publish(status='interrupted' if isinstance(error, KeyboardInterrupt) else 'crashed', force=True)
+        raise
+    publish(complete=True, force=True)
     return 0 if runner.result.wasSuccessful() else 1
 
 
