@@ -1,11 +1,11 @@
 name: qwen read-aloud
 on:
-  merge_group:
   pull_request:
     paths:
       - 'app/**'
       - 'alexandria_alignment/**'
       - '.github/workflows/qwen-readalong.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:

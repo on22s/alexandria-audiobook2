@@ -1,12 +1,12 @@
 name: listening lab
 
 on:
-  merge_group:
   pull_request:
     paths:
       - 'tools/listening_lab/**'
       - '.github/workflows/listening-lab.yml'
       - '.gitattributes'
+  merge_group:
 
 permissions:
   contents: read

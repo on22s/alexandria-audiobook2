@@ -54,9 +54,17 @@ def _provenance_error(value):
     return False
 
 
-def _same_except_write_time(existing, document):
-    """Retain a verified origin while the body and current harness agree."""
+def _audit_bodies_match(existing, document):
+    """Compare the indexed data independently of its recorded provenance."""
     if not isinstance(existing, dict) or not isinstance(document, dict):
+        return False
+    return ({key: value for key, value in existing.items() if key != "provenance"}
+            == {key: value for key, value in document.items() if key != "provenance"})
+
+
+def _same_except_write_time(existing, document):
+    """Retain only a clean, proven origin with equivalent data and harness."""
+    if not _audit_bodies_match(existing, document):
         return False
     old = existing.get("provenance")
     new = document.get("provenance")
@@ -64,12 +72,11 @@ def _same_except_write_time(existing, document):
         return False
     if _provenance_error(old) or _provenance_error(new):
         return False
-    old_body = {k: v for k, v in existing.items() if k != "provenance"}
-    new_body = {k: v for k, v in document.items() if k != "provenance"}
-    if old_body != new_body:
-        return False
     old_git, new_git = old.get("git"), new.get("git")
     if not isinstance(old_git, dict) or not isinstance(new_git, dict):
+        return False
+    if old_git.get("dirty") is not False or not isinstance(
+            old_git.get("harness_commit_proof"), dict):
         return False
     identity = ("harness_sha256", "harness_sha256_scheme")
     if any(old_git.get(key) != new_git.get(key) for key in identity):
@@ -201,9 +208,7 @@ def main():
                 f"goal evidence audit stored provenance is provenance-{status}: "
                 f"{detail}; regenerate it")
         # Provenance describes the regeneration, not the indexed data.
-        current.pop("provenance", None)
-        document.pop("provenance", None)
-        if current != document:
+        if not _audit_bodies_match(current, document):
             raise SystemExit("goal evidence audit is stale; regenerate it")
         print(f"goal evidence audit is current ({len(rows)} goals)")
         return 0

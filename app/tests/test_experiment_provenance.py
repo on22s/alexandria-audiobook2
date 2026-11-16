@@ -210,6 +210,52 @@ class ReproducibleHarnessTests(unittest.TestCase):
             self.assertEqual(before, self.goal_audit_path(clone).read_bytes())
             self.run_goal_audit(clone, check=True)
 
+    def test_dirty_origin_is_upgraded_before_squash_into_main_only_clone(self):
+        self.prepare_goal_audit()
+        subprocess.run(['git', 'checkout', '-q', '-b', 'feature'], cwd=self.repo, check=True)
+        recorded = self.commit('FEATURE = 1\n')
+        (self.harness / 'probe.py').write_text('FEATURE = 2\n', encoding='utf-8')
+        self.goal_audit_path().unlink()
+        self.run_goal_audit()
+        dirty = json.loads(self.goal_audit_path().read_text(encoding='utf-8'))
+        self.assertIs(dirty['provenance']['git']['dirty'], True)
+        self.assertEqual(recorded, dirty['provenance']['git']['commit'])
+        self.assertNotIn('harness_commit_proof', dirty['provenance']['git'])
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'dirty origin'], cwd=self.repo, check=True)
+        self.run_goal_audit()
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'clean regeneration'],
+                       cwd=self.repo, check=True)
+        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'merge', '--squash', 'feature'], cwd=self.repo,
+                       capture_output=True, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'squash'], cwd=self.repo, check=True)
+        with tempfile.TemporaryDirectory(dir=_temp_root()) as temporary:
+            clone = Path(temporary) / 'main-only'
+            subprocess.run(['git', 'clone', '-q', '--no-local', '--single-branch', '--branch', 'main',
+                            str(self.repo), str(clone)], check=True)
+            self.assertNotEqual(0, subprocess.run(['git', 'cat-file', '-e', recorded + '^{commit}'],
+                                                 cwd=clone, capture_output=True).returncode)
+            self.run_goal_audit(clone, check=True)
+            clean = json.loads(self.goal_audit_path(clone).read_text(encoding='utf-8'))
+            self.assertIs(clean['provenance']['git']['dirty'], False)
+            self.assertIn('harness_commit_proof', clean['provenance']['git'])
+            before = self.goal_audit_path(clone).read_bytes()
+            self.run_goal_audit(clone)
+            self.assertEqual(before, self.goal_audit_path(clone).read_bytes())
+
+    def test_clean_origin_without_commit_proof_is_upgraded(self):
+        document = self.prepare_goal_audit()
+        del document['provenance']['git']['harness_commit_proof']
+        self.goal_audit_path().write_text(json.dumps(document), encoding='utf-8')
+        self.run_goal_audit(check=True)
+        self.run_goal_audit()
+        upgraded = json.loads(self.goal_audit_path().read_text(encoding='utf-8'))
+        self.assertIs(upgraded['provenance']['git']['dirty'], False)
+        self.assertIn('harness_commit_proof', upgraded['provenance']['git'])
+        self.run_goal_audit(check=True)
+
     def test_goal_body_change_regenerates_and_stale_body_still_fails(self):
         self.prepare_goal_audit()
         before = self.goal_audit_path().read_bytes()
@@ -222,6 +268,12 @@ class ReproducibleHarnessTests(unittest.TestCase):
         self.run_goal_audit(check=True)
 
     def test_unrelated_test_and_app_branches_merge_without_driver_or_hooks(self):
+        self.assert_unrelated_branch_merges(same_module=False)
+
+    def test_separated_same_module_test_additions_merge_in_both_orders(self):
+        self.assert_unrelated_branch_merges(same_module=True)
+
+    def assert_unrelated_branch_merges(self, *, same_module):
         root = Path(__file__).resolve().parents[2]
         self.prepare_goal_audit()
         directory = self.repo / 'app/tests'
@@ -234,6 +286,11 @@ class ReproducibleHarnessTests(unittest.TestCase):
             (directory / f'test_{name}.py').write_text(
                 'import unittest\nclass Fixture(unittest.TestCase):\n'
                 '    def test_base(self): self.assertTrue(True)\n', encoding='utf-8')
+        if same_module:
+            (directory / 'test_middle.py').write_text(
+                'import unittest\nclass Fixture(unittest.TestCase):\n' + ''.join(
+                    f'    def test_{number:02d}_base(self):\n        self.assertTrue(True)\n'
+                    for number in range(0, 100, 10)), encoding='utf-8')
         (self.repo / '.gitattributes').write_text(
             'ab_test_runtime/audit/*.json merge=ours\napp/tests/unit_test_inventory.json merge=ours\n',
             encoding='utf-8')
@@ -264,6 +321,14 @@ class ReproducibleHarnessTests(unittest.TestCase):
             (self.repo / 'app' / f'{name}.py').write_text('VALUE = 2\n', encoding='utf-8')
             with (directory / f'test_{name}.py').open('a', encoding='utf-8') as handle:
                 handle.write('    def test_added(self): self.assertEqual(2, 1 + 1)\n')
+            if same_module:
+                shared = directory / 'test_middle.py'
+                number = 20 if name == 'alpha' else 80
+                source = shared.read_text(encoding='utf-8')
+                shared.write_text(source.replace(
+                    f'    def test_{number:02d}_base',
+                    f'    def test_{number:02d}_added(self):\n        self.assertTrue(True)\n'
+                    f'    def test_{number:02d}_base'), encoding='utf-8')
             inventory()
             self.run_goal_audit()
             self.assertEqual(audit_bytes, self.goal_audit_path().read_bytes())
@@ -272,16 +337,17 @@ class ReproducibleHarnessTests(unittest.TestCase):
         self.assertNotEqual(0, subprocess.run(['git', 'config', '--get', 'merge.ours.driver'],
                                              cwd=self.repo, capture_output=True).returncode)
         for squash in (False, True):
-            with self.subTest(squash=squash):
-                git('checkout', '-q', '-B', 'queue', base)
-                for name in ('alpha', 'zulu'):
-                    git('merge', *(['--squash'] if squash else ['--no-ff', '--no-edit']), name)
-                    if squash:
-                        git('commit', '-q', '-m', 'squash ' + name)
-                self.assertEqual('', git('diff', '--name-only', '--diff-filter=U'))
-                self.assertEqual(audit_bytes, self.goal_audit_path().read_bytes())
-                inventory(check=True)
-                self.run_goal_audit(check=True)
+            for order in (('alpha', 'zulu'), ('zulu', 'alpha')):
+                with self.subTest(squash=squash, order=order):
+                    git('checkout', '-q', '-f', '-B', 'queue', base)
+                    for name in order:
+                        git('merge', *(['--squash'] if squash else ['--no-ff', '--no-edit']), name)
+                        if squash:
+                            git('commit', '-q', '-m', 'squash ' + name)
+                    self.assertEqual('', git('diff', '--name-only', '--diff-filter=U'))
+                    self.assertEqual(audit_bytes, self.goal_audit_path().read_bytes())
+                    inventory(check=True)
+                    self.run_goal_audit(check=True)
 
     def commit_proof(self, commit):
         def read(object_type, revision):

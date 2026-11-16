@@ -1,6 +1,5 @@
 name: reports checkJs
 on:
-  merge_group:
   pull_request:
     paths:
       - 'app/static/js/app-reports.js'
@@ -11,6 +10,7 @@ on:
       - 'app/tests/test_benchmark_shared_polling_js.py'
       - 'tools/typecheck/**'
       - '.github/workflows/reports-checkjs.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:

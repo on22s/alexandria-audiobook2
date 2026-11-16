@@ -26,7 +26,7 @@ Inventory changes in this sample were real test IDs, not ordering or metadata.
 The inventory has no global count or hash to remove. Its writer bypassed the
 formatting function and used generic indented JSON. Adding a last entry could
 also rewrite a preceding closing delimiter. The new representation keeps one
-sorted module-to-sorted-test-list entry per line, through the same atomic
+sorted test ID per line within sorted module keys, through the same atomic
 writer. Readers, discovery, exclusions and set comparison remain unchanged.
 Totals continue to be derived by the shard/report checkers at check time.
 
@@ -46,11 +46,15 @@ catalog keys or test IDs that actually change can still require resolution.
 
 ## Preservation contract
 
-An existing goal audit is retained only if its body and harness identity agree
+An existing goal audit is retained only if it is clean and carries a verified
+commit-tree proof, and its body and harness identity agree
 with regeneration and the shared verifier verifies both stored and newly
 captured provenance with `require_current=True`. This reuses #1971's
 commit-bound tree proof and #1973's current-harness and clean-diagnostic checks.
-No change is made to the `--check` acceptance path or shared verifier. A stale
+Generation and `--check` share one body-equivalence function; the check's
+acceptance criteria and shared verifier are unchanged. Dirty or proofless
+origins are rewritten so a later clean regeneration upgrades them before a
+squash-only clone loses their feature commit. A stale
 body, changed harness, malformed proof or contradictory clean diagnostics must
 still fail verification. Historical host, argument paths and timestamps
 describe the retained origin, not a newly fabricated run.
@@ -58,8 +62,10 @@ describe the retained origin, not a newly fabricated run.
 The local `.gitattributes` merge=ours scheme, hook installer, post-merge,
 post-rewrite and conflict-refusing resolver remain in place. Server-side
 merges have no local driver or hooks; the proof explicitly exercises that
-case. Independent module changes merge textually; concurrent edits to the
-same serialized module, neighboring insertions, actual evidence changes, or
+case. Inventory keys and IDs are sorted, with one test ID per line. Valid JSON
+uses leading comma separators so appending a test or module does not rewrite
+the former last entry. Well-separated additions within the same module merge
+in both orders. Adjacent insertions, actual evidence changes, or
 two harness-changing PRs are not promised conflict-free. Open PRs based on the
 old serialization need one update across this format migration.
 
@@ -114,11 +120,16 @@ regressions. Fixtures contain synthetic source/goals/results only.
 
 - Two branches from one synthetic Git base each add a test to a separate
   existing module and an application change. Real updater/audit CLIs run on
-  both before commit. Both ordinary merges and squash merges, with no driver
+  both before commit, including well-separated additions to the same module.
+  Both orders of ordinary merges and squash merges, with no driver
   or hooks configured, retain the original audit and pass both --check CLIs.
 - A single-branch, no-local clone of squashed main proves the original branch
   commit is absent, then regenerates after an unrelated dirty app edit without
   changing the audit. The unchanged --check accepts the commit-tree proof.
+- A genuinely dirty feature-origin audit is committed and regenerated from a
+  clean feature tree, then squash-merged and checked in a main-only clone that
+  cannot resolve the recorded feature commit. Clean proofless legacy records
+  likewise upgrade during regeneration without changing check acceptance.
 - A body/goals change regenerates, while stale body and changed-harness
   controls still reject. The contradictory-clean regression deletes the
   existing audit before generating a deliberately dirty record, then forges

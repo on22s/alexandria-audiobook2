@@ -1,6 +1,5 @@
 name: native audio integrity
 on:
-  merge_group:
   pull_request:
     paths:
       - 'app/sound_design_*.py'
@@ -60,6 +59,7 @@ on:
       - 'app/tests/test_media_process.py'
       - 'app/tests/test_export_quality.py'
       - '.github/workflows/audio-pcm-decode.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:

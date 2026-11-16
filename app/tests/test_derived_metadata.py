@@ -108,12 +108,13 @@ class DerivedMetadataTests(unittest.TestCase):
         commit verifies from that commit's blobs alone.
         """
         sys.path.insert(0, str(ROOT / 'app'))
-        from experiments.provenance import get_harness_sha256_at_commit
+        from experiments.provenance import get_harness_commit_proof, get_harness_sha256_at_commit
         commit = subprocess.check_output(
             ['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
             text=True, timeout=10).strip()
         return {'script': 'goal_evidence_audit.py',
                 'git': {'commit': commit, 'dirty': False,
+                        'harness_commit_proof': get_harness_commit_proof(str(ROOT), commit),
                         'harness_sha256': get_harness_sha256_at_commit(
                             str(ROOT), commit)}}
 

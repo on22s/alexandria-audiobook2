@@ -1,7 +1,6 @@
 name: rolling Ubuntu qualification
 
 on:
-  merge_group:
   pull_request:
     paths:
       - .github/workflows/tests.yml
@@ -18,6 +17,7 @@ on:
       - app/tests/test_regate_deadline.py
       - app/tests/test_e_row_cache_and_scoring.py
       - app/tests/test_unseen_books_reporting.py
+  merge_group:
   schedule:
     - cron: '0 8 * * 1'
   workflow_dispatch:

@@ -25,8 +25,8 @@ on:
       linux_only:
         type: boolean
         default: false
-  merge_group:
   pull_request:
+  merge_group:
   push:
     branches: [main]
 

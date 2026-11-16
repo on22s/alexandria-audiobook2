@@ -15,10 +15,13 @@ CANNOT_VERIFY = 2
 
 def format_inventory(inventory):
     """Return the deterministic on-disk representation of an inventory."""
-    entries = ["  " + json.dumps(name, ensure_ascii=False) + ": "
-               + json.dumps(sorted(inventory[name]), ensure_ascii=False)
-               for name in sorted(inventory)]
-    return "{\n" + ",\n".join(entries) + "\n}\n"
+    entries = []
+    for name in sorted(inventory):
+        test_ids = [json.dumps(test_id, ensure_ascii=False)
+                    for test_id in sorted(inventory[name])]
+        values = "\n    " + "\n    , ".join(test_ids) + "\n  " if test_ids else ""
+        entries.append(json.dumps(name, ensure_ascii=False) + ": [" + values + "]")
+    return "{\n  " + "\n  , ".join(entries) + "\n}\n" if entries else "{}\n"
 
 
 class InventoryEncoder(json.JSONEncoder):
