@@ -50,6 +50,7 @@
     "tests.test_1724_r2_regressions.WaitingLoadUnavailableControlTests.test_unavailable_selection_never_falls_back_to_old_snapshot"
   ],
   "test_1724_voice_navigation_js": [
+    "tests.test_1724_voice_navigation_js.NavigationTimerOwnershipTests.test_settled_rejected_and_stalled_loads_release_only_the_owned_deadline",
     "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_guide_read_only_voices_open_writes_no_defaults",
     "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_ordinary_voices_navigation_still_autosaves_defaults",
     "tests.test_1724_voice_navigation_js.VoiceNavigationTests.test_tab_load_rejections_visible_except_benign_supersession"
@@ -7919,6 +7920,34 @@
   "test_local_ui_assets": [
     "tests.test_local_ui_assets.LocalUiAssetTests.test_all_referenced_fonts_and_pinned_provenance_files_are_delivered",
     "tests.test_local_ui_assets.LocalUiAssetTests.test_page_dependencies_are_local_and_integrity_matches_served_bytes"
+  ],
+  "test_local_unit_shards": [
+    "tests.test_local_unit_shards.LocalAggregationTests.test_crash_timeout_skip_and_forged_exit_fail_closed",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_equal_count_duplicate_omission_cannot_pass",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_exact_identities_and_counts_sum",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_failed_shard_fails_readiness_but_retains_its_counts",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_missing_receipt_counter_is_unknown_not_zero",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_missing_shard_is_not_a_successful_partial_run",
+    "tests.test_local_unit_shards.LocalAggregationTests.test_windows_environment_keeps_hidden_drive_state_and_clears_git_routing",
+    "tests.test_local_unit_shards.LocalVerifierRouteTests.test_ci_shard_keeps_legacy_path_even_when_ready_selects_local_default",
+    "tests.test_local_unit_shards.LocalVerifierRouteTests.test_invalid_local_options_fail_before_running_gates",
+    "tests.test_local_unit_shards.LocalVerifierRouteTests.test_local_discovery_runs_nonunit_gates_once_and_preserves_failed_counts",
+    "tests.test_local_unit_shards.LocalVerifierRouteTests.test_ready_defaults_to_windows_workers_and_serial_on_other_hosts",
+    "tests.test_local_unit_shards.LocalVerifierRouteTests.test_successful_local_units_run_each_nonunit_gate_once",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_checkout_failure_keeps_a_failed_shard_artifact_and_cleans_prior_workers",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_ctrl_c_reaps_owned_processes_and_removes_every_registered_worktree",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_dirty_staged_untracked_and_crlf_inputs_are_frozen_without_index_or_ref_changes",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_failure_still_runs_other_shard_and_removes_every_worktree",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_insufficient_disk_refuses_before_snapshot_or_explicitly_falls_back_to_serial",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_native_crlf_overlay_does_not_create_false_dirty_git_status",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_process_crash_retains_started_count_and_runs_the_other_shard",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_readiness_floor_fails_in_the_persistent_artifact_too",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_serial_path_uses_no_worktrees_and_matches_identity_and_failure_counts",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_source_mutation_during_snapshot_is_refused_without_touching_user_index",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_timeout_leaves_partial_count_artifact_and_no_registered_worktree",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_worker_hook_installer_cannot_write_its_shared_config_but_fixture_install_still_works",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_worktree_commands_wait_for_the_common_kernel_lock",
+    "tests.test_local_unit_shards.LocalWorktreeTests.test_wrong_shard_identities_are_failed_in_the_persistent_shard_artifact"
   ],
   "test_lora_adapter_locations": [
     "tests.test_lora_adapter_locations.LoraAdapterLocationTests.test_list_and_cached_preview_encode_user_and_builtin_adapter_identity",

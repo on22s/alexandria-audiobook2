@@ -427,7 +427,7 @@ class DerivedMetadataTests(unittest.TestCase):
                 [Path(args[0]).name for args in calls])
             self.assertFalse(any('--check' in args for args in calls),
                              'ready must delegate checks instead of repeating them')
-            self.assertEqual(['verify_release.py','--skip-evidence-recheck','--shard','2/3'],
+            self.assertEqual(['verify_release.py','--skip-evidence-recheck','--local-units','--shard','2/3'],
                              calls[-1])
 
     def test_ready_targets_its_own_checkout_when_invoked_from_another_repo(self):

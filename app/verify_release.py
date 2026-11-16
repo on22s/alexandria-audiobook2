@@ -129,8 +129,21 @@ def run_report_command(*args, **kwargs):
     return run_command(*args, **kwargs, capture_output=False)
 
 
-def run_unit_test_report(label, command, app_dir):
+def run_unit_test_report(label, command, app_dir, *, workers=None, report_dir=None,
+                         timeout=None, serial_on_low_disk=False):
     """Record executed identities alongside the independently checked count."""
+    if workers is not None:
+        from local_unit_shards import run_local_unit_tests
+        result = run_local_unit_tests(Path(app_dir).parent, workers=workers, report_dir=report_dir,
+                                      timeout=timeout, serial_on_low_disk=serial_on_low_disk,
+                                      minimum_tests=MINIMUM_UNIT_TESTS)
+        if result['status'] != 'passed':
+            error = RuntimeError(f"Local unit discovery failed: Ran {result['tests_ran']}; "
+                                 f"failures={result['failures']}, errors={result['errors']}, "
+                                 f"skips={result['skips']}; artifacts: {result['artifact_dir']}")
+            error.result = result
+            raise error
+        return result
     with tempfile.TemporaryDirectory(prefix="alexandria-unit-receipt-") as directory:
         receipt = Path(directory) / "tests.json"
         count = run_report_command(label, command + ["--test-report", str(receipt)],
@@ -293,6 +306,8 @@ def run_report_gate(report, name, callback):
             gate["result"] = result
         return result
     except BaseException as exc:
+        if getattr(exc, 'result', None) is not None:
+            gate['result'] = exc.result
         gate.update({
             "status": "failed",
             "failure": {"type": type(exc).__name__, "message": get_concise_error(exc)},
@@ -311,6 +326,16 @@ def main(argv=None):
     )
     parser.add_argument("--json-report", metavar="PATH",
                         help="atomically write a machine-readable release report")
+    parser.add_argument('--local-units', action='store_true',
+                        help='local unit receipts and isolated shards (ready.sh default); explicit --shard keeps CI behavior')
+    parser.add_argument('--unit-workers', type=int, metavar='N',
+                        help='isolated local unit workers; native Windows default is 2; 0 selects serial; higher counts raise memory, driver and IO pressure')
+    parser.add_argument('--unit-report-dir', metavar='PATH',
+                        help='new or empty directory outside the checkout for retained local shard logs and counts')
+    parser.add_argument('--unit-shard-timeout', type=float, metavar='SECONDS',
+                        help='local unit wall bound (default 3600 per parallel shard, 7200 serial); no production deadlines change')
+    parser.add_argument('--serial-on-low-disk', action='store_true',
+                        help='explicitly allow serial discovery when isolated snapshot disk admission refuses')
     parser.add_argument(
         "--shard", metavar="I/N",
         help="run only shard I of N of the unit tests (see unit_test_sharding.py); "
@@ -331,6 +356,21 @@ def main(argv=None):
         shard = parse_shard_spec(args.shard) if args.shard is not None else None
     except ValueError as error:
         parser.error(str(error))
+    explicit_local_options = (args.unit_workers is not None or args.unit_report_dir is not None
+                              or args.serial_on_low_disk or args.unit_shard_timeout is not None)
+    if args.unit_workers is not None and args.unit_workers < 0:
+        parser.error('--unit-workers must be nonnegative')
+    if shard is not None and explicit_local_options:
+        parser.error('Local unit worker/report/timeout options cannot be combined with --shard')
+    if args.unit_shard_timeout is not None and not 0 < args.unit_shard_timeout < float('inf'):
+        parser.error('--unit-shard-timeout must be finite and positive')
+    unit_options = {}
+    if shard is None and (args.local_units or explicit_local_options):
+        from local_unit_shards import get_default_workers
+        workers = (args.unit_workers if args.unit_workers is not None
+                   else get_default_workers() if sys.platform == 'win32' else 0)
+        unit_options = dict(workers=workers, report_dir=args.unit_report_dir,
+                            timeout=args.unit_shard_timeout, serial_on_low_disk=args.serial_on_low_disk)
     runs_other_gates = shard is None or shard[0] == 1
     app_dir = Path(__file__).resolve().parent
     repo_dir = app_dir.parent
@@ -384,7 +424,7 @@ def main(argv=None):
                 # CI supplies CPU Torch/PEFT for structural artifact checks.
                 "Unit test discovery (CI-equivalent env)"
                 + (f", shard {args.shard}" if args.shard is not None else ""),
-                unit_command, app_dir,
+                unit_command, app_dir, **unit_options,
             ),
         )
         if runs_other_gates:
