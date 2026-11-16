@@ -49,7 +49,10 @@ class LocalUiAssetTests(unittest.TestCase):
             '/static/vendor/font-awesome-6.0.0/css/all.min.css',
             '/static/vendor/marked-12.0.2/marked.umd.min.js',
         }
-        feature_assets = {'/static/js/app-word-timing.js?v=__APP_BUILD__', '/static/js/app-audio-channels.js?v=__APP_BUILD__', '/static/js/app-tts-diagnostics.js?v=__APP_BUILD__',
+        feature_assets = {'/static/js/app-advanced-intros.js?v=__APP_BUILD__',
+                          '/static/js/app-casting-labels.js?v=__APP_BUILD__',
+                          '/static/css/advanced-intros.css?v=__APP_BUILD__',
+                          '/static/js/app-word-timing.js?v=__APP_BUILD__', '/static/js/app-audio-channels.js?v=__APP_BUILD__', '/static/js/app-tts-diagnostics.js?v=__APP_BUILD__',
                           '/static/js/app-mastering.js?v=__APP_BUILD__', '/static/js/app-settings.js?v=__APP_BUILD__',
                           '/static/js/app-export-quality.js?v=__APP_BUILD__',
                           '/static/js/app-audiobookshelf.js?v=__APP_BUILD__',

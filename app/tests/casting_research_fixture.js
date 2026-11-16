@@ -327,6 +327,7 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
         emit(name) { for (const callback of this.events[name] || []) { callback(); } }
     };
     browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
+    browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-casting-labels.js'), 'utf8'));
     browserWindow.eval(research);
     browserWindow.eval(source);
     return env;
@@ -367,6 +368,12 @@ const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting
             eq($(localeEnv, 'research-page-size').attrs['aria-label'], localeEnv.w.t('research.page.voices-per-page', 'Voices per page'));
             eq(status.children[0].textContent, localeEnv.w.t('research.bulk.status-none', 'Status: no change'));
             eq(status.children[1].textContent, localeEnv.w.t('casting.status.unreviewed', 'Unreviewed'));
+            const toneChip = $(localeEnv, 'tones').querySelectorAll('button').find(control =>
+                control.dataset.chip === JSON.stringify(['tone', 'calm']));
+            ok(toneChip, 'taxonomy chip keeps the raw filter key across locale changes');
+            includes(toneChip.textContent, localeEnv.w.getCastingTaxonomyLabel('calm'));
+            includes(toneChip.attrs['aria-label'], localeEnv.w.getCastingTaxonomyLabel('calm'));
+            eq(toneChip.attrs.title, toneChip.attrs['aria-label']);
             eq(field.value, 'Synthetic unsaved view');
             ok(localeEnv.w.document.activeElement === field, 'locale switch preserves the original focused field');
         }

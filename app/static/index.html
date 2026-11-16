@@ -1119,6 +1119,7 @@
         })();
     </script>
     <link rel="stylesheet" href="/static/css/phone-layout.css?v=__APP_BUILD__">
+    <link rel="stylesheet" href="/static/css/advanced-intros.css?v=__APP_BUILD__">
 </head>
 <body>
     <a id="skip-main-link" class="visually-hidden-focusable position-fixed top-0 start-0 btn btn-primary" style="z-index:1100;" href="#main-content" data-i18n="shell.skip-content">Skip to main content</a>
@@ -1362,7 +1363,7 @@
 </details>
 
                         <div class="mb-3">
-                            <label class="form-label" for="llm-mode"><span data-i18n="setup.llm.llm-mode.label">LLM Location</span> <span data-i18n-skip id="llm-active-mode-badge" class="badge bg-secondary ms-1">Active: Local</span></label>
+                            <label class="form-label" for="llm-mode"><span data-i18n="setup.llm.llm-mode.label">LLM Location</span> <span data-i18n="setup.llm.active.loading" id="llm-active-mode-badge" class="badge bg-secondary ms-1">Checking saved location…</span></label>
                             <select class="form-select" id="llm-mode" onchange="onLlmModeChange()">
                                 <option value="local" data-i18n="setup.llm.llm-mode.option.local">Local</option>
                                 <option value="remote" data-i18n="setup.llm.llm-mode.option.remote">Remote (Thunder / network)</option>
@@ -2845,6 +2846,7 @@
                     <h4 data-i18n="designer.header.title">Designer</h4>
                 </div>
                 <div class="card-body">
+                    <section data-advanced-intro="designer"></section>
                     <p data-i18n="designer.intro">Design new voices from text descriptions. Generated voices can be saved and used as clone sources in the Voices tab.</p>
 
                     <div class="row g-3 mb-3">
@@ -2917,6 +2919,7 @@
                 <h4 data-i18n="casting.header.title">Casting library</h4>
                 <p class="text-muted mb-0" data-i18n="casting.intro">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
             </div>
+            <section data-advanced-intro="casting"></section>
             <div id="casting-workspace" class="casting-workspace">
             <section class="casting-result-summary">
                 <div id="casting-load-status" class="small text-warning mb-2" role="status" aria-live="polite"></div>
@@ -3054,6 +3057,7 @@
                     <h4 data-i18n="preparer.header.title">Preparer</h4>
                 </div>
                 <div class="card-body">
+                    <section data-advanced-intro="preparer"></section>
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <p class="mb-0"><span data-i18n="preparer.intro">Build LoRA voice training datasets from audio you own — your own recordings, Creative Commons narrations, or permissively licensed audio. Transcribes and segments into</span> <code data-i18n-skip>metadata.jsonl</code> <span data-i18n="preparer.intro.suffix">+ WAV chunks ready for training.</span></p>
                         <div class="form-check form-switch ms-3 flex-shrink-0">
@@ -3292,6 +3296,7 @@
                     <span id="voicelab-status" class="text-muted small" role="status" aria-live="polite"></span>
                 </div>
                 <div class="card-body">
+                    <section data-advanced-intro="voicelab"></section>
                     <p class="small text-muted mb-3"><span data-i18n="voicelab.intro">End-to-end: turn a folder of narrator dataset ZIPs into trained, evaluated, descriptively-named LoRA voices. It runs these stages in order:</span><br><strong data-i18n="voicelab.intro.stages">Quality → Dedup → Train → Evaluate → Profile → Name</strong><br><span data-i18n="voicelab.intro.tail">Heavy stages run on the ROCm ML environment configured below.</span></p>
 
                     <!-- Pipeline health dashboard (read-only; fed by tab open + run poller) -->
@@ -3437,6 +3442,7 @@
                     <h4 data-i18n="training.header.title">Training</h4>
                 </div>
                 <div class="card-body">
+                    <section data-advanced-intro="training"></section>
                     <p data-i18n="training.intro">Train LoRA adapters on the Base model to create custom voice identities. Upload a dataset (ZIP with WAV files + metadata.jsonl), configure training, and run.</p>
 
                     <!-- Dataset Upload -->
@@ -3637,6 +3643,7 @@
                     <p class="text-muted mb-0" data-i18n="dataset.intro">Build LoRA training datasets with per-sample generation, preview, and re-generation.</p>
                 </div>
                 <div class="card-body">
+                    <section data-advanced-intro="dataset"></section>
                     <!-- Project Selector -->
                     <div class="d-flex align-items-center gap-2 mb-3">
                         <select class="form-select" id="dsb-project-select" style="max-width: 300px;" onchange="dsbOnProjectChange()" data-i18n-attr="aria-label:dataset.project.aria" aria-label="Dataset project">
@@ -4317,6 +4324,7 @@
 
         <!-- Reports Tab -->
         <div id="reports-tab" class="tab-content" style="display:none;">
+            <section data-advanced-intro="reports"></section>
             <div class="row g-3">
                 <div class="col-md-4">
                     <div class="card">
@@ -4506,6 +4514,8 @@
     <script src="/static/vendor/dompurify-3.4.16/purify.min.js" integrity="sha384-a/Pq38xPj+MNDC/q6/2UZz/s1EDeRyzrih4ysqlpUMh7hELW35bKynyicZxfyRcJ" crossorigin="anonymous"></script>
     <button data-i18n="shell.task-guide-return.button" data-i18n-attr="title:shell.task-guide-return.task-guide-return.title" id="task-guide-return" type="button" class="btn btn-secondary shadow" onclick="returnToTaskGuide()" title="Return to the same guide step without changing your selected book" hidden>Return to guide</button>
     <script src="/static/js/app-i18n.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-advanced-intros.js?v=__APP_BUILD__"></script>
+    <script src="/static/js/app-casting-labels.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-core.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-ui-followups.js?v=__APP_BUILD__"></script>
     <script src="/static/js/app-scripts.js?v=__APP_BUILD__"></script>

@@ -744,7 +744,7 @@ for (const previous of ['local','remote']) {
         function element(id) {
             if (!elements[id]) {
                 let value = '';
-                elements[id] = {style:{display:'original'}, innerHTML:'previous result', closest(){return null;}, focus(){this.focused=true;}, scrollIntoView(){}};
+                elements[id] = {attributes:{}, setAttribute(name,value){this.attributes[name]=String(value);}, getAttribute(name){return this.attributes[name] ?? null;}, hasAttribute(name){return name in this.attributes;}, style:{display:'original'}, innerHTML:'previous result', closest(){return null;}, focus(){this.focused=true;}, scrollIntoView(){}};
                 Object.defineProperty(elements[id], 'value', {get() { return value; }, set(v) { value = String(v); }});
             }
             return elements[id];
@@ -752,9 +752,10 @@ for (const previous of ['local','remote']) {
         const notifications = [];
         const context = {window:{}, currentLlmMode:previous, savedLlmMode:previous,
             llmProfiles:{local:{base_url:'local-url',model_name:'local-model'}, remote:{base_url:'remote-url',model_name:'remote-model'}},
-            document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level}),
-            t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))};
-        vm.runInNewContext(code, context);
+            document:{getElementById:element}, showToast:(message,level) => notifications.push({message,level})};
+        vm.createContext(context);
+        vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'), context);
+        vm.runInContext(code, context);
         context.populateLlmInputs(previous);
         element('llm-mode').value = next;
         element(field).value = value;

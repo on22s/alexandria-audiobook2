@@ -236,6 +236,12 @@
     , "tests.test_addressee_confusion.TurnNeighbourTests.test_naming_a_third_party_supports_neither"
     , "tests.test_addressee_confusion.TurnNeighbourTests.test_two_party_exchange_cannot_separate_the_hypotheses"
   ]
+  , "test_advanced_tool_intros_js": [
+    "tests.test_advanced_tool_intros_js.AdvancedToolIntrosTests.test_badge_live_translation_preserves_modes"
+    , "tests.test_advanced_tool_intros_js.AdvancedToolIntrosTests.test_intro_catalogs_and_live_switch"
+    , "tests.test_advanced_tool_intros_js.AdvancedToolIntrosTests.test_persistence_and_storage_failure"
+    , "tests.test_advanced_tool_intros_js.AdvancedToolIntrosTests.test_taxonomy_display_only_and_unknown_fallback"
+  ]
   , "test_alias_correction_rescore": [
     "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_records_changed_score_without_mutating_artifact"
     , "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_unrelated_rows_produce_no_ledger_entry"

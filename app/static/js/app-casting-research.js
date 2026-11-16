@@ -282,12 +282,19 @@
             chip.dataset.chip = chipKey(field, value);
             chip.dataset.state = stateName;
             chip.dataset.castingFocus = 'chip:' + chipKey(field, value);
-            chip.append(node('i', undefined, 'fas ' + chipIcons[stateName] + ' me-1'), node('span', value + ' ' + count));
+            const displayValue = field === 'tone' || field === 'texture' ? getCastingTaxonomyLabel(value) : value;
+            chip.append(node('i', undefined, 'fas ' + chipIcons[stateName] + ' me-1'), node('span', displayValue + ' ' + count));
+            const display = chip.children[1];
+            setUiMessage(display, 'casting.taxonomy.count', '{label} {count}', () => ({
+                label: field === 'tone' || field === 'texture' ? getCastingTaxonomyLabel(value) : value, count
+            }));
+            const labelValues = () => ({state: stateLabel(stateName), field: fieldLabel(field),
+                value: field === 'tone' || field === 'texture' ? getCastingTaxonomyLabel(value) : value, count});
             const label = count === 1
-                ? t('research.chip.label.one', '{state} {field} {value} ({count} voice)', {state: stateLabel(stateName), field: fieldLabel(field), value, count})
-                : t('research.chip.label.many', '{state} {field} {value} ({count} voices)', {state: stateLabel(stateName), field: fieldLabel(field), value, count});
-            chip.setAttribute('aria-label', label);
-            chip.setAttribute('title', label);
+                ? uiMessage('research.chip.label.one', '{state} {field} {value} ({count} voice)', labelValues)
+                : uiMessage('research.chip.label.many', '{state} {field} {value} ({count} voices)', labelValues);
+            renderUiMessage(chip, label, 'aria-label');
+            renderUiMessage(chip, label, 'title');
             chip.setAttribute('aria-pressed', String(stateName === 'include'));
             chip.addEventListener('click', () => cycleChip(field, value));
             return chip;
