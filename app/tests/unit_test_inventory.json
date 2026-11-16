@@ -8330,6 +8330,8 @@
     "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
     "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_birth_time_without_sending_a_signal",
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
+    "tests.test_manual_llm.ManualEndpointTests.test_review_stage_hint_drops_previous_batch_validation_error",
+    "tests.test_manual_llm.ManualEndpointTests.test_review_stage_hint_preserves_new_validation_error",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_abandoned_same_process_request_cannot_borrow_a_live_thread",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_live_persona_manual_request_remains_answerable",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_orphaned_prompt_is_not_attached_to_single_or_multiple_design_status",
@@ -8342,6 +8344,14 @@
   "test_manual_persona_ui": [
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_persona_actions_renderer_and_reload",
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_shared_panel_is_outside_hidden_tab_bodies"
+  ],
+  "test_manual_reply_feedback_js": [
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_completion_invalidates_late_success",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_late_failure_cannot_replace_newer_success",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_late_success_cannot_replace_newer_error",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_old_finally_cannot_unlock_current_submission",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_success_is_replaced_by_new_error",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_validation_hint_and_submission_error_clear_on_success"
   ],
   "test_mastering_js": [
     "tests.test_mastering_js.MasteringJsTests.test_failed_terminal_export_also_invalidates_report_epoch",
