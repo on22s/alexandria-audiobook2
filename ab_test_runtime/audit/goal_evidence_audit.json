@@ -1050,11 +1050,11 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T18:16:50",
+  "written": "2026-11-15T18:55:30",
   "host": "RealMitch",
   "git": {
-   "commit": "3bf76c3a420499f4251c70bc680dc8ecc4fcad4f",
-   "branch": "fix/windows-preexisting-failures",
+   "commit": "19d0d37c8b371c84159c6bb0df832c4929ed9307",
+   "branch": "feat/logging-deferred-gaps",
    "dirty": false,
    "source_state": "clean",
    "source_state_detail": null,

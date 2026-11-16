@@ -11766,6 +11766,17 @@
         "summary": "Lmstudio Status"
       }
     },
+    "/api/logs/browser-failure": {
+      "post": {
+        "operationId": "record_browser_failure_api_logs_browser_failure_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Record Browser Failure"
+      }
+    },
     "/api/logs/{task_name}": {
       "get": {
         "description": "Serve the complete on-disk log for a task (the in-memory status only keeps a\ncapped tail). Use ?download=true to download the file.",

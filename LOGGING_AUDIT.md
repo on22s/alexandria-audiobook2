@@ -2,8 +2,7 @@
 
 Baseline: origin/main fetched 2026-11-15. Rankings are engineering judgment,
 not measured incident frequency. Static survey is not exhaustive clearance.
-The assigned whole-app scope exceeds the CLAUDE.md 4,000-token ad-hoc budget;
-this overrun is explicit rather than silent.
+The original audit predated removal of CLAUDE.md's token-budget rule.
 
 ## Existing evidence
 
@@ -43,12 +42,12 @@ this overrun is explicit rather than silent.
 | 12 | app/routers/voicelab.py:173 | Nonzero/empty interpreter probe looks like missing capabilities. Implement safe exit/empty summary. |
 | 13 | app/routers/voicelab.py:174 | Probe launch/timeout/JSON failure becomes empty dict. Implement. |
 | 14 | app/routers/system.py:570 | LLM diagnostic write failure returns empty path silently. Implement secondary warning. |
-| 15 | app/static/js/app-core.js:1123,7642 | Save flush timer/pagehide consumes errors. Defer browser-local retention/transport: offline failures cannot report to the server; needs consent/rate-limit UX and browser qualification. |
-| 16 | app/routers/lora.py:322 | Candidate evaluation load defaults to no recommendation. Defer distinguishing expected optional missing evidence from corruption without warning on every old adapter. |
-| 17 | app/core.py:667,675 | Liveness exceptions conservatively return alive. Defer high-frequency polling instrumentation; preserve safety fence. |
-| 18 | app/project.py:2605,2615 | Retry-persistence/restore failure prints warning only. Defer artifact-owner-focused follow-up. |
-| 19 | app/routers/system.py:660,673 | Legacy LLM test files retain raw endpoint/traceback and have no bounded rotation. Defer migration of existing download contracts; do not expand contents. |
-| 20 | app/app.py:157,180 | Direct auth/origin middleware refusals bypass exception handlers. Defer rate-limited summaries; do not change the security gates or record headers. Explicitly returned error responses are also outside exception-handler coverage. |
+| 15 | app/static/js/app-core.js: createSerializedSaveQueue / pagehide | Done: content-free, same-origin keepalive reports; five per tab per minute, deduplicated. Server independently bounds schema, body and report rate. Offline/unload delivery remains best-effort. |
+| 16 | app/routers/lora.py: _get_candidate_summary | Done: missing optional evaluation.json remains normal; unreadable/invalid JSON, encoding and root/recommendation shapes record hashed-resource evidence, deduplicated for five minutes. Recommendation fallback is unchanged. |
+| 17 | app/core.py: is_llm_on_this_gpu / llm_is_on_this_gpu | Done for the actual cited paths: GPU policy/config failures retain conservative True and record once per stage/task/exception type per five minutes. Correction: these paths are GPU-admission policy, not process-liveness probes; no return-alive exception handler exists in current core.py. |
+| 18 | app/project.py: _finish_speech_retry_failure / _restore_and_release | Done: persist/restore failures record exception frames and hashed chunk identity, deduplicated for five minutes. Return values and best-effort restore behavior are unchanged. |
+| 19 | app/routers/system.py: _log_llm_failure / _run_llm_test | Done: new LLM test/optimize evidence uses the existing trace writer, 256-KiB latest plus one previous per static kind, without raw endpoint/messages/tracebacks. log_file remains a path and /api/logs/llm_test?download=true retains its attachment contract. Old timestamped files are untouched. |
+| 20 | app/app.py: _basic_auth_gate / _request_origin_gate | Done: static guard/stage plus numeric status, globally deduplicated per guard for one minute; no client/header/Host values recorded. Auth challenges, preflight bypass and security decisions remain unchanged. Other explicitly returned error responses remain outside exception-handler coverage. |
 
 ## Design and limits
 
@@ -61,7 +60,7 @@ payloads, commands/output, titles/text, full paths. Resource hashes correlate
 repeated resources but are not an anonymization guarantee.
 
 No changes to ownership, cancellation, retries, GPU locks, refusal/default
-semantics or legacy response-log retention. Unwritable evidence emits sanitized
+semantics or LLM response-log retention. Unwritable evidence emits sanitized
 console warnings: a full/read-only disk cannot guarantee an attachable file.
 Existing legacy logs can contain private content; inspect before attaching.
 Native GPU/model and real browser behavior remain unqualified.
@@ -70,3 +69,54 @@ Tests force real handler/helper failures with external I/O mocked, assert useful
 context and unchanged outcomes, and reject synthetic secret/book/path sentinels
 in captured records and download bytes. Verify rotation and persistence refusal.
 Final test/gate counts belong in the handoff, not a claim of static clearance.
+
+## Deferred-gap implementation boundaries
+
+The browser posts only `stage` (save_flush_timer/save_pagehide) and `error_name`
+(ten fixed JavaScript error names, unknown mapped to UnknownError) to the relative
+/api/logs/browser-failure route. No message, text, URL or stack is sent. Fetch
+uses same-origin credentials, refuses redirects, and never retries reporting
+failures. No new UI text or consent UI is introduced. The existing dirty-draft,
+onError and ambiguous-save recovery paths remain authoritative. This is local
+AA2 evidence, not external telemetry; a stopped/offline server cannot retain it.
+
+The route retains at most 256 body bytes, including chunked requests, rejects extra or
+unknown fields and aborted uploads without logging the rejected body, and returns 204 for accepted
+reports, even if deduplicated. It uses the same app auth/Host/origin gates as
+other routes. Server-side browser output is limited to one record per stage per
+minute across all clients in the server process. Shared dedupe retains at most 512 hashed-resource
+keys, suppressing new keys at capacity until entries expire; raw resource ids
+are not retained. All disk evidence uses the existing bounded writer.
+
+Legacy LLM test/optimize files now use static llm_test-latest.log and
+llm_optimize-latest.log names with one .previous file each. Safe evidence is also
+available through the existing diagnostics download. Existing timestamped legacy
+files may still contain secrets: they are not rewritten, deleted or attached
+automatically. API response error strings/model lists are unchanged; their
+presence in the API contract does not authorize copying them into diagnostics.
+
+Regression tests execute real failure handlers and persistence/download paths,
+with synthetic secret/book-text sentinels. Node VM exercises the actual save
+timer and pagehide callbacks, dedupe/window reset, offline rejection and transport
+options; this is not native-browser unload-delivery qualification. Initial
+unchanged-production run: 10 tests, 11 assertion failures and two errors (subtest
+failures counted separately), with no passing clearance claimed.
+The final 12-test regression module was also run with all seven changed
+production files temporarily restored to origin/main: all 12 tests were
+unsuccessful (12 assertion failures and three errors, including subtests).
+The implementation was then restored before final focused qualification.
+
+PR #1972 follow-up: the markup ratchet explicitly exempts the reviewed browser
+stage/error vocabulary and fetch protocol identifiers, not user-visible copy;
+no numeric baseline or catalog key set changes. Diagnostic console emission and
+persistence-warning emission are guarded centrally, and record_failure returns
+False rather than letting a failed sink replace caller behavior. A guarded,
+non-recursive sys.__stderr__ fallback writes only the sink exception type.
+Missing exception evidence stays absent; non-exception values retain at most
+their type name and are never stringified. The legacy LLM helper omits invalid
+exception inputs and retains its empty-path response when persistence fails.
+Six fail-first regressions cover both conservative GPU returns, exactly-once
+retry restoration, all three guard statuses and the auth challenge, non-exception
+inputs, and simultaneous console/file/fallback failure without masking the
+original worker exception. The legacy config test now asserts distinct safe
+records in the approved bounded latest file rather than obsolete raw files.

@@ -9,12 +9,30 @@ import time
 import uuid
 import hashlib
 import traceback
+import threading
+import sys
 from utils import file_lock
 
 CURRENT = ContextVar('review_startup_trace', default=None)
 MAX_BYTES = 256 * 1024
 ENV_ID = 'ALEXANDRIA_REVIEW_STARTUP_ID'
 ENV_PATH = 'ALEXANDRIA_REVIEW_STARTUP_PATH'
+_failure_limits = {}
+_failure_limit_lock = threading.Lock()
+
+
+def report_diagnostic_sink_failure(error):
+    try:
+        sys.__stderr__.write('Diagnostic sink failed (' + type(error).__name__[:64] + ')\n')
+    except Exception:
+        pass
+
+
+def emit_diagnostic_log(logger, level, message, *args):
+    try:
+        logging.getLogger(logger).log(level, message, *args)
+    except Exception as error:
+        report_diagnostic_sink_failure(error)
 
 
 class ReviewStartupTrace:
@@ -42,10 +60,12 @@ class ReviewStartupTrace:
                 record['resource_id'] = hashlib.sha256(os.fsencode(resource)).hexdigest()[:16]
             if error is not None:
                 record.update(get_exception_evidence(error))
-                cause = error
+                cause = error if isinstance(error, BaseException) else None
                 seen = {id(error)}
                 causes = []
                 for _index in range(4):
+                    if cause is None:
+                        break
                     cause = cause.__cause__ or (cause.__context__ if not cause.__suppress_context__ else None)
                     if cause is None or id(cause) in seen:
                         break
@@ -57,8 +77,8 @@ class ReviewStartupTrace:
             if key in options and type(options[key]) in (int, bool):
                 record[key] = options[key]
         line = json.dumps(record, ensure_ascii=True) + '\n'
-        if options.get('failure'):
-            logging.getLogger('AlexandriaDiagnostics').log(options.get('level', logging.ERROR), '%s', line.rstrip())
+        if options.get('failure') and not options.get('mirror'):
+            emit_diagnostic_log('AlexandriaDiagnostics', options.get('level', logging.ERROR), '%s', line.rstrip())
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with file_lock(str(self.path), timeout=0.25):
@@ -67,8 +87,12 @@ class ReviewStartupTrace:
                 with self.path.open('a', encoding='utf-8') as stream:
                     stream.write(line)
         except (OSError, TimeoutError) as persistence_error:
-            logging.getLogger(__name__).warning('Diagnostic trace could not be persisted (%s; %s)',
-                                                stage, type(persistence_error).__name__)
+            emit_diagnostic_log(__name__, logging.WARNING, 'Diagnostic trace could not be persisted (%s; %s)',
+                                stage, type(persistence_error).__name__)
+            if options.get('raise_persistence_error'):
+                raise
+            return False
+        return True
 
     def call(self, stage, callback, *args, **kwargs):
         token = CURRENT.set(self)
@@ -134,6 +158,10 @@ def get_failure_log_path():
 
 
 def get_exception_evidence(error):
+    if error is None:
+        return {}
+    if not isinstance(error, BaseException):
+        return {'error_type': type(error).__name__[:64]}
     from collections import deque
     frames = deque(({'file': Path(frame.f_code.co_filename).name[:128],
                      'function': frame.f_code.co_name[:64], 'line': line_number}
@@ -146,9 +174,36 @@ def get_exception_evidence(error):
     return evidence
 
 
-def record_failure(stage, error=None, *, task, resource=None, level=logging.ERROR, **options):
-    """Persist content-free evidence using the existing bounded trace writer."""
+def record_failure(stage, error=None, *, task, resource=None, level=logging.ERROR,
+                   rate_limit_seconds=0, mirror_path=None, **options):
+    """Best-effort diagnostics must never replace a caller's failure or result."""
+    try:
+        return _persist_failure(stage, error, task=task, resource=resource, level=level,
+                               rate_limit_seconds=rate_limit_seconds, mirror_path=mirror_path, **options)
+    except Exception as sink_error:
+        report_diagnostic_sink_failure(sink_error)
+        return False
+
+
+def _persist_failure(stage, error=None, *, task, resource=None, level=logging.ERROR,
+                     rate_limit_seconds=0, mirror_path=None, **options):
+    if rate_limit_seconds:
+        now = time.monotonic()
+        resource_id = hashlib.sha256(os.fsencode(resource)).hexdigest() if resource is not None else None
+        key = (stage, task, type(error).__name__ if error is not None else None, resource_id)
+        with _failure_limit_lock:
+            expired = [entry for entry, deadline in _failure_limits.items() if deadline <= now]
+            for entry in expired:
+                del _failure_limits[entry]
+            if key in _failure_limits or len(_failure_limits) >= 512:
+                return False
+            _failure_limits[key] = now + rate_limit_seconds
     current = CURRENT.get()
     trace = ReviewStartupTrace(get_failure_log_path(), current.correlation if current else None)
-    trace.event(stage, error=error, failure=True, task=task, resource=resource,
-                level=level, **options)
+    persisted = trace.event(stage, error=error, failure=True, task=task, resource=resource,
+                            level=level, **options)
+    if mirror_path is not None:
+        persisted = ReviewStartupTrace(mirror_path, trace.correlation).event(
+            stage, error=error, failure=True, task=task, resource=resource, level=level,
+            raise_persistence_error=True, mirror=True, **options)
+    return persisted
