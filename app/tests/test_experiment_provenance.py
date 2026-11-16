@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -74,6 +75,103 @@ class ReproducibleHarnessTests(unittest.TestCase):
         return {"git": {"commit": commit, "harness_sha256": fingerprint,
                         "dirty": dirty,
                         "harness_sha256_scheme": HARNESS_DIGEST_SCHEME}}
+
+    def prepare_goal_audit(self):
+        """Run the real CLI in a synthetic repository, including its source probe."""
+        root = Path(__file__).resolve().parents[2]
+        for name in ("__init__.py", "manifest.py", "provenance.py", "goal_evidence_audit.py"):
+            shutil.copyfile(root / "app/experiments" / name, self.harness / name)
+        shutil.copyfile(root / "gpu_job.sh", self.repo / "gpu_job.sh")
+        (self.repo / "GOALS.md").write_text(
+            "### 1.1 Synthetic goal\n`fixture.json`\n", encoding="utf-8")
+        (self.repo / "inputs.json").write_text(json.dumps({"artifacts": [
+            {"artifact": "fixture.json", "classification": "exploratory"}]}), encoding="utf-8")
+        (self.repo / "app/core.py").write_bytes(b"VALUE = 1\n")
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "synthetic audit inputs"],
+                       cwd=self.repo, check=True)
+        self.run_goal_audit()
+        document = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
+        self.assertIs(document["provenance"]["git"]["dirty"], False)
+        return document
+
+    def goal_audit_path(self, repo=None):
+        return (repo or self.repo) / "ab_test_runtime/audit/goal_evidence_audit.json"
+
+    def run_goal_audit(self, repo=None, check=False, expected=0):
+        repo = repo or self.repo
+        command = [sys.executable, "-I", "-B", str(repo / "app/experiments/goal_evidence_audit.py"),
+                   "--goals", str(repo / "GOALS.md"), "--audit", str(repo / "inputs.json"),
+                   "--out", str(self.goal_audit_path(repo))]
+        if check:
+            command.append("--check")
+        result = subprocess.run(command, cwd=repo, capture_output=True, text=True, timeout=30)
+        if expected == 0:
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        else:
+            self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+        return result
+
+    def test_goal_check_rejects_current_harness_changed_after_clean_generation(self):
+        document = self.prepare_goal_audit()
+        self.run_goal_audit(check=True)
+        probe = self.harness / "provenance.py"
+        probe.write_bytes(probe.read_bytes() + b"\n# Synthetic change with identical audit rows.\n")
+        rejected = self.run_goal_audit(check=True, expected=1)
+        self.assertIn("current harness", rejected.stderr)
+        # Regeneration changes only the provenance, proving the old BODY check
+        # could not distinguish these two harnesses.
+        self.run_goal_audit()
+        regenerated = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
+        self.assertNotEqual(document.pop("provenance"), regenerated.pop("provenance"))
+        self.assertEqual(document, regenerated)
+        self.run_goal_audit(check=True)
+
+    def test_goal_check_rejects_clean_flag_contradicting_recorded_diagnostics(self):
+        self.prepare_goal_audit()
+        (self.repo / "app/core.py").write_bytes(b"VALUE = 2\n")
+        self.run_goal_audit()
+        document = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
+        git = document["provenance"]["git"]
+        self.assertIs(git["dirty"], True)
+        self.assertTrue(git["source_state"].startswith("dirty:"))
+        self.assertEqual([" M app/core.py"], git["modified_tracked_files"])
+        self.run_goal_audit(check=True)
+        git["dirty"] = False  # Change exactly the claim, retaining the real diagnostics.
+        self.goal_audit_path().write_text(json.dumps(document), encoding="utf-8")
+        rejected = self.run_goal_audit(check=True, expected=1)
+        self.assertIn("provenance-inconsistent", rejected.stderr)
+
+    def test_goal_check_accepts_clean_record_and_non_harness_line_ending_changes(self):
+        self.prepare_goal_audit()
+        self.run_goal_audit(check=True)
+        # Git reports this as modified with autocrlf=false. The stored clean
+        # diagnostics describe generation, not the checker's working tree.
+        (self.repo / "app/core.py").write_bytes(b"VALUE = 1\r\n")
+        self.assertIn("app/core.py", subprocess.check_output(
+            ["git", "status", "--short"], cwd=self.repo, text=True))
+        self.run_goal_audit(check=True)
+
+    def test_goal_check_accepts_squash_in_main_only_clone(self):
+        self.prepare_goal_audit()
+        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True)
+        self.commit("# synthetic branch harness\n")
+        self.run_goal_audit()
+        document = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
+        recorded = document["provenance"]["git"]["commit"]
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "branch audit"], cwd=self.repo, check=True)
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True)
+        subprocess.run(["git", "merge", "--squash", "feature"], cwd=self.repo,
+                       capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "squashed audit"], cwd=self.repo, check=True)
+        clone = self.repo / "main-only-clone"
+        subprocess.run(["git", "clone", "-q", "--no-local", "--single-branch", "--branch", "main",
+                        str(self.repo), str(clone)], check=True)
+        self.assertNotEqual(0, subprocess.run(["git", "cat-file", "-e", recorded + "^{commit}"],
+                                             cwd=clone, capture_output=True).returncode)
+        self.run_goal_audit(clone, check=True)
 
     def commit_proof(self, commit):
         def read(object_type, revision):
@@ -323,6 +421,52 @@ assert 'error' in block['git'], block
         status, detail = check_harness_provenance(
             block, str(self.repo))
         self.assertEqual("verified", status, detail)
+
+    def test_current_check_preserves_legacy_raw_identity_and_historical_lookup(self):
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True)
+        self.commit("initial\n")
+        (self.harness / "probe.py").write_bytes(b"legacy\r\n")
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "legacy CRLF"], cwd=self.repo, check=True)
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                         cwd=self.repo, text=True).strip()
+        target = get_harness_sha256_at_commit(str(self.repo), commit, scheme=None)
+        block = self.block(commit, target, False)
+        block["git"].pop("harness_sha256_scheme")
+        self.assertEqual("verified", check_harness_provenance(
+            block, str(self.repo), require_current=True)[0])
+        (self.harness / "probe.py").write_bytes(b"legacy\n")
+        self.assertEqual("verified", check_harness_provenance(block, str(self.repo))[0])
+        self.assertEqual("inconsistent", check_harness_provenance(
+            block, str(self.repo), require_current=True)[0])
+
+    def test_clean_diagnostics_must_agree_without_requiring_missing_legacy_fields(self):
+        commit = self.commit("one\n")
+        block = self.block(commit, get_harness_sha256_at_commit(str(self.repo), commit), False)
+        for fields in ({}, {"source_state": "clean", "modified_tracked_files": None,
+                            "untracked_harness_files": [], "source_state_detail": None}):
+            with self.subTest(accepted=fields):
+                candidate = copy.deepcopy(block)
+                candidate["git"].update(fields)
+                self.assertEqual("verified", check_harness_provenance(
+                    candidate, str(self.repo), require_current=True)[0])
+        for fields in ({"source_state": "dirty:abc"}, {"source_state": "unknown"},
+                       {"source_state": None}, {"modified_tracked_files": [" M app/core.py"]},
+                       {"untracked_harness_files": ["probe.txt"]},
+                       {"source_state_detail": "probe failed"}):
+            with self.subTest(rejected=fields):
+                candidate = copy.deepcopy(block)
+                candidate["git"].update(fields)
+                self.assertEqual("inconsistent", check_harness_provenance(
+                    candidate, str(self.repo))[0])
+                self.assertIsNone(get_reproducible_harness_source(candidate, str(self.repo)))
+
+    def test_current_check_fails_closed_when_harness_cannot_be_read(self):
+        commit = self.commit("one\n")
+        block = self.block(commit, get_harness_sha256_at_commit(str(self.repo), commit), False)
+        with patch("experiments.manifest._source_fingerprint", side_effect=OSError("unreadable")):
+            self.assertEqual("unverifiable", check_harness_provenance(
+                block, str(self.repo), require_current=True)[0])
 
     def test_legacy_dirty_crlf_identity_requires_the_exact_raw_bytes(self):
         recorded = self.commit("one\n")

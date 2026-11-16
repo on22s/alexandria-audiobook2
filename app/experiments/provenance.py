@@ -210,6 +210,20 @@ def get_harness_sha256_at_commit(repo, commit, harness_path="app/experiments",
     return digest.hexdigest()
 
 
+def _get_clean_source_inconsistency(git):
+    """Missing legacy diagnostics are allowed; contradictory ones are not."""
+    if git.get("dirty") is not False:
+        return None
+    if "source_state" in git and git["source_state"] != "clean":
+        return "clean claim contradicts recorded source_state"
+    for field in ("modified_tracked_files", "untracked_harness_files"):
+        if field in git and git[field] not in (None, []):
+            return f"clean claim contradicts recorded {field}"
+    if git.get("source_state_detail"):
+        return "clean claim contradicts recorded source_state_detail"
+    return None
+
+
 def get_reproducible_harness_source(
         provenance_block, repo=REPO, harness_path="app/experiments"):
     """Return the exact commit (or WORKTREE) reproducing a recorded harness.
@@ -224,6 +238,8 @@ def get_reproducible_harness_source(
     git = provenance_block.get("git") if isinstance(provenance_block, dict) \
         else None
     if not isinstance(git, dict):
+        return None
+    if _get_clean_source_inconsistency(git):
         return None
     scheme = git.get("harness_sha256_scheme")
     if "harness_sha256_scheme" in git:
@@ -271,7 +287,8 @@ def get_reproducible_harness_source(
 
 
 def check_harness_provenance(
-        provenance_block, repo=REPO, harness_path="app/experiments"):
+        provenance_block, repo=REPO, harness_path="app/experiments", *,
+        require_current=False):
     """-> (status, detail) for a STORED provenance block.
 
     ONE check, built on get_reproducible_harness_source so "which commit holds
@@ -289,13 +306,18 @@ def check_harness_provenance(
                   clean. A missing legacy diagnostic field is not a defect by
                   itself; a record that actually verifies passes.
 
-    Deliberately not a verdict about the measurement - only about whether the
-    code that ran can be identified.
+    require_current additionally binds a derived-file check to the current
+    harness, using the stored digest scheme. Historical experiment consumers
+    can still identify an older harness without requiring it to be current.
+    Neither mode is a verdict about the measurement.
     """
     git = (provenance_block.get("git")
            if isinstance(provenance_block, dict) else None)
     if not isinstance(git, dict):
         return "unverifiable", "no git provenance block was recorded"
+    inconsistent = _get_clean_source_inconsistency(git)
+    if inconsistent:
+        return "inconsistent", inconsistent
     target = git.get("harness_sha256")
     if not isinstance(target, str) or not re.fullmatch(r"[0-9a-f]{64}", target):
         return "unverifiable", "no harness fingerprint was recorded"
@@ -305,6 +327,15 @@ def check_harness_provenance(
     resolved = get_reproducible_harness_source(
         provenance_block, repo=repo, harness_path=harness_path)
     if resolved:
+        if require_current:
+            from experiments.manifest import _source_fingerprint
+            try:
+                current = _source_fingerprint(
+                    os.path.join(repo, harness_path), git.get("harness_sha256_scheme"))
+            except (OSError, ValueError) as exc:
+                return "unverifiable", f"current harness could not be fingerprinted: {exc}"
+            if current != target:
+                return "inconsistent", "current harness differs from the recorded harness"
         return "verified", f"harness reproduced at {resolved}"
     if git.get("dirty") is False:
         return ("inconsistent",
