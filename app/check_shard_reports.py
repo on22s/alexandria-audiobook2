@@ -61,7 +61,7 @@ def get_shard_report_errors(reports, shard_count, expected_tests, expected_test_
         ran = (gate or {}).get("result", {}).get("tests_ran")
         if gate is None or gate.get("status") != "passed":
             errors.append(f"{label} has no passing unit_tests gate")
-        elif isinstance(ran, bool) or not isinstance(ran, int) or ran < 1:
+        if isinstance(ran, bool) or not isinstance(ran, int) or ran < 1:
             errors.append(f"{label} did not record a positive tests_ran (got {ran!r})")
         else:
             total += ran
