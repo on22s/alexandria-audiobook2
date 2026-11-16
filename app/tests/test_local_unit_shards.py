@@ -236,6 +236,7 @@ class LocalWorktreeTests(unittest.TestCase):
             self.local.cleanup_stale_runs(self.repo)
         except (ValueError, RuntimeError):
             pass
+        self.assertTrue(marker.is_file(), 'recovery deleted foreign worktree data')
         self.assertEqual(b'foreign uncommitted data', marker.read_bytes())
         self.assertEqual(before, self.registered())
         self.assertEqual(integrity, self.git_integrity())
@@ -248,6 +249,62 @@ class LocalWorktreeTests(unittest.TestCase):
         marker = path / 'uncommitted'
         marker.write_bytes(b'foreign uncommitted data')
         self.assert_recovery_preserves(marker, self.registered(), manifest)
+
+    def test_stale_recovery_preserves_recreated_detached_worktree_with_copied_token(self):
+        manifest, path, record = self.create_stale_run()
+        ownership = record['ownership'][0]
+        admin = self.local.get_worktree_admin(self.repo, path, record['snapshot_commit'])
+        token = (admin / self.local.OWNER_TOKEN_FILE).read_bytes()
+        self.git('worktree', 'remove', '--force', str(path))
+        self.git('worktree', 'add', '--detach', str(path), record['snapshot_commit'])
+        replacement = self.local.get_worktree_admin(self.repo, path, record['snapshot_commit'])
+        self.assertEqual(ownership['admin_name'], replacement.name)
+        (replacement / self.local.OWNER_TOKEN_FILE).write_bytes(token)
+        marker = path / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+
+    def test_stale_recovery_never_overwrites_retargeted_foreign_reports(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        foreign = self.root / 'foreign-reports'
+        (foreign / 'shard-1').mkdir(parents=True)
+        expected = {'aggregate.json': b'foreign aggregate\n',
+                    'shard-1/shard.json': b'foreign shard\n',
+                    'shard-1/output.log': b'foreign log\n'}
+        for name, content in expected.items():
+            (foreign / name).write_bytes(content)
+        record['artifact_dir'] = str(foreign)
+        record['worktrees'] = [str(foreign / 'worktrees/shard-1')]
+        record['ownership'][0]['path'] = record['worktrees'][0]
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        before = self.git_integrity()
+        recovered = self.local.cleanup_stale_runs(self.repo)
+        self.assertEqual(expected, {name: (foreign / name).read_bytes() for name in expected})
+        self.assertEqual(set(expected), {str(name.relative_to(foreign)).replace(chr(92), '/')
+                                        for name in foreign.rglob('*') if name.is_file()})
+        self.assertEqual(before, self.git_integrity())
+        self.assertEqual(1, len(recovered))
+        recovered_path = Path(recovered[0])
+        self.assertNotEqual(foreign, recovered_path)
+        self.addCleanup(shutil.rmtree, recovered_path)
+        self.assertEqual('failed', json.loads((recovered_path / 'aggregate.json').read_text())['status'])
+
+    def test_stale_recovery_preserves_recreated_artifacts_with_copied_marker(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        artifacts = Path(record['artifact_dir'])
+        expected = b'foreign aggregate must remain byte-identical'
+        (artifacts / 'aggregate.json').write_bytes(expected)
+        saved = self.root / 'original-reports'
+        artifacts.rename(saved)
+        shutil.copytree(saved, artifacts)
+        recovered = self.local.cleanup_stale_runs(self.repo)
+        self.assertEqual(1, len(recovered))
+        recovered_path = Path(recovered[0])
+        if recovered_path != artifacts:
+            self.addCleanup(shutil.rmtree, recovered_path)
+        self.assertEqual(expected, (artifacts / 'aggregate.json').read_bytes())
+        self.assertNotEqual(artifacts, recovered_path)
+        self.assertEqual('failed', json.loads((recovered_path / 'aggregate.json').read_text())['status'])
 
     def test_stale_recovery_preserves_foreign_worktree_after_consistent_path_edit(self):
         manifest, path, record = self.create_stale_run()
@@ -348,6 +405,7 @@ class LocalWorktreeTests(unittest.TestCase):
     def test_recovery_refuses_junction_or_symlink_artifact_directory(self):
         manifest, path, record = self.create_stale_run(created=False)
         artifacts = Path(record['artifact_dir'])
+        (artifacts / self.local.OWNER_TOKEN_FILE).unlink()
         artifacts.rmdir()
         target = self.root / 'other-tool'
         target.mkdir()

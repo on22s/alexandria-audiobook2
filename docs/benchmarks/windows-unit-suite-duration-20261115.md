@@ -1,5 +1,51 @@
 # Native Windows unit-suite duration: measurements and isolated local shards
 
+## Copied-directory identity re-review, 2026-11-16
+
+Merged fresh main through `a5af65ad` (#1985) and `fdd0edbc` (#1989).
+This section supersedes the recovery qualification below; full-readiness timings
+remain historical and were not repeated under the disposable-fixture-only rule.
+
+- **Copied-token replacement:** persist and verify filesystem identities of both
+  the worktree and its admin directory, in addition to token, registration, admin
+  name and detached snapshot HEAD. Windows uses the existing native handle API
+  to bind volume serial, file ID and creation time. POSIX uses device/inode plus
+  birth time (Linux `statx`), with conservative nanosecond-ctime fallback. A
+  recreated directory is refused even when Git reuses its admin name and every
+  token/commit string matches. Existing lock and Git-only removal rules remain.
+- **Foreign reports:** record an artifact-directory identity and token marker at
+  registration. Recovery verifies both before writing any report there. Missing,
+  copied or mismatched ownership redirects reports to a fresh owned `recovered-*`
+  directory, leaves foreign files untouched, records the original location and
+  keeps unverified counts unknown.
+- **Behavioral fail-first:** both exact reported reproductions run against the
+  unchanged `a4117ae6` implementation using its existing APIs. Native Windows:
+  2 tests, 2 assertion failures, 0 errors, 9.611s. WSL: 2 tests, 2 assertion
+  failures, 0 errors, 5.023s. They demonstrate actual synthetic data deletion
+  and foreign report overwrite, not missing-API failures. A third regression
+  preserves a recreated artifact directory containing a copied ownership marker.
+
+| Final disposable qualification | Ran | Failures | Errors | Skips | unittest seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native Windows, CPython 3.10.22, two sequential batches | 229 | 0 | 0 | 0 | 281.689 |
+| WSL Ubuntu, CPython 3.14.4, one batch | 229 | 0 | 0 | 0 | 113.109 |
+
+Windows ran 195 tests in 279.700s, then the 34 freshly merged dataset tests in
+1.989s. Both platforms cover all **47 local-shard tests**, shared CI dispatch
+and aggregation, navigation timers, hook installation, derived metadata,
+review spans/cancellation/checkpoints, manual LLM and dataset UI/HTTP fixtures.
+Qualification jobs ran sequentially, with GPU masks empty and at most two shard
+workers. The native source fixture regenerated and passed the full inventory
+check; this also restored 14 upstream IDs lost by automatic generated-file
+merges and added the three new IDs. WSL verified all **275 IDs across 12 focused
+modules** using the existing discovery/diff helpers, not full inventory discovery.
+
+All per-test fixture directories and registered shard worktrees were cleaned;
+WSL removed its independent source checkout and venv. Native terminal policy
+blocked the requested removal of `<temp>/aa2-directory-identity-review/source`
+and `source.tar`; these disposable source artifacts remain beside local evidence
+logs. No tests or recovery command targeted the real repository.
+
 ## Identity-bound recovery re-review, 2026-11-16
 
 Merged fresh `origin/main` at `fac80733` (#1983), then `81294d5b` (#1984) and

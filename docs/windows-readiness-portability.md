@@ -168,7 +168,13 @@ Checkout creation records each worktree's own admin entry name and writes the
 secret token outside its tracked tree, into that admin directory, before
 materialization or worker launch. Both normal cleanup and recovery require the
 registered path, admin entry and reverse gitfile pointer, detached snapshot HEAD,
-and secret token to match. Recovery validates every shard before removing any.
+secret token, and filesystem identities of both the admin and checkout directories
+to match. Windows identities bind the native volume serial, file ID and creation
+time; POSIX binds device, inode and birth time (Linux uses `statx`), falling back
+conservatively to nanosecond ctime when birth time is unavailable. On such a
+filesystem, directory metadata changes can refuse cleanup rather than risk
+deleting an unproven replacement. A recreated checkout with copied tokens and
+reused admin names is not owned. Recovery validates every shard before removing any.
 Removal uses only `git worktree remove --force` under the common lock; there is
 no recursive worktree deletion, global prune, or direct admin-directory removal.
 Missing paths are harmless only when neither the path nor its recorded admin
@@ -182,7 +188,14 @@ root `<temp>/alexandria-local-units`, outside repository checkouts and common
 metadata. Realpath, symlink and Windows junction/reparse-point checks apply to
 artifact/worktree paths and admin links. An arbitrary external `--unit-report-dir`
 is no longer accepted; choose a new/empty directory below that root. Malformed
-or unsafe manifests fail loudly. Recovery retains partial receipts/logs and writes an explicitly failed,
+or unsafe manifests fail loudly. Each artifact directory has its own token and
+filesystem-identity marker, also bound into the manifest. Before writing recovery
+reports, recovery verifies both the marker and the current directory identity.
+An unverified or recreated report directory is left byte-for-byte untouched;
+recovery instead publishes into a newly created `recovered-*` directory under
+the tool root, records the original location, and reports unknown counts rather
+than trusting foreign receipts. For verified directories, recovery retains
+partial receipts/logs and writes an explicitly failed,
 incomplete aggregate for the interrupted run. The manifest is removed only after
 worktree cleanup and aggregate publication succeed; failed recovery can be
 retried. This is next-run recovery, not a promise that a killed process executes

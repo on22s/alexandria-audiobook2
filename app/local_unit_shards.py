@@ -179,6 +179,69 @@ def get_artifact_root():
     return Path(tempfile.gettempdir()).resolve() / 'alexandria-local-units'
 
 
+def get_directory_identity(path):
+    validate_path_without_links(path)
+    info = Path(path).stat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError(f'Ownership identity requires a directory: {path}')
+    if sys.platform == 'win32':
+        from windows_export_staging_directory import _api, _Handle
+        api = _api()
+        handle = _Handle(api, path)
+        try:
+            native = handle.information()
+            if not native.attributes & 0x10 or native.attributes & 0x400:
+                raise ValueError(f'Unsafe ownership directory: {path}')
+            return dict(kind='windows-file-id', device=native.volume,
+                        inode=(native.index_high << 32) | native.index_low,
+                        created=(native.created.high << 32) | native.created.low)
+        finally:
+            handle.close()
+    if hasattr(info, 'st_birthtime'):
+        return dict(kind='posix-birthtime', device=info.st_dev, inode=info.st_ino,
+                    created=getattr(info, 'st_birthtime_ns', int(info.st_birthtime * 10 ** 9)))
+    if sys.platform.startswith('linux'):
+        import ctypes
+        import struct
+        api = ctypes.CDLL(None, use_errno=True)
+        operation = getattr(api, 'statx', None)
+        if operation is not None:
+            operation.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                                  ctypes.c_uint, ctypes.c_void_p]
+            operation.restype = ctypes.c_int
+            buffer = ctypes.create_string_buffer(256)
+            if operation(-100, os.fsencode(path), 0x100, 0xFFF, buffer) != 0:
+                raise OSError(ctypes.get_errno(), 'Cannot read directory birth identity')
+            mask = struct.unpack_from('=I', buffer, 0)[0]
+            if mask & 0x800:
+                seconds, nanoseconds = struct.unpack_from('=qI', buffer, 80)
+                inode = struct.unpack_from('=Q', buffer, 32)[0]
+                major, minor = struct.unpack_from('=II', buffer, 136)
+                return dict(kind='posix-birthtime', device=os.makedev(major, minor),
+                            inode=inode, created=seconds * 10 ** 9 + nanoseconds)
+    return dict(kind='posix-ctime', device=info.st_dev, inode=info.st_ino, created=info.st_ctime_ns)
+
+
+def save_artifact_ownership(artifacts, token):
+    marker = artifacts / OWNER_TOKEN_FILE
+    validate_path_without_links(marker)
+    with marker.open('x', encoding='ascii') as stream:
+        ownership = dict(token=token, directory_identity=get_directory_identity(artifacts))
+        json.dump(ownership, stream)
+    return ownership
+
+
+def is_artifact_owner(artifacts, ownership, token):
+    try:
+        marker = artifacts / OWNER_TOKEN_FILE
+        validate_path_without_links(marker)
+        return (isinstance(ownership, dict) and ownership.get('token') == token
+                and get_directory_identity(artifacts) == ownership.get('directory_identity')
+                and json.loads(marker.read_text(encoding='ascii')) == ownership)
+    except (OSError, ValueError):
+        return False
+
+
 def validate_path_without_links(path):
     path = Path(path)
     if not path.is_absolute() or path.resolve() != path:
@@ -264,6 +327,9 @@ def validate_worktree_ownership(repo, path, ownership, *, _locked=False):
     if (admin.name != name or not isinstance(token, str) or not token
             or not token_file.is_file() or token_file.read_text(encoding='ascii') != token):
         raise ValueError(f'Worktree ownership mismatch: admin name or token changed at {path}; leaving intact')
+    if (get_directory_identity(admin) != ownership.get('admin_identity')
+            or get_directory_identity(path) != ownership.get('worktree_identity')):
+        raise ValueError(f'Worktree ownership mismatch: directory identity changed at {path}; leaving intact')
     return True
 
 
@@ -284,6 +350,8 @@ def add_snapshot_worktree(repo, snapshot, path, *, ownership=None, manifest=None
         with (admin / OWNER_TOKEN_FILE).open('x', encoding='ascii') as stream:
             stream.write(ownership['token'])
         ownership['admin_name'] = admin.name
+        ownership['admin_identity'] = get_directory_identity(admin)
+        ownership['worktree_identity'] = get_directory_identity(path)
         if manifest is not None:
             record = json.loads(manifest.read_text(encoding='utf-8'))
             matches = [entry for entry in record['ownership'] if entry['path'] == str(path)]
@@ -401,10 +469,12 @@ def register_run(repo, artifacts, expected_ids, count, *, snapshot_commit=None):
         manifest = registry / (run_id + '.json')
         snapshot_commit = snapshot_commit or run_git(repo, 'rev-parse', 'HEAD').strip().decode('ascii')
         paths = [str(artifacts / 'worktrees' / f'shard-{number}') for number in range(1, count + 1)]
+        artifact_ownership = save_artifact_ownership(artifacts, token)
         atomic_json_write(dict(schema_version=2, run_id=run_id, token=token,
                                owner_pid=os.getpid(), owner_start_time=start_time,
                                owner_platform=sys.platform, owner_host=socket.gethostname(),
                                common_directory=str(common), artifact_dir=str(artifacts),
+                               artifact_ownership=artifact_ownership,
                                expected_ids=expected_ids, shard_count=count, snapshot_commit=snapshot_commit,
                                worktrees=paths, ownership=[dict(path=path, admin_name=None, token=token,
                                    snapshot_commit=snapshot_commit) for path in paths]),
@@ -452,6 +522,11 @@ def cleanup_stale_runs(repo):
                 validate_path_without_links(artifacts / f'shard-{number}')
             for path, ownership in zip(record['worktrees'], record['ownership']):
                 remove_snapshot_worktree(repo, Path(path), root, ownership=ownership, _locked=True)
+            original_artifacts = artifacts
+            if not is_artifact_owner(artifacts, record.get('artifact_ownership'), record['token']):
+                artifacts = Path(tempfile.mkdtemp(prefix='recovered-', dir=get_artifact_root()))
+                validate_artifact_directory(repo, artifacts, _locked=True)
+                save_artifact_ownership(artifacts, record['token'])
             reports = []
             for number, path in enumerate(record['worktrees'], 1):
                 directory = artifacts / f'shard-{number}'
@@ -466,7 +541,10 @@ def cleanup_stale_runs(repo):
                 reports.append(report)
             result = aggregate_unit_reports(reports, record['expected_ids'], count)
             result.update(status='failed', counts_complete=False, artifact_dir=str(artifacts),
+                          original_artifact_dir=str(original_artifacts),
                           remaining_worktrees=[], recovered_owner_pid=record['owner_pid'])
+            if artifacts != original_artifacts:
+                result['problems'].append('Original artifact ownership not verified; recovery reports redirected')
             result['problems'].append('Coordinator exited without finalizing; recovered recorded worktrees')
             atomic_json_write(result, str(artifacts / 'aggregate.json'), allow_nonatomic_fallback=False)
             manifest.unlink()
