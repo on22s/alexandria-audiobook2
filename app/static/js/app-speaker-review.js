@@ -17,7 +17,7 @@
     const stopPolling = () => { clearTimeout(state.timer); state.timer = null; };
     const status = (message, level = 'secondary') => {
         element('status').className = `alert alert-${level} small mb-0`;
-        element('status').textContent = message;
+        renderUiMessage(element('status'), message);
     };
     function node(tag, text, className) {
         const result = document.createElement(tag);
@@ -83,7 +83,7 @@
         if (wasRunning) {
             status(formatUiSafetyText('safety.speaker_review.book-changed', 'The active book changed. Previous results are hidden; an already-sent model request may still finish. Load options to check server state before starting again.'), 'warning');
         } else {
-            status(t('speaker_review.ready', 'Load options for this book when you are ready. Opening this panel makes no model requests.'));
+            status(uiMessage('speaker_review.ready', 'Load options for this book when you are ready. Opening this panel makes no model requests.'));
         }
         syncControls();
     };

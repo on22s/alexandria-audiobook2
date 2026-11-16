@@ -220,17 +220,17 @@ def harvest_js(path, messages):
         if len(arguments) < 3 or arguments[1] is None or arguments[2] is None:
             raise HarvestError(f"{name}: createUiMessageNode needs literal key and English text")
         _record(messages, arguments[1], arguments[2], name)
-    for match in re.finditer(r"\brenderUiSafety\s*\(", text):
+    for match in re.finditer(r"\b(?:renderUiSafety|setUiMessage)\s*\(", text):
         arguments = _call_arguments_after_first(text, match.end())
         if len(arguments) < 2 or arguments[0] is None or arguments[1] is None:
-            raise HarvestError(f"{name}: renderUiSafety needs literal key and English text")
+            raise HarvestError(f"{name}: message renderer needs literal key and English text")
         _record(messages, arguments[0], arguments[1], name)
     for match in re.finditer(r"\bformatUiSafetyText\s*\(", text):
         arguments = _call_arguments(text, match.end())
         if len(arguments) < 2 or arguments[0] is None or arguments[1] is None:
             raise HarvestError(f"{name}: formatUiSafetyText needs literal key and English text")
         _record(messages, arguments[0], arguments[1], name)
-    for match in re.finditer(r"\bt\s*\(", text):
+    for match in re.finditer(r"\b(?:t|uiMessage|uiMessageMarkup)\s*\(", text):
         if name == "app-tts-capabilities.js" and re.match(
                 r"capability\.(description|language_note)_key\s*,\s*capability\.\1\s*\)", text[match.end():]):
             continue

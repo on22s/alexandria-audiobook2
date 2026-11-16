@@ -368,7 +368,7 @@ class KeyingTests(LocaleTestCase):
             ('app-tts-capabilities.js', "t('setup.tts.cap.report.heading'"),
             ('app-tts-diagnostics.js', "t('tts_diag.record'"),
             ('app-scripts.js', "t('script.audit.counts'"),
-            ('app-scripts.js', "t('script.saved.list-empty'"),
+            ('app-scripts.js', "uiMessageMarkup('script.saved.list-empty'"),
             ('app-scripts.js', "t('clone.cleanup.plan'"),
         )
         for name, needle in expectations:

@@ -5,7 +5,7 @@
                 const container = document.getElementById('saved-scripts-list');
 
                 if (!scripts.length) {
-                    container.innerHTML = `<p class="text-muted mb-0">${escapeHtml(t('script.saved.list-empty', 'No saved scripts yet. Generate a script above, or select Save Current to keep the current script here.'))}</p>`;
+                    container.innerHTML = `<p class="text-muted mb-0">${uiMessageMarkup('script.saved.list-empty', 'No saved scripts yet. Generate a script above, or select Save Current to keep the current script here.')}</p>`;
                     return;
                 }
 

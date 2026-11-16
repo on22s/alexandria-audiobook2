@@ -132,7 +132,7 @@ function renderSingleVoiceSourcePreview() {
         meta.textContent = '';
         if (confirmBox) { confirmBox.checked = false; }
         const emptyStatus = document.getElementById('source-preview-status');
-        if (emptyStatus) { emptyStatus.textContent = t('single_voice.source.empty-status', 'No source preview loaded.'); }
+        if (emptyStatus) { setUiMessage(emptyStatus, 'single_voice.source.empty-status', 'No source preview loaded.'); }
         return;
     }
     const preview = _singleVoiceSourcePreview;
@@ -167,9 +167,9 @@ function renderSingleVoiceSourcePreview() {
     const confirmed = isSingleVoiceSourceConfirmed();
     if (confirmBox) { confirmBox.checked = confirmed; }
     const status = document.getElementById('source-preview-status');
-    if (status) { status.textContent = confirmed
-        ? t('single_voice.source.confirmed', 'Loaded excerpt snapshot confirmed in this tab. Reload the preview to check the current source.')
-        : t('single_voice.source.unconfirmed', 'Loaded excerpt snapshot not confirmed for the current book/source.'); }
+    if (status) { renderUiMessage(status, confirmed
+        ? uiMessage('single_voice.source.confirmed', 'Loaded excerpt snapshot confirmed in this tab. Reload the preview to check the current source.')
+        : uiMessage('single_voice.source.unconfirmed', 'Loaded excerpt snapshot not confirmed for the current book/source.')); }
 }
 
 async function loadSingleVoiceSourcePreview() {
@@ -251,7 +251,7 @@ function onSingleVoiceSourceConfirm() {
 function makeSingleVoicePlaceholder(select) {
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = t('single_voice.placeholder', 'Choose a speaker whose voice you picked…');
+    setUiMessage(placeholder, 'single_voice.placeholder', 'Choose a speaker whose voice you picked…');
     select.appendChild(placeholder);
 }
 

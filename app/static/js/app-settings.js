@@ -24,6 +24,8 @@ function changeUiLocale(locale) {
 // text is rebuilt through translateUiMessage on every render.
 function renderUiLocaleChrome() {
     renderSetupSearchStatus();
+    if (typeof renderThemeControl === 'function') { renderThemeControl(); }
+    if (typeof renderVoiceLocaleChrome === 'function') { renderVoiceLocaleChrome(); }
     if (typeof applyTtsCapabilityGuidance === 'function') { applyTtsCapabilityGuidance(); }
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
     if (typeof renderFollowupLocaleChrome === 'function') { renderFollowupLocaleChrome(); }

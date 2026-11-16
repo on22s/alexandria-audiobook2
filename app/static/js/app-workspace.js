@@ -82,8 +82,9 @@ function renderWorkspaceLibrary(books) {
     workspaceLibrarySignature = signature;
     const container = document.getElementById('workspace-library');
     const selected = new Set(collectionSelectedNames());
+    container.removeAttribute('data-i18n');
     container.replaceChildren();
-    if (!books.length) { container.textContent = t('home.workspace.library.empty', 'No saved books yet. Save the current script from Script.'); return; }
+    if (!books.length) { setUiMessage(container, 'home.workspace.library.empty', 'No saved books yet. Save the current script from Script.'); return; }
     for (const book of books) {
         const row = document.createElement('div');
         row.className = 'workspace-library-row';

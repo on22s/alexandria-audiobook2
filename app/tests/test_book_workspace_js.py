@@ -9,6 +9,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 STATIC = Path(__file__).resolve().parent.parent/'static/js'
 SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-workspace.js','app-i18n.js'),'utf8'),context);
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 const visibilityListeners=[];document.addEventListener=(name,fn)=>{if(name==='visibilitychange'){visibilityListeners.push(fn);}};
 Element.prototype.append=function(...nodes){for(const node of nodes){this.appendChild(node);}};

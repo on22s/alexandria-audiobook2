@@ -98,6 +98,7 @@ const collectSlice=core.slice(core.indexOf('function collectVoiceConfig('),core.
 const voiceStateSlice=core.slice(core.indexOf('let _voiceResourcesRefreshedAt'),core.indexOf('function getVoiceSeedRepairMarkup('));
 const loadVoicesSlice=core.slice(core.indexOf('async function loadVoices('),core.indexOf('window.selectVoiceVersion'));
 function makeElement(id){return {id,children:[],checked:false,value:'',textContent:'',innerHTML:'',listeners:{},dataset:{},style:{},disabled:false,
+ setAttribute(name,value){this[name]=value;},
  appendChild(node){this.children.push(node);return node;},
  replaceChildren(...nodes){this.children=[...nodes];
   if(this.value && !this.children.some(child=>child.value===this.value)){this.value=this.children[0]?.value ?? '';}},
@@ -125,6 +126,7 @@ const context={currentBookFilename:'book.txt',_bookSelectionEpoch:1,document,ele
  getLibraryVoiceReference:()=>null,getTraitBadgeHtml:()=>'',getVoiceCandidateMarkup:()=>'',renderStyleTimeline:()=>'',getSavedAdapterOption:()=>'',disableStaleCardControls:s=>s,getLoraModelsById:()=>new Map(),loadCastLibrary:async()=>{},refreshVoicesScope(){},updateNarratorPreviewFields(){},renderReadyCount(){},onToggleHideReady(){},saveVoicesDebounced:()=>{},renderVoiceSuggestions(){},getVoicePanelSnapshot:()=>({bookToken:null,panels:[]}),restoreVoicePanels(){},getVoiceListFocusSnapshot:()=>null,restoreVoiceListFocus(){},getVoiceSeedRepairMarkup:()=>'',renderPersonaRecoveryTargets(){},applyTtsCapabilityGuidance(){},
  ensureVoiceRosterCache(){},renderVoiceDrafts(){}};
 (vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.joinUiSentences=context.joinUiSentences||((parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ')),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context);
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
 vm.runInContext(helper+api+saves+refresh+literalSlice+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+voice,context);
 context.elements=elements;context.document=document;
 context.API=vm.runInContext('API',context);

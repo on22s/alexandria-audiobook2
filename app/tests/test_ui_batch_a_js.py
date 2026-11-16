@@ -133,6 +133,7 @@ error=Error('Offline');await context.refreshScriptIngestFacts();assert.match(doc
     def test_empty_cast_does_not_claim_rows_were_kept(self):
         self.run_js(r'''
 add('cast-list-panel');const status=add('cast-list-status');
+run(source('app-i18n.js'));
 run('let castListRequest=0,castListLoaded=false,castListMutationPending=false;');
 let snapshot='[]';context.getCastListEditorSnapshot=()=>snapshot;
 context.API={get:async()=>{throw Object.assign(Error('No input file selected'),{status:400,messageKey:'error.generation.no_input'});}};

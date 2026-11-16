@@ -15788,6 +15788,7 @@
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_browser_tree_stops_before_profile_cleanup_on_success_and_timeout",
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_browser_waits_for_async_fixture_completion",
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_metrics_remain_available_on_compact_navigation",
+    "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_script_header_wraps_in_all_locales_at_phone_and_desktop_widths",
     "tests.test_ui_followups_rendered.RenderedUiFollowupTests.test_waveform_seek_decode_and_theme_states_at_desktop_width"
   ],
   "test_ui_guidance_js": [
@@ -15840,6 +15841,10 @@
     "tests.test_ui_help_js.UiHelpTests.test_title_naming_search_and_updates"
   ],
   "test_ui_i18n_app_core": [
+    "tests.test_ui_i18n_app_core.BatchDLocaleStabilityTests.test_real_voice_cards_pluralize_one_two_and_state_counts_in_each_locale",
+    "tests.test_ui_i18n_app_core.BatchDLocaleStabilityTests.test_runtime_estimates_and_integrity_badges_repaint_without_reload",
+    "tests.test_ui_i18n_app_core.BatchDLocaleStabilityTests.test_saved_review_enums_and_unknown_support_value_survive_live_switch",
+    "tests.test_ui_i18n_app_core.BatchDLocaleStabilityTests.test_theme_cycles_and_live_locale_switch_repaint_all_six_actions",
     "tests.test_ui_i18n_app_core.CastListRenderTests.test_show_confirm_defaults_and_recovery_copy_are_keyed",
     "tests.test_ui_i18n_app_core.CastListRenderTests.test_the_cast_list_delete_confirm_keeps_english_beneath_the_translation",
     "tests.test_ui_i18n_app_core.CastListRenderTests.test_the_real_cast_list_row_translates_its_placeholder_and_names",
@@ -15876,6 +15881,8 @@
     "tests.test_ui_i18n_js.UiI18nJsTests.test_numbers_and_dates_follow_the_ui_locale",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_plural_form_for_zero_one_two_and_large_counts",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_pseudo_locale_expands_every_string_and_keeps_placeholders",
+    "tests.test_ui_i18n_js.UiI18nJsTests.test_runtime_attributes_and_authored_markup_keep_drafts_on_live_switch",
+    "tests.test_ui_i18n_js.UiI18nJsTests.test_runtime_messages_repaint_values_without_reusing_translated_source",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_safety_messages_show_the_translation_with_the_english_below_it",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_sentences_join_without_a_space_after_cjk_punctuation",
     "tests.test_ui_i18n_js.UiI18nJsTests.test_the_attribute_sweep_uses_the_authored_value_and_never_html",
@@ -15963,6 +15970,7 @@
   "test_ui_markup_gate": [
     "tests.test_ui_markup_gate.CounterFixtureTests.test_js_counter_ignores_the_english_argument_of_t_and_create",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_markup_counter_counts_only_unkeyed_display_text",
+    "tests.test_ui_markup_gate.CounterFixtureTests.test_runtime_message_bindings_only_exempt_literal_key_and_english",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_the_help_map_exclusion_stops_at_the_maps",
     "tests.test_ui_markup_gate.PhoneTaskLayoutTests.test_phone_layout_uses_same_bound_editor_fields",
     "tests.test_ui_markup_gate.PhoneTaskLayoutTests.test_phone_standalone_log_link_has_a_touch_target",
