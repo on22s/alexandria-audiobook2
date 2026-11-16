@@ -26,6 +26,7 @@ on:
         type: boolean
         default: false
   pull_request:
+  merge_group:
   push:
     branches: [main]
 
@@ -187,9 +188,9 @@ jobs:
           python -c "import torch, torchaudio, peft; from safetensors import safe_open; assert torch.version.cuda is None and torch.version.hip is None; assert torchaudio.__version__.endswith('+cpu')"
 
       - name: Snapshot maintenance hints
-        if: github.event_name == 'pull_request' && matrix.shard == '1/6'
+        if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && matrix.shard == '1/6'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: python diagnose_pr_changes.py --base "$BASE_SHA"
 
       - name: Verify timeout contracts
@@ -239,6 +240,13 @@ jobs:
       - name: Goal evidence audit is current
         if: ${{ !cancelled() }}
         run: python app/experiments/goal_evidence_audit.py --check
+      - name: Derived churn and queue regression controls
+        if: ${{ !cancelled() }}
+        working-directory: app
+        run: >-
+          python -m unittest tests.test_experiment_provenance
+          tests.test_inventory.AtomicInventoryWriterTests
+          tests.test_merge_group_workflows -v
 
   # Stable job name: this is the one check that means "the whole suite passed".
   test:

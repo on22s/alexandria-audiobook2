@@ -19,10 +19,12 @@ on:
       - 'app/tests/test_legacy_batch_cleanup.py'
       - 'app/tests/test_chunk_generation_identity.py'
       - '.github/workflows/external-tts-lifetime.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:
   native:
+    name: external-tts (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
