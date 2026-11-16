@@ -2,7 +2,8 @@
 
 ## Identity-bound recovery re-review, 2026-11-16
 
-Merged fresh `origin/main` at `fac80733` (#1983). This section supersedes the
+Merged fresh `origin/main` at `fac80733` (#1983), then `81294d5b` (#1984) when
+main advanced immediately before publishing. This section supersedes the
 earlier recovery and private-index design descriptions below; their full-suite
 timings remain historical, not qualification of this revision.
 
@@ -35,20 +36,24 @@ timings remain historical, not qualification of this revision.
 
 | Final focused qualification | Ran | Failures | Errors | Skips | unittest wall seconds |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Native Windows, CPython 3.10.22 | 101 | 0 | 0 | 0 | 223.294 |
-| WSL Ubuntu, CPython 3.14.4 | 101 | 0 | 0 | 0 | 99.746 |
+| Native Windows, CPython 3.10.22 | 125 | 0 | 0 | 0 | 244.225 |
+| WSL Ubuntu, CPython 3.14.4 | 125 | 0 | 0 | 0 | 102.376 |
 
 Both runs include all **44 local-shard tests**, the shared CI assignment and
 aggregation suite, navigation timer regressions, installer and derived-metadata
-tests. They exercise the four reported foreign-data cases, token/admin/HEAD
+tests, plus all 24 upstream review-source-span tests after the final merge. They
+exercise the four reported foreign-data cases, token/admin/HEAD
 tampering, validation-before-deletion, real coordinator PID termination,
 same-second edits, staged metadata and actual junction/symlink refusal. Every
 repository, worktree and process used by these tests is disposable. The native
-source fixture also regenerated and passed the full inventory check; its only
-inventory change is the 12 added local-shard tests. WSL's minimal CPU-only venv
-passed the focused suite but its additional full-inventory check exited 2 without
+source fixture also regenerated and passed the full inventory check; this
+re-review adds 12 local-shard tests and retains the upstream inventory additions.
+WSL's minimal CPU-only venv passed the focused suite but an earlier additional
+full-inventory check exited 2 without
 comparison because ML/audio dependencies and an archived data fixture were
-unavailable; that is not a WSL inventory pass.
+unavailable; that is not a full WSL inventory pass. After the final merge, the
+existing inventory discovery/diff helpers verified all 171 IDs across the six
+focused modules in WSL. This targeted check is not full-suite verification.
 
 GPU masks remained empty, qualification jobs did not overlap, and real shard
 fixtures used at most two workers. No full readiness run was repeated, per the
@@ -57,7 +62,7 @@ without completed identity proof are deliberately refused and left intact, not
 recovered by guessing ownership. All per-test native fixture directories are
 gone, and WSL removed its temporary checkout/venv on exit. Terminal policy
 blocked removal of the independent Windows `baseline-source` repository and
-its `source.tar` / `wsl-source.tar` archives below
+its `source.tar`, `wsl-source.tar` and `wsl-integration.tar` archives below
 `<temp>/aa2-recovery-identity-review`; these remain alongside evidence logs.
 No registered shard worktree remains from this qualification.
 
