@@ -13,9 +13,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import benchmark_runner as runner
+from tests.test_support import skip_unless_symlink
 
 
 class RemoteTTSAssetStagingTests(unittest.TestCase):
+    @skip_unless_symlink
     def test_native_mktemp_is_private_unique_and_ignores_a_precreated_fixed_directory_symlink(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);remote=root/'remote';remote.mkdir();victim=root/'victim';victim.mkdir()
