@@ -5655,5 +5655,15 @@
   "script.ingest.obsolete": "取り込み状態のスナップショットが古くなっています",
   "help.action.copyvoicelabfailuredetails": "表示中の技術的な失敗詳細をコピーします。個人情報を含むパスも対象です。共有前に確認し、機密情報を削除してください。",
   "help.action.openvoicelabsettings": "パイプライン設定を開いて不足している依存関係のパスを修正します。処理は開始しません。",
-  "help.action.openscriptworkspace": "スクリプトを開いてソースを選択したり、公開状況を確認したりします。生成は開始しません。"
+  "help.action.openscriptworkspace": "スクリプトを開いてソースを選択したり、公開状況を確認したりします。生成は開始しません。",
+  "setup.phone.tools": "言語ヘルプと設定ツール",
+  "casting.phone.filters": "フィルターとライブラリーツール",
+  "casting.phone.tools": "選択・再生・保存済みキャスト",
+  "casting.phone.voices": "ボイスを開く",
+  "casting.phone.designer": "デザイナーを開く",
+  "casting.phone.voices-help": "ボイスを開いて、この本のキャラクターのペルソナを生成します。",
+  "casting.phone.designer-help": "デザイナーを開いて、合成音声を作成して保存します。",
+  "editor.phone.review": "レビューの詳細とチェック",
+  "editor.phone.summary": "{count} 行のレビューが必要です。未生成・未チェックの行は承認済みではありません。",
+  "setup.phone.workflow": "ワークフローのショートカット"
 }

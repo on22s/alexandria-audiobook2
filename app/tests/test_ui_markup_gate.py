@@ -30,6 +30,7 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    'use strict', '(max-width: 575px)', 'editor-review-details', 'editor-quality-panel', 'editor-phone-status',
     '(prefers-reduced-motion: reduce)',
     # #1938 DOM IDs, tag/selector names and slider ARIA wiring, never copy.
     'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
@@ -174,6 +175,7 @@ MARKUP_BASELINE = {
 # string that is caught before display, server-backed data (pair names, stage
 # names, status tokens) and the template HTML that embeds the keyed t() calls.
 JS_BASELINE = {
+    'app-phone-layout.js': 0,
     'app-ui-followups.js': 0,
     'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
@@ -451,6 +453,32 @@ class RatchetTests(unittest.TestCase):
                     'setup.preview.would_save', 'setup.locale.storage_notice'):
             with self.subTest(key=key):
                 self.assertIn(f"'{key}'", settings)
+
+
+class PhoneTaskLayoutTests(unittest.TestCase):
+    def test_phone_standalone_log_link_has_a_touch_target(self):
+        css = (STATIC / 'css/phone-layout.css').read_text(encoding='utf-8')
+        self.assertIn('#review-single-area > a', css)
+        self.assertRegex(css, r'#review-single-area > a\s*\{[^}]*display: inline-flex;[^}]*min-height: 44px;')
+
+    def test_setup_and_casting_tools_use_native_optional_disclosures(self):
+        html = (STATIC / 'index.html').read_text(encoding='utf-8')
+        for name in ('setup-phone-tools', 'casting-filter-details', 'casting-tool-details', 'editor-review-details'):
+            with self.subTest(name=name):
+                self.assertRegex(html, r'<details[^>]*id="' + name + r'"[^>]*data-phone-disclosure')
+        self.assertLess(html.index('id="casting-results"'), html.index('id="casting-tool-details"'))
+        self.assertLess(html.index('id="setup-settings-category"'), html.index('id="setup-phone-tools"'))
+
+    def test_phone_layout_uses_same_bound_editor_fields(self):
+        html = (STATIC / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('phone-layout.css', html)
+        css = (STATIC / 'css/phone-layout.css').read_text(encoding='utf-8')
+        self.assertIn('.editor-review-main table', css)
+        self.assertIn('min-width: 0', css)
+        self.assertIn('min-height: 44px', css)
+        self.assertIn('.chunk-row', css)
+        core = (STATIC / 'js/app-core.js').read_text(encoding='utf-8')
+        self.assertEqual(1, core.count('id="chunk-text-${chunk.id}"'))
 
 
 if __name__ == '__main__':
