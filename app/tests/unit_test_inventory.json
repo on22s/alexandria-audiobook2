@@ -4627,6 +4627,8 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_cpu_pairs_are_resumable_and_changed_inputs_or_audio_refuse_reuse"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_default_packages_use_independent_randomization"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_does_not_delete_a_replacement"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_reports_failure_without_deleting_contents"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_reports_replacement_before_open"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_failed_collection_exits_nonzero"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_cannot_be_packaged_and_package_audio_tamper_is_detected"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_exits_nonzero_even_when_pairs_complete"
@@ -5556,6 +5558,7 @@
   , "test_expected_prosody_fusion": []
   , "test_experiment_audio_cleanup": [
     "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_dataset_consistency_cleanup_on_success_missing_metadata_metric_error_and_exception"
+    , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_experiment_basename_expressions_handle_native_trailing_separators"
     , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_reference_match_cleanup_on_success_missing_metadata_metric_error_and_exception"
   ]
   , "test_experiment_conventions": [

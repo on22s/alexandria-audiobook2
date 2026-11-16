@@ -477,6 +477,19 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         path.mkdir()
         (path / 'owned.txt').write_text('owned')
         identity = ev._path_identity(path)
+        if os.name == 'nt':
+            from windows_export_staging_directory import WindowsStageDirectory
+            real_remove = WindowsStageDirectory.remove_contents
+            def attempt_swap(directory, retained_names):
+                with self.assertRaises(OSError):
+                    path.rename(self.root / 'moved-owned')
+                self.assertEqual(identity, ev._path_identity(path))
+                return real_remove(directory, retained_names)
+            with patch.object(WindowsStageDirectory, 'remove_contents', new=attempt_swap):
+                ev._remove_owned_dir(path, identity)
+            self.assertFalse((path / 'owned.txt').exists())
+            self.assertFalse((self.root / 'moved-owned').exists())
+            return
         real_clear = ev._clear_directory_fd
         def swap(fd):
             path.rename(self.root / 'moved-owned')
@@ -492,8 +505,45 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         path = self.root / 'owned-staging'
         path.mkdir()
         (path / 'owned.txt').write_text('owned')
+        nested = path / 'nested'
+        nested.mkdir()
+        (nested / 'audio.wav').write_bytes(b'owned audio')
         ev._remove_owned_dir(path, ev._path_identity(path))
         self.assertFalse((path / 'owned.txt').exists())
+        self.assertEqual([], list(path.iterdir()))
+
+    def test_directory_cleanup_reports_replacement_before_open(self):
+        path = self.root / 'staging'
+        path.mkdir()
+        (path / 'owned.txt').write_text('owned')
+        identity = ev._path_identity(path)
+        moved = self.root / 'moved-owned'
+        path.rename(moved)
+        path.mkdir()
+        (path / 'foreign.txt').write_text('foreign')
+        with self.assertRaises(ev.ContinuityEvaluationError):
+            ev._remove_owned_dir(path, identity)
+        self.assertEqual('foreign', (path / 'foreign.txt').read_text())
+        self.assertEqual('owned', (moved / 'owned.txt').read_text())
+
+    def test_directory_cleanup_reports_failure_without_deleting_contents(self):
+        path = self.root / 'staging'
+        path.mkdir()
+        owned = path / 'owned.txt'
+        owned.write_text('owned')
+        identity = ev._path_identity(path)
+        if os.name == 'nt':
+            from windows_export_staging_directory import _Handle
+            target = patch.object(_Handle, 'delete', side_effect=PermissionError('fixture refusal'))
+        else:
+            target = patch.object(ev.os, 'unlink', side_effect=PermissionError('fixture refusal'))
+        with target:
+            with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'cleanup refused') as caught:
+                ev._remove_owned_dir(path, identity)
+        self.assertIsInstance(caught.exception.__cause__, PermissionError)
+        self.assertEqual('owned', owned.read_text())
+        ev._remove_owned_dir(path, identity)
+        self.assertEqual([], list(path.iterdir()))
 
     def test_packaging_collision_preserves_foreign_public_file(self):
         self.run_eval()

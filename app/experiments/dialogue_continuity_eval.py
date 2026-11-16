@@ -498,46 +498,45 @@ def _publish_new_file(source, destination):
 
 
 def _clear_directory_fd(fd):
-    try:
-        with os.scandir(fd) as iterator:
-            entries = list(iterator)
-    except (OSError, NotImplementedError, TypeError, ValueError):
-        return
+    with os.scandir(fd) as iterator:
+        entries = list(iterator)
     for entry in entries:
-        try:
-            if entry.is_dir(follow_symlinks=False):
-                child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                                dir_fd=fd)
-                try:
-                    _clear_directory_fd(child)
-                finally:
-                    os.close(child)
-                os.rmdir(entry.name, dir_fd=fd)
-            else:
-                os.unlink(entry.name, dir_fd=fd)
-        except (OSError, NotImplementedError, TypeError, ValueError):
-            continue
+        if entry.is_dir(follow_symlinks=False):
+            child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=fd)
+            try:
+                _clear_directory_fd(child)
+            finally:
+                os.close(child)
+            os.rmdir(entry.name, dir_fd=fd)
+        else:
+            os.unlink(entry.name, dir_fd=fd)
 
 
 def _remove_owned_dir(path, identity):
     """Clear an owned staging directory without deleting a path replacement.
 
-    Directory removal by descriptor is not portable, so the empty owned
-    directory may remain on platforms without that primitive. Contents are
-    cleared through the opened descriptor; a replacement path is untouched.
+    Leave the empty root in place. Windows handles pin its identity and deny
+    replacement during cleanup; POSIX clears through the opened descriptor.
+    Refusals are reported rather than silently leaving owned content behind.
     """
-    flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
     try:
-        fd = os.open(path, flags)
-    except (OSError, NotImplementedError, TypeError, ValueError):
-        return
-    try:
-        info = os.fstat(fd)
-        if (info.st_dev, info.st_ino) != identity:
+        if os.name == 'nt':
+            from windows_export_staging_directory import WindowsStageDirectory
+            with WindowsStageDirectory(path, identity) as directory:
+                directory.remove_contents(frozenset())
             return
-        _clear_directory_fd(fd)
-    finally:
-        os.close(fd)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        fd = os.open(path, flags)
+        try:
+            info = os.fstat(fd)
+            if (info.st_dev, info.st_ino) != identity:
+                raise ContinuityEvaluationError('owned staging directory was replaced')
+            _clear_directory_fd(fd)
+        finally:
+            os.close(fd)
+    except (OSError, NotImplementedError, TypeError, ValueError) as error:
+        raise ContinuityEvaluationError(f'owned staging cleanup refused: {path}') from error
 
 
 def build_blind_package(run_dir, package_dir, public_path, key_path, *, seed=None):

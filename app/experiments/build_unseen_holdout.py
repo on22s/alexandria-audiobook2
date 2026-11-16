@@ -424,7 +424,7 @@ def build(trained_zip, source_dir, out_dir, lines, seed,
 
     doc = {
         "trained_zip": os.path.basename(trained_zip),
-        "source_dir": os.path.basename(source_dir.rstrip("/")),
+        "source_dir": os.path.basename(os.path.normpath(source_dir)),
         "source_volumes": len(volumes),
         "volumes_excluded_as_training_data": contributing,
         "voices_in_book_recorded_not_gated": voices,
