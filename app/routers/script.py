@@ -4862,17 +4862,16 @@ async def manual_llm_response(reply: ManualReply):
     back as the next pending request, carrying the retry prompt."""
     def save_reply():
         directory = manual_llm_dir(DATA_DIR)
-        if not os.path.isdir(directory):
-            raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
-        with file_lock(os.path.join(directory, "pending.json")):
-            pending = _read_manual_pending_locked(os.path.join(directory, "pending.json"))
-            if not pending:
-                raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
-            if reply.id != pending["id"]:
-                raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
-            atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
-                              os.path.join(directory, "response.json"))
-            return {"accepted": True, "sequence": pending["sequence"]}
+        if os.path.isdir(directory):
+            with file_lock(os.path.join(directory, "pending.json")):
+                pending = _read_manual_pending_locked(os.path.join(directory, "pending.json"))
+                if pending:
+                    if reply.id != pending["id"]:
+                        raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
+                    atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
+                                      os.path.join(directory, "response.json"))
+                    return {"accepted": True, "sequence": pending["sequence"]}
+        raise AppError(409, "No request is waiting for a reply.", key="error.manual_llm.no_pending_request")
     return await asyncio.to_thread(save_reply)
 
 

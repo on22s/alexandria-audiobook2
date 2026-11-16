@@ -1583,6 +1583,7 @@
   "error.book.switch_tasks_running": "Cannot {operation} while tasks are running: {tasks}. Wait for them to finish or cancel them.",
   "error.generation.no_input": "No input file selected",
   "error.generation.no_recovery": "No failed or incomplete three-pass generation is available to resume.",
+  "error.manual_llm.no_pending_request": "No request is waiting for a reply.",
   "error.review.restart_discard_failed": "Review checkpoint cleanup failed; some progress may already have been discarded. The completed-review receipt, script and edits were kept, and the new review didn't start. Check the review log before retrying; progress may need further cleanup before starting from batch 1.",
   "error.review.restart_receipt_discard_failed": "The review checkpoint was discarded, but the completed-review receipt was kept because it could not be removed; the new review didn't start. The script and edits were kept. Enable the option to review again even if nothing changed, then Start Review to begin from batch 1.",
   "error.review.restart_reservation_lost": "Review progress (checkpoint and completed-review receipt) was discarded, but the new review didn't start because its task reservation is no longer active. The script and edits were kept. Start Review to begin from batch 1.",

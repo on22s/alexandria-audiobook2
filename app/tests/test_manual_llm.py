@@ -609,9 +609,12 @@ class ManualEndpointTests(unittest.TestCase):
                     "Retrying... (attempt 2 of 4)"]})
                 with patch.object(script, "DATA_DIR", tmp):
                     self.assertIsNone(asyncio.run(script.manual_llm_pending())["pending"])
-                    with self.assertRaises(script.HTTPException) as ctx:
+                    with self.assertRaises(core.AppError) as ctx:
                         asyncio.run(script.manual_llm_response(script.ManualReply(id="x", content="y")))
                     self.assertEqual(409, ctx.exception.status_code)
+                    self.assertEqual("No request is waiting for a reply.", ctx.exception.detail)
+                    self.assertEqual("error.manual_llm.no_pending_request", ctx.exception.message_key)
+                    self.assertFalse(os.path.exists(client.dir))
                     done = {}
                     t = threading.Thread(target=lambda: done.update(
                         text=client.create(model="m", messages=[{"role": "user", "content": "Q"}])
@@ -700,14 +703,21 @@ class ManualPendingOwnershipTests(unittest.TestCase):
 
     def test_reply_to_orphaned_prompt_is_refused_without_writing_or_deleting(self):
         from pathlib import Path
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        api = FastAPI()
+        api.include_router(script.router)
+        api.add_exception_handler(core.AppError, core.handle_app_error)
         with tempfile.TemporaryDirectory() as tmp:
             path = self.write_pending(tmp)
             original = path.read_bytes()
             with patch.object(script, "DATA_DIR", tmp):
-                with self.assertRaises(script.HTTPException) as raised:
-                    asyncio.run(script.manual_llm_response(
-                        script.ManualReply(id="old-casting", content="Stale answer")))
-            self.assertEqual(409, raised.exception.status_code)
+                with TestClient(api) as client:
+                    refused = client.post("/api/manual_llm/response",
+                                          json={"id": "old-casting", "content": "Stale answer"})
+            self.assertEqual(409, refused.status_code)
+            self.assertEqual({"detail": "No request is waiting for a reply.",
+                              "message_key": "error.manual_llm.no_pending_request"}, refused.json())
             self.assertFalse(Path(path.parent, "response.json").exists())
             self.assertEqual(original, path.read_bytes())
 

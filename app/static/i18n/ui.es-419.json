@@ -1268,6 +1268,7 @@
   "error.book.switch_tasks_running": "No se puede {operation} mientras hay tareas en ejecución: {tasks}. Espera a que terminen o cancélalas.",
   "error.generation.no_input": "No se ha seleccionado ningún archivo de entrada",
   "error.generation.no_recovery": "No hay una generación de tres pasos fallida o incompleta disponible para reanudar.",
+  "error.manual_llm.no_pending_request": "No hay ninguna solicitud esperando una respuesta.",
   "error.review.restart_discard_failed": "No se pudo terminar de limpiar el punto de control de revisión; es posible que parte del progreso ya se haya descartado. Se conservaron el comprobante de revisión completada, el guion y las ediciones, y la nueva revisión no comenzó. Revisa el registro de revisión antes de reintentar; es posible que el progreso necesite más limpieza antes de comenzar desde el lote 1.",
   "error.review.restart_receipt_discard_failed": "Se descartó el punto de control de revisión, pero se conservó el comprobante de revisión completada porque no se pudo eliminar; la nueva revisión no comenzó. Se conservaron el guion y las ediciones. Activa la opción para revisar de nuevo aunque nada haya cambiado y después inicia la revisión desde el lote 1.",
   "error.review.restart_reservation_lost": "Se descartó el progreso de revisión (el punto de control y el comprobante de revisión completada), pero la nueva revisión no comenzó porque la reserva de su tarea ya no está activa. Se conservaron el guion y las ediciones. Inicia la revisión para comenzar desde el lote 1.",
