@@ -4771,7 +4771,9 @@ def _read_annotated_script_comparison(*, expected_source_sha256=None):
 @router.get("/api/status")
 async def get_task_statuses():
     """Discover registered tasks without serializing logs or live process handles."""
-    return {name: {"running": is_task_running(name, states=process_state)}
+    return {name: {"running": is_task_running(name, states=process_state)
+                  and not state.get('_windows_cleanup_failed'),
+                  "ownership_unconfirmed": bool(state.get('_windows_cleanup_failed'))}
             for name, state in process_state.items()}
 
 
@@ -4783,7 +4785,9 @@ async def get_status(task_name: str, include_health: bool = False):
     # Export evidence has its own book-token gate and bounded explicit view.
     for key in ('export_quality_reports', 'export_quality_rejections', 'export_quality_attempt'):
         state.pop(key, None)
-    state["running"] = is_task_running(task_name, states={task_name: state})
+    state["running"] = (is_task_running(task_name, states={task_name: state})
+                        and not state.get('_windows_cleanup_failed'))
+    state['ownership_unconfirmed'] = bool(state.pop('_windows_cleanup_failed', False))
     state.pop("process", None)
     state.pop("processes", None)
     if task_name == "batch_review":

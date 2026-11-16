@@ -189,10 +189,13 @@ class WindowsSubprocessJob:
         if not self.api.TerminateJobObject(self.handle, exit_code):
             raise_windows_job_error('TerminateJobObject')
 
-    def ensure_stopped(self):
+    def ensure_stopped(self, deadline=None):
         """Wait for kernel-confirmed zero membership before ownership release."""
         while self.get_active_process_count():
-            time.sleep(.05)
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                raise OSError(1460, 'Windows job did not reach zero membership before cleanup deadline')
+            time.sleep(.05 if remaining is None else min(.05, remaining))
 
     def close(self):
         """Close a job handle once; retain it if the kernel rejects close."""
