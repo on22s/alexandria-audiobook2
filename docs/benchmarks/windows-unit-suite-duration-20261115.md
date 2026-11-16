@@ -76,6 +76,27 @@ tests and generated inventory bytes match the completed snapshot
 for this revision, so the older same-code one/two-worker comparison below
 remains historical rather than a matched comparison against these 14140 IDs.
 
+### Latest-main integration (#1982)
+
+Remote verification after the first review-fix push found main had advanced to
+`fcc84529` (UI Batch C). Fetched and merged that commit, then regenerated the
+inventory rather than hand-merging it; it adds five upstream tests. The local
+shard implementation and its regression-test bytes are unchanged from the
+completed full-readiness snapshot. Repeated the focused suite plus the four
+affected UI test modules after this merge:
+
+| Host | Ran | Failures | Errors | Skips | unittest wall seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native Windows | 144 | 0 | 0 | 0 | 144.714 |
+| WSL Ubuntu, LF-normalized ext4 checkout | 144 | 0 | 0 | 0 | 59.949 |
+
+The first post-merge WSL archive retained committed CRLF shell-script bytes:
+144 tests ran with ten derived-metadata fixture failures. That log is retained
+separately; normalizing shell fixtures in the temporary ext4 checkout produced
+the zero-failure result above. No repository line endings or assertions changed.
+The 39m 6.249s full-readiness measurement predates this final five-test upstream
+merge; full discovery was not repeated afterward. No heavy jobs overlapped.
+
 ## Final implementation and qualification, 2026-11-16
 
 The approved change is **A (isolated local CI shards) plus C (fixture timer

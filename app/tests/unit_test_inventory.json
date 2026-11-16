@@ -3875,6 +3875,7 @@
   "test_core_dom_inputs_js": [
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_actual_config_loader_displays_filenames_as_text",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_collapsed_nav_closes_through_the_actual_large_breakpoint",
+    "tests.test_core_dom_inputs_js.CoreDomInputTests.test_phone_disclosures_follow_breakpoints_and_keep_actionable_review_open",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_skip_link_preserves_route_and_visible_tab_while_focusing_main",
     "tests.test_core_dom_inputs_js.CoreDomInputTests.test_tab_restore_uses_exact_existing_names_and_storage_failure_is_safe"
   ],
@@ -5012,6 +5013,7 @@
     "tests.test_editor_review_js.EditorReviewJsTests.test_outlier_start_refusal_releases_controls_and_reports_uncertainty",
     "tests.test_editor_review_js.EditorReviewJsTests.test_pagination_counts_every_finding_and_preserves_all_rows",
     "tests.test_editor_review_js.EditorReviewJsTests.test_pending_audition_stops_if_the_book_or_audio_element_is_replaced",
+    "tests.test_editor_review_js.EditorReviewJsTests.test_phone_review_stays_compact_only_when_no_actionable_findings",
     "tests.test_editor_review_js.EditorReviewJsTests.test_play_and_generate_reuse_existing_audio_and_original_handlers",
     "tests.test_editor_review_js.EditorReviewJsTests.test_queue_marks_advanced_snapshot_stale_and_explains_refused_click",
     "tests.test_editor_review_js.EditorReviewJsTests.test_queue_missing_evidence_is_not_a_clean_take",
@@ -15997,6 +15999,9 @@
     "tests.test_ui_markup_gate.CounterFixtureTests.test_js_counter_ignores_the_english_argument_of_t_and_create",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_markup_counter_counts_only_unkeyed_display_text",
     "tests.test_ui_markup_gate.CounterFixtureTests.test_the_help_map_exclusion_stops_at_the_maps",
+    "tests.test_ui_markup_gate.PhoneTaskLayoutTests.test_phone_layout_uses_same_bound_editor_fields",
+    "tests.test_ui_markup_gate.PhoneTaskLayoutTests.test_phone_standalone_log_link_has_a_touch_target",
+    "tests.test_ui_markup_gate.PhoneTaskLayoutTests.test_setup_and_casting_tools_use_native_optional_disclosures",
     "tests.test_ui_markup_gate.RatchetTests.test_js_baseline_covers_every_file_and_never_grows",
     "tests.test_ui_markup_gate.RatchetTests.test_markup_baseline_covers_every_page_and_never_grows",
     "tests.test_ui_markup_gate.RatchetTests.test_the_p1_surfaces_are_actually_keyed"
