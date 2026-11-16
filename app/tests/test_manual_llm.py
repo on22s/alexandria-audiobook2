@@ -136,8 +136,65 @@ class ManualClientTests(unittest.TestCase):
                     with self.assertRaises(core.AppError) as raised:
                         client.create(model='fixture', messages=[])
                 self.assertEqual(503, raised.exception.status_code)
+                self.assertEqual('error.manual_llm.pending_corrupt', raised.exception.message_key)
+                self.assertIn('manual_llm/pending.json', raised.exception.detail)
+                self.assertIn('Cancel the manual request (or restart the app)', raised.exception.detail)
+                self.assertIn('delete or rename this file', raised.exception.detail)
+                self.assertNotIn(directory, raised.exception.detail)
                 self.assertEqual(contents, Path(client.pending_path).read_bytes())
                 self.assertFalse(os.path.exists(client.response_path))
+
+    def test_cleanup_storage_error_preserves_original_failure_and_logs_request(self):
+        from pathlib import Path
+        for failure in (PermissionError('synthetic sharing violation'), ValueError('synthetic corrupt JSON')):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                client = ManualClient(directory)
+                primary = RuntimeError('synthetic body failure')
+                observed = {}
+                original_open = open
+                def fail_reads(path, *args, **kwargs):
+                    if os.fspath(path) == client.response_path:
+                        observed['bytes'] = Path(client.pending_path).read_bytes()
+                        observed['pending'] = json.loads(observed['bytes'])
+                        raise primary
+                    if os.fspath(path) == client.pending_path and observed:
+                        raise failure
+                    return original_open(path, *args, **kwargs)
+                with patch('builtins.open', side_effect=fail_reads), \
+                     self.assertLogs('AlexandriaUI', level='ERROR') as logs:
+                    with self.assertRaises(RuntimeError) as raised:
+                        client.create(model='fixture', messages=[])
+                self.assertIs(primary, raised.exception)
+                self.assertEqual(observed['bytes'], Path(client.pending_path).read_bytes())
+                self.assertFalse(llm_provider.is_manual_request_owner_alive(observed['pending']))
+                self.assertIn(observed['pending']['id'], '\n'.join(logs.output))
+                expected_key = ('error.manual_llm.pending_read_failed' if isinstance(failure, OSError)
+                                else 'error.manual_llm.pending_corrupt')
+                self.assertIn(expected_key, '\n'.join(logs.output))
+
+    def test_cleanup_storage_error_after_success_is_logged_and_still_raised(self):
+        import io
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            client = ManualClient(directory)
+            observed = {}
+            original_open = open
+            def answer_then_fail_cleanup(path, *args, **kwargs):
+                if os.fspath(path) == client.response_path:
+                    observed['bytes'] = Path(client.pending_path).read_bytes()
+                    observed['pending'] = json.loads(observed['bytes'])
+                    return io.StringIO(json.dumps({'id': observed['pending']['id'], 'content': 'Answer'}))
+                if os.fspath(path) == client.pending_path and observed:
+                    raise PermissionError('synthetic cleanup sharing violation')
+                return original_open(path, *args, **kwargs)
+            with patch('builtins.open', side_effect=answer_then_fail_cleanup), \
+                 self.assertLogs('AlexandriaUI', level='ERROR') as logs:
+                with self.assertRaises(core.AppError) as raised:
+                    client.create(model='fixture', messages=[])
+            self.assertEqual('error.manual_llm.pending_read_failed', raised.exception.message_key)
+            self.assertEqual(observed['bytes'], Path(client.pending_path).read_bytes())
+            self.assertFalse(llm_provider.is_manual_request_owner_alive(observed['pending']))
+            self.assertIn(observed['pending']['id'], '\n'.join(logs.output))
 
     def test_failed_atomic_replacement_preserves_stale_pending(self):
         import errno
@@ -737,8 +794,14 @@ class ManualPendingOwnershipTests(unittest.TestCase):
                         response = client.request(method, route, **(
                             {'json': {'id': 'old-casting', 'content': 'Answer'}} if method == 'POST' else {}))
                 self.assertEqual(503, response.status_code)
-                self.assertEqual({'detail': 'The pending manual LLM request could not be read. Try again.',
-                                  'message_key': 'error.manual_llm.pending_read_failed'}, response.json())
+                expected = ({'detail': 'The pending manual LLM request could not be read. Try again.',
+                             'message_key': 'error.manual_llm.pending_read_failed'}
+                            if isinstance(failure, OSError) else {
+                                'detail': 'The manual LLM request file manual_llm/pending.json in the data directory is corrupt. '
+                                          'Cancel the manual request (or restart the app), then delete or rename '
+                                          'this file before trying again.',
+                                'message_key': 'error.manual_llm.pending_corrupt'})
+                self.assertEqual(expected, response.json())
                 self.assertEqual(original, path.read_bytes())
                 self.assertFalse(path.with_name('response.json').exists())
 

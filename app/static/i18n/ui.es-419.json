@@ -1269,6 +1269,7 @@
   "error.generation.no_input": "No se ha seleccionado ningún archivo de entrada",
   "error.generation.no_recovery": "No hay una generación de tres pasos fallida o incompleta disponible para reanudar.",
   "error.manual_llm.no_pending_request": "No hay ninguna solicitud esperando una respuesta.",
+  "error.manual_llm.pending_corrupt": "El archivo de solicitud del LLM manual manual_llm/pending.json en el directorio de datos está dañado. Cancela la solicitud manual (o reinicia la aplicación) y luego elimina o cambia el nombre de este archivo antes de volver a intentarlo.",
   "error.manual_llm.pending_read_failed": "No se pudo leer la solicitud pendiente del LLM manual. Inténtalo de nuevo.",
   "error.review.restart_discard_failed": "No se pudo terminar de limpiar el punto de control de revisión; es posible que parte del progreso ya se haya descartado. Se conservaron el comprobante de revisión completada, el guion y las ediciones, y la nueva revisión no comenzó. Revisa el registro de revisión antes de reintentar; es posible que el progreso necesite más limpieza antes de comenzar desde el lote 1.",
   "error.review.restart_receipt_discard_failed": "Se descartó el punto de control de revisión, pero se conservó el comprobante de revisión completada porque no se pudo eliminar; la nueva revisión no comenzó. Se conservaron el guion y las ediciones. Activa la opción para revisar de nuevo aunque nada haya cambiado y después inicia la revisión desde el lote 1.",

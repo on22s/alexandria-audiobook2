@@ -6,6 +6,7 @@ Keep that configuration in one wrapper so every generation path gets the same
 profile settings, while a call's explicit options still take precedence.
 """
 
+import logging
 import os
 from copy import deepcopy
 import random
@@ -492,10 +493,15 @@ def read_manual_pending_locked(path):
         return pending
     except FileNotFoundError:
         return None
-    except (OSError, ValueError) as error:
+    except OSError as error:
         from core import AppError
         raise AppError(503, "The pending manual LLM request could not be read. Try again.",
                        key="error.manual_llm.pending_read_failed") from error
+    except ValueError as error:
+        from core import AppError
+        raise AppError(503, "The manual LLM request file manual_llm/pending.json in the data directory is corrupt. "
+                       "Cancel the manual request (or restart the app), then delete or rename "
+                       "this file before trying again.", key="error.manual_llm.pending_corrupt") from error
 
 
 def get_manual_llm_data_dir():
@@ -638,6 +644,7 @@ class ManualClient:
         with _manual_request_owners_lock:
             _manual_request_owners[request["id"]] = threading.current_thread()
         claimed = False
+        request_failed = False
         try:
             # The one visible prompt is a queue slot shared by all clients. Hold
             # the short file lock only while claiming it; human replies can take
@@ -678,19 +685,32 @@ class ManualClient:
                 choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),
                                          finish_reason="stop")],
                 usage=None, model=request["model"])
+        except BaseException:
+            request_failed = True
+            raise
         finally:
             with _manual_request_owners_lock:
                 _manual_request_owners.pop(request["id"], None)
             if claimed:
+                from core import AppError, logger
+                from review_startup import emit_diagnostic_log
                 with file_lock(self.pending_path):
                     # Only the request owner may release this queue slot.
-                    current = read_manual_pending_locked(self.pending_path)
-                    if current is not None and current.get("id") == request["id"]:
-                        try:
-                            os.remove(self.response_path)
-                        except FileNotFoundError:
-                            pass
-                        os.remove(self.pending_path)
+                    try:
+                        current = read_manual_pending_locked(self.pending_path)
+                    except AppError as error:
+                        emit_diagnostic_log(logger.name, logging.ERROR,
+                                            "Manual LLM request %s could not retire its pending slot (%s).",
+                                            request["id"], error.message_key)
+                        if not request_failed:
+                            raise
+                    else:
+                        if current is not None and current.get("id") == request["id"]:
+                            try:
+                                os.remove(self.response_path)
+                            except FileNotFoundError:
+                                pass
+                            os.remove(self.pending_path)
 
 
 class _ManualChat:
