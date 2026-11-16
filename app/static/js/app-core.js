@@ -187,6 +187,7 @@
             const toast = new bootstrap.Toast(el, { delay: duration });
             toast.show();
             el.addEventListener('hidden.bs.toast', () => el.remove());
+            return el;
         }
 
         function showActionError(action, error, recovery, type = 'error') {
@@ -9789,8 +9790,27 @@
         let _manualLoadWarningFor = null;
         let _manualReplyFor = null;
         let _manualReplySubmitting = null;
+        let _manualReplySequence = 0;
+        let _manualFeedbackToast = null;
         let _manualReplyAcknowledged = null;
         let _manualAcknowledgedText = null;
+        function clearManualReplyFeedback() {
+            if (_manualFeedbackToast) {
+                bootstrap.Toast.getInstance(_manualFeedbackToast)?.dispose();
+                _manualFeedbackToast.remove();
+                _manualFeedbackToast = null;
+            }
+        }
+
+        function showManualReplyToast(message, type, duration) {
+            clearManualReplyFeedback();
+            _manualFeedbackToast = showToast(message, type, duration);
+        }
+
+        function renderManualReplyHint(text) {
+            document.getElementById('manual-llm-hint').textContent = text;
+        }
+
         async function renderManualRequest(status, taskName) {
             const panel = document.getElementById('manual-llm-panel');
             if (!panel) { return; }
@@ -9801,6 +9821,10 @@
                 _manualRequested = null;
                 _manualShown = null;
                 window._manualPending = null;
+                ++_manualReplySequence;
+                _manualReplySubmitting = null;
+                clearManualReplyFeedback();
+                renderManualReplyHint('');
                 const reply = document.getElementById('manual-llm-reply');
                 const retained = document.getElementById('manual-llm-retained-replies');
                 panel.hidden = !reply.value.trim() && !retained.children.length;
@@ -9824,9 +9848,11 @@
             if (!full || full.id !== req.id || _manualRequested !== req.id ||
                 _manualTask !== taskName || _manualShown === req.id) { return; }
             _manualShown = req.id;
+            ++_manualReplySequence;
+            _manualReplySubmitting = null;
             window._manualPending = full;
             document.getElementById('manual-llm-title').textContent = `request ${full.sequence}`;
-            document.getElementById('manual-llm-hint').textContent = full.stage_hint || '';
+            renderManualReplyHint(full.stage_hint || '');
             document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
             const reply = document.getElementById('manual-llm-reply');
             if (reply.value.trim() && _manualReplyFor !== full.id && (_manualReplyAcknowledged !== _manualReplyFor || reply.value !== _manualAcknowledgedText)) {
@@ -9849,7 +9875,7 @@
             panel.hidden = false;
             document.getElementById('manual-llm-status').textContent = `Your turn: request ${full.sequence}. Paste the model’s answer and submit it. Earlier unsent replies, if any, are retained below.`;
             const message = `The pipeline needs your reply to request ${full.sequence}. Use the manual reply panel at the top of the page.`;
-            showToast(message, 'warning', 8000);
+            showManualReplyToast(message, 'warning', 8000);
             notifyJobDone(taskName, message, 'needs your reply');
         }
 
@@ -9869,32 +9895,33 @@
             const btn = document.getElementById('manual-llm-submit');
             if (_manualReplySubmitting) { return; }
             if (!req || req.id !== _manualRequested || _manualReplyFor !== req.id) {
-                showToast('This request is no longer waiting. Your reply is still here; check the task activity.', 'warning');
+                showManualReplyToast('This request is no longer waiting. Your reply is still here; check the task activity.', 'warning');
                 return;
             }
-            if (!reply.value.trim()) { showToast('Paste the answer first.', 'warning'); return; }
+            if (!reply.value.trim()) { showManualReplyToast('Paste the answer first.', 'warning'); return; }
             const submittedText = reply.value;
+            const submission = ++_manualReplySequence;
             _manualReplySubmitting = req.id;
             btn.disabled = true;
             reply.disabled = true;
             try {
                 await API.post('/api/manual_llm/response', { id: req.id, content: submittedText });
+                if (submission !== _manualReplySequence || _manualRequested !== req.id || window._manualPending?.id !== req.id) { return; }
                 _manualReplyAcknowledged = req.id;
                 _manualAcknowledgedText = submittedText;
-                if (window._manualPending?.id === req.id) {
-                    document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
-                }
-                showToast(`Reply to request ${req.sequence} sent to the pipeline.`, 'success');
+                renderManualReplyHint('');
+                document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
+                showManualReplyToast(`Reply to request ${req.sequence} sent to the pipeline.`, 'success');
             } catch (e) {
                 console.error('Failed to submit manual model reply:', e);
-                if (window._manualPending?.id !== req.id) { return; }
+                if (submission !== _manualReplySequence || _manualRequested !== req.id || window._manualPending?.id !== req.id) { return; }
                 const message = 'Could not confirm submission. Your text is still here. Check the task activity; if it is still waiting for this request, select Submit reply again.';
                 document.getElementById('manual-llm-status').textContent = message;
-                showToast(message, 'error');
+                showManualReplyToast(message, 'error');
                 btn.disabled = false;
                 reply.disabled = false;
             } finally {
-                _manualReplySubmitting = null;
+                if (submission === _manualReplySequence) { _manualReplySubmitting = null; }
             }
         }
 

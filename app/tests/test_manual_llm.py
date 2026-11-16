@@ -441,6 +441,22 @@ class ManualThreePassTests(unittest.TestCase):
 
 
 class ManualEndpointTests(unittest.TestCase):
+    def test_review_stage_hint_drops_previous_batch_validation_error(self):
+        for marker in ('Reviewing batch 3/5 (2 entries)...',
+                       'Reviewing batches 3-4/5 (2 concurrent requests)...'):
+            with self.subTest(marker=marker):
+                self.assertEqual(marker, script._stage_hint([
+                    'Reviewing batch 2/5 (2 entries)...',
+                    'Warning: BATCH 2/5 failed quality validation (attempt 1): invalid entries',
+                    'Retrying... (attempt 2 of 3)', marker]))
+
+    def test_review_stage_hint_preserves_new_validation_error(self):
+        marker = 'Reviewing batch 3/5 (2 entries)...'
+        warning = 'Warning: BATCH 3/5 failed quality validation (attempt 1): invalid entries'
+        retry = 'Retrying... (attempt 2 of 3)'
+        self.assertEqual(' · '.join((marker, warning, retry)),
+                         script._stage_hint([marker, warning, retry]))
+
     def test_pending_and_response_round_trip_with_stage_hint(self):
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)

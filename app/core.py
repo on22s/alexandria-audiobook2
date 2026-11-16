@@ -12,6 +12,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from subprocess_ownership import (SUBPROCESS_TERMINATE_GRACE_SECONDS,
                                  start_owned_subprocess, stop_owned_subprocess, send_subprocess_signal, get_subprocess_lease_options,
@@ -1281,7 +1282,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             state['logs'].append('Task script completed successfully.')
             if 'status' in state: state['status'] = 'done'
         elif "status" in state:
-            state["status"] = "cancelled" if state.get("cancel") else "failed"
+            state["status"] = "failed"
     finally:
         if "process"     in state: state["process"]     = None
         if "pid"         in state: state["pid"]         = None
@@ -1514,9 +1515,13 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             log_fh = None
     process = None
     reader = None
+    cancel_directory = None
     try:
         from review_startup import worker_environment, event as review_startup_event
         subprocess_env = get_gpu_task_environment(state, worker_environment(env))
+        if sys.platform == 'win32' and task_name in ('review', 'batch_review'):
+            cancel_directory = tempfile.TemporaryDirectory(prefix='alexandria-review-cancel-')
+            subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE'] = os.path.join(cancel_directory.name, 'cancel')
         review_startup_event('subprocess_launch')
         process = start_owned_subprocess(
             command,
@@ -1532,6 +1537,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             start_new_session=True,
         )
         review_startup_event('subprocess_started', child_pid=process.pid)
+        if cancel_directory is not None:
+            process._alexandria_cancel_path = subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE']
 
         if sys.platform != "win32":
             process._alexandria_pgid = process.pid
@@ -1573,8 +1580,17 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             # or grandchild ignores SIGTERM and keeps the output pipe open.
             nonlocal terminate_requested_at, kill_sent
             if state.get("cancel"):
+                was_killed = kill_sent
                 terminate_requested_at, kill_sent = apply_cancel_escalation(
                     process, terminate_requested_at, kill_sent)
+                if sys.platform == 'win32' and kill_sent and not was_killed:
+                    message = 'Stopped after it did not respond to cancel; owned process tree force-terminated.'
+                    logger.info(message)
+                    state['logs'].append(message)
+                    own_lines.append(message)
+                    if log_fh is not None:
+                        log_fh.write(message + '\n')
+                        log_fh.flush()
 
         while True:
             try:
@@ -1713,6 +1729,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
                 control.close()
         if log_fh is not None:
             log_fh.close()
+        if cancel_directory is not None:
+            cancel_directory.cleanup()
 
 
 _REVIEW_ENTRIES_RE = re.compile(r'Review (?:complete|incomplete):\s*(\d+)\s*->\s*(\d+)\s*entries')
