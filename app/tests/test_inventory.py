@@ -486,6 +486,24 @@ class InventoryCheckWarningTests(unittest.TestCase):
 
 
 class AtomicInventoryWriterTests(unittest.TestCase):
+    def test_serialization_has_one_sorted_test_id_per_line(self):
+        from update_test_inventory import format_inventory
+        inventory = {'test_z': ['z.b', 'z.a'], 'test_a': ['a.b', 'a.a']}
+        rendered = format_inventory(inventory)
+        lines = rendered.splitlines()
+        for test_id in ('a.a', 'a.b', 'z.a', 'z.b'):
+            self.assertEqual(1, sum(json.dumps(test_id) in line for line in lines))
+        self.assertFalse(any('"a.a"' in line and '"a.b"' in line for line in lines))
+        self.assertLess(rendered.index('a.a'), rendered.index('a.b'))
+        self.assertLess(rendered.index('test_a'), rendered.index('test_z'))
+        self.assertEqual({key: sorted(value) for key, value in inventory.items()}, json.loads(rendered))
+
+    def test_appending_test_id_or_module_preserves_existing_lines(self):
+        from update_test_inventory import format_inventory
+        before = format_inventory({'test_a': ['a.a', 'a.b']}).splitlines()
+        after = format_inventory({'test_a': ['a.a', 'a.b', 'a.z'], 'test_z': ['z.a']}).splitlines()
+        self.assertTrue(all(line in after for line in before))
+
     def test_open_reader_keeps_prior_json_while_new_reader_gets_complete_inventory(self):
         import tempfile
         from unittest.mock import patch

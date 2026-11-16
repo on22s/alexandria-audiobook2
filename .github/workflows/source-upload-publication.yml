@@ -16,10 +16,12 @@ on:
       - 'app/tests/test_source_upload_stage.py'
       - 'app/tests/test_book_exchange_primitive.py'
       - '.github/workflows/source-upload-publication.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:
   native:
+    name: source-upload (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:

@@ -54,9 +54,17 @@ def _provenance_error(value):
     return False
 
 
-def _same_except_write_time(existing, document):
-    """Keep an identical audit's verified clean origin across ref-only changes."""
+def _audit_bodies_match(existing, document):
+    """Compare the indexed data independently of its recorded provenance."""
     if not isinstance(existing, dict) or not isinstance(document, dict):
+        return False
+    return ({key: value for key, value in existing.items() if key != "provenance"}
+            == {key: value for key, value in document.items() if key != "provenance"})
+
+
+def _same_except_write_time(existing, document):
+    """Retain only a clean, proven origin with equivalent data and harness."""
+    if not _audit_bodies_match(existing, document):
         return False
     old = existing.get("provenance")
     new = document.get("provenance")
@@ -64,30 +72,18 @@ def _same_except_write_time(existing, document):
         return False
     if _provenance_error(old) or _provenance_error(new):
         return False
-    old_body = {k: v for k, v in existing.items() if k != "provenance"}
-    new_body = {k: v for k, v in document.items() if k != "provenance"}
-    if old_body != new_body:
-        return False
-    old_stable = {k: v for k, v in old.items() if k != "written"}
-    new_stable = {k: v for k, v in new.items() if k != "written"}
-    if old_stable == new_stable:
-        return True
     old_git, new_git = old.get("git"), new.get("git")
     if not isinstance(old_git, dict) or not isinstance(new_git, dict):
         return False
-    if old_git.get("dirty") is not False or new_git.get("dirty") is not False:
+    if old_git.get("dirty") is not False or not isinstance(
+            old_git.get("harness_commit_proof"), dict):
         return False
-    ignored = {"commit", "branch"}
-    has_proofs = "harness_commit_proof" in old_git and "harness_commit_proof" in new_git
-    if has_proofs:
-        ignored.add("harness_commit_proof")
-    old_stable["git"] = {k: v for k, v in old_git.items() if k not in ignored}
-    new_stable["git"] = {k: v for k, v in new_git.items() if k not in ignored}
-    if old_stable != new_stable:
+    identity = ("harness_sha256", "harness_sha256_scheme")
+    if any(old_git.get(key) != new_git.get(key) for key in identity):
         return False
     from experiments.provenance import check_harness_provenance
-    return all(check_harness_provenance(value)[0] == "verified"
-               for value in ((old, new) if has_proofs else (old,)))
+    return all(check_harness_provenance(value, require_current=True)[0] == "verified"
+               for value in (old, new))
 
 
 def load_audit(path):
@@ -212,9 +208,7 @@ def main():
                 f"goal evidence audit stored provenance is provenance-{status}: "
                 f"{detail}; regenerate it")
         # Provenance describes the regeneration, not the indexed data.
-        current.pop("provenance", None)
-        document.pop("provenance", None)
-        if current != document:
+        if not _audit_bodies_match(current, document):
             raise SystemExit("goal evidence audit is stale; regenerate it")
         print(f"goal evidence audit is current ({len(rows)} goals)")
         return 0

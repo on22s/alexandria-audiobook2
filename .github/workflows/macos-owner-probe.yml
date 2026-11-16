@@ -17,6 +17,7 @@ on:
       - 'alexandria_file_lock.py'
       - 'app/macos_subprocess_kernel.py'
       - 'app/macos_subprocess_owner.py'
+  merge_group:
 
 permissions:
   contents: read

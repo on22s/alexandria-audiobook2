@@ -10,10 +10,12 @@ on:
       - 'app/tests/test_benchmark_shared_polling_js.py'
       - 'tools/typecheck/**'
       - '.github/workflows/reports-checkjs.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:
   candidate:
+    name: reports-checkjs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:

@@ -119,6 +119,11 @@ def get_book_identity(metadata):
     return filename or "?"
 
 
+def normalize_results_markdown(text):
+    """Compare indexed data independently of its historical generation date."""
+    return re.sub(r"Generated .*? from ", "Generated TIME from ", text, count=1)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--check", action="store_true")
@@ -522,7 +527,6 @@ def main(argv=None):
                 old_md = handle.read()
         except OSError as exc:
             raise SystemExit(f"results index is unreadable: {exc}") from exc
-        normalize = lambda text: re.sub(r"Generated .*? from ", "Generated TIME from ", text, count=1)
         csv_differs = old_csv != csv_text
         if csv_differs and _only_added_commit_filled_in(old_csv, csv_text):
             # THE ONE DIFFERENCE THAT CANNOT BE AVOIDED BY REGENERATING FIRST.
@@ -537,10 +541,17 @@ def main(argv=None):
             # still stale. The field self-heals on the next regeneration, and is
             # documented as bounding the code version rather than pinning it.
             csv_differs = False
-        if csv_differs or normalize(old_md) != normalize(md_text):
+        if csv_differs or normalize_results_markdown(old_md) != normalize_results_markdown(md_text):
             raise SystemExit("results index is stale; regenerate with python3 collect_results.py")
         print("results index is current")
         return 0
+    try:
+        with open(md_path, encoding="utf-8") as handle:
+            old_md = handle.read()
+    except (OSError, UnicodeError):
+        old_md = None
+    if old_md is not None and normalize_results_markdown(old_md) == normalize_results_markdown(md_text):
+        md_text = old_md
     with open(out_csv, "w", encoding="utf-8", newline="") as handle:
         handle.write(csv_text)
     with open(md_path, "w", encoding="utf-8", newline="\n") as handle:
