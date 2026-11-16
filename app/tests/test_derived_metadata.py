@@ -92,7 +92,14 @@ class DerivedMetadataTests(unittest.TestCase):
             encoding='utf-8')
         result = self.run_goal_audit(root, goals, audit, output)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.seed_clean_goal_origin(output)
         return goals, audit, output
+
+    def seed_clean_goal_origin(self, output):
+        """Give retention controls a proven clean origin, not ambient dirt."""
+        document = json.loads(output.read_text(encoding='utf-8'))
+        document['provenance']['git'] = self.verifiable_provenance()['git']
+        self.write_document(output, document)
 
     def stamp(self, output, value='2000-01-01T00:00:00'):
         document = json.loads(output.read_text(encoding='utf-8'))
@@ -108,15 +115,17 @@ class DerivedMetadataTests(unittest.TestCase):
         commit verifies from that commit's blobs alone.
         """
         sys.path.insert(0, str(ROOT / 'app'))
+        from experiments.manifest import HARNESS_DIGEST_SCHEME
         from experiments.provenance import get_harness_commit_proof, get_harness_sha256_at_commit
         commit = subprocess.check_output(
             ['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
             text=True, timeout=10).strip()
         return {'script': 'goal_evidence_audit.py',
-                'git': {'commit': commit, 'dirty': False,
+                'git': {'commit': commit, 'dirty': False, 'source_state': 'clean',
                         'harness_commit_proof': get_harness_commit_proof(str(ROOT), commit),
+                        'harness_sha256_scheme': HARNESS_DIGEST_SCHEME,
                         'harness_sha256': get_harness_sha256_at_commit(
-                            str(ROOT), commit)}}
+                            str(ROOT), commit, scheme=HARNESS_DIGEST_SCHEME)}}
 
     def check_goal_audit(self, root, goals, audit, output):
         return subprocess.run(
@@ -228,6 +237,7 @@ class DerivedMetadataTests(unittest.TestCase):
                     provenance = document.pop('provenance')
                     self.assertNotIn('error', provenance)
                     self.assertEqual(expected, document)
+                    self.seed_clean_goal_origin(output)
                     kept = output.read_bytes()
                     repeated = self.run_goal_audit(root, goals, audit, output)
                     self.assertEqual(0, repeated.returncode,
