@@ -14372,6 +14372,7 @@
     , "tests.test_support.FixtureCapabilityTests.test_spawn_context_runs_a_real_picklable_worker"
     , "tests.test_support.FixtureCapabilityTests.test_supported_symlink_probe_is_cached_and_runs_body"
     , "tests.test_support.FixtureCapabilityTests.test_symlink_errors_are_cached_with_explicit_skip_reasons"
+    , "tests.test_support.FixtureCapabilityTests.test_temp_cleanup_failure_is_not_a_capability_skip"
     , "tests.test_support.FixtureCapabilityTests.test_temp_setup_failure_is_not_a_capability_skip"
     , "tests.test_support.FixtureCapabilityTests.test_unexpected_probe_failure_is_not_a_skip"
   ]

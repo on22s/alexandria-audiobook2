@@ -729,6 +729,15 @@ class FixtureCapabilityTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, 'no temp space'):
                 can_symlink()
 
+    def test_temp_cleanup_failure_is_not_a_capability_skip(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        with patch.object(tempfile, 'TemporaryDirectory', return_value=directory), \
+                patch.object(directory, 'cleanup', side_effect=OSError('temp cleanup denied')):
+            with self.assertRaisesRegex(OSError, 'temp cleanup denied'):
+                can_symlink()
+            self.assertEqual(_probe_symlink.cache_info().currsize, 0)
+
     def test_real_symlink_probe_cleans_its_temporary_directory(self):
         with patch.object(os, 'symlink', wraps=os.symlink) as symlink:
             supported = can_symlink()
