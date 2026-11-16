@@ -1050,24 +1050,15 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-15T18:29:09",
+  "written": "2026-11-15T18:40:03",
   "host": "RealMitch",
   "git": {
-   "commit": "d043476405ad71ce41fd7edfce5c13292779f67e",
+   "commit": "07a0a1d2903b8ed41cba54c51f5e769a40dbdc05",
    "branch": "feat/logging-deferred-gaps",
-   "dirty": true,
-   "source_state": "dirty:d4f0f43f26ab",
+   "dirty": false,
+   "source_state": "clean",
    "source_state_detail": null,
-   "modified_tracked_files": [
-    "M  LOGGING_AUDIT.md",
-    "M  app/review_startup.py",
-    "M  app/routers/system.py",
-    "M  app/tests/test_bug_report_logging.py",
-    "M  app/tests/test_config_regressions.py",
-    "M  app/tests/test_deferred_failure_logging.py",
-    "M  app/tests/test_ui_markup_gate.py",
-    "M  app/tests/unit_test_inventory.json"
-   ],
+   "modified_tracked_files": null,
    "untracked_harness_files": null,
    "harness_sha256": "b4ab4a172d15b3d658d9709900b24c000ebaf8318adcec63c18f427729461e1d",
    "harness_sha256_scheme": "sha256-lf-v1"
