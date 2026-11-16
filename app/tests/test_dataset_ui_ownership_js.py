@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess
 import unittest
+from unittest.mock import patch
 
 
 SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-workbench.js"
@@ -472,9 +473,26 @@ tick([]);assert.strictEqual(text,'','empty run logs clear stale text');
 run("dsbCurrentProject='Other';");tick(['old owner']);assert.strictEqual(text,'','stale owner cannot repaint logs');
 ''')
 
-    def run_scenario(self, scenario):
+    def test_scenario_must_finish_its_awaited_assertions(self):
+        with self.assertRaisesRegex(AssertionError, 'unfinished-await'):
+            self.run_scenario("setScenarioPhase('unfinished-await'); await new Promise(() => {});")
+
+    def test_scenario_timeout_reports_the_last_phase(self):
+        error = subprocess.TimeoutExpired('node', 20, stderr=b'PHASE 1.0 held-response\n')
+        with patch.object(subprocess, 'run', side_effect=error):
+            with self.assertRaisesRegex(AssertionError, 'held-response'):
+                self.run_scenario('')
+
+    def run_scenario(self, scenario, *, timeout=20):
         setup = r'''
 const assert = require('assert');
+const scenarioStarted = performance.now();
+let scenarioPhase = 'setup';
+function setScenarioPhase(name) {
+    scenarioPhase = name;
+    console.error('PHASE ' + (performance.now() - scenarioStarted).toFixed(1) + ' ' + name);
+}
+setScenarioPhase('setup');
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(process.argv[1], 'utf8');
@@ -525,6 +543,7 @@ const run = code => vm.runInContext(code, context);
 run('dsbRenderTable = () => {};');
 const plain = value => JSON.parse(JSON.stringify(value));
 async function flushTimers() {
+    setScenarioPhase('flush-timers');
     for (const [id, callback] of [...timers]) {
         timers.delete(id);
         await callback();
@@ -532,11 +551,27 @@ async function flushTimers() {
     await new Promise(resolve => setImmediate(resolve));
 }
 '''
-        script = setup + "\n(async () => {\n" + scenario + r'''
+        script = setup + r'''
+let scenarioCompleted = false;
+process.on('beforeExit', () => {
+    assert(scenarioCompleted || process.exitCode, 'Scenario did not complete: ' + scenarioPhase);
+});
+(async () => {
+setScenarioPhase('scenario-start');
+''' + scenario + r'''
+scenarioCompleted = true;
+setScenarioPhase('scenario-complete');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 '''
-        result = subprocess.run(["node", "-e", script, str(SOURCE), str(SOURCE.with_name("app-core.js"))],
-                                capture_output=True, text=True)
+        try:
+            result = subprocess.run(["node", "-e", script, str(SOURCE), str(SOURCE.with_name("app-core.js"))],
+                                    capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            trace = error.stderr or ''
+            if isinstance(trace, bytes):
+                trace = trace.decode('utf-8', errors='replace')
+            trace = trace or 'No Node phase marker received (process startup/setup).'
+            raise self.failureException(f'Node scenario timed out after {timeout}s; phase trace:\n{trace}') from None
         self.assertEqual(0, result.returncode, result.stderr)
 
     def test_debounced_metadata_and_rows_stay_with_originating_project(self):
