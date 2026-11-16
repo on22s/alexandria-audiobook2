@@ -878,6 +878,7 @@
 
             // Trigger tab specific loads
             window.refreshWorkspaceView?.();
+            if (selectedLink.dataset.tab === 'script') { window.refreshReviewRestart?.(); }
             if (selectedLink.dataset.tab === 'setup') {
                 pollLmStudioStatus();
             } else if (selectedLink.dataset.tab === 'editor') {
@@ -2276,6 +2277,7 @@
             window.resetM4bPublicationBook?.();
             window.resetSingleVoiceBook?.();
             window.resetTranslatedEditionBook?.();
+            window.refreshReviewRestart?.();
         }
         function enqueueBookSelection(request, action) {
             const previous = window._existingUploadSelectionPending || Promise.resolve();
@@ -3874,6 +3876,65 @@
             const cb = document.getElementById('script-strip-front-matter');
             return cb ? cb.checked : true;
         }
+        let reviewRestartSnapshot = null;
+        let reviewRestartRequest = 0;
+
+        function getReviewRestartNames() {
+            return document.getElementById('review-batch-mode').checked
+                ? Array.from(document.querySelectorAll('.review-batch-check:checked')).map(field => field.dataset.name)
+                : ['(active script)'];
+        }
+
+        function syncReviewRestartButtons() {
+            const batch = document.getElementById('review-batch-mode').checked;
+            const names = getReviewRestartNames();
+            const available = (reviewRestartSnapshot?.checkpoints || []).some(row => names.includes(row.book));
+            for (const [id, batchButton, startId] of [
+                ['btn-review-fresh', false, 'btn-review-script'],
+                ['btn-review-contextual-fresh', false, 'btn-review-script-contextual'],
+                ['btn-review-batch-fresh', true, 'btn-review-batch-start']
+            ]) {
+                const button = document.getElementById(id);
+                button.disabled = document.getElementById(startId).disabled;
+                button.style.display = available && batch === batchButton && !button.disabled ? '' : 'none';
+            }
+        }
+
+        async function refreshReviewRestart() {
+            const request = ++reviewRestartRequest;
+            const book = currentBookFilename;
+            reviewRestartSnapshot = null;
+            syncReviewRestartButtons();
+            try {
+                const snapshot = await API.get('/api/review/checkpoints');
+                if (request !== reviewRestartRequest || book !== currentBookFilename) { return; }
+                reviewRestartSnapshot = snapshot;
+                syncReviewRestartButtons();
+            } catch (error) {
+                if (request !== reviewRestartRequest || book !== currentBookFilename) { return; }
+                showActionError(t('script.review.progress-failed', 'Could not check saved review progress'), error,
+                    t('script.review.progress-recovery', 'Reopen the Script tab after checking the app connection.'));
+            }
+        }
+
+        async function confirmReviewRestart() {
+            const book = currentBookFilename;
+            const batch = document.getElementById('review-batch-mode').checked;
+            const names = JSON.stringify(getReviewRestartNames());
+            const isCurrent = () => book === currentBookFilename
+                && batch === document.getElementById('review-batch-mode').checked
+                && names === JSON.stringify(getReviewRestartNames());
+            await refreshReviewRestart();
+            if (!isCurrent()) { throw new Error(t('script.review.restart-changed', 'The book or selection changed. Review it before starting over.')); }
+            const snapshot = reviewRestartSnapshot;
+            if (!snapshot?.book_token || !snapshot.checkpoints.some(row => getReviewRestartNames().includes(row.book))) { return null; }
+            const question = t('script.review.restart-confirm', 'Discard the saved review progress for the selected script(s) and start again from batch 1? The current script, source and all accepted corrections and user edits are kept.');
+            if (!await showConfirm(question, {title: t('script.review.restart-title', 'Discard review progress?'),
+                actionLabel: t('script.review.start-over', 'Start over'), danger: true})) { return null; }
+            if (!isCurrent()) { throw new Error(t('script.review.restart-changed', 'The book or selection changed. Review it before starting over.')); }
+            return {start_over: true, book_token: snapshot.book_token};
+        }
+
         function _showReviewControls(show) {
             document.getElementById('btn-pause-review').style.display = show ? 'inline-block' : 'none';
             document.getElementById('btn-cancel-review').style.display = show ? 'inline-block' : 'none';
@@ -3882,10 +3943,12 @@
         function _disableReviewButtons(disabled) {
             document.getElementById('btn-review-script').disabled = disabled;
             document.getElementById('btn-review-script-contextual').disabled = disabled;
+            syncReviewRestartButtons();
         }
         function _onReviewDone(status) {
             _showReviewControls(false);
             _disableReviewButtons(false);
+            refreshReviewRestart();
             const panel = document.getElementById('review-recovery-panel');
             const logs = status?.logs || [];
             const failed = isTaskFailed(status);
@@ -3900,18 +3963,21 @@
             }
         }
 
-        document.getElementById('btn-review-script').addEventListener('click', async () => {
-            if (!(await confirmIfRemote(t('core.remote.task.review', 'this review'), true))) { return; }
+        async function startReview(startOver = false) {
             try {
+                const restart = startOver ? await confirmReviewRestart() : {};
+                if (!restart || !(await confirmIfRemote(t('core.remote.task.review', 'this review'), true))) { return; }
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
+                await API.post('/api/review_script', { dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked(), ...restart });
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
+                _onReviewDone({status: 'failed', logs: [describeApiError(e)]});
                 showActionError(t('script.review.start-failed', 'Failed to start review'), e, t('script.review.start-recovery', 'Check the current review task state and Test Connection in Setup before starting another review.'));
             }
-        });
+        }
+        document.getElementById('btn-review-script').addEventListener('click', () => startReview());
+        document.getElementById('btn-review-fresh').addEventListener('click', () => startReview(true));
 
         function applyReviewContextWindow(field, minimum, defaultValue) {
             const rawWindow = parseInt(field.value, 10);
@@ -3922,13 +3988,15 @@
             return windowSize;
         }
 
-        document.getElementById('btn-review-script-contextual').addEventListener('click', async () => {
+        async function startContextualReview(startOver = false) {
             try {
+                const restart = startOver ? await confirmReviewRestart() : {};
+                if (!restart) { return; }
                 if (!(await confirmIfRemote(t('core.remote.task.contextual-review', 'this contextual review'), true))) { return; }
                 const windowSize = applyReviewContextWindow(document.getElementById('review-context-window'), 1, 4);
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked() });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked(), ...restart });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -3937,10 +4005,12 @@
                 }
                 pollScriptLogs('review', _onReviewDone);
             } catch (e) {
-                _onReviewDone({status: 'failed', logs: [e.message || String(e)]});
+                _onReviewDone({status: 'failed', logs: [describeApiError(e)]});
                 showActionError(t('script.review.contextual-failed', 'Failed to start contextual review'), e, t('script.review.contextual-recovery', 'Check the review task state, context window and Test Connection in Setup before starting another review.'));
             }
-        });
+        }
+        document.getElementById('btn-review-script-contextual').addEventListener('click', () => startContextualReview());
+        document.getElementById('btn-review-contextual-fresh').addEventListener('click', () => startContextualReview(true));
 
         const _reviewPauseResume = _makePauseResumeHandler(
             '/api/review_script/pause', '/api/review_script/resume', 'btn-pause-review');
@@ -3965,6 +4035,7 @@
             document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
             document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
             if (isBatch) { loadReviewBatchScripts(); }
+            refreshReviewRestart();
         };
 
         // --- Shared helpers for saved-script checkbox pickers (Batch Review,
@@ -4056,6 +4127,7 @@
             await _loadScriptList('review-batch-list', (scripts) => {
                 reviewBatchScripts = scripts;
                 renderReviewBatchList();
+                window.refreshReviewRestart?.();
             });
         }
 
@@ -4064,6 +4136,7 @@
                 containerId: 'review-batch-list',
                 checkClass: 'review-batch-check',
                 idPrefix: 'rb-check-',
+                onchange: 'syncReviewRestartButtons()',
                 extra: (i) => `<span class="small" id="rb-status-${i}"></span>`,
             });
         }
@@ -4073,11 +4146,23 @@
             renderReviewBatchList();
         };
 
-        window.reviewBatchSelectAll = (on) => _selectAllCheckboxes('review-batch-check', on);
+        window.reviewBatchSelectAll = (on) => {
+            _selectAllCheckboxes('review-batch-check', on);
+            window.syncReviewRestartButtons?.();
+        };
 
-        async function startBatchReview() {
+        async function startBatchReview(startOver = false) {
             const names = Array.from(document.querySelectorAll('.review-batch-check:checked')).map(cb => cb.dataset.name);
             if (!names.length) { showToast(t('script.review.batch.select-one', 'Select at least one script to review.'), 'warning'); return; }
+            let restart = {};
+            try {
+                if (startOver) { restart = await confirmReviewRestart(); }
+                if (!restart) { return; }
+            } catch (error) {
+                showActionError(t('script.review.start-failed', 'Failed to start review'), error,
+                    t('script.review.start-recovery', 'Check the current review task state and Test Connection in Setup before starting another review.'));
+                return;
+            }
             if (!(await confirmIfRemote(t('core.remote.task.batch-review', 'this batch review')))) { return; }
             reviewBatchSelected = names;
             const contextWindow = applyReviewContextWindow(document.getElementById('review-batch-context-window'), 0, 0);
@@ -4087,6 +4172,7 @@
             const cancelBtn = document.getElementById('btn-cancel-batch-review');
             const statusMsg = document.getElementById('review-batch-status-msg');
             startBtn.disabled = true;
+            syncReviewRestartButtons();
             pauseBtn.style.display = 'inline-block';
             cancelBtn.style.display = 'inline-block';
             _resetPauseBtn('btn-pause-batch-review');
@@ -4101,10 +4187,12 @@
                     force_review: _isReviewForceChecked(),
                     find_nicknames: document.getElementById('review-batch-find-nicknames').checked,
                     bidirectional: document.getElementById('review-batch-bidirectional').checked,
+                    ...restart,
                 });
                 pollReviewBatch();
             } catch (e) {
                 startBtn.disabled = false;
+                refreshReviewRestart();
                 pauseBtn.style.display = 'none';
                 cancelBtn.style.display = 'none';
                 statusMsg.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage(t('script.review.batch.start-unconfirmed', 'Batch review start was not confirmed'), e, t('script.review.batch.start-recovery', 'Check the batch review task state, selected books and Test Connection in Setup before starting again.')))}</span>`;
@@ -4547,6 +4635,7 @@
                         t('script.review.batch.recovery-hint', 'Inspect the failed books and retry the batch.'));
                     notifyJobDone('batch_review', '', 'finished', state);
                     document.getElementById('btn-review-batch-start').disabled = false;
+                    refreshReviewRestart();
                     document.getElementById('btn-pause-batch-review').style.display = 'none';
                     document.getElementById('btn-cancel-batch-review').style.display = 'none';
                     const outcome = getBatchOutcome(state.tasks || []);

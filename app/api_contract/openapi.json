@@ -626,6 +626,18 @@
             "title": "Bidirectional",
             "type": "boolean"
           },
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "context_window": {
             "default": 0,
             "title": "Context Window",
@@ -653,6 +665,11 @@
             "maxItems": 1000,
             "title": "Script Names",
             "type": "array"
+          },
+          "start_over": {
+            "default": false,
+            "title": "Start Over",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1858,6 +1875,18 @@
       },
       "ContextualReviewRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
@@ -1866,6 +1895,11 @@
           "force_review": {
             "default": false,
             "title": "Force Review",
+            "type": "boolean"
+          },
+          "start_over": {
+            "default": false,
+            "title": "Start Over",
             "type": "boolean"
           },
           "window_size": {
@@ -4842,6 +4876,18 @@
       },
       "ReviewRequest": {
         "properties": {
+          "book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Token"
+          },
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",
@@ -4850,6 +4896,11 @@
           "force_review": {
             "default": false,
             "title": "Force Review",
+            "type": "boolean"
+          },
+          "start_over": {
+            "default": false,
+            "title": "Start Over",
             "type": "boolean"
           }
         },
