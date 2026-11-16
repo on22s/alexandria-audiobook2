@@ -26,8 +26,13 @@ def get_review_sidecar_identity(path):
     return identity
 
 
+def get_review_progress_paths(output_path):
+    """Return the resumable checkpoint and completed receipt for one script."""
+    return (output_path + '.review_checkpoint.json', output_path + '.review_completed.json')
+
+
 def get_review_receipt_path(output_path):
-    return output_path + '.review_completed.json'
+    return get_review_progress_paths(output_path)[1]
 
 
 def get_completed_review_match(input_path, output_path, input_sha256, fingerprint):
@@ -53,7 +58,7 @@ def get_completed_review_match(input_path, output_path, input_sha256, fingerprin
         expected = output_sha if os.path.abspath(input_path) == os.path.abspath(output_path) else receipt.get('input_sha256')
         if input_sha256 != expected:
             return False, 'completed-review input changed'
-        if os.path.exists(output_path + '.review_checkpoint.json'):
+        if os.path.exists(get_review_progress_paths(output_path)[0]):
             return False, 'an incomplete review checkpoint remains'
         return True, 'No changes since the completed review; use --force-review to rerun.'
     except (OSError, ValueError, TypeError) as error:

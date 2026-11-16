@@ -207,6 +207,12 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
             core.release_gpu_task_claim('batch_review', second)
 
     def test_save_publication_excludes_new_batch_admission_until_commit(self):
+        self.assert_save_publication_refuses_batch(start_over=False)
+
+    def test_save_publication_refuses_batch_restart_before_book_lock_or_discard(self):
+        self.assert_save_publication_refuses_batch(start_over=True)
+
+    def assert_save_publication_refuses_batch(self, *, start_over):
         import book_state_transaction as books
         with self.fixture() as (root, client, states, helper):
             entered, release, attempted = threading.Event(), threading.Event(), threading.Event()
@@ -224,7 +230,7 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
                     errors.append(error)
             def start():
                 try:
-                    self.start()
+                    self.start(start_over=start_over, book_token='a' * 64)
                     self.fail('batch entered an unfinished save transaction')
                 except core.HTTPException as error:
                     self.assertEqual(409, error.status_code)
@@ -247,6 +253,8 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
                         worker.join(5)
             self.assertFalse(saver.is_alive() or worker.is_alive())
             self.assertEqual([], errors)
+            self.assertEqual({}, core._task_claims)
+            self.assertFalse(states['batch_review']['running'])
             self.assertEqual({}, core._saved_book_publications)
             self.start()
             self.assertEqual((root / 'annotated_script.json').read_bytes(), (root / 'scripts/book.json').read_bytes())

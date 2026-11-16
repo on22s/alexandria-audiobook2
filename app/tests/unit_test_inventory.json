@@ -11958,6 +11958,29 @@
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_rejection_identifies_entry_fragment_and_reason_without_content"
   ],
+  "test_review_start_over": [
+    "tests.test_review_start_over.ReviewStartOverTests.test_batch_real_claim_discards_only_selected_review_state_before_worker",
+    "tests.test_review_start_over.ReviewStartOverTests.test_batch_start_over_requires_current_book_before_scheduling",
+    "tests.test_review_start_over.ReviewStartOverTests.test_busy_admission_preserves_everything",
+    "tests.test_review_start_over.ReviewStartOverTests.test_busy_single_modes_refuse_before_waiting_for_book_state",
+    "tests.test_review_start_over.ReviewStartOverTests.test_changed_book_and_missing_confirmation_token_refuse_without_discard",
+    "tests.test_review_start_over.ReviewStartOverTests.test_checkpoint_cleanup_failure_discloses_possible_partial_discard",
+    "tests.test_review_start_over.ReviewStartOverTests.test_failed_discard_releases_claim_and_does_not_start",
+    "tests.test_review_start_over.ReviewStartOverTests.test_next_native_review_starts_with_first_current_entry",
+    "tests.test_review_start_over.ReviewStartOverTests.test_publication_recheck_failure_releases_real_single_reservation",
+    "tests.test_review_start_over.ReviewStartOverTests.test_real_pending_claim_refuses_running_review_before_discard",
+    "tests.test_review_start_over.ReviewStartOverTests.test_receipt_deletion_failure_discloses_partial_discard",
+    "tests.test_review_start_over.ReviewStartOverTests.test_registration_refusal_discloses_discard_without_rolling_back",
+    "tests.test_review_start_over.ReviewStartOverTests.test_restart_reuses_held_book_guard_for_real_publication_recheck",
+    "tests.test_review_start_over.ReviewStartOverTests.test_resume_listing_and_discard_share_progress_paths",
+    "tests.test_review_start_over.ReviewStartOverTests.test_standard_and_contextual_retire_progress_and_receipt_without_editing_inputs",
+    "tests.test_review_start_over.ReviewStartOverTests.test_unexpected_registration_failure_discloses_discard_without_private_reason"
+  ],
+  "test_review_start_over_ui": [
+    "tests.test_review_start_over_ui.ReviewStartOverUiTests.test_checkpoint_visibility_and_confirmation_are_required_in_each_mode",
+    "tests.test_review_start_over_ui.ReviewStartOverUiTests.test_post_discard_errors_reach_review_log_and_toast_in_all_locales",
+    "tests.test_review_start_over_ui.ReviewStartOverUiTests.test_restart_translations_survive_utf8_round_trip"
+  ],
   "test_review_startup_diagnostics": [
     "tests.test_review_startup_diagnostics.ReviewLogModeMarkupTests.test_each_review_mode_contains_its_own_always_available_log_link",
     "tests.test_review_startup_diagnostics.ReviewStartupDiagnosticsTests.test_admission_failure_has_durable_download_without_truncating_active_log",
@@ -12318,6 +12341,7 @@
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_registration_failure_releases_scope_without_leaking_ownership",
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_running_flag_cannot_retire_a_started_claim_before_callback_cleanup",
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_save_publication_excludes_new_batch_admission_until_commit",
+    "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_save_publication_refuses_batch_restart_before_book_lock_or_discard",
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_save_waits_for_real_generation_launch_without_holding_task_mutex",
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_selected_book_remains_owned_between_forward_and_backward_passes"
   ],

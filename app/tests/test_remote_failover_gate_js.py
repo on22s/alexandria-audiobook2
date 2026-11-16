@@ -23,7 +23,7 @@ function client(activeRemote=false,failoverRemote=true){
  load('function getLoadedScriptSourceFilename()', 'window.startBookPreflight =');
  load("document.getElementById('btn-gen-script').addEventListener", '// Pause is SIGSTOP');
  load('function _isReviewForceChecked()', 'function _isStripFrontMatterChecked()');
- load("document.getElementById('btn-review-script').addEventListener", 'const _reviewPauseResume =');
+ load('async function startReview(', 'const _reviewPauseResume =');
  load('async function findNicknames()', 'let characterAliasesLoaded =');load('async function generatePersonas()', 'async function cancelPersonas()');
  load('window.regeneratePersona =', 'window.selectVoiceCandidate =');load('function getLoraModelsById(', 'function renderVoiceSuggestions()');
  const button={disabled:false,closest:()=>({dataset:{voice:'Alice'}})};
