@@ -61,3 +61,9 @@ RESULTS_INDEX.md                                text eol=lf
 results_index.csv                               text eol=lf
 LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md            text eol=lf
 ab_test_runtime/evidence/**/fixtures/**/*.json    text eol=lf
+
+# The CPU-speaker Windows archive is frozen evidence: verify.py hashes 32 files
+# byte-for-byte against SHA256SUMS.json. With core.autocrlf=true a checkout
+# rewrote the LF blobs to CRLF and every pinned hash failed. Keep the whole
+# archive byte-stable so checkout bytes equal committed blob bytes everywhere.
+docs/benchmarks/raw/cpu-speaker-windows-20261022/**    -text
