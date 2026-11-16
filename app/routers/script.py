@@ -4823,12 +4823,19 @@ def _stage_hint(logs):
     return " · ".join(reversed(hints))
 
 
-def read_manual_pending():
-    """The request a live manual-transport owner is waiting on, or None."""
-    path = os.path.join(manual_llm_dir(DATA_DIR), "pending.json")
+def _read_manual_pending_locked(path):
     data = safe_load_json(path, None)
     return (data if isinstance(data, dict) and data.get("id")
             and is_manual_request_owner_alive(data) else None)
+
+
+def read_manual_pending():
+    """The request a live manual-transport owner is waiting on, or None."""
+    path = os.path.join(manual_llm_dir(DATA_DIR), "pending.json")
+    if not os.path.isdir(os.path.dirname(path)):
+        return None
+    with file_lock(path):
+        return _read_manual_pending_locked(path)
 
 
 class ManualReply(BaseModel):
@@ -4853,14 +4860,20 @@ async def manual_llm_response(reply: ManualReply):
     """The user's (or their script's) answer to the pending request. Whether
     the content is acceptable is the pipeline's call - a rejected paste comes
     back as the next pending request, carrying the retry prompt."""
-    pending = await asyncio.to_thread(read_manual_pending)
-    if not pending:
-        raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
-    if reply.id != pending["id"]:
-        raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
-    atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
-                      os.path.join(manual_llm_dir(DATA_DIR), "response.json"))
-    return {"accepted": True, "sequence": pending["sequence"]}
+    def save_reply():
+        directory = manual_llm_dir(DATA_DIR)
+        if not os.path.isdir(directory):
+            raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
+        with file_lock(os.path.join(directory, "pending.json")):
+            pending = _read_manual_pending_locked(os.path.join(directory, "pending.json"))
+            if not pending:
+                raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
+            if reply.id != pending["id"]:
+                raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
+            atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
+                              os.path.join(directory, "response.json"))
+            return {"accepted": True, "sequence": pending["sequence"]}
+    return await asyncio.to_thread(save_reply)
 
 
 @router.get("/api/logs/{task_name}")

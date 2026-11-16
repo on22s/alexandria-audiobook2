@@ -629,11 +629,9 @@ class ManualClient:
                 with file_lock(self.pending_path):
                     ensure_manual_request_active()
                     pending = safe_load_json(self.pending_path, None)
-                    if os.path.exists(self.pending_path) and (
+                    if not os.path.exists(self.pending_path) or (
                             not isinstance(pending, dict) or not pending.get("id") or
                             not is_manual_request_owner_alive(pending)):
-                        os.remove(self.pending_path)
-                    if not os.path.exists(self.pending_path):
                         try:
                             os.remove(self.response_path)
                         except FileNotFoundError:
@@ -643,21 +641,21 @@ class ManualClient:
                 time.sleep(self.POLL_SECONDS)
             while True:
                 ensure_manual_request_active()
-                try:
-                    with open(self.response_path, "r", encoding="utf-8") as handle:
-                        response = json.load(handle)
-                except (FileNotFoundError, ValueError):
-                    time.sleep(self.POLL_SECONDS)
-                    continue
-                if not isinstance(response, dict):
-                    print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
-                    os.remove(self.response_path)
-                    continue
-                if response.get("id") != request["id"]:
-                    # a reply to an earlier request that arrived late; not ours
-                    os.remove(self.response_path)
-                    continue
-                break
+                with file_lock(self.pending_path):
+                    try:
+                        with open(self.response_path, "r", encoding="utf-8") as handle:
+                            response = json.load(handle)
+                    except (FileNotFoundError, ValueError):
+                        pass
+                    else:
+                        if not isinstance(response, dict):
+                            print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
+                            os.remove(self.response_path)
+                        elif response.get("id") != request["id"]:
+                            os.remove(self.response_path)
+                        else:
+                            break
+                time.sleep(self.POLL_SECONDS)
             content = str(response.get("content") or "")
             return SimpleNamespace(
                 choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),

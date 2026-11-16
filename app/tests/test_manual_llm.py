@@ -2,6 +2,7 @@
 request to the data dir and waits; the endpoints are how the reply comes
 back; the pipeline's own validation gates it."""
 import asyncio
+import contextlib
 import json
 import os
 import subprocess
@@ -18,27 +19,177 @@ from llm_provider import ManualClient, make_llm_client
 from routers import script
 
 
-def _answer_when_pending(client, content, mismatch_first=False):
+def _answer_when_pending(client, content, mismatch_first=False, previous_id=None, seen=None):
     """A thread standing in for the user: waits for pending.json, replies."""
+    from utils import atomic_json_write, file_lock, safe_load_json
+    stopped = threading.Event()
+    failures = []
     def run():
-        for _ in range(200):
-            if os.path.exists(client.pending_path):
-                break
-            time.sleep(0.02)
-        with open(client.pending_path, encoding="utf-8") as handle:
-            req = json.load(handle)
-        if mismatch_first:
-            with open(client.response_path, "w") as handle:
-                json.dump({"id": "not-this-one", "content": "stale"}, handle)
-            time.sleep(0.1)
-        with open(client.response_path, "w") as handle:
-            json.dump({"id": req["id"], "content": content}, handle)
-    t = threading.Thread(target=run, daemon=True)
-    t.start()
-    return t
+        try:
+            for _ in range(200):
+                if stopped.wait(.02):
+                    return
+                if not os.path.isdir(client.dir):
+                    continue
+                with file_lock(client.pending_path):
+                    req = safe_load_json(client.pending_path, None)
+                    if isinstance(req, dict) and req.get("id") and req["id"] != previous_id:
+                        break
+            else:
+                raise TimeoutError("manual fixture did not receive a pending request")
+            if seen is not None:
+                seen.update(req)
+            if mismatch_first:
+                with file_lock(client.pending_path):
+                    atomic_json_write({"id": "not-this-one", "content": "stale"}, client.response_path)
+                if stopped.wait(.1):
+                    return
+            with file_lock(client.pending_path):
+                atomic_json_write({"id": req["id"], "content": content}, client.response_path)
+        except Exception as error:
+            failures.append(error)
+    thread = threading.Thread(target=run, daemon=True)
+    thread._manual_reply_stop = stopped
+    thread._manual_reply_failures = failures
+    thread.start()
+    return thread
+
+
+@contextlib.contextmanager
+def _answer_pending(client, content, **kwargs):
+    thread = _answer_when_pending(client, content, **kwargs)
+    try:
+        yield thread
+    finally:
+        thread._manual_reply_stop.set()
+        thread.join()
+        if thread._manual_reply_failures:
+            raise AssertionError("manual reply fixture failed") from thread._manual_reply_failures[0]
 
 
 class ManualClientTests(unittest.TestCase):
+
+    def test_failed_atomic_replacement_preserves_stale_pending(self):
+        import errno
+        from pathlib import Path
+        from utils import atomic_json_write
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            os.makedirs(client.dir)
+            stale = {"id": "abandoned", "owner_pid": 99999999, "owner_thread": 1}
+            atomic_json_write(stale, client.pending_path)
+            original = Path(client.pending_path).read_bytes()
+            with patch("os.replace", side_effect=OSError(errno.EIO, "synthetic replace failure")):
+                with self.assertRaisesRegex(OSError, "synthetic replace failure"):
+                    client.create(model="fixture", messages=[])
+            self.assertEqual(original, Path(client.pending_path).read_bytes())
+            self.assertEqual([], list(Path(client.dir).glob(".tmp_*")))
+
+    def test_stale_replacement_waits_for_pending_reader_to_close(self):
+        import builtins
+        from utils import atomic_json_write, file_lock
+        reader_open = threading.Event()
+        release_reader = threading.Event()
+        writer_waiting = threading.Event()
+        mutated = threading.Event()
+        cancelled = threading.Event()
+        failures = []
+        results = {}
+        real_open = builtins.open
+        real_remove = os.remove
+        real_replace = os.replace
+        with tempfile.TemporaryDirectory() as tmp:
+            client = ManualClient(tmp)
+            client.POLL_SECONDS = .01
+            os.makedirs(client.dir)
+            stale = {"id": "abandoned", "owner_pid": 99999999, "owner_thread": 1}
+            atomic_json_write(stale, client.pending_path)
+
+            @contextlib.contextmanager
+            def hold_reader(path, *args, **kwargs):
+                with real_open(path, *args, **kwargs) as handle:
+                    if (os.fspath(path) == client.pending_path
+                            and threading.current_thread() is reader):
+                        reader_open.set()
+                        if not release_reader.wait(3):
+                            raise TimeoutError("pending reader was not released")
+                    yield handle
+
+            @contextlib.contextmanager
+            def observe_lock(path, *args, **kwargs):
+                if threading.current_thread() is writer:
+                    writer_waiting.set()
+                with file_lock(path, *args, **kwargs):
+                    yield
+
+            def remove(path, *args, **kwargs):
+                if os.fspath(path) == client.pending_path:
+                    mutated.set()
+                return real_remove(path, *args, **kwargs)
+
+            def replace(source, target, *args, **kwargs):
+                if os.fspath(target) == client.pending_path:
+                    mutated.set()
+                return real_replace(source, target, *args, **kwargs)
+
+            def read():
+                try:
+                    results["stale"] = script.read_manual_pending()
+                except Exception as error:
+                    failures.append(error)
+
+            def create():
+                try:
+                    with llm_provider.apply_manual_cancellation(cancelled.is_set):
+                        results["reply"] = client.create(model="fixture", messages=[])
+                except llm_provider.ManualRequestCancelled:
+                    pass
+                except Exception as error:
+                    failures.append(error)
+
+            reader = threading.Thread(target=read)
+            writer = threading.Thread(target=create)
+            with patch.object(script, "DATA_DIR", tmp), \
+                 patch("builtins.open", side_effect=hold_reader), \
+                 patch("utils.file_lock", side_effect=observe_lock), \
+                 patch.object(script, "file_lock", side_effect=observe_lock), \
+                 patch("os.remove", side_effect=remove), \
+                 patch("os.replace", side_effect=replace):
+                reader.start()
+                try:
+                    self.assertTrue(reader_open.wait(3))
+                    writer.start()
+                    self.assertTrue(writer_waiting.wait(3))
+                    self.assertFalse(mutated.wait(.15), "writer mutated an open pending reader")
+                    release_reader.set()
+                    reader.join(3)
+                    self.assertFalse(reader.is_alive())
+                    deadline = time.monotonic() + 3
+                    pending = None
+                    while time.monotonic() < deadline:
+                        pending = script.read_manual_pending()
+                        if pending:
+                            break
+                        time.sleep(.01)
+                    self.assertIsNotNone(pending)
+                    self.assertNotEqual(stale["id"], pending["id"])
+                    with file_lock(client.pending_path):
+                        atomic_json_write({"id": pending["id"], "content": "fresh"}, client.response_path)
+                    writer.join(3)
+                    self.assertFalse(writer.is_alive())
+                    self.assertEqual([], failures)
+                    self.assertIsNone(results["stale"])
+                    self.assertEqual("fresh", results["reply"].choices[0].message.content)
+                    self.assertFalse(os.path.exists(client.pending_path))
+                    self.assertFalse(os.path.exists(client.response_path))
+                finally:
+                    release_reader.set()
+                    cancelled.set()
+                    reader.join(3)
+                    if writer.ident is not None:
+                        writer.join(3)
+                    self.assertFalse(reader.is_alive())
+                    self.assertFalse(writer.is_alive())
 
     def test_review_portion_reassignment_preserves_metadata_through_manual_transport(self):
         from contextlib import redirect_stdout
@@ -53,13 +204,9 @@ class ManualClientTests(unittest.TestCase):
                  {'speaker': 'ALICE', 'text': 'Please open the gate. Take the blue cup.', 'instruct': ''}]
         with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
             client = ManualClient(directory); client.POLL_SECONDS = .01
-            answer = _answer_when_pending(client, json.dumps(reply))
-            try:
+            with _answer_pending(client, json.dumps(reply)):
                 output = review_batch(client, 'manual', source, 1, 1, LLMGenParams(), max_retries=0,
                     source_text='Rain fell. Please open the gate.\n\nTake the blue cup.')
-            finally:
-                answer.join(3)
-            self.assertFalse(answer.is_alive())
             self.assertEqual([{**source[0], 'text': 'Rain fell.', 'source_span': [0, 10]},
                               {**source[0], 'text': 'Please open the gate.', 'speaker': 'ALICE',
                                'spoken': True, 'source_span': [11, 32]},
@@ -75,9 +222,8 @@ class ManualClientTests(unittest.TestCase):
                 with self.assertRaises(ManualRequestCancelled):
                     client.create(model='fixture',messages=[])
             self.assertFalse(os.path.exists(client.pending_path))
-            answer = _answer_when_pending(client, 'fresh response')
-            response = client.create(model='fixture',messages=[])
-            answer.join(2);self.assertFalse(answer.is_alive())
+            with _answer_pending(client, 'fresh response'):
+                response = client.create(model='fixture',messages=[])
             self.assertEqual('fresh response',response.choices[0].message.content)
             self.assertFalse(os.path.exists(client.pending_path))
 
@@ -102,9 +248,8 @@ class ManualClientTests(unittest.TestCase):
             with patch.object(llm_provider.threading, 'enumerate', return_value=[unrelated]):
                 self.assertFalse(llm_provider.is_manual_request_owner_alive(abandoned))
             self.assertFalse(os.path.exists(client.pending_path))
-            answer = _answer_when_pending(client, 'fresh response')
-            result = client.create(model='fixture', messages=[])
-            answer.join(timeout=3); self.assertFalse(answer.is_alive())
+            with _answer_pending(client, 'fresh response'):
+                result = client.create(model='fixture', messages=[])
             self.assertEqual('fresh response', result.choices[0].message.content)
             self.assertFalse(os.path.exists(client.pending_path))
 
@@ -207,20 +352,8 @@ class ManualClientTests(unittest.TestCase):
                            "owner_thread": 1}, target)
             with open(client.response_path, "w", encoding="utf-8") as target:
                 json.dump({"id": "abandoned", "content": "stale"}, target)
-            def answer_new_request():
-                for _ in range(200):
-                    try:
-                        with open(client.pending_path, encoding="utf-8") as source:
-                            pending = json.load(source)
-                        if pending["id"] != "abandoned":
-                            with open(client.response_path, "w", encoding="utf-8") as target:
-                                json.dump({"id": pending["id"], "content": "fresh"}, target)
-                            return
-                    except (FileNotFoundError, ValueError):
-                        pass
-                    time.sleep(0.01)
-            threading.Thread(target=answer_new_request, daemon=True).start()
-            answer = client.create(model="m", messages=[])
+            with _answer_pending(client, "fresh", previous_id="abandoned"):
+                answer = client.create(model="m", messages=[])
             self.assertEqual("fresh", answer.choices[0].message.content)
             self.assertFalse(os.path.exists(client.pending_path))
 
@@ -280,10 +413,10 @@ class ManualClientTests(unittest.TestCase):
     def test_request_is_written_reply_is_returned_and_files_are_cleaned(self):
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)
-            _answer_when_pending(client, '[{"n": 0, "speaker": "ELENA"}]')
-            response = client.chat.completions.create(
-                model="m", messages=[{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
-                temperature=0, max_tokens=500, response_format={"type": "json_schema"})
+            with _answer_pending(client, '[{"n": 0, "speaker": "ELENA"}]'):
+                response = client.chat.completions.create(
+                    model="m", messages=[{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
+                    temperature=0, max_tokens=500, response_format={"type": "json_schema"})
             self.assertEqual('[{"n": 0, "speaker": "ELENA"}]', response.choices[0].message.content)
             self.assertEqual("stop", response.choices[0].finish_reason)
             self.assertFalse(os.path.exists(client.pending_path))
@@ -294,23 +427,14 @@ class ManualClientTests(unittest.TestCase):
             client = ManualClient(tmp)
             seen = {}
 
-            def run():
-                for _ in range(200):
-                    if os.path.exists(client.pending_path):
-                        break
-                    time.sleep(0.02)
-                with open(client.pending_path, encoding="utf-8") as handle:
-                    seen.update(json.load(handle))
-                with open(client.response_path, "w") as handle:
-                    json.dump({"id": seen["id"], "content": "ok"}, handle)
-            threading.Thread(target=run, daemon=True).start()
-            client.create(model="m", messages=[{"role": "user", "content": "hello"}], temperature=0.1)
+            with _answer_pending(client, "ok", seen=seen):
+                client.create(model="m", messages=[{"role": "user", "content": "hello"}], temperature=0.1)
             self.assertEqual([{"role": "user", "content": "hello"}], seen["messages"])
             self.assertEqual(1, seen["sequence"])
             self.assertEqual(0.1, seen["params"]["temperature"])
             self.assertFalse(seen["params"]["json_schema"])
-            _answer_when_pending(client, "two")
-            client.create(model="m", messages=[])
+            with _answer_pending(client, "two"):
+                client.create(model="m", messages=[])
             self.assertEqual(2, client.sequence)
 
     def test_pending_artifact_preserves_completion_contract_and_schema(self):
@@ -353,8 +477,8 @@ class ManualClientTests(unittest.TestCase):
     def test_a_reply_to_another_request_is_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)
-            _answer_when_pending(client, "right", mismatch_first=True)
-            response = client.create(model="m", messages=[])
+            with _answer_pending(client, "right", mismatch_first=True):
+                response = client.create(model="m", messages=[])
             self.assertEqual("right", response.choices[0].message.content)
 
     def test_dispatch_returns_the_manual_client_only_for_that_transport(self):
@@ -504,6 +628,28 @@ class ManualEndpointTests(unittest.TestCase):
 
 class ManualPendingOwnershipTests(unittest.TestCase):
     """An old casting prompt must not become a new design task's request."""
+
+    def test_reply_revalidates_identity_after_acquiring_slot_lock(self):
+        from utils import atomic_json_write, file_lock
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_pending(tmp)
+
+            @contextlib.contextmanager
+            def replace_before_admission(target):
+                with file_lock(target):
+                    atomic_json_write({"id": "replacement", "sequence": 2}, path)
+                    yield
+
+            with patch.object(script, "DATA_DIR", tmp), \
+                 patch.object(script, "file_lock", side_effect=replace_before_admission) as admission, \
+                 patch.object(script, "is_manual_request_owner_alive", return_value=True):
+                with self.assertRaises(script.HTTPException) as raised:
+                    asyncio.run(script.manual_llm_response(
+                        script.ManualReply(id="old-casting", content="Stale answer")))
+            self.assertEqual(409, raised.exception.status_code)
+            admission.assert_called_once_with(str(path))
+            self.assertFalse(path.with_name("response.json").exists())
+            self.assertEqual("replacement", json.loads(path.read_text())["id"])
 
     def write_pending(self, folder, **owner):
         from pathlib import Path
