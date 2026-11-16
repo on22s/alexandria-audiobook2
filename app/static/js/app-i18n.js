@@ -385,7 +385,8 @@ function applyUiCatalog(root = document) {
         for (const entry of node.getAttribute('data-i18n-attr').split(',')) {
             const [attribute, key] = entry.split(':').map(part => part.trim());
             if (!attribute || !key) { continue; }
-            const values = uiRuntimeAttributes.get(node)?.get(attribute) || readUiMessageValues(node, authored.get(attribute));
+            const runtimeValues = uiRuntimeAttributes.get(node)?.get(attribute);
+            const values = typeof runtimeValues === 'function' ? runtimeValues() : runtimeValues || readUiMessageValues(node, authored.get(attribute));
             node.setAttribute(attribute, t(key, authored.get(attribute), values, locale));
         }
     }
@@ -403,7 +404,7 @@ function setUiMessage(node, key, english, values = {}) {
 }
 
 function uiMessage(key, english, values = {}) {
-    return {[UI_MESSAGE]: true, key, english, values, toString() { return t(key, english, values); }};
+    return {[UI_MESSAGE]: true, key, english, values, toString() { return t(key, english, typeof values === 'function' ? values() : values); }};
 }
 
 function renderUiMessage(node, message, attribute = null) {
@@ -428,7 +429,7 @@ function renderUiMessage(node, message, attribute = null) {
     node.setAttribute('data-i18n-attr', entries.join(','));
     captureUiAuthoredAttributes(node).set(attribute, message.english);
     if (!uiRuntimeAttributes.has(node)) { uiRuntimeAttributes.set(node, new Map()); }
-    uiRuntimeAttributes.get(node).set(attribute, {...message.values});
+    uiRuntimeAttributes.get(node).set(attribute, typeof message.values === 'function' ? message.values : {...message.values});
     node.setAttribute(attribute, String(message));
 }
 

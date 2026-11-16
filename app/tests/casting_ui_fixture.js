@@ -58,6 +58,7 @@ function setup({snapshotVoices = [{name: 'ADAM'}, {name: 'EVE'}], confirm = true
     w.Audio = class { constructor(src) { this.src = src; w.played.push(src); } play() { return Promise.resolve(); } pause() {} addEventListener() {} };
     w.played = [];
     w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
+    w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-casting-labels.js'), 'utf8'));
     w.eval(source);
     return {w, calls, errors, toasts, get: id => w.document.getElementById('casting-' + id)};
 }
