@@ -55,7 +55,7 @@ from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
 
 
 from review_startup import event as startup_event, bind_current as bind_startup_trace, record_failure
-from dialogue_spans import get_source_span_fragments
+from dialogue_spans import get_source_span_fragments, SourceSpanError
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
 # A long batch review run can grow VRAM usage (KV cache + other GPU apps) until
@@ -193,6 +193,7 @@ def wait_for_vram_headroom(fail_fast=False):
     waited = 0
     last_reported = 0
     while waited < VRAM_MAX_WAIT:
+        ensure_review_not_cancelled()
         time.sleep(VRAM_POLL_INTERVAL)
         waited += VRAM_POLL_INTERVAL
         
@@ -1145,14 +1146,54 @@ def get_review_raw_text_slice(text, start, end):
 def verify_review_source_spans(entries, source_text):
     """Require exact normalized slices and ordered, non-overlapping intervals."""
     previous_end = 0
-    for entry in entries:
+    for number, entry in enumerate(entries, 1):
         if 'source_span' not in entry:
             continue
-        get_source_span_fragments(source_text, entry['text'], entry['source_span'], [entry['text']])
+        try:
+            get_source_span_fragments(source_text, entry['text'], entry['source_span'], [entry['text']])
+        except SourceSpanError as error:
+            raise SourceSpanError(error.reason_code, entry_number=number,
+                                  fragment_number=error.fragment_number) from error
         start, end = entry['source_span']
         if start < previous_end:
-            raise ValueError('Source intervals overlap or are out of order')
+            raise SourceSpanError('source_span_order', entry_number=number)
         previous_end = end
+
+
+def get_review_source_entries(entries, source_text):
+    """Resolve inherited parent intervals only through a complete exact partition."""
+    resolved = []
+    position = 0
+    while position < len(entries):
+        entry = entries[position]
+        stop = position + 1
+        if 'source_span' in entry:
+            while stop < len(entries) and entries[stop].get('source_span') == entry['source_span']:
+                stop += 1
+        group = entries[position:stop]
+        if len(group) > 1:
+            texts = [row['text'] for row in group]
+            try:
+                spans = get_source_span_fragments(source_text, ' '.join(texts), entry['source_span'], texts)
+            except SourceSpanError as error:
+                raise SourceSpanError(error.reason_code, entry_number=position + 1,
+                                      fragment_number=error.fragment_number) from error
+            resolved.extend({**row, 'source_span': span} for row, span in zip(group, spans))
+        else:
+            resolved.append(entry)
+        position = stop
+    verify_review_source_spans(resolved, source_text)
+    return resolved
+
+
+def get_review_source_span_finding(error, *, entry_number=None):
+    return {'code': 'review_source_span_unverified',
+            'entry_number': error.entry_number or entry_number,
+            'fragment_number': error.fragment_number,
+            'reason_code': error.reason_code,
+            'message': ('Review fragments require verified, ordered source spans; retain original entries. '
+                        f'entry={error.entry_number or entry_number}; fragment={error.fragment_number}; '
+                        f'reason={error.reason_code}.')}
 
 
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
@@ -1233,7 +1274,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             text = original['text'] if original is not None else None
             if text is None or expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
                 raise ValueError('Selected saved source has no verified original coordinates')
-            verify_review_source_spans(entries, text)
+            get_review_source_entries(entries, text)
             identity['sources'].extend(original['identity']['sources'])
             return {'text': text, 'identity': identity}
         if policy and policy.get('input_sha256', digest) != digest:
@@ -1246,7 +1287,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 if expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
                     continue
                 try:
-                    verify_review_source_spans(entries, text)
+                    get_review_source_entries(entries, text)
                 except ValueError:
                     continue
                 sources.add(text)
@@ -1271,6 +1312,12 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     if not report['passed']:
         return None, report
     findings = []
+
+    if source_text is not None:
+        try:
+            batch_entries = get_review_source_entries(batch_entries, source_text)
+        except SourceSpanError as error:
+            return None, {'passed': False, 'findings': [get_review_source_span_finding(error)]}
 
     original_texts = [" ".join(entry.get("text", "").split()) for entry in batch_entries]
     reviewed_texts = [" ".join(entry["text"].split()) for entry in entries]
@@ -1314,6 +1361,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     for original, text in zip(batch_entries, original_texts):
         source_spans.append((position, position + len(text), original))
         position += len(text) + 1
+    source_numbers = {start: number for number, (start, _, _) in enumerate(source_spans, 1)}
     bound, warnings, span_fragments = [], [], {}
     position = 0
     for number, (entry, text) in enumerate(zip(entries, reviewed_texts), 1):
@@ -1352,11 +1400,12 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     row['text'] = original['text']
                 if 'source_span' in facts:
                     if len(group) != 1:
-                        findings.append({'code': 'review_source_span_unverified',
-                                         'message': 'Review merged incompatible source intervals; retain originals.'})
+                        findings.append(get_review_source_span_finding(
+                            SourceSpanError('incompatible_source_intervals', fragment_number=1),
+                            entry_number=source_numbers[start]))
                     else:
                         fragment = span_fragments.setdefault(start, {'original': original, 'rows': [],
-                                                                    'changed': False})
+                            'entry_number': source_numbers[start], 'changed': False})
                         fragment['rows'].append(row)
                         fragment['changed'] |= left != start or right != stop
                 row, warning = get_review_speaker_bound_entry(row,
@@ -1370,19 +1419,20 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     warnings.append({**warning, 'entry_number': number})
         position = end + 1
     if any(fragment['changed'] for fragment in span_fragments.values()):
+        entry_number = None
         try:
             for fragment in span_fragments.values():
                 if not fragment['changed']:
                     continue
                 original, rows = fragment['original'], fragment['rows']
+                entry_number = fragment['entry_number']
                 spans = get_source_span_fragments(source_text, original['text'], original['source_span'],
                                                   [row['text'] for row in rows])
                 for row, span in zip(rows, spans):
                     row['source_span'] = span
             verify_review_source_spans(bound, source_text)
-        except ValueError:
-            findings.append({'code': 'review_source_span_unverified', 'message': (
-                'Review fragments require verified, ordered source spans; retain original entries.')})
+        except SourceSpanError as error:
+            findings.append(get_review_source_span_finding(error, entry_number=entry_number))
     return (None if findings else bound), {"passed": not findings, "findings": findings,
                                          'warnings': warnings}
 
@@ -1453,6 +1503,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     by a distinct terminal observer event; those batches remain incomplete.
     """
     def ensure_secondary_admission(profile):
+        ensure_review_not_cancelled()
         if params.request_admission is not None and not params.request_admission(profile):
             return False
         config = {"llm": profile["config"],
@@ -1764,7 +1815,20 @@ def diff_entries(original, corrected, highlight_pool=None, entry_offset=0):
     return stats
 
 
+def ensure_review_not_cancelled():
+    """Stop between review transactions, retaining the last durable checkpoint."""
+    path = os.environ.get('ALEXANDRIA_REVIEW_CANCEL_FILE')
+    if path:
+        try:
+            os.stat(path)
+        except FileNotFoundError:
+            return
+        print('Review cancelled; saved checkpoint retained.', flush=True)
+        raise SystemExit(0)
+
+
 def main():
+    ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
@@ -1998,6 +2062,8 @@ def main():
             close()
         return
     print('Completed-review reuse: ' + ('forced rerun' if args.force_review else receipt_reason))
+    if review_source_text is not None:
+        entries = get_review_source_entries(entries, review_source_text)
     all_corrected = []
     total_stats = {
         "text_changed": 0,
@@ -2067,6 +2133,7 @@ def main():
 
         unreviewed_remainder = []
         for offset_idx, start in enumerate(range(resume_offset, len(entries), batch_size)):
+            ensure_review_not_cancelled()
             batch_index = completed_batches + 1 + offset_idx
 
             end = min(len(entries), start + batch_size)
@@ -2200,6 +2267,7 @@ def main():
         # fast when VRAM is already full before any batch (#1114).
         first_check_done = threading.Event()
         for wave_start in range(0, len(remaining_batches), wave_size):
+            ensure_review_not_cancelled()
             wave_batches = remaining_batches[wave_start:wave_start + wave_size]
             wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
             # Every batch in this wave gets the SAME previous_tail (from the end of
@@ -2214,6 +2282,7 @@ def main():
                 print(f"\nReviewing batch {wave_indices[0]}/{total_batches} ({len(wave_batches[0])} entries)...")
 
             def _run_one(item):
+                ensure_review_not_cancelled()
                 i, batch = item
                 if is_active_llm_on_this_gpu():
                     with vram_lock:
@@ -2369,6 +2438,7 @@ def main():
     # Speaker de-duplication: merge aliases that are the same character.
     # Skipped on a VRAM abort since this step makes additional LLM calls,
     # which is exactly what we're trying to avoid when VRAM is already low.
+    ensure_review_not_cancelled()
     dedupe_map = {}
     registry_staging = ({} if ((active_review or saved_review) and args.alias_registry
                                and args.dedupe_speakers) else None)
@@ -2404,6 +2474,7 @@ def main():
     # Keep active script identity and old chunks in the same recoverable commit.
     if active_review:
         from script_selection_binding import publish_controlled_script_edit
+        ensure_review_not_cancelled()
         moved = publish_controlled_script_edit(data_dir, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
@@ -2413,6 +2484,7 @@ def main():
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     elif saved_review:
         from script_selection_binding import publish_saved_script_edit
+        ensure_review_not_cancelled()
         moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
             json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
@@ -2421,6 +2493,7 @@ def main():
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
+        ensure_review_not_cancelled()
         atomic_json_write(output_entries, output_path)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
