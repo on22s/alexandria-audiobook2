@@ -2641,7 +2641,7 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span data-i18n="script.logs.title">Generation Logs</span>
+                    <span data-i18n="script.logs.title">Script generation logs</span>
                     <span class="small">
                         <span data-i18n="script.logs.note" class="text-muted me-2">live view shows recent lines; full history saved to file</span>
                         <a href="/api/logs/script?download=true" target="_blank" class="btn btn-sm btn-outline-secondary py-0" data-i18n-attr="title:script.logs.gen.title" title="Download the complete single generate-script log">
@@ -2660,7 +2660,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div id="script-activity" class="small text-muted px-2 py-1 border-bottom" hidden></div>
-                    <div id="script-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:script.logs.title" aria-label="Generation Logs"></div>
+                    <div id="script-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:script.logs.title" aria-label="Script generation logs"></div>
                 </div>
             </div>
         </div>
@@ -3688,7 +3688,7 @@
                     </div>
 
                     <!-- Logs -->
-                    <pre id="dsb-logs" class="bg-dark text-light p-2 rounded mt-3" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; display: none;"></pre>
+                    <pre id="dsb-logs" class="bg-dark text-light p-2 rounded mt-3" tabindex="0" role="region" data-i18n-attr="aria-label:dataset.logs.title" aria-label="Dataset Builder logs" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; display: none;"></pre>
                     </div><!-- /dsb-form-area -->
                 </div>
             </div>
@@ -4274,13 +4274,13 @@
 
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span data-i18n="audio.logs.title">Generation Logs</span>
+                    <span data-i18n="audio.logs.title">Audio generation logs</span>
                     <button class="btn btn-sm btn-outline-danger" id="btn-cancel-merge" style="display:none;">
                         <i class="fas fa-stop me-1"></i><span data-i18n="audio.logs.cancel-merge">Cancel Merge</span>
                     </button>
                 </div>
                 <div class="card-body p-0">
-                    <div id="audio-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:audio.logs.title" aria-label="Generation Logs"></div>
+                    <div id="audio-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:audio.logs.title" aria-label="Audio generation logs"></div>
                 </div>
             </div>
         </div>

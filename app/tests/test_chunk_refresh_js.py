@@ -46,7 +46,7 @@ ctx.API.get=async()=>[chunk(0),chunk(1)];await ctx.loadChunks(true);
 assert.equal(written,'0% (0/2)');assert.equal(progress.ariaValueText,'Rendered 0 of 2 lines (0%)');
 ''')
 
-    def test_rendered_text_and_delivery_names_identify_each_line(self):
+    def test_rendered_text_delivery_and_pause_names_identify_each_line(self):
         self.run_js(r'''
 ctx.API.get=async()=>[chunk(0),chunk(7)];await ctx.loadChunks(true);
 for(const line of [1,8]){
@@ -54,6 +54,8 @@ for(const line of [1,8]){
  assert(body.innerHTML.includes('<textarea id="chunk-text-'+(line-1)+'"'));
  assert(body.innerHTML.includes('<label class="visually-hidden" for="chunk-instruct-'+(line-1)+'">Delivery instruction for line '+line+'</label>'));
  assert(body.innerHTML.includes('<textarea id="chunk-instruct-'+(line-1)+'"'));
+ assert(body.innerHTML.includes('<label class="visually-hidden" for="chunk-pause-after-'+(line-1)+'">Pause after line '+line+' (milliseconds)</label>'));
+ assert(body.innerHTML.includes('<input id="chunk-pause-after-'+(line-1)+'" type="number"'));
 }
 ''')
 

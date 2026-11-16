@@ -3309,7 +3309,7 @@
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_overlapping_reads_are_serialized_and_forced_freshness_is_not_lost",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_progress_tracks_full_delta_playback_and_empty_snapshots",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_progress_value_text_does_not_depend_on_layout_text_readback",
-    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_rendered_text_and_delivery_names_identify_each_line",
+    "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_rendered_text_delivery_and_pause_names_identify_each_line",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_reused_id_with_changed_uid_refuses_delta_and_preserves_old_identity",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_same_length_replacements_reorders_and_playback_restore_correct_rows",
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_saved_local_edit_refetches_server_normalization_when_revision_is_unchanged"

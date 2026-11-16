@@ -1,4 +1,5 @@
 """Static contracts for UI behavior that is easy to regress silently."""
+import json
 import re
 import unittest
 from html.parser import HTMLParser
@@ -60,13 +61,21 @@ class UIContractTests(unittest.TestCase):
     def test_logs_are_explicitly_keyboard_focusable_named_regions(self):
         parser = _NavigationParser()
         parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
-        logs = [attrs for _, attrs, _ in parser.nodes if 'log-window' in attrs.get('class', '').split()]
-        self.assertEqual(6, len(logs))
+        logs = [attrs for _, attrs, _ in parser.nodes if 'log-window' in attrs.get('class', '').split() or attrs.get('id') == 'dsb-logs']
+        self.assertEqual(7, len(logs))
         for attrs in logs:
             with self.subTest(log=attrs['id']):
                 self.assertEqual('0', attrs.get('tabindex'))
                 self.assertEqual('region', attrs.get('role'))
                 self.assertTrue(attrs.get('aria-label'))
+                self.assertIn('aria-label:', attrs.get('data-i18n-attr', ''))
+        self.assertEqual(7, len({attrs['aria-label'] for attrs in logs}))
+        for catalog_path in sorted((STATIC / 'i18n').glob('ui.*.json')):
+            catalog = json.loads(catalog_path.read_text(encoding='utf-8'))
+            with self.subTest(catalog=catalog_path.name):
+                names = [catalog[attrs['data-i18n-attr'].split('aria-label:')[1]] for attrs in logs]
+                self.assertTrue(all(names))
+                self.assertEqual(7, len(set(names)))
 
     def test_render_progress_has_named_numeric_initial_state(self):
         parser = _NavigationParser()
