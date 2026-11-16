@@ -8330,6 +8330,8 @@
     "tests.test_manual_llm.ManualClientTests.test_the_request_file_carries_the_exact_messages_and_a_sequence",
     "tests.test_manual_llm.ManualClientTests.test_windows_owner_probe_queries_birth_time_without_sending_a_signal",
     "tests.test_manual_llm.ManualEndpointTests.test_pending_and_response_round_trip_with_stage_hint",
+    "tests.test_manual_llm.ManualEndpointTests.test_review_stage_hint_drops_previous_batch_validation_error",
+    "tests.test_manual_llm.ManualEndpointTests.test_review_stage_hint_preserves_new_validation_error",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_abandoned_same_process_request_cannot_borrow_a_live_thread",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_live_persona_manual_request_remains_answerable",
     "tests.test_manual_llm.ManualPendingOwnershipTests.test_orphaned_prompt_is_not_attached_to_single_or_multiple_design_status",
@@ -8342,6 +8344,14 @@
   "test_manual_persona_ui": [
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_persona_actions_renderer_and_reload",
     "tests.test_manual_persona_ui.ManualPersonaUITests.test_shared_panel_is_outside_hidden_tab_bodies"
+  ],
+  "test_manual_reply_feedback_js": [
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_completion_invalidates_late_success",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_late_failure_cannot_replace_newer_success",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_late_success_cannot_replace_newer_error",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_old_finally_cannot_unlock_current_submission",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_success_is_replaced_by_new_error",
+    "tests.test_manual_reply_feedback_js.ManualReplyFeedbackTests.test_validation_hint_and_submission_error_clear_on_success"
   ],
   "test_mastering_js": [
     "tests.test_mastering_js.MasteringJsTests.test_failed_terminal_export_also_invalidates_report_epoch",
@@ -11704,6 +11714,7 @@
   "test_review_checkpoint_deltas": [
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_actual_full_review_cli_uses_one_delta_writer_and_retires_its_scope",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_atomic_failure_keeps_previous_or_published_batch_and_next_save_recovers",
+    "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_cooperative_cancel_keeps_completed_checkpoint_and_can_resume",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_failed_rewind_compaction_and_owned_artifact_cleanup",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_rejected_corrupt_checkpoint_starts_a_new_durable_epoch",
     "tests.test_review_checkpoint_deltas.ReviewCheckpointDeltaTests.test_serializes_each_corrected_entry_once_and_native_resume_preserves_every_batch",
@@ -11873,6 +11884,7 @@
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_capture_requires_exact_source_and_script_identity_for_active_and_saved_books",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_capture_reuses_generation_decoding_and_newline_coordinates",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_cli_remaps_verified_source_or_keeps_original_entries_with_checkpoint",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_cli_resolves_shared_parent_spans_before_batch_boundaries",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_invalid_source_or_original_spans_refuse_instead_of_inventing_offsets",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_loaded_saved_book_follows_only_its_verified_original_source_binding",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_loaded_saved_source_lineage_is_fenced_through_publication",
@@ -11884,8 +11896,13 @@
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_quote_and_whitespace_offsets_use_the_existing_dialogue_map",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_rejected_split_records_content_free_failure_evidence",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_repeated_text_cannot_remap_outside_the_original_span",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_span_recovery_refuses_unproved_partitions",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_span_resolution_does_not_relax_output_verification",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_spans_capture_exact_partition_for_active_and_saved_books",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_spans_do_not_block_unrelated_speaker_reassignment",
     "tests.test_review_source_spans.ReviewSourceSpanTests.test_single_original_entry_split_also_gets_disjoint_exact_spans",
-    "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model"
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model",
+    "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_rejection_identifies_entry_fragment_and_reason_without_content"
   ],
   "test_review_startup_diagnostics": [
     "tests.test_review_startup_diagnostics.ReviewLogModeMarkupTests.test_each_review_mode_contains_its_own_always_available_log_link",
@@ -17030,14 +17047,17 @@
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_acknowledges_refusal_only_for_live_owned_job",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_cancel_does_not_hide_owned_job_query_failure",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_capture_preserves_timeout_after_refused_graceful_stop",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_legacy_force_still_targets_only_the_recorded_pid_and_tree",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_owned_windows_graceful_refusal_still_forces_and_waits",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_posix_cancel_keeps_signal_channel_without_creating_windows_file",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_posix_stop_diagnostics_do_not_require_the_windows_module",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_cancel_still_arms_force_escalation",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_refused_graceful_stop_does_not_hide_force_failure",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_shared_stop_reports_taskkill_refusal_and_still_forces_cleanup",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_taskkill_refusal_reports_pending_without_a_warning_traceback",
     "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unexpected_owned_stop_error_retains_its_warning_traceback",
-    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unowned_graceful_failure_remains_visible"
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_unowned_graceful_failure_remains_visible",
+    "tests.test_windows_cleanup_escalation.GracefulRefusalTests.test_windows_review_cancel_signals_private_file_without_taskkill"
   ],
   "test_windows_export_qualification": [
     "tests.test_windows_export_qualification.WindowsQualificationVerdictTests.test_junction_refusal_cannot_be_inferred_from_unrelated_failure",
