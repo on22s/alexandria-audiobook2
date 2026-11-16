@@ -8,10 +8,11 @@ SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
 HARNESS=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv.at(-1),'utf8');
 const elements={},toasts=[],posts=[];let persisted=null,mode='fail',release,arrive;const entered=new Promise(resolve=>arrive=resolve);
-const element=id=>elements[id]??={value:'',checked:false,style:{},replaceChildren(){},appendChild(){},classList:{},addEventListener(){}};
+const element=id=>elements[id]??={value:'',checked:false,style:{},attributes:{},setAttribute(name,value){this.attributes[name]=String(value);},getAttribute(name){return this.attributes[name]??null;},removeAttribute(name){delete this.attributes[name];},replaceChildren(){},appendChild(){},classList:{},addEventListener(){}};
 const context={window:{prompt:(_question,defaultValue)=>_question==='Preset name:'?'new':'description',confirm:()=>true},document:{getElementById:element,createElement:()=>({appendChild(){},childElementCount:1})},showToast:(...args)=>toasts.push(args),showConfirm:async()=>true,showPresetEditor:async()=>({name:'new',description:'description'}),console,
  API:{post:async(url,payload)=>{posts.push(JSON.parse(JSON.stringify(payload)));if(mode==='fail'){throw Error('HTTP 500 fixture');}if(mode==='hold'){arrive();await new Promise(resolve=>release=resolve);}persisted=JSON.parse(JSON.stringify(payload));},get:async()=>persisted}};
 context.window={...context.window};vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]]));const run=code=>vm.runInContext(code,context);
+run(fs.readFileSync(require('path').join(require('path').dirname(process.argv.at(-1)),'app-i18n.js'),'utf8'));
 run(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')));
 run(source.slice(source.indexOf('let promptPresets ='),source.indexOf('window.previewAttributionPrompt =')));
 run(source.slice(source.indexOf('function getNumFieldValue('),source.indexOf('// --- Desktop notifications ---')));

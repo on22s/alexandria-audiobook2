@@ -10,9 +10,15 @@
                     'collection', 'stars', 'circles'];
     const DEFAULTS = {status: 'unreviewed', priority: 'none', notes: '', tags: [], tag_colors: {}, stars: [],
                       circles: [], collections: []};
-    function statusLabel(value) { return {unreviewed: t('casting.status.unreviewed', 'Unreviewed'), shortlist: t('casting.status.shortlist', 'Shortlist'), callback: t('casting.status.callback', 'Callback'), reject: t('casting.status.reject', 'Reject')}[value]; }
+    function statusLabel(value, live = false) {
+        const message = {unreviewed: uiMessage('casting.status.unreviewed', 'Unreviewed'), shortlist: uiMessage('casting.status.shortlist', 'Shortlist'), callback: uiMessage('casting.status.callback', 'Callback'), reject: uiMessage('casting.status.reject', 'Reject')}[value];
+        return live || message === undefined ? message : String(message);
+    }
     const STATUS_CLASS = {unreviewed: 'bg-secondary', shortlist: 'bg-success', callback: 'bg-warning text-dark', reject: 'bg-danger'};
-    function priorityLabel(value) { return {none: t('casting.priority.none', 'No priority'), low: t('casting.priority.low', 'Low priority'), medium: t('casting.priority.medium', 'Medium priority'), high: t('casting.priority.high', 'High priority')}[value]; }
+    function priorityLabel(value, live = false) {
+        const message = {none: uiMessage('casting.priority.none', 'No priority'), low: uiMessage('casting.priority.low', 'Low priority'), medium: uiMessage('casting.priority.medium', 'Medium priority'), high: uiMessage('casting.priority.high', 'High priority')}[value];
+        return live || message === undefined ? message : String(message);
+    }
     const PRIORITY_CLASS = {none: 'bg-secondary', low: 'bg-info text-dark', medium: 'bg-warning text-dark', high: 'bg-danger'};
     const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const HEALTH = {missing_audio: 'Missing audio', no_description: 'No description', duplicate_names: 'Duplicate names', no_sample: 'No sample line', skipped: 'Skipped folders'};
@@ -171,7 +177,7 @@
     // ---- DOM ----
     function node(tag, text, cls) {
         const n = document.createElement(tag);
-        if (text !== undefined && text !== null) { n.textContent = String(text); }
+        if (text !== undefined && text !== null) { renderUiMessage(n, text); }
         if (cls) { n.className = cls; }
         return n;
     }
@@ -200,11 +206,11 @@
     function visible() {
         return sortVoices(filterVoices(getModeVoices(), s.marks, el('search').value, picks()), s.marks, el('sort').value);
     }
-    function fillSelect(id, values, anyLabel) {
+    function fillSelect(id, values, anyLabel, labelOf = value => value) {
         const sel = el(id), current = sel.value;
         const first = node('option', anyLabel); first.value = '';
         sel.replaceChildren(first);
-        for (const value of values) { const o = node('option', value); o.value = value; sel.append(o); }
+        for (const value of values) { const o = node('option', labelOf(value)); o.value = value; sel.append(o); }
         sel.value = values.includes(current) ? current : '';
     }
     function renderFilters() {
@@ -212,7 +218,7 @@
         fillSelect('book', [...new Set(modeList.map(v => v.book_id))].sort(), t('casting.filter.all-books', 'All books'));
         fillSelect('gender', [...new Set(modeList.map(v => v.tags.gender))], t('casting.filter.any', 'Any'));
         fillSelect('age', [...new Set(modeList.flatMap(v => v.tags.ages))], t('casting.filter.any', 'Any'));
-        fillSelect('status', STATUSES, t('casting.filter.any', 'Any'));
+        fillSelect('status', STATUSES, uiMessage('casting.filter.any', 'Any'), value => statusLabel(value, true));
         const selected = el('health').value;
         const counts = getHealthCounts(modeList, s.skipped);
         el('health').replaceChildren(...[['', t('casting.health.all', 'All data health')], ...Object.keys(HEALTH).map(key =>

@@ -41,7 +41,7 @@ function resetSourceScopeBook() {
     invalidateSourceScopePreview(); sourceScopeUndo = null; sourceScopeNextOffset = null;
     sourceScopeElement('entry').replaceChildren(); sourceScopeElement('entry').value = '';
     sourceScopeElement('undo-status').textContent = '';
-    sourceScopeElement('feedback').textContent = t('scope.book-changed', 'Book changed. Refresh the saved entries and undo status.');
+    setUiMessage(sourceScopeElement('feedback'), 'scope.book-changed', 'Book changed. Refresh the saved entries and undo status.');
     updateSourceScopeControls();
     if (sourceScopeElement('panel').open && !sourceScopeBusy) { refreshSourceScope(); }
 }
@@ -62,7 +62,7 @@ async function refreshSourceScope(offset = 1) {
     invalidateSourceScopePreview(); const epoch = sourceScopeEpoch;
     const selection = window._existingUploadSelectionRequest;
     sourceScopeBusy = true; sourceScopeUndo = null; updateSourceScopeControls();
-    sourceScopeElement('feedback').textContent = t('scope.reading', 'Reading saved entries and undo status…');
+    renderUiMessage(sourceScopeElement('feedback'), uiMessage('scope.reading', 'Reading saved entries and undo status…'));
     try {
         const search = encodeURIComponent(sourceScopeElement('search').value.trim());
         // One after the other: both reads take the book and file locks without
@@ -83,10 +83,10 @@ async function refreshSourceScope(offset = 1) {
         } else {
             sourceScopeElement('undo-status').textContent = t('scope.undo.none', 'No scope undo is stored.');
         }
-        sourceScopeElement('feedback').textContent = t('scope.choices', '{shown} choices shown from {total} saved entries. Boundaries inside a saved chunk will be refused.', {shown: choices.entries.length, total: choices.total_entries});
+        renderUiMessage(sourceScopeElement('feedback'), uiMessage('scope.choices', '{shown} choices shown from {total} saved entries. Boundaries inside a saved chunk will be refused.', {shown: choices.entries.length, total: choices.total_entries}));
         return true;
     } catch (error) {
-        sourceScopeElement('feedback').textContent = error.message;
+        renderUiMessage(sourceScopeElement('feedback'), error.message);
         return false;
     } finally {
         sourceScopeBusy = false; updateSourceScopeControls();
@@ -161,13 +161,13 @@ function renderSourceScopePreview(plan) {
 async function previewSourceScope() {
     if (sourceScopeBusy || !sourceScopeElement('entry').value) { return; }
     invalidateSourceScopePreview(); const epoch = sourceScopeEpoch, selection = window._existingUploadSelectionRequest;
-    sourceScopeBusy = true; updateSourceScopeControls(); sourceScopeElement('feedback').textContent = t('scope.verifying', 'Verifying source, voices, audio and history…');
+    sourceScopeBusy = true; updateSourceScopeControls(); renderUiMessage(sourceScopeElement('feedback'), uiMessage('scope.verifying', 'Verifying source, voices, audio and history…'));
     try {
         await flushVoiceSaves();
         const plan = await API.post('/api/project/scope/preview', {start_entry: Number(sourceScopeElement('entry').value)});
         if (epoch !== sourceScopeEpoch || selection !== window._existingUploadSelectionRequest) { return; }
-        sourceScopePreview = plan; renderSourceScopePreview(plan); sourceScopeElement('feedback').textContent = t('scope.review-before-apply', 'Review the removed and retained text before applying.');
-    } catch (error) { sourceScopeElement('feedback').textContent = error.message; }
+        sourceScopePreview = plan; renderSourceScopePreview(plan); renderUiMessage(sourceScopeElement('feedback'), uiMessage('scope.review-before-apply', 'Review the removed and retained text before applying.'));
+    } catch (error) { renderUiMessage(sourceScopeElement('feedback'), error.message); }
     finally {
         sourceScopeBusy = false; updateSourceScopeControls();
         if (sourceScopeRefreshQueued !== null) { refreshSourceScope(sourceScopeRefreshQueued); }
@@ -207,7 +207,7 @@ async function runSourceScopeMutation(action) {
         // changed, but the entries and undo status shown here may be stale.
         if (outcome) {
             const feedback = sourceScopeElement('feedback');
-            feedback.textContent = refreshed ? outcome : outcome + ' ' + feedback.textContent;
+            renderUiMessage(feedback, refreshed ? outcome : outcome + ' ' + feedback.textContent);
         }
     }
 }

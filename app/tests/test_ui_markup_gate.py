@@ -30,6 +30,7 @@ VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
         'meta', 'param', 'source', 'track', 'wbr'}
 TEXT_ATTRIBUTES = ('placeholder', 'title', 'aria-label', 'alt')
 KEEP_ENGLISH = frozenset({
+    'data-i18n-values', 'data-i18n-source', 'aria-label',
     'use strict', '(max-width: 575px)', 'editor-review-details', 'editor-quality-panel', 'editor-phone-status',
     '(prefers-reduced-motion: reduce)',
     # #1938 DOM IDs, tag/selector names and slider ARIA wiring, never copy.
@@ -332,7 +333,12 @@ def help_map_spans(path):
 
 def keyed_spans(text):
     spans = set()
-    for match in re.finditer(r"\bt\s*\(", text):
+    for match in re.finditer(r"\bsetUiMessage\s*\([^,\n]+,", text):
+        arguments = _arguments(text, match.end())
+        if len(arguments) >= 2:
+            spans.add(arguments[0])
+            spans.add(arguments[1])
+    for match in re.finditer(r"\b(?:t|uiMessage|uiMessageMarkup)\s*\(", text):
         arguments = _arguments(text, match.end())
         if len(arguments) >= 2:
             spans.add(arguments[0])
@@ -375,6 +381,13 @@ def count_js(path, excluded=()):
 
 class CounterFixtureTests(unittest.TestCase):
     """Rule 21: the counter must see one unkeyed literal and no keyed ones."""
+
+    def test_runtime_message_bindings_only_exempt_literal_key_and_english(self):
+        text = "setUiMessage(node,'fixture.runtime','Bound sentence',{value:'Unkeyed value'}); 'Unkeyed later';"
+        spans = keyed_spans(text)
+        remaining = [match.group(0) for match in STRING.finditer(text)
+                     if (match.start(), match.end()) not in spans]
+        self.assertEqual(["'Unkeyed value'", "'Unkeyed later'"], remaining)
 
     def test_markup_counter_counts_only_unkeyed_display_text(self):
         source = STATIC / 'index.html'

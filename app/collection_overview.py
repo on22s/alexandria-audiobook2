@@ -37,6 +37,7 @@ import hashlib
 import json
 import os
 import re
+from workspace_guidance import get_workspace_message, with_workspace_guidance
 from pathlib import Path
 
 from completed_review_receipt import (VERSION as REVIEW_RECEIPT_VERSION,
@@ -414,74 +415,71 @@ def _has_other_residual(scripts_dir, name, index):
 def _review_stage_from_entry(entry, scripts_dir, name, entries, *, entries_fingerprint=None):
     if entry is None or entry.get('sha') == 'unavailable':
         return {'status': 'unavailable', 'current_settings': 'not_rechecked',
-                'evidence': 'The completed-review receipt could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-completed-review-receipt-could-not-be-read')}
     if not entry.get('exists'):
         return {'status': 'not_started', 'current_settings': 'not_rechecked',
-                'evidence': 'No completed-review receipt is saved for this book.'}
+                'evidence': get_workspace_message('workspace.guidance.no-completed-review-receipt-is-saved-for-this-book')}
     raw = entry.get('raw')
     if raw is None:
         return {'status': 'unavailable', 'current_settings': 'not_rechecked',
-                'evidence': 'The completed-review receipt could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-completed-review-receipt-could-not-be-read')}
     try:
         receipt = _parse_json_bytes(raw)
     except (OSError, ValueError, TypeError, RecursionError):
         return {'status': 'unavailable', 'current_settings': 'not_rechecked',
-                'evidence': 'The completed-review receipt could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-completed-review-receipt-could-not-be-read')}
     if not isinstance(receipt, dict):
         return {'status': 'unavailable', 'current_settings': 'not_rechecked',
-                'evidence': 'The completed-review receipt is not a JSON object.'}
+                'evidence': get_workspace_message('workspace.guidance.the-completed-review-receipt-is-not-a-json-object')}
     if type(receipt.get('version')) is not int or receipt.get('version') != REVIEW_RECEIPT_VERSION:
         return {'status': 'stale', 'current_settings': 'not_rechecked',
-                'evidence': 'The completed-review receipt version is unsupported.'}
+                'evidence': get_workspace_message('workspace.guidance.the-completed-review-receipt-version-is-unsupported')}
     fingerprint = (entries_fingerprint() if entries_fingerprint is not None
                    else get_review_entries_fingerprint(entries))
     if receipt.get('output_sha256') != fingerprint:
         return {'status': 'stale', 'current_settings': 'not_rechecked',
-                'evidence': 'The receipt output no longer matches the current script entries; the script was edited after review.'}
+                'evidence': get_workspace_message('workspace.guidance.the-receipt-output-no-longer-matches-the-current-script')}
     script_path = str(Path(scripts_dir) / f'{name}.json')
     if receipt.get('output_path') != os.path.abspath(script_path):
         return {'status': 'stale', 'current_settings': 'not_rechecked',
-                'evidence': 'The receipt names a different output path; the book was moved or renamed after review.'}
+                'evidence': get_workspace_message('workspace.guidance.the-receipt-names-a-different-output-path-the-book')}
     return {'status': 'recorded', 'current_settings': 'not_rechecked',
-            'evidence': ('A completed-review receipt is recorded for this script output '
-                         '(current_settings=not_rechecked; review was recorded for these '
-                         'entries but is not current review authority and must not skip a '
-                         'requested review). This satisfies planning readiness only.')}
+            'evidence': (get_workspace_message('workspace.guidance.a-completed-review-receipt-is-recorded-for-this-script'))}
 
 
 def _voices_stage_from_entry(entry, entries, get_voice_rows):
     if entry is None or entry.get('sha') == 'unavailable':
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-could-not-be-read')}
     if not entry.get('exists'):
         return {'status': 'not_started', 'total': 0, 'pending': 0,
-                'evidence': 'No saved voice settings file accompanies this book.'}
+                'evidence': get_workspace_message('workspace.guidance.no-saved-voice-settings-file-accompanies-this-book')}
     raw = entry.get('raw')
     if raw is None:
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-could-not-be-read')}
     try:
         voices = _parse_json_bytes(raw)
     except (OSError, ValueError, TypeError, RecursionError):
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-could-not-be-read')}
     if not isinstance(voices, dict):
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings are not a JSON object.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-are-not-a-json-object')}
     if any(value is not None and not isinstance(value, dict) for value in voices.values()):
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings contain a non-object entry.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-contain-a-non-object-entry')}
     try:
         rows = get_voice_rows(entries, voices)
     except (OSError, ValueError, TypeError, AttributeError, KeyError, RecursionError):
         return {'status': 'unavailable', 'total': 0, 'pending': 0,
-                'evidence': 'The saved voice settings could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-voice-settings-could-not-be-read')}
     pending = sum(bool(row.get('persona_pending') or row.get('persona_states_pending')) for row in rows)
     if pending:
         return {'status': 'needs_decisions', 'total': len(rows), 'pending': pending,
-                'evidence': f'{pending} of {len(rows)} characters still need voice preparation.'}
+                'evidence': get_workspace_message('workspace.evidence.voices-pending', count=pending, total=len(rows))}
     return {'status': 'ready', 'total': len(rows), 'pending': 0,
-            'evidence': 'Every character in the saved script has a prepared voice.'}
+            'evidence': get_workspace_message('workspace.guidance.every-character-in-the-saved-script-has-a-prepared')}
 
 
 def _script_stage(script_sha256, manifest, has_checkpoint, invalid_shard,
@@ -490,38 +488,38 @@ def _script_stage(script_sha256, manifest, has_checkpoint, invalid_shard,
     if invalid_shard:
         return {'status': 'unavailable', 'entries': entries_count,
                 'script_sha256': script_sha256,
-                'evidence': 'A generation/review checkpoint shard ownership entry could not be verified.'}
+                'evidence': get_workspace_message('workspace.guidance.a-generation-review-checkpoint-shard-ownership-entry-could-not')}
     if not binding_ok:
         return {'status': 'unavailable', 'entries': entries_count,
                 'script_sha256': script_sha256,
                 'evidence': binding_note}
     if manifest == 'failed':
         return {'status': 'failed', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': 'The three-pass manifest records a failed script run.'}
+                'evidence': get_workspace_message('workspace.guidance.the-three-pass-manifest-records-a-failed-script-run')}
     if manifest in {'incomplete', 'publishing'}:
         return {'status': 'incomplete', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': f'The three-pass manifest records a {manifest} script run.'}
+                'evidence': get_workspace_message('workspace.evidence.manifest-state',
+                                                  status=get_workspace_message('workspace.manifest.' + manifest))}
     if manifest == 'unreadable':
         return {'status': 'unavailable', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': 'The three-pass manifest could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-three-pass-manifest-could-not-be-read')}
     if quality_status == 'unreadable':
         return {'status': 'unavailable', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': 'The saved generation completion manifest could not be read.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-generation-completion-manifest-could-not-be-read')}
     if quality_status not in ('absent', 'complete', 'changed_after_completion'):
         return {'status': 'failed', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': 'The last single-pass generation run did not complete.'}
+                'evidence': get_workspace_message('workspace.guidance.the-last-single-pass-generation-run-did-not-complete')}
     if has_checkpoint and not finished_checkpoint:
         return {'status': 'incomplete', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': 'A generation/review checkpoint remains; the last script or review run did not publish a final script.'}
+                'evidence': get_workspace_message('workspace.guidance.a-generation-review-checkpoint-remains-the-last-script-or')}
     if not entries_count:
         return {'status': 'not_started', 'entries': 0, 'script_sha256': script_sha256,
-                'evidence': 'The saved script has no entries.'}
+                'evidence': get_workspace_message('workspace.guidance.the-saved-script-has-no-entries')}
     if quality_status == 'changed_after_completion':
         return {'status': 'available', 'entries': entries_count, 'script_sha256': script_sha256,
-                'evidence': ('Saved script entries are present; the script changed after its '
-                             'single-pass generation completed (a later review or edit).')}
+                'evidence': (get_workspace_message('workspace.guidance.saved-script-entries-are-present-the-script-changed-after'))}
     return {'status': 'available', 'entries': entries_count, 'script_sha256': script_sha256,
-            'evidence': 'Saved script entries are present with no failed or incomplete run marker.'}
+            'evidence': get_workspace_message('workspace.guidance.saved-script-entries-are-present-with-no-failed-or')}
 
 
 def _latest_attempt(attempts):
@@ -575,13 +573,13 @@ def _active_render_stage(workspace):
             return None
         if attempt.get('status') == 'running':
             return ('in_progress',
-                    'A full-book export attempt for this book is currently running; its result is not yet verified.')
+                    get_workspace_message('workspace.guidance.a-full-book-export-attempt-for-this-book-is'))
         if attempt.get('status') == 'cancelled':
             return ('cancelled',
-                    'The latest full-book export attempt for this book was cancelled; earlier receipts, if any, are unchanged.')
+                    get_workspace_message('workspace.guidance.the-latest-full-book-export-attempt-for-this-book'))
         if attempt.get('status') == 'failed':
             return ('failed',
-                    'The latest full-book export attempt for this book failed.')
+                    get_workspace_message('workspace.guidance.the-latest-full-book-export-attempt-for-this-book-detail'))
         return None
 
     blocked = _blocked(latest_full)
@@ -589,7 +587,7 @@ def _active_render_stage(workspace):
         return {'status': blocked[0], 'evidence': blocked[1]}
     if audio.get('status') == 'unavailable':
         return {'status': 'unavailable',
-                'evidence': 'Saved audio progress could not be read; open Editor to inspect it before preparing new audio.'}
+                'evidence': get_workspace_message('workspace.guidance.saved-audio-progress-could-not-be-read-open-editor-detail')}
     # Current-bound complete check (metadata-only, fail-closed).
     current_revision = exported.get('current_input_revision') if isinstance(exported, dict) else None
     current_scope = exported.get('source_scope') if isinstance(exported, dict) else None
@@ -638,11 +636,7 @@ def _active_render_stage(workspace):
             if output_status in ('historical_source_scope', 'unavailable', 'not_found', 'missing'):
                 continue
             return {'status': 'complete',
-                    'evidence': (f'A bound full-book export receipt for {expected_file} was verified at '
-                                 'export time and its input revision still matches current script, voice, '
-                                 'selection binding, chunk/journal and take metadata under the full source '
-                                 'scope (metadata-only: output file version/size/mtime, no full rehash, '
-                                 'decode or listening check; audio quality still needs listening).')}
+                    'evidence': (get_workspace_message('workspace.evidence.current-bound-export', file=expected_file))}
     verified = isinstance(exported, dict) and exported.get('status') == 'observed' and exported.get('verified_at_export')
     # Incomplete chunk audio outranks a historical receipt (a-4): partial
     # or missing takes stay render_incomplete, never recorded/complete.
@@ -650,8 +644,7 @@ def _active_render_stage(workspace):
             audio.get('total') and audio.get('present') != audio.get('total')
             and audio.get('status') != 'files_present'):
         return {'status': 'incomplete',
-                'evidence': (f"{audio.get('present', 0)} of {audio.get('total', 0)} chunk audio files are present; "
-                             f"{audio.get('failed', 0)} failed and {audio.get('missing', 0)} done rows are missing audio.")}
+                'evidence': get_workspace_message('workspace.evidence.chunk-files', present=audio.get('present', 0), total=audio.get('total', 0), failed=audio.get('failed', 0), missing=audio.get('missing', 0))}
     if verified:
         # Verified receipts for other formats (Audacity/chapter) or unbound
         # full receipts must not certify the attached MP3/M4B outputs.
@@ -660,35 +653,26 @@ def _active_render_stage(workspace):
                          and row.get('file') == _FULL_OUTPUTS.get(row.get('task'))]
         if reports_raw and not full_verified and audio.get('status') == 'files_present':
             return {'status': 'export_needed',
-                    'evidence': ('All chunk audio files are present and a verified receipt covers a '
-                                 'different export format, not the attached MP3/M4B outputs; no verified '
-                                 'export receipt binds those outputs to this book.')}
+                    'evidence': (get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-and-a-verified'))}
         return {'status': 'recorded',
-                'evidence': ('A session export receipt verified this output at export time but is not '
-                             'bound to the current input revision (unbound, mismatched, scoped, '
-                             'partial or stale evidence stays historical); current inputs are not '
-                             'certified by this receipt.')}
+                'evidence': (get_workspace_message('workspace.guidance.a-session-export-receipt-verified-this-output-at-export'))}
     if audio.get('status') == 'files_present':
         if 'historical_source_scope' in output_statuses:
             return {'status': 'export_needed',
-                    'evidence': ('All chunk audio files are present and an output file exists, but it predates '
-                                 'the current source scope and must be rebuilt; no verified export receipt binds '
-                                 'it to this book.')}
+                    'evidence': (get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-and-an-output'))}
         if 'unavailable' in output_statuses:
             return {'status': 'export_needed',
-                    'evidence': ('All chunk audio files are present, but output files could not be inspected; '
-                                 'no verified export receipt binds them to this book.')}
+                    'evidence': (get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-but-output-files'))}
         if 'present_unverified' in output_statuses:
             return {'status': 'export_needed',
-                    'evidence': 'All chunk audio files are present and an output file exists, but no verified export receipt binds it to this book.'}
+                    'evidence': get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-and-an-output-detail')}
         return {'status': 'export_needed',
-                'evidence': 'All chunk audio files are present; no output file was found.'}
+                'evidence': get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-no-output-file')}
     if audio.get('total'):
         return {'status': 'incomplete',
-                'evidence': (f"{audio.get('present', 0)} of {audio.get('total', 0)} chunk audio files are present; "
-                             f"{audio.get('failed', 0)} failed and {audio.get('missing', 0)} done rows are missing audio.")}
+                'evidence': get_workspace_message('workspace.evidence.chunk-files', present=audio.get('present', 0), total=audio.get('total', 0), failed=audio.get('failed', 0), missing=audio.get('missing', 0))}
     return {'status': 'not_started',
-            'evidence': 'No chunk audio has been prepared for the active book.'}
+            'evidence': get_workspace_message('workspace.guidance.no-chunk-audio-has-been-prepared-for-the-active')}
 
 
 def _validated_saved_entries(raw):
@@ -753,6 +737,7 @@ def compute_saved_book_revision(scripts_dir, name, *, script_bytes=None,
     return _revision_from_snapshot(name, book_id, snapshot)
 
 
+@with_workspace_guidance
 def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspace=None,
                             active_saved_name=None, active_script_sha256=None,
                             active_voice_sha256=None, checkpoint_index=None,
@@ -780,18 +765,18 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
         return {'name': name, 'book_id': book_id, 'is_active': False,
                 'loadable': False,
                 'meta': {'status': meta_status,
-                         'evidence': 'Book metadata is missing.' if meta_status == 'missing' else 'Book metadata could not be read.'},
+                         'evidence': get_workspace_message('workspace.guidance.book-metadata-is-missing') if meta_status == 'missing' else get_workspace_message('workspace.guidance.book-metadata-could-not-be-read')},
                 'script': {'status': 'missing', 'entries': 0, 'script_sha256': None,
-                           'evidence': 'The saved script file is missing.'},
-                'review': {'status': 'unknown', 'current_settings': 'not_rechecked', 'evidence': 'No script to review.'},
+                           'evidence': get_workspace_message('workspace.guidance.the-saved-script-file-is-missing')},
+                'review': {'status': 'unknown', 'current_settings': 'not_rechecked', 'evidence': get_workspace_message('workspace.guidance.no-script-to-review')},
                 'voices': {'status': 'unknown', 'total': 0, 'pending': 0,
-                           'evidence': 'No script to cast.'},
+                           'evidence': get_workspace_message('workspace.guidance.no-script-to-cast')},
                 'render': {'status': 'unknown',
-                           'evidence': 'No script; render state cannot be assessed.'},
+                           'evidence': get_workspace_message('workspace.guidance.no-script-render-state-cannot-be-assessed')},
                 'revision': None,
                 'overall': 'unknown',
-                'next': {'tab': 'script', 'label': 'Inspect saved book',
-                         'reason': 'The saved script file is missing; reload or restore the book before proceeding.'}}
+                'next': {'tab': 'script', 'label': get_workspace_message('workspace.guidance.inspect-saved-book'),
+                         'reason': get_workspace_message('workspace.guidance.the-saved-script-file-is-missing-reload-or-restore')}}
     raw = script_entry.get('raw')
     if raw is None:
         raise ValueError('Saved script identity requires inspection')
@@ -818,7 +803,7 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     binding_entry = snapshot.get(f'{name}.selection_binding.json') or {}
     if binding_entry.get('sha') == 'unavailable':
         binding_ok = False
-        binding_note = 'The saved selection binding could not be read; loading this book will be refused until its identity is inspected/restored.'
+        binding_note = get_workspace_message('workspace.guidance.the-saved-selection-binding-could-not-be-read-loading')
         binding_exists, binding_raw = True, None
     else:
         binding_exists, binding_raw = binding_entry.get('exists'), binding_entry.get('raw')
@@ -827,12 +812,12 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
             binding = parse_script_binding(binding_raw)
         except (OSError, ValueError, TypeError, RecursionError):
             binding_ok = False
-            binding_note = 'The saved selection binding could not be read; loading this book will be refused until its identity is inspected/restored.'
+            binding_note = get_workspace_message('workspace.guidance.the-saved-selection-binding-could-not-be-read-loading')
         else:
             if not saved_binding_matches(binding, script_sha256=script_sha256,
                                          entries_sha256=entries_fingerprint()):
                 binding_ok = False
-                binding_note = 'The saved selection binding does not match the current script; loading this book will be refused until its identity is inspected/restored.'
+                binding_note = get_workspace_message('workspace.guidance.the-saved-selection-binding-does-not-match-the-current')
     quality_status = _generation_quality_status(snapshot, name)
     finished_checkpoint = (manifest == 'complete'
                            and _has_finished_threepass_checkpoint(snapshot, name)
@@ -846,7 +831,7 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
                                       entries_fingerprint=entries_fingerprint)
     if has_review_checkpoint and review['status'] not in ('unavailable',):
         review = {'status': 'incomplete', 'current_settings': 'not_rechecked',
-                  'evidence': 'An incomplete review checkpoint remains beside the receipt.'}
+                  'evidence': get_workspace_message('workspace.guidance.an-incomplete-review-checkpoint-remains-beside-the-receipt')}
     voice_entry = snapshot.get(f'{name}.voice_config.json')
     voices = _voices_stage_from_entry(voice_entry, entries, get_voice_rows)
     voice_sha = (voice_entry or {}).get('sha') if voice_entry else None
@@ -866,15 +851,12 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     name_is_active = bool(active_workspace is not None and matched_name)
     if name_is_active and not active_bytes_match:
         render = {'status': 'unknown',
-                  'evidence': ('The active copy differs from this saved snapshot (saved script/voice bytes do '
-                               'not match the active ones); active render/export evidence is not attributed to '
-                               'this saved book. Load it to inspect render state.')}
+                  'evidence': (get_workspace_message('workspace.guidance.the-active-copy-differs-from-this-saved-snapshot-saved'))}
     elif is_active:
         render = _active_render_stage(active_workspace)
     else:
         render = {'status': 'unknown',
-                  'evidence': ('Saved books carry no chunk-audio or export binding; active-book '
-                               'audio and output files are not attributed to this book. Load it to inspect render state.')}
+                  'evidence': (get_workspace_message('workspace.guidance.saved-books-carry-no-chunk-audio-or-export-binding'))}
     # Revision proof (deterministic, bounded; saved-file identity only)
     # from the single snapshot above — exact bytes, not booleans.
     revision = _revision_from_snapshot(name, book_id, snapshot)
@@ -888,55 +870,55 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
     # Stage -> next-step tab for the affected stage (script is the only
     # label mapping that reaches a next step; render/export overrides it).
     stage_tab = {'script': 'script', 'review': 'script', 'voices': 'voices', 'render': 'editor'}
-    stage_label = {'script': 'Inspect script recovery'}
+    stage_label = {'script': get_workspace_message('workspace.guidance.inspect-script-recovery')}
     if failed:
         overall = 'failed'
         affected = failed[0][0]
-        next_step = {'tab': stage_tab[affected], 'label': stage_label.get(affected, 'Inspect saved book'),
+        next_step = {'tab': stage_tab[affected], 'label': stage_label.get(affected, get_workspace_message('workspace.guidance.inspect-saved-book')),
                      'reason': (failed[0][1]['evidence'] if affected == 'script'
-                                else 'A script or export run failed; inspect its saved evidence before retrying.')}
+                                else get_workspace_message('workspace.guidance.a-script-or-export-run-failed-inspect-its-saved'))}
         if affected == 'render':
-            next_step = {'tab': 'editor', 'label': 'Inspect export evidence',
-                         'reason': 'The latest export attempt failed; inspect its saved evidence before retrying.'}
+            next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.inspect-export-evidence'),
+                         'reason': get_workspace_message('workspace.guidance.the-latest-export-attempt-failed-inspect-its-saved-evidence')}
     elif unavailable:
         overall = 'unknown'
         affected = unavailable[0][0]
-        next_step = {'tab': stage_tab[affected], 'label': 'Inspect saved book',
+        next_step = {'tab': stage_tab[affected], 'label': get_workspace_message('workspace.guidance.inspect-saved-book'),
                      'reason': unavailable[0][1]['evidence']}
     elif cancelled:
         overall = 'cancelled'
-        next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                     'reason': 'The last export attempt was cancelled; restart it from the existing controls when ready.'}
+        next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.continue-in-editor'),
+                     'reason': get_workspace_message('workspace.guidance.the-last-export-attempt-was-cancelled-restart-it-from')}
     elif incomplete:
         # Render-only incomplete is its own overall (Editor).
         script_or_review_incomplete = [item for item in incomplete if item[0] in ('script', 'review')]
         if not script_or_review_incomplete and render['status'] == 'incomplete':
             overall = 'render_incomplete'
-            next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                         'reason': 'Chunk audio is only partially present.'}
+            next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.continue-in-editor'),
+                         'reason': get_workspace_message('workspace.guidance.chunk-audio-is-only-partially-present')}
         else:
             overall = 'incomplete'
-            next_step = {'tab': 'script', 'label': 'Inspect script recovery',
-                         'reason': 'A script or review run left incomplete checkpoint evidence.'}
+            next_step = {'tab': 'script', 'label': get_workspace_message('workspace.guidance.inspect-script-recovery'),
+                         'reason': get_workspace_message('workspace.guidance.a-script-or-review-run-left-incomplete-checkpoint-evidence')}
     elif in_progress:
         overall = 'export_in_progress'
-        next_step = {'tab': 'audio', 'label': 'Export in progress',
-                     'reason': 'An export attempt is running; its result is not yet verified.'}
+        next_step = {'tab': 'audio', 'label': get_workspace_message('workspace.guidance.export-in-progress'),
+                     'reason': get_workspace_message('workspace.guidance.an-export-attempt-is-running-its-result-is-not')}
     elif script['status'] == 'not_started':
         overall = 'needs_script'
-        next_step = {'tab': 'script', 'label': 'Continue with Script',
-                     'reason': 'The saved script has no entries yet.'}
+        next_step = {'tab': 'script', 'label': get_workspace_message('workspace.guidance.continue-with-script'),
+                     'reason': get_workspace_message('workspace.guidance.the-saved-script-has-no-entries-yet')}
     elif review['status'] != 'recorded':
         # Only a same-revision recorded receipt satisfies the planning
         # milestone (current_settings stays not_rechecked; an actually
         # requested review is never skipped by this).
         overall = 'needs_review'
-        next_step = {'tab': 'script', 'label': 'Continue with Script review',
-                     'reason': 'The script is saved but no completed review matches the current entries.'}
+        next_step = {'tab': 'script', 'label': get_workspace_message('workspace.guidance.continue-with-script-review'),
+                     'reason': get_workspace_message('workspace.guidance.the-script-is-saved-but-no-completed-review-matches')}
     elif voices['status'] != 'ready':
         overall = 'needs_voices'
-        next_step = {'tab': 'voices', 'label': 'Continue with Voices',
-                     'reason': 'Review was recorded for the current script; voice decisions are still pending.'}
+        next_step = {'tab': 'voices', 'label': get_workspace_message('workspace.guidance.continue-with-voices'),
+                     'reason': get_workspace_message('workspace.guidance.review-was-recorded-for-the-current-script-voice-decisions')}
     elif render['status'] == 'unknown':
         # Missing render knowledge is not an unmet prerequisite: a known
         # saved script + recorded same-revision review + prepared voices
@@ -949,43 +931,39 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
             # active copy differs from this snapshot.
             if name_is_active and not active_bytes_match:
                 overall = 'unknown'
-                next_step = {'tab': 'script', 'label': 'Inspect saved book',
-                             'reason': 'Render/export evidence is not bound to this saved book; load it to inspect.'}
+                next_step = {'tab': 'script', 'label': get_workspace_message('workspace.guidance.inspect-saved-book'),
+                             'reason': get_workspace_message('workspace.guidance.render-export-evidence-is-not-bound-to-this-saved')}
             else:
                 overall = 'ready_for_audio'
-                next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                             'reason': ('Script, recorded review and voices are ready; render state is '
-                                        'unknown for this view. Load the book to inspect render state.')}
+                next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.continue-in-editor'),
+                             'reason': (get_workspace_message('workspace.guidance.script-recorded-review-and-voices-are-ready-render-state-detail'))}
         else:
             overall = 'ready_for_audio'
-            next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                         'reason': ('Script, recorded review and voices are ready; render state is unknown '
-                                    'for a saved book. Load the book to prepare audio.')}
+            next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.continue-in-editor'),
+                         'reason': (get_workspace_message('workspace.guidance.script-recorded-review-and-voices-are-ready-render-state'))}
     elif render['status'] == 'not_started':
         overall = 'ready_for_audio'
-        next_step = {'tab': 'editor', 'label': 'Continue in Editor',
-                     'reason': 'Script, recorded review and voices are ready; chunk audio has not been prepared.'}
+        next_step = {'tab': 'editor', 'label': get_workspace_message('workspace.guidance.continue-in-editor'),
+                     'reason': get_workspace_message('workspace.guidance.script-recorded-review-and-voices-are-ready-chunk-audio')}
     elif render['status'] == 'export_needed':
         overall = 'export_needed'
-        next_step = {'tab': 'audio', 'label': 'Review output files',
-                     'reason': 'Chunk audio is present but no verified export binds it to this book.'}
+        next_step = {'tab': 'audio', 'label': get_workspace_message('workspace.guidance.review-output-files'),
+                     'reason': get_workspace_message('workspace.guidance.chunk-audio-is-present-but-no-verified-export-binds')}
     elif render['status'] == 'recorded':
         overall = 'export_recorded'
-        next_step = {'tab': 'audio', 'label': 'Review historical export evidence',
-                     'reason': ('A verified export receipt exists for this book at export time but is not '
-                                'bound to the current inputs, so this is historical evidence only.')}
+        next_step = {'tab': 'audio', 'label': get_workspace_message('workspace.guidance.review-historical-export-evidence'),
+                     'reason': (get_workspace_message('workspace.guidance.a-verified-export-receipt-exists-for-this-book-at'))}
     elif render['status'] == 'complete':
         overall = 'completed'
-        next_step = {'tab': 'audio', 'label': 'Review bound export evidence',
-                     'reason': ('A full-book export receipt is bound to the current input revision '
-                                '(metadata-only; no listening check).')}
+        next_step = {'tab': 'audio', 'label': get_workspace_message('workspace.guidance.review-bound-export-evidence'),
+                     'reason': (get_workspace_message('workspace.guidance.a-full-book-export-receipt-is-bound-to-the'))}
     else:
         overall = 'unknown'
-        next_step = {'tab': 'script', 'label': 'Inspect saved book',
-                     'reason': 'Render/export evidence is not bound to this saved book; load it to inspect.'}
-    meta_evidence = {'missing': 'No saved book metadata file; book_id falls back to the saved name.',
-                     'present': 'Saved book metadata names this book identity.',
-                     'unavailable': 'Saved book metadata could not be read; book_id falls back to the saved name.'}
+        next_step = {'tab': 'script', 'label': get_workspace_message('workspace.guidance.inspect-saved-book'),
+                     'reason': get_workspace_message('workspace.guidance.render-export-evidence-is-not-bound-to-this-saved')}
+    meta_evidence = {'missing': get_workspace_message('workspace.guidance.no-saved-book-metadata-file-book-id-falls-back'),
+                     'present': get_workspace_message('workspace.guidance.saved-book-metadata-names-this-book-identity'),
+                     'unavailable': get_workspace_message('workspace.guidance.saved-book-metadata-could-not-be-read-book-id')}
     return {'name': name, 'book_id': book_id, 'is_active': name_is_active,
             'loadable': bool(binding_ok),
             'meta': {'status': meta_status, 'evidence': meta_evidence.get(meta_status, '')},
@@ -994,28 +972,29 @@ def get_saved_book_overview(scripts_dir, name, get_voice_rows, *, active_workspa
             'overall': overall, 'next': next_step}
 
 
+@with_workspace_guidance
 def _unreadable_book_row(scripts_dir, name, error):
     """Per-row unavailable projection for one unreadable saved book.
 
     Healthy rows are unaffected; the failing row reports its own
     diagnostic without refusing the whole collection (altitude-3).
     """
-    evidence = f'The saved book could not be read ({type(error).__name__}); inspect it before loading.'
+    evidence = get_workspace_message('workspace.evidence.unreadable-book', error_type=type(error).__name__)
     return {'name': name, 'book_id': name, 'is_active': False,
             'loadable': False,
             'meta': {'status': 'unavailable',
-                     'evidence': 'Saved book metadata could not be read; book_id falls back to the saved name.'},
+                     'evidence': get_workspace_message('workspace.guidance.saved-book-metadata-could-not-be-read-book-id')},
             'script': {'status': 'unavailable', 'entries': 0, 'script_sha256': None,
                        'evidence': evidence},
             'review': {'status': 'unavailable', 'current_settings': 'not_rechecked',
-                       'evidence': 'No script to review.'},
+                       'evidence': get_workspace_message('workspace.guidance.no-script-to-review')},
             'voices': {'status': 'unavailable', 'total': 0, 'pending': 0,
-                       'evidence': 'No script to cast.'},
+                       'evidence': get_workspace_message('workspace.guidance.no-script-to-cast')},
             'render': {'status': 'unknown',
-                       'evidence': 'The saved book could not be read; render state cannot be assessed.'},
+                       'evidence': get_workspace_message('workspace.guidance.the-saved-book-could-not-be-read-render-state')},
             'revision': None,
             'overall': 'unknown',
-            'next': {'tab': 'script', 'label': 'Inspect saved book',
+            'next': {'tab': 'script', 'label': get_workspace_message('workspace.guidance.inspect-saved-book'),
                      'reason': evidence}}
 
 

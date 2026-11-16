@@ -499,8 +499,9 @@ function renderEditorQualityInbox(resetLimit = false) {
             chunksByUid.get(row.uid)?.take])]);
     if (signature === editorReviewListSignature) { list.querySelectorAll('button').forEach(button => { button.disabled = false; }); return; }
     editorReviewListSignature = signature;
+    list.removeAttribute('data-i18n');
     list.replaceChildren();
-    if (!matches.length) { list.textContent = t('editor.review.queue.empty', 'No saved findings in this view. This does not establish that all lines are correct or checked.'); return; }
+    if (!matches.length) { setUiMessage(list, 'editor.review.queue.empty', 'No saved findings in this view. This does not establish that all lines are correct or checked.'); return; }
     for (const row of shown) {
         const item = document.createElement('div'); item.className = 'editor-quality-row';
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';

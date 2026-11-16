@@ -7,6 +7,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 STATIC = Path(__file__).resolve().parent.parent/'static'
 SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-editor-review.js','app-i18n.js'),'utf8'),context);
 Object.defineProperty(Element.prototype,'classList',{get(){const node=this;return {contains:value=>node.className.split(/\s+/).includes(value),add(value){if(!this.contains(value)){node.className+=' '+value;}},remove(value){node.className=node.className.split(/\s+/).filter(item=>item!==value).join(' ');}};}});
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 Element.prototype.querySelector=function(s){return this.querySelectorAll(s)[0]||null;};

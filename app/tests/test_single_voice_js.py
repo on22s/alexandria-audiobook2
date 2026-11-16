@@ -32,7 +32,7 @@ const cardsSlice=core.slice(core.indexOf('function getStateVoiceCardsMarkup('),c
 const collectSlice=core.slice(core.indexOf('function collectVoiceConfig('),core.indexOf('function onVoiceReadyChange('));
 const voiceStateSlice=core.slice(core.indexOf('let _voiceResourcesRefreshedAt'),core.indexOf('function getVoiceSeedRepairMarkup('));
 const loadVoicesSlice=core.slice(core.indexOf('async function loadVoices('),core.indexOf('window.selectVoiceVersion'));
-function makeElement(id){return {id,children:[],checked:false,value:'',textContent:'',listeners:{},
+function makeElement(id){return {id,children:[],checked:false,value:'',textContent:'',listeners:{},setAttribute(name,value){this[name]=value;},
  appendChild(node){this.children.push(node);return node;},
  replaceChildren(...nodes){this.children=[...nodes];
   if(this.value && !this.children.some(child=>child.value===this.value)){this.value=this.children[0]?.value ?? '';}},
@@ -73,6 +73,7 @@ const context={currentBookFilename:'book.txt',_bookSelectionEpoch:1,document,ele
      serverRevision++;return {book_token:snapshotBookToken,revision:revision(serverRevision)};}
    throw new Error('unexpected POST '+url);}}};
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
 context.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(values,n)?String(values[n]):m);
 context.joinUiSentences=(parts,locale)=>(Array.isArray(parts)?parts:[]).filter(part=>typeof part==='string'&&part.trim()!=='').map(part=>part.trim()).join(' ');context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
 vm.runInContext(helper+saves+refresh+literalSlice+rosterSlice+metaSlice+cardsSlice+collectSlice+voiceStateSlice+loadVoicesSlice+voice,context);

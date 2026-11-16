@@ -9,6 +9,7 @@
     [data-phone-disclosure] > summary { display: none; }
 }
 @media (max-width: 575px) {
+    #script-tab .card-header, #script-tab .card-header h4, #script-tab .form-switch { max-width: 100%; overflow-wrap: anywhere; }
     button, .btn, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), summary, [role="button"], .navbar a {
         min-height: 44px !important;
         min-width: 44px !important;

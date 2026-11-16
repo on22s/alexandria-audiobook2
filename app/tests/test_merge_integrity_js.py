@@ -10,7 +10,7 @@ SETUP=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8'),reports=JSON.parse(process.argv[2]);
 const fields={},handlers={},posts=[],events=[];let kind='verified',decision=true;
-const el=id=>fields[id]||(fields[id]={style:{},textContent:'',className:'',innerHTML:'',addEventListener:(event,fn)=>{handlers[id]=fn;}});
+const el=id=>fields[id]||(fields[id]={style:{},textContent:'',className:'',innerHTML:'',setAttribute(){},addEventListener:(event,fn)=>{handlers[id]=fn;}});
 const ctx={document:{getElementById:el,querySelector:()=>({click:()=>events.push('tab')})},API:{get:async url=>{assert.strictEqual(url,'/api/editor/integrity');events.push('get');return reports[kind];},post:async(url,body)=>posts.push({url,body,kind})},
  pendingChunkEdits:new Map(),failedChunkEdits:new Map(),chunkEditsRevision:0,
  ensureEditorRenderSnapshot:async()=>events.push('flush'),showConfirm:async text=>{events.push(text);return decision;},showToast:text=>events.push(text),
@@ -18,6 +18,7 @@ const ctx={document:{getElementById:el,querySelector:()=>({click:()=>events.push
 ctx.window=ctx;
 vm.createContext(ctx);Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:(k,e,v={})=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e);},getIntlUiLocale:()=> 'en'});vm.runInContext(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')),ctx);const run=code=>vm.runInContext(code,ctx);
 run(source.slice(source.indexOf('function isEditorEditPending()'),source.indexOf('async function flushChunkEdits()')));
+run(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'));
 run(source.slice(source.indexOf('let editorIntegrityView ='),source.indexOf('async function openTextDiff()')));
 run(source.slice(source.indexOf('function renderTextDiff('),source.indexOf('function scrollToChunkRow(')));
 const start=source.indexOf("document.getElementById('btn-merge').addEventListener");
@@ -52,7 +53,7 @@ ctx.ensureEditorRenderSnapshot=async()=>{throw Error('save failed');};await hand
     def test_badge_uses_native_status_and_discards_inflight_response_after_edit(self):
         self.run_js(r'''
 await ctx.refreshEditorIntegrity();assert.strictEqual(el('editor-integrity-badge').textContent,'Saved text matches source');
-kind='differences';await ctx.refreshEditorIntegrity();assert.strictEqual(el('editor-integrity-badge').textContent,'1 word differences');
+kind='differences';await ctx.refreshEditorIntegrity();assert.strictEqual(el('editor-integrity-badge').textContent,'1 word difference');
 kind='unavailable';await ctx.refreshEditorIntegrity();assert.strictEqual(el('editor-integrity-badge').textContent,'Source comparison unavailable');
 let resolve;ctx.API.get=()=>new Promise(done=>{resolve=done;});const pending=ctx.refreshEditorIntegrity();ctx.invalidateEditorIntegrity('Edits awaiting save');resolve(reports.verified);await pending;
 assert.strictEqual(el('editor-integrity-badge').textContent,'Edits awaiting save');assert.strictEqual(el('editor-integrity-badge').className,'badge bg-secondary');
