@@ -205,7 +205,8 @@ def main():
         except (OSError, ValueError) as exc:
             raise SystemExit(f"goal evidence audit is unreadable: {exc}") from exc
         from experiments.provenance import check_harness_provenance
-        status, detail = check_harness_provenance(current.get("provenance"))
+        status, detail = check_harness_provenance(
+            current.get("provenance"), require_current=True)
         if status != "verified":
             raise SystemExit(
                 f"goal evidence audit stored provenance is provenance-{status}: "
