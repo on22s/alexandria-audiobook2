@@ -4646,13 +4646,6 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_rejects_a_pair_state_from_another_row"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_rejects_a_restored_submitted_text"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_submitted_text_difference_is_a_separate_fidelity_failure"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_locked_file_refuses_releases_handles_and_retries"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_preserves_replaced_owned_directory"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_preserves_swapped_in_file"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_preserves_swapped_in_nonempty_directory"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_readonly_file_refuses_releases_handles_and_retries"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_cleanup_refuses_unadmitted_child"
-    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_windows_directory_refusal_still_removes_both_manifests"
   ]
   , "test_dialogue_continuity_experiment": [
     "tests.test_dialogue_continuity_experiment.ContinuityExperimentTests.test_actual_cli_exports_bound_exact_text_plan_without_rendering"
@@ -17214,8 +17207,11 @@
   ]
   , "test_windows_native_ci": [
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_native_methods_on_windows"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_seven_native_dialogue_cleanup_checks_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_every_native_transaction_check_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_invalid_repin_arguments_refuse_before_registry_access"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_checks_refuse_wrong_host_before_application_imports"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_runner_rejects_incomplete_or_skipped_checks"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_transaction_checks_refuse_a_non_windows_host"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ]
