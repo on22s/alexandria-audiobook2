@@ -4799,7 +4799,7 @@ async def get_status(task_name: str, include_health: bool = False):
     return state
 
 
-_STAGE_HINT_RE = re.compile(r"^(Step \d \([a-z]+\): .*|Retrying\.\.\..*|Warning: .*)$")
+_STAGE_HINT_RE = re.compile(r"^(Step \d \([a-z]+\): .*|Reviewing batch(?:es)? \d.*|Retrying\.\.\..*|Warning: .*)$")
 
 
 def _stage_hint(logs):
@@ -4810,7 +4810,7 @@ def _stage_hint(logs):
     for line in reversed(logs[-40:]):
         if _STAGE_HINT_RE.match(line.strip()):
             hints.append(line.strip())
-            if line.strip().startswith("Step"):
+            if line.strip().startswith(("Step", "Reviewing batch")):
                 break
     return " · ".join(reversed(hints))
 
