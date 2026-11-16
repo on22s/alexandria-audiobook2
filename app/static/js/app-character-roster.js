@@ -32,9 +32,9 @@
         el('discard').disabled = busy || !s.undo?.revision || s.uncertain;
         el('previous').disabled = busy || s.page === 0;
         el('next').disabled = busy || (s.page + 1) * 20 >= s.rows.length;
-        el('undo-status').textContent = !s.undo ? t('roster.undo.load-needed', 'Load saved undo status before approving.') : !s.undo.available
+        renderUiMessage(el('undo-status'), !s.undo ? uiMessage('roster.undo.load-needed', 'Load saved undo status before approving.') : !s.undo.available
             ? t('roster.undo.none', 'No saved character undo.') : s.undo.can_undo ? t('roster.undo.saved', 'An exact undo is saved. Undo it or discard it before another approval.')
-            : t('roster.undo.inspection', 'The saved undo needs inspection: {reason}. {hint}', {reason: s.undo.reason || t('roster.undo.reason-current-files', 'current files differ'), hint: s.undo.revision ? t('roster.undo.discardable', 'You can explicitly discard this record.') : t('roster.undo.not-discardable', 'It is preserved on disk; automatic discard is unavailable.')});
+            : t('roster.undo.inspection', 'The saved undo needs inspection: {reason}. {hint}', {reason: s.undo.reason || t('roster.undo.reason-current-files', 'current files differ'), hint: s.undo.revision ? t('roster.undo.discardable', 'You can explicitly discard this record.') : t('roster.undo.not-discardable', 'It is preserved on disk; automatic discard is unavailable.')}));
     }
     function invalidate(message) { s.edit++; s.dirty = true; s.preview = null; el('consent').checked = false; el('review').replaceChildren(); if (message) { status(message); } sync(); }
     window.resetCharacterRosterBook = () => {

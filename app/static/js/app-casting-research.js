@@ -6,7 +6,10 @@
     const NEUTRAL_TAG_CLASS = 'casting-tag-neutral';
     const SHAPES = ['stars', 'circles'];
     function shapeLabel(shape) { return {stars: t('research.shape.star', 'Star'), circles: t('research.shape.circle', 'Circle')}[shape]; }
-    function colorLabel(color) { return {red: t('research.color.red', 'red'), amber: t('research.color.amber', 'amber'), green: t('research.color.green', 'green'), blue: t('research.color.blue', 'blue'), purple: t('research.color.purple', 'purple')}[color]; }
+    function colorLabel(color, live = false) {
+        const message = {red: uiMessage('research.color.red', 'red'), amber: uiMessage('research.color.amber', 'amber'), green: uiMessage('research.color.green', 'green'), blue: uiMessage('research.color.blue', 'blue'), purple: uiMessage('research.color.purple', 'purple')}[color];
+        return live || message === undefined ? message : String(message);
+    }
     const FILTER_FIELDS = ['tone', 'texture', 'tag', 'collection', 'star', 'circle'];
     function fieldLabel(field) { return {tone: t('research.field.tone', 'tone'), texture: t('research.field.texture', 'texture'), tag: t('research.field.tag', 'tag'), collection: t('research.field.collection', 'research collection'),
                          star: t('research.field.star', 'star'), circle: t('research.field.circle', 'circle')}[field]; }
@@ -41,7 +44,7 @@
     }
     const node = (tag, text, cls) => {
         const element = document.createElement(tag);
-        if (text !== undefined && text !== null) { element.textContent = String(text); }
+        if (text !== undefined && text !== null) { renderUiMessage(element, text); }
         if (cls) { element.className = cls; }
         return element;
     };
@@ -737,14 +740,14 @@
             button.type = 'button';
             button.id = 'casting-research-' + id;
             button.append(node('span', text));
-            if (label) { button.setAttribute('aria-label', label); }
+            if (label) { renderUiMessage(button, label, 'aria-label'); }
             button.addEventListener('click', action);
             return button;
         }
         function makeSelect(id, optionsList, value, label, onChange) {
             const select = node('select', undefined, 'form-select form-select-sm w-auto');
             select.id = 'casting-research-' + id;
-            select.setAttribute('aria-label', label);
+            renderUiMessage(select, label, 'aria-label');
             fillOptions(select, optionsList);
             select.value = value;
             select.addEventListener('change', () => onChange(select.value));
@@ -761,7 +764,7 @@
             const input = node('input', undefined, type === 'number' ? 'form-control form-control-sm w-auto' : 'form-control form-control-sm');
             input.id = 'casting-research-' + id;
             input.type = type;
-            input.setAttribute('aria-label', label);
+            renderUiMessage(input, label, 'aria-label');
             if (value !== undefined) { input.value = String(value); }
             if (maxlength) { input.setAttribute('maxlength', String(maxlength)); }
             return input;
@@ -777,70 +780,70 @@
         }
         function buildToolbar(host) {
             const selection = node('div', undefined, 'casting-research-row mb-2');
-            ui.selectionCount = node('span', t('research.selection.none', 'No voices selected'), 'small text-muted');
+            ui.selectionCount = node('span', uiMessage('research.selection.none', 'No voices selected'), 'small text-muted');
             ui.selectionCount.id = 'casting-research-selection-count';
             ui.selectionCount.setAttribute('role', 'status');
             ui.selectionCount.setAttribute('aria-live', 'polite');
-            ui.selectFiltered = makeButton('select-filtered', t('research.selection.select-filtered', 'Select all filtered'), 'btn btn-sm btn-outline-secondary', selectFiltered);
-            ui.selectPage = makeButton('select-page', t('research.selection.select-page', 'Select shown page'), 'btn btn-sm btn-outline-secondary', selectShownPage);
-            ui.invert = makeButton('invert', t('research.selection.invert', 'Invert selection'), 'btn btn-sm btn-outline-secondary', invertSelection);
-            ui.clearSelection = makeButton('clear-selection', t('research.selection.clear', 'Clear selection'), 'btn btn-sm btn-outline-secondary', clearSelection);
-            ui.viewTrash = makeButton('view-trash', t('research.lifecycle.view-trash', 'View trash'), 'btn btn-sm btn-outline-secondary', switchMode, t('research.lifecycle.view-trash-aria', 'View trashed voices'));
-            ui.trash = makeButton('trash', t('research.lifecycle.trash', 'Trash selected'), 'btn btn-sm btn-outline-warning', () => lifecycleAction('trash'), t('research.lifecycle.trash-aria', 'Move selected voices to Trash'));
-            ui.restore = makeButton('restore', t('research.lifecycle.restore', 'Restore selected'), 'btn btn-sm btn-outline-success', () => lifecycleAction('restore'), t('research.lifecycle.restore-aria', 'Restore selected voices from Trash'));
-            ui.delete = makeButton('delete', t('research.delete.action', 'Delete permanently'), 'btn btn-sm btn-outline-danger', () => lifecycleAction('delete'), t('research.delete.aria', 'Permanently delete selected voices from the catalogue'));
+            ui.selectFiltered = makeButton('select-filtered', uiMessage('research.selection.select-filtered', 'Select all filtered'), 'btn btn-sm btn-outline-secondary', selectFiltered);
+            ui.selectPage = makeButton('select-page', uiMessage('research.selection.select-page', 'Select shown page'), 'btn btn-sm btn-outline-secondary', selectShownPage);
+            ui.invert = makeButton('invert', uiMessage('research.selection.invert', 'Invert selection'), 'btn btn-sm btn-outline-secondary', invertSelection);
+            ui.clearSelection = makeButton('clear-selection', uiMessage('research.selection.clear', 'Clear selection'), 'btn btn-sm btn-outline-secondary', clearSelection);
+            ui.viewTrash = makeButton('view-trash', uiMessage('research.lifecycle.view-trash', 'View trash'), 'btn btn-sm btn-outline-secondary', switchMode, uiMessage('research.lifecycle.view-trash-aria', 'View trashed voices'));
+            ui.trash = makeButton('trash', uiMessage('research.lifecycle.trash', 'Trash selected'), 'btn btn-sm btn-outline-warning', () => lifecycleAction('trash'), uiMessage('research.lifecycle.trash-aria', 'Move selected voices to Trash'));
+            ui.restore = makeButton('restore', uiMessage('research.lifecycle.restore', 'Restore selected'), 'btn btn-sm btn-outline-success', () => lifecycleAction('restore'), uiMessage('research.lifecycle.restore-aria', 'Restore selected voices from Trash'));
+            ui.delete = makeButton('delete', uiMessage('research.delete.action', 'Delete permanently'), 'btn btn-sm btn-outline-danger', () => lifecycleAction('delete'), uiMessage('research.delete.aria', 'Permanently delete selected voices from the catalogue'));
             selection.append(ui.selectionCount, ui.selectFiltered, ui.selectPage, ui.invert, ui.clearSelection, ui.viewTrash, ui.trash, ui.restore, ui.delete);
             host.append(selection);
 
             const bulk = node('div', undefined, 'casting-research-row casting-bulkbar mb-2');
-            bulk.append(node('span', t('research.bulk.title', 'Bulk change'), 'small fw-bold'));
+            bulk.append(node('span', uiMessage('research.bulk.title', 'Bulk change'), 'small fw-bold'));
             ui.bulkStatus = makeSelect('bulk-status',
-                [['', t('research.bulk.status-none', 'Status: no change')], ...['unreviewed', 'shortlist', 'callback', 'reject'].map(value => [value, statusLabel(value)])],
-                '', t('research.bulk.status-aria', 'Bulk review status'), value => {
+                [['', uiMessage('research.bulk.status-none', 'Status: no change')], ...['unreviewed', 'shortlist', 'callback', 'reject'].map(value => [value, statusLabel(value, true)])],
+                '', uiMessage('research.bulk.status-aria', 'Bulk review status'), value => {
                     if (!value) { return; }
                     const action = 'Set status for selected voices';
                     applyBulk(action, [...st.selection], () => ({status: value}));
                     ui.bulkStatus.value = '';
                 });
             ui.bulkPriority = makeSelect('bulk-priority',
-                [['', t('research.bulk.priority-none', 'Priority: no change')], ...['none', 'low', 'medium', 'high'].map(value => [value, priorityLabel(value)])],
-                '', t('research.bulk.priority-aria', 'Bulk priority'), value => {
+                [['', uiMessage('research.bulk.priority-none', 'Priority: no change')], ...['none', 'low', 'medium', 'high'].map(value => [value, priorityLabel(value, true)])],
+                '', uiMessage('research.bulk.priority-aria', 'Bulk priority'), value => {
                     if (!value) { return; }
                     applyBulk('Set priority for selected voices', [...st.selection], () => ({priority: value}));
                     ui.bulkPriority.value = '';
                 });
             bulk.append(ui.bulkStatus, ui.bulkPriority);
-            ui.bulkTag = makeInput('bulk-tag', 'text', t('research.bulk.tag-aria', 'Tag for bulk change'), '', MAX_TAG_LENGTH);
-            ui.bulkTag.setAttribute('placeholder', t('research.bulk.tag-placeholder', 'Tag'));
-            ui.bulkTagAdd = makeButton('bulk-tag-add', t('research.bulk.add-tag', 'Add tag'), 'btn btn-sm btn-outline-success', () => bulkTag('add'));
-            ui.bulkTagRemove = makeButton('bulk-tag-remove', t('research.bulk.remove-tag', 'Remove tag'), 'btn btn-sm btn-outline-danger', () => bulkTag('remove'));
+            ui.bulkTag = makeInput('bulk-tag', 'text', uiMessage('research.bulk.tag-aria', 'Tag for bulk change'), '', MAX_TAG_LENGTH);
+            renderUiMessage(ui.bulkTag, uiMessage('research.bulk.tag-placeholder', 'Tag'), 'placeholder');
+            ui.bulkTagAdd = makeButton('bulk-tag-add', uiMessage('research.bulk.add-tag', 'Add tag'), 'btn btn-sm btn-outline-success', () => bulkTag('add'));
+            ui.bulkTagRemove = makeButton('bulk-tag-remove', uiMessage('research.bulk.remove-tag', 'Remove tag'), 'btn btn-sm btn-outline-danger', () => bulkTag('remove'));
             bulk.append(ui.bulkTag, ui.bulkTagAdd, ui.bulkTagRemove);
-            ui.bulkCollection = makeInput('bulk-collection', 'text', t('research.bulk.collection-aria', 'Research collection for bulk change'), '', MAX_COLLECTION_LENGTH);
-            ui.bulkCollection.setAttribute('placeholder', t('research.bulk.collection-placeholder', 'Research collection'));
-            ui.bulkCollectionAdd = makeButton('bulk-collection-add', t('research.bulk.add-collection', 'Add to collection'), 'btn btn-sm btn-outline-success', () => bulkCollection('add'));
-            ui.bulkCollectionRemove = makeButton('bulk-collection-remove', t('research.bulk.remove-collection', 'Remove from collection'), 'btn btn-sm btn-outline-danger', () => bulkCollection('remove'));
+            ui.bulkCollection = makeInput('bulk-collection', 'text', uiMessage('research.bulk.collection-aria', 'Research collection for bulk change'), '', MAX_COLLECTION_LENGTH);
+            renderUiMessage(ui.bulkCollection, uiMessage('research.bulk.collection-placeholder', 'Research collection'), 'placeholder');
+            ui.bulkCollectionAdd = makeButton('bulk-collection-add', uiMessage('research.bulk.add-collection', 'Add to collection'), 'btn btn-sm btn-outline-success', () => bulkCollection('add'));
+            ui.bulkCollectionRemove = makeButton('bulk-collection-remove', uiMessage('research.bulk.remove-collection', 'Remove from collection'), 'btn btn-sm btn-outline-danger', () => bulkCollection('remove'));
             bulk.append(ui.bulkCollection, ui.bulkCollectionAdd, ui.bulkCollectionRemove);
             host.append(bulk);
 
             const marksBulk = node('div', undefined, 'casting-research-row mb-2');
-            marksBulk.append(node('span', t('research.bulk.marks', 'Marks'), 'small fw-bold'));
-            ui.bulkShape = makeSelect('bulk-shape', [['stars', t('research.shape.stars', 'Stars')], ['circles', t('research.shape.circles', 'Circles')]], 'stars', t('research.bulk.shape-aria', 'Shape for bulk marks'), () => syncToolbar(visible()));
-            ui.bulkColor = makeSelect('bulk-color', COLORS.map(color => [color, colorLabel(color)]), 'red', t('research.bulk.colour-aria', 'Colour for bulk marks'), () => {});
-            ui.bulkMarkAdd = makeButton('bulk-mark-add', t('research.bulk.add-mark', 'Add mark'), 'btn btn-sm btn-outline-success', () => bulkMark('add'));
-            ui.bulkMarkRemove = makeButton('bulk-mark-remove', t('research.bulk.remove-mark', 'Remove mark'), 'btn btn-sm btn-outline-danger', () => bulkMark('remove'));
+            marksBulk.append(node('span', uiMessage('research.bulk.marks', 'Marks'), 'small fw-bold'));
+            ui.bulkShape = makeSelect('bulk-shape', [['stars', uiMessage('research.shape.stars', 'Stars')], ['circles', uiMessage('research.shape.circles', 'Circles')]], 'stars', uiMessage('research.bulk.shape-aria', 'Shape for bulk marks'), () => syncToolbar(visible()));
+            ui.bulkColor = makeSelect('bulk-color', COLORS.map(color => [color, colorLabel(color, true)]), 'red', uiMessage('research.bulk.colour-aria', 'Colour for bulk marks'), () => {});
+            ui.bulkMarkAdd = makeButton('bulk-mark-add', uiMessage('research.bulk.add-mark', 'Add mark'), 'btn btn-sm btn-outline-success', () => bulkMark('add'));
+            ui.bulkMarkRemove = makeButton('bulk-mark-remove', uiMessage('research.bulk.remove-mark', 'Remove mark'), 'btn btn-sm btn-outline-danger', () => bulkMark('remove'));
             marksBulk.append(ui.bulkShape, ui.bulkColor, ui.bulkMarkAdd, ui.bulkMarkRemove);
-            ui.clearShape = makeSelect('clear-shape', [['stars', t('research.shape.stars', 'Stars')], ['circles', t('research.shape.circles', 'Circles')], ['both', t('research.shape.both', 'Both shapes')]], 'stars', t('research.bulk.clear-shape-aria', 'Shape to clear'), () => syncToolbar(visible()));
-            ui.clearColor = makeSelect('clear-color', [['all', t('research.bulk.all-colours', 'All colours')], ...COLORS.map(color => [color, colorLabel(color)])], 'all', t('research.bulk.clear-colour-aria', 'Colour to clear'), () => {});
-            ui.clearMarks = makeButton('clear-marks', t('research.bulk.clear-marks', 'Clear marks…'), 'btn btn-sm btn-outline-warning', clearMarks);
+            ui.clearShape = makeSelect('clear-shape', [['stars', uiMessage('research.shape.stars', 'Stars')], ['circles', uiMessage('research.shape.circles', 'Circles')], ['both', uiMessage('research.shape.both', 'Both shapes')]], 'stars', uiMessage('research.bulk.clear-shape-aria', 'Shape to clear'), () => syncToolbar(visible()));
+            ui.clearColor = makeSelect('clear-color', [['all', uiMessage('research.bulk.all-colours', 'All colours')], ...COLORS.map(color => [color, colorLabel(color, true)])], 'all', uiMessage('research.bulk.clear-colour-aria', 'Colour to clear'), () => {});
+            ui.clearMarks = makeButton('clear-marks', uiMessage('research.bulk.clear-marks', 'Clear marks…'), 'btn btn-sm btn-outline-warning', clearMarks);
             marksBulk.append(ui.clearShape, ui.clearColor, ui.clearMarks);
-            ui.undo = makeButton('undo', t('research.bulk.undo', 'Undo'), 'btn btn-sm btn-outline-secondary', () => undoMove('undo'));
-            ui.redo = makeButton('redo', t('research.bulk.redo', 'Redo'), 'btn btn-sm btn-outline-secondary', () => undoMove('redo'));
+            ui.undo = makeButton('undo', uiMessage('research.bulk.undo', 'Undo'), 'btn btn-sm btn-outline-secondary', () => undoMove('undo'));
+            ui.redo = makeButton('redo', uiMessage('research.bulk.redo', 'Redo'), 'btn btn-sm btn-outline-secondary', () => undoMove('redo'));
             marksBulk.append(ui.undo, ui.redo);
             host.append(marksBulk);
 
             const locks = node('div', undefined, 'casting-research-row mb-2');
-            ui.lockStars = makeCheck('lock-stars', t('research.lock.stars', 'Lock star marks'), prefs.lockStars);
-            ui.lockCircles = makeCheck('lock-circles', t('research.lock.circles', 'Lock circle marks'), prefs.lockCircles);
+            ui.lockStars = makeCheck('lock-stars', uiMessage('research.lock.stars', 'Lock star marks'), prefs.lockStars);
+            ui.lockCircles = makeCheck('lock-circles', uiMessage('research.lock.circles', 'Lock circle marks'), prefs.lockCircles);
             ui.lockStars.input.addEventListener('change', () => {
                 prefs.lockStars = Boolean(ui.lockStars.input.checked);
                 savePrefs();
@@ -857,8 +860,8 @@
             host.append(locks);
 
             const playbackRow = node('div', undefined, 'casting-research-row mb-2');
-            playbackRow.append(node('span', t('research.playback.title', 'Playback'), 'small fw-bold'));
-            ui.seconds = makeInput('play-seconds', 'number', t('research.playback.seconds-aria', 'Seconds per voice'), prefs.seconds);
+            playbackRow.append(node('span', uiMessage('research.playback.title', 'Playback'), 'small fw-bold'));
+            ui.seconds = makeInput('play-seconds', 'number', uiMessage('research.playback.seconds-aria', 'Seconds per voice'), prefs.seconds);
             ui.seconds.setAttribute('min', '0');
             ui.seconds.setAttribute('max', '120');
             ui.seconds.setAttribute('step', '1');
@@ -866,7 +869,7 @@
                 const value = Number(ui.seconds.value);
                 if (!Number.isInteger(value) || value < 0 || value > 120) {
                     ui.seconds.value = prefs.full ? '0' : String(prefs.seconds);
-                    notify('info', t('research.playback.seconds-hint', 'Use 0 for full samples or a whole number of seconds from 1 to 120.'));
+                    notify('info', uiMessage('research.playback.seconds-hint', 'Use 0 for full samples or a whole number of seconds from 1 to 120.'));
                     return;
                 }
                 if (value === 0) {
@@ -882,26 +885,26 @@
                 setPlayback(value, false);
                 syncToolbar(visible());
             });
-            ui.full = makeCheck('play-full', t('research.playback.full', 'Full samples'), prefs.full);
+            ui.full = makeCheck('play-full', uiMessage('research.playback.full', 'Full samples'), prefs.full);
             ui.full.input.addEventListener('change', () => {
                 prefs.full = Boolean(ui.full.input.checked);
                 savePrefs();
                 setPlayback(prefs.seconds, prefs.full);
                 syncToolbar(visible());
             });
-            ui.prev = makeButton('play-prev', t('research.playback.prev', 'Previous'), 'btn btn-sm btn-outline-secondary', () => playback.prev && playback.prev(), t('research.playback.prev-aria', 'Previous voice in the playback queue'));
-            ui.next = makeButton('play-next', t('research.playback.next', 'Next'), 'btn btn-sm btn-outline-secondary', () => playback.next && playback.next(), t('research.playback.next-aria', 'Next voice in the playback queue'));
-            ui.stop = makeButton('play-stop', t('research.playback.stop', 'Stop'), 'btn btn-sm btn-outline-secondary', () => playback.stop && playback.stop(), t('research.playback.stop-aria', 'Stop the playback queue'));
-            ui.random = makeButton('play-random', t('research.playback.random', 'Random'), 'btn btn-sm btn-outline-secondary', () => playback.random && playback.random(), t('research.playback.random-aria', 'Play a random filtered voice with audio'));
-            playbackRow.append(ui.seconds, node('span', ' ' + t('research.playback.seconds-suffix', 's per voice'), 'small text-muted'), ui.full.labelNode,
+            ui.prev = makeButton('play-prev', uiMessage('research.playback.prev', 'Previous'), 'btn btn-sm btn-outline-secondary', () => playback.prev && playback.prev(), uiMessage('research.playback.prev-aria', 'Previous voice in the playback queue'));
+            ui.next = makeButton('play-next', uiMessage('research.playback.next', 'Next'), 'btn btn-sm btn-outline-secondary', () => playback.next && playback.next(), uiMessage('research.playback.next-aria', 'Next voice in the playback queue'));
+            ui.stop = makeButton('play-stop', uiMessage('research.playback.stop', 'Stop'), 'btn btn-sm btn-outline-secondary', () => playback.stop && playback.stop(), uiMessage('research.playback.stop-aria', 'Stop the playback queue'));
+            ui.random = makeButton('play-random', uiMessage('research.playback.random', 'Random'), 'btn btn-sm btn-outline-secondary', () => playback.random && playback.random(), uiMessage('research.playback.random-aria', 'Play a random filtered voice with audio'));
+            playbackRow.append(ui.seconds, node('span', uiMessage('research.playback.seconds-suffix', 's per voice'), 'small text-muted'), ui.full.labelNode,
                                ui.prev, ui.next, ui.stop, ui.random);
             host.append(playbackRow);
 
             const viewRow = node('div', undefined, 'casting-research-row mb-2');
-            ui.showDescription = makeCheck('show-description', t('research.view.description', 'Description'), prefs.description);
-            ui.showSample = makeCheck('show-sample', t('research.view.sample', 'Sample line'), prefs.sample);
-            ui.showTags = makeCheck('show-tags', t('research.view.tags', 'Tags'), prefs.tags);
-            ui.focus = makeCheck('focus', t('research.view.focus', 'Focus cards'), prefs.focus);
+            ui.showDescription = makeCheck('show-description', uiMessage('research.view.description', 'Description'), prefs.description);
+            ui.showSample = makeCheck('show-sample', uiMessage('research.view.sample', 'Sample line'), prefs.sample);
+            ui.showTags = makeCheck('show-tags', uiMessage('research.view.tags', 'Tags'), prefs.tags);
+            ui.focus = makeCheck('focus', uiMessage('research.view.focus', 'Focus cards'), prefs.focus);
             for (const [control, key] of [[ui.showDescription, 'description'], [ui.showSample, 'sample'],
                                           [ui.showTags, 'tags'], [ui.focus, 'focus']]) {
                 control.input.addEventListener('change', () => {
@@ -914,12 +917,12 @@
             host.append(viewRow);
 
             const viewsRow = node('div', undefined, 'casting-research-row mb-2');
-            ui.viewName = makeInput('view-name', 'text', t('research.views.name-aria', 'Saved view name'), '', 60);
-            ui.viewName.setAttribute('placeholder', t('research.views.name-placeholder', 'View name'));
-            ui.viewSelect = makeSelect('view', [['', t('research.views.saved', 'Saved views')]], '', t('research.views.saved-aria', 'Saved view'), () => {});
-            ui.viewSave = makeButton('view-save', t('research.views.save', 'Save view'), 'btn btn-sm btn-outline-primary', saveView);
-            ui.viewApply = makeButton('view-apply', t('research.views.apply', 'Apply view'), 'btn btn-sm btn-outline-secondary', () => applyView(ui.viewSelect.value));
-            ui.viewDelete = makeButton('view-delete', t('research.views.delete', 'Delete view'), 'btn btn-sm btn-outline-secondary', deleteView);
+            ui.viewName = makeInput('view-name', 'text', uiMessage('research.views.name-aria', 'Saved view name'), '', 60);
+            renderUiMessage(ui.viewName, uiMessage('research.views.name-placeholder', 'View name'), 'placeholder');
+            ui.viewSelect = makeSelect('view', [['', uiMessage('research.views.saved', 'Saved views')]], '', uiMessage('research.views.saved-aria', 'Saved view'), () => {});
+            ui.viewSave = makeButton('view-save', uiMessage('research.views.save', 'Save view'), 'btn btn-sm btn-outline-primary', saveView);
+            ui.viewApply = makeButton('view-apply', uiMessage('research.views.apply', 'Apply view'), 'btn btn-sm btn-outline-secondary', () => applyView(ui.viewSelect.value));
+            ui.viewDelete = makeButton('view-delete', uiMessage('research.views.delete', 'Delete view'), 'btn btn-sm btn-outline-secondary', deleteView);
             viewsRow.append(ui.viewName, ui.viewSave, ui.viewSelect, ui.viewApply, ui.viewDelete);
             host.append(viewsRow);
         }
@@ -1354,12 +1357,12 @@
             if (!host) { return; }
             host.replaceChildren();
             if (!st.activity.length) {
-                host.append(node('p', t('research.activity.none', 'No casting activity yet.'), 'small text-muted mb-0'));
+                host.append(node('p', uiMessage('research.activity.none', 'No casting activity yet.'), 'small text-muted mb-0'));
                 return;
             }
             for (const event of [...st.activity].reverse()) {
                 const at = event.at.replace('T', ' ').slice(0, 19);
-                host.append(node('p', event.count === 1 ? t('research.activity.row.one', '{at} · {action} · {count} voice', {at, action: event.action, count: event.count}) : t('research.activity.row.many', '{at} · {action} · {count} voices', {at, action: event.action, count: event.count}), 'small mb-1'));
+                host.append(node('p', event.count === 1 ? uiMessage('research.activity.row.one', '{at} · {action} · {count} voice', {at, action: event.action, count: event.count}) : uiMessage('research.activity.row.many', '{at} · {action} · {count} voices', {at, action: event.action, count: event.count}), 'small mb-1'));
             }
         }
 
@@ -1471,7 +1474,7 @@
         }
         function markRow(voice, shape, symbolsOnly) {
             const row = node('div', undefined, 'd-flex flex-wrap align-items-center gap-1 mb-1');
-            if (!symbolsOnly) { row.append(node('span', shape === 'stars' ? t('research.shape.stars', 'Stars') : t('research.shape.circles', 'Circles'), 'small text-muted me-1')); }
+            if (!symbolsOnly) { row.append(node('span', shape === 'stars' ? uiMessage('research.shape.stars', 'Stars') : uiMessage('research.shape.circles', 'Circles'), 'small text-muted me-1')); }
             row.append(...COLORS.map(color => markButton(voice, shape, color, symbolsOnly)));
             return row;
         }
@@ -1523,7 +1526,7 @@
                 cell.append(badge, picker);
                 badges.append(cell);
             }
-            wrap.append(node('div', t('research.filter.custom-tags', 'Custom tags'), 'small text-muted'), badges);
+            wrap.append(node('div', uiMessage('research.filter.custom-tags', 'Custom tags'), 'small text-muted'), badges);
             const row = node('div', undefined, 'input-group input-group-sm mt-1');
             const input = node('input', undefined, 'form-control');
             input.type = 'text';
@@ -1532,7 +1535,7 @@
             input.setAttribute('aria-label', t('research.tag.new-aria', 'New tag for {name}', {name: voice.name}));
             input.setAttribute('placeholder', t('research.tag.add-placeholder', 'Add tag'));
             input.dataset.castingFocus = 'tag:' + voice.id;
-            const add = node('button', t('research.bulk.add-tag', 'Add tag'), 'btn btn-outline-secondary');
+            const add = node('button', uiMessage('research.bulk.add-tag', 'Add tag'), 'btn btn-outline-secondary');
             add.type = 'button';
             add.setAttribute('aria-label', t('research.tag.add-aria', 'Add tag to {name}', {name: voice.name}));
             add.addEventListener('click', () => {
@@ -1555,7 +1558,7 @@
                 badges.append(removalBadge(voice, 'collections', name,
                     t('research.collection.remove-aria', 'Remove {name} from research collection {collection}', {name: voice.name, collection: name})));
             }
-            wrap.append(node('div', t('research.filter.collections', 'Research collections'), 'small text-muted'), badges);
+            wrap.append(node('div', uiMessage('research.filter.collections', 'Research collections'), 'small text-muted'), badges);
             const row = node('div', undefined, 'input-group input-group-sm mt-1');
             const input = node('input', undefined, 'form-control');
             input.type = 'text';
@@ -1564,7 +1567,7 @@
             input.setAttribute('aria-label', t('research.collection.aria', 'Research collection for {name}', {name: voice.name}));
             input.setAttribute('placeholder', t('research.collection.add-placeholder', 'Add to research collection'));
             input.dataset.castingFocus = 'collection:' + voice.id;
-            const add = node('button', t('research.collection.add', 'Add'), 'btn btn-outline-secondary');
+            const add = node('button', uiMessage('research.collection.add', 'Add'), 'btn btn-outline-secondary');
             add.type = 'button';
             add.setAttribute('aria-label', t('research.collection.add-aria', 'Add {name} to a research collection', {name: voice.name}));
             add.addEventListener('click', () => {
@@ -1590,9 +1593,9 @@
             const wrap = node('div', undefined, 'mt-2 border-top pt-2');
             const organization = node('details', undefined, 'mt-2');
             organization.dataset.castingPanel = JSON.stringify([voice.id, 'research']);
-            const notesLabel = node('label', t('research.notes', 'Notes'), 'small d-block mt-2');
+            const notesLabel = node('label', uiMessage('research.notes', 'Notes'), 'small d-block mt-2');
             notesLabel.append(notes);
-            organization.append(node('summary', t('research.organization.title', 'Tags, research collections & notes'), 'small'),
+            organization.append(node('summary', uiMessage('research.organization.title', 'Tags, research collections & notes'), 'small'),
                 tagEditor(voice), collectionEditor(voice), notesLabel);
             wrap.append(markRow(voice, 'stars', true), markRow(voice, 'circles', true), organization);
             return wrap;
@@ -1624,8 +1627,8 @@
             ui.pageStatus.id = 'casting-research-page-status';
             ui.pageStatus.setAttribute('role', 'status');
             ui.pageStatus.setAttribute('aria-live', 'polite');
-            ui.pageSize = makeSelect('page-size', PAGE_SIZES.map(size => [String(size), t('research.page.per-page', '{count} per page', {count: size})]),
-                String(st.pageSize), t('research.page.voices-per-page', 'Voices per page'), value => {
+            ui.pageSize = makeSelect('page-size', PAGE_SIZES.map(size => [String(size), uiMessage('research.page.per-page', '{count} per page', {count: size})]),
+                String(st.pageSize), uiMessage('research.page.voices-per-page', 'Voices per page'), value => {
                     st.pageSize = Number(value);
                     st.loaded = st.pageSize;
                     st.pageIndex = 0;
@@ -1633,12 +1636,12 @@
                     savePrefs();
                     render();
                 });
-            ui.mode = makeSelect('mode', [['load', t('research.paging.load-more', 'Load more')], ['auto', t('research.paging.auto', 'Auto-load on scroll')], ['pages', t('research.paging.pages', 'Pages')], ['all', t('research.paging.all', 'Show all')]],
-                st.pageMode, t('research.paging.mode-aria', 'Paging mode'), value => setPageMode(value));
-            ui.pagePrev = makeButton('page-prev', t('research.paging.previous', 'Previous page'), 'btn btn-sm btn-outline-secondary', () => changePage(-1));
-            ui.pageNext = makeButton('page-next', t('research.paging.next', 'Next page'), 'btn btn-sm btn-outline-secondary', () => changePage(1));
-            ui.loadMore = makeButton('load-more', t('research.paging.load-more', 'Load more'), 'btn btn-sm btn-outline-primary', loadMore);
-            ui.showAll = makeButton('show-all', t('research.paging.all', 'Show all'), 'btn btn-sm btn-outline-secondary', showAll);
+            ui.mode = makeSelect('mode', [['load', uiMessage('research.paging.load-more', 'Load more')], ['auto', uiMessage('research.paging.auto', 'Auto-load on scroll')], ['pages', uiMessage('research.paging.pages', 'Pages')], ['all', uiMessage('research.paging.all', 'Show all')]],
+                st.pageMode, uiMessage('research.paging.mode-aria', 'Paging mode'), value => setPageMode(value));
+            ui.pagePrev = makeButton('page-prev', uiMessage('research.paging.previous', 'Previous page'), 'btn btn-sm btn-outline-secondary', () => changePage(-1));
+            ui.pageNext = makeButton('page-next', uiMessage('research.paging.next', 'Next page'), 'btn btn-sm btn-outline-secondary', () => changePage(1));
+            ui.loadMore = makeButton('load-more', uiMessage('research.paging.load-more', 'Load more'), 'btn btn-sm btn-outline-primary', loadMore);
+            ui.showAll = makeButton('show-all', uiMessage('research.paging.all', 'Show all'), 'btn btn-sm btn-outline-secondary', showAll);
             ui.guard = node('span', undefined, 'small text-warning');
             ui.guard.id = 'casting-research-guard';
             ui.guard.setAttribute('role', 'status');
@@ -1661,8 +1664,8 @@
                 ui.filterHost = node('div', undefined, 'casting-research-filters');
                 ui.filterHost.id = 'casting-research-filters';
                 research.append(ui.filterHost);
-                const refresh = makeButton('refresh-circles', t('research.circles.refresh', 'Refresh results'), 'btn btn-sm btn-outline-primary mt-1',
-                    refreshCircles, t('research.circles.refresh-aria', 'Apply the staged circle exclusions'));
+                const refresh = makeButton('refresh-circles', uiMessage('research.circles.refresh', 'Refresh results'), 'btn btn-sm btn-outline-primary mt-1',
+                    refreshCircles, uiMessage('research.circles.refresh-aria', 'Apply the staged circle exclusions'));
                 research.append(refresh);
             }
             const activity = document.getElementById('casting-activity');

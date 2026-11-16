@@ -1012,12 +1012,12 @@
 
         // --- Theme ---
         const THEMES = [
-            { key: 'light',       icon: 'fa-sun',      label: 'Light'      },
-            { key: 'night',       icon: 'fa-moon',     label: 'Night'      },
-            { key: 'super-night', icon: 'fa-circle',   label: 'Super Night'},
-            { key: 'cyberpunk',   icon: 'fa-bolt',     label: 'Cyberpunk'  },
-            { key: 'bread',       icon: 'fa-bread-slice', label: 'Bread'   },
-            { key: 'leek',        icon: 'fa-leaf',     label: 'Leek'       },
+            { key: 'light',       icon: 'fa-sun' },
+            { key: 'night',       icon: 'fa-moon' },
+            { key: 'super-night', icon: 'fa-circle' },
+            { key: 'cyberpunk',   icon: 'fa-bolt' },
+            { key: 'bread',       icon: 'fa-bread-slice' },
+            { key: 'leek',        icon: 'fa-leaf' },
         ];
 
         function applyTheme(key) {
@@ -1027,14 +1027,7 @@
             } else {
                 html.setAttribute('data-theme', key);
             }
-            const t = THEMES.find(t => t.key === key) || THEMES[0];
-            document.getElementById('theme-icon').className = `fas ${t.icon}`;
-            document.getElementById('theme-label').textContent = `Theme: ${t.label}`;
-            const next = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
-            const action = `Current theme: ${t.label}. Switch to ${next.label}.`;
-            const button = document.getElementById('theme-toggle');
-            button.title = action;
-            button.setAttribute('aria-label', action);
+            renderThemeControl();
             if (typeof CSSTransition !== 'undefined') {
                 for (const transition of document.getAnimations()) {
                     const property = transition.transitionProperty;
@@ -1044,6 +1037,27 @@
                 }
             }
             try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
+        }
+
+        function getThemeLabel(key) {
+            if (key === 'night') { return t('shell.theme.night', 'Night'); }
+            if (key === 'super-night') { return t('shell.theme.super-night', 'Super Night'); }
+            if (key === 'cyberpunk') { return t('shell.theme.cyberpunk', 'Cyberpunk'); }
+            if (key === 'bread') { return t('shell.theme.bread', 'Bread'); }
+            if (key === 'leek') { return t('shell.theme.leek', 'Leek'); }
+            return t('shell.theme.light', 'Light');
+        }
+
+        function renderThemeControl() {
+            const current = document.documentElement.getAttribute('data-theme') || 'light';
+            const theme = THEMES.find(theme => theme.key === current) || THEMES[0];
+            const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+            document.getElementById('theme-icon').className = `fas ${theme.icon}`;
+            document.getElementById('theme-label').textContent = t('shell.theme.current-label', 'Theme: {theme}', {theme: getThemeLabel(theme.key)});
+            const action = t('shell.theme.action', 'Current theme: {current}. Switch to {next}.', {current: getThemeLabel(theme.key), next: getThemeLabel(next.key)});
+            const button = document.getElementById('theme-toggle');
+            button.title = action;
+            button.setAttribute('aria-label', action);
         }
 
         function cycleTheme() {
@@ -1770,10 +1784,12 @@
             document.getElementById('prompt-example-block').hidden = variant !== 'michel2_shot';
             document.getElementById('prompt-preset-description').textContent = preset.description || '';
             document.getElementById('prompt-preset-variant-badge').textContent = 'shape: ' + variant;
-            document.getElementById('user-prompt-hint').textContent = (
-                ['default', 'aliases', 'incremental', 'continuity'].includes(variant)
-                    ? '(a template: the pipeline fills {roster} and {batch})'
-                    : '(the pipeline adds the ROSTER line and the marked PASSAGE around it)');
+            const hint = document.getElementById('user-prompt-hint');
+            if (['default', 'aliases', 'incremental', 'continuity'].includes(variant)) {
+                setUiMessage(hint, 'setup.prompts.user-prompt.template-hint', '(a template: the pipeline fills {roster} and {batch})', {roster: '{roster}', batch: '{batch}'});
+            } else {
+                setUiMessage(hint, 'setup.prompts.user-prompt.passage-hint', '(the pipeline adds the ROSTER line and the marked PASSAGE around it)');
+            }
             document.getElementById('prompt-preview-panel').hidden = true;
         }
 
@@ -2705,7 +2721,7 @@
                     `<option value="${escapeHtml(item.filename)}">${escapeHtml(item.filename)} (${Math.ceil(item.size / 1024)} KB)</option>`
                 ).join('');
                 document.getElementById('existing-upload-select').innerHTML =
-                    '<option value="">Choose an existing TXT/MD file…</option>' + options;
+                    `<option value="" data-i18n="script.existing-upload.empty" data-i18n-source="Choose an existing TXT/MD file…">${escapeHtml(t('script.existing-upload.empty', 'Choose an existing TXT/MD file…'))}</option>` + options;
                 scriptBatchUploads = uploads;
                 renderScriptBatchUploads();
                 if (status) { status.innerHTML = ''; }
@@ -4225,6 +4241,7 @@
         }
 
         async function loadCastList(show) {
+            document.getElementById('cast-list-status').removeAttribute('data-i18n');
             const panel = document.getElementById('cast-list-panel');
             const editorSnapshot = getCastListEditorSnapshot();
             if (show && (castListMutationPending || (castListEditorSnapshot !== null && panel.style.display !== 'none' && editorSnapshot !== castListEditorSnapshot))) {
@@ -4241,7 +4258,7 @@
                 if (request !== castListRequest || book !== currentBookFilename) { return; }
                 if (!book && !window._selectedUploadIdentity && editorSnapshot === '[]'
                         && e.status === 400 && e.messageKey === 'error.generation.no_input') {
-                    document.getElementById('cast-list-status').textContent = t('script.cast_list.empty', 'No book selected. Choose a source above to begin.');
+                    setUiMessage(document.getElementById('cast-list-status'), 'script.cast_list.empty', 'No book selected. Choose a source above to begin.');
                     return;
                 }
                 document.getElementById('cast-list-status').textContent = getActionErrorMessage(
@@ -4678,7 +4695,7 @@
             const token = typeof _voiceCardsBookToken === 'undefined' ? '' : _voiceCardsBookToken;
             const previous = field.dataset.bookToken === token && field.dataset.speaker === speaker ? field.value : '';
             field.innerHTML = (states.length ? '<option value="" disabled>Choose base or state persona</option>' : '')
-                + '<option value="__base__">Base character persona</option>'
+                + `<option value="__base__" data-i18n="voices.recovery.base" data-i18n-source="Base character persona">${escapeHtml(t('voices.recovery.base', 'Base character persona'))}</option>`
                 + states.map(state => `<option value="${escapeHtml(state.version_id)}">${escapeHtml(`${state.gender} · ${state.age_group.replaceAll('_', ' ')} · state ${state.state_number}`)}</option>`).join('');
             field.value = states.length ? (previous === '__base__' || states.some(state => state.version_id === previous) ? previous : '') : '__base__';
             field.dataset.bookToken = token;
@@ -5079,6 +5096,68 @@
         }
 
 
+        function getVoiceReviewStatusLabel(status) {
+            if (status === 'unreviewed') { return t('voice.card.review-unreviewed', 'unreviewed'); }
+            if (status === 'unassigned') { return t('voice.card.review-unassigned', 'unassigned'); }
+            if (status === 'assigned') { return t('voice.review.assigned', 'assigned'); }
+            if (status === 'generated') { return t('voice.review.generated', 'generated'); }
+            if (status === 'reviewed') { return t('voice.review.reviewed', 'reviewed'); }
+            if (status === 'approved') { return t('voice.review.approved', 'approved'); }
+            if (status === 'rejected') { return t('voice.review.rejected', 'rejected'); }
+            return t('voice.review.unknown', 'Unknown status');
+        }
+
+        function getVoiceReviewText(persona, voice) {
+            return t('voice.card.review-line', 'Persona review: {persona} \u00b7 Voice review: {voice}', {
+                persona: getVoiceReviewStatusLabel(persona), voice: getVoiceReviewStatusLabel(voice)});
+        }
+
+        function getVoiceReviewSupportText(persona, voice) {
+            return t('voice.review.saved-values', 'Saved status values: persona={persona}; voice={voice}', {persona, voice});
+        }
+
+        function getVoiceLineCountText(count, state) {
+            const one = pluralForm(count) === 'one';
+            if (state) {
+                return {
+                    text: one ? t('voice.card.state-lines-one', '{count} line in this state', {count}) : t('voice.card.state-lines', '{count} lines in this state', {count}),
+                    title: one ? t('voice.card.state-lines-title-one', '{count} line spoken in this state', {count}) : t('voice.card.state-lines-title', '{count} lines spoken in this state', {count}),
+                };
+            }
+            return {
+                text: one ? t('voice.card.lines-one', '{count} line', {count}) : t('voice.card.lines', '{count} lines', {count}),
+                title: one ? t('voice.card.lines-title-one', '{count} line in this book', {count}) : t('voice.card.lines-title', '{count} lines in this book', {count}),
+            };
+        }
+
+        function getVoiceLineCountMarkup(count, state = false) {
+            const message = getVoiceLineCountText(count, state);
+            return `<span class="badge bg-secondary ms-2 voice-line-count" data-line-count="${count}" data-state-count="${state}" title="${escapeHtml(message.title)}">${escapeHtml(message.text)}</span>`;
+        }
+
+        function renderVoiceLocaleChrome() {
+            for (const node of document.querySelectorAll('.chunk-status-label')) {
+                node.textContent = chunkStatusLabel(node.getAttribute('data-status'));
+            }
+            for (const node of document.querySelectorAll('.voice-state-needs-generation')) {
+                node.textContent = t('voice.card.state-needs-generation', 'State persona needs generation for the current script.');
+            }
+            for (const node of document.querySelectorAll('.voice-review-labels')) {
+                const persona = node.getAttribute('data-persona-status');
+                const voice = node.getAttribute('data-voice-status');
+                node.textContent = getVoiceReviewText(persona, voice);
+                node.title = getVoiceReviewSupportText(persona, voice);
+            }
+            for (const node of document.querySelectorAll('.voice-line-count')) {
+                const message = getVoiceLineCountText(Number(node.getAttribute('data-line-count')), node.getAttribute('data-state-count') === 'true');
+                node.textContent = message.text;
+                node.title = message.title;
+            }
+            for (const node of document.querySelectorAll('.voice-seed-proposal')) {
+                node.textContent = t('voice.seed.proposal', '{name}: proposed seed {seed}', {name: node.getAttribute('data-name'), seed: node.getAttribute('data-seed')});
+            }
+        }
+
         function createVoiceCard(voice, index) {
             const roster = ensureVoiceRosterCache();
             const config = voice.config || {};
@@ -5094,45 +5173,45 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('voice.card.alias-of', 'Alias of {alias}', {alias: getEffectiveVoiceAlias(config)}))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? `<span class="badge bg-secondary ms-2" title="${escapeHtml(t('voice.card.lines-title', '{count} lines in this book', {count: window._lineCounts[voice.name]}))}">${escapeHtml(t('voice.card.lines', '{count} lines', {count: window._lineCounts[voice.name]}))}</span>` : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? `<span class="badge bg-secondary ms-2" title="${escapeHtml(t('voice.card.state-lines-title', '{count} lines spoken in this state', {count: voice.state_line_count}))}">${escapeHtml(t('voice.card.state-lines', '{count} lines in this state', {count: voice.state_line_count}))}</span>` : ''}${getTraitBadgeHtml(voice.traits)}</h5>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${t('voice.card.regenerate', 'Regenerate persona')}</button>
-                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${t('voice.card.age-version', 'Generate age version')}</button>
+                                <h5 class="card-title">${escapeHtml(label)} ${getEffectiveVoiceAlias(config) ? `<span class="badge bg-info ms-2" title="${escapeHtml(t('voice.card.alias-of', 'Alias of {alias}', {alias: getEffectiveVoiceAlias(config)}))}">${escapeHtml(getEffectiveVoiceAlias(config))}</span>` : ''}${(!voice.version_id && window._lineCounts && window._lineCounts[voice.name] != null) ? getVoiceLineCountMarkup(window._lineCounts[voice.name]) : ''}${(voice.version_id && Number.isInteger(voice.state_line_count)) ? getVoiceLineCountMarkup(voice.state_line_count, true) : ''}${getTraitBadgeHtml(voice.traits)}</h5>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${uiMessageMarkup('voice.card.regenerate', 'Regenerate persona')}</button>
+                                <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${uiMessageMarkup('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
-                                    <select class="form-select design-line-select" aria-label="${escapeHtml(t('voice.card.design-line-aria', 'Line to design the voice of {name} from', {name: label}))}" onfocus="loadDesignLines(this)"><option value="">${t('voice.card.design-line-empty', 'Design from one of their lines…')}</option></select>
+                                    <select class="form-select design-line-select" aria-label="${escapeHtml(t('voice.card.design-line-aria', 'Line to design the voice of {name} from', {name: label}))}" onfocus="loadDesignLines(this)"><option value="" data-i18n="voice.card.design-line-empty" data-i18n-source="Design from one of their lines…">${t('voice.card.design-line-empty', 'Design from one of their lines…')}</option></select>
                                     <input type="number" class="form-control design-count" min="1" max="100" value="1" style="max-width: 4.5rem;" title="${escapeHtml(t('voice.card.design-count-title', 'How many voices to design from the line; each is saved under Saved candidates'))}" aria-label="${escapeHtml(t('voice.card.design-count-aria', 'How many voices to design for {name}', {name: label}))}">
-                                    <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.design-aria', 'Design the voice of {name} from the chosen line', {name: label}))}" onclick="designFromChosenLine(this)">${t('voice.card.design', 'Design')}</button>
+                                    <button class="btn btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.design-aria', 'Design the voice of {name} from the chosen line', {name: label}))}" onclick="designFromChosenLine(this)">${uiMessageMarkup('voice.card.design', 'Design')}</button>
                                 </div>
-                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${t('voice.card.recover', 'Recover persona')}</button>` : ''}
-                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${t('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
-                                <div class="small text-muted">${escapeHtml(joinUiSentences([voice.version_id && voice.state_stale ? t('voice.card.state-needs-generation', 'State persona needs generation for the current script.') : '', t('voice.card.review-line', 'Persona review: {persona} · Voice review: {voice}', {persona: config.persona_status || t('voice.card.review-unreviewed', 'unreviewed'), voice: config.voice_status || t('voice.card.review-unassigned', 'unassigned')})]))}</div>
-                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${escapeHtml(t('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')}))} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${t('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${uiMessageMarkup('voice.card.recover', 'Recover persona')}</button>` : ''}
+                                ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${uiMessageMarkup('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
+                                <div class="small text-muted">${voice.version_id && voice.state_stale ? `<span class="voice-state-needs-generation">${uiMessageMarkup('voice.card.state-needs-generation', 'State persona needs generation for the current script.')}</span> ` : ''}<span class="voice-review-labels" data-persona-status="${escapeHtml(config.persona_status || 'unreviewed')}" data-voice-status="${escapeHtml(config.voice_status || 'unassigned')}" title="${escapeHtml(getVoiceReviewSupportText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}">${escapeHtml(getVoiceReviewText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}</span></div>
+                                ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${uiMessageMarkup('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')})} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${uiMessageMarkup('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
                                 <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help">
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${t('voice.card.approve-persona', 'Approve persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">${t('voice.card.mark-persona', 'Mark persona reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">${t('voice.card.reject-persona', 'Reject persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">${t('voice.card.approve-voice', 'Approve voice')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">${t('voice.card.mark-voice', 'Mark voice reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">${t('voice.card.reject-voice', 'Reject voice')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${uiMessageMarkup('voice.card.approve-persona', 'Approve persona')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-persona', 'Mark persona reviewed')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">${uiMessageMarkup('voice.card.reject-persona', 'Reject persona')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">${uiMessageMarkup('voice.card.approve-voice', 'Approve voice')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-voice', 'Mark voice reviewed')}</button>
+                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">${uiMessageMarkup('voice.card.reject-voice', 'Reject voice')}</button>
                                 </div>
                                 <div class="input-group input-group-sm mt-2" ${voice.version_id ? 'hidden' : ''}>
                                     <select class="form-select voice-version-select" aria-label="${escapeHtml(t('voice.card.version-aria', 'Voice version for {name}', {name: label}))}" onchange="selectVoiceVersion(this)">
-                                        <option value="" disabled>${t('voice.card.version-empty', 'Choose a saved version')}</option>
+                                        <option value="" disabled data-i18n="voice.card.version-empty" data-i18n-source="Choose a saved version">${t('voice.card.version-empty', 'Choose a saved version')}</option>
                                         ${Object.entries(config.versions || {}).map(([id, version]) => `<option value="${escapeHtml(id)}" ${config.active_version === id ? 'selected' : ''}>${escapeHtml(id)}${version.age_group ? ` · ${escapeHtml(version.age_group)}` : ''}</option>`).join('')}
                                     </select>
-                                    <button class="btn btn-outline-secondary" type="button" aria-label="${escapeHtml(t('voice.card.add-version-aria', 'Add voice version for {name}', {name: label}))}" onclick="addVoiceVersion(this)">${t('voice.card.add-version', 'Version')}</button>
+                                    <button class="btn btn-outline-secondary" type="button" aria-label="${escapeHtml(t('voice.card.add-version-aria', 'Add voice version for {name}', {name: label}))}" onclick="addVoiceVersion(this)">${uiMessageMarkup('voice.card.add-version', 'Version')}</button>
                                 </div>
-                                <div class="form-text" ${voice.version_id ? 'hidden' : ''}>${t('voice.card.version-help', 'Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.')}</div>
-                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.voice-changes-aria', 'Load voice changes for {name}', {name: label}))}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>${escapeHtml(voice.traits.states.length === 2 ? t('voice.card.voice-changes.one', 'Voice changes ({count} change)', {count: 1}) : t('voice.card.voice-changes.many', 'Voice changes ({count} changes)', {count: voice.traits.states.length - 1}))}</button><div class="form-text">${t('voice.card.voice-changes-help', 'Review which voice is used before and after each change.')}</div><div class="voice-state-rows"></div></div>` : ''}
-                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.more-candidates-aria', 'Generate more voice candidates for {name}', {name: label}))}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>${t('voice.card.more-candidates', 'Generate more candidates')}</button>
+                                <div class="form-text" ${voice.version_id ? 'hidden' : ''}>${uiMessageMarkup('voice.card.version-help', 'Selecting a saved version replaces the current voice settings. Save the current settings as a version first if you want to return to them later.')}</div>
+                                ${((voice.traits && voice.traits.states) || []).length > 1 ? `<div class="voice-states mt-1"><button class="btn btn-sm btn-outline-primary" type="button" aria-label="${escapeHtml(t('voice.card.voice-changes-aria', 'Load voice changes for {name}', {name: label}))}" onclick="openVoiceStates(this)"><i class="fas fa-user-clock me-1"></i>${escapeHtml(voice.traits.states.length === 2 ? t('voice.card.voice-changes.one', 'Voice changes ({count} change)', {count: 1}) : t('voice.card.voice-changes.many', 'Voice changes ({count} changes)', {count: voice.traits.states.length - 1}))}</button><div class="form-text">${uiMessageMarkup('voice.card.voice-changes-help', 'Review which voice is used before and after each change.')}</div><div class="voice-state-rows"></div></div>` : ''}
+                                <button class="btn btn-sm btn-outline-secondary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.more-candidates-aria', 'Generate more voice candidates for {name}', {name: label}))}" onclick="suggestMoreVoices(this)"><i class="fas fa-wand-magic-sparkles me-1"></i>${uiMessageMarkup('voice.card.more-candidates', 'Generate more candidates')}</button>
                                 <div class="saved-voice-candidates">${getVoiceCandidateMarkup(config.candidates, config.active_candidate)}</div>
                                 <div class="form-check form-switch small">
                                     <input class="form-check-input voice-ready" aria-label="${escapeHtml(t('voice.card.ready-aria', 'Ready for audio generation for {name}', {name: label}))}" type="checkbox" id="voice-ready-${index}" ${ready ? 'checked' : ''} onchange="onVoiceReadyChange(this)">
-                                    <label class="form-check-label" for="voice-ready-${index}">${t('voice.card.ready', 'Ready')}</label>
+                                    <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
                                 </div>
-                                ${voice.version_id ? `<label class="form-label small mt-1">${t('voice.card.state-seed', 'State seed')}<input class="form-control form-control-sm voice-seed" type="number" min="-1" max="4294967295" aria-label="${escapeHtml(t('voice.card.seed-aria', 'Seed for {name}', {name: label}))}" value="${escapeHtml(String(config.seed ?? '-1'))}"></label>` : ''}
-                                <div class="form-text small text-muted mt-1">${t('voice.card.alias-label', 'Alias of:')}</div>
+                                ${voice.version_id ? `<label class="form-label small mt-1">${uiMessageMarkup('voice.card.state-seed', 'State seed')}<input class="form-control form-control-sm voice-seed" type="number" min="-1" max="4294967295" aria-label="${escapeHtml(t('voice.card.seed-aria', 'Seed for {name}', {name: label}))}" value="${escapeHtml(String(config.seed ?? '-1'))}"></label>` : ''}
+                                <div class="form-text small text-muted mt-1">${uiMessageMarkup('voice.card.alias-label', 'Alias of:')}</div>
                                 <select class="form-select form-select-sm alias-select mt-1" data-voice-roster="alias" data-roster-book="${escapeHtml(roster.book)}" ${voice.version_id ? 'disabled' : ''} aria-label="${escapeHtml(t('voice.card.alias-target-aria', 'Alias target for {name}', {name: label}))}">
-                                    <option value="">${t('voice.card.alias-none', '-- None --')}</option>
+                                    <option value="" data-i18n="voice.card.alias-none" data-i18n-source="-- None --">${t('voice.card.alias-none', '-- None --')}</option>
                                     ${renderInitialAliasOptions(voice)}
                                 </select>
                             </div>
@@ -5140,27 +5219,27 @@
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="custom" id="voice-type-${index}-custom" aria-label="${escapeHtml(t('voice.card.type.custom-aria', 'Custom voice for {name}', {name: label}))}" ${voiceType === 'custom' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-custom">${t('voice.card.type.custom', 'Custom voice')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-custom">${uiMessageMarkup('voice.card.type.custom', 'Custom voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="builtin_lora" id="voice-type-${index}-builtin_lora" aria-label="${escapeHtml(t('voice.card.type.builtin-lora-aria', 'Built-in LoRA voice for {name}', {name: label}))}" ${voiceType === 'builtin_lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-builtin_lora">${t('voice.card.type.builtin-lora', 'Built-in LoRA voice')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-builtin_lora">${uiMessageMarkup('voice.card.type.builtin-lora', 'Built-in LoRA voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="clone" id="voice-type-${index}-clone" aria-label="${escapeHtml(t('voice.card.type.clone-aria', 'Clone voice for {name}', {name: label}))}" ${voiceType === 'clone' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-clone">${t('voice.card.type.clone', 'Clone voice')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-clone">${uiMessageMarkup('voice.card.type.clone', 'Clone voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="lora" id="voice-type-${index}-lora" aria-label="${escapeHtml(t('voice.card.type.lora-aria', 'LoRA voice for {name}', {name: label}))}" ${voiceType === 'lora' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-lora">${t('voice.card.type.lora', 'LoRA voice')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-lora">${uiMessageMarkup('voice.card.type.lora', 'LoRA voice')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="design" id="voice-type-${index}-design" aria-label="${escapeHtml(t('voice.card.type.design-aria', 'Voice Design for {name}', {name: label}))}" ${voiceType === 'design' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-design">${t('voice.card.type.design', 'Voice Design')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-design">${uiMessageMarkup('voice.card.type.design', 'Voice Design')}</label>
                                     </div>
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input voice-type" type="radio" name="type_${index}" value="ensemble" id="voice-type-${index}-ensemble" aria-label="${escapeHtml(t('voice.card.type.ensemble-aria', 'Character ensemble for {name}', {name: label}))}" ${voiceType === 'ensemble' ? 'checked' : ''} onchange="toggleVoiceType(this)">
-                                        <label class="form-check-label" for="voice-type-${index}-ensemble">${t('voice.card.type.ensemble', 'Character ensemble')}</label>
+                                        <label class="form-check-label" for="voice-type-${index}-ensemble">${uiMessageMarkup('voice.card.type.ensemble', 'Character ensemble')}</label>
                                     </div>
                                 </div>
 
@@ -5208,7 +5287,7 @@
                                             <input type="text" class="form-control builtin-lora-style" aria-label="${escapeHtml(t('voice.card.builtin-style-aria', 'Built-in LoRA voice style for {name}', {name: label}))}" placeholder="Character style (e.g. refined aristocratic tone, heavy Scottish accent)" value="${escapeHtml(voiceType === 'builtin_lora' ? (config.character_style || '') : '')}">
                                         </div>
                                     </div>
-                                    <small class="text-muted mt-1 d-block">${t('voice.card.builtin-download-hint', 'Grayed-out voices need to be downloaded first. Download them from the Training tab.')}</small>
+                                    <small class="text-muted mt-1 d-block">${uiMessageMarkup('voice.card.builtin-download-hint', 'Grayed-out voices need to be downloaded first. Download them from the Training tab.')}</small>
                                 </div>
 
                                 <!-- Clone Options -->
@@ -5227,12 +5306,12 @@
                                             </select>
                                         </div>
                                         <div class="col-auto">
-                                            <button class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml(t('voice.card.clone-upload-aria', 'Upload reference audio for {name}', {name: label}))}" onclick="uploadCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-upload-title', 'Upload audio file'))}"><i class="fas fa-upload"></i> ${t('voice.card.clone-upload', 'Upload')}</button>
+                                            <button class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml(t('voice.card.clone-upload-aria', 'Upload reference audio for {name}', {name: label}))}" onclick="uploadCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-upload-title', 'Upload audio file'))}"><i class="fas fa-upload"></i> ${uiMessageMarkup('voice.card.clone-upload', 'Upload')}</button>
                                             <input type="file" class="clone-voice-file-input" aria-label="${escapeHtml(t('voice.card.clone-upload-aria', 'Upload reference audio for {name}', {name: label}))}" accept=".wav,.mp3,.flac,.ogg" style="display:none" onchange="handleCloneVoiceUpload(this)">
                                         </div>
                                     </div>
                                     <input type="text" class="form-control ref-text mb-2" aria-label="${escapeHtml(t('voice.card.clone-transcript-aria', 'Reference transcript for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-transcript-placeholder', 'Reference Text'))}" value="${escapeHtml(config.ref_text || '')}">
-                                    <label class="form-label small d-block w-100">${t('voice.card.clone-persona-label', 'Persona description')}<textarea class="form-control persona-description" aria-label="${escapeHtml(t('voice.card.clone-persona-aria', 'Persona description for {name}', {name: label}))}">${escapeHtml(config.description || '')}</textarea></label>
+                                    <label class="form-label small d-block w-100">${uiMessageMarkup('voice.card.clone-persona-label', 'Persona description')}<textarea class="form-control persona-description" aria-label="${escapeHtml(t('voice.card.clone-persona-aria', 'Persona description for {name}', {name: label}))}">${escapeHtml(config.description || '')}</textarea></label>
                                     <div class="input-group">
                                         <input type="text" class="form-control ref-audio" aria-label="${escapeHtml(t('voice.card.clone-path-aria', 'Reference audio path for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.clone-path-placeholder', 'Path to audio file'))}" value="${escapeHtml(config.ref_audio || '')}" ${reference ? 'readonly' : ''}>
                                         <button class="btn btn-sm btn-outline-secondary clone-play-btn" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(t('voice.card.clone-play-aria', 'Play reference audio for {name}', {name: label}))}" onclick="playCloneVoice(this)" title="${escapeHtml(t('voice.card.clone-play-title', 'Play or stop reference audio'))}" style="display:${config.ref_audio ? 'inline-block' : 'none'}"><i class="fas fa-play"></i></button>
@@ -5257,18 +5336,18 @@
                                 </div>
 
                                 <div class="mb-2">
-                                    <label class="form-label small" for="voice-presentation-${index}">${t('voice.card.presentation-label', 'Voice presentation (optional, user confirmed)')}</label>
+                                    <label class="form-label small" for="voice-presentation-${index}">${uiMessageMarkup('voice.card.presentation-label', 'Voice presentation (optional, user confirmed)')}</label>
                                     <input type="text" class="form-control form-control-sm voice-presentation" id="voice-presentation-${index}" maxlength="500" aria-label="${escapeHtml(t('voice.card.presentation-aria', 'Voice presentation for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.presentation-placeholder', 'e.g. lower, resonant female voice; soft, light male voice'))}" value="${escapeHtml(config.voice_presentation || '')}">
-                                    <div class="form-text">${t('voice.card.presentation-help', 'Describe how this character should sound, separately from gender or appearance. Used by model-based voice suggestions; saving this hint does not change the assigned voice or rendered audio.')}</div>
+                                    <div class="form-text">${uiMessageMarkup('voice.card.presentation-help', 'Describe how this character should sound, separately from gender or appearance. Used by model-based voice suggestions; saving this hint does not change the assigned voice or rendered audio.')}</div>
                                 </div>
 
                                 <!-- Voice Design Options -->
                                 <div class="design-opts" style="display: ${voiceType === 'design' ? 'block' : 'none'}">
                                     <input type="text" class="form-control design-description mb-1" aria-label="${escapeHtml(t('voice.card.design-description-aria', 'Base voice description for {name}', {name: label}))}" placeholder="${escapeHtml(t('voice.card.design-description-placeholder', 'Base voice description (e.g. Young strong soldier)'))}" value="${escapeHtml(config.description || '')}">
-                                    <span class="text-muted small">${t('voice.card.design-instruct-note', 'Per-line instruct is appended to this description as delivery/emotion direction')}</span>
+                                    <span class="text-muted small">${uiMessageMarkup('voice.card.design-instruct-note', 'Per-line instruct is appended to this description as delivery/emotion direction')}</span>
                                     <div class="mt-2">
                                         <button type="button" class="btn btn-sm btn-outline-primary" aria-label="${escapeHtml(t('voice.card.redesign-aria', 'Re-design voice for {name}', {name: label}))}" onclick="openVoiceDesignEditor(this)">
-                                            <i class="fas fa-wand-magic-sparkles me-1"></i>${t('voice.card.redesign', 'Re-design Voice')}
+                                            <i class="fas fa-wand-magic-sparkles me-1"></i>${uiMessageMarkup('voice.card.redesign', 'Re-design Voice')}
                                         </button>
                                     </div>
                                 </div>
@@ -5276,7 +5355,7 @@
                                 <!-- Ensemble Options -->
                                 <div class="ensemble-opts" style="display: ${voiceType === 'ensemble' ? 'block' : 'none'}">
                                     <div class="ensemble-members small">${ensembleMembersMarkup(voice.name, config.members)}</div>
-                                    <span class="text-muted small">${t('voice.card.ensemble-help', 'Each character is voiced with whatever voice it already has, then mixed together. Clips are aligned to the longest, so this sounds like a chorus rather than exact unison.')}</span>
+                                    <span class="text-muted small">${uiMessageMarkup('voice.card.ensemble-help', 'Each character is voiced with whatever voice it already has, then mixed together. Clips are aligned to the longest, so this sounds like a chorus rather than exact unison.')}</span>
                                 </div>
                             </div>
                         </div>
@@ -5469,10 +5548,10 @@
         function getVoiceSeedRepairMarkup(snapshot) {
             const changes = snapshot?.seed_changes || [];
             if (!changes.length) { return ''; }
-            const rows = changes.map(change => `<li>${escapeHtml(change.name)}: proposed seed ${escapeHtml(change.seed)}</li>`).join('');
+            const rows = changes.map(change => `<li class="voice-seed-proposal" data-name="${escapeHtml(change.name)}" data-seed="${escapeHtml(change.seed)}">${uiMessageMarkup('voice.seed.proposal', '{name}: proposed seed {seed}', {name: change.name, seed: change.seed})}</li>`).join('');
             return `<div class="alert alert-warning"><strong>${t('safety.voice.seed_title', '{count} unseeded voice settings', {count: changes.length})}</strong>
                 <ul>${rows}</ul><p>${t('safety.voice.seed_body', 'An original-file backup will be saved. Existing rendered audio is kept. Regenerated audio may sound different. Individual and fast-batch rendering use saved character seeds; a nonnegative batch seed overrides them.')}</p>
-                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyStableVoiceSeeds()" ${_voiceSeedRepairPending ? 'disabled' : ''}>${t('voice.seed_apply', 'Apply stable seeds to unseeded entries only')}</button></div>`;
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyStableVoiceSeeds()" ${_voiceSeedRepairPending ? 'disabled' : ''}>${uiMessageMarkup('voice.seed_apply', 'Apply stable seeds to unseeded entries only')}</button></div>`;
         }
 
         window.applyStableVoiceSeeds = async function applyStableVoiceSeeds() {
@@ -6608,7 +6687,7 @@
             }
             sel.innerHTML = castNames.length
                 ? castNames.map(n => `<option value="${escapeHtml(n)}" ${n === window._selectedCast ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')
-                : `<option value="">${escapeHtml(t('voice.cast.none-option', '(no casts yet)'))}</option>`;
+                : `<option value="" data-i18n="voice.cast.none-option" data-i18n-source="(no casts yet)">${escapeHtml(t('voice.cast.none-option', '(no casts yet)'))}</option>`;
 
             const hasCast = !!window._selectedCast;
             document.getElementById('btn-cast-save').disabled = !hasCast;
@@ -6634,7 +6713,7 @@
             const cast = getSelectedCastObj();
             const shared = window._voiceLibrary.shared || [];
             if (!window._selectedCast) {
-                panel.innerHTML = '<div class="alert alert-light border small mb-0">' + escapeHtml(t('voice.cast.empty', 'No casts yet. Click New to create one for this series, then save your configured character voices to it.')) + '</div>';
+                panel.innerHTML = '<div class="alert alert-light border small mb-0">' + uiMessageMarkup('voice.cast.empty', 'No casts yet. Click New to create one for this series, then save your configured character voices to it.') + '</div>';
                 return;
             }
             const memberRow = (m, castName) => `
@@ -7705,7 +7784,13 @@
             editorIntegrityView++;
             const badge = document.getElementById('editor-integrity-badge');
             if (badge) {
-                badge.textContent = message;
+                if (message === 'Save edits before checking source') {
+                    setUiMessage(badge, 'editor.integrity.save-first', 'Save edits before checking source');
+                } else if (message === 'Edits awaiting save') {
+                    setUiMessage(badge, 'editor.integrity.unsaved', 'Edits awaiting save');
+                } else {
+                    setUiMessage(badge, 'editor.integrity.pending', 'Source check pending');
+                }
                 badge.className = 'badge bg-secondary';
             }
         }
@@ -7723,18 +7808,22 @@
                 const report = await API.get('/api/editor/integrity');
                 if (view !== editorIntegrityView || edits !== chunkEditsRevision) { return; }
                 if (report.status === 'verified') {
-                    badge.textContent = 'Saved text matches source';
+                    setUiMessage(badge, 'editor.integrity.verified', 'Saved text matches source');
                     badge.className = 'badge bg-success';
                 } else if (report.status === 'differences' && Array.isArray(report.hunks)) {
-                    badge.textContent = `${report.hunks.length} word differences`;
+                    if (pluralForm(report.hunks.length) === 'one') {
+                        setUiMessage(badge, 'editor.integrity.differences-one', '{count} word difference', {count: report.hunks.length});
+                    } else {
+                        setUiMessage(badge, 'editor.integrity.differences', '{count} word differences', {count: report.hunks.length});
+                    }
                     badge.className = 'badge bg-warning text-dark';
                 } else {
-                    badge.textContent = 'Source comparison unavailable';
+                    setUiMessage(badge, 'editor.integrity.unavailable', 'Source comparison unavailable');
                     badge.className = 'badge bg-secondary';
                 }
             } catch (e) {
                 if (view === editorIntegrityView) {
-                    badge.textContent = 'Source comparison unavailable';
+                    setUiMessage(badge, 'editor.integrity.unavailable', 'Source comparison unavailable');
                     badge.className = 'badge bg-secondary';
                 }
             }
@@ -7745,27 +7834,38 @@
             if (!label) { return; }
             try {
                 const estimate = await API.get('/api/audio/estimate');
-                label.textContent = formatRuntimeEstimate(estimate);
+                renderRuntimeEstimate(label, estimate);
             } catch (e) {
+                label.removeAttribute('data-i18n');
                 label.textContent = '';
             }
         }
 
         function formatRuntimeEstimate(estimate) {
-            const total = formatRuntimeDuration(estimate.total_seconds);
+            const node = document.createElement('span');
+            renderRuntimeEstimate(node, estimate);
+            return node.textContent;
+        }
+
+        function renderRuntimeEstimate(node, estimate) {
             if (estimate.basis === 'fallback') {
-                return `≈ ${total} (rough: fewer than 3 chunks rendered)`;
+                setUiMessage(node, 'editor.estimate.rough', '≈ {total} (rough: fewer than 3 chunks rendered)', () => ({total: formatRuntimeDuration(estimate.total_seconds)}));
+                return;
             }
-            const range = `${formatRuntimeDuration(estimate.low_seconds)} – ${formatRuntimeDuration(estimate.high_seconds)}`;
             const sizeMb = Math.round(estimate.mp3_bytes / (1024 * 1024));
-            return `≈ ${total} (${range}) · ≈ ${sizeMb} MB MP3 · from ${estimate.samples} rendered chunks`;
+            const values = () => ({total: formatRuntimeDuration(estimate.total_seconds), range: `${formatRuntimeDuration(estimate.low_seconds)} – ${formatRuntimeDuration(estimate.high_seconds)}`, size: sizeMb, count: estimate.samples});
+            if (pluralForm(estimate.samples) === 'one') {
+                setUiMessage(node, 'editor.estimate.sample-one', '≈ {total} ({range}) · ≈ {size} MB MP3 · from {count} rendered chunk', values);
+            } else {
+                setUiMessage(node, 'editor.estimate.samples', '≈ {total} ({range}) · ≈ {size} MB MP3 · from {count} rendered chunks', values);
+            }
         }
 
         function formatRuntimeDuration(seconds) {
             const totalMinutes = Math.max(0, Math.round((Number(seconds) || 0) / 60));
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
-            return `${hours} h ${minutes} m`;
+            return t('editor.estimate.duration', '{hours} h {minutes} m', {hours, minutes});
         }
 
         async function ensureMergeIntegrityApproval(actionLabel) {
@@ -8333,13 +8433,13 @@
 
                     const audioPlayer = chunk.audio_path ?
                         `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${encodeURI(`/${chunk.audio_path}`)}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>` :
-                        `<span class="text-muted small">${escapeHtml(t('core.editor.no-audio', 'No audio'))}</span>`;
+                        `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`;
 
                     const actionArea = chunk.status === 'generating' ?
                         `<div class="progress" style="width: 100px; height: 20px;">
                             <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
                          </div>` :
-                        `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${escapeHtml(chunk.status === 'error' ? t('core.editor.retry-line', 'Retry') : t('core.editor.generate-short', 'Gen'))}</button>`;
+                        `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
 
                     return `
                         <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
@@ -8357,7 +8457,7 @@
                                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="suggestChunkGap(${chunk.id}, this)" title="${escapeHtml(t('core.editor.suggest-gap-title', 'Opt-in gap suggestion; uses the exact NARRATOR speaker label. Explicit pauses are not replaced.'))}">${escapeHtml(t('core.editor.suggest-gap', 'Suggest gap'))}</button>
                                 </div>
                             </td>
-                            <td data-phone-label="${escapeHtml(t('editor.table.status', 'Status'))}"><span class="badge bg-${statusColor}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
+                            <td data-phone-label="${escapeHtml(t('editor.table.status', 'Status'))}"><span class="badge bg-${statusColor} chunk-status-label" data-status="${escapeHtml(chunk.status)}">${escapeHtml(chunkStatusLabel(chunk.status))}</span>${_driftBadge(chunk)}</td>
                             <td data-phone-label="${escapeHtml(t('editor.table.audio-actions', 'Audio / Actions'))}">
                                 <div class="chunk-actions d-flex align-items-center gap-2">
                                     ${actionArea}
@@ -8539,8 +8639,8 @@
                         </div>
                     </div>`;
                 const el = wrapper.firstElementChild;
-                el.querySelector('.deleted-line-summary').textContent =
-                    `Line deleted (${data.deleted.speaker}: "${(data.deleted.text || '').substring(0, 40)}...")`;
+                setUiMessage(el.querySelector('.deleted-line-summary'), 'editor.delete.summary', 'Line deleted ({speaker}: "{text}...")', {speaker: data.deleted.speaker, text: (data.deleted.text || '').substring(0, 40)});
+                setUiMessage(el.querySelector('a'), 'editor.delete.undo', 'Undo');
                 el.querySelector('a').addEventListener('click', (event) => {
                     event.preventDefault();
                     undoDeleteChunk(toastId);
@@ -9938,7 +10038,7 @@
                 }
                 player.style.display = response.ok ? 'block' : 'none';
                 empty.style.display = response.ok ? 'none' : '';
-                empty.textContent = 'No final audiobook is loaded here yet. In Editor, choose Merge All to build the MP3.';
+                setUiMessage(empty, 'audio.final.empty-guidance', 'No final audiobook is loaded here yet. In Editor, choose Merge All to build the MP3.');
                 const audio = document.getElementById('main-audio');
                 const download = document.getElementById('download-link');
                 if (response.ok) {
@@ -9953,7 +10053,7 @@
                 if (request !== finalAudioRequest) { return; }
                 console.error('Failed to check final audiobook:', error);
                 empty.style.display = '';
-                empty.textContent = 'Could not check the final audiobook. Check the connection and reopen Result to retry.';
+                setUiMessage(empty, 'audio.final.check-failed', 'Could not check the final audiobook. Check the connection and reopen Result to retry.');
             }
         }
 

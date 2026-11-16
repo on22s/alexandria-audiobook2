@@ -31,7 +31,7 @@ function resetTranslatedEditionBook() {
     translatedEditionBusy = false;
     translatedEditionElement('review').replaceChildren();
     translatedEditionElement('pair').replaceChildren();
-    translatedEditionElement('feedback').textContent = t('translation.panel-cleared', 'Panel cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book.');
+    setUiMessage(translatedEditionElement('feedback'), 'translation.panel-cleared', 'Panel cleared. Re-opening the panel shows the most recent saved preview for the current book, if one is still on disk; a preview from another book is never shown for this book.');
     updateTranslatedEditionControls();
 }
 
@@ -68,7 +68,7 @@ async function onTranslatedEditionPanelToggle() {
     // message, so it comes after the proposal load instead of being lost.
     const feedback = translatedEditionElement('feedback').textContent;
     if (pairNote && epoch === translatedEditionEpoch && feedback) {
-        translatedEditionElement('feedback').textContent = joinUiSentences([feedback, pairNote]);
+        renderUiMessage(translatedEditionElement('feedback'), joinUiSentences([feedback, pairNote]));
     }
 }
 
@@ -85,7 +85,7 @@ function refreshTranslatedEditionPairs() {
         const busyId = ++translatedEditionBusyId;
         translatedEditionBusy = true;
         updateTranslatedEditionControls();
-        translatedEditionElement('feedback').textContent = t('translation.checking-pairs', 'Checking installed language pairs...');
+        renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.checking-pairs', 'Checking installed language pairs...'));
         try {
             const pairs = await API.get('/api/translated_edition/pairs');
             if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
@@ -95,13 +95,13 @@ function refreshTranslatedEditionPairs() {
             select.replaceChildren();
             if (!pairs.available) {
                 const note = t('translation.package-unavailable', 'Translation package is unavailable on this machine. Install it separately to build a preview; nothing was downloaded.');
-                translatedEditionElement('feedback').textContent = note;
+                renderUiMessage(translatedEditionElement('feedback'), note);
                 updateTranslatedEditionControls();
                 return note;
             }
             if (!pairs.pairs.length) {
                 const note = t('translation.no-pairs', 'No language pair is installed. Install one separately; nothing was downloaded.');
-                translatedEditionElement('feedback').textContent = note;
+                renderUiMessage(translatedEditionElement('feedback'), note);
                 updateTranslatedEditionControls();
                 return note;
             }
@@ -116,11 +116,11 @@ function refreshTranslatedEditionPairs() {
                 select.appendChild(option);
             }
             select.value = '';
-            translatedEditionElement('feedback').textContent = t('translation.pairs-listed', '{count} installed pairs listed. Choosing one does not change any language setting.', {count: pairs.pairs.length});
+            renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.pairs-listed', '{count} installed pairs listed. Choosing one does not change any language setting.', {count: pairs.pairs.length}));
             return null;
         } catch (error) {
             if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
-                translatedEditionElement('feedback').textContent = error.message;
+                renderUiMessage(translatedEditionElement('feedback'), error.message);
                 return error.message;
             }
             return null;
@@ -150,18 +150,18 @@ async function loadTranslatedEditionLatestProposal() {
         if (proposal) {
             translatedEditionProposal = proposal;
             renderTranslatedEditionProposal(proposal);
-            translatedEditionElement('feedback').textContent = joinUiSentences([(proposal.stale
+            renderUiMessage(translatedEditionElement('feedback'), joinUiSentences([(proposal.stale
                 ? t('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
                 : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.')),
-                malformed.length ? t('translation.malformed', '{count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}) : '']);
+                malformed.length ? t('translation.malformed', '{count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}) : '']));
         } else if (malformed.length) {
-            translatedEditionElement('feedback').textContent = t('translation.no-readable-proposal', 'No readable saved preview for this book. {count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length});
+            renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.no-readable-proposal', 'No readable saved preview for this book. {count} saved proposal file(s) could not be read and were skipped.', {count: malformed.length}));
         } else {
-            translatedEditionElement('feedback').textContent = t('translation.no-proposal', 'No saved translation preview for this book yet.');
+            renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.no-proposal', 'No saved translation preview for this book yet.'));
         }
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
-            translatedEditionElement('feedback').textContent = error.message;
+            renderUiMessage(translatedEditionElement('feedback'), error.message);
         }
     }
 }
@@ -181,13 +181,13 @@ async function refreshTranslatedEditionProposal() {
         }
         translatedEditionProposal = proposal;
         renderTranslatedEditionProposal(proposal);
-        translatedEditionElement('feedback').textContent = proposal.stale
-            ? t('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
-            : t('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.');
+        renderUiMessage(translatedEditionElement('feedback'), proposal.stale
+            ? uiMessage('translation.preview.stale', 'This preview is stale: rebuild it from the current saved Script.')
+            : uiMessage('translation.preview.matches', 'This preview still matches the saved Script. It remains a proposal, not an approved translation.'));
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest
             && translatedEditionProposal && translatedEditionProposal.proposal_id === known.proposal_id) {
-            translatedEditionElement('feedback').textContent = error.message;
+            renderUiMessage(translatedEditionElement('feedback'), error.message);
         }
     }
 }
@@ -280,7 +280,7 @@ async function createTranslatedEditionProposal() {
     translatedEditionCancelToken = cancelToken;
     translatedEditionBusy = true;
     updateTranslatedEditionControls();
-    translatedEditionElement('feedback').textContent = t('translation.building', 'Building translation preview...');
+    renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.building', 'Building translation preview...'));
     try {
         const proposal = await API.post('/api/translated_edition/proposals',
             {source_language: sourceLanguage, target_language: targetLanguage,
@@ -289,14 +289,14 @@ async function createTranslatedEditionProposal() {
             return;
         }
         translatedEditionProposal = proposal;
-        translatedEditionElement('feedback').textContent = t('translation.built', 'Proposal {id} built (status {status}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.', {
+        renderUiMessage(translatedEditionElement('feedback'), uiMessage('translation.built', 'Proposal {id} built (status {status}). It is saved with the active book as a proposal, not an approved translation, and changes nothing else.', {
             id: proposal.proposal_id.slice(0, 12),
             status: String(proposal.status).replace(/_/g, ' '),
-        });
+        }));
         renderTranslatedEditionProposal(proposal);
     } catch (error) {
         if (epoch === translatedEditionEpoch && selection === window._existingUploadSelectionRequest) {
-            translatedEditionElement('feedback').textContent = error.message;
+            renderUiMessage(translatedEditionElement('feedback'), error.message);
         }
     } finally {
         if (busyId === translatedEditionBusyId) {
@@ -322,12 +322,12 @@ async function cancelTranslatedEditionProposal() {
         if (epoch !== translatedEditionEpoch || selection !== window._existingUploadSelectionRequest) {
             return;
         }
-        translatedEditionElement('feedback').textContent = result.cancelled
+        renderUiMessage(translatedEditionElement('feedback'), result.cancelled
             ? formatUiSafetyText('safety.translation.cancel-requested', 'Cancel requested. If the preview was still building, it stops after the current row and is saved as cancelled; if it had already finished before the request arrived, its finished status stands.')
-            : t('translation.cancel.nothing-running', 'No preview was running when the cancel request arrived.');
+            : uiMessage('translation.cancel.nothing-running', 'No preview was running when the cancel request arrived.'));
     } catch (error) {
         if (epoch === translatedEditionEpoch) {
-            translatedEditionElement('feedback').textContent = error.message;
+            renderUiMessage(translatedEditionElement('feedback'), error.message);
         }
         updateTranslatedEditionControls();
     }

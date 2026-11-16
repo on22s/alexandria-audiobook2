@@ -36,10 +36,14 @@ def render_theme_cases():
     theme_list = re.search(r"const THEMES = \[[\s\S]*?\];", core)
     if not theme_list:
         raise RuntimeError("Could not extract app themes")
-    themes = theme_list.group(0) + "\n" + extract_function(core, "applyTheme")
+    themes = theme_list.group(0) + "\n" + "\n".join(
+        extract_function(core, name)
+        for name in ("applyTheme", "getThemeLabel", "renderThemeControl")
+    )
     render = extract_function(core, "renderTextDiff")
     checks = FIXTURE.read_text(encoding="utf-8")
-    script = "let textDiffRequest = 0;\n" + escape + themes + render + checks
+    i18n = (STATIC / "js/app-i18n.js").read_text(encoding="utf-8")
+    script = "let textDiffRequest = 0;\n" + i18n + escape + themes + render + checks
     source = source.replace("</body>", "<script>" + script + "</script></body>")
     with tempfile.TemporaryDirectory(prefix="aa2-table-themes-") as directory:
         fixture = Path(directory) / "fixture.html"

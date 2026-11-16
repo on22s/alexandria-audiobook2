@@ -133,6 +133,85 @@ class LocaleTestCase(unittest.TestCase):
                                                             '// The one label map for the task-status vocabulary')) + ',context);\n')
 
 
+class BatchDLocaleStabilityTests(LocaleTestCase):
+    def test_runtime_estimates_and_integrity_badges_repaint_without_reload(self):
+        functions = self.slice_source('app-core.js', 'function invalidateEditorIntegrity(', 'async function ensureMergeIntegrityApproval(')
+        self.run_node(self.catalogs_js() + '\nvm.runInContext(' + js('let editorIntegrityView=0;\n' + functions) + ',context);\n' + r'''
+const badge=addNode({id:'editor-integrity-badge'},'');const estimate=addNode({},'');
+for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
+ await context.applyUiLocale(locale);
+ context.invalidateEditorIntegrity('Edits awaiting save');
+ assert.equal(badge.textContent,context.t('editor.integrity.unsaved','Edits awaiting save'));
+ context.renderRuntimeEstimate(estimate,{basis:'fallback',total_seconds:5400});
+ assert(estimate.textContent.includes(context.formatRuntimeDuration(5400)));
+ context.renderRuntimeEstimate(estimate,{basis:'sampled',total_seconds:5400,low_seconds:4800,high_seconds:6000,mp3_bytes:1048576,samples:2});
+ assert(estimate.textContent.includes(context.formatRuntimeDuration(5400)));assert(!estimate.textContent.includes('{'));
+}
+context.applyUiLocale('en');context.renderRuntimeEstimate(estimate,{basis:'fallback',total_seconds:5400});
+await context.applyUiLocale('ja');assert(estimate.textContent.includes(context.formatRuntimeDuration(5400)));
+assert(!estimate.textContent.includes('rough'));assert(!badge.textContent.includes('Edits awaiting save'));
+''')
+
+    def test_theme_cycles_and_live_locale_switch_repaint_all_six_actions(self):
+        theme = self.slice_source('app-core.js', 'const THEMES = [', '// Sync button label/icon')
+        settings = self.slice_source('app-settings.js', 'let setupSearchStatus', '// Setup discovery')
+        self.run_node(self.catalogs_js() + '\n' + r'''
+for(const id of ['theme-label','theme-icon','theme-toggle','setup-settings-search-status']){addNode({id},'');}
+context.localStorage={setItem(){}};
+context.applySystemStatusText=()=>{};
+''' + 'vm.runInContext(' + js(theme + settings) + ',context);\n' + r'''
+for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
+ await context.applyUiLocaleAndSearchStatus(locale);
+ for(const key of ['light','night','super-night','cyberpunk','bread','leek']){
+  context.applyTheme(key);
+  const label=document.getElementById('theme-label').textContent;
+  assert.equal(label,context.t('shell.theme.current-label','Theme: {theme}',{theme:context.getThemeLabel(key)}));
+  const button=document.getElementById('theme-toggle');
+  assert.equal(button.title,button.getAttribute('aria-label'));
+  assert(button.title.includes(context.getThemeLabel(key)));
+  context.cycleTheme();
+  assert.notEqual(document.getElementById('theme-label').textContent,label);
+ }
+}
+context.applyTheme('night');
+await context.applyUiLocaleAndSearchStatus('ja');
+assert.equal(document.getElementById('theme-label').textContent,context.t('shell.theme.current-label','Theme: {theme}',{theme:context.getThemeLabel('night')}));
+''')
+
+    def test_saved_review_enums_and_unknown_support_value_survive_live_switch(self):
+        self.run_node(self.catalogs_js() + '\n' + self.load_core() + VOICE_STUBS + r'''
+for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
+ await context.applyUiLocale(locale);
+ for(const status of ['unreviewed','unassigned','assigned','generated','reviewed','approved','rejected']){
+  const label=context.getVoiceReviewStatusLabel(status);
+  if(locale!=='en'){assert.notEqual(label,status,locale+' '+status);}
+ }
+ const markup=context.createVoiceCard({name:'SYNTHETIC',config:{persona_status:'future-state',voice_status:'approved'}},0);
+ assert(markup.includes(context.t('voice.review.unknown','Unknown status')));
+ assert(markup.includes('future-state'));
+ const review=addNode({'class':'voice-review-labels','data-persona-status':'unreviewed','data-voice-status':'unassigned'},'unreviewed');
+ context.renderVoiceLocaleChrome();
+ assert(review.textContent.includes(context.getVoiceReviewStatusLabel('unreviewed')));
+}
+''')
+
+    def test_real_voice_cards_pluralize_one_two_and_state_counts_in_each_locale(self):
+        self.run_node(self.catalogs_js() + '\n' + self.load_core() + VOICE_STUBS + r'''
+for(const locale of ['en','zh-CN','ja','es-419','qps-ploc']){
+ await context.applyUiLocale(locale);
+ for(const count of [0,1,2,1000000]){
+  context._lineCounts={SYNTHETIC:count};
+  const markup=context.createVoiceCard({name:'SYNTHETIC',config:{}},0);
+  const labels=context.getVoiceLineCountText(count,false);
+  assert(markup.includes(labels.text));assert(markup.includes(labels.title));
+  const state=context.createVoiceCard({name:'SYNTHETIC',version_id:'v1',state_line_count:count,config:{}},0);
+  assert(state.includes(context.getVoiceLineCountText(count,true).text));
+  if(locale==='en' && count===1){assert(markup.includes('1 line<'));assert(!markup.includes('1 lines'));}
+ }
+}
+''')
+
+
 class VoiceCardRenderTests(LocaleTestCase):
     def test_the_real_voice_card_paints_each_locale_and_restores_english(self):
         keys = ('voice.card.type.custom', 'voice.card.type.builtin-lora', 'voice.card.ready',

@@ -11,6 +11,9 @@ class Element {
  get textContent(){return this._text+this.children.map(c=>c.textContent).join('');}set textContent(v){this.replaceChildren();this._text=String(v);}
  get className(){return this.attrs.class||'';}set className(v){this.attrs.class=v;}
  setAttribute(k,v){this.attrs[k]=String(v);if(['hidden','disabled','checked'].includes(k))this[k]=true;if(k.startsWith('data-'))this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=String(v);}
+ getAttribute(name){return Object.prototype.hasOwnProperty.call(this.attrs,name)?this.attrs[name]:null;}
+ hasAttribute(name){return Object.prototype.hasOwnProperty.call(this.attrs,name);}
+ removeAttribute(name){delete this.attrs[name];}
  append(...nodes){for(const child of nodes){child.parentElement=this;this.children.push(child);}}
  replaceChildren(...nodes){for(const c of this.children)c.parentElement=null;this.children=[];this._text='';this._value=this.tagName==='select'?undefined:this._value;this.append(...nodes);}
  addEventListener(name,callback){(this.events[name]||=[]).push(callback);}
@@ -58,7 +61,7 @@ const setup="\nwindow.calls=[];window.confirmed=true;window.confirmations=[];win
 let assertions=0;const passed=[],errors=[];
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(r=>setImmediate(r));};
 function fresh(extra=''){
- const w=makeWindow(panel);w.eval(book+setup+extra+script);w.applyCurrentBookFilename('book-a.json');
+ const w=makeWindow(panel);w.eval(fs.readFileSync(require('path').join(root,'app/static/js/app-i18n.js'),'utf8'));w.eval(book+setup+extra+script);w.applyCurrentBookFilename('book-a.json');
  w.document.querySelector('summary').click();return w;
 }
 const $=(w,id)=>w.document.querySelector(id);

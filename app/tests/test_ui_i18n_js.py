@@ -28,6 +28,38 @@ function setUiCatalog(locale,payload){vm.runInContext('uiCatalogs.set('+JSON.str
 
 
 class UiI18nJsTests(unittest.TestCase):
+    def test_runtime_attributes_and_authored_markup_keep_drafts_on_live_switch(self):
+        self.run_js(r'''
+setUiCatalog('ja',catalog({'fixture.label':'Japanese {speaker}'}));
+await context.applyUiLocale('ja');
+const label=addNode({'data-i18n':'fixture.label','data-i18n-source':'Review {speaker}','data-i18n-values':'{"speaker":"SYNTHETIC"}'},'Japanese SYNTHETIC');
+const field=addNode({},'');field.value='Unsaved synthetic draft';field.focus();
+context.renderUiMessage(field,context.uiMessage('fixture.label','Review {speaker}',{speaker:'SYNTHETIC'}),'aria-label');
+assert.equal(field.getAttribute('aria-label'),'Japanese SYNTHETIC');
+await context.applyUiLocale('qps-ploc');assert(label.textContent.startsWith('['));
+await context.applyUiLocale('en');
+assert.equal(label.textContent,'Review SYNTHETIC');assert.equal(field.getAttribute('aria-label'),'Review SYNTHETIC');
+assert.equal(field.value,'Unsaved synthetic draft');assert.strictEqual(document.activeElement,field);
+assert.equal(context.pluralForm(-1,'en'),'one');
+for(const locale of ['zh-CN','ja']){assert.equal(context.pluralForm(1,locale),'many');}
+assert.equal(context.pluralForm(1,'es-419'),'one');assert.equal(context.pluralForm(2,'es-419'),'many');
+''')
+
+    def test_runtime_messages_repaint_values_without_reusing_translated_source(self):
+        self.run_js(r'''
+const label=addNode({},'');
+context.setUiMessage(label,'fixture.runtime','Deleted line {speaker}',{speaker:'SYNTHETIC'});
+setUiCatalog('ja',catalog({'fixture.runtime':'Japanese {speaker}'}));
+await context.applyUiLocale('ja');assert.equal(label.textContent,'Japanese SYNTHETIC');
+await context.applyUiLocale('qps-ploc');assert(label.textContent.startsWith('['));
+await context.applyUiLocale('en');assert.equal(label.textContent,'Deleted line SYNTHETIC');
+context.setUiMessage(label,'fixture.next','Source check pending');
+context.applyUiCatalog();assert.equal(label.textContent,'Source check pending');
+context.renderUiMessage(label,'Synthetic later status');
+await context.applyUiLocale('ja');assert.equal(label.textContent,'Synthetic later status');
+assert(!label.hasAttribute('data-i18n'));
+''')
+
     def test_followup_count_and_ingest_facts_survive_locale_round_trip(self):
         self.run_js(r'''
 const root=require('path').dirname(process.argv[1]);
