@@ -878,7 +878,7 @@
 
             // Trigger tab specific loads
             window.refreshWorkspaceView?.();
-            if (selectedLink.dataset.tab === 'script') { refreshReviewRestart(); }
+            if (selectedLink.dataset.tab === 'script') { window.refreshReviewRestart?.(); }
             if (selectedLink.dataset.tab === 'setup') {
                 pollLmStudioStatus();
             } else if (selectedLink.dataset.tab === 'editor') {
@@ -4105,7 +4105,7 @@
             await _loadScriptList('review-batch-list', (scripts) => {
                 reviewBatchScripts = scripts;
                 renderReviewBatchList();
-                refreshReviewRestart();
+                window.refreshReviewRestart?.();
             });
         }
 
@@ -4126,7 +4126,7 @@
 
         window.reviewBatchSelectAll = (on) => {
             _selectAllCheckboxes('review-batch-check', on);
-            syncReviewRestartButtons();
+            window.syncReviewRestartButtons?.();
         };
 
         async function startBatchReview(startOver = false) {

@@ -3,6 +3,7 @@ from contextlib import ExitStack
 import json
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import core
@@ -42,7 +43,6 @@ class ReviewStartOverTests(unittest.TestCase):
         self.reserve = self.stack.enter_context(patch.object(script, 'reserve_background_task', return_value='claim'))
         self.register = self.stack.enter_context(patch.object(script, 'register_claimed_background_task'))
         self.release = self.stack.enter_context(patch.object(script, 'release_gpu_task_claim'))
-        self.schedule = self.stack.enter_context(patch.object(script, 'schedule_claimed_background_task'))
         self.stack.enter_context(patch.object(script, '_get_review_startup_path', return_value=str(self.root / 'startup.log')))
         app = FastAPI()
         app.add_exception_handler(core.AppError, core.handle_app_error)
@@ -89,7 +89,9 @@ class ReviewStartOverTests(unittest.TestCase):
                 self.assertTrue(self.checkpoint.exists())
                 self.assertTrue(self.receipt.exists())
                 self.assert_preserved()
-        self.reserve.assert_not_called()
+        self.assertEqual(2, self.reserve.call_count)
+        self.assertEqual(2, self.release.call_count)
+        self.register.assert_not_called()
 
     def test_failed_discard_releases_claim_and_does_not_start(self):
         with patch.object(script, 'remove_generation_shard_checkpoint', side_effect=PermissionError('private path')):
@@ -144,7 +146,7 @@ class ReviewStartOverTests(unittest.TestCase):
         self.assertNotIn('private receipt path', (self.root / 'startup.log').read_text())
         response = self.post(start_over=False, force_review=True)
         self.assertEqual(200, response.status_code, response.text)
-        self.assertIn('--force-review', self.schedule.call_args.args[3])
+        self.assertIn('--force-review', self.register.call_args.args[4])
         self.assertFalse(self.checkpoint.exists())
         self.assertTrue(self.receipt.exists())
         self.assert_preserved()
@@ -222,7 +224,81 @@ class ReviewStartOverTests(unittest.TestCase):
     def test_batch_start_over_requires_current_book_before_scheduling(self):
         response = self.post('/api/review_script/batch/start', script_names=['saved'], book_token='b' * 64)
         self.assertEqual(409, response.status_code, response.text)
-        self.schedule.assert_not_called()
+        self.register.assert_not_called()
+        self.release.assert_called_once_with('batch_review', 'claim', pending_only=True)
+
+    def test_busy_single_modes_refuse_before_waiting_for_book_state(self):
+        from book_state_transaction import ensure_book_state
+        self.admission.side_effect = core.check_global_gpu_lock
+        self.reserve.side_effect = core.reserve_background_task
+        entered, release = threading.Event(), threading.Event()
+        errors = []
+        def hold_book():
+            try:
+                with ensure_book_state(self.root):
+                    entered.set()
+                    if not release.wait(15):
+                        raise AssertionError('book guard not released')
+            except BaseException as error:
+                errors.append(error)
+        holder = threading.Thread(target=hold_book)
+        holder.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            with patch.object(core, 'process_state', {'review': {'running': True}}), \
+                 patch.object(core, '_task_claims', {}), patch.object(core, '_gpu_leases', {}), \
+                 patch.object(script, '_require_published_script', side_effect=REQUIRE_PUBLISHED_SCRIPT):
+                for endpoint in ('/api/review_script', '/api/review_script_contextual'):
+                    for start_over in (False, True):
+                        with self.subTest(endpoint=endpoint, start_over=start_over):
+                            refused = threading.Event()
+                            def start():
+                                try:
+                                    response = self.post(endpoint, start_over=start_over)
+                                    self.assertEqual(400, response.status_code, response.text)
+                                except BaseException as error:
+                                    errors.append(error)
+                                finally:
+                                    refused.set()
+                            worker = threading.Thread(target=start)
+                            worker.start()
+                            try:
+                                self.assertTrue(refused.wait(2), 'busy review must not wait for book file I/O')
+                            finally:
+                                if not refused.is_set():
+                                    release.set()
+                                worker.join(5)
+                            self.assertFalse(worker.is_alive())
+        finally:
+            release.set()
+            holder.join(5)
+        self.assertFalse(holder.is_alive())
+        self.assertEqual([], errors)
+        self.register.assert_not_called()
+        self.assertTrue(self.checkpoint.exists())
+        self.assertTrue(self.receipt.exists())
+        self.assert_preserved()
+
+    def test_publication_recheck_failure_releases_real_single_reservation(self):
+        self.reserve.side_effect = core.reserve_background_task
+        self.release.side_effect = core.release_gpu_task_claim
+        def refuse():
+            self.assertEqual('pending', core._task_claims['review']['phase'])
+            raise HTTPException(409, 'Publication changed')
+        states = {'review': {'running': False}}
+        with patch.object(core, 'DATA_DIR', str(self.root)), \
+             patch.object(core, 'process_state', states), patch.object(core, '_task_claims', {}), \
+             patch.object(core, '_gpu_leases', {}), patch.object(core, 'llm_is_on_this_gpu', return_value=False), \
+             patch.object(script, '_require_published_script', side_effect=refuse):
+            for endpoint in ('/api/review_script', '/api/review_script_contextual'):
+                response = self.post(endpoint)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual({}, core._task_claims)
+                self.assertFalse(states['review']['running'])
+        self.register.assert_not_called()
+        self.assertTrue(self.checkpoint.exists())
+        self.assertTrue(self.receipt.exists())
+        self.assert_preserved()
 
     def test_real_pending_claim_refuses_running_review_before_discard(self):
         self.reserve.side_effect = core.reserve_background_task
@@ -263,7 +339,9 @@ class ReviewStartOverTests(unittest.TestCase):
             self.assertIn('--force-review', command)
             calls.append(command)
             return 0, ['Review complete: 2 -> 2 entries', 'Total changes: 0']
-        self.schedule.side_effect = core.schedule_claimed_background_task
+        self.reserve.side_effect = core.reserve_background_task
+        self.register.side_effect = core.register_claimed_background_task
+        self.release.side_effect = core.release_gpu_task_claim
         with ExitStack() as stack:
             for name, value in {'DATA_DIR': str(self.root), 'process_state': states,
                     '_task_claims': {}, '_gpu_leases': {}}.items():

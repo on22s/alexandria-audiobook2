@@ -3413,7 +3413,7 @@ async def generate_script_resume():
 @router.post("/api/review_script")
 async def review_script(background_tasks: BackgroundTasks, request: Optional[ReviewRequest] = None):
     """Review the current annotated script. Accepts empty POST or JSON body."""
-    return await asyncio.to_thread(_with_review_startup, "review", _with_published_script, _start_review_script, background_tasks, request)
+    return await asyncio.to_thread(_with_review_startup, "review", _with_review_admission, _start_review_script, background_tasks, request)
 
 
 def _get_review_startup_path(task_name):
@@ -3423,6 +3423,16 @@ def _get_review_startup_path(task_name):
 def _with_review_startup(task_name, callback, *args):
     path = _get_review_startup_path(task_name)
     return ReviewStartupTrace(path).call('admission', callback, *args)
+
+
+def _with_review_admission(callback, *args):
+    check_global_gpu_lock('review')
+    claim_id = reserve_background_task('review')
+    try:
+        return _with_published_script(callback, *args, claim_id)
+    except BaseException:
+        release_gpu_task_claim('review', claim_id, pending_only=True)
+        raise
 
 
 def _with_published_script(callback, *args):
@@ -3467,18 +3477,16 @@ def _run_published_script_process(command, task_name):
     return run_process(command, task_name)
 
 
-def _start_review_script(background_tasks, request):
+def _start_review_script(background_tasks, request, claim_id):
     if request is None:
         request = ReviewRequest()  # Use defaults
-
-    check_global_gpu_lock("review")
 
     cmd = [sys.executable, "-u", "review_script.py"]
     cmd += get_review_force_args(request.force_review or request.start_over)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    _schedule_review_start(background_tasks, request, cmd)
+    _schedule_review_start(background_tasks, request, cmd, claim_id)
     return {"status": "started", "dedupe_speakers": request.dedupe_speakers}
 
 
@@ -3519,24 +3527,20 @@ def discard_review_progress(output_path):
     event('checkpoint_discarded')
 
 
-def _schedule_review_start(background_tasks, request, command):
+def _schedule_review_start(background_tasks, request, command, claim_id):
     if not request.start_over:
-        return schedule_claimed_background_task(background_tasks, 'review',
+        return register_claimed_background_task(background_tasks, 'review', claim_id,
             _run_review_worker, command, 'review', REVIEW_STARTUP.get())
-    claim_id = None
     progress_discarded = False
     try:
         with ensure_book_state(DATA_DIR):
             _require_review_restart_book(request)
             _require_published_script()
-            claim_id = reserve_background_task('review')
             discard_review_progress(SCRIPT_PATH)
             progress_discarded = True
             return register_claimed_background_task(background_tasks, 'review', claim_id,
                 _run_review_worker, command, 'review', REVIEW_STARTUP.get())
     except BaseException as error:
-        if claim_id is not None:
-            release_gpu_task_claim('review', claim_id, pending_only=True)
         if progress_discarded and isinstance(error, Exception):
             from review_startup import event
             event('restart_registration_failed', error=error)
@@ -3555,12 +3559,10 @@ def _schedule_review_start(background_tasks, request, command):
 
 @router.post("/api/review_script_contextual")
 async def review_script_contextual(request: ContextualReviewRequest, background_tasks: BackgroundTasks):
-    return await asyncio.to_thread(_with_review_startup, "review", _with_published_script, _start_contextual_review, request, background_tasks)
+    return await asyncio.to_thread(_with_review_startup, "review", _with_review_admission, _start_contextual_review, request, background_tasks)
 
 
-def _start_contextual_review(request, background_tasks):
-
-    check_global_gpu_lock("review")
+def _start_contextual_review(request, background_tasks, claim_id):
 
     window_size = max(1, min(int(request.window_size or 4), 12))
     total_entries = 0
@@ -3585,7 +3587,7 @@ def _start_contextual_review(request, background_tasks):
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
                 "--alias-registry", CHARACTER_ALIASES_PATH]
-    _schedule_review_start(background_tasks, request, cmd)
+    _schedule_review_start(background_tasks, request, cmd, claim_id)
     return {
         "status": "started",
         "mode": "contextual",
@@ -4045,11 +4047,17 @@ def _start_batch_review(request, background_tasks):
     trace = REVIEW_STARTUP.get()
     def traced_run():
         return trace.call('worker', _run) if trace else _run()
-    with ensure_book_state(DATA_DIR):
-        if request.start_over:
-            _require_review_restart_book(request)
-        schedule_claimed_background_task(background_tasks, "batch_review", _run_claimed_background_task,
-                                        "batch_review", traced_run, saved_destinations=destinations)
+    claim_id = reserve_background_task('batch_review', saved_destinations=destinations)
+    try:
+        with contextlib.ExitStack() as admission:
+            if request.start_over:
+                admission.enter_context(ensure_book_state(DATA_DIR))
+                _require_review_restart_book(request)
+            register_claimed_background_task(background_tasks, 'batch_review', claim_id,
+                                            _run_claimed_background_task, 'batch_review', traced_run)
+    except BaseException:
+        release_gpu_task_claim('batch_review', claim_id, pending_only=True)
+        raise
     return {"status": "started", "task_count": total, "bidirectional": bidirectional}
 
 
