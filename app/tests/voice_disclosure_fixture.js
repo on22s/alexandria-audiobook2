@@ -15,11 +15,11 @@ function showToast() {}
 function showActionError(...args) { throw Error(args.join(' ')); }
 async function showConfirm() { return true; }
 const posts = [];
-const currentBookFilename = 'synthetic';
+let currentBookFilename = 'synthetic';
 let _voiceSaveSnapshot = null, _voiceRecoveryDrafts = [], revision = 0;
 const voiceSaveQueue = {flush: async () => {}, getRevision: () => 0, isDirty: () => false};
 const API = {get: async path => path === '/api/voice_config/snapshot'
-    ? {revision: String(++revision).padStart(64, '0'), book_token: 'b'.repeat(64), config: {}, voices}
+    ? {revision: String(++revision).padStart(64, '0'), book_token: (currentBookFilename === 'synthetic' ? 'b' : 'c').repeat(64), config: {}, voices}
     : []};
 async function loadCastLibrary() {}
 function renderVoiceDrafts() {}
@@ -76,6 +76,34 @@ async function clickAction(selector) {
     await turn();
     check([...container.querySelectorAll('.voice-card-advanced')].every(node => node.open), 'expand all');
     result.bulk = true;
+    details().open = false;
+    await turn();
+    currentBookFilename = 'another-book';
+    await loadVoices();
+    check(details().open, 'same-named voice in another book must default open');
+    container.querySelectorAll('.voice-card-advanced')[1].open = false;
+    await turn();
+    currentBookFilename = 'synthetic';
+    await loadVoices();
+    check(!details().open && container.querySelectorAll('.voice-card-advanced')[1].open, 'returning to a book restores only its own states');
+    currentBookFilename = 'another-book';
+    await loadVoices();
+    check(details().open && !container.querySelectorAll('.voice-card-advanced')[1].open, 'outgoing cards must not write into the incoming book');
+    container.replaceChildren();
+    delete window._voiceSectionStates;
+    await loadVoices();
+    check(details().open && !container.querySelectorAll('.voice-card-advanced')[1].open, 'book isolation survives a fresh in-memory session');
+    currentBookFilename = 'synthetic';
+    await loadVoices();
+    result.books = true;
+    const removedVoice = voices.pop();
+    container.querySelectorAll('.voice-card-advanced')[2].open = false;
+    await turn();
+    await loadVoices();
+    voices.push(removedVoice);
+    await loadVoices();
+    check(container.querySelectorAll('.voice-card-advanced')[2].open, 'removed voices must not leave state for a later name reuse');
+    result.pruning = true;
     details().open = false;
     await turn();
     delete window._voiceSectionStates;
