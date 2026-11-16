@@ -649,9 +649,13 @@ class RuntimeTests(unittest.TestCase):
         rocm_fallback.assert_called_once_with()
 
     def test_runtime_data_dir_ignores_empty_environment_override(self):
-        with patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": "   "}):
-            self.assertEqual(utils.get_runtime_data_dir("/expected/root"),
-                             "/expected/root")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.join(tmp, "expected root")
+            os.mkdir(root)
+            for override in ("", "   ", "\t\r\n"):
+                with self.subTest(override=override), \
+                     patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": override}):
+                    self.assertEqual(root, utils.get_runtime_data_dir(root))
 
     def test_gpu_worker_environment_pins_the_admitted_data_root(self):
         spelled = os.path.join('spelled', 'data')
@@ -755,18 +759,26 @@ class RuntimeTests(unittest.TestCase):
     def test_cancel_escalates_process_group_after_grace_period(self):
         process = SimpleNamespace(pid=123)
         with patch.object(core_module, "_send_signal_tree") as send_signal, \
+             patch.object(core_module, "terminate_windows_process_tree") as terminate_tree, \
              patch.object(core_module.time, "monotonic",
                           side_effect=[10.0, 19.9, 20.0, 21.0]):
             requested_at, killed = core_module.apply_cancel_escalation(
                 process, None, False)
             requested_at, killed = core_module.apply_cancel_escalation(
                 process, requested_at, killed)
+            self.assertFalse(killed)
             requested_at, killed = core_module.apply_cancel_escalation(
                 process, requested_at, killed)
             core_module.apply_cancel_escalation(process, requested_at, killed)
 
-        self.assertEqual([signal.SIGTERM, signal.SIGKILL],
-                         [call.args[1] for call in send_signal.call_args_list])
+        if sys.platform == "win32":
+            self.assertEqual([signal.SIGTERM],
+                             [call.args[1] for call in send_signal.call_args_list])
+            terminate_tree.assert_called_once_with(process, force=True)
+        else:
+            self.assertEqual([signal.SIGTERM, signal.SIGKILL],
+                             [call.args[1] for call in send_signal.call_args_list])
+            terminate_tree.assert_not_called()
         self.assertTrue(killed)
 
     def test_active_cancel_arms_escalation_before_signalling(self):

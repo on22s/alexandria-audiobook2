@@ -7,6 +7,20 @@ from utils import secure_filename
 
 
 class PortableFilenameTests(unittest.TestCase):
+    def test_reserved_device_check_matches_windows_component_rules(self):
+        from utils import is_windows_reserved_device_name
+        devices = ['CON', 'PRN', 'AUX', 'NUL', 'CONIN$', 'CONOUT$']
+        devices += [prefix + digit for prefix in ('COM', 'LPT')
+                    for digit in '123456789\u00b9\u00b2\u00b3']
+        for device in devices:
+            for name in (device, device.lower() + '.wav', device + ' .mp3'):
+                with self.subTest(name=name):
+                    self.assertTrue(is_windows_reserved_device_name(name))
+        for name in ('', 'CONSOLE.wav', 'COM0.wav', 'COM10.mp3', 'LPT10.wav',
+                     'ordinary file.wav', '\u58f0.wav'):
+            with self.subTest(name=name):
+                self.assertFalse(is_windows_reserved_device_name(name))
+
     def test_utf8_byte_cap_preserves_complete_codepoints_and_actual_staging_file(self):
         names=['声'*150,'Ж'*150,'abc声'*70,'a'*150,'声'*49+'ab','声'*49+'abc']
         with tempfile.TemporaryDirectory() as tmp:

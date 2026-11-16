@@ -603,9 +603,9 @@ def get_quarantined_path(case, root, path):
     return quarantines[0].joinpath(books.QUARANTINE_WORKSPACE, *rest)
 
 
-def create_test_symlink_or_skip(link, target):
+def create_test_symlink_or_skip(link, target, target_is_directory=False):
     try:
-        Path(link).symlink_to(target)
+        Path(link).symlink_to(target, target_is_directory=target_is_directory)
     except OSError as exc:
         if os.name == 'nt' and getattr(exc, 'winerror', None) == 1314:
             raise unittest.SkipTest('Windows symlink creation requires privileges (WinError 1314)') from exc
