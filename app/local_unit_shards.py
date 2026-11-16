@@ -1,11 +1,11 @@
 """Run CI's unit partitions in detached, byte-faithful local snapshots."""
 import contextlib
-import errno
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import secrets
 import shutil
 import socket
 import stat
@@ -29,6 +29,7 @@ DISK_RESERVE_BYTES = 1024 ** 3
 COUNT_FIELDS = ('tests_ran', 'tests_completed', 'failures', 'errors', 'skips',
                 'expected_failures', 'unexpected_successes')
 CPU_DEVICE_MASK = dict(CUDA_VISIBLE_DEVICES='', HIP_VISIBLE_DEVICES='', ROCR_VISIBLE_DEVICES='')
+OWNER_TOKEN_FILE = 'alexandria-local-unit-owner'
 
 
 def get_default_workers():
@@ -53,7 +54,7 @@ def get_common_directory(repo):
         repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip()).resolve()
 
 
-def run_git(repo, *arguments, environment=None, _locked=False, include_stderr=False):
+def run_git(repo, *arguments, environment=None, _locked=False, include_stderr=False, stdin=None):
     arguments = list(map(str, arguments))
     command_index = 0
     while command_index < len(arguments) and arguments[command_index] == '-c':
@@ -66,7 +67,7 @@ def run_git(repo, *arguments, environment=None, _locked=False, include_stderr=Fa
         result = run_owned_capture(
             ['git', '-c', 'core.hooksPath=' + os.devnull, '-c', 'core.fsmonitor=false',
              '-c', 'core.longpaths=true', *arguments],
-            cwd=repo, env=environment or get_git_environment(), timeout=120)
+            cwd=repo, env=environment or get_git_environment(), timeout=120, stdin=stdin)
     if result.returncode:
         detail = get_redacted_credentials(os.fsdecode(result.stderr)).strip()[-2000:]
         raise RuntimeError(f'git {arguments[0]} failed: {detail}')
@@ -138,7 +139,11 @@ def create_working_tree_snapshot(repo, directory):
     before = capture_source_files(repo, names, algorithm)
     alternate = directory / 'index'
     environment = {**get_git_environment(), 'GIT_INDEX_FILE': str(alternate)}
-    run_git(repo, 'read-tree', head, environment=environment)
+    entries_path = directory / 'index-entries'
+    entries_path.write_bytes(run_git(repo, 'ls-files', '--stage', '-z'))
+    run_git(repo, 'read-tree', '--empty', environment=environment)
+    with entries_path.open('rb') as stream:
+        run_git(repo, 'update-index', '-z', '--index-info', environment=environment, stdin=stream)
     run_git(repo, 'add', '-A', '--', '.', environment=environment)
     tree = run_git(repo, 'write-tree', environment=environment).strip().decode('ascii')
     entries = {}
@@ -170,9 +175,123 @@ def create_working_tree_snapshot(repo, directory):
                 overlay=str(overlay), checkout_bytes=sum(item['size'] for item in before.values()))
 
 
-def add_snapshot_worktree(repo, snapshot, path):
-    run_git(repo, '-c', 'core.autocrlf=false', 'worktree', 'add', '--quiet', '--detach',
-            str(path), snapshot['commit'])
+def get_artifact_root():
+    return Path(tempfile.gettempdir()).resolve() / 'alexandria-local-units'
+
+
+def validate_path_without_links(path):
+    path = Path(path)
+    if not path.is_absolute() or path.resolve() != path:
+        raise ValueError(f'Unsafe local unit recovery paths: {path}')
+    for part in (path, *path.parents):
+        try:
+            info = part.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
+            raise ValueError(f'Unsafe local unit recovery paths: link or junction at {part}')
+
+
+def get_registered_worktrees(repo, *, _locked=False):
+    records = {}
+    for block in run_git(repo, 'worktree', 'list', '--porcelain', '-z', _locked=_locked).split(bytes([0, 0])):
+        fields = block.split(bytes([0]))
+        if not fields[0].startswith(b'worktree '):
+            continue
+        path = Path(os.fsdecode(fields[0][9:]))
+        records[path] = {os.fsdecode(key): os.fsdecode(value) for key, separator, value in
+                         (field.partition(b' ') for field in fields[1:] if field)}
+    return records
+
+
+def validate_artifact_directory(repo, artifacts, *, _locked=False):
+    artifacts, root = Path(artifacts), get_artifact_root()
+    validate_path_without_links(root)
+    validate_path_without_links(artifacts)
+    common = get_common_directory(repo)
+    if (not artifacts.is_relative_to(root) or artifacts == root
+            or artifacts.is_relative_to(common) or common.is_relative_to(artifacts)
+            or any(os.path.lexists(parent / '.git') for parent in (artifacts, *artifacts.parents)
+                   if parent.is_relative_to(root))
+            or any(artifacts.is_relative_to(path) for path in get_registered_worktrees(repo, _locked=_locked))):
+        raise ValueError(f'Unsafe local unit recovery paths: artifacts must be below {root} and outside repositories')
+
+
+def get_worktree_admin(repo, path, snapshot_commit, *, _locked=False):
+    common = get_common_directory(repo)
+    validate_path_without_links(path)
+    registration = get_registered_worktrees(repo, _locked=_locked).get(path)
+    if (registration is None or 'detached' not in registration
+            or registration.get('HEAD') != snapshot_commit):
+        raise ValueError(f'Worktree ownership mismatch: detached snapshot registration changed at {path}')
+    gitfile = path / '.git'
+    validate_path_without_links(gitfile)
+    if not gitfile.is_file():
+        raise ValueError(f'Worktree ownership mismatch: missing gitfile at {path}')
+    content = gitfile.read_text(encoding='utf-8').strip()
+    if not content.startswith('gitdir: '):
+        raise ValueError(f'Worktree ownership mismatch: invalid gitfile at {path}')
+    admin = Path(content[8:])
+    if not admin.is_absolute():
+        admin = path / admin
+    validate_path_without_links(admin)
+    validate_path_without_links(admin / 'gitdir')
+    validate_path_without_links(admin / 'HEAD')
+    if (admin.parent != common / 'worktrees'
+            or Path((admin / 'gitdir').read_text(encoding='utf-8').strip()) != gitfile):
+        raise ValueError(f'Worktree ownership mismatch: admin entry changed at {path}')
+    return admin
+
+
+def validate_worktree_ownership(repo, path, ownership, *, _locked=False):
+    common = get_common_directory(repo)
+    validate_path_without_links(path)
+    if not isinstance(ownership, dict) or ownership.get('path') != str(path):
+        raise ValueError(f'Worktree ownership mismatch: no recorded identity for {path}')
+    name = ownership.get('admin_name')
+    if name is not None and (not isinstance(name, str) or name in ('', '.', '..')
+                             or '/' in name or chr(92) in name):
+        raise ValueError(f'Worktree ownership mismatch: unsafe admin name for {path}')
+    registered = get_registered_worktrees(repo, _locked=_locked)
+    if path not in registered:
+        if (os.path.lexists(path) or name is not None and os.path.lexists(common / 'worktrees' / name)):
+            raise ValueError(f'Worktree ownership mismatch: unregistered path or reused admin at {path}; leaving intact')
+        return False
+    admin = get_worktree_admin(repo, path, ownership.get('snapshot_commit'), _locked=_locked)
+    token_file = admin / OWNER_TOKEN_FILE
+    validate_path_without_links(token_file)
+    token = ownership.get('token')
+    if (admin.name != name or not isinstance(token, str) or not token
+            or not token_file.is_file() or token_file.read_text(encoding='ascii') != token):
+        raise ValueError(f'Worktree ownership mismatch: admin name or token changed at {path}; leaving intact')
+    return True
+
+
+def add_snapshot_worktree(repo, snapshot, path, *, ownership=None, manifest=None):
+    path = Path(path)
+    with file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120):
+        validate_path_without_links(path)
+        if os.path.lexists(path) or path in get_registered_worktrees(repo, _locked=True):
+            raise ValueError(f'Refusing occupied shard worktree path: {path}')
+        if ownership is None:
+            ownership = dict(path=str(path), admin_name=None, snapshot_commit=snapshot['commit'],
+                             token=uuid.uuid4().hex + ':' + secrets.token_hex(32))
+        if ownership.get('path') != str(path) or ownership.get('snapshot_commit') != snapshot['commit']:
+            raise ValueError('Shard worktree creation identity does not match the snapshot')
+        run_git(repo, '-c', 'core.autocrlf=false', 'worktree', 'add', '--quiet', '--detach',
+                '--no-checkout', str(path), snapshot['commit'], _locked=True)
+        admin = get_worktree_admin(repo, path, snapshot['commit'], _locked=True)
+        with (admin / OWNER_TOKEN_FILE).open('x', encoding='ascii') as stream:
+            stream.write(ownership['token'])
+        ownership['admin_name'] = admin.name
+        if manifest is not None:
+            record = json.loads(manifest.read_text(encoding='utf-8'))
+            matches = [entry for entry in record['ownership'] if entry['path'] == str(path)]
+            if len(matches) != 1 or matches[0]['token'] != ownership['token']:
+                raise ValueError('Shard worktree manifest identity changed during creation')
+            matches[0].update(ownership)
+            atomic_json_write(record, str(manifest), allow_nonatomic_fallback=False)
+        run_git(path, '-c', 'core.autocrlf=false', 'reset', '--hard', '--quiet', snapshot['commit'])
     for source in Path(snapshot['overlay']).rglob('*'):
         if source.is_file():
             shutil.copy2(source, path / source.relative_to(snapshot['overlay']))
@@ -191,26 +310,21 @@ def add_snapshot_worktree(repo, snapshot, path):
     run_git(path, 'add', '-A', '--', '.')
     if run_git(path, 'write-tree').strip() != run_git(repo, 'rev-parse', snapshot['commit'] + '^{tree}').strip():
         raise ValueError('Refreshing the snapshot index changed its captured tree')
+    return ownership
 
 
-def remove_snapshot_worktree(repo, path, owned_root, *, _locked=False):
+def remove_snapshot_worktree(repo, path, owned_root, *, ownership=None, _locked=False):
     if not _locked:
         with file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120):
-            return remove_snapshot_worktree(repo, path, owned_root, _locked=True)
+            return remove_snapshot_worktree(repo, path, owned_root, ownership=ownership, _locked=True)
     path, owned_root = Path(path), Path(owned_root).resolve()
-    if not path.resolve().is_relative_to(owned_root) or path.resolve() == owned_root:
+    validate_path_without_links(path)
+    if not path.is_relative_to(owned_root) or path == owned_root:
         raise ValueError('Refusing to remove a worktree outside the owned unit directory')
     for attempt in range(3):
         try:
-            registered = {Path(os.fsdecode(record[9:])).resolve() for record in
-                          run_git(repo, 'worktree', 'list', '--porcelain', '-z', _locked=True).split(b'\0')
-                          if record.startswith(b'worktree ')}
-            if path.resolve() in registered:
+            if validate_worktree_ownership(repo, path, ownership, _locked=True):
                 run_git(repo, 'worktree', 'remove', '--force', str(path), _locked=True)
-            if path.exists():
-                if not path.resolve().is_relative_to(owned_root):
-                    raise ValueError('Owned worktree changed during cleanup')
-                shutil.rmtree(path)
             return
         except (OSError, RuntimeError):
             if attempt == 2:
@@ -218,47 +332,82 @@ def remove_snapshot_worktree(repo, path, owned_root, *, _locked=False):
             time.sleep(.1)
 
 
-def is_owner_alive(pid):
+def get_process_start_time(pid):
     if type(pid) is not int or pid <= 0:
         raise ValueError('Invalid local unit owner PID; refusing stale cleanup')
     if sys.platform == 'win32':
         import ctypes
         from windows_subprocess_job import get_windows_job_api
         api = get_windows_job_api()
-        handle = api.OpenProcess(0x100000, False, pid)
+        handle = api.OpenProcess(0x101000, False, pid)
         if not handle:
             if ctypes.get_last_error() == 87:
-                return False
-            return True
+                return None
+            raise ctypes.WinError(ctypes.get_last_error())
         try:
             wait = api.WaitForSingleObject
             wait.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
             wait.restype = ctypes.c_uint32
-            return wait(handle, 0) != 0
+            status = wait(handle, 0)
+            if status == 0:
+                return None
+            if status != 258:
+                raise ctypes.WinError(ctypes.get_last_error())
+            get_times = api.GetProcessTimes
+            get_times.argtypes = [ctypes.c_void_p, *([ctypes.POINTER(ctypes.c_uint64)] * 4)]
+            get_times.restype = ctypes.c_int
+            times = [ctypes.c_uint64() for counter in range(4)]
+            if not get_times(handle, *(ctypes.byref(value) for value in times)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return 'windows-filetime:' + str(times[0].value)
         finally:
             api.CloseHandle(handle)
+    if sys.platform.startswith('linux'):
+        try:
+            fields = Path(f'/proc/{pid}/stat').read_text(encoding='utf-8').rsplit(')', 1)[1].split()
+        except FileNotFoundError:
+            return None
+        return None if fields[0] == 'Z' else 'linux-starttime:' + fields[19]
+    result = run_owned_capture(['ps', '-p', str(pid), '-o', 'lstart='], timeout=5)
+    if result.returncode == 1 and not result.stdout.strip():
+        return None
+    if result.returncode or not result.stdout.strip():
+        raise OSError('Process creation time unavailable; refusing stale cleanup')
+    return 'ps-lstart:' + os.fsdecode(result.stdout).strip()
+
+
+def is_owner_alive(pid, start_time):
+    if not isinstance(start_time, str) or not start_time:
+        raise ValueError('Missing local unit owner creation time; refusing stale cleanup')
     try:
-        os.kill(pid, 0)
-    except OSError as error:
-        if error.errno == errno.ESRCH:
-            return False
-        if error.errno != errno.EPERM:
-            raise
-    return True
+        actual = get_process_start_time(pid)
+    except OSError:
+        return True
+    return actual is not None and actual == start_time
 
 
-def register_run(repo, artifacts, expected_ids, count):
+def register_run(repo, artifacts, expected_ids, count, *, snapshot_commit=None):
     common = get_common_directory(repo)
     with file_lock(common / 'alexandria-local-unit-git', timeout=120):
+        validate_artifact_directory(repo, artifacts, _locked=True)
+        start_time = get_process_start_time(os.getpid())
+        if start_time is None:
+            raise OSError('Cannot record coordinator process creation time')
         registry = common / 'alexandria-local-unit-runs'
+        validate_path_without_links(registry)
         registry.mkdir(exist_ok=True)
-        manifest = registry / (uuid.uuid4().hex + '.json')
-        atomic_json_write(dict(schema_version=1, owner_pid=os.getpid(),
+        run_id = uuid.uuid4().hex
+        token = run_id + ':' + secrets.token_hex(32)
+        manifest = registry / (run_id + '.json')
+        snapshot_commit = snapshot_commit or run_git(repo, 'rev-parse', 'HEAD').strip().decode('ascii')
+        paths = [str(artifacts / 'worktrees' / f'shard-{number}') for number in range(1, count + 1)]
+        atomic_json_write(dict(schema_version=2, run_id=run_id, token=token,
+                               owner_pid=os.getpid(), owner_start_time=start_time,
                                owner_platform=sys.platform, owner_host=socket.gethostname(),
                                common_directory=str(common), artifact_dir=str(artifacts),
-                               expected_ids=expected_ids, shard_count=count,
-                               worktrees=[str(artifacts / 'worktrees' / f'shard-{number}')
-                                          for number in range(1, count + 1)]),
+                               expected_ids=expected_ids, shard_count=count, snapshot_commit=snapshot_commit,
+                               worktrees=paths, ownership=[dict(path=path, admin_name=None, token=token,
+                                   snapshot_commit=snapshot_commit) for path in paths]),
                           str(manifest), allow_nonatomic_fallback=False)
     return manifest
 
@@ -267,27 +416,42 @@ def cleanup_stale_runs(repo):
     common = get_common_directory(repo)
     recovered = []
     with file_lock(common / 'alexandria-local-unit-git', timeout=120):
-        for manifest in sorted((common / 'alexandria-local-unit-runs').glob('*.json')):
+        registry = common / 'alexandria-local-unit-runs'
+        validate_path_without_links(registry)
+        for manifest in sorted(registry.glob('*.json')):
+            validate_path_without_links(manifest)
             record = json.loads(manifest.read_text(encoding='utf-8'))
-            if record.get('schema_version') != 1 or record.get('common_directory') != str(common):
+            if (record.get('schema_version') != 2 or record.get('common_directory') != str(common)
+                    or record.get('run_id') != manifest.stem):
                 raise ValueError(f'Invalid local unit recovery manifest: {manifest}')
             if (record['owner_platform'] != sys.platform
-                    or record['owner_host'] != socket.gethostname()
-                    or is_owner_alive(record['owner_pid'])):
+                    or record['owner_host'] != socket.gethostname()):
                 continue
             artifacts = Path(record['artifact_dir'])
+            validate_artifact_directory(repo, artifacts, _locked=True)
             root = artifacts / 'worktrees'
+            validate_path_without_links(root)
             count = record['shard_count']
             if (type(count) is not int or count < 1 or not artifacts.is_absolute()
                     or artifacts.resolve() != artifacts or root.resolve() != root
                     or record['worktrees'] != [str(root / f'shard-{number}')
-                                               for number in range(1, count + 1)]):
+                                               for number in range(1, count + 1)]
+                    or not isinstance(record.get('ownership'), list) or len(record['ownership']) != count
+                    or not isinstance(record.get('token'), str)
+                    or len(record['token']) != 97 or not record['token'].startswith(manifest.stem + ':')):
                 raise ValueError(f'Unsafe local unit recovery paths: {manifest}')
-            for path in record['worktrees']:
-                remove_snapshot_worktree(repo, Path(path), root, _locked=True)
-            if not run_git(repo, 'worktree', 'prune', '--dry-run', '--expire=now',
-                           _locked=True, include_stderr=True).strip():
-                run_git(repo, 'worktree', 'prune', _locked=True)
+            if is_owner_alive(record['owner_pid'], record.get('owner_start_time')):
+                continue
+            for path, ownership in zip(record['worktrees'], record['ownership']):
+                if (not isinstance(ownership, dict) or ownership.get('path') != path
+                        or ownership.get('token') != record['token']
+                        or ownership.get('snapshot_commit') != record['snapshot_commit']):
+                    raise ValueError(f'Unsafe local unit recovery paths: inconsistent identity in {manifest}')
+                validate_worktree_ownership(repo, Path(path), ownership, _locked=True)
+            for number in range(1, count + 1):
+                validate_path_without_links(artifacts / f'shard-{number}')
+            for path, ownership in zip(record['worktrees'], record['ownership']):
+                remove_snapshot_worktree(repo, Path(path), root, ownership=ownership, _locked=True)
             reports = []
             for number, path in enumerate(record['worktrees'], 1):
                 directory = artifacts / f'shard-{number}'
@@ -394,9 +558,8 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
     if type(minimum_tests) is not int or minimum_tests < 1:
         raise ValueError('Unit discovery floor must be positive')
     repo = Path(repo).resolve()
-    artifacts = Path(report_dir).resolve() if report_dir else Path(tempfile.mkdtemp(prefix='alexandria-local-units-'))
-    if artifacts.is_relative_to(repo):
-        raise ValueError('Unit artifact directory must be outside the source checkout')
+    artifacts = Path(os.path.abspath(report_dir)) if report_dir else get_artifact_root() / uuid.uuid4().hex
+    validate_artifact_directory(repo, artifacts)
     if artifacts.exists() and any(artifacts.iterdir()):
         raise ValueError('Unit artifact directory must be new or empty; refusing stale shard receipts')
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -405,6 +568,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
     started, jobs, reports, problems, expected_ids = time.monotonic(), [], [], [], []
     active, worktrees, snapshot, interrupted, fallback = [], [], None, None, None
     manifest = None
+    ownerships = {}
     count = shard_count if workers else 1
     workers = min(workers, count)
     print(f'Local unit artifacts: {artifacts}', flush=True)
@@ -456,7 +620,9 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
             protected_common = os.fsdecode(run_git(
                 repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip()
             if workers:
-                manifest = register_run(repo, artifacts, expected_ids, count)
+                manifest = register_run(repo, artifacts, expected_ids, count, snapshot_commit=snapshot['commit'])
+                ownerships = {entry['path']: entry for entry in
+                              json.loads(manifest.read_text(encoding='utf-8'))['ownership']}
             pending = list(range(1, count + 1))
             while pending or active:
                 while pending and len(active) < max(1, workers):
@@ -474,12 +640,13 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                         command.extend(['--shard', spec])
                     job = dict(process=None, directory=directory, receipt=receipt_path,
                                spec=spec, worktree=path, log_path=log_path, log=None,
-                               notice=notice, started=time.monotonic(), closed=False)
+                               notice=notice, started=time.monotonic(), closed=False,
+                               ownership=ownerships.get(str(path)))
                     jobs.append(job)
                     try:
                         if path is not None:
                             worktrees.append(path)
-                            add_snapshot_worktree(repo, snapshot, path)
+                            add_snapshot_worktree(repo, snapshot, path, ownership=job['ownership'], manifest=manifest)
                         job['log'] = log_path.open('wb')
                         job['process'] = start_owned_subprocess(
                             command, cwd=app, env={**get_git_environment(), 'PYTHONPATH': str(app),
@@ -532,7 +699,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                         job['closed'] = True
                         active.remove(job)
                         if job['worktree'] is not None:
-                            remove_snapshot_worktree(repo, job['worktree'], worktree_root)
+                            remove_snapshot_worktree(repo, job['worktree'], worktree_root, ownership=job['ownership'])
                             worktrees.remove(job['worktree'])
                         print(f"Unit shard {job['spec']}: {report['status']}; Ran {report['tests_ran']}; "
                               f"failures={report['failures']}, errors={report['errors']}, skips={report['skips']}", flush=True)
@@ -566,7 +733,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                         problems.append(f"{job['spec']}: owner close/report failed: {type(error).__name__}")
             for path in list(worktrees):
                 try:
-                    remove_snapshot_worktree(repo, path, worktree_root)
+                    remove_snapshot_worktree(repo, path, worktree_root, ownership=ownerships.get(str(path)))
                     worktrees.remove(path)
                 except BaseException as error:
                     problems.append(f'Worktree cleanup failed for {path}: {type(error).__name__}: {error}')
@@ -601,7 +768,7 @@ def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cleanup-stale', action='store_true', required=True,
-                        help='recover only recorded local shard worktrees whose coordinator PID is gone')
+                        help='recover identity-verified local shards whose coordinator PID/creation time is gone')
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parent.parent)
     args = parser.parse_args(argv)
     cleanup_stale_runs(args.repo)

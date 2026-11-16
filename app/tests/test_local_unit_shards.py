@@ -116,7 +116,9 @@ class LocalAggregationTests(unittest.TestCase):
 class LocalWorktreeTests(unittest.TestCase):
     def setUp(self):
         self.local = importlib.import_module('local_unit_shards')
-        self.directory = tempfile.TemporaryDirectory()
+        fixture_root = Path(tempfile.gettempdir()).resolve() / 'alexandria-local-units'
+        fixture_root.mkdir(exist_ok=True)
+        self.directory = tempfile.TemporaryDirectory(prefix='fixture-', dir=fixture_root)
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.repo = self.root / 'repository with spaces'
@@ -148,6 +150,7 @@ class LocalWorktreeTests(unittest.TestCase):
         self.git('add', '-A')
         self.git('commit', '-qm', 'Synthetic baseline')
         self.head = self.git('rev-parse', 'HEAD').strip()
+        self.checkout_ownership = {}
 
     def git(self, *arguments):
         return subprocess.run(['git', *arguments], cwd=self.repo, check=True,
@@ -161,6 +164,16 @@ class LocalWorktreeTests(unittest.TestCase):
 
     def registered(self):
         return self.git('worktree', 'list', '--porcelain')
+
+    def add_checkout(self, snapshot, path):
+        ownership = dict(path=str(path), admin_name=None, snapshot_commit=snapshot['commit'],
+                         token=self.local.uuid.uuid4().hex + ':' + self.local.secrets.token_hex(32))
+        self.checkout_ownership[str(path)] = ownership
+        return self.local.add_snapshot_worktree(self.repo, snapshot, path, ownership=ownership)
+
+    def remove_checkout(self, path):
+        self.local.remove_snapshot_worktree(self.repo, path, self.root,
+                                           ownership=self.checkout_ownership.get(str(path)))
 
     def git_integrity(self):
         common = Path(self.git('rev-parse', '--path-format=absolute', '--git-common-dir').strip())
@@ -186,14 +199,206 @@ class LocalWorktreeTests(unittest.TestCase):
         checkout = self.root / 'checkout'
         try:
             snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
-            self.local.add_snapshot_worktree(self.repo, snapshot, checkout)
+            self.add_checkout(snapshot, checkout)
             self.assertEqual(b'next\n', (checkout / 'app/payload.txt').read_bytes())
             captured = subprocess.check_output(
                 ['git', 'show', snapshot['commit'] + ':app/payload.txt'], cwd=self.repo)
             self.assertEqual(b'next\n', captured)
         finally:
-            self.local.remove_snapshot_worktree(self.repo, checkout, self.root)
+            self.remove_checkout(checkout)
         self.assertEqual(before, self.git_integrity())
+
+    def create_stale_run(self, *, created=True):
+        artifacts = self.root / 'reports'
+        artifacts.mkdir()
+        manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 1)
+        record = json.loads(manifest.read_text(encoding='utf-8'))
+        path = artifacts / 'worktrees/shard-1'
+        if created:
+            snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
+            options = {}
+            if record.get('ownership'):
+                record['snapshot_commit'] = snapshot['commit']
+                record['ownership'][0]['snapshot_commit'] = snapshot['commit']
+                manifest.write_text(json.dumps(record), encoding='utf-8')
+                options = dict(ownership=record['ownership'][0], manifest=manifest)
+            self.local.add_snapshot_worktree(self.repo, snapshot, path, **options)
+            record = json.loads(manifest.read_text(encoding='utf-8'))
+        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child.wait(timeout=10)
+        record['owner_pid'] = child.pid
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        return manifest, path, record
+
+    def assert_recovery_preserves(self, marker, before, manifest):
+        integrity = self.git_integrity()
+        try:
+            self.local.cleanup_stale_runs(self.repo)
+        except (ValueError, RuntimeError):
+            pass
+        self.assertEqual(b'foreign uncommitted data', marker.read_bytes())
+        self.assertEqual(before, self.registered())
+        self.assertEqual(integrity, self.git_integrity())
+        self.assertTrue(manifest.exists(), 'refused recovery must retain ownership evidence')
+
+    def test_stale_recovery_preserves_replacement_branch_at_unchanged_recorded_path(self):
+        manifest, path, record = self.create_stale_run()
+        self.git('worktree', 'remove', '--force', str(path))
+        self.git('worktree', 'add', '-b', 'foreign-branch', str(path), self.head)
+        marker = path / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+
+    def test_stale_recovery_preserves_foreign_worktree_after_consistent_path_edit(self):
+        manifest, path, record = self.create_stale_run()
+        artifacts = self.root / 'another-tool'
+        foreign = artifacts / 'worktrees/shard-1'
+        self.git('worktree', 'add', '--detach', str(foreign), self.head)
+        marker = foreign / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        record.update(artifact_dir=str(artifacts), worktrees=[str(foreign)])
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+        self.assertTrue((path / '.git').is_file())
+
+    def test_stale_recovery_preserves_independent_repository_at_never_created_path(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        path.mkdir(parents=True)
+        subprocess.run(['git', 'init', '-q', str(path)], check=True)
+        config = (path / '.git/config').read_bytes()
+        marker = path / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+        self.assertEqual(config, (path / '.git/config').read_bytes())
+
+    def test_stale_recovery_preserves_foreign_admin_index_when_artifacts_point_at_common(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        foreign = self.root / 'foreign/shard-1'
+        self.git('worktree', 'add', '--detach', str(foreign), self.head)
+        common = Path(self.git('rev-parse', '--path-format=absolute', '--git-common-dir').strip())
+        admin = common / 'worktrees/shard-1'
+        index = (admin / 'index').read_bytes()
+        marker = admin / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        record.update(artifact_dir=str(common), worktrees=[str(admin)])
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+        self.assertEqual(index, (admin / 'index').read_bytes())
+
+    def test_force_added_ignored_file_is_included_in_snapshot(self):
+        ignored = self.repo / 'private.txt'
+        ignored.write_bytes(b'force-added source')
+        self.git('add', '-f', 'private.txt')
+        before = self.git_integrity()
+        snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
+        captured = subprocess.check_output(['git', 'show', snapshot['commit'] + ':private.txt'], cwd=self.repo)
+        self.assertEqual(b'force-added source', captured)
+        checkout = self.root / 'checkout'
+        try:
+            self.add_checkout(snapshot, checkout)
+            self.assertEqual(b'force-added source', (checkout / 'private.txt').read_bytes())
+        finally:
+            self.remove_checkout(checkout)
+        self.assertEqual(before, self.git_integrity())
+
+    def test_staged_executable_mode_survives_filemode_false_snapshot(self):
+        self.git('config', 'core.filemode', 'false')
+        self.git('update-index', '--chmod=+x', 'app/payload.txt')
+        before = self.git_integrity()
+        snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
+        entry = self.git('ls-tree', snapshot['commit'], 'app/payload.txt')
+        self.assertTrue(entry.startswith('100755 '), entry)
+        checkout = self.root / 'checkout'
+        try:
+            self.add_checkout(snapshot, checkout)
+            materialized = subprocess.check_output(['git', 'ls-files', '--stage', 'app/payload.txt'], cwd=checkout)
+            self.assertTrue(materialized.startswith(b'100755 '), materialized)
+        finally:
+            self.remove_checkout(checkout)
+        self.assertEqual(before, self.git_integrity())
+
+    def test_reused_live_pid_with_different_birth_recovers_only_verified_worktree(self):
+        manifest, path, record = self.create_stale_run()
+        record.update(owner_pid=os.getpid(), owner_start_time='previous-process-start')
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        self.local.cleanup_stale_runs(self.repo)
+        self.assertFalse(path.exists(), 'a reused PID must not preserve the dead run')
+        self.assertFalse(manifest.exists())
+        self.assertTrue(self.repo.is_dir())
+
+    def test_recovery_requires_detached_commit_admin_name_and_secret_token(self):
+        manifest, path, original = self.create_stale_run()
+        admin = self.local.get_worktree_admin(self.repo, path, original['snapshot_commit'])
+        marker = path / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        for kind in ('token', 'admin-name', 'commit'):
+            with self.subTest(identity=kind):
+                record = json.loads(json.dumps(original))
+                if kind == 'token':
+                    (admin / self.local.OWNER_TOKEN_FILE).write_text('foreign-token', encoding='ascii')
+                elif kind == 'admin-name':
+                    record['ownership'][0]['admin_name'] = 'another-admin'
+                else:
+                    record['snapshot_commit'] = self.head
+                    record['ownership'][0]['snapshot_commit'] = self.head
+                manifest.write_text(json.dumps(record), encoding='utf-8')
+                self.assert_recovery_preserves(marker, self.registered(), manifest)
+                (admin / self.local.OWNER_TOKEN_FILE).write_text(original['token'], encoding='ascii')
+
+    def test_recovery_refuses_junction_or_symlink_artifact_directory(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        artifacts = Path(record['artifact_dir'])
+        artifacts.rmdir()
+        target = self.root / 'other-tool'
+        target.mkdir()
+        marker = target / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        if sys.platform == 'win32':
+            subprocess.run(['cmd', '/c', 'mklink', '/J', str(artifacts), str(target)],
+                           check=True, capture_output=True)
+            self.addCleanup(artifacts.rmdir)
+        else:
+            artifacts.symlink_to(target, target_is_directory=True)
+            self.addCleanup(artifacts.unlink)
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+
+    def test_owner_creation_time_matches_live_process_and_preserves_unknown_access(self):
+        started = self.local.get_process_start_time(os.getpid())
+        self.assertTrue(started)
+        self.assertTrue(self.local.is_owner_alive(os.getpid(), started))
+        self.assertFalse(self.local.is_owner_alive(os.getpid(), started + '-previous'))
+        with patch.object(self.local, 'get_process_start_time', side_effect=PermissionError('synthetic')):
+            self.assertTrue(self.local.is_owner_alive(os.getpid(), started))
+
+    def test_recovery_refuses_artifacts_outside_fixed_tool_root(self):
+        manifest, path, record = self.create_stale_run(created=False)
+        with tempfile.TemporaryDirectory(prefix='foreign-tool-') as temporary:
+            artifacts = Path(temporary).resolve()
+            foreign = artifacts / 'worktrees/shard-1'
+            self.git('worktree', 'add', '--detach', str(foreign), self.head)
+            try:
+                marker = foreign / 'uncommitted'
+                marker.write_bytes(b'foreign uncommitted data')
+                record.update(artifact_dir=str(artifacts), worktrees=[str(foreign)])
+                record['ownership'][0]['path'] = str(foreign)
+                manifest.write_text(json.dumps(record), encoding='utf-8')
+                self.assert_recovery_preserves(marker, self.registered(), manifest)
+            finally:
+                self.git('worktree', 'remove', '--force', str(foreign))
+
+    def test_recovery_validates_all_shards_before_removing_any_owned_worktree(self):
+        manifest, owned, record = self.create_stale_run()
+        foreign = owned.parent / 'shard-2'
+        foreign.mkdir()
+        marker = foreign / 'uncommitted'
+        marker.write_bytes(b'foreign uncommitted data')
+        record['shard_count'] = 2
+        record['worktrees'].append(str(foreign))
+        record['ownership'].append(dict(path=str(foreign), admin_name=None,
+            token=record['token'], snapshot_commit=record['snapshot_commit']))
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        self.assert_recovery_preserves(marker, self.registered(), manifest)
+        self.assertTrue((owned / '.git').is_file(), 'a later refusal must preserve earlier valid shards')
 
     def test_killed_coordinator_worktrees_are_recovered_without_touching_live_or_unowned_trees(self):
         self.run_killed_coordinator_recovery(automatic=False)
@@ -316,7 +521,7 @@ class LocalWorktreeTests(unittest.TestCase):
         self.git('config', 'gc.worktreePruneExpire', 'now')
         unrelated = self.root / 'unrecorded-prunable'
         self.git('worktree', 'add', '--detach', str(unrelated), self.head)
-        self.addCleanup(self.local.remove_snapshot_worktree, self.repo, unrelated, self.root)
+        self.addCleanup(self.git, 'worktree', 'remove', '--force', str(unrelated))
         self.assertTrue(unrelated.resolve().is_relative_to(self.root.resolve()))
         shutil.rmtree(unrelated)
         before, integrity = self.registered(), self.git_integrity()
@@ -377,13 +582,13 @@ class LocalWorktreeTests(unittest.TestCase):
         snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
         checkout = self.root / ('nested-' + 'x' * 110) / 'checkout'
         try:
-            self.local.add_snapshot_worktree(self.repo, snapshot, checkout)
+            self.add_checkout(snapshot, checkout)
             self.assertEqual(b'native\r\nsource\r\n', (checkout / 'native.log').read_bytes())
             self.assertEqual(b'long path\r\n', (checkout / long_name).read_bytes())
             status = subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout)
             self.assertEqual(b'', status, 'faithful CRLF bytes must not appear spuriously dirty')
         finally:
-            self.local.remove_snapshot_worktree(self.repo, checkout, self.root)
+            self.remove_checkout(checkout)
 
     def test_failure_still_runs_other_shard_and_removes_every_worktree(self):
         self.write_test('first', "self.fail('synthetic failure')")
@@ -407,7 +612,7 @@ class LocalWorktreeTests(unittest.TestCase):
         checkout = self.root / 'checkout'
         environment = {**self.local.get_git_environment(), 'AA2_LOCAL_UNIT_COMMON_DIR': common}
         try:
-            self.local.add_snapshot_worktree(self.repo, snapshot, checkout)
+            self.add_checkout(snapshot, checkout)
             result = subprocess.run([get_bash_executable(), str(installer)], cwd=checkout,
                                     env=environment, capture_output=True, text=True, timeout=15)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -431,7 +636,7 @@ class LocalWorktreeTests(unittest.TestCase):
             self.assertEqual((installed_stat.st_ino, installed_stat.st_mtime_ns),
                              (after_stat.st_ino, after_stat.st_mtime_ns))
         finally:
-            self.local.remove_snapshot_worktree(self.repo, checkout, self.root)
+            self.remove_checkout(checkout)
 
     def test_worktree_commands_wait_for_the_common_kernel_lock(self):
         from utils import file_lock
@@ -557,11 +762,11 @@ class LocalWorktreeTests(unittest.TestCase):
     def test_checkout_failure_keeps_a_failed_shard_artifact_and_cleans_prior_workers(self):
         add = self.local.add_snapshot_worktree
         before, calls = self.registered(), []
-        def failed(repo, snapshot, path):
+        def failed(repo, snapshot, path, **options):
             calls.append(path)
             if len(calls) == 2:
                 raise OSError('synthetic checkout failure')
-            return add(repo, snapshot, path)
+            return add(repo, snapshot, path, **options)
         with patch.object(self.local, 'add_snapshot_worktree', side_effect=failed):
             result = self.run_units()
         self.assertEqual('failed', result['status'])

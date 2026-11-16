@@ -1,5 +1,66 @@
 # Native Windows unit-suite duration: measurements and isolated local shards
 
+## Identity-bound recovery re-review, 2026-11-16
+
+Merged fresh `origin/main` at `fac80733` (#1983). This section supersedes the
+earlier recovery and private-index design descriptions below; their full-suite
+timings remain historical, not qualification of this revision.
+
+- **Recovery ownership:** every created shard now has an unguessable run UUID
+  plus nonce in its own worktree admin directory. Cleanup requires the recorded
+  registration path, admin entry/reverse gitfile pointer, detached snapshot HEAD
+  and matching token. All shard identities are checked before any removal.
+  Replacements, independent repositories, changed identities and unregistered
+  directories are preserved and reported, never recursively deleted. Git removes
+  only verified owned worktrees under the existing common-directory lock; there
+  is no global prune or direct admin-directory deletion.
+- **Artifact boundary:** manifests and explicit report directories must stay
+  below the fixed `<temp>/alexandria-local-units` root, outside the target
+  repository/common directory and registered checkouts. Realpath and actual
+  Windows junction / POSIX symlink checks reject redirected paths.
+- **Snapshot metadata:** seed the empty private index from the caller's
+  `ls-files --stage -z` entries via `update-index --index-info`, not HEAD or a
+  stat-cache copy. This retains force-added ignored files and staged executable
+  modes with `core.filemode=false`, while rehashing rapid same-size edits.
+  Caller-index, config, HEAD and refs integrity assertions and the final
+  checkout/tree-equality guard remain intact.
+- **Owner identity:** record PID and OS process creation time. A reused live PID
+  with a different birth time is stale, then recovery still requires every
+  worktree ownership check. Inaccessible owners remain untouched.
+- **Fail-first control:** seven real disposable-fixture regressions against
+  `daca9b77` ran in 17.257s: two failures and five errors. All four data-loss
+  scenarios destroyed only synthetic foreign fixture data before repair; the
+  staged-ignored, staged-mode and reused-PID cases also failed. No test targeted
+  the real repository.
+
+| Final focused qualification | Ran | Failures | Errors | Skips | unittest wall seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native Windows, CPython 3.10.22 | 101 | 0 | 0 | 0 | 223.294 |
+| WSL Ubuntu, CPython 3.14.4 | 101 | 0 | 0 | 0 | 99.746 |
+
+Both runs include all **44 local-shard tests**, the shared CI assignment and
+aggregation suite, navigation timer regressions, installer and derived-metadata
+tests. They exercise the four reported foreign-data cases, token/admin/HEAD
+tampering, validation-before-deletion, real coordinator PID termination,
+same-second edits, staged metadata and actual junction/symlink refusal. Every
+repository, worktree and process used by these tests is disposable. The native
+source fixture also regenerated and passed the full inventory check; its only
+inventory change is the 12 added local-shard tests. WSL's minimal CPU-only venv
+passed the focused suite but its additional full-inventory check exited 2 without
+comparison because ML/audio dependencies and an archived data fixture were
+unavailable; that is not a WSL inventory pass.
+
+GPU masks remained empty, qualification jobs did not overlap, and real shard
+fixtures used at most two workers. No full readiness run was repeated, per the
+fixture-only testing constraint. Legacy manifests and abrupt partial creations
+without completed identity proof are deliberately refused and left intact, not
+recovered by guessing ownership. All per-test native fixture directories are
+gone, and WSL removed its temporary checkout/venv on exit. Terminal policy
+blocked removal of the independent Windows `baseline-source` repository and
+its `source.tar` / `wsl-source.tar` archives below
+`<temp>/aa2-recovery-identity-review`; these remain alongside evidence logs.
+No registered shard worktree remains from this qualification.
+
 ## PR #1981 review follow-up, 2026-11-16
 
 Merged main at `32d6cdcd` (#1980) before repairing the two confirmed P2s.

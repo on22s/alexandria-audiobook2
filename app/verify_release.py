@@ -331,7 +331,7 @@ def main(argv=None):
     parser.add_argument('--unit-workers', type=int, metavar='N',
                         help='isolated local unit workers; native Windows default is 2; 0 selects serial; higher counts raise memory, driver and IO pressure')
     parser.add_argument('--unit-report-dir', metavar='PATH',
-                        help='new or empty directory outside the checkout for retained local shard logs and counts')
+                        help='new or empty directory below the tool temp root alexandria-local-units for retained logs and counts')
     parser.add_argument('--unit-shard-timeout', type=float, metavar='SECONDS',
                         help='local unit wall bound (default 3600 per parallel shard, 7200 serial); no production deadlines change')
     parser.add_argument('--serial-on-low-disk', action='store_true',

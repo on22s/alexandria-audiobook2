@@ -89,8 +89,11 @@ the existing strict local skip policy, rather than silently qualifying hardware.
 
 ### Snapshot and isolation contract
 
-The coordinator initializes a fresh private temporary index from HEAD, then
-runs `git add -A` / `git write-tree` against that index.
+The coordinator initializes an empty private temporary index, seeds the caller's
+index entries with `git ls-files --stage -z` / `git update-index --index-info`,
+then runs `git add -A` / `git write-tree` against that index. Entry paths, stages
+and modes survive without copying cached stat data: force-added ignored source
+files and staged executable modes with `core.filemode=false` are retained.
 A temporary `git commit-tree` object has the original HEAD as parent;
 **no ref, caller index or stash stack is changed**. Staged content, subsequent
 unstaged edits, deletions and non-ignored untracked files are captured. Untracked
@@ -104,7 +107,7 @@ actual file bytes against the captured manifest before launching tests.
 Each shard's own index is then refreshed under the normal Git attributes and
 configuration, with a tree-identity check; this avoids false dirty status from
 CRLF overlays without changing the caller's index or the captured tree. The
-private index starts with a fresh `git read-tree HEAD`, not a byte copy of
+private index starts with entry-only metadata, not HEAD or a byte copy of
 the caller's stat cache: same-size edits within one timestamp second must be
 hashed even when Git's racy-clean protection depends on the original index's
 timestamp. The final checkout/index tree-equality guard remains enforced. Source
@@ -144,8 +147,9 @@ matching or broad worktree pruning is used. Cleanup problems fail readiness and
 record the remaining owned paths.
 
 Forced coordinator termination cannot execute its `finally` cleanup. Before
-creating any shard worktree, the coordinator atomically records the owner PID,
-host/platform, artifact directory and exact planned worktree paths in
+creating any shard worktree, the coordinator atomically records the owner PID
+and process creation time, host/platform, artifact directory, snapshot commit,
+run UUID plus a random secret nonce, and exact planned worktree paths in
 `<common-git-dir>/alexandria-local-unit-runs/<run-id>.json` under the same lock.
 Every subsequent local run checks these manifests before starting units. An
 explicit recovery command is also available from the repository root:
@@ -154,12 +158,31 @@ explicit recovery command is also available from the repository root:
 "$AA2_PYTHON" app/local_unit_shards.py --cleanup-stale
 ```
 
-Recovery only removes recorded paths after the owner's PID is confirmed gone;
-live or inaccessible owners, recycled live PIDs, and foreign host/platform
-manifests are left alone. Run recovery in the original native environment.
-Malformed or unsafe manifests fail loudly. Recovery preserves unrecorded
-worktrees and runs prune only when its locked dry-run has no unrelated entries
-to prune. It retains partial receipts/logs and writes an explicitly failed,
+Recovery requires the recorded PID and process creation time to identify a live
+owner. A reused PID with a different creation time is stale; inaccessible owners
+and foreign host/platform manifests are left alone. Windows uses GetProcessTimes,
+Linux uses `/proc/<pid>/stat` starttime, and other POSIX hosts use `ps lstart`.
+Run recovery in the original native environment.
+
+Checkout creation records each worktree's own admin entry name and writes the
+secret token outside its tracked tree, into that admin directory, before
+materialization or worker launch. Both normal cleanup and recovery require the
+registered path, admin entry and reverse gitfile pointer, detached snapshot HEAD,
+and secret token to match. Recovery validates every shard before removing any.
+Removal uses only `git worktree remove --force` under the common lock; there is
+no recursive worktree deletion, global prune, or direct admin-directory removal.
+Missing paths are harmless only when neither the path nor its recorded admin
+entry remains. Unregistered directories, replacement worktrees, changed tokens
+or HEADs, and partial creations without a completed ownership record are left
+intact and fail loudly. Legacy manifests without identity proof are refused,
+not upgraded from path strings. No deletion is inferred from a directory name.
+
+Artifact directories must be strict descendants of the tool-controlled temp
+root `<temp>/alexandria-local-units`, outside repository checkouts and common
+metadata. Realpath, symlink and Windows junction/reparse-point checks apply to
+artifact/worktree paths and admin links. An arbitrary external `--unit-report-dir`
+is no longer accepted; choose a new/empty directory below that root. Malformed
+or unsafe manifests fail loudly. Recovery retains partial receipts/logs and writes an explicitly failed,
 incomplete aggregate for the interrupted run. The manifest is removed only after
 worktree cleanup and aggregate publication succeed; failed recovery can be
 retried. This is next-run recovery, not a promise that a killed process executes
@@ -193,7 +216,7 @@ success or skip fails readiness. Known Windows failures and intentional platform
 skips are reported, not waived.
 
 Logs and JSON remain in the printed temporary artifact directory, outside the
-checkout, or in a new/empty `--unit-report-dir` supplied by the caller. Each shard
+checkout, or in a new/empty `--unit-report-dir` below the fixed tool temp root. Each shard
 has `output.log`, `tests.json` and `shard.json`; `aggregate.json` records exact
 IDs, summed unittest counters, status and cleanup. `ci_env` atomically checkpoints
 counts about every five seconds and writes a final receipt even when tests fail.
