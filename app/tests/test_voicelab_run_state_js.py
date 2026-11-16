@@ -8,7 +8,7 @@ HARNESS = r"""
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const elements={};
 function element(id){return elements[id]||(elements[id]={value:'',checked:false,disabled:false,style:{display:'none'},innerHTML:'',innerText:'',scrollHeight:0});}
-const ctx={window:null,document:{getElementById:element,querySelectorAll:()=>[{value:'name'}]},
+const ctx={window:null,document:{getElementById:element,querySelector:selector=>element(selector.slice(1)),querySelectorAll:()=>[{value:'name'}]},
  API:{},_makePauseResumeHandler:()=>()=>{},_resetPauseBtn:()=>{},showToast:()=>{},
  showConfirm:async()=>true,escapeHtml:x=>String(x),cancelTask:()=>{},notifyJobDone:()=>{},
  t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiDate:value=>String(value),taskStatusLabel:status=>status,

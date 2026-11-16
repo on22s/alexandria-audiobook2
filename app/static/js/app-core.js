@@ -4222,6 +4222,11 @@
                 result = await API.get('/api/cast_list');
             } catch (e) {
                 if (request !== castListRequest || book !== currentBookFilename) { return; }
+                if (!book && !window._selectedUploadIdentity && editorSnapshot === '[]'
+                        && e.status === 400 && e.messageKey === 'error.generation.no_input') {
+                    document.getElementById('cast-list-status').textContent = t('script.cast_list.empty', 'No book selected. Choose a source above to begin.');
+                    return;
+                }
                 document.getElementById('cast-list-status').textContent = getActionErrorMessage(
                     t('script.cast_list.refresh-unconfirmed', 'Cast-list refresh was not confirmed'), e,
                     t('script.cast_list.refresh-recovery', 'Existing editor rows were kept. Retry loading this book’s cast list before relying on it for generation.'));
@@ -8145,12 +8150,21 @@
                 // the only explanation sits in the status line above it.
                 const tbody = document.getElementById('chunks-table-body');
                 const placeholder = tbody && tbody.children && tbody.children.length === 1 ? tbody.children[0] : null;
+                const refused = e.status === 409 || e.status === 400 || e.status === 422;
+                const message = refused
+                    ? t('core.editor.prerequisite-refused', 'Editor is unavailable for the selected source. {reason} Open Script to review the source and publish its script before editing.', {reason: describeApiError(e)})
+                    : t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.');
                 if (placeholder && placeholder.children.length === 1) {
-                    placeholder.children[0].textContent = t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.');
+                    placeholder.children[0].textContent = message;
                 }
                 const status = document.getElementById('chunk-load-status');
                 if (status) {
-                    status.innerHTML = `<span class="text-warning">${escapeHtml(t('core.editor.load-failed', 'Could not load editor chunks. Displayed rows may be out of date. Check that Alexandria is running, then retry.'))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`;
+                    status.innerHTML = `<div class="alert alert-warning mb-2">${escapeHtml(message)}</div> `
+                        + (refused
+                            ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="openScriptWorkspace" onclick="activateTab('script')">${escapeHtml(t('home.workspace.open-script', 'Open Script'))}</button>`
+                            : `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadChunks(true)">${escapeHtml(t('core.editor.retry', 'Retry chunks'))}</button>`)
+                        + ` <a href="/api/logs/diagnostics?download=true" class="btn btn-sm btn-outline-secondary" download>${escapeHtml(t('setup.tts.failure-log-download', 'Download failure log'))}</a>`
+                        + `<p class="small text-muted mt-2">${escapeHtml(t('diagnostics.failure-log.privacy', 'The failure log is separate from the support report and may contain private paths and error details. Review and redact before sharing.'))}</p>`;
                 }
             }
         }

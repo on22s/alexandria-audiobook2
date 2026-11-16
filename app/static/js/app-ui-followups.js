@@ -110,6 +110,7 @@ function renderScriptIngestFeedback() {
     if (!node) { return; }
     const text = scriptIngestFeedback === 'checking' ? t('script.ingest.checking', 'Checking saved source, roster and script…')
         : scriptIngestFeedback === 'snapshot' ? t('script.ingest.snapshot', 'Saved-state snapshot. Refresh after changes; these links do not start work or certify voice quality.')
+        : scriptIngestFeedback === 'empty' ? t('script.ingest.no-book', 'No book selected. Choose a source to begin; no script has been published.')
         : scriptIngestFeedback === 'unavailable' ? t('script.ingest.unavailable', 'Saved progress could not be verified. Refresh after resolving the reported problem; no completion is inferred.') : '';
     node.textContent = joinUiSentences([text, scriptIngestDetail]);
 }
@@ -118,6 +119,7 @@ function refreshScriptIngestFacts() {
     const book = currentBookFilename;
     const selection = window._selectedUploadIdentity;
     if (scriptIngestPending?.book === book && scriptIngestPending.selection === selection) { return scriptIngestPending.promise; }
+    const hadFacts = scriptIngestFacts !== null;
     resetScriptIngestFacts();
     const request = scriptIngestRequest;
     if (!document.getElementById('script-ingest-feedback')) { return Promise.resolve(); }
@@ -129,7 +131,7 @@ function refreshScriptIngestFacts() {
         const query = selection?.token ? '?expected_book_token=' + encodeURIComponent(selection.token) : '';
         const facts = await API.get('/api/script/ingest-status' + query);
         if (request !== scriptIngestRequest || book !== currentBookFilename) { return; }
-        if (selection?.token && facts.book_token !== selection.token) { throw Error('Obsolete ingest snapshot'); }
+        if (selection?.token && facts.book_token !== selection.token) { throw Error(t('script.ingest.obsolete', 'Obsolete ingest snapshot')); }
         renderScriptIngestFacts(facts);
         scriptIngestFeedback = 'snapshot';
         scriptIngestDetail = facts.script.reason || '';
@@ -137,8 +139,10 @@ function refreshScriptIngestFacts() {
     } catch (error) {
         if (request !== scriptIngestRequest || book !== currentBookFilename) { return; }
         resetScriptIngestFacts();
-        scriptIngestFeedback = 'unavailable';
-        scriptIngestDetail = describeApiError(error);
+        const empty = !book && !selection && !hadFacts && error.status === 400
+            && /^error\.upload\.no_input_active$/.test(error.messageKey);
+        scriptIngestFeedback = empty ? 'empty' : 'unavailable';
+        scriptIngestDetail = empty ? '' : describeApiError(error);
         renderScriptIngestFeedback();
     } })().finally(() => { if (scriptIngestPending === pending) { scriptIngestPending = null; } });
     return pending.promise;

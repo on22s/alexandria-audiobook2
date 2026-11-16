@@ -11,6 +11,7 @@ function applyTtsCapabilityGuidance() {
     const mode = document.getElementById('tts-mode')?.value;
     const capability = ttsCapabilityModes?.[mode];
     const summary = document.getElementById('tts-capability-summary');
+    if (summary) { summary.removeAttribute('data-i18n'); }
     if (!capability?.controls || !capability?.voice_types) {
         if (summary) { summary.textContent = t('setup.tts.cap.summary-unavailable', 'Backend capabilities unavailable. Existing settings are preserved; reload configuration to retry.'); }
         for (const card of document.querySelectorAll('.voice-card')) {
@@ -24,7 +25,10 @@ function applyTtsCapabilityGuidance() {
         return;
     }
     if (summary) {
-        summary.textContent = t('setup.tts.cap.summary', '{description} {note} AA2 returns completed audio files; playback is not incremental. Mode edits apply to generation only after Save Configuration.', {description: capability.description, note: capability.language_note});
+        const description = t(capability.description_key, capability.description);
+        const note = t(capability.language_note_key, capability.language_note);
+        summary.textContent = t('setup.tts.cap.summary', '{description} {note} AA2 returns completed audio files; playback is not incremental. Mode edits apply to generation only after Save Configuration.', {description, note})
+            + ' ' + t('setup.tts.cap.not-readiness', 'Capability metadata does not mean a model or server is loaded or ready.');
     }
     for (const [control, id] of Object.entries({server: 'tts-url-group', external_timeout: 'tts-external-timeout-group', device: 'tts-device-group', local_options: 'tts-local-options'})) {
         const field = document.getElementById(id);

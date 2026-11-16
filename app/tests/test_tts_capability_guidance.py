@@ -1,5 +1,7 @@
 """One dispatch matrix drives the UI contract without altering configuration."""
 import copy
+import json
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 import tts
@@ -7,6 +9,18 @@ from tts_capabilities import get_tts_backend_capabilities, get_tts_capability_mo
 
 
 class TtsCapabilityGuidanceTests(unittest.TestCase):
+    def test_server_message_keys_match_the_english_catalog(self):
+        catalog = json.loads((Path(__file__).resolve().parent.parent / 'static/i18n/ui.en.json').read_text(encoding='utf-8'))
+        keys = set()
+        for mode, descriptor in get_tts_capability_modes().items():
+            for field in ('description', 'language_note'):
+                with self.subTest(mode=mode, field=field):
+                    key = descriptor[field + '_key']
+                    self.assertIsInstance(key, str)
+                    self.assertNotIn(key, keys)
+                    keys.add(key)
+                    self.assertEqual(descriptor[field], catalog[key])
+
     def test_descriptor_and_native_dispatch_agree_for_every_voice_category(self):
         modes = get_tts_capability_modes()
         for mode, descriptor in modes.items():

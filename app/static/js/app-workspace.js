@@ -42,6 +42,11 @@ function renderWorkspaceStage(title, status, explanation) {
 }
 
 function renderBookWorkspace(data) {
+    const empty = document.querySelector('#workspace-empty');
+    if (empty) {
+        empty.hidden = data.script.entries !== 0 || data.cast.total !== 0 || !!currentBookFilename || !!window._selectedUploadIdentity;
+        document.querySelector('#workspace-stages').hidden = !empty.hidden;
+    }
     document.getElementById('workspace-book-name').textContent = data.name;
     document.getElementById('workspace-next-reason').textContent = data.next.reason;
     const button = document.getElementById('workspace-continue');
@@ -472,10 +477,12 @@ window.refreshWorkspaceView = function () {
     refreshWorkspaceMonitor();
 };
 window.invalidateBookWorkspace = function () {
+    const hadSnapshot = !!workspaceBookSnapshot && (workspaceBookSnapshot.script?.entries > 0 || workspaceBookSnapshot.cast?.total > 0)
+        || !!document.querySelector('#workspace-collection')?.children.length;
     ++collectionOverviewRequest;
     document.getElementById('workspace-collection')?.replaceChildren();
     const feedback = document.getElementById('workspace-collection-feedback');
-    if (feedback) { feedback.textContent = t('safety.home.collection.active-changed', 'The active book changed. Show the collection overview again.'); }
+    if (feedback) { feedback.textContent = hadSnapshot ? t('safety.home.collection.active-changed', 'The active book changed. Show the collection overview again.') : ''; }
     workspaceBookRequest++;
     workspaceBookSnapshot = null;
     document.getElementById('workspace-continue').disabled = true;
