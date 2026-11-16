@@ -5,10 +5,12 @@ on:
       - 'app/**'
       - 'alexandria_alignment/**'
       - '.github/workflows/qwen-readalong.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:
   native:
+    name: qwen-readalong (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:

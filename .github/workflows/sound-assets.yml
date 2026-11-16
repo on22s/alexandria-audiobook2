@@ -59,10 +59,12 @@ on:
       - 'app/tests/test_media_process.py'
       - 'app/tests/test_export_quality.py'
       - '.github/workflows/audio-pcm-decode.yml'
+  merge_group:
 permissions:
   contents: read
 jobs:
   native:
+    name: audio-integrity (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:

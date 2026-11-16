@@ -2498,9 +2498,12 @@
 
                         <!-- Single review -->
                         <div id="review-single-area">
-                            <button class="btn btn-outline-secondary btn-lg w-100" id="btn-review-script">
+                            <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-secondary btn-lg flex-grow-1" id="btn-review-script">
                                 <i class="fas fa-check-double me-2"></i><span data-i18n="script.review.start">Review Script (Optional)</span>
                             </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-review-fresh" style="display:none;min-height:44px;min-width:44px;"><span data-i18n="script.review.start-over">Start over</span></button>
+                            </div>
                             <small data-i18n="script.review.start.help" class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
                             <div class="input-group mt-1">
                                 <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-context-window">Context Window</label>
@@ -2508,6 +2511,7 @@
                                 <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
                                     <i class="fas fa-crosshairs me-2"></i><span data-i18n="script.review.contextual">Contextual Review (+/- N)</span>
                                 </button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-review-contextual-fresh" style="display:none;min-height:44px;min-width:44px;"><span data-i18n="script.review.start-over">Start over</span></button>
                             </div>
                             <small data-i18n="script.review.contextual.help" class="text-muted d-block" id="review-context-help">Contextual Review uses N script entries before and after each entry (1–12; default 4). Standard Review does not use this setting.</small>
                             <small data-i18n="script.review.contextual.estimate" class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
@@ -2564,10 +2568,11 @@
                         </div>
 
                         <!-- Shared run controls -->
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
                             <button class="btn btn-success flex-grow-1" id="btn-review-batch-start" style="display:none;" onclick="startBatchReview()">
                                 <i class="fas fa-check-double me-2"></i><span data-i18n="script.review.batch.start">Start Batch Review</span>
                             </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-review-batch-fresh" style="display:none;min-height:44px;min-width:44px;" onclick="startBatchReview(true)"><span data-i18n="script.review.start-over">Start over</span></button>
                             <button class="btn btn-outline-warning" id="btn-pause-review" style="display:none;" onclick="pauseResumeReview()"><i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span></button>
                             <button class="btn btn-outline-danger" id="btn-cancel-review" style="display:none;" onclick="cancelReview()"><i class="fas fa-stop me-1"></i><span data-i18n="script.run.cancel">Cancel</span></button>
                             <button class="btn btn-outline-warning" id="btn-pause-batch-review" style="display:none;" onclick="pauseResumeBatchReview()"><i class="fas fa-pause me-1"></i><span data-i18n="script.run.pause">Pause</span></button>

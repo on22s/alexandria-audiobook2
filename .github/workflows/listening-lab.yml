@@ -6,12 +6,14 @@ on:
       - 'tools/listening_lab/**'
       - '.github/workflows/listening-lab.yml'
       - '.gitattributes'
+  merge_group:
 
 permissions:
   contents: read
 
 jobs:
   verifiers:
+    name: listening-lab (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     env:

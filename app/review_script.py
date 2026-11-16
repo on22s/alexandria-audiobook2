@@ -35,7 +35,8 @@ from llm_provider import (make_llm_client, make_run_client, get_run_model_bindin
                           get_run_fingerprint_identity, resolve_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
-    get_review_receipt_path, save_completed_review_receipt, remove_completed_review_receipt)
+    get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
+    remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
@@ -221,7 +222,7 @@ def wait_for_vram_headroom(fail_fast=False):
 # every batch from scratch.
 
 def _checkpoint_path(output_path):
-    return output_path + ".review_checkpoint.json"
+    return get_review_progress_paths(output_path)[0]
 
 
 _entries_fingerprint = get_review_entries_fingerprint

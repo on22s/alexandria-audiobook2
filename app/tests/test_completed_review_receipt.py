@@ -70,12 +70,12 @@ class CompletedReviewReceiptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'book.json'; path.write_text('[{"text":"Hello."}]')
             app = FastAPI(); app.include_router(script.router)
-            with patch.object(script, 'SCRIPT_PATH', str(path)), patch.object(script, 'check_global_gpu_lock'), patch.object(script, 'schedule_claimed_background_task') as schedule, patch.object(script, 'load_app_config', return_value={}), TestClient(app) as client:
+            with patch.object(script, 'SCRIPT_PATH', str(path)), patch.object(script, 'check_global_gpu_lock'), patch.object(script, 'reserve_background_task', return_value='claim'), patch.object(script, 'register_claimed_background_task') as schedule, patch.object(script, 'load_app_config', return_value={}), TestClient(app) as client:
                 for endpoint in ('/api/review_script', '/api/review_script_contextual'):
                     for force in (False, True):
                         response = client.post(endpoint, json={'force_review': force, 'dedupe_speakers': False})
                         self.assertEqual(200, response.status_code, response.text)
-                        command = schedule.call_args.args[3]
+                        command = schedule.call_args.args[4]
                         self.assertEqual(force, '--force-review' in command)
 
     def test_native_transport_repeat_force_and_failed_rerun_receipts(self):
