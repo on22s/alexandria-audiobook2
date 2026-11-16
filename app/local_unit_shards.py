@@ -1,16 +1,20 @@
 """Run CI's unit partitions in detached, byte-faithful local snapshots."""
 import contextlib
+import errno
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import shutil
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
+import uuid
 
 from check_shard_reports import get_shard_report_errors
 from diagnostics import get_redacted_credentials
@@ -44,17 +48,20 @@ def get_git_environment():
             'GIT_OPTIONAL_LOCKS': '0'}
 
 
-def run_git(repo, *arguments, environment=None):
+def get_common_directory(repo):
+    return Path(os.fsdecode(run_git(
+        repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip()).resolve()
+
+
+def run_git(repo, *arguments, environment=None, _locked=False, include_stderr=False):
     arguments = list(map(str, arguments))
     command_index = 0
     while command_index < len(arguments) and arguments[command_index] == '-c':
         command_index += 2
     command = arguments[command_index] if command_index < len(arguments) else None
     lock = contextlib.nullcontext()
-    if command == 'worktree':
-        common = Path(os.fsdecode(run_git(
-            repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip())
-        lock = file_lock(common / 'alexandria-local-unit-git', timeout=120)
+    if command == 'worktree' and not _locked:
+        lock = file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120)
     with lock:
         result = run_owned_capture(
             ['git', '-c', 'core.hooksPath=' + os.devnull, '-c', 'core.fsmonitor=false',
@@ -63,7 +70,7 @@ def run_git(repo, *arguments, environment=None):
     if result.returncode:
         detail = get_redacted_credentials(os.fsdecode(result.stderr)).strip()[-2000:]
         raise RuntimeError(f'git {arguments[0]} failed: {detail}')
-    return result.stdout
+    return result.stdout + result.stderr if include_stderr else result.stdout
 
 
 def get_source_paths(repo):
@@ -130,9 +137,8 @@ def create_working_tree_snapshot(repo, directory):
     names = get_source_paths(repo)
     before = capture_source_files(repo, names, algorithm)
     alternate = directory / 'index'
-    alternate.write_bytes(index_bytes)
     environment = {**get_git_environment(), 'GIT_INDEX_FILE': str(alternate)}
-    run_git(repo, 'update-index', '--no-split-index', environment=environment)
+    run_git(repo, 'read-tree', head, environment=environment)
     run_git(repo, 'add', '-A', '--', '.', environment=environment)
     tree = run_git(repo, 'write-tree', environment=environment).strip().decode('ascii')
     entries = {}
@@ -187,17 +193,20 @@ def add_snapshot_worktree(repo, snapshot, path):
         raise ValueError('Refreshing the snapshot index changed its captured tree')
 
 
-def remove_snapshot_worktree(repo, path, owned_root):
+def remove_snapshot_worktree(repo, path, owned_root, *, _locked=False):
+    if not _locked:
+        with file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120):
+            return remove_snapshot_worktree(repo, path, owned_root, _locked=True)
     path, owned_root = Path(path), Path(owned_root).resolve()
     if not path.resolve().is_relative_to(owned_root) or path.resolve() == owned_root:
         raise ValueError('Refusing to remove a worktree outside the owned unit directory')
     for attempt in range(3):
         try:
             registered = {Path(os.fsdecode(record[9:])).resolve() for record in
-                          run_git(repo, 'worktree', 'list', '--porcelain', '-z').split(b'\0')
+                          run_git(repo, 'worktree', 'list', '--porcelain', '-z', _locked=True).split(b'\0')
                           if record.startswith(b'worktree ')}
             if path.resolve() in registered:
-                run_git(repo, 'worktree', 'remove', '--force', str(path))
+                run_git(repo, 'worktree', 'remove', '--force', str(path), _locked=True)
             if path.exists():
                 if not path.resolve().is_relative_to(owned_root):
                     raise ValueError('Owned worktree changed during cleanup')
@@ -207,6 +216,99 @@ def remove_snapshot_worktree(repo, path, owned_root):
             if attempt == 2:
                 raise
             time.sleep(.1)
+
+
+def is_owner_alive(pid):
+    if type(pid) is not int or pid <= 0:
+        raise ValueError('Invalid local unit owner PID; refusing stale cleanup')
+    if sys.platform == 'win32':
+        import ctypes
+        from windows_subprocess_job import get_windows_job_api
+        api = get_windows_job_api()
+        handle = api.OpenProcess(0x100000, False, pid)
+        if not handle:
+            if ctypes.get_last_error() == 87:
+                return False
+            return True
+        try:
+            wait = api.WaitForSingleObject
+            wait.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+            wait.restype = ctypes.c_uint32
+            return wait(handle, 0) != 0
+        finally:
+            api.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except OSError as error:
+        if error.errno == errno.ESRCH:
+            return False
+        if error.errno != errno.EPERM:
+            raise
+    return True
+
+
+def register_run(repo, artifacts, expected_ids, count):
+    common = get_common_directory(repo)
+    with file_lock(common / 'alexandria-local-unit-git', timeout=120):
+        registry = common / 'alexandria-local-unit-runs'
+        registry.mkdir(exist_ok=True)
+        manifest = registry / (uuid.uuid4().hex + '.json')
+        atomic_json_write(dict(schema_version=1, owner_pid=os.getpid(),
+                               owner_platform=sys.platform, owner_host=socket.gethostname(),
+                               common_directory=str(common), artifact_dir=str(artifacts),
+                               expected_ids=expected_ids, shard_count=count,
+                               worktrees=[str(artifacts / 'worktrees' / f'shard-{number}')
+                                          for number in range(1, count + 1)]),
+                          str(manifest), allow_nonatomic_fallback=False)
+    return manifest
+
+
+def cleanup_stale_runs(repo):
+    common = get_common_directory(repo)
+    recovered = []
+    with file_lock(common / 'alexandria-local-unit-git', timeout=120):
+        for manifest in sorted((common / 'alexandria-local-unit-runs').glob('*.json')):
+            record = json.loads(manifest.read_text(encoding='utf-8'))
+            if record.get('schema_version') != 1 or record.get('common_directory') != str(common):
+                raise ValueError(f'Invalid local unit recovery manifest: {manifest}')
+            if (record['owner_platform'] != sys.platform
+                    or record['owner_host'] != socket.gethostname()
+                    or is_owner_alive(record['owner_pid'])):
+                continue
+            artifacts = Path(record['artifact_dir'])
+            root = artifacts / 'worktrees'
+            count = record['shard_count']
+            if (type(count) is not int or count < 1 or not artifacts.is_absolute()
+                    or artifacts.resolve() != artifacts or root.resolve() != root
+                    or record['worktrees'] != [str(root / f'shard-{number}')
+                                               for number in range(1, count + 1)]):
+                raise ValueError(f'Unsafe local unit recovery paths: {manifest}')
+            for path in record['worktrees']:
+                remove_snapshot_worktree(repo, Path(path), root, _locked=True)
+            if not run_git(repo, 'worktree', 'prune', '--dry-run', '--expire=now',
+                           _locked=True, include_stderr=True).strip():
+                run_git(repo, 'worktree', 'prune', _locked=True)
+            reports = []
+            for number, path in enumerate(record['worktrees'], 1):
+                directory = artifacts / f'shard-{number}'
+                directory.mkdir(parents=True, exist_ok=True)
+                log_path = directory / 'output.log'
+                if not log_path.exists():
+                    log_path.write_text('Coordinator exited before capturing shard output.\n', encoding='utf-8')
+                report = get_worker_report(dict(
+                    receipt=directory / 'tests.json', directory=directory, spec=f'{number}/{count}',
+                    worktree=Path(path), log_path=log_path, status='crashed',
+                    process=SimpleNamespace(returncode=None)))
+                reports.append(report)
+            result = aggregate_unit_reports(reports, record['expected_ids'], count)
+            result.update(status='failed', counts_complete=False, artifact_dir=str(artifacts),
+                          remaining_worktrees=[], recovered_owner_pid=record['owner_pid'])
+            result['problems'].append('Coordinator exited without finalizing; recovered recorded worktrees')
+            atomic_json_write(result, str(artifacts / 'aggregate.json'), allow_nonatomic_fallback=False)
+            manifest.unlink()
+            recovered.append(str(artifacts))
+            print(f'Recovered stale local unit run: {artifacts}; partial counts retained in aggregate.json', flush=True)
+    return recovered
 
 
 def aggregate_unit_reports(reports, expected_ids, shard_count):
@@ -302,11 +404,13 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
     worktree_root.mkdir()
     started, jobs, reports, problems, expected_ids = time.monotonic(), [], [], [], []
     active, worktrees, snapshot, interrupted, fallback = [], [], None, None, None
+    manifest = None
     count = shard_count if workers else 1
     workers = min(workers, count)
     print(f'Local unit artifacts: {artifacts}', flush=True)
     with tempfile.TemporaryDirectory(prefix='snapshot-', dir=artifacts) as temporary:
         try:
+            cleanup_stale_runs(repo)
             if workers:
                 names = get_source_paths(repo)
                 source_bytes = sum((repo / name).lstat().st_size for name in names
@@ -351,6 +455,8 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
             print(f'Local unit execution: workers={workers}, partitions={count}, GPU devices hidden', flush=True)
             protected_common = os.fsdecode(run_git(
                 repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip()
+            if workers:
+                manifest = register_run(repo, artifacts, expected_ids, count)
             pending = list(range(1, count + 1))
             while pending or active:
                 while pending and len(active) < max(1, workers):
@@ -478,6 +584,9 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
     if fallback:
         result['fallback_reason'] = fallback
     atomic_json_write(result, str(artifacts / 'aggregate.json'), allow_nonatomic_fallback=False)
+    if manifest is not None and not worktrees:
+        with file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120):
+            manifest.unlink()
     print(f"Ran {result['tests_ran']} tests in {result['duration_seconds']:.3f}s; "
           f"failures={result['failures']}, errors={result['errors']}, skips={result['skips']}; "
           f"unexpected_successes={result['unexpected_successes']}; "
@@ -486,3 +595,18 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
         interrupted.result = result
         raise interrupted
     return result
+
+
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cleanup-stale', action='store_true', required=True,
+                        help='recover only recorded local shard worktrees whose coordinator PID is gone')
+    parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parent.parent)
+    args = parser.parse_args(argv)
+    cleanup_stale_runs(args.repo)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

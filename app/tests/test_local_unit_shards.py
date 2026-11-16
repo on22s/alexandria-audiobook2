@@ -162,6 +162,176 @@ class LocalWorktreeTests(unittest.TestCase):
     def registered(self):
         return self.git('worktree', 'list', '--porcelain')
 
+    def git_integrity(self):
+        common = Path(self.git('rev-parse', '--path-format=absolute', '--git-common-dir').strip())
+        index = Path(self.git('rev-parse', '--path-format=absolute', '--git-path', 'index').strip())
+        return (common.joinpath('config').read_bytes(), index.read_bytes(),
+                self.git('rev-parse', 'HEAD'), self.git('show-ref'))
+
+    def test_rapid_same_size_edit_is_captured_without_trusting_copied_index_stats(self):
+        self.git('config', 'core.checkStat', 'minimal')
+        self.git('config', 'core.trustctime', 'false')
+        payload = self.repo / 'app/payload.txt'
+        for attempt in range(5):
+            payload.write_bytes(b'base\n')
+            self.git('add', 'app/payload.txt')
+            indexed_second = int(payload.stat().st_mtime)
+            payload.write_bytes(b'next\n')
+            if int(payload.stat().st_mtime) == indexed_second:
+                break
+        else:
+            self.fail('Could not exercise a same-second edit')
+        self.assertIn('app/payload.txt', self.git('diff', '--name-only'))
+        before = self.git_integrity()
+        checkout = self.root / 'checkout'
+        try:
+            snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
+            self.local.add_snapshot_worktree(self.repo, snapshot, checkout)
+            self.assertEqual(b'next\n', (checkout / 'app/payload.txt').read_bytes())
+            captured = subprocess.check_output(
+                ['git', 'show', snapshot['commit'] + ':app/payload.txt'], cwd=self.repo)
+            self.assertEqual(b'next\n', captured)
+        finally:
+            self.local.remove_snapshot_worktree(self.repo, checkout, self.root)
+        self.assertEqual(before, self.git_integrity())
+
+    def test_killed_coordinator_worktrees_are_recovered_without_touching_live_or_unowned_trees(self):
+        self.run_killed_coordinator_recovery(automatic=False)
+
+    def test_next_run_recovers_killed_coordinator_worktrees(self):
+        self.run_killed_coordinator_recovery(automatic=True)
+
+    def run_killed_coordinator_recovery(self, *, automatic):
+        markers = [self.root / ('active-' + name) for name in ('first', 'second')]
+        for name, marker in zip(('first', 'second'), markers):
+            self.write_test(name, f"Path({str(marker)!r}).touch(); time.sleep(120)")
+        unrelated = self.root / 'unrecorded-checkout'
+        self.git('worktree', 'add', '--detach', str(unrelated), self.head)
+        self.addCleanup(self.git, 'worktree', 'remove', '--force', str(unrelated))
+        before, integrity = self.registered(), self.git_integrity()
+        reports = self.root / 'killed-reports'
+        code = ('from pathlib import Path; import sys; import local_unit_shards as local; '
+                'local.run_local_unit_tests(Path(sys.argv[1]), workers=2, shard_count=2, '
+                'report_dir=Path(sys.argv[2]), timeout=180)')
+        def cleanup_command():
+            return subprocess.run(
+                [sys.executable, '-m', 'local_unit_shards', '--cleanup-stale', '--repo', str(self.repo)],
+                cwd=APP, env={**self.local.get_git_environment(), 'PYTHONPATH': str(APP)},
+                capture_output=True, text=True, timeout=60)
+        log = (self.root / 'coordinator.log').open('wb')
+        process = subprocess.Popen([sys.executable, '-c', code, str(self.repo), str(reports)],
+                                   cwd=APP, env={**self.local.get_git_environment(),
+                                                 'PYTHONPATH': str(APP), **self.local.CPU_DEVICE_MASK},
+                                   stdout=log, stderr=subprocess.STDOUT)
+        try:
+            deadline = time.monotonic() + 60
+            while not all(marker.exists() for marker in markers) and time.monotonic() < deadline:
+                if process.poll() is not None:
+                    break
+                time.sleep(.05)
+            self.assertTrue(all(marker.exists() for marker in markers),
+                            (self.root / 'coordinator.log').read_text(encoding='utf-8'))
+            live = self.registered()
+            self.assertNotEqual(before, live)
+            live_cleanup = cleanup_command()
+            self.assertEqual(0, live_cleanup.returncode, live_cleanup.stderr)
+            self.assertEqual(live, self.registered(), 'a live coordinator must never be cleaned')
+            process.kill()
+            process.wait(timeout=20)
+            if automatic:
+                for name in ('first', 'second'):
+                    self.write_test(name, 'self.assertTrue(True)')
+                result = self.run_units()
+                self.assertEqual('passed', result['status'], result['problems'])
+            else:
+                cleanup = cleanup_command()
+                self.assertEqual(0, cleanup.returncode, cleanup.stderr)
+            self.assertEqual(before, self.registered())
+            if not automatic:
+                self.assertIn('Recovered stale local unit run:', cleanup.stdout)
+            self.assertTrue((unrelated / 'app/payload.txt').is_file())
+            self.assertFalse(any((reports / 'worktrees').iterdir()))
+            self.assertEqual(integrity, self.git_integrity())
+            saved = json.loads((reports / 'aggregate.json').read_text(encoding='utf-8'))
+            self.assertEqual('failed', saved['status'])
+            self.assertFalse(saved['counts_complete'])
+            self.assertEqual(2, saved['tests_ran'])
+            self.assertEqual(set(self.identifiers), set(saved['test_ids']))
+            self.assertEqual([], self.local.cleanup_stale_runs(self.repo))
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=20)
+            log.close()
+            if hasattr(self.local, 'cleanup_stale_runs'):
+                self.local.cleanup_stale_runs(self.repo)
+            else:
+                for number in (1, 2):
+                    self.local.remove_snapshot_worktree(
+                        self.repo, reports / 'worktrees' / f'shard-{number}', reports / 'worktrees')
+
+    def test_stale_recovery_rejects_unrecorded_paths_before_removing_anything(self):
+        artifacts = self.root / 'reports'
+        artifacts.mkdir()
+        unrelated = self.root / 'unrecorded'
+        unrelated.mkdir()
+        marker = unrelated / 'keep'
+        marker.touch()
+        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child.wait(timeout=10)
+        manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 1)
+        record = json.loads(manifest.read_text(encoding='utf-8'))
+        record.update(owner_pid=child.pid, worktrees=[str(unrelated)])
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        integrity = self.git_integrity()
+        with self.assertRaisesRegex(ValueError, 'Unsafe local unit recovery paths'):
+            self.local.cleanup_stale_runs(self.repo)
+        self.assertTrue(marker.exists())
+        self.assertTrue(manifest.exists(), 'failed recovery must retain its manifest')
+        self.assertEqual(integrity, self.git_integrity())
+
+    def test_stale_manifest_before_first_checkout_keeps_unknown_counts_and_log_paths(self):
+        artifacts = self.root / 'reports'
+        artifacts.mkdir()
+        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child.wait(timeout=10)
+        manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 2)
+        record = json.loads(manifest.read_text(encoding='utf-8'))
+        record['owner_pid'] = child.pid
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        integrity = self.git_integrity()
+        self.assertEqual([str(artifacts)], self.local.cleanup_stale_runs(self.repo))
+        result = json.loads((artifacts / 'aggregate.json').read_text(encoding='utf-8'))
+        self.assertEqual('failed', result['status'])
+        self.assertFalse(result['counts_complete'])
+        self.assertEqual(0, result['tests_ran'])
+        for shard in result['shards']:
+            self.assertIsNone(shard['tests_ran'])
+            self.assertFalse(shard['complete'])
+            self.assertTrue(Path(shard['log_path']).is_file())
+        self.assertFalse(manifest.exists())
+        self.assertEqual(integrity, self.git_integrity())
+
+    def test_stale_recovery_preserves_unrecorded_prunable_registration(self):
+        self.git('config', 'gc.worktreePruneExpire', 'now')
+        unrelated = self.root / 'unrecorded-prunable'
+        self.git('worktree', 'add', '--detach', str(unrelated), self.head)
+        self.addCleanup(self.local.remove_snapshot_worktree, self.repo, unrelated, self.root)
+        self.assertTrue(unrelated.resolve().is_relative_to(self.root.resolve()))
+        shutil.rmtree(unrelated)
+        before, integrity = self.registered(), self.git_integrity()
+        artifacts = self.root / 'reports'
+        artifacts.mkdir()
+        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child.wait(timeout=10)
+        manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 1)
+        record = json.loads(manifest.read_text(encoding='utf-8'))
+        record['owner_pid'] = child.pid
+        manifest.write_text(json.dumps(record), encoding='utf-8')
+        self.local.cleanup_stale_runs(self.repo)
+        self.assertEqual(before, self.registered(), 'prune diagnostics on stderr must not be ignored')
+        self.assertEqual(integrity, self.git_integrity())
+
     def run_units(self, **options):
         return self.local.run_local_unit_tests(
             self.repo, workers=options.pop('workers', 2), shard_count=2,

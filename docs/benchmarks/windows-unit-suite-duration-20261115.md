@@ -1,5 +1,81 @@
 # Native Windows unit-suite duration: measurements and isolated local shards
 
+## PR #1981 review follow-up, 2026-11-16
+
+Merged main at `32d6cdcd` (#1980) before repairing the two confirmed P2s.
+The historical full-readiness measurements below predate this follow-up.
+
+- **Forced coordinator termination:** a common-directory recovery manifest now
+  records the owner PID, host/platform and exact planned worktree paths before
+  checkout creation. Next-run recovery and `local_unit_shards.py --cleanup-stale`
+  acquire the same kernel-owned Git lock, preserve live/unknown owners and
+  unrecorded worktrees, and publish a failed/incomplete aggregate with retained
+  partial counters and log paths. No Git configuration writes were introduced.
+- **Racy-clean snapshots:** the private index is rebuilt with `git read-tree HEAD`
+  before `git add -A`; it no longer copies the caller's cached file stats while
+  changing the index timestamp. The final tree-equality guard is unchanged.
+- **Fail-first evidence:** both new review regressions failed before repair on
+  native Windows against the reviewed `5edab8d3` implementation: the rapid
+  same-size edit reached the retained tree-equality guard, and killing the real
+  coordinator left both shard registrations after the cleanup CLI returned.
+  The two-test control reports one failure and one error, not a mocked kill.
+- **Real forced-exit coverage:** tests spawn a separate coordinator, wait for
+  both actual shard test bodies, verify live-owner cleanup is a no-op, kill the
+  coordinator by PID, then exercise both CLI and next-run recovery. They check
+  removal of recorded directories/registrations, preservation of an unrecorded
+  detached checkout, partial counts/IDs, and unchanged config, index, HEAD and
+  refs. Additional cases reject unsafe recorded paths and retain unknown counts
+  and useful logs when a run dies before its first checkout. A further fail-first
+  regression preserves an unrecorded, already-prunable registration: Git emits
+  prune candidates on stderr, so the locked dry-run checks both output streams
+  before permitting prune.
+
+Focused qualification (local shard suite, CI sharding/aggregation tests,
+navigation/timer tests, hook-installer tests and derived-metadata tests):
+
+| Host | Ran | Failures | Errors | Skips | unittest wall seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native Windows, CPython 3.10.22 | 89 | 0 | 0 | 0 | 126.651 |
+| WSL Ubuntu, CPython 3.14.4 | 89 | 0 | 0 | 0 | 49.482 |
+
+WSL used an LF-normalized ext4 fixture checkout and an isolated temporary venv,
+not changes to the system Python or repository dependencies. Initial attempts
+exposed CRLF shell fixtures and absent HTTP dependencies; those attempts are
+retained separately. The venv includes `audioop-lts` for Python 3.14's removed
+`audioop` module. No GPU/ML runtime was installed, GPU masks stayed empty, and
+qualification jobs did not overlap. The two-worker Windows default and all
+production timeouts, retries and locks remain unchanged.
+
+### Completed review-fix readiness qualification
+
+| Execution | Full `ready.sh` wall s | Verifier s | Unit coordinator s | Ran | Failures | Errors | Skips |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Review fixes, two workers, six partitions | 2346.249 | 2288.391 | 2273.265 | 14140 | 121 | 295 | 962 |
+
+The completed run took **39m 6.249s** and exited **1** at the unit gate; this
+is not a green readiness result. Regeneration ran, compile passed (2351 files),
+and the inventory gate passed. Existing readiness policy skipped evidence
+rechecks; later API gates were not reached. Two preliminary staging refusals
+(55.777s and 55.379s) are excluded from this completed-run measurement.
+
+The aggregate contains 14140 unique top-level IDs, `counts_complete=true`, and
+all seven counters sum exactly across the six shard receipts. All 32 local
+coordinator tests passed within full discovery. The 20 additional IDs versus
+the historical measurements comprise 14 tests merged from main and six new
+regressions; none adds a failure. Failure IDs are unchanged. The extra error
+versus the historical two-worker run is the known cancellation fixture
+`test_real_child_cancel_keeps_claim_until_child_reaped`, which also errored in
+the historical serial control. Error identities otherwise match that control
+apart from three command-boundary subtest IDs embedding per-run temp paths.
+
+The final report records `remaining_worktrees=[]`; no owned worktree
+registrations or recovery manifests remained. GPU masks stayed empty, worker
+concurrency stayed at two, and no heavy jobs overlapped. The implementation,
+tests and generated inventory bytes match the completed snapshot
+`49f62cd67f33370274f8603ee76efa02d2a46157`. No full serial run was repeated
+for this revision, so the older same-code one/two-worker comparison below
+remains historical rather than a matched comparison against these 14140 IDs.
+
 ## Final implementation and qualification, 2026-11-16
 
 The approved change is **A (isolated local CI shards) plus C (fixture timer

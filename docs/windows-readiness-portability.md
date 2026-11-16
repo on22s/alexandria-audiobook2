@@ -89,9 +89,9 @@ the existing strict local skip policy, rather than silently qualifying hardware.
 
 ### Snapshot and isolation contract
 
-The coordinator copies the caller's index to a private temporary index, disables
-split-index storage there, and runs `git add -A` / `git write-tree` against that
-index. A temporary `git commit-tree` object has the original HEAD as parent;
+The coordinator initializes a fresh private temporary index from HEAD, then
+runs `git add -A` / `git write-tree` against that index.
+A temporary `git commit-tree` object has the original HEAD as parent;
 **no ref, caller index or stash stack is changed**. Staged content, subsequent
 unstaged edits, deletions and non-ignored untracked files are captured. Untracked
 test files still need staging and inventory regeneration under the existing
@@ -103,7 +103,11 @@ applies it after each `git worktree add --detach`. It checks each checkout's
 actual file bytes against the captured manifest before launching tests.
 Each shard's own index is then refreshed under the normal Git attributes and
 configuration, with a tree-identity check; this avoids false dirty status from
-CRLF overlays without changing the caller's index or the captured tree. Source
+CRLF overlays without changing the caller's index or the captured tree. The
+private index starts with a fresh `git read-tree HEAD`, not a byte copy of
+the caller's stat cache: same-size edits within one timestamp second must be
+hashed even when Git's racy-clean protection depends on the original index's
+timestamp. The final checkout/index tree-equality guard remains enforced. Source
 contents/versions are observed before and after capture, and index/HEAD stability
 is checked; concurrent changes refuse the snapshot rather than being silently
 mixed. Normal executable permissions are preserved. Inodes and checkout times
@@ -138,6 +142,29 @@ own workers and their descendants. On interruption, failure or timeout all owned
 workers are reaped before their worktrees are removed; no command-line process
 matching or broad worktree pruning is used. Cleanup problems fail readiness and
 record the remaining owned paths.
+
+Forced coordinator termination cannot execute its `finally` cleanup. Before
+creating any shard worktree, the coordinator atomically records the owner PID,
+host/platform, artifact directory and exact planned worktree paths in
+`<common-git-dir>/alexandria-local-unit-runs/<run-id>.json` under the same lock.
+Every subsequent local run checks these manifests before starting units. An
+explicit recovery command is also available from the repository root:
+
+```sh
+"$AA2_PYTHON" app/local_unit_shards.py --cleanup-stale
+```
+
+Recovery only removes recorded paths after the owner's PID is confirmed gone;
+live or inaccessible owners, recycled live PIDs, and foreign host/platform
+manifests are left alone. Run recovery in the original native environment.
+Malformed or unsafe manifests fail loudly. Recovery preserves unrecorded
+worktrees and runs prune only when its locked dry-run has no unrelated entries
+to prune. It retains partial receipts/logs and writes an explicitly failed,
+incomplete aggregate for the interrupted run. The manifest is removed only after
+worktree cleanup and aggregate publication succeed; failed recovery can be
+retried. This is next-run recovery, not a promise that a killed process executes
+immediate cleanup. Abrupt termination can also leave its temporary snapshot
+overlay in the retained artifact directory.
 
 Limits are explicit: ignored untracked configuration, environments, models and
 private data are not copied; review `.gitignore` if a source helper is needed.
