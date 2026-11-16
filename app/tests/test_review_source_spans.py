@@ -48,6 +48,104 @@ def create_book(directory, *, saved=False, raw=RAW, source=None):
 
 
 class ReviewSourceSpanTests(unittest.TestCase):
+    def inherited_partition(self):
+        prefix = 'Clouds gathered.\nChapter 7\nThe lantern glowed.'
+        raw = prefix + '\n\n' + RAW
+        source = mark_entries([row('Clouds gathered.', speaker='NARRATOR'),
+                               row('Chapter 7', speaker='NARRATOR'),
+                               row('The lantern glowed.', speaker='NARRATOR')] + SOURCE, raw)
+        for entry in source[:3]:
+            entry['source_span'] = [0, len(prefix)]
+        return raw, source, source[:3] + REPLY
+
+    def test_shared_parent_spans_capture_exact_partition_for_active_and_saved_books(self):
+        raw, source, _ = self.inherited_partition()
+        for saved in (False, True):
+            with self.subTest(saved=saved), tempfile.TemporaryDirectory() as directory:
+                script, _, entries = create_book(directory, raw=raw, source=source, saved=saved)
+                before = script.read_bytes()
+                self.assertEqual(raw, review.get_review_source_text(
+                    directory, str(script), before, entries))
+                self.assertEqual(before, script.read_bytes())
+                self.assertEqual(source, entries)
+
+    def test_shared_parent_spans_do_not_block_unrelated_speaker_reassignment(self):
+        raw, source, reply = self.inherited_partition()
+        for literal in (False, True):
+            with self.subTest(literal=literal):
+                output, attempts = self.run_reply(source=source, reply=reply,
+                                                 source_text=raw, literal=literal)
+                self.assert_mapped(output, raw)
+                self.assertEqual([[raw.index(entry['text']), raw.index(entry['text']) + len(entry['text'])]
+                                  for entry in output],
+                                 [entry['source_span'] for entry in output])
+                self.assertEqual(['NARRATOR', 'NARRATOR', 'NARRATOR', 'NARRATOR', 'ALICE', 'ALICE'],
+                                 [entry['speaker'] for entry in output])
+                self.assertEqual('accepted', attempts[0]['outcome'])
+
+    def test_cli_resolves_shared_parent_spans_before_batch_boundaries(self):
+        raw, source, _ = self.inherited_partition()
+        for context_window in (0, 1):
+            with self.subTest(context_window=context_window), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = create_book(directory, raw=raw, source=source)
+                client, calls = client_for([(source[:2], 'stop'),
+                    ([source[2], REPLY[0], row('Please open the gate.')], 'stop'),
+                    (source[4:], 'stop')])
+                with self.cli(directory, client), patch.object(review.sys, 'argv',
+                        ['review', '--context-window', str(context_window)]):
+                    review.main()
+                output = json.loads(script.read_bytes())
+                self.assert_mapped(output, raw)
+                self.assertEqual(3, len(calls))
+                self.assertEqual('ALICE', output[4]['speaker'])
+                self.assertTrue(Path(str(script) + '.review_completed.json').exists())
+
+    def test_shared_parent_span_recovery_refuses_unproved_partitions(self):
+        for mutation in ('missing', 'reordered', 'duplicated', 'different_span'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                raw, source, _ = self.inherited_partition()
+                if mutation == 'missing':
+                    del source[1]
+                elif mutation == 'reordered':
+                    source[0], source[1] = source[1], source[0]
+                elif mutation == 'duplicated':
+                    source.insert(1, copy.deepcopy(source[0]))
+                else:
+                    source[1]['source_span'][1] -= 1
+                script, _, entries = create_book(directory, raw=raw, source=source)
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), entries))
+                output, attempts = self.run_reply(source=source, reply=source[:-2] + REPLY,
+                                                 source_text=raw)
+                self.assertIsNone(output)
+                self.assertEqual('quality_rejected', attempts[0]['outcome'])
+
+    def test_span_rejection_identifies_entry_fragment_and_reason_without_content(self):
+        _, report = review.get_review_source_binding(SOURCE, REPLY)
+        finding = report['findings'][0]
+        self.assertEqual((1, 1, 'source_unavailable'),
+                         (finding['entry_number'], finding['fragment_number'], finding['reason_code']))
+        self.assertIn('entry=1; fragment=1; reason=source_unavailable', finding['message'])
+        self.assertNotIn('Rain', json.dumps(report))
+        self.assertNotIn('ALICE', json.dumps(report))
+        from dialogue_spans import get_source_span_fragments, SourceSpanError
+        with self.assertRaises(SourceSpanError) as caught:
+            get_source_span_fragments(RAW, SOURCE[0]['text'], SOURCE[0]['source_span'],
+                                      ['Rain fell.', 'Please close the gate.'])
+        self.assertEqual(('fragment_partition_mismatch', 2),
+                         (caught.exception.reason_code, caught.exception.fragment_number))
+        self.assertNotIn('gate', str(caught.exception))
+
+    def test_shared_parent_span_resolution_does_not_relax_output_verification(self):
+        raw, source, _ = self.inherited_partition()
+        with self.assertRaises(ValueError):
+            review.verify_review_source_spans(source, raw)
+        resolved = review.get_review_source_entries(source, raw)
+        review.verify_review_source_spans(resolved, raw)
+        self.assertEqual([[0, 16], [17, 26], [27, 46]],
+                         [entry['source_span'] for entry in resolved[:3]])
+        self.assertEqual([[0, 46]] * 3, [entry['source_span'] for entry in source[:3]])
+
     @contextmanager
     def cli(self, directory, client, *, script=None, labels_only=False):
         config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
