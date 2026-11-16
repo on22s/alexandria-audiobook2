@@ -9,6 +9,9 @@ from unittest.mock import patch
 
 import repair_source_encoding
 import repair_source_llm
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class SourceRepairPathSafetyTests(unittest.TestCase):
@@ -45,11 +48,15 @@ class SourceRepairPathSafetyTests(unittest.TestCase):
             source.write_text("café", encoding="utf-8")
             symlink = Path(directory) / "symlink.txt"
             hardlink = Path(directory) / "hardlink.txt"
-            symlink.symlink_to(source)
+            symlink_available = can_symlink()
+            if symlink_available:
+                symlink.symlink_to(source)
             os.link(source, hardlink)
             for command in (repair_source_encoding, repair_source_llm):
                 for alias in (symlink, hardlink):
                     with self.subTest(command=command.__name__, alias=alias.name):
+                        if alias is symlink and not symlink_available:
+                            self.skipTest(_SYMLINK_SKIP_REASON)
                         argv = [command.__name__, str(source), "--apply", "--out", str(alias)]
                         with patch.object(sys, "argv", argv), self.assertRaises(SystemExit) as raised:
                             command.main()
