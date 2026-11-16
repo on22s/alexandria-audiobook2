@@ -26,8 +26,11 @@ SOURCES.
     dynamic message, an f-string whose interpolations map one-for-one onto the
     literal keys of values={...} in the same order. Plain HTTPException sites
     are not keyed and are not harvested.
+  * TTS capability descriptions and language notes: keyed English in the
+    literal _BACKENDS dispatch contract in app/tts_capabilities.py.
 
-A t() call whose first two arguments are not literals fails the harvest loudly:
+A t() call whose first two arguments are not literals fails the harvest loudly,
+except the two server-owned capability key/text pairs harvested above:
 that pattern would put the fallback outside the source this file can see, and
 the English text must stay reviewable at the call site (design section 3.4). A
 dynamic AppError message fails the same way unless its values map makes the
@@ -228,6 +231,9 @@ def harvest_js(path, messages):
             raise HarvestError(f"{name}: formatUiSafetyText needs literal key and English text")
         _record(messages, arguments[0], arguments[1], name)
     for match in re.finditer(r"\bt\s*\(", text):
+        if name == "app-tts-capabilities.js" and re.match(
+                r"capability\.(description|language_note)_key\s*,\s*capability\.\1\s*\)", text[match.end():]):
+            continue
         arguments = _call_arguments(text, match.end())
         if not arguments or arguments[0] is None or len(arguments) < 2 or arguments[1] is None:
             raise HarvestError(
@@ -522,6 +528,26 @@ def harvest_server(path, messages):
         _record(messages, key, template, name)
 
 
+def harvest_tts_capabilities(path, messages):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    source = next((node.value for node in tree.body if isinstance(node, ast.Assign)
+                   and any(isinstance(target, ast.Name) and target.id == "_BACKENDS"
+                           for target in node.targets)), None)
+    try:
+        backends = ast.literal_eval(source)
+    except (ValueError, TypeError) as error:
+        raise HarvestError(f"{path.name}: _BACKENDS must be a literal dispatch contract") from error
+    if not isinstance(backends, dict) or not backends:
+        raise HarvestError(f"{path.name}: _BACKENDS must be a non-empty dispatch contract")
+    for mode, descriptor in backends.items():
+        for field in ("description", "language_note"):
+            key = descriptor.get(field + "_key") if isinstance(descriptor, dict) else None
+            english = descriptor.get(field) if isinstance(descriptor, dict) else None
+            if not isinstance(key, str) or not key.strip() or not isinstance(english, str) or not english.strip():
+                raise HarvestError(f"{path.name}: {mode}.{field} needs a literal key and English text")
+            _record(messages, key, english, path.name)
+
+
 def harvest(root=REPO):
     messages = {}
     for path in HTML_SOURCES:
@@ -539,6 +565,7 @@ def harvest(root=REPO):
     for pattern in SERVER_SOURCES:
         for path in sorted(root.glob(pattern)):
             harvest_server(path, messages)
+    harvest_tts_capabilities(root / "app" / "tts_capabilities.py", messages)
     return messages
 
 

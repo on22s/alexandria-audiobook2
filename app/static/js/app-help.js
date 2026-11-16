@@ -352,6 +352,7 @@
         };
 
         const ACTION_HELP = {
+            'openScriptWorkspace': 'Open Script to choose a source or review its publication status. No generation starts.',
             'editorWaveformSeek': 'Seek within the selected saved take by clicking or dragging. Left/Right moves five seconds; Home/End moves to the boundaries. This does not regenerate audio.',
             'openBasicWorkflowControl': 'Open the existing Voices or Result controls. This does not copy settings, save changes or start generation.',
             'refreshScriptIngestFacts': 'Read the active source, validated roster and script comparison again. Unknown or stale evidence stays unverified; this starts no model task.',
@@ -481,6 +482,8 @@
             'loadPreparerOutputs': 'Refresh the completed training-dataset downloads.',
             'saveVoicelabConfig': 'Save the pipeline interpreter, model and search-folder settings.',
             'voicelabInspect': 'Inspect the selected input folder and show which voice datasets are available.',
+            'openVoicelabSettings': 'Open the pipeline settings to correct missing dependency paths without starting work.',
+            'copyVoicelabFailureDetails': 'Copy the displayed technical failure details, including private paths. Review and redact before sharing.',
             'startVoicelab': 'Preflight the selected stages and resources, then ask for confirmation before starting the pipeline.',
             'pauseResumeVoicelab': 'Pause or resume the Voice Lab pipeline.',
             'cancelVoicelab': 'Request cancellation of the Voice Lab pipeline.',

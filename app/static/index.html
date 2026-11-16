@@ -1216,6 +1216,11 @@
                         <div><h5 id="workspace-book-name" data-i18n="home.workspace.book-name">Selected book</h5><p id="workspace-next-reason" class="mb-0 text-muted"></p></div>
                         <button type="button" class="btn btn-primary" id="workspace-continue" onclick="continueBookWorkspace()" disabled data-i18n="home.workspace.continue">Continue</button>
                     </div>
+                    <div id="workspace-empty" class="mb-3" hidden>
+                        <p data-i18n="home.workspace.no-book">Choose a source to begin, or open Script to review the workflow.</p>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-help-key="scriptIngestUpload" onclick="activateTab('script'); document.getElementById('file-upload').click()" data-i18n="home.workspace.choose-source">Choose a source</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-help-key="openScriptWorkspace" onclick="activateTab('script')" data-i18n="home.workspace.open-script">Open Script</button>
+                    </div>
                     <div id="workspace-stages" class="workspace-stages mb-4"></div>
                     <div class="workspace-columns">
                         <section aria-labelledby="workspace-monitor-title">
@@ -1494,6 +1499,7 @@
     <button data-i18n="setup.tts.button" type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshTtsDiagnostics()">Refresh report</button>
     <button data-i18n="setup.tts.tts-diagnostics-download.button" type="button" class="btn btn-outline-secondary btn-sm" id="tts-diagnostics-download" onclick="downloadTtsDiagnostics()" disabled>Download support report</button>
     <a data-i18n="setup.tts.failure-log-download" href="/api/logs/diagnostics?download=true" class="btn btn-outline-secondary btn-sm" download>Download failure log</a>
+    <p data-i18n="diagnostics.failure-log.privacy" class="small text-muted mt-2">The failure log is separate from the support report and may contain private paths and error details. Review and redact before sharing.</p>
     <p data-i18n="setup.tts.no-timings-requested" id="tts-diagnostics-status" class="small mt-2" role="status">No timings requested.</p>
     <div id="tts-diagnostics-records" class="small text-break"></div>
     <p data-i18n="setup.tts.exact-download-contents-below-refresh-read" class="small mt-2">Exact download contents below. Refresh reads only this AA2 server; it never contacts a model server or uploads a report. Null means unobserved or excluded. Review before sharing separately.</p>
@@ -3263,7 +3269,18 @@
                                     <i class="fas fa-gears me-2"></i><span data-i18n="voicelab.settings.title">Pipeline settings &amp; environment</span>&nbsp;<span id="voicelab-readiness" class="ms-2"></span>
                                 </button>
                             </h2>
-                            <p id="voicelab-readiness-help" class="form-text px-3 mt-2" role="status" aria-live="polite" hidden></p>
+                            <p id="voicelab-readiness-help" class="form-text px-3 mt-2" style="white-space:pre-line" role="status" aria-live="polite" hidden></p>
+                            <div id="voicelab-recovery" class="px-3 mb-2" hidden>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openVoicelabSettings()" data-i18n="voicelab.recovery.open-settings">Open settings</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="voicelabInspect()" data-i18n="voicelab.recovery.inspect-again">Inspect again</button>
+                                <a href="/api/logs/diagnostics?download=true" class="btn btn-sm btn-outline-secondary" download data-i18n="setup.tts.failure-log-download">Download failure log</a>
+                                <p class="small text-muted mt-2" data-i18n="diagnostics.failure-log.privacy">The failure log is separate from the support report and may contain private paths and error details. Review and redact before sharing.</p>
+                            </div>
+                            <details id="voicelab-diagnostics" class="mx-3 mb-2" hidden>
+                                <summary data-i18n="voicelab.diagnostics.summary">Failure details (paths and technical errors)</summary>
+                                <pre id="voicelab-diagnostics-text" class="small border rounded p-2" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:16rem;overflow:auto" tabindex="0"></pre>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyVoicelabFailureDetails()" data-i18n="voicelab.failure-details.copy">Copy failure details</button>
+                            </details>
                             <div id="voicelab-settings" class="accordion-collapse collapse" data-bs-parent="#voicelab-settings-acc">
                                 <div class="accordion-body">
                                     <div class="row g-2">
@@ -3694,6 +3711,7 @@
                     </div>
                 </div>
                 <div class="card-body">
+                     <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
                      <!-- Full Progress Bar -->
                      <div class="progress mb-3" style="height: 25px;">
                          <div id="full-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="width: 0%">0%</div>
@@ -3790,8 +3808,6 @@
                          <pre id="pronunciation-occurrence-text" class="small mb-2" style="white-space:pre-wrap;overflow-wrap:anywhere;" hidden></pre>
                          <p id="pronunciation-occurrence-status" class="small mb-0" role="status" aria-live="polite" data-i18n="editor.pronunciation.occurrence-status-default">Preview shared counts to choose a line, then load its rules. Auditions above remain disposable.</p>
                      </details>
-
-                     <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
 
                      <details data-editor-tool="chapters" class="editor-review-panel mb-3" id="editor-chapter-panel" ontoggle="if (this.open) { refreshEditorChapterMap(); }">
                          <summary data-i18n="editor.chapters.title">Generate by chapter</summary>

@@ -11,6 +11,30 @@ from tts_capabilities import get_tts_capability_modes
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 
 class TtsCapabilityGuidanceJsTests(unittest.TestCase):
+    def test_summary_uses_server_message_keys_and_current_english_fallbacks(self):
+        script = DOM_FIXTURE + r'''
+context.window=context;
+for(const id of ['tts-mode','tts-capability-summary']){body.appendChild(new Element('div',{id}));}
+context.API={post(){throw Error('must not contact server');}};
+load();
+const fallback=context.t;
+context.t=(key,english,values)=>fallback(key,{'test.server.description':'Translated server description.','test.server.note':'Translated server note.'}[key]||english,values);
+const modes=''' + json.dumps(get_tts_capability_modes()) + r''';
+for(const [mode,capability] of Object.entries(modes)){
+ document.getElementById('tts-mode').value=mode;
+ capability.description='Updated server description for '+mode+'.';capability.language_note='Updated server language note for '+mode+'.';
+ capability.description_key='test.server.description';capability.language_note_key='test.server.note';
+ context.setTtsCapabilityModes(modes);
+ const summary=document.getElementById('tts-capability-summary');
+ assert(summary.textContent.includes('Translated server description.'));assert(summary.textContent.includes('Translated server note.'));
+ delete capability.description_key;delete capability.language_note_key;context.applyTtsCapabilityGuidance();
+ assert(summary.textContent.includes(capability.description));assert(summary.textContent.includes(capability.language_note));
+ assert(summary.textContent.includes('does not mean a model or server is loaded or ready'));
+}
+'''
+        result = subprocess.run(['node', '-e', script, str(STATIC / 'js/app-tts-capabilities.js')], capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_mode_changes_preserve_assignment_fields_and_warn_without_posting(self):
         setup = r'''
 context.window=context;document.addEventListener=()=>{};
