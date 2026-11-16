@@ -522,6 +522,7 @@ class ManualThreePassTests(unittest.TestCase):
         client fixtures elsewhere, delivered through the files."""
         import three_pass_generate as tp
         from generate_script import LLMGenParams
+        from utils import atomic_json_write, file_lock, safe_load_json
         source = "Elena entered the cold room. \"Tell me the truth.\""
         answers = [
             json.dumps([{"type": "NARRATOR", "text": "Elena entered the cold room."},
@@ -533,28 +534,43 @@ class ManualThreePassTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as tmp:
             client = ManualClient(tmp)
+            client.POLL_SECONDS = .01
             sequences = []
+            stopped = threading.Event()
+            failures = []
 
             def person():
-                answered = None
-                for content in answers:
-                    for _ in range(500):   # wait for a request we have not answered yet
-                        try:
-                            with open(client.pending_path, encoding="utf-8") as handle:
-                                req = json.load(handle)
-                        except (FileNotFoundError, ValueError):
-                            req = None
-                        if req and req["id"] != answered:
-                            break
-                        time.sleep(0.02)
-                    sequences.append(req["sequence"])
-                    answered = req["id"]
-                    with open(client.response_path, "w") as handle:
-                        json.dump({"id": req["id"], "content": content}, handle)
-            threading.Thread(target=person, daemon=True).start()
-            entries = tp.run_three_pass(client, "m", source,
-                                        LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
-                                        chunk_size=6000)
+                try:
+                    answered = None
+                    for content in answers:
+                        for _ in range(500):
+                            if stopped.wait(.02):
+                                return
+                            if not os.path.isdir(client.dir):
+                                continue
+                            with file_lock(client.pending_path):
+                                request = safe_load_json(client.pending_path, None)
+                                if isinstance(request, dict) and request.get("id") != answered:
+                                    sequences.append(request["sequence"])
+                                    answered = request["id"]
+                                    atomic_json_write({"id": answered, "content": content}, client.response_path)
+                                    break
+                        else:
+                            raise TimeoutError("manual three-pass fixture did not receive a pending request")
+                except Exception as error:
+                    failures.append(error)
+                    stopped.set()
+            reply_thread = threading.Thread(target=person, daemon=True)
+            reply_thread.start()
+            try:
+                with llm_provider.apply_manual_cancellation(stopped.is_set):
+                    entries = tp.run_three_pass(client, "m", source,
+                                                LLMGenParams(max_tokens=500, temperature=0.1, segmentation="llm"),
+                                                chunk_size=6000)
+            finally:
+                stopped.set()
+                reply_thread.join()
+                self.assertEqual([], failures)
             self.assertFalse(os.path.exists(client.pending_path))
             self.assertFalse(os.path.exists(client.response_path))
         self.assertEqual(["Elena entered the cold room.", "Tell me the truth."],
