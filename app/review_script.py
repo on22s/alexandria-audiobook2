@@ -55,7 +55,7 @@ from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
 
 
 from review_startup import event as startup_event, bind_current as bind_startup_trace, record_failure
-from dialogue_spans import get_source_span_fragments
+from dialogue_spans import get_source_span_fragments, SourceSpanError
 
 # ── GPU VRAM watchdog ────────────────────────────────────────────────────────
 # A long batch review run can grow VRAM usage (KV cache + other GPU apps) until
@@ -1145,14 +1145,54 @@ def get_review_raw_text_slice(text, start, end):
 def verify_review_source_spans(entries, source_text):
     """Require exact normalized slices and ordered, non-overlapping intervals."""
     previous_end = 0
-    for entry in entries:
+    for number, entry in enumerate(entries, 1):
         if 'source_span' not in entry:
             continue
-        get_source_span_fragments(source_text, entry['text'], entry['source_span'], [entry['text']])
+        try:
+            get_source_span_fragments(source_text, entry['text'], entry['source_span'], [entry['text']])
+        except SourceSpanError as error:
+            raise SourceSpanError(error.reason_code, entry_number=number,
+                                  fragment_number=error.fragment_number) from error
         start, end = entry['source_span']
         if start < previous_end:
-            raise ValueError('Source intervals overlap or are out of order')
+            raise SourceSpanError('source_span_order', entry_number=number)
         previous_end = end
+
+
+def get_review_source_entries(entries, source_text):
+    """Resolve inherited parent intervals only through a complete exact partition."""
+    resolved = []
+    position = 0
+    while position < len(entries):
+        entry = entries[position]
+        stop = position + 1
+        if 'source_span' in entry:
+            while stop < len(entries) and entries[stop].get('source_span') == entry['source_span']:
+                stop += 1
+        group = entries[position:stop]
+        if len(group) > 1:
+            texts = [row['text'] for row in group]
+            try:
+                spans = get_source_span_fragments(source_text, ' '.join(texts), entry['source_span'], texts)
+            except SourceSpanError as error:
+                raise SourceSpanError(error.reason_code, entry_number=position + 1,
+                                      fragment_number=error.fragment_number) from error
+            resolved.extend({**row, 'source_span': span} for row, span in zip(group, spans))
+        else:
+            resolved.append(entry)
+        position = stop
+    verify_review_source_spans(resolved, source_text)
+    return resolved
+
+
+def get_review_source_span_finding(error, *, entry_number=None):
+    return {'code': 'review_source_span_unverified',
+            'entry_number': error.entry_number or entry_number,
+            'fragment_number': error.fragment_number,
+            'reason_code': error.reason_code,
+            'message': ('Review fragments require verified, ordered source spans; retain original entries. '
+                        f'entry={error.entry_number or entry_number}; fragment={error.fragment_number}; '
+                        f'reason={error.reason_code}.')}
 
 
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
@@ -1233,7 +1273,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             text = original['text'] if original is not None else None
             if text is None or expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
                 raise ValueError('Selected saved source has no verified original coordinates')
-            verify_review_source_spans(entries, text)
+            get_review_source_entries(entries, text)
             identity['sources'].extend(original['identity']['sources'])
             return {'text': text, 'identity': identity}
         if policy and policy.get('input_sha256', digest) != digest:
@@ -1246,7 +1286,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 if expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
                     continue
                 try:
-                    verify_review_source_spans(entries, text)
+                    get_review_source_entries(entries, text)
                 except ValueError:
                     continue
                 sources.add(text)
@@ -1271,6 +1311,12 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     if not report['passed']:
         return None, report
     findings = []
+
+    if source_text is not None:
+        try:
+            batch_entries = get_review_source_entries(batch_entries, source_text)
+        except SourceSpanError as error:
+            return None, {'passed': False, 'findings': [get_review_source_span_finding(error)]}
 
     original_texts = [" ".join(entry.get("text", "").split()) for entry in batch_entries]
     reviewed_texts = [" ".join(entry["text"].split()) for entry in entries]
@@ -1314,6 +1360,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
     for original, text in zip(batch_entries, original_texts):
         source_spans.append((position, position + len(text), original))
         position += len(text) + 1
+    source_numbers = {start: number for number, (start, _, _) in enumerate(source_spans, 1)}
     bound, warnings, span_fragments = [], [], {}
     position = 0
     for number, (entry, text) in enumerate(zip(entries, reviewed_texts), 1):
@@ -1352,11 +1399,12 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     row['text'] = original['text']
                 if 'source_span' in facts:
                     if len(group) != 1:
-                        findings.append({'code': 'review_source_span_unverified',
-                                         'message': 'Review merged incompatible source intervals; retain originals.'})
+                        findings.append(get_review_source_span_finding(
+                            SourceSpanError('incompatible_source_intervals', fragment_number=1),
+                            entry_number=source_numbers[start]))
                     else:
                         fragment = span_fragments.setdefault(start, {'original': original, 'rows': [],
-                                                                    'changed': False})
+                            'entry_number': source_numbers[start], 'changed': False})
                         fragment['rows'].append(row)
                         fragment['changed'] |= left != start or right != stop
                 row, warning = get_review_speaker_bound_entry(row,
@@ -1370,19 +1418,20 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     warnings.append({**warning, 'entry_number': number})
         position = end + 1
     if any(fragment['changed'] for fragment in span_fragments.values()):
+        entry_number = None
         try:
             for fragment in span_fragments.values():
                 if not fragment['changed']:
                     continue
                 original, rows = fragment['original'], fragment['rows']
+                entry_number = fragment['entry_number']
                 spans = get_source_span_fragments(source_text, original['text'], original['source_span'],
                                                   [row['text'] for row in rows])
                 for row, span in zip(rows, spans):
                     row['source_span'] = span
             verify_review_source_spans(bound, source_text)
-        except ValueError:
-            findings.append({'code': 'review_source_span_unverified', 'message': (
-                'Review fragments require verified, ordered source spans; retain original entries.')})
+        except SourceSpanError as error:
+            findings.append(get_review_source_span_finding(error, entry_number=entry_number))
     return (None if findings else bound), {"passed": not findings, "findings": findings,
                                          'warnings': warnings}
 
@@ -1998,6 +2047,8 @@ def main():
             close()
         return
     print('Completed-review reuse: ' + ('forced rerun' if args.force_review else receipt_reason))
+    if review_source_text is not None:
+        entries = get_review_source_entries(entries, review_source_text)
     all_corrected = []
     total_stats = {
         "text_changed": 0,
