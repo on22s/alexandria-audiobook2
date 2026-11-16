@@ -563,11 +563,10 @@ def _log_llm_failure(kind: str, error=None, *, operation=None, resource=None) ->
     if kind not in ('test', 'optimize'):
         raise ValueError('Invalid LLM diagnostic kind')
     path = os.path.join(API_LOG_DIR, f"llm_{kind}-latest.log")
-    try:
-        record_failure('llm_test_failed' if kind == 'test' else 'llm_optimize_failed',
-                       error, task='llm', resource=resource, operation=operation, mirror_path=path)
-    except (OSError, TimeoutError) as persistence_error:
-        record_failure('llm_log_write_failed', persistence_error, task='llm', resource=path, rate_limit_seconds=60)
+    if not record_failure('llm_test_failed' if kind == 'test' else 'llm_optimize_failed',
+                          error if isinstance(error, BaseException) else None,
+                          task='llm', resource=resource, operation=operation, mirror_path=path):
+        record_failure('llm_log_write_failed', task='llm', resource=path, rate_limit_seconds=60)
         return ""
     return path
 

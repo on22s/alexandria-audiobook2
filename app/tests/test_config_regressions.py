@@ -38,14 +38,20 @@ class ConfigTests(unittest.TestCase):
         merged = system_module.keep_unsent_fields(incoming, saved)
         self.assertEqual("Saved", merged.prompt_presets[0].name)
 
-    def test_llm_failure_logs_are_unique_within_one_second(self):
+    def test_llm_failure_logs_retain_distinct_safe_records_within_one_second(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(system_module, "API_LOG_DIR", tmp):
-            first = system_module._log_llm_failure("test", "first")
-            second = system_module._log_llm_failure("test", "second")
-            self.assertNotEqual(first, second)
-            self.assertEqual("first", Path(first).read_text().splitlines()[-1])
-            self.assertEqual("second", Path(second).read_text().splitlines()[-1])
+            first = system_module._log_llm_failure("test", RuntimeError("PRIVATE_FIRST_BOOK_TEXT"))
+            second = system_module._log_llm_failure("test", ValueError("PRIVATE_SECOND_CREDENTIAL"))
+            self.assertEqual(first, second)
+            self.assertEqual("llm_test-latest.log", Path(first).name)
+            text = Path(first).read_text(encoding="utf-8")
+            records = [json.loads(line) for line in text.splitlines()]
+            self.assertEqual(["RuntimeError", "ValueError"], [record["error_type"] for record in records])
+            self.assertEqual(2, len({record["id"] for record in records}))
+            self.assertTrue(all(record["stage"] == "llm_test_failed" and record["task"] == "llm" for record in records))
+            self.assertNotIn("PRIVATE_FIRST_BOOK_TEXT", text)
+            self.assertNotIn("PRIVATE_SECOND_CREDENTIAL", text)
 
     def test_app_config_loader_returns_fresh_shape_safe_data(self):
         documents = (

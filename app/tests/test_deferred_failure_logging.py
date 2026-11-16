@@ -1,6 +1,9 @@
 import asyncio
+from contextlib import contextmanager
 import hashlib
+import io
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -50,6 +53,120 @@ class DeferredFailureLoggingTests(unittest.TestCase):
         if resource:
             self.assertEqual(hashlib.sha256(os.fsencode(resource)).hexdigest()[:16], record['resource_id'])
         return record
+
+    @contextmanager
+    def failing_diagnostic_sink(self, fallback):
+        console = io.StringIO()
+        console.close()
+        logger = logging.getLogger('AlexandriaDiagnostics')
+        handler = logging.StreamHandler(console)
+        try:
+            with patch.object(logger, 'handlers', [handler]), patch.object(logger, 'propagate', False), patch.object(logger, 'level', logging.DEBUG), patch.object(logging, 'raiseExceptions', True), patch('sys.stderr', console), patch('sys.__stderr__', fallback):
+                yield
+        finally:
+            handler.close()
+
+    def test_broken_console_preserves_both_conservative_gpu_fences(self):
+        fallback = io.StringIO()
+        with self.failing_diagnostic_sink(fallback):
+            with patch('lmstudio_settings.get_active_llm_config', side_effect=RuntimeError(PRIVATE)):
+                self.assertIs(True, core.is_llm_on_this_gpu({}))
+            with patch.object(core, 'load_app_config', side_effect=OSError(PRIVATE)):
+                self.assertIs(True, core.llm_is_on_this_gpu())
+        self.assert_record('gpu_policy_read_failed', 'RuntimeError')
+        self.assert_record('gpu_config_read_failed', 'OSError')
+        self.assertIn('ValueError', fallback.getvalue())
+        self.assertNotIn(PRIVATE, fallback.getvalue())
+
+    def test_broken_console_preserves_retry_failure_and_exactly_one_restore(self):
+        manager = ProjectManager.__new__(ProjectManager)
+        manager._update_generation_fields = Mock(side_effect=OSError(PRIVATE))
+        manager._restore_cancelled_generation = Mock()
+        budget = SimpleNamespace(get_history=lambda: [], record=Mock(), phase='provider')
+        original_error = ValueError(PRIVATE)
+        fallback = io.StringIO()
+        with self.failing_diagnostic_sink(fallback), patch('project.is_audio_generation_cancelled', return_value=False):
+            self.assertEqual((False, str(original_error)), manager._finish_speech_retry_failure({'uid': PRIVATE}, budget, original_error))
+        budget.record.assert_called_once()
+        manager._restore_cancelled_generation.assert_called_once_with({'uid': PRIVATE}, speech_retry_attempts=[])
+        self.assert_record('speech_retry_persist_failed', 'OSError', PRIVATE)
+        self.assertIn('ValueError', fallback.getvalue())
+        self.assertNotIn(PRIVATE, fallback.getvalue())
+
+    def test_broken_console_preserves_guard_statuses_and_auth_challenge(self):
+        code = '''
+import io
+import logging
+import os
+import sys
+os.environ['ALEXANDRIA_AUTH_PASSWORD'] = 'SECRET_TOKEN_968314 SYNTHETIC_PRIVATE_BOOK_TEXT'
+from fastapi.testclient import TestClient
+import app
+console = io.StringIO()
+console.close()
+fallback = io.StringIO()
+logger = logging.getLogger('AlexandriaDiagnostics')
+logger.handlers = [logging.StreamHandler(console)]
+logger.propagate = False
+logger.setLevel(logging.DEBUG)
+logging.raiseExceptions = True
+with TestClient(app.app) as client:
+    previous_stderr, previous_fallback = sys.stderr, sys.__stderr__
+    try:
+        sys.stderr, sys.__stderr__ = console, fallback
+        for index in range(30):
+            response = client.post('/api/logs/browser-failure', headers={'Host': 'evil.example'})
+            assert response.status_code == 400, response.status_code
+            response = client.post('/api/logs/browser-failure', headers={'Origin': 'https://evil.example'})
+            assert response.status_code == 403, response.status_code
+            response = client.post('/api/logs/browser-failure', headers={'Authorization': os.environ['ALEXANDRIA_AUTH_PASSWORD']})
+            assert response.status_code == 401, response.status_code
+            assert response.headers['www-authenticate'] == 'Basic realm="Alexandria"'
+    finally:
+        sys.stderr, sys.__stderr__ = previous_stderr, previous_fallback
+assert 'ValueError' in fallback.getvalue()
+assert os.environ['ALEXANDRIA_AUTH_PASSWORD'] not in fallback.getvalue()
+'''
+        result = subprocess.run([os.sys.executable, '-c', code], capture_output=True, text=True, timeout=60)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        for stage, status in (('http_host_refused', 400), ('http_origin_refused', 403), ('http_auth_refused', 401)):
+            self.assertEqual(status, self.assert_record(stage)['status_code'])
+        self.assertEqual(3, len(self.records()))
+
+    def test_non_exception_evidence_never_reads_private_values(self):
+        class PrivateValue:
+            def __str__(self):
+                raise AssertionError(PRIVATE)
+
+        self.assertEqual({}, review_startup.get_exception_evidence(None))
+        for error in (PRIVATE, 42, PrivateValue()):
+            with self.subTest(error_type=type(error).__name__):
+                self.assertEqual({'error_type': type(error).__name__}, review_startup.get_exception_evidence(error))
+                self.assertTrue(review_startup.record_failure('invalid_error_value', error, task='diagnostics'))
+        self.assertEqual(3, len(self.records()))
+
+    def test_all_failed_sinks_cannot_escape_or_replace_original_exception(self):
+        fallback = io.StringIO()
+        fallback.close()
+        original_error = RuntimeError(PRIVATE)
+        trace = review_startup.ReviewStartupTrace(self.root / 'trace.log')
+
+        def fail_original():
+            raise original_error
+
+        with self.failing_diagnostic_sink(fallback), patch.object(Path, 'open', side_effect=OSError(PRIVATE)):
+            with patch.object(review_startup.logging, 'getLogger', return_value=logging.getLogger('AlexandriaDiagnostics')):
+                self.assertIs(False, review_startup.record_failure('all_sinks_failed', original_error, task='diagnostics'))
+                with self.assertRaises(RuntimeError) as raised:
+                    trace.call('worker', fail_original)
+        self.assertIs(original_error, raised.exception)
+
+    def test_legacy_llm_helper_omits_non_exception_error_values(self):
+        with patch.object(system, 'API_LOG_DIR', str(self.root)):
+            path = system._log_llm_failure('test', PRIVATE)
+        record = self.assert_record('llm_test_failed')
+        self.assertNotIn('error_type', record)
+        self.assertNotIn(PRIVATE, Path(path).read_text(encoding='utf-8'))
 
     def test_optional_evaluation_missing_is_normal_but_corruption_is_recorded(self):
         directory = self.root / PRIVATE

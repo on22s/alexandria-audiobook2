@@ -174,7 +174,7 @@ class BugReportLoggingTests(unittest.TestCase):
                 raise OSError(PRIVATE)
             return original_open(path, *args, **kwargs)
 
-        with patch.object(Path, 'open', fail_legacy_open), self.capture_failure('llm_log_write_failed', 'llm', error_type='OSError'):
+        with patch.object(Path, 'open', fail_legacy_open), self.capture_failure('llm_log_write_failed', 'llm', resource=system.os.path.join(system.API_LOG_DIR, 'llm_test-latest.log')):
             self.assertEqual('', system._log_llm_failure('test', RuntimeError(PRIVATE)))
 
     def test_voicelab_probe_launch_timeout_and_decode_failures(self):

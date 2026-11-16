@@ -105,3 +105,18 @@ The final 12-test regression module was also run with all seven changed
 production files temporarily restored to origin/main: all 12 tests were
 unsuccessful (12 assertion failures and three errors, including subtests).
 The implementation was then restored before final focused qualification.
+
+PR #1972 follow-up: the markup ratchet explicitly exempts the reviewed browser
+stage/error vocabulary and fetch protocol identifiers, not user-visible copy;
+no numeric baseline or catalog key set changes. Diagnostic console emission and
+persistence-warning emission are guarded centrally, and record_failure returns
+False rather than letting a failed sink replace caller behavior. A guarded,
+non-recursive sys.__stderr__ fallback writes only the sink exception type.
+Missing exception evidence stays absent; non-exception values retain at most
+their type name and are never stringified. The legacy LLM helper omits invalid
+exception inputs and retains its empty-path response when persistence fails.
+Six fail-first regressions cover both conservative GPU returns, exactly-once
+retry restoration, all three guard statuses and the auth challenge, non-exception
+inputs, and simultaneous console/file/fallback failure without masking the
+original worker exception. The legacy config test now asserts distinct safe
+records in the approved bounded latest file rather than obsolete raw files.
