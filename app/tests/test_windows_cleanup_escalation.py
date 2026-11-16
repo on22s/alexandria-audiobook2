@@ -5,6 +5,7 @@ import builtins
 import logging
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -17,6 +18,37 @@ from tests.test_windows_subprocess_job import JobApiFixture
 
 
 class GracefulRefusalTests(unittest.TestCase):
+    def test_windows_review_cancel_signals_private_file_without_taskkill(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cancel = Path(temporary) / 'cancel'
+            process = SimpleNamespace(pid=123, _alexandria_cancel_path=str(cancel),
+                                      _alexandria_windows_owner=Mock(), _alexandria_control=Mock())
+            with patch.object(ownership, 'sys', SimpleNamespace(platform='win32')), \
+                 patch.object(ownership.subprocess, 'run') as taskkill:
+                ownership.send_subprocess_signal(process, ownership.signal.SIGTERM)
+                ownership.send_subprocess_signal(process, ownership.signal.SIGTERM)
+            self.assertTrue(cancel.is_file())
+            process._alexandria_control.sendall.assert_not_called()
+            taskkill.assert_not_called()
+
+    def test_posix_cancel_keeps_signal_channel_without_creating_windows_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cancel = Path(temporary) / 'cancel'
+            process = SimpleNamespace(pid=123, _alexandria_cancel_path=str(cancel),
+                                      _alexandria_windows_owner=Mock(), _alexandria_control=Mock())
+            with patch.object(ownership, 'sys', SimpleNamespace(platform='linux')):
+                ownership.send_subprocess_signal(process, ownership.signal.SIGTERM)
+            self.assertFalse(cancel.exists())
+            process._alexandria_control.sendall.assert_called_once_with(
+                f'{int(ownership.signal.SIGTERM)}\n'.encode())
+
+    def test_legacy_force_still_targets_only_the_recorded_pid_and_tree(self):
+        process = SimpleNamespace(pid=123)
+        with patch.object(ownership.subprocess, 'run') as taskkill:
+            ownership.terminate_windows_process_tree(process, force=True, timeout=.2)
+        taskkill.assert_called_once_with(['taskkill', '/PID', '123', '/T', '/F'],
+            check=True, capture_output=True, text=True, timeout=.2)
+
     def taskkill_refusal(self):
         api = JobApiFixture()
         api.counts = [1]
