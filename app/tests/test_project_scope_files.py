@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 import project_scope_files as files
 from audio_take_history import AudioGenerationCancelled
+from tests.test_support import skip_unless_symlink
 
 
 class ScopeFileTests(unittest.TestCase):
@@ -43,23 +44,42 @@ class ScopeFileTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 files.capture_scope_file(self.root, name)
         with self.assertRaises(ValueError):files.capture_scope_file(self.root, 'source.txt', limit=2)
-        alias = self.root/'alias'; alias.symlink_to(path)
-        with self.assertRaises(ValueError):files.capture_scope_file(self.root, 'alias')
         hard = self.root/'hard'; os.link(path, hard)
         with self.assertRaises(ValueError):files.capture_scope_file(self.root, 'hard')
-        hard.unlink(); alias.unlink()
+        hard.unlink()
         (self.root/'directory').mkdir()
         with self.assertRaises(ValueError):files.capture_scope_file(self.root, 'directory')
+
+    @skip_unless_symlink
+    def test_symlink_is_refused(self):
+        path = self.root/'source.txt'; path.write_bytes(b'bounded')
+        alias = self.root/'alias'; alias.symlink_to(path)
+        with self.assertRaises(ValueError):files.capture_scope_file(self.root, 'alias')
+        self.assertEqual(b'bounded', path.read_bytes())
 
     def test_path_replacement_after_hash_is_not_an_accepted_snapshot(self):
         path = self.root/'audio.wav'; path.write_bytes(b'original bytes')
         replacement = self.root/'replacement'; replacement.write_bytes(b'changed bytes')
         real_hash = files._hash
         def replace_after_hash(stream, limit, **kwargs):
-            result = real_hash(stream, limit, **kwargs); os.replace(replacement, path); return result
-        with patch.object(files, '_hash', replace_after_hash), self.assertRaises(ValueError):
-            files.capture_scope_file(self.root, 'audio.wav')
-        self.assertEqual(b'changed bytes', path.read_bytes())
+            result = real_hash(stream, limit, **kwargs)
+            if os.name == 'nt':
+                with self.assertRaises(PermissionError) as refused:
+                    os.replace(replacement, path)
+                self.assertIn(refused.exception.winerror, (5, 32))
+            else:
+                os.replace(replacement, path)
+            return result
+        with patch.object(files, '_hash', replace_after_hash):
+            if os.name == 'nt':
+                proof, raw = files.capture_scope_file(self.root, 'audio.wav', include_bytes=True)
+                self.assertEqual(b'original bytes', raw)
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), proof['sha256'])
+                self.assertEqual(b'changed bytes', replacement.read_bytes())
+            else:
+                with self.assertRaises(ValueError):
+                    files.capture_scope_file(self.root, 'audio.wav')
+        self.assertEqual(b'original bytes' if os.name == 'nt' else b'changed bytes', path.read_bytes())
 
     def test_missing_root_and_in_place_changes_are_refused(self):
         with self.assertRaises(ValueError):

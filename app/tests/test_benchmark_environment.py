@@ -1,5 +1,5 @@
 from tests.test_support import get_isolated_git_environment, isolate_git_environment
-from tests.test_support import assert_file_lock_released
+from tests.test_support import assert_file_lock_released, get_bash_executable
 import json
 import tempfile
 import time
@@ -226,8 +226,8 @@ class BenchmarkArtifactBoundaryTests(unittest.TestCase):
     def test_bare_filename_baseline_roundtrips_and_preserves_other_target(self):
         import os
         before = os.getcwd()
-        try:
-            with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
                 os.chdir(tmp)
                 benchmark_environment.save_environment_baseline('local', {'hash': 'a'}, 'baseline.json')
                 benchmark_environment.save_environment_baseline('thunder', {'hash': 'b'}, 'baseline.json')
@@ -235,8 +235,8 @@ class BenchmarkArtifactBoundaryTests(unittest.TestCase):
                 self.assertEqual({'hash': 'a'}, artifact['local']['environment'])
                 self.assertEqual({'hash': 'b'}, artifact['thunder']['environment'])
                 self.assertEqual(artifact['local'], benchmark_environment.load_environment_baseline('local', 'baseline.json'))
-        finally:
-            os.chdir(before)
+            finally:
+                os.chdir(before)
 
     @isolate_git_environment()
     def test_untracked_content_boundary_collision_cannot_reuse_identity(self):
@@ -344,20 +344,23 @@ class RemoteCheckoutArtifactTests(unittest.TestCase):
                     'commit', '-qm', 'Fixture'], check=True, capture_output=True, env=get_isolated_git_environment())
                 revision = subprocess.check_output(['git', '-C', tmp, 'rev-parse', 'HEAD'], text=True, env=get_isolated_git_environment()).strip()
                 self.assertEqual(40 if object_format == 'sha1' else 64, len(revision))
+                # The remote probe runs through the native Git Bash, which cannot
+                # interpret native Windows separators in a POSIX shell command.
+                remote_root = Path(tmp).as_posix()
                 def remote(_alias, command, **_kwargs):
                     prefix = ''
                     if not command.startswith('git '):
                         command = command.split(' && ', 1)[1]
                         prefix = json.dumps(payload) + '\n'
-                    result = subprocess.run(['bash', '-c', command], capture_output=True, text=True, env=get_isolated_git_environment())
+                    result = subprocess.run([get_bash_executable(), '-c', command], capture_output=True, text=True, env=get_isolated_git_environment())
                     result.stdout = 'login banner\n' + 'a' * 64 + '\n' + 'b' * 40 + '\n' + prefix + result.stdout
                     return result
                 with patch.object(benchmark_environment, '_ssh_run', side_effect=remote), \
                      patch.object(benchmark_environment, 'get_runtime_info', return_value={'revision': revision}), \
                      patch.object(benchmark_environment, 'get_remote_gpu_name_and_backend', return_value=('fixture GPU', 'cuda')), \
                      patch.object(benchmark_environment, '_get_local_worktree_identity', return_value={'dirty': False, 'sha256': 'fixture'}):
-                    self.assertEqual(revision, benchmark_environment._verify_remote_checkout(tmp, 'fixture', tmp))
-                    fingerprint = benchmark_environment.collect_thunder_tts_environment(tmp, 'fixture', tmp, '/fixture/python')
+                    self.assertEqual(revision, benchmark_environment._verify_remote_checkout(tmp, 'fixture', remote_root))
+                    fingerprint = benchmark_environment.collect_thunder_tts_environment(tmp, 'fixture', remote_root, '/fixture/python')
                     self.assertEqual(revision, fingerprint['details']['git_commit'])
                     script.write_text('print("modified")\n')
                     with self.assertRaisesRegex(ValueError, 'must be clean'):

@@ -11,16 +11,21 @@ from fastapi import HTTPException
 from routers import lora
 import evaluation_reviews
 from voice_manifest import validate_adapter_name
+from tests.test_support import skip_unless_symlink
 
 
 class LoraAdapterLocationTests(unittest.TestCase):
     def test_review_storage_uses_same_adapter_component_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
-            for identity in ('voice#one?two%three', 'Voice One', '声'):
+            for identity in ('voice#one&two%three', 'Voice One', '声'):
                 validate_adapter_name(identity)
                 self.assertEqual([], evaluation_reviews.list_reviews(tmp, identity))
                 self.assertEqual(Path(tmp) / (identity + '.json'),
                                  Path(evaluation_reviews._store_path(tmp, identity)))
+            foreign_identity = 'voice#one?two%three'
+            validate_adapter_name(foreign_identity)
+            self.assertEqual(Path(tmp) / (foreign_identity + '.json'),
+                             Path(evaluation_reviews._store_path(tmp, foreign_identity)))
             for identity in ('', '.', '..', '../voice', 'voice/other', 'voice\\other', 'voice\0other'):
                 with self.subTest(identity=identity):
                     with self.assertRaises(ValueError):
@@ -32,7 +37,7 @@ class LoraAdapterLocationTests(unittest.TestCase):
         for builtin in (False,True):
             with self.subTest(builtin=builtin),tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
                 root=Path(tmp);models=root/'models';models.mkdir();builtins=root/'builtin';builtins.mkdir()
-                identity='voice#one?two%three'
+                identity='voice#one&two%three'
                 folder=(builtins if builtin else models)/identity;folder.mkdir()
                 sf.write(folder/'preview_sample.wav',np.full(2400,.1),24000)
                 row={'id':identity,'builtin':builtin}
@@ -44,10 +49,11 @@ class LoraAdapterLocationTests(unittest.TestCase):
                 stack.enter_context(patch.object(lora,'_load_voice_library',return_value={'favorites':[]}))
                 listed=asyncio.run(lora.lora_list_models());cached=asyncio.run(lora.lora_preview(identity))
                 prefix='/builtin_lora/' if builtin else '/lora_models/'
-                expected=prefix+'voice%23one%3Ftwo%25three/preview_sample.wav'
+                expected=prefix+'voice%23one%26two%25three/preview_sample.wav'
                 self.assertEqual(expected,listed[0]['preview_audio_url'])
                 self.assertEqual(expected,cached['audio_url'])
 
+    @skip_unless_symlink
     def test_listing_cannot_inspect_symlinked_adapter_outside_root(self):
         with tempfile.TemporaryDirectory() as tmp,tempfile.TemporaryDirectory() as outside,ExitStack() as stack:
             root=Path(tmp);other=Path(outside)

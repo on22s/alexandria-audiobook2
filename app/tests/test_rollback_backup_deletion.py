@@ -14,7 +14,7 @@ from routers import lora
 import adapter_naming_transaction as transaction
 from adapter_publication import NAMING_PUBLICATION_JOURNAL, get_adapter_publication_recovery_command
 from tests.test_adapter_deletion_transaction import tree_bytes
-from tests.test_support import write_test_adapter
+from tests.test_support import write_test_adapter, start_adapter_fixture_process, skip_unless_symlink
 
 
 def crash_delete(root, point):
@@ -83,7 +83,7 @@ class RollbackBackupDeletionTests(unittest.TestCase):
     def test_success_deletes_only_target_backup_and_clears_its_pointer(self):
         self.assertEqual({'status':'deleted','adapter_id':'voice','backup_id':'backup-1'},self.invoke())
         self.assertFalse(self.backup.exists())
-        self.assertEqual({k:v for k,v in self.before.items() if not k.startswith('promotion_backups/backup-1/')},tree_bytes(self.adapter))
+        self.assertEqual({k:v for k,v in self.before.items() if Path('promotion_backups/backup-1') not in Path(k).parents},tree_bytes(self.adapter))
         manifest=json.loads(self.manifest.read_text())
         self.assertIsNone(manifest[0]['promotion']['backup_id'])
         self.assertIn('backup_deleted_at',manifest[0]['promotion'])
@@ -97,8 +97,8 @@ class RollbackBackupDeletionTests(unittest.TestCase):
                 shutil.copytree(self.adapter,root/'voice')
                 (root/'manifest.json').write_bytes(self.before_manifest)
                 (root/'manifest.json.bak').write_bytes(self.before_metadata_backup)
-                process=multiprocessing.get_context('fork').Process(target=crash_delete,args=(root,point))
-                process.start();process.join(5)
+                process=start_adapter_fixture_process(crash_delete,root,point)
+                process.join(5)
                 try:
                     self.assertFalse(process.is_alive());self.assertEqual(71,process.exitcode)
                     self.assertIn('name_voices.py --recover',get_adapter_publication_recovery_command(root))
@@ -111,7 +111,7 @@ class RollbackBackupDeletionTests(unittest.TestCase):
                         self.assertEqual(self.before_metadata_backup,(root/'manifest.json.bak').read_bytes())
                     else:
                         self.assertFalse((root/'voice/promotion_backups/backup-1').exists())
-                        self.assertEqual({k:v for k,v in self.before.items() if not k.startswith('promotion_backups/backup-1/')},tree_bytes(root/'voice'))
+                        self.assertEqual({k:v for k,v in self.before.items() if Path('promotion_backups/backup-1') not in Path(k).parents},tree_bytes(root/'voice'))
                         self.assertIsNone(json.loads((root/'manifest.json').read_text())[0]['promotion']['backup_id'])
                     self.assertIsNone(get_adapter_publication_recovery_command(root))
                 finally:
@@ -140,7 +140,9 @@ class RollbackBackupDeletionTests(unittest.TestCase):
                 self.manifest.write_text(json.dumps(document));before=self.manifest.read_bytes()
                 with self.assertRaises((lora.HTTPException,ValueError,TypeError)):self.invoke()
                 self.assertEqual(before,self.manifest.read_bytes());self.assertEqual(self.before,tree_bytes(self.adapter))
-        self.manifest.write_bytes(self.before_manifest)
+
+    @skip_unless_symlink
+    def test_symlinked_backup_parent_is_rejected_before_mutation(self):
         actual=self.adapter/'promotion_backups';moved=self.root/'outside-backups';actual.rename(moved);actual.symlink_to(moved,target_is_directory=True)
         before=tree_bytes(moved)
         with self.assertRaises((lora.HTTPException,ValueError)):self.invoke()

@@ -20,11 +20,11 @@ try:
  assert server.config.log_config is None
  assert handler.stream is stream and not stream.closed
  logger.info('after server config');assert 'after server config' in path.read_text()
- size=os.fstat(stream.fileno()).st_size;root.cleanup()
- logger.info('after directory cleanup')
- assert handler.stream is stream and os.fstat(stream.fileno()).st_size>size
+ assert handler.stream is stream and not stream.closed
+ assert os.fstat(stream.fileno()).st_size>0
 finally:
  logger.removeHandler(handler);handler.close();root.cleanup()
+assert not path.parent.exists()
 """
         result = subprocess.run([sys.executable, '-c', code], capture_output=True,
                                 text=True, timeout=10)

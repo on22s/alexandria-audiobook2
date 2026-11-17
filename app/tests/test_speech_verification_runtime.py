@@ -9,6 +9,9 @@ from unittest.mock import patch
 
 from speech_verification_runtime import (LIBRARIES, get_verifier_file_identity,
     get_verifier_identity, get_verifier_model_architecture, ensure_distinct_verifier_confirmation)
+# Loaded before any fixture patches sys.platform: this adapter imports numpy, which
+# reads sys.platform at import time and would take its Linux os.uname() path on Windows.
+import speech_verification_acoustic  # noqa: F401
 
 
 class SpeechVerifierRuntimeTests(unittest.TestCase):
@@ -110,7 +113,7 @@ class SpeechVerifierRuntimeTests(unittest.TestCase):
             get_verifier_file_identity(path, 10, lambda: False)
         with self.assertRaisesRegex(ValueError, 'cancelled'):
             get_verifier_file_identity(path, 20, lambda: True)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(PermissionError if os.name == 'nt' else ValueError):
             get_verifier_file_identity(self.root, 100, lambda: False)
 
 

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import alexandria_batch_processor as batch
 import io
 from tests.batch_mock_support import adapt_owner_fixture
@@ -155,7 +156,8 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                 scans.append(path)
             return original_scandir(path)
 
-        with patch.object(batch.os, "scandir", side_effect=record_scan), \
+        with patch.object(batch.sys, 'stdin', io.StringIO()), \
+             patch.object(batch.os, "scandir", side_effect=record_scan), \
              patch.object(batch, "start_owned_subprocess", side_effect=OSError("stop")) as popen:
             self.assertEqual(audio_files, processor.validate_files(audio_files))
             processor.process_file(audio_files[0], 1, 2)

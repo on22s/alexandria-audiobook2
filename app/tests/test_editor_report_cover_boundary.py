@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import editor
 from tests.test_m4b_cover_admission import image_bytes
+from tests.test_support import skip_unless_symlink
 
 
 class EditorReportCoverBoundaryTests(unittest.TestCase):
@@ -21,6 +22,7 @@ class EditorReportCoverBoundaryTests(unittest.TestCase):
             self.assertEqual(payload, (Path(root) / 'm4b_cover.jpg').read_bytes())
             self.assertFalse(list(Path(root).glob('*.upload.*')))
 
+    @skip_unless_symlink
     def test_listing_and_download_share_realpath_boundary(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root); reports = root / 'reports'; reports.mkdir()
@@ -52,10 +54,12 @@ class EditorReportCoverBoundaryTests(unittest.TestCase):
     def test_portable_invalid_names_are_not_listed_or_downloaded(self):
         with tempfile.TemporaryDirectory() as root:
             reports = Path(root)
-            (reports / 'bad\\name.md').write_text('bad leaf')
+            invalid_name = 'bad\\name.md'
             (reports / 'other.txt').write_text('not Markdown')
             app = FastAPI(); app.include_router(editor.router)
-            with patch.object(editor, 'REPORTS_DIR', root), TestClient(app) as client:
+            with patch.object(editor, 'REPORTS_DIR', root), \
+                 patch.object(editor.os, 'listdir', return_value=[invalid_name, 'other.txt']), \
+                 TestClient(app) as client:
                 self.assertEqual([], client.get('/api/reports').json())
                 self.assertEqual(400, client.get('/api/reports/bad%5Cname.md').status_code)
                 self.assertEqual(400, client.get('/api/reports/other.txt').status_code)

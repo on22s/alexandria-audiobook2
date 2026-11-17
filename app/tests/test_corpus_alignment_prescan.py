@@ -18,6 +18,13 @@ class CorpusAlignmentPrescanTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        handlers = list(preparer.logger.handlers)
+        def close_owned_handlers():
+            for handler in list(preparer.logger.handlers):
+                if handler not in handlers:
+                    preparer.logger.removeHandler(handler)
+                    handler.close()
+        self.addCleanup(close_owned_handlers)
         self.root = Path(self.temp.name)
         self.audio = self.root / 'book.wav'
         self.audio.write_bytes(b'controlled CPU transcript boundary')
