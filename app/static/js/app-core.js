@@ -1877,6 +1877,7 @@
             try {
                 await API.post('/api/config', payload);
                 if (status) { status.textContent = 'Configuration saved.'; }
+                renderReviewLabelsOnlyPointer();
                 try {
                     if (onSaved) { await onSaved(); }
                 } catch (error) {
@@ -2506,6 +2507,8 @@
                     if (config.prompts.review_user_prompt) {
                         document.getElementById('review-user-prompt').value = config.prompts.review_user_prompt;
                     }
+                    document.getElementById('review-labels-only').checked = config.prompts.review_labels_only === true;
+                    renderReviewLabelsOnlyPointer();
                     if (config.prompts.persona_system_prompt) {
                         document.getElementById('persona-system-prompt').value = config.prompts.persona_system_prompt;
                     }
@@ -2601,6 +2604,8 @@
                 }
                 document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
                 document.getElementById('persona-unknown-network-context').checked = defaults.persona_allow_unknown_network_context ?? false;
+                document.getElementById('review-labels-only').checked = defaults.review_labels_only === true;
+                renderReviewLabelsOnlyPointer();
                 applyGenerationSettings(g);
                 showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
             } catch (e) {
@@ -2608,6 +2613,23 @@
                 showToast("Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.", 'error');
             }
         };
+
+        // The switch is saved Setup config, so it stays in Prompt studio, but the
+        // Script tab is where the other review toggles are looked for (#2045).
+        // This line names the current value and points at the original control;
+        // openSetupSetting() does the navigating, so there is one jump path.
+        function renderReviewLabelsOnlyPointer() {
+            const pointer = document.getElementById('review-labels-only-pointer');
+            const control = document.getElementById('review-labels-only');
+            if (!pointer || !control) { return; }
+            const state = control.checked
+                ? t('script.review.labels-only.state.on', 'on')
+                : t('script.review.labels-only.state.off', 'off');
+            pointer.textContent = t('script.review.labels-only.pointer',
+                'Labels-only review: {state} — change in Setup → Prompt studio', {state});
+        }
+        window.renderReviewLabelsOnlyPointer = renderReviewLabelsOnlyPointer;
+        renderReviewLabelsOnlyPointer();
 
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.
@@ -2666,6 +2688,7 @@
                     attribution_preset: presetPayload.active,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
                     review_user_prompt: document.getElementById('review-user-prompt').value,
+                    review_labels_only: document.getElementById('review-labels-only').checked,
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,

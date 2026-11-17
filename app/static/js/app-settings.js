@@ -32,6 +32,7 @@ function renderUiLocaleChrome() {
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
     if (typeof renderFollowupLocaleChrome === 'function') { renderFollowupLocaleChrome(); }
     if (typeof renderDeleteUndo === 'function') { renderDeleteUndo(); }
+    if (typeof renderReviewLabelsOnlyPointer === 'function') { renderReviewLabelsOnlyPointer(); }
 }
 
 function applyUiLocaleAndSearchStatus(locale) {
@@ -116,6 +117,10 @@ function renderSetupSettingsSearch() {
 
 function openSetupSetting(id) {
     const control = document.getElementById(id);
+    // A link from another tab (Script's labels-only review pointer) cannot focus
+    // anything until Setup is the visible tab; the finder is already here, where
+    // this is a no-op.
+    if (control && typeof activateTab === 'function') { activateTab('setup', true); }
     if (!control || !isSetupSettingAvailable(control)) {
         renderSetupSettingsSearch();
         return;
