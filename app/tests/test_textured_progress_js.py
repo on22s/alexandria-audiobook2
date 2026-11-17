@@ -5,6 +5,7 @@ the conversion is checked statically: no Bootstrap progress markup may survive i
 the files that used to own a bar, and each former bar must go through the shared
 renderer rather than writing its own width/aria/text.
 """
+import json
 import re
 from pathlib import Path
 import subprocess
@@ -139,6 +140,92 @@ assert.strictEqual(el.attributes['aria-valuenow'], undefined);
         self.run_js(r"""
 for (const el of [null, undefined]) { render(el, {fraction: 0.1, label: 'x'}); }
 """)
+
+    def test_a_render_never_drops_the_accessible_name(self):
+        self.run_js(r"""
+// A labelledby bar, wired exactly as index.html wires it.
+const q = tree();
+q.label.id = 'script-progress-label';
+q.label.textContent = 'Script generation';
+q.track.attributes['aria-labelledby'] = 'script-progress-label';
+q.track.attributes['aria-label'] = 'authored name';
+render(q.track, {fraction: 0.42, label: 'Script generation'});
+assert.strictEqual(q.track.attributes['aria-labelledby'], 'script-progress-label',
+    'the name reference survives a render');
+assert.strictEqual(q.track.attributes['aria-label'], 'authored name',
+    'an authored aria-label is never removed');
+assert.strictEqual(q.label.id, 'script-progress-label',
+    'the id the name points at is never rewritten');
+assert.strictEqual(q.label.textContent, 'Script generation');
+
+// The name of a labelledby bar IS this text, so an empty label must not blank
+// it (the LoRA/casting bars pass '', a task-labelled bar must keep its name).
+q.label.textContent = 'Dataset preparer';
+render(q.track, {fraction: 0.5, label: ''});
+assert.strictEqual(q.label.textContent, 'Dataset preparer',
+    'an empty label must not erase the accessible name');
+assert.strictEqual(q.track.attributes['aria-labelledby'], 'script-progress-label');
+
+// A bar that is not named by its head-row label still follows it, empty included.
+const plain = tree();
+plain.label.textContent = 'stale';
+render(plain.track, {fraction: 0.3, label: ''});
+assert.strictEqual(plain.label.textContent, '', 'a plain bar still takes its label verbatim');
+""")
+
+    def test_every_progress_bar_has_an_accessible_name(self):
+        """A nameless role="progressbar" announces "progress bar, 42%" and no task.
+
+        Five of the seven bars shipped that way (#2042 review round 3), so the
+        name is a gate over the markup AND every JS template: aria-labelledby
+        pointing at the bar's own visible head-row label (the name then follows
+        the translated text), or an aria-label -- authored literally, or through
+        data-i18n-attr, whose key must exist in all four catalogs.
+        """
+        markup = (STATIC / 'index.html').read_text(encoding='utf-8')
+        catalogs = [json.loads(path.read_text(encoding='utf-8'))
+                    for path in sorted((STATIC / 'i18n').glob('ui.*.json'))]
+        self.assertEqual(4, len(catalogs), 'every catalog is checked')
+        ids = set(re.findall(r'\bid="([^"]+)"', markup))
+
+        files = [('index.html', markup)] + [
+            (path.name, path.read_text(encoding='utf-8'))
+            for path in sorted((STATIC / 'js').glob('*.js'))]
+        bars = []
+        for name, text in files:
+            for tag in re.findall(r'<[a-z][^>]*>', text):
+                classes = re.search(r'class="([^"]*)"', tag)
+                if not classes or 'tp' not in classes.group(1).split():
+                    continue
+                if not re.search(r'\brole="progressbar"', tag):
+                    continue
+                bars.append((name, tag))
+        self.assertGreaterEqual(len(bars), 7, 'the seven bars of the app must all be found')
+
+        for name, tag in bars:
+            found = re.search(r'\bid="([^"]+)"', tag)
+            bar = found.group(1) if found else name
+            with self.subTest(bar=bar):
+                labelled = re.search(r'\baria-labelledby="([^"]+)"', tag)
+                label = re.search(r'\baria-label="([^"]*)"', tag)
+                i18n = re.search(r'data-i18n-attr="([^"]*)"', tag)
+                keys = [entry.split(':', 1)[1].strip()
+                        for entry in (i18n.group(1) if i18n else '').split(',')
+                        if entry.split(':', 1)[0].strip() == 'aria-label']
+                if labelled:
+                    for target in labelled.group(1).split():
+                        self.assertIn(target, ids,
+                                      'aria-labelledby must name an element that exists')
+                elif label and label.group(1).strip():
+                    continue
+                elif keys:
+                    for key in keys:
+                        for index, catalog in enumerate(catalogs):
+                            with self.subTest(catalog=index):
+                                self.assertIn(key, catalog, '%s is missing from a catalog' % key)
+                else:
+                    self.fail('%s carries no accessible name: no aria-labelledby, no aria-label'
+                              % bar)
 
     def test_every_bar_in_the_app_uses_the_shared_component(self):
         core = CORE.read_text(encoding='utf-8')

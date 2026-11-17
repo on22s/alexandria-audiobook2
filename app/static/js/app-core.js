@@ -8596,13 +8596,23 @@
             const wrap = el.closest?.('.tp-wrap') || null;
             const labelEl = wrap ? wrap.querySelector('.tp-label') : null;
             const valueEl = wrap ? wrap.querySelector('.tp-value') : null;
+            // The bar's accessible NAME belongs to the markup: an aria-label, or
+            // an aria-labelledby pointing at the head-row label's id. This
+            // renderer never touches either attribute and never rewrites that
+            // id, so the name survives every render -- but for a labelledby bar
+            // the label's TEXT is the name, so an empty `label` must not blank
+            // it, or the bar would end up nameless.
+            const namedByLabel = !!labelEl && !!labelEl.id
+                && (el.getAttribute?.('aria-labelledby') || '')
+                    .split(/\s+/).includes(labelEl.id);
             if (el.classList) {
                 if (indeterminate) { el.classList.add?.('tp-indeterminate'); }
                 else { el.classList.remove?.('tp-indeterminate'); }
             }
             fill.style.width = indeterminate ? '' : `${percentage}%`;
-            if (labelEl) { labelEl.textContent = label; }
-            else { fill.innerText = label; }
+            if (labelEl) {
+                if (label || !namedByLabel) { labelEl.textContent = label; }
+            } else { fill.innerText = label; }
             if (valueEl) { valueEl.textContent = indeterminate ? '' : `${percentage}%`; }
             el.ariaValueMin = '0';
             el.ariaValueMax = '100';

@@ -15040,7 +15040,9 @@
     , "tests.test_textured_progress_js.TexturedProgressTests.test_a_fraction_drives_the_fill_the_head_label_and_the_aria_values"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_a_missing_element_is_a_no_op"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_a_missing_or_unusable_fraction_is_indeterminate"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_a_render_never_drops_the_accessible_name"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_every_bar_in_the_app_uses_the_shared_component"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_every_progress_bar_has_an_accessible_name"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_fractions_outside_the_unit_range_are_clamped"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_going_back_to_a_fraction_clears_the_indeterminate_state"
   ]

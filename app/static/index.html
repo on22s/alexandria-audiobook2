@@ -2880,7 +2880,7 @@
                 <div class="card-body p-0">
                     <div id="script-progress" class="tp-wrap px-2 pt-2" hidden>
                         <div class="tp-head"><span class="tp-label" id="script-progress-label"></span><b class="tp-value" id="script-progress-value"></b></div>
-                        <div id="script-progress-bar" class="tp tp-ticks" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
+                        <div id="script-progress-bar" class="tp tp-ticks" role="progressbar" aria-labelledby="script-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
                     </div>
                     <div id="script-activity" class="small text-muted px-2 py-1 border-bottom" hidden></div>
                     <div id="script-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:script.logs.title" aria-label="Script generation logs"></div>
@@ -3495,7 +3495,7 @@
                         <hr>
                         <div class="tp-wrap mb-3">
                             <div class="tp-head"><span class="tp-label" id="preparer-progress-label" data-i18n="core.task-label.preparer">Dataset preparer</span><b class="tp-value" id="preparer-progress-value"></b></div>
-                            <div id="preparer-progress-bar" class="tp tp-hatch" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
+                            <div id="preparer-progress-bar" class="tp tp-hatch" role="progressbar" aria-labelledby="preparer-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
                         </div>
                         <h5 class="mb-2" data-i18n="preparer.logs.title">Execution Logs</h5>
                         <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;" tabindex="0" role="region" data-i18n-attr="aria-label:preparer.logs.title" aria-label="Execution Logs"></div>
@@ -3646,7 +3646,7 @@
                     <!-- Stage progress -->
                     <div id="vl-progress" class="tp-wrap mb-2" style="display:none;">
                         <div class="tp-head"><span class="tp-label" id="vl-progress-label" data-i18n="core.task-label.voicelab">Voice Lab pipeline</span><b class="tp-value" id="vl-progress-value"></b></div>
-                        <div id="vl-progress-bar" class="tp tp-halftone" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span><span class="tp-lead2" aria-hidden="true"></span></div>
+                        <div id="vl-progress-bar" class="tp tp-halftone" role="progressbar" aria-labelledby="vl-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span><span class="tp-lead2" aria-hidden="true"></span></div>
                     </div>
                     <div id="vl-stage-progress" class="d-flex gap-2 flex-wrap mb-2" style="display:none;"></div>
                 </div>
@@ -3816,7 +3816,7 @@
                                 </div>
                                 <div class="tp-wrap mt-1">
                                     <div class="tp-head"><span class="tp-label"></span><b class="tp-value" id="lora-progress-value"></b></div>
-                                    <div id="lora-progress-bar" class="tp tp-halftone" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" data-i18n-attr="aria-valuetext:training.progress.not-started" aria-busy="true" role="progressbar">
+                                    <div id="lora-progress-bar" class="tp tp-halftone" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" data-i18n-attr="aria-valuetext:training.progress.not-started, aria-label:core.task-label.lora-training" aria-label="LoRA training" aria-busy="true" role="progressbar">
                                         <div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span><span class="tp-lead2" aria-hidden="true"></span>
                                     </div>
                                 </div>
@@ -3920,7 +3920,7 @@
                     <!-- Progress bar -->
                     <div class="tp-wrap mb-3" id="dsb-progress-wrap" style="display: none;">
                         <div class="tp-head"><span class="tp-label"></span><b class="tp-value"></b></div>
-                        <div id="dsb-progress-bar" class="tp tp-hatch" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div id="dsb-progress-bar" class="tp tp-hatch" role="progressbar" data-i18n-attr="aria-label:core.task-label.dataset-builder" aria-label="Dataset builder batch" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                             <div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span>
                         </div>
                     </div>
