@@ -1,4 +1,6 @@
 if __name__ == '__main__':
+    from utils import configure_cli_stdio as _startup_stdio
+    _startup_stdio()
     import os as _startup_os
     import sys as _startup_sys
     from pathlib import Path as _StartupPath
@@ -50,7 +52,8 @@ from lmstudio_settings import get_failover_llm_config
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_checkpoint_document
 from generation_checkpoint_shards import remove_generation_shard_checkpoint, get_generation_checkpoint_artifacts
 from utils import (file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json,
-                   get_runtime_data_dir, get_app_config_path, configure_cli_stdio)
+                   get_runtime_data_dir, get_app_config_path, configure_cli_stdio,
+                   escape_unsafe_display_json)
 from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
                               is_group_speaker_label as _is_group_label,
                               is_speaker_merge_allowed, get_resolved_speaker_merge_map,
@@ -1883,7 +1886,6 @@ def ensure_review_not_cancelled():
 
 
 def main():
-    configure_cli_stdio()
     ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
@@ -2608,7 +2610,7 @@ def main():
             "checkpoint_retained": os.path.exists(_checkpoint_path(output_path)),
             "retry_from_batch": min(section["batch"] for section in failed_sections),
         }
-        print(f"FAILED_SECTIONS_JSON: {json.dumps(failure_details, ensure_ascii=False)}")
+        print(f"FAILED_SECTIONS_JSON: {json.dumps(escape_unsafe_display_json(failure_details), ensure_ascii=False)}")
 
     # Emit a compact JSON line with the most notable before/after examples so the
     # web UI can show a "diff preview" without re-diffing the whole script.
@@ -2617,7 +2619,8 @@ def main():
         "speaker_changes": highlight_pool["speaker"][:5],
     }
     if diff_highlights["text_rewrites"] or diff_highlights["speaker_changes"]:
-        print(f"DIFF_PREVIEW_JSON: {json.dumps(diff_highlights, ensure_ascii=False)}")
+        safe_highlights = escape_unsafe_display_json(diff_highlights)
+        print(f"DIFF_PREVIEW_JSON: {json.dumps(safe_highlights, ensure_ascii=False)}")
 
     if vram_aborted:
         print("Stopped early: GPU VRAM stayed too high to safely continue.")

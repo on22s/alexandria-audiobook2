@@ -3416,8 +3416,13 @@
     , "tests.test_cli_fixture.CliFixtureTests.test_real_command_runs_from_non_ascii_directory"
   ]
   , "test_cli_stdio_unicode": [
-    "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_configure_cli_stdio_makes_unencodable_prints_safe"
-    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_subprocess_reader_forces_utf8_even_when_env_requests_cp1252"
+    "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_configure_cli_stdio_makes_both_streams_safe"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_configure_cli_stdio_tolerates_streams_that_cannot_reconfigure"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_display_controls_are_escaped_but_normal_unicode_is_preserved"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_every_cli_entry_point_configures_stdio"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_force_utf8_child_env_applies_one_shared_policy"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_only_python_children_are_decoded_as_utf8"
+    , "tests.test_cli_stdio_unicode.CliStdioUnicodeTests.test_subprocess_reader_round_trips_diff_preview_exactly"
   ]
   , "test_clipboard_fallback_js": [
     "tests.test_clipboard_fallback_js.ClipboardFallbackJsTests.test_manual_copy_preserves_text_and_cleans_up"

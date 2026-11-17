@@ -15,6 +15,8 @@ import sys
 import time
 from types import SimpleNamespace
 
+from utils import force_utf8_child_env
+
 
 SUBPROCESS_TERMINATE_GRACE_SECONDS = 10.0
 logger = logging.getLogger("AlexandriaUI")
@@ -253,7 +255,11 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
     keeps the cooperative behaviour - no internal escalation - because callers
     such as benchmark_remote_command rely on it and escalate themselves;
     Windows and macOS apply SUBPROCESS_TERMINATE_GRACE_SECONDS instead.
+
+    Every launch path gets the shared UTF-8 child environment here, so the
+    supervisor and the worker it starts agree regardless of platform.
     """
+    kwargs["env"] = force_utf8_child_env(kwargs.get("env"))
     if sys.platform == "win32":
         from windows_subprocess_owner import start_windows_owned_subprocess
         return start_windows_owned_subprocess(

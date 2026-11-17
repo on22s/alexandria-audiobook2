@@ -47,6 +47,7 @@ from voice_manifest import get_voice_manifest, get_resolved_adapter_path, valida
 from adapter_checkpoint_transaction import (ensure_adapter_checkpoint, get_adapter_generation_sha256,
                                             get_adapter_serving_metadata, GENERATION_FILES)
 from device_utils import normalize_device
+from utils import configure_cli_stdio
 from utils import atomic_json_write
 from archive_utils import read_zip_member_bounded
 
@@ -651,10 +652,6 @@ def llm_describe(llm, narrator: str, summary: str,
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    # Preserve the selected output encoding, but escape characters a redirected
-    # legacy Windows console cannot represent instead of aborting publication.
-    if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Profile narrator voices via acoustics + LLM")
     parser.add_argument("--manifest",   default=MANIFEST)
     parser.add_argument("--model",      default=MODEL_PATH,    help="Path to GGUF model")
@@ -826,4 +823,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    configure_cli_stdio()
     sys.exit(main())

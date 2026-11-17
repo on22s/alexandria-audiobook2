@@ -21,7 +21,7 @@ import re
 import sys
 import time
 
-from utils import atomic_json_write, file_lock
+from utils import atomic_json_write, file_lock, configure_cli_stdio
 
 PROMPT = ("Below is a complete novel. List every character who SPEAKS a quoted line at least "
           "once. Give each as the name a reader would use for them; if the text never names "
@@ -426,4 +426,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    configure_cli_stdio()
     sys.exit(main())

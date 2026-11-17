@@ -37,7 +37,7 @@ from project import ProjectManager
 from config_settings import load_app_config
 from utils import (atomic_json_write, get_app_config_path, get_app_storage_path, get_runtime_data_dir,
                    is_generic_speaker, is_path_inside, safe_load_json,
-                   secure_filename)
+                   secure_filename, CLI_STDIO_ENCODING)
 from lmstudio_settings import (get_active_llm_config, get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
 from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
@@ -1585,6 +1585,19 @@ def get_task_lease_descriptor(state):
     return None
 
 
+def _is_python_command(command: List[str]) -> bool:
+    """Whether the launched program is a Python interpreter that honors our env.
+
+    Only these children are decoded as UTF-8 here; a native tool sharing the
+    pipe keeps the locale default so its own byte encoding is not corrupted.
+    """
+    if not command:
+        return False
+    executable = os.fspath(command[0])
+    return (os.path.normcase(executable) == os.path.normcase(sys.executable)
+            or os.path.basename(executable).lower().startswith("python"))
+
+
 def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_prefix: str = "", max_logs: int = 20000, log_file: str = None, env: dict = None) -> Tuple[int, List[str]]:
     """Run a subprocess, appending its merged stdout/stderr into state['logs'].
 
@@ -1623,20 +1636,15 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             cancel_directory = tempfile.TemporaryDirectory(prefix='alexandria-review-cancel-')
             subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE'] = os.path.join(cancel_directory.name, 'cancel')
         review_startup_event('subprocess_launch')
-        # Redirected stdio on Windows defaults to the ANSI code page (cp1252),
-        # which cannot encode characters returned by the LLM (e.g. U+2770).
-        # Force UTF-8 in the child and decode it as such here so a print() of
-        # such a character can't kill an otherwise completed run.
-        # Assignment (not setdefault): an inherited/injected cp1252 setting
-        # must not reintroduce the crash this fixes.
-        subprocess_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
+        # start_owned_subprocess applies the shared UTF-8 child env. Decode only
+        # Python children as UTF-8; native tools keep their own byte encoding.
         process = start_owned_subprocess(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            encoding="utf-8",
             errors="replace",
+            **({"encoding": CLI_STDIO_ENCODING} if _is_python_command(command) else {}),
             cwd=cwd,
             env=subprocess_env,
             **get_subprocess_lease_options(subprocess_env, get_task_lease_descriptor(state)),

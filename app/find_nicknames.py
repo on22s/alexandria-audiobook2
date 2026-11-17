@@ -424,7 +424,6 @@ def save_discovered_aliases(path, aliases, roster=()):
 
 
 def main():
-    configure_cli_stdio()
     parser = argparse.ArgumentParser(description="Discover character nickname/alias mappings")
     parser.add_argument("--input", help="Script JSON to scan (default: ../annotated_script.json)")
     parser.add_argument("--aliases-file", help="Where to write the alias map (default: ../character_aliases.json)")
@@ -528,4 +527,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_cli_stdio()
     main()

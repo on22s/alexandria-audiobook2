@@ -2,6 +2,8 @@
 import json
 import os
 
+from utils import CLI_STDIO_ENCODING, CLI_STDIO_ERRORS
+
 
 def get_dataset_metadata(path):
     """Read JSONL entries, refusing malformed rows with line-specific errors."""
@@ -118,9 +120,7 @@ def get_training_dataset_preflight(data_dir):
 
 
 def get_training_reference_preview(text):
-    import sys
-    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text[:60].encode(encoding, errors="backslashreplace").decode(encoding)
+    return text[:60].encode(CLI_STDIO_ENCODING, errors=CLI_STDIO_ERRORS).decode(CLI_STDIO_ENCODING)
 
 
 def get_training_reference_text(data_dir, ref_audio_path, samples):

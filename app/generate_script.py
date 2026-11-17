@@ -2176,7 +2176,6 @@ def _accept_near_miss(near_miss, chunk_num, total_chunks):
     return entries
 
 def main():
-    configure_cli_stdio()
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
     parser.add_argument("--literal-source-preserving", action="store_true",
@@ -2649,4 +2648,5 @@ def main():
 
 
 if __name__ == '__main__':
+    configure_cli_stdio()
     main()

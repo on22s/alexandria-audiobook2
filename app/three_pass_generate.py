@@ -57,7 +57,8 @@ from config_settings import load_app_config, get_generation_config
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, TokenBudgetError)
 from utils import (get_runtime_data_dir, get_app_config_path,
-                   atomic_json_write, safe_load_json, is_nonverbal_text)
+                   atomic_json_write, safe_load_json, is_nonverbal_text,
+                   configure_cli_stdio)
 
 BATCH_SIZE = 25
 NARRATOR_DEFAULT_INSTRUCT = "Neutral, even narration."
@@ -4197,4 +4198,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_cli_stdio()
     main()

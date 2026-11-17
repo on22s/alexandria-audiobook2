@@ -300,21 +300,72 @@ def extract_json_object(text):
             search_from = start + 1
 
 
-def configure_cli_stdio() -> None:
-    """Make print() safe for non-ASCII LLM output on Windows.
+# One definition of the child/CLI stdio policy, shared by the CLI entry points,
+# the subprocess launch layer and the parent reader that decodes their output.
+CLI_STDIO_ENCODING = "utf-8"
+CLI_STDIO_ERRORS = "backslashreplace"
 
-    CLI scripts launched by the web app have stdout redirected to a pipe.
-    CPython then uses the system ANSI code page (cp1252 on Western Windows)
-    instead of UTF-8, and print() of a character outside that code page
-    raises UnicodeEncodeError - killing an otherwise finished run. UTF-8
-    encodes every character; backslashreplace is a final net for stray
-    surrogates. The app's subprocess reader decodes stdout as UTF-8 to match.
+# Format/bidi controls are perfectly valid UTF-8, so an encoding error handler
+# cannot neutralize them. Escape the ones that can reorder or hide text in
+# logs and Markdown reports derived from LLM output.
+_UNSAFE_DISPLAY_CONTROLS = frozenset(
+    "\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e"
+    "\u2028\u2029\u2066\u2067\u2068\u2069\ufeff"
+)
+
+
+def escape_unsafe_display_text(value):
+    """Replace display-manipulating control characters with literal \\uXXXX text.
+
+    The escaped text stays readable and cannot reorder or conceal surrounding
+    words when a log or diff-preview report is inspected by a person.
+    """
+    if not isinstance(value, str):
+        return value
+    return "".join(f"\\u{ord(char):04x}" if char in _UNSAFE_DISPLAY_CONTROLS else char
+                   for char in value)
+
+
+def escape_unsafe_display_json(value):
+    """Recursively escape display controls in strings of a JSON-bound object."""
+    if isinstance(value, str):
+        return escape_unsafe_display_text(value)
+    if isinstance(value, dict):
+        return {escape_unsafe_display_text(key) if isinstance(key, str) else key:
+                escape_unsafe_display_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [escape_unsafe_display_json(item) for item in value]
+    return value
+
+
+def configure_cli_stdio() -> None:
+    """Make print() safe for non-ASCII LLM output on redirected Windows stdio.
+
+    CPython uses the system ANSI code page for a redirected pipe, so a print()
+    of a character outside it raises UnicodeEncodeError and can kill a
+    finished run. UTF-8 encodes every character and backslashreplace is a
+    final net for stray surrogates. Streams that cannot be reconfigured are
+    left alone rather than breaking startup (see force_utf8_child_env for the
+    env-side guarantee used for app-launched workers).
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
-        except (AttributeError, ValueError):
-            pass  # stream wrapper doesn't support reconfigure (e.g. StringIO)
+            stream.reconfigure(encoding=CLI_STDIO_ENCODING, errors=CLI_STDIO_ERRORS)
+        except (AttributeError, ValueError, TypeError, OSError):
+            pass  # non-reconfigurable, detached, closed or broken-pipe stream
+
+
+def force_utf8_child_env(env=None) -> dict:
+    """Return a copy of env with the shared UTF-8 child policy applied.
+
+    Called by the shared subprocess launch layer so every launched worker -
+    not just the three CLI mains - gets the same encoding contract. PYTHONUTF8
+    also covers nested interpreters and locale-sensitive stdlib behavior.
+    """
+    result = dict(os.environ if env is None else env)
+    result["PYTHONIOENCODING"] = f"{CLI_STDIO_ENCODING}:{CLI_STDIO_ERRORS}"
+    result["PYTHONUTF8"] = "1"
+    return result
 
 
 def warn_unparseable_llm_json(what: str, raw: str, fallback_action: str) -> None:
