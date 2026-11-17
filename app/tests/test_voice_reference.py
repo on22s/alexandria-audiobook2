@@ -302,6 +302,7 @@ class EffectiveReferenceSampleTests(unittest.TestCase):
 
 class ConfiguredReferenceWorkerTests(unittest.TestCase):
     def test_actual_ranking_uses_runtime_voice_lab_python_and_preserves_config(self):
+        from tests.test_support import write_python_cli_fixture
         import importlib.util
         import json
         from pathlib import Path
@@ -309,12 +310,10 @@ class ConfiguredReferenceWorkerTests(unittest.TestCase):
             root = Path(tmp)
             capture = root / "worker.json"
             worker = root / "configured python"
-            worker.write_text("#!" + sys.executable + "\n"
-                + "import json,sys\nfrom pathlib import Path\n"
+            worker = write_python_cli_fixture(worker, "import json,sys\nfrom pathlib import Path\n"
                 + "pairs=json.load(sys.stdin)\n"
                 + "Path(" + repr(str(capture)) + ").write_text(json.dumps({'argv':sys.argv,'pairs':pairs}))\n"
                 + "print('provider stand-in banner')\nprint('[0.9,0.8,0.85]')\n")
-            worker.chmod(0o755)
             config = root / "config.json"
             config.write_text(json.dumps({"voicelab": {"rocm_python": str(worker)}, "unrelated": 19}))
             config_bytes = config.read_bytes()
@@ -325,12 +324,14 @@ class ConfiguredReferenceWorkerTests(unittest.TestCase):
                 paths.append(str(path))
             with patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": str(root)}), \
                  patch.object(importlib.util, "find_spec", return_value=None), \
-                 patch.object(voice_reference, "SIBLING_PY", str(root / "absent-sibling")):
+                 patch.object(voice_reference, "SIBLING_PY", str(root / "absent-sibling")), \
+                 patch.object(voice_reference.subprocess, 'run', wraps=voice_reference.subprocess.run) as run:
                 pick, score = voice_reference.select_reference_sample(paths)
+            self.assertEqual(str(worker), run.call_args.args[0][0])
             self.assertEqual(1, pick)
             self.assertAlmostEqual(.875, score)
             captured = json.loads(capture.read_text())
-            self.assertEqual(str(worker), captured["argv"][0])
+            self.assertEqual(str(root / 'configured python.py'), captured["argv"][0])
             self.assertEqual(str(Path(voice_reference.APP) / "experiments/_ecapa_batch.py"), captured["argv"][1])
             self.assertEqual([[paths[0], paths[1]], [paths[0], paths[2]], [paths[1], paths[2]]], captured["pairs"])
             self.assertEqual(config_bytes, config.read_bytes())
@@ -338,6 +339,7 @@ class ConfiguredReferenceWorkerTests(unittest.TestCase):
                              [Path(path).read_bytes() for path in paths])
 
     def test_missing_or_failed_configured_worker_keeps_no_opinion_behavior(self):
+        from tests.test_support import write_python_cli_fixture
         import importlib.util
         import json
         from pathlib import Path
@@ -346,8 +348,7 @@ class ConfiguredReferenceWorkerTests(unittest.TestCase):
                 root = Path(tmp)
                 worker = root / "selected-python"
                 if mode == "failed":
-                    worker.write_text("#!" + sys.executable + "\nraise SystemExit(7)\n")
-                    worker.chmod(0o755)
+                    worker = write_python_cli_fixture(worker, "raise SystemExit(7)\n")
                 config = root / "config.json"
                 config.write_text(json.dumps({"voicelab": {"rocm_python": str(worker)}}))
                 before = config.read_bytes()

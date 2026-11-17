@@ -1528,7 +1528,7 @@
                             remote: {base_url:'', api_key:'local', model_name:''} };
         let currentLlmMode = 'local';
         let savedLlmMode = 'local';   // last-saved llm_mode; drives the "Active:" badge
-        // Server-computed lmstudio_settings.is_remote_llm(llm_mode, base_url)
+        // Server-computed lmstudio_settings.is_active_llm_remote(config)
         // for the ACTIVE (saved) config - reflects llm_mode/base_url drift
         // that a bare `currentLlmMode === 'remote'` check would miss. Updated
         // from /api/config's response on load and after a successful save.
@@ -10177,7 +10177,10 @@
         // markers ("Step 2 (speakers): window 2/4", "Retrying... (attempt 3
         // of 4)") say what is in flight, and the clock since the log last
         // grew says how long. Client-side only (#588).
-        const ACTIVITY_MARKER = /Step \d \([a-z]+\): |Retrying\.\.\.|Reviewing batch \d+\/\d+|Progress: \d+\/\d+/;
+        // "Merging duplicate names:" is the speaker alias-merge stage's own
+        // marker (core.SPEAKER_MERGE_MARKER, #2037): it runs after the last
+        // review batch, so without it the row kept the finished count.
+        const ACTIVITY_MARKER = /Step \d \([a-z]+\): |Retrying\.\.\.|Reviewing batch \d+\/\d+|Merging duplicate names: |Progress: \d+\/\d+/;
         const ACTIVITY_QUIET_MS = 10000;
         function getTaskOwnershipMessage(state) {
             const logs = Array.isArray(state.logs) ? state.logs.filter(line => typeof line === 'string') : [];

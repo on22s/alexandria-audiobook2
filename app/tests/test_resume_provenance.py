@@ -70,6 +70,7 @@ class SourceResumeTests(unittest.TestCase):
 class SelectedPythonTests(unittest.TestCase):
     @isolate_git_environment()
     def test_cpu_probe_observes_selected_python_and_package_changes(self):
+        from tests.test_support import write_python_cli_fixture
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'app').mkdir(); repo = Path(__file__).resolve().parents[1]
             for name in ('runtime_info.py', 'benchmark_environment_identity.py'):
@@ -79,10 +80,10 @@ class SelectedPythonTests(unittest.TestCase):
             subprocess.run(['git', '-C', tmp, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], check=True, env=get_isolated_git_environment())
             python = root / 'selected-python'
             def install(version):
-                python.write_text('#!' + sys.executable + '\nimport sys,platform\nfrom importlib import metadata\n'
+                return write_python_cli_fixture(root / 'selected-python', 'import sys,platform\nfrom importlib import metadata\n'
                     'platform.python_version=lambda:"3.99.fixture"\n'
-                    f'metadata.version=lambda name:{version!r}\nexec(sys.argv[2])\n'); python.chmod(0o755)
-            install('package-v1'); first = env.collect_cpu_environment(tmp, 'local', local_python=str(python))
+                    f'metadata.version=lambda name:{version!r}\nexec(sys.argv[2])\n')
+            python = install('package-v1'); first = env.collect_cpu_environment(tmp, 'local', local_python=str(python))
             self.assertEqual(str(python), first['details']['python_executable'])
             self.assertEqual('3.99.fixture', first['details']['python_version'])
             self.assertEqual('package-v1', first['details']['packages']['torch'])

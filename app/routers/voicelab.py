@@ -52,7 +52,7 @@ from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
 from routers.lora import list_adapters_needing_recovery
 from config_settings import load_app_config
-from lmstudio_settings import is_remote_llm
+from lmstudio_settings import is_active_llm_remote
 import diagnostics as diagnostics_module
 
 
@@ -542,7 +542,10 @@ def _safe_config_summary() -> dict:
         "available": True,
         "llm_mode": llm_mode,
         "model_name": llm.get("model_name"),
-        "is_remote_llm": is_remote_llm(llm_mode, llm.get("base_url", "")),
+        # The classification resolves the active profile, not the `llm` mirror
+        # this summary reads the model name from (#2007) - a support report must
+        # not repeat the drift the Setup page was fixed for.
+        "is_remote_llm": is_active_llm_remote(cfg),
         "remote_ssh_configured": bool((cfg.get("llm_remote_ssh") or "").strip()),
     }
 
