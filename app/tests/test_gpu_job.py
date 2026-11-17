@@ -21,7 +21,7 @@ try:
 except ImportError:
     fcntl = None
 HAVE_FCNTL = globals().get('fcntl') is not None
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import os
 import shutil
 import shlex
@@ -787,6 +787,7 @@ class DirtyTreeGateTest(unittest.TestCase):
             "provenance stamp must not disagree about the same tree")
 
     @requires_linux_queue_tools
+    @isolate_git_environment()
     def test_both_readers_exclude_declared_generated_outputs(self):
         from experiments.manifest import _git_state
         self._make_repo(dirty=False)

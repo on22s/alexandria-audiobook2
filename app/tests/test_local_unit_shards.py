@@ -1,5 +1,5 @@
 """Local readiness keeps dirty-source fidelity, ownership and exact coverage."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import importlib
 import json
 import os
@@ -116,6 +116,7 @@ class LocalAggregationTests(unittest.TestCase):
 
 class LocalWorktreeTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         self.local = importlib.import_module('local_unit_shards')
         fixture_root = Path(tempfile.gettempdir()).resolve() / 'alexandria-local-units'
         fixture_root.mkdir(exist_ok=True)

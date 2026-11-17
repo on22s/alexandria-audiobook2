@@ -1,5 +1,5 @@
 """Synthetic source, settings and selected-runtime resume regressions."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import asyncio
 import copy
 from contextlib import ExitStack, redirect_stdout
@@ -32,6 +32,7 @@ def manifest(stage='script_generation', settings=None):
 
 
 class SourceResumeTests(unittest.TestCase):
+    @isolate_git_environment()
     def test_workers_helpers_and_untracked_source_invalidate_resume(self):
         paths = ['name_voices.py', 'voice_analysis.py', 'voice_profiler.py',
             'alexandria_preparer_rocm_compatible.py', 'alexandria_alignment.py',
@@ -67,6 +68,7 @@ class SourceResumeTests(unittest.TestCase):
 
 
 class SelectedPythonTests(unittest.TestCase):
+    @isolate_git_environment()
     def test_cpu_probe_observes_selected_python_and_package_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'app').mkdir(); repo = Path(__file__).resolve().parents[1]

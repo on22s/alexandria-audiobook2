@@ -9,7 +9,7 @@ Two other artifacts were emptied by the same replay and are FINE - they carry
 Both cases are fixtures here, because a guard that cannot tell them apart
 would either miss the loss or block the honest report.
 """
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import os
 import subprocess
@@ -55,6 +55,7 @@ class ScanTest(unittest.TestCase):
     """Drives the real git plumbing against a throwaway repository."""
 
     def setUp(self):
+        isolate_git_environment(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = self.tmp.name

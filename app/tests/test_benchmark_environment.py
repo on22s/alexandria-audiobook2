@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 from tests.test_support import assert_file_lock_released
 import json
 import tempfile
@@ -238,6 +238,7 @@ class BenchmarkArtifactBoundaryTests(unittest.TestCase):
         finally:
             os.chdir(before)
 
+    @isolate_git_environment()
     def test_untracked_content_boundary_collision_cannot_reuse_identity(self):
         import subprocess
         with tempfile.TemporaryDirectory() as tmp:

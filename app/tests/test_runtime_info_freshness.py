@@ -1,5 +1,5 @@
 """Real private Git repositories prove fresh HEAD and tracked/untracked changes."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import asyncio
 import os
 from pathlib import Path
@@ -13,6 +13,7 @@ from routers import system
 
 class RuntimeInfoFreshnessTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         runtime_info.get_runtime_info.cache_clear()
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.git('init','-q');self.git('config','user.name','Fixture');self.git('config','user.email','fixture@example.invalid')

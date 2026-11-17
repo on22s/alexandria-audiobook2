@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import contextlib
 import io
 import json
@@ -280,6 +280,7 @@ class CiEnvParityTests(unittest.TestCase):
 
 class ReleaseVerifierTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "linux", "native Linux owned-hook cleanup")
+    @isolate_git_environment()
     def test_stalled_git_fsmonitor_fails_with_bounded_owned_cleanup(self):
         import time
         import shlex
@@ -305,6 +306,7 @@ class ReleaseVerifierTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "config", "--unset", "core.fsmonitor"], check=True, env=get_isolated_git_environment())
             self.assertEqual([root / "sample.py"], verify_release.get_python_paths(root))
 
+    @isolate_git_environment()
     def test_git_quoted_unicode_and_newline_names_are_compiled_as_actual_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -317,6 +319,7 @@ class ReleaseVerifierTests(unittest.TestCase):
             self.assertEqual(sorted(root / name for name in names), verify_release.get_python_paths(root))
             verify_release.compile_python_files(root)
 
+    @isolate_git_environment()
     def test_python_compilation_includes_nonignored_untracked_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

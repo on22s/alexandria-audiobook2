@@ -1,5 +1,5 @@
 """Execute actual probe commands against disposable checkouts, without SSH or ML."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import importlib.util
 import inspect
 import json
@@ -52,6 +52,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
 
 
     def setUp(self):
+        isolate_git_environment(self)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)/'orchestrator'

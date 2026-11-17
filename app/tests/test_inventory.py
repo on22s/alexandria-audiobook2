@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import importlib
 import json
 import os
@@ -448,6 +448,7 @@ class InventoryFixtureIsolationTests(InventoryFixtureTests):
 
 
 class InventoryCheckWarningTests(unittest.TestCase):
+    @isolate_git_environment()
     def test_check_warns_about_actual_untracked_tests_without_writing_inventory(self):
         import contextlib
         import io

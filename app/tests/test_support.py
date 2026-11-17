@@ -48,6 +48,26 @@ def get_isolated_git_environment(extra=None):
     return environment
 
 
+def isolate_git_environment(test_case=None):
+    """Scope fixture Git readers, or enter until a TestCase finishes cleanup.
+
+    Apply deliberate adversarial Git overrides inside this scope. HOME and
+    global settings follow get_isolated_git_environment's preservation policy.
+    Optional TestCase ownership also supports Python without enterContext().
+    """
+    @contextmanager
+    def scope():
+        with patch.dict(os.environ, get_isolated_git_environment(), clear=True):
+            yield
+
+    context = scope()
+    if test_case is not None:
+        cleanup = ExitStack()
+        test_case.addCleanup(cleanup.close)
+        cleanup.enter_context(context)
+    return context
+
+
 @functools.lru_cache(maxsize=1)
 def _probe_symlink():
     with tempfile.TemporaryDirectory() as directory:

@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import base64
 import copy
 import hashlib
@@ -49,6 +49,7 @@ def _temp_root():
 
 class ReproducibleHarnessTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         self.temp = tempfile.TemporaryDirectory(dir=_temp_root())
         self.repo = Path(self.temp.name)
         self.harness = self.repo / "app" / "experiments"

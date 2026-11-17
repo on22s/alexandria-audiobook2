@@ -1,5 +1,5 @@
 """Run the closed-set harness with isolated CPU provider and corpus fixtures."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import contextlib
 import io
 import json
@@ -19,6 +19,9 @@ SOURCE = Path(__file__).resolve().parents[1] / 'experiments/closed_set.py'
 
 @requires_linux_queue_tools
 class ClosedSetHarnessTests(unittest.TestCase):
+    def setUp(self):
+        isolate_git_environment(self)
+
     def test_actual_harness_starts_scores_all_arms_and_writes_verified_rows(self):
         import openai
         with tempfile.TemporaryDirectory() as tmp:

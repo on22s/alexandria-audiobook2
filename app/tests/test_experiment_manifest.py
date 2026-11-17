@@ -5,7 +5,7 @@ distinguish a real result from a prompt, roster, alias, indexing or scoring
 difference. Raised by external review of the 2026-07-26 results, which reported
 49.0% conditional selection with no per-line record behind it.
 """
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import os
 import tempfile
@@ -374,6 +374,7 @@ class UntrackedHarnessTest(unittest.TestCase):
         finally:
             os.remove(probe)
 
+    @isolate_git_environment()
     def test_a_fully_tracked_harness_reports_none(self):
         from experiments.manifest import _git_state
         import subprocess

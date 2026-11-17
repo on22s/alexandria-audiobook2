@@ -1,5 +1,5 @@
 """Launcher descriptors execute their real prerequisite expressions in Node."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import hashlib
 import importlib.util
@@ -121,6 +121,7 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         cls.verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.verifier)
 
     def setUp(self):
+        isolate_git_environment(self)
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         self.source=self.root/'whisper.cpp';self.source.mkdir();self.tracked=self.source/'source.c';self.tracked.write_bytes(b'known tracked source bytes\n')
         subprocess.run(['git','init','-q',str(self.source)],check=True, env=get_isolated_git_environment())

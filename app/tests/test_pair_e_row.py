@@ -13,7 +13,7 @@ Snakemake raises IncompleteFilesException and makes you pass
 --rerun-incomplete; Spark expects readers to check _SUCCESS rather than the
 data files. This is the same contract with a --allow-partial escape.
 """
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import os
 import subprocess
@@ -124,6 +124,7 @@ class SharedCompletenessTest(unittest.TestCase):
         from experiments import manifest
         self.assertIs(pair_e_row.completeness, manifest.completeness)
 
+    @isolate_git_environment()
     def test_the_audit_records_completeness_for_every_row(self):
         """A null would be a fourth state no reader handles - including the
         rows that bail early on an unreadable file."""

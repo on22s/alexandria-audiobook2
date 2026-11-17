@@ -1,5 +1,5 @@
 """Independent native Git observations overlap without changing fingerprint bytes."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import subprocess
 import tempfile
 import threading
@@ -17,6 +17,7 @@ class GitObservationTests(unittest.TestCase):
         subprocess.run(['git','-C',str(root),'-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-qm','base'],check=True, env=get_isolated_git_environment())
         (root/'app/tracked.py').write_text('after\n');(root/'app/untracked.py').write_text('native source\n')
 
+    @isolate_git_environment()
     def test_three_queries_overlap_and_preserve_native_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)
@@ -31,6 +32,7 @@ class GitObservationTests(unittest.TestCase):
             self.assertTrue(all(kwargs['timeout']==20 and kwargs['check'] is False for _,kwargs in commands))
             self.assertTrue(actual['dirty'])
 
+    @isolate_git_environment()
     def test_failed_query_still_joins_other_started_reads_and_returns_no_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);self.fixture(root)

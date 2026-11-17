@@ -1,5 +1,5 @@
 """Known immutable snapshots and actual comparison artifacts with CPU-only SDKs."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import contextlib
 import importlib.util
 from importlib import metadata
@@ -47,6 +47,7 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         self.assertEqual(expected, helper.get_comparison_source_commit(source))
 
     def setUp(self):
+        isolate_git_environment(self)
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);self.root=Path(tmp.name)
         self.commit='a'*40;self.snapshot=self.root/'cache/snapshots'/self.commit;self.snapshot.mkdir(parents=True)
         self.download=unittest.mock.Mock(return_value=str(self.snapshot));self.info=unittest.mock.Mock(return_value=types.SimpleNamespace(sha=self.commit))

@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 from pathlib import Path
 import tempfile
 import subprocess
@@ -30,6 +30,7 @@ class RuntimeInfoTests(unittest.TestCase):
     def tearDown(self):
         runtime_info.get_runtime_info.cache_clear()
 
+    @isolate_git_environment()
     def test_runtime_info_reads_git_metadata_and_versions_without_importing_packages(self):
         with tempfile.TemporaryDirectory() as tmp:
             git_dir = Path(tmp, ".git")
@@ -61,6 +62,7 @@ class RuntimeInfoTests(unittest.TestCase):
         self.assertIsNone(result["branch"])
         self.assertTrue(all(value is None for value in result["packages"].values()))
 
+    @isolate_git_environment()
     def test_worktree_gitdir_marker_is_resolved(self):
         with tempfile.TemporaryDirectory() as tmp:
             checkout = Path(tmp, "checkout")

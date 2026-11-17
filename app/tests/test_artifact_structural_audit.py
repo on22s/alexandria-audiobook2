@@ -1,4 +1,4 @@
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import hashlib
 import contextlib
 import io
@@ -20,6 +20,7 @@ from tools.audit import audit_legacy_attribution as legacy
 
 class StructuralAuditTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         subprocess.run(["git", "init", "-q", self.temp.name], check=True, capture_output=True, env=get_isolated_git_environment())
@@ -94,6 +95,7 @@ class IndexableArtifactTests(unittest.TestCase):
     """
 
     def setUp(self):
+        isolate_git_environment(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
