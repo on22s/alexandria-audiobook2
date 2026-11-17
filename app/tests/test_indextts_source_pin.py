@@ -1,5 +1,6 @@
 """Native Git/Bash source selection; fixture uv stops before package/model work."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import (get_bash_path, get_isolated_git_environment,
+                                run_bash_fixture, write_bash_fixture)
 import json
 import os
 from pathlib import Path
@@ -48,25 +49,23 @@ class IndexTtsSourcePinTests(unittest.TestCase):
         shutil.copyfile(ROOT / 'run_chains/cloud_comparison_provenance.py',
                         scripts / 'cloud_comparison_provenance.py')
         text = SCRIPT.read_text().replace('ROOT=/home/ubuntu/alexandria-goals-be3e7ea',
-                                         f'ROOT={root}').replace(
-            'BASE=/home/ubuntu/tts_comparison_20260824', f'BASE={base}')
+                                         f'ROOT={get_bash_path(root)}').replace(
+            'BASE=/home/ubuntu/tts_comparison_20260824', f'BASE={get_bash_path(base)}')
         text = re.sub(r'SOURCE_COMMIT=[0-9a-f]{40}', f'SOURCE_COMMIT={pinned}', text)
         script = root / 'chain.sh'
-        script.write_text(text)
+        write_bash_fixture(script, text)
         bin_dir = root / 'bin'
         bin_dir.mkdir()
         real_git = shutil.which('git')
         git = bin_dir / 'git'
-        git.write_text('#!' + sys.executable + '\nimport os,sys\n'
+        write_bash_fixture(git, '#!' + sys.executable + '\nimport os,sys\n'
                        'args=sys.argv[1:]\n'
                        'args=[os.environ["FIXTURE_UPSTREAM"] if a=="https://github.com/index-tts/index-tts.git" else a for a in args]\n'
                        'os.execv(' + repr(real_git) + ',["git",*args])\n')
-        git.chmod(0o755)
         uv = bin_dir / 'uv'
-        uv.write_text('#!' + sys.executable + '\nimport json,os,sys\n'
+        write_bash_fixture(uv, '#!' + sys.executable + '\nimport json,os,sys\n'
                       'open(os.environ["UV_CALL"],"w").write(json.dumps(sys.argv[1:]))\n'
                       'sys.exit(91)\n')
-        uv.chmod(0o755)
         env = {**get_isolated_git_environment(), 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
                'FIXTURE_UPSTREAM': str(upstream), 'UV_CALL': str(root / 'uv.json')}
         return script, source, pinned, env
@@ -76,9 +75,9 @@ class IndexTtsSourcePinTests(unittest.TestCase):
             with self.subTest(cached=cached), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 script, source, pinned, env = self.prepare(root, cached)
-                result = subprocess.run(['bash', str(script)], env=env,
+                result = run_bash_fixture([str(script)], env=env,
                                         capture_output=True, text=True, timeout=15)
-                self.assertEqual(91, result.returncode, result.stderr)
+                self.assertEqual(91, result.returncode, result.stdout + result.stderr)
                 self.assertEqual(pinned, self.git(source, 'rev-parse', 'HEAD'))
                 self.assertEqual('pinned source\n', (source / 'source.py').read_text())
                 self.assertEqual(['sync', '--locked', '--all-extras'],
@@ -94,7 +93,7 @@ class IndexTtsSourcePinTests(unittest.TestCase):
                 receipt = root / 'comparison/indextts2/source_commit.txt'
                 receipt.parent.mkdir(parents=True, exist_ok=True)
                 receipt.write_text('prior recorded source\n')
-                result = subprocess.run(['bash', str(script)], env=env,
+                result = run_bash_fixture([str(script)], env=env,
                                         capture_output=True, text=True, timeout=15)
                 self.assertNotEqual(0, result.returncode)
                 self.assertNotEqual(91, result.returncode)
@@ -107,7 +106,7 @@ class IndexTtsSourcePinTests(unittest.TestCase):
             root = Path(tmp)
             script, source, pinned, env = self.prepare(root)
             script.write_text(script.read_text().replace(pinned, 'f' * 40))
-            result = subprocess.run(['bash', str(script)], env=env,
+            result = run_bash_fixture([str(script)], env=env,
                                     capture_output=True, text=True, timeout=15)
             self.assertNotEqual(0, result.returncode)
             self.assertFalse((root / 'uv.json').exists())
