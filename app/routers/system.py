@@ -238,6 +238,66 @@ async def attribution_preview(request: AttributionPreviewRequest):
 
 _REDACTED_SECRET = "[REDACTED]"
 
+# Every LLM profile section the config holds: the two named profiles the Setup
+# tab edits, plus `llm`, the mirror of whichever one is active (written from it
+# on save). One list for both the GET redaction and the Save restore, so the
+# two cannot drift apart (Rule 15).
+_LLM_PROFILE_SECTIONS = ("llm", "llm_local", "llm_remote")
+
+
+def _redact_provider_headers(headers: dict) -> dict:
+    """Return provider headers with every VALUE masked and every NAME kept.
+
+    All values, not just credential-looking names (#2006): a provider's own
+    auth header (`x-acme-token`, say) carries a credential under a name no
+    pattern can recognise, and masking a non-secret header costs nothing
+    because Save restores it by name. The Setup tab still sees which headers
+    exist, so the user can add, change or remove one.
+    """
+    if not isinstance(headers, dict):
+        return {}
+    return {name: _REDACTED_SECRET for name in headers}
+
+
+def _get_provider_header_lookup(headers: dict) -> dict:
+    """One stored header set, keyed by lowercased name.
+
+    HTTP header names are case-insensitive, so `authorization` echoed by the
+    browser must find the stored `Authorization` (#2006). The first stored
+    spelling of a name wins, which makes a config hand-edited to hold two
+    names differing only by case resolve the same way on every save.
+    """
+    lookup = {}
+    if isinstance(headers, dict):
+        for name, value in headers.items():
+            lookup.setdefault(str(name).lower(), (name, value))
+    return lookup
+
+
+def _restore_provider_headers(incoming: dict, saved: dict) -> dict:
+    """Map the GET sentinel back to the stored value, header by header.
+
+    A header whose incoming value is the sentinel keeps the stored value of
+    that same name; any other value replaces it; a header the client did not
+    send stays removed. Names match case-insensitively and the stored spelling
+    is kept, so an editor that lowercased a name neither loses the credential
+    nor starts a second copy of the same header. A sentinel with no stored
+    counterpart is dropped rather than saved as the literal string: writing
+    "[REDACTED]" to disk would send that placeholder to the provider as a
+    credential, and refusing the save outright would need a new error key for
+    a case the Setup tab cannot produce.
+    """
+    lookup = _get_provider_header_lookup(saved)
+    restored = {}
+    for name, value in (incoming or {}).items():
+        stored = lookup.get(str(name).lower())
+        if value == _REDACTED_SECRET:
+            if stored is not None:
+                restored[stored[0]] = stored[1]
+        else:
+            restored[stored[0] if stored is not None else name] = value
+    return restored
+
 
 def _redact_config_secrets(config: dict) -> dict:
     """Return a copy safe to send to the browser.
@@ -245,6 +305,9 @@ def _redact_config_secrets(config: dict) -> dict:
     API credentials are needed by the server but never by the setup page's
     read endpoint.  Keep the sentinel stable so save_config() can preserve an
     unchanged credential without putting the plaintext back on the wire.
+    Custom provider headers are credentials too (#2006): they are sent as the
+    OpenAI client's default headers, which is exactly where `Authorization:
+    Bearer ...` and `x-api-key` live.
     """
     # deepcopy, not a JSON round trip: the loaded config carries pydantic
     # objects (e.g. ThreePassModelProfile) that FastAPI serialises on the way
@@ -257,29 +320,85 @@ def _redact_config_secrets(config: dict) -> dict:
             value["api_key_configured"] = True
             if not is_api_key_reference(value["api_key"]):
                 value["api_key"] = _REDACTED_SECRET
+    for section in _LLM_PROFILE_SECTIONS:
+        value = safe.get(section)
+        if isinstance(value, dict) and isinstance(value.get("provider_headers"), dict):
+            value["provider_headers"] = _redact_provider_headers(value["provider_headers"])
     return safe
 
 
 def get_api_key_endpoint(base_url):
-    """Identify the endpoint to which a stored credential belongs."""
-    return (base_url or "").strip().rstrip("/")
+    """Identify the endpoint to which a stored credential belongs.
+
+    The saved profile's `base_url` and the posted one go through the same
+    normalisation the browser's URLs do (`_normalize_openai_base_url`), so a
+    saved `http://host:1234` and a posted `http://host:1234/v1` name one
+    endpoint (Rule 15, #2006).
+    """
+    return _normalize_openai_base_url(base_url) if isinstance(base_url, str) else ""
+
+
+def get_saved_profile_for_endpoint(base_url, existing=None):
+    """The stored LLM profile whose endpoint matches `base_url`, or None.
+
+    One answer to "which saved profile does this endpoint belong to?", shared
+    by both sentinel resolutions below so they cannot disagree about it.
+
+    Returns None both when nothing matches and when more than one profile
+    does: the Test / Load-models requests carry no section (the Setup tab
+    posts one profile-shaped object, static/js/app-core.js
+    `getEditedLlmProfile`), so on a real tie - `llm_local` and `llm_remote`
+    sharing an endpoint, say - there is no way to tell whose credential was
+    asked for, and guessing would hand one profile's secret to the other.
+    `llm` is not a tie: save writes it as a copy of the active profile, so
+    when it matches the same endpoint as the active section they are one
+    credential.
+    """
+    existing = existing if existing is not None else load_app_config(CONFIG_PATH)
+    wanted = get_api_key_endpoint(base_url)
+    if not wanted:
+        return None
+    existing = existing if isinstance(existing, dict) else {}
+    profiles = {"llm_local": get_config_local_profile(existing),
+                "llm_remote": existing.get("llm_remote"),
+                "llm": existing.get("llm")}
+    matches = {section: profile for section, profile in profiles.items()
+               if isinstance(profile, dict)
+               and get_api_key_endpoint(profile.get("base_url")) == wanted}
+    active = "llm_remote" if existing.get("llm_mode") == "remote" else "llm_local"
+    if "llm" in matches and active in matches:
+        matches.pop("llm")
+    return next(iter(matches.values())) if len(matches) == 1 else None
 
 
 def _resolve_redacted_api_key(api_key, base_url, existing=None):
     """The Setup tab's key field holds the GET sentinel for a stored key, and
     the Test / Load-models buttons send that field as-is. Map the sentinel
     back to the stored key of the profile whose base_url matches, so a
-    credential is never inherited by an unrelated endpoint."""
+    credential is never inherited by an unrelated endpoint. An ambiguous
+    match is refused rather than guessed at - the 400 asks for the key
+    explicitly."""
     if api_key != _REDACTED_SECRET:
         return api_key
-    existing = existing if existing is not None else load_app_config(CONFIG_PATH)
-    wanted = get_api_key_endpoint(base_url)
-    candidates = [existing.get(s) for s in ("llm_local", "llm_remote", "llm")]
-    candidates = [c for c in candidates if isinstance(c, dict)]
-    for profile in candidates:
-        if wanted and get_api_key_endpoint(profile.get("base_url")) == wanted and profile.get("api_key"):
-            return profile["api_key"]
+    profile = get_saved_profile_for_endpoint(base_url, existing)
+    if profile is not None and profile.get("api_key"):
+        return profile["api_key"]
     raise HTTPException(status_code=400, detail="Enter an API key for the changed endpoint, or clear the key field.")
+
+
+def _resolve_redacted_provider_headers(headers, base_url, existing=None):
+    """The Setup tab's header editor holds the GET sentinel for each stored
+    header, and the Test / Load-models buttons send that editor as-is. Map each
+    sentinel back to the stored value of the profile whose endpoint matches, so
+    a connection test still sends the real credential - and never inherits
+    another endpoint's. A sentinel with no matching stored header - or an
+    endpoint matching more than one profile, which cannot be attributed - is
+    dropped, never sent as the literal "[REDACTED]"."""
+    if not headers or _REDACTED_SECRET not in headers.values():
+        return dict(headers or {})
+    profile = get_saved_profile_for_endpoint(base_url, existing)
+    saved = profile.get("provider_headers") if isinstance(profile, dict) else None
+    return _restore_provider_headers(headers, saved)
 
 
 def get_config_local_profile(config: dict):
@@ -294,9 +413,11 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
         incoming = getattr(config, section, None)
         saved = (get_config_local_profile(existing or {}) if section == "llm_local"
                  else (existing or {}).get(section))
-        if (incoming is not None
-                and getattr(incoming, "api_key", None) == _REDACTED_SECRET):
-            saved = saved if isinstance(saved, dict) else {}
+        if incoming is None:
+            continue
+        saved = saved if isinstance(saved, dict) else {}
+        changes = {}
+        if getattr(incoming, "api_key", None) == _REDACTED_SECRET:
             endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
             saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
             inactive = "llm_remote" if config.llm_mode == "local" else "llm_local"
@@ -304,7 +425,25 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
                                         and isinstance((existing or {}).get(section), dict))
             if endpoint != saved_endpoint or (not endpoint and not unchanged_inactive_blank):
                 raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
-            updates[section] = incoming.model_copy(update={"api_key": saved.get("api_key", "")})
+            changes["api_key"] = saved.get("api_key", "")
+        if section in _LLM_PROFILE_SECTIONS:
+            saved_headers = saved.get("provider_headers")
+            # A stored header belongs to the endpoint it was saved for. When
+            # the posted base_url names a different endpoint, a sentinel in
+            # the editor must not resolve to the old profile's value: that
+            # would hand a credential saved for one host to another (#2006).
+            # Dropped, not refused, for the same reason a sentinel with no
+            # stored counterpart is dropped below - the browser sent a
+            # placeholder for a header that has no meaning at this endpoint,
+            # and a sentinel-free save (a typed api_key) must stay possible.
+            if (get_api_key_endpoint(getattr(incoming, "base_url", None))
+                    != get_api_key_endpoint(saved.get("base_url"))):
+                saved_headers = None
+            restored = _restore_provider_headers(incoming.provider_headers, saved_headers)
+            if restored != incoming.provider_headers:
+                changes["provider_headers"] = restored
+        if changes:
+            updates[section] = incoming.model_copy(update=changes)
     return config.model_copy(update=updates, deep=True) if updates else config
 
 
@@ -729,6 +868,8 @@ async def llm_models(request: LlmModelsRequest):
         profile = request.model_dump()
         profile["base_url"] = url
         profile["api_key"] = _resolve_redacted_api_key(request.api_key, url) or "local"
+        profile["provider_headers"] = _resolve_redacted_provider_headers(
+            profile.get("provider_headers"), url)
         client = make_llm_client(profile, timeout=10, respect_profile_timeout=False)
         return sorted({m.id for m in client.models.list().data})
     try:
@@ -746,6 +887,8 @@ async def llm_test(profile: Optional[LLMConfig] = None):
         profile_data = profile.model_dump()
         profile_data["base_url"] = url
         profile_data["api_key"] = _resolve_redacted_api_key(profile_data.get("api_key"), url)
+        profile_data["provider_headers"] = _resolve_redacted_provider_headers(
+            profile_data.get("provider_headers"), url)
     else:
         cfg = _load_llm_config()
         profile_data = cfg
