@@ -8,7 +8,9 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 import lora_evidence as evidence
-from tests.test_support import write_test_serving_adapter
+from tests.test_support import write_test_serving_adapter, can_symlink, skip_unless_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def make_checkpoint(root):
@@ -30,6 +32,8 @@ class CheckpointEvidenceContainmentTests(unittest.TestCase):
     def test_fixed_evidence_outside_symlinks_reject_even_with_matching_hashes(self):
         for filename in evidence.GENERATION_FILES:
             with self.subTest(filename=filename),tempfile.TemporaryDirectory() as tmp:
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 root=Path(tmp)/'checkpoint';result=make_checkpoint(root)
                 outside=Path(tmp)/('outside-'+filename);outside.write_bytes((root/filename).read_bytes())
                 before=outside.read_bytes()
@@ -41,6 +45,7 @@ class CheckpointEvidenceContainmentTests(unittest.TestCase):
                 self.assertTrue(all(Path(call.args[0]).resolve()!=outside.resolve() for call in hashing.call_args_list))
                 self.assertEqual(before,outside.read_bytes())
 
+    @skip_unless_symlink
     def test_internal_symlinks_keep_valid_spec_and_stale_hash_still_rejects(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'checkpoint';result=make_checkpoint(root)
@@ -61,6 +66,7 @@ class CheckpointEvidenceContainmentTests(unittest.TestCase):
             with patch.object(evidence.os.path,'commonpath',side_effect=ValueError('different drives')):
                 self.assertIsNone(evidence.get_checkpoint_evidence_path(str(root),'ref_sample.wav'))
 
+    @skip_unless_symlink
     def test_probe_symlink_outside_and_missing_fixed_file_remain_invalid(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'checkpoint';result=make_checkpoint(root)

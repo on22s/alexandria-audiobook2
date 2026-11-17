@@ -3,7 +3,6 @@ import contextlib
 import importlib.util
 import io
 import json
-import multiprocessing
 import os
 from pathlib import Path
 import shutil
@@ -15,7 +14,11 @@ from unittest.mock import patch
 
 from adapter_publication import NAMING_PUBLICATION_JOURNAL, CLI_PUBLICATION_JOURNAL
 from adapter_naming_transaction import _apply_adapter_changes_locked, apply_adapter_naming_locked, lock_adapter_naming, recover_adapter_naming_locked
-from tests.test_support import use_private_cpu_fixture_lock, write_test_adapter
+from tests.test_support import (use_private_cpu_fixture_lock, write_test_adapter,
+                                can_symlink, get_fixture_process_context,
+                                start_adapter_fixture_process)
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 SCRIPT = Path(__file__).resolve().parents[2] / 'tools/voice_lab/name_voices.py'
 subject_path = os.environ.get('NAMING_BASELINE_FILE') or str(SCRIPT)
@@ -24,7 +27,13 @@ subject = importlib.util.module_from_spec(spec); spec.loader.exec_module(subject
 
 
 def _files(root):
-    return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    files = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    # A released Windows byte-range lease leaves one NUL byte in the lock sidecar;
+    # POSIX leaves it empty. Neither is user-data mutation.
+    lock = 'manifest.json.lock'
+    if files.get(lock) == b'\x00':
+        files[lock] = b''
+    return files
 
 
 def _invoke(models, *args):
@@ -56,6 +65,48 @@ def _crash_apply(models, point):
         os._exit(_invoke(models, '--apply'))
 
 
+def _crash_cycle(models):
+    """Spawn-safe worker: interrupt a cyclic publication at the raw_b rename."""
+    models = Path(models)
+    rename = os.rename
+    def crash(source, target):
+        result = rename(source, target)
+        if Path(target) == models / 'raw_b':
+            os._exit(72)
+        return result
+    rows = json.loads((models / 'manifest.json').read_text())
+    changes = [{'old': 'raw_a', 'new': 'raw_b'}, {'old': 'raw_b', 'new': 'raw_a'}]
+    with lock_adapter_naming(str(models), str(models / 'manifest.json')), patch('os.rename', side_effect=crash):
+        _apply_adapter_changes_locked(str(models), str(models / 'manifest.json'), rows, changes)
+
+
+def _crash_recovery(models, point):
+    """Spawn-safe worker: interrupt recovery in gather/restore/manifest/terminal/cleanup."""
+    models = Path(models)
+    rename, replace, rmtree = os.rename, os.replace, shutil.rmtree
+    def moved(source, target):
+        result = rename(source, target); dst = Path(target)
+        if ((point == 'gather' and dst.parent.name == 'adapters' and dst.name == '0')
+                or (point == 'restore' and dst == models / 'raw_a')):
+            os._exit(73)
+        return result
+    def replaced(source, target):
+        result = replace(source, target); dst = Path(target)
+        if point == 'manifest' and dst == models / 'manifest.json':
+            os._exit(73)
+        if (point == 'terminal' and dst.name == NAMING_PUBLICATION_JOURNAL
+                and json.loads(dst.read_text())['phase'] == 'recovered'):
+            os._exit(73)
+        return result
+    def cleaned(target, *args, **kwargs):
+        result = rmtree(target, *args, **kwargs)
+        if point == 'cleanup' and Path(target).name.startswith('.naming-'):
+            os._exit(73)
+        return result
+    with patch('os.rename', side_effect=moved), patch('os.replace', side_effect=replaced), patch('shutil.rmtree', side_effect=cleaned):
+        _invoke(models, '--recover')
+
+
 class NamingTransactionTests(unittest.TestCase):
     def fixture(self, root):
         models = root/'models'; models.mkdir()
@@ -78,8 +129,8 @@ class NamingTransactionTests(unittest.TestCase):
             pass
 
     def child_crash(self, models, point):
-        child = multiprocessing.get_context('fork').Process(target=_crash_apply, args=(models, point))
-        child.start(); child.join(10)
+        child = start_adapter_fixture_process(_crash_apply, models, point)
+        child.join(10)
         if child.is_alive():
             child.kill(); child.join(5); self.fail('Naming crash fixture hung')
         self.assertEqual(71, child.exitcode)
@@ -153,6 +204,8 @@ class NamingTransactionTests(unittest.TestCase):
     def test_unsafe_and_symlinked_source_ids_never_move_external_data(self):
         for kind in ('parent','absolute','symlink'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                if kind == 'symlink' and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 root=Path(tmp);models,_rows=self.fixture(root)
                 outside=root/'outside';outside.mkdir();(outside/'keep').write_text('external')
                 source_id='../outside' if kind=='parent' else str(outside) if kind=='absolute' else 'alias'
@@ -188,16 +241,7 @@ class NamingTransactionTests(unittest.TestCase):
     def test_interrupted_cyclic_publication_restores_without_confusing_bundle_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             models,_rows=self.fixture(Path(tmp));before=_files(models)
-            def cycle():
-                rename=os.rename
-                def crash(source,target):
-                    result=rename(source,target)
-                    if Path(target)==models/'raw_b':os._exit(72)
-                    return result
-                rows=json.loads((models/'manifest.json').read_text())
-                with lock_adapter_naming(str(models),str(models/'manifest.json')),patch('os.rename',side_effect=crash):
-                    _apply_adapter_changes_locked(str(models),str(models/'manifest.json'),rows,[{'old':'raw_a','new':'raw_b'},{'old':'raw_b','new':'raw_a'}])
-            child=multiprocessing.get_context('fork').Process(target=cycle);child.start();child.join(10)
+            child=start_adapter_fixture_process(_crash_cycle,models);child.join(10)
             if child.is_alive():child.kill();child.join(5);self.fail('Cycle fixture hung')
             self.assertEqual(72,child.exitcode)
             self.assertEqual(0,_invoke(models,'--recover'))
@@ -230,25 +274,7 @@ class NamingTransactionTests(unittest.TestCase):
             with self.subTest(point=point),tempfile.TemporaryDirectory() as tmp:
                 models,_rows=self.fixture(Path(tmp));before=_files(models)
                 self.child_crash(models,'second')
-                def recovery():
-                    rename,replace,rmtree=os.rename,os.replace,shutil.rmtree
-                    def moved(source,target):
-                        result=rename(source,target);dst=Path(target)
-                        if ((point=='gather' and dst.parent.name=='adapters' and dst.name=='0')
-                                or (point=='restore' and dst==models/'raw_a')):os._exit(73)
-                        return result
-                    def replaced(source,target):
-                        result=replace(source,target);dst=Path(target)
-                        if point=='manifest' and dst==models/'manifest.json':os._exit(73)
-                        if point=='terminal' and dst.name==NAMING_PUBLICATION_JOURNAL and json.loads(dst.read_text())['phase']=='recovered':os._exit(73)
-                        return result
-                    def cleaned(target,*args,**kwargs):
-                        result=rmtree(target,*args,**kwargs)
-                        if point=='cleanup' and Path(target).name.startswith('.naming-'):os._exit(73)
-                        return result
-                    with patch('os.rename',side_effect=moved),patch('os.replace',side_effect=replaced),patch('shutil.rmtree',side_effect=cleaned):
-                        _invoke(models,'--recover')
-                child=multiprocessing.get_context('fork').Process(target=recovery);child.start();child.join(10)
+                child=start_adapter_fixture_process(_crash_recovery,models,point);child.join(10)
                 if child.is_alive():child.kill();child.join(5);self.fail('Recovery interruption fixture hung')
                 self.assertEqual(73,child.exitcode)
                 self.assertEqual(0,_invoke(models,'--recover'));self.assertEqual(0,_invoke(models,'--recover'))
@@ -289,7 +315,10 @@ class NamingTransactionTests(unittest.TestCase):
     def test_root_manifest_lock_admits_no_plan_reads_until_other_writer_releases(self):
         with tempfile.TemporaryDirectory() as tmp:
             models,_rows=self.fixture(Path(tmp))
-            entered=multiprocessing.get_context('fork').Event()
+            # This case measures the parent's lock blocking a child that already
+            # inherited the synchronization Event, so it is genuinely fork-bound.
+            context=get_fixture_process_context(require_fork=True)
+            entered=context.Event()
             def run():
                 read=subject.get_voice_manifest
                 def observed(path):entered.set();return read(path)
@@ -298,7 +327,7 @@ class NamingTransactionTests(unittest.TestCase):
             child=None
             try:
                 with lock_adapter_naming(str(models),str(models/'manifest.json')):
-                    child=multiprocessing.get_context('fork').Process(target=run);child.start()
+                    child=context.Process(target=run);child.start()
                     self.assertFalse(entered.wait(0.15));self.assertTrue(child.is_alive())
                 child.join(10);self.assertEqual(0,child.exitcode);self.assertTrue(entered.is_set())
             finally:

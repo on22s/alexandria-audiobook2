@@ -10,6 +10,9 @@ import unittest
 from unittest.mock import patch
 
 import generation_checkpoint_shards as shards
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class GenerationCheckpointShardTests(unittest.TestCase):
@@ -121,11 +124,14 @@ w.save_chunks(json.loads(sys.argv[3]));os._exit(93)
         self.assertFalse(second.exists())
         self.assertFalse(self.path.exists())
         self.assertEqual((other / "keep").read_text(), "foreign")
-        linked = self.path.with_name(self.path.name + ".parts-" + "f" * 32)
-        linked.symlink_to(other, target_is_directory=True)
-        with self.assertRaisesRegex(ValueError, "ownership"):
-            shards.remove_generation_shard_checkpoint(self.path)
-        self.assertEqual((other / "keep").read_text(), "foreign")
+        with self.subTest('linked directory'):
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
+            linked = self.path.with_name(self.path.name + ".parts-" + "f" * 32)
+            linked.symlink_to(other, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "ownership"):
+                shards.remove_generation_shard_checkpoint(self.path)
+            self.assertEqual((other / "keep").read_text(), "foreign")
 
     def test_production_save_rejects_writer_bound_to_other_fingerprint_or_path(self):
         import generate_script as generation

@@ -4,7 +4,6 @@ import asyncio
 import copy
 from contextlib import ExitStack
 import json
-import multiprocessing
 import os
 from pathlib import Path
 import tempfile
@@ -17,7 +16,8 @@ import core
 from routers import lora
 import adapter_naming_transaction as transaction
 from adapter_publication import NAMING_PUBLICATION_JOURNAL, get_adapter_publication_recovery_command
-from tests.test_support import use_private_cpu_fixture_lock, write_test_adapter
+from tests.test_support import (use_private_cpu_fixture_lock, write_test_adapter,
+                                skip_unless_symlink, start_adapter_fixture_process)
 
 
 def tree_bytes(root):
@@ -149,6 +149,7 @@ class AdapterDeletionTransactionTests(unittest.TestCase):
         self.assertEqual(before, manifest)
         self.assert_restored()
 
+    @skip_unless_symlink
     def test_bundle_symlinks_do_not_delete_external_assets(self):
         external = self.root / 'external-source'
         external.mkdir()
@@ -168,8 +169,7 @@ class AdapterDeletionTransactionTests(unittest.TestCase):
                 shutil.copytree(self.other, root / 'other')
                 (root / 'manifest.json').write_bytes(self.before_manifest)
                 (root / 'manifest.json.bak').write_bytes(self.before_backup)
-                process = multiprocessing.get_context('fork').Process(target=crash_delete, args=(root, point))
-                process.start()
+                process = start_adapter_fixture_process(crash_delete, root, point)
                 process.join(5)
                 try:
                     self.assertFalse(process.is_alive())
