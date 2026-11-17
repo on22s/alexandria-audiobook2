@@ -6165,7 +6165,8 @@
   "setup.llm.active.saved": "当前：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "正在检查已保存的位置…",
+  "setup.llm.active.loading": "正在检查已保存的位置…"
+,
   "voice.card.review-persona": "审核角色设定",
   "voice.card.review-voice": "审核声音",
   "voice.card.persona-approved": "角色设定已批准",
@@ -6251,7 +6252,6 @@
   "editor.playback.timing-failed-recovery": "请检查报告的错误和你的连接，然后再次尝试播放序列。",
   "editor.recovery.cleared": "已清除保留的恢复窗口。已保存的录音已保留。",
   "editor.sequence.finished": "播放序列结束 - 有 {count} 个分块因播放错误被跳过",
-  "editor.sequence.play": "播放序列",
   "editor.sequence.stop": "停止",
   "editor.take.change-failed": "切换录音失败",
   "editor.take.change-failed-recovery": "请刷新编辑器，确认录音是否已切换，然后再重试。",
@@ -6318,7 +6318,6 @@
   "setup.config.saved-toast": "配置已保存！",
   "setup.config.saving-status": "正在保存配置…",
   "setup.llm.key.hide": "隐藏密钥",
-  "setup.llm.key.show": "显示密钥",
   "setup.llm.models.available": "有 {count} 个模型可用 - 开始输入以选择一个。",
   "setup.llm.models.available-one": "有 {count} 个模型可用 - 开始输入以选择一个。",
   "setup.llm.models.base-url-first": "请先设置基础 URL。",

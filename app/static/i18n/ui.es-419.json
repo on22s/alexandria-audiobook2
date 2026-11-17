@@ -6165,7 +6165,8 @@
   "setup.llm.active.saved": "En uso: {active}",
   "casting.coverage.combination": "{book} · {value}: {count}",
   "casting.taxonomy.count": "{label} ({count})",
-  "setup.llm.active.loading": "Comprobando la ubicación guardada…",
+  "setup.llm.active.loading": "Comprobando la ubicación guardada…"
+,
   "voice.card.review-persona": "Revisar personaje",
   "voice.card.review-voice": "Revisar voz",
   "voice.card.persona-approved": "Personaje aprobado",
@@ -6251,7 +6252,6 @@
   "editor.playback.timing-failed-recovery": "Revisa el error informado y tu conexión, luego vuelve a intentar reproducir la secuencia.",
   "editor.recovery.cleared": "Se borraron las ventanas de recuperación retenidas. Se conservaron las tomas guardadas.",
   "editor.sequence.finished": "Secuencia de reproducción terminada - {count} fragmentos omitidos por errores de reproducción",
-  "editor.sequence.play": "Reproducir secuencia",
   "editor.sequence.stop": "Detener",
   "editor.take.change-failed": "No se pudo cambiar la toma",
   "editor.take.change-failed-recovery": "Actualiza el editor y comprueba si la toma cambió antes de reintentar.",
@@ -6318,7 +6318,6 @@
   "setup.config.saved-toast": "¡Configuración guardada!",
   "setup.config.saving-status": "Guardando la configuración…",
   "setup.llm.key.hide": "Ocultar la clave",
-  "setup.llm.key.show": "Mostrar la clave",
   "setup.llm.models.available": "{count} modelos disponibles: empieza a escribir para elegir uno.",
   "setup.llm.models.available-one": "{count} modelo disponible: empieza a escribir para elegir uno.",
   "setup.llm.models.base-url-first": "Configura primero la URL base.",

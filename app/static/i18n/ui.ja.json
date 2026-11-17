@@ -6165,7 +6165,8 @@
   "setup.llm.active.saved": "使用中：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "保存済みの場所を確認中…",
+  "setup.llm.active.loading": "保存済みの場所を確認中…"
+,
   "voice.card.review-persona": "人物設定を確認",
   "voice.card.review-voice": "音声を確認",
   "voice.card.persona-approved": "人物設定を承認済み",
@@ -6251,7 +6252,6 @@
   "editor.playback.timing-failed-recovery": "報告されたエラーと接続を確認してから、もう一度シーケンスを再生してください。",
   "editor.recovery.cleared": "保持していた復元ウィンドウを消去しました。保存済みのテイクは保持されています。",
   "editor.sequence.finished": "シーケンスの再生が終了しました - 再生エラーにより {count} チャンクをスキップしました",
-  "editor.sequence.play": "シーケンスを再生",
   "editor.sequence.stop": "停止",
   "editor.take.change-failed": "テイクの変更に失敗しました",
   "editor.take.change-failed-recovery": "エディターを更新し、テイクが変更されたかを確認してから再試行してください。",
@@ -6318,7 +6318,6 @@
   "setup.config.saved-toast": "設定を保存しました！",
   "setup.config.saving-status": "設定を保存しています…",
   "setup.llm.key.hide": "キーを隠す",
-  "setup.llm.key.show": "キーを表示",
   "setup.llm.models.available": "利用できるモデルは {count} 件です。入力を始めると 1 つ選べます。",
   "setup.llm.models.available-one": "利用できるモデルは {count} 件です。入力を始めると 1 つ選べます。",
   "setup.llm.models.base-url-first": "先にベース URL を設定してください。",

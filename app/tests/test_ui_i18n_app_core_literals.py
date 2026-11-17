@@ -15,11 +15,11 @@ would have to re-implement the template grammar to stay honest, so it is out of
 scope here. This guard pins the two shapes that held 175 of the 258 literals
 measured on origin/main.
 
-The allowlist is the honest part. Two literals remain, both inside
-``autoConfigureSettings()``, which is owned by the in-flight #2016; converting
-the same lines here would collide with that branch. Every entry names its
-reason, and a test below fails if an entry stops being needed, so #2016 cannot
-quietly leave a dead exemption behind.
+The allowlist is the honest part. It is empty: #2017 converted every literal it
+found, and the last two (inside ``autoConfigureSettings()``) were converted by
+#2016 when that branch merged. Every entry must name its reason, and a test
+below fails when an entry stops being needed, so an exemption cannot be left
+behind as dead weight once the code it excused is translated.
 """
 import re
 import unittest
@@ -31,11 +31,8 @@ HELPERS = ('showToast', 'showActionError', 'getActionErrorMessage', 'confirmIfRe
 TEXT_TARGETS = ('textContent', 'innerText')
 
 ALLOWED = {
-    'The TTS settings changed during detection. Your edits were kept; review them before running '
-    'Auto-Configure again.':
-        'autoConfigureSettings() is owned by the in-flight #2016',
-    'Hardware detection failed':
-        'autoConfigureSettings() is owned by the in-flight #2016',
+    # Empty by design: every user-visible literal in the scanned shapes goes
+    # through t(). Add an entry only with the reason the English must stay raw.
 }
 
 PROSE = re.compile(r'[A-Za-z]{2,}')
