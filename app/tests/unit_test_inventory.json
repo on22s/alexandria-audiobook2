@@ -14274,7 +14274,8 @@
     , "tests.test_stage6_checkpoint_runner.Stage6ShapeTests.test_real_checkpoint_identity_audio_and_nested_shapes"
   ]
   , "test_stage6_run_ownership": [
-    "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_death_releases_lock_but_unfinished_status_still_requires_inspection"
+    "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_closing_owner_stdin_cannot_finish_the_run_before_the_owner_is_dead"
+    , "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_death_releases_lock_but_unfinished_status_still_requires_inspection"
     , "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_excludes_second_start_even_after_status_becomes_human_pending"
   ]
   , "test_stage7_pitch_runner": [
