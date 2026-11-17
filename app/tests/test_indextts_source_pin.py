@@ -1,4 +1,5 @@
 """Native Git/Bash source selection; fixture uv stops before package/model work."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,7 @@ SCRIPT = Path(os.environ.get('INDEXTTS_CHAIN_SOURCE',
 
 class IndexTtsSourcePinTests(unittest.TestCase):
     def git(self, root, *args):
-        return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+        return subprocess.check_output(['git', '-C', str(root), *args], text=True, env=get_isolated_git_environment()).strip()
 
     def prepare(self, root, cached=None):
         upstream = root / 'upstream'
@@ -35,7 +36,7 @@ class IndexTtsSourcePinTests(unittest.TestCase):
         source = base / 'src/index-tts'
         if cached:
             source.parent.mkdir(parents=True)
-            subprocess.run(['git', 'clone', '-q', str(upstream), str(source)], check=True)
+            subprocess.run(['git', 'clone', '-q', str(upstream), str(source)], check=True, env=get_isolated_git_environment())
             if cached != 'wrong':
                 self.git(source, 'checkout', '-q', '--detach', pinned)
             if cached == 'dirty':
@@ -66,7 +67,7 @@ class IndexTtsSourcePinTests(unittest.TestCase):
                       'open(os.environ["UV_CALL"],"w").write(json.dumps(sys.argv[1:]))\n'
                       'sys.exit(91)\n')
         uv.chmod(0o755)
-        env = {**os.environ, 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
+        env = {**get_isolated_git_environment(), 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
                'FIXTURE_UPSTREAM': str(upstream), 'UV_CALL': str(root / 'uv.json')}
         return script, source, pinned, env
 

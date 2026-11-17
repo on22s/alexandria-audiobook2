@@ -53,7 +53,7 @@ def main():
     args = ap.parse_args()
     rows = []
     for d in sorted(glob.glob(os.path.join(args.models, "*", ""))):
-        name = os.path.basename(d.rstrip("/"))
+        name = os.path.basename(os.path.normpath(d))
         wav = os.path.join(d, "ref_sample.wav")
         if not os.path.exists(wav):
             rows.append({"adapter": name, "error": "no ref_sample.wav"})

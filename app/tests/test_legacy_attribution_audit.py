@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import hashlib
 import json
 import os
@@ -22,7 +23,7 @@ def _git(root, *args, **kwargs):
         ["git", "-c", "user.name=Fixture",
          "-c", "user.email=fixture@example.invalid",
          "-C", str(root), *args],
-        check=True, capture_output=True, text=True, **kwargs).stdout.strip()
+        check=True, capture_output=True, text=True, **kwargs, env=get_isolated_git_environment()).stdout.strip()
 
 
 def _gold_repo(root, *init_args):
@@ -48,6 +49,7 @@ def _materialised_link(root, name, target):
 
 
 class LegacyAttributionAuditTests(unittest.TestCase):
+    @isolate_git_environment()
     def test_committed_audit_is_identical_for_unrelated_and_missing_commit_objects(self):
         import subprocess
         structural = json.loads(Path(audit.STRUCTURAL).read_text())
@@ -61,7 +63,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             def git(root, *args):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture',
                     '-c', 'user.email=fixture@example.invalid', '-C', str(root), *args],
-                    stderr=subprocess.DEVNULL, text=True).strip()
+                    stderr=subprocess.DEVNULL, text=True, env=get_isolated_git_environment()).strip()
             git(original, 'init', '-b', 'main')
             Path(original, 'tracked').write_text('fixture tree')
             git(original, 'add', 'tracked')
@@ -110,6 +112,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                 self.assertEqual('1', run.call_args.kwargs['env']['GIT_NO_LAZY_FETCH'])
                 self.assertEqual('0', run.call_args.kwargs['env']['GIT_TERMINAL_PROMPT'])
 
+    @isolate_git_environment()
     def test_missing_promisor_commit_cannot_trigger_implicit_network_fetch(self):
         import os
         import subprocess
@@ -121,7 +124,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                          ('remote', 'add', 'origin', 'https://example.invalid/fixture.git'),
                          ('config', 'remote.origin.promisor', 'true'),
                          ('config', 'remote.origin.partialclonefilter', 'blob:none')):
-                subprocess.run(['git', '-C', tmp, *args], check=True, capture_output=True)
+                subprocess.run(['git', '-C', tmp, *args], check=True, capture_output=True, env=get_isolated_git_environment())
             marker = root / 'network-attempt'
             helper = root / 'git-remote-https'
             helper.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\nexit 71\n')
@@ -190,6 +193,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                 "correctness_changed_rows": None,
             }, result)
 
+    @isolate_git_environment()
     def test_materialised_in_repo_link_scores_and_hashes_like_its_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -212,6 +216,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             self.assertEqual(0, shimmed["correctness_changed_rows"])
             self.assertEqual(direct, shimmed)
 
+    @isolate_git_environment()
     def test_link_refuses_absolute_traversal_cycle_chain_and_untracked_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -233,6 +238,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                         with self.assertRaises(audit.GoldPathRefused):
                             audit._current_gold(meta, GOLD_ROWS)
 
+    @isolate_git_environment()
     def test_edited_pointer_bytes_are_never_read_as_a_target_name(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -293,6 +299,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             path, indexed_target if observed_target is None else observed_target)
         return path
 
+    @isolate_git_environment()
     def test_ordinary_gold_is_opened_and_parsed_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -321,6 +328,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             self.assertEqual(1, loads.call_count,
                              "an ordinary gold fixture was parsed more than once")
 
+    @isolate_git_environment()
     def test_posix_and_materialised_links_score_like_the_direct_fixture(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -353,6 +361,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                 self.assertEqual(target_raw, raw, name)
                 self.assertEqual(GOLD_DOC, fixture, name)
 
+    @isolate_git_environment()
     def test_posix_link_retargeted_without_the_index_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -372,6 +381,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                                             "not the tracked link"):
                     audit._current_gold(meta, GOLD_ROWS)
 
+    @isolate_git_environment()
     def test_target_that_is_a_link_on_disk_but_regular_in_git_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -390,6 +400,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                                             "in Git"):
                     audit._current_gold(meta, GOLD_ROWS)
 
+    @isolate_git_environment()
     def test_corrupt_tracked_regular_file_is_refused_not_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -435,13 +446,14 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                         if message == 'is not JSON':
                             self.assertIn('corrupt.json', str(caught.exception))
 
+    @isolate_git_environment()
     def test_sha256_repository_link_uses_its_own_oid_width(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             root.mkdir()
             init = subprocess.run(
                 ["git", "init", "-q", "-b", "main", "--object-format=sha256",
-                 str(root)], capture_output=True, text=True)
+                 str(root)], capture_output=True, text=True, env=get_isolated_git_environment())
             if init.returncode:
                 self.skipTest("this Git cannot create a sha256 repository: "
                               + (init.stderr.strip() or init.stdout.strip()))

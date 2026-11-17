@@ -1,4 +1,5 @@
 """Native private chains: real queue construction, exit statuses and Git state."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -40,7 +41,7 @@ class RegateFailureSummaryTests(unittest.TestCase):
 
     def run_chain(self, root, chain, **extra):
         return subprocess.run(["bash", str(chain)], cwd=root,
-                              env={**os.environ, **extra}, text=True,
+                              env={**get_isolated_git_environment(), **extra}, text=True,
                               capture_output=True, timeout=15)
 
     def reference(self, root):
@@ -113,7 +114,7 @@ sys.exit(int(os.environ.get('PREVIEW_RC','0')))
                 for name in ("RESULTS_INDEX.md", "results_index.csv", "LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md", "ab_test_runtime/experiments/seed", "ab_test_runtime/audit/seed", "unrelated"):
                     self.write(root, name, "old")
                 def git(*args):
-                    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+                    return subprocess.check_output(["git", "-C", str(root), *args], text=True, env=get_isolated_git_environment()).strip()
                 git("init", "-q")
                 git("config", "user.email", "fixture@example.invalid")
                 git("config", "user.name", "Fixture")

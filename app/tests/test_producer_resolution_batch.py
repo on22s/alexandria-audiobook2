@@ -1,4 +1,5 @@
 """Native Git history batching preserves individual artifact origins and CSV bytes."""
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import os
 import contextlib
 import csv
@@ -19,7 +20,7 @@ from tests import test_added_commit_determinism as topology
 
 
 def git(root,*args):
-    return subprocess.run(['git',*args],cwd=root,capture_output=True,text=True,check=True).stdout.strip()
+    return subprocess.run(['git',*args],cwd=root,capture_output=True,text=True,check=True, env=get_isolated_git_environment()).stdout.strip()
 
 
 if os.environ.get("COLLECTOR_BATCH_BASELINE"):
@@ -28,6 +29,9 @@ if os.environ.get("COLLECTOR_BATCH_BASELINE"):
 
 
 class ProducerResolutionBatchTests(unittest.TestCase):
+    def setUp(self):
+        isolate_git_environment(self)
+
     def fixture(self,root,count=120):
         git(root,'init','-q');git(root,'config','user.name','fixture');git(root,'config','user.email','fixture@example.invalid')
         experiments=root/'ab_test_runtime/experiments';experiments.mkdir(parents=True)

@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tests.test_support import get_bash_executable
+from tests.test_support import get_bash_executable, get_isolated_git_environment
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -38,10 +38,11 @@ def fixture_environment(overrides=None):
     Dropping that one variable is the fixture's decision, not a production
     change: AA2_PYTHON still wins for every real caller, and the resolver tests
     that pin that behaviour keep setting it deliberately. Everything else -
-    PATH, HOME, locale - is inherited unchanged, and os.environ itself is never
-    modified, so the caller's environment comes back exactly as it was found.
+    PATH, HOME, locale - is inherited unchanged apart from Git isolation.
+    os.environ itself is never modified, so the caller's environment comes
+    back exactly as it was found.
     """
-    environment = os.environ.copy()
+    environment = get_isolated_git_environment()
     environment.pop("AA2_PYTHON", None)
     if overrides:
         environment.update(overrides)
@@ -63,7 +64,7 @@ class DerivedMetadataTests(unittest.TestCase):
                 [sys.executable, '-I', '-B',
                  str(ROOT / 'app/experiments/goal_evidence_audit.py'),
                  '--goals', str(goals), '--audit', str(audit), '--out', str(output)],
-                cwd=tmp, capture_output=True, text=True, timeout=30)
+                cwd=tmp, capture_output=True, text=True, timeout=30, env=get_isolated_git_environment())
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertNotIn(b"\r", output.read_bytes())
             provenance = json.loads(output.read_text(encoding='utf-8'))['provenance']
@@ -80,7 +81,7 @@ class DerivedMetadataTests(unittest.TestCase):
             [sys.executable, '-I', '-B',
              str(ROOT / 'app/experiments/goal_evidence_audit.py'),
              '--goals', str(goals), '--audit', str(audit), '--out', str(output)],
-            cwd=root, capture_output=True, text=True, timeout=30)
+            cwd=root, capture_output=True, text=True, timeout=30, env=get_isolated_git_environment())
 
     def goal_audit_fixture(self, root):
         goals = root / 'goals.md'
@@ -133,7 +134,7 @@ class DerivedMetadataTests(unittest.TestCase):
              str(ROOT / 'app/experiments/goal_evidence_audit.py'),
              '--goals', str(goals), '--audit', str(audit),
              '--out', str(output), '--check'],
-            cwd=root, capture_output=True, text=True, timeout=30)
+            cwd=root, capture_output=True, text=True, timeout=30, env=get_isolated_git_environment())
 
     def write_document(self, output, document):
         output.write_text(json.dumps(document, indent=1, ensure_ascii=False),
@@ -226,7 +227,7 @@ class DerivedMetadataTests(unittest.TestCase):
                                '--goals', str(goals), '--audit', str(audit),
                                '--out', str(output), '--check']
                     checked = subprocess.run(command, cwd=root, capture_output=True,
-                                             text=True, timeout=30)
+                                             text=True, timeout=30, env=get_isolated_git_environment())
                     self.assertNotEqual(0, checked.returncode)
                     self.assertIn('goal evidence audit is unreadable', checked.stderr)
                     self.assertEqual(corrupt, output.read_bytes())
@@ -244,7 +245,7 @@ class DerivedMetadataTests(unittest.TestCase):
                                      repeated.stdout + repeated.stderr)
                     self.assertEqual(kept, output.read_bytes())
                     current = subprocess.run(command, cwd=root, capture_output=True,
-                                             text=True, timeout=30)
+                                             text=True, timeout=30, env=get_isolated_git_environment())
                     self.assertEqual(0, current.returncode, current.stdout + current.stderr)
 
     def test_goal_audit_rewrites_when_goals_change(self):
@@ -330,9 +331,9 @@ class DerivedMetadataTests(unittest.TestCase):
         return python
 
     def fixture(self, root):
-        subprocess.run(['git','init','-q','-b','main',str(root)],check=True)
+        subprocess.run(['git','init','-q','-b','main',str(root)],check=True, env=get_isolated_git_environment())
         for key,value in (('user.name','fixture'),('user.email','fixture@example.invalid')):
-            subprocess.run(['git','-C',str(root),'config',key,value],check=True)
+            subprocess.run(['git','-C',str(root),'config',key,value],check=True, env=get_isolated_git_environment())
         (root/'tools').mkdir();(root/'app/env/bin').mkdir(parents=True)
         for name in ('ready.sh','resolve_generated.sh','tools/regen_derived.sh','tools/install_git_hooks.sh'):
             shutil.copyfile(ROOT/name,root/name);(root/name).chmod(0o755)
@@ -397,7 +398,7 @@ class DerivedMetadataTests(unittest.TestCase):
                         os.environ.pop('AA2_PYTHON',None)
                     else:
                         os.environ['AA2_PYTHON']=value
-                    before=dict(os.environ)
+                    before=dict(get_isolated_git_environment())
                     calls=root/'calls'
                     if calls.exists():calls.unlink()
                     marker=Path(str(canary)+'.ran')
@@ -409,7 +410,7 @@ class DerivedMetadataTests(unittest.TestCase):
                                      'the inherited AA2_PYTHON ran as the fixture interpreter')
                     calls=[json.loads(line) for line in calls.read_text().splitlines()]
                     self.assertEqual(6,len(calls),calls)
-                    self.assertEqual(before,dict(os.environ),
+                    self.assertEqual(before,dict(get_isolated_git_environment()),
                                      'the fixture run changed the caller environment')
 
     def test_metadata_queries_do_not_execute_generators_and_match_existing_interfaces(self):
@@ -428,8 +429,8 @@ class DerivedMetadataTests(unittest.TestCase):
             root=Path(tmp);self.fixture(root)
             # Keep regenerated content identical so the production staging gate passes.
             (root/'RESULTS_INDEX.md').write_text('resolved\n')
-            subprocess.run(['git','-C',tmp,'add','-A'],check=True)
-            subprocess.run(['git','-C',tmp,'commit','-qm','base'],check=True)
+            subprocess.run(['git','-C',tmp,'add','-A'],check=True, env=get_isolated_git_environment())
+            subprocess.run(['git','-C',tmp,'commit','-qm','base'],check=True, env=get_isolated_git_environment())
             result=self.run_script(root,'ready.sh','--shard','2/3')
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             calls=[json.loads(line) for line in (root/'calls').read_text().splitlines()]
@@ -451,8 +452,8 @@ class DerivedMetadataTests(unittest.TestCase):
                 self.fixture(root)
                 if root == caller:
                     (root/'RESULTS_INDEX.md').write_text('resolved\n')
-                subprocess.run(['git','-C',str(root),'add','-A'],check=True)
-                subprocess.run(['git','-C',str(root),'commit','-qm','base'],check=True)
+                subprocess.run(['git','-C',str(root),'add','-A'],check=True, env=get_isolated_git_environment())
+                subprocess.run(['git','-C',str(root),'commit','-qm','base'],check=True, env=get_isolated_git_environment())
             result=subprocess.run([get_bash_executable(),str(target/'ready.sh')],cwd=caller,
                                   capture_output=True,text=True,timeout=10,env=fixture_environment())
             self.assertEqual(2,result.returncode,result.stdout+result.stderr)
@@ -470,7 +471,7 @@ class DerivedMetadataTests(unittest.TestCase):
             root=Path(tmp);self.fixture(root)
             helper=root/'tools/regen_derived.sh';helper.rename(root/'tools/regen_real.sh')
             helper.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> '+repr(str(root/'queries'))+'\nexec bash '+repr(str(root/'tools/regen_real.sh'))+' "$@"\n');helper.chmod(0o755)
-            def git(*args):return subprocess.run(['git','-C',tmp,*args],capture_output=True,text=True)
+            def git(*args):return subprocess.run(['git','-C',tmp,*args],capture_output=True,text=True, env=get_isolated_git_environment())
             def goals(number):
                 (root/'GOALS.md').write_text(''.join(f'header{i}\n' for i in range(29))+f'met goals begin at line {number}\n\n# Part II\nreal prose\n')
             goals(10);self.assertEqual(0,git('add','-A').returncode);self.assertEqual(0,git('commit','-qm','base').returncode)

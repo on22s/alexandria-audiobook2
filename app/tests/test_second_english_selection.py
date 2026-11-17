@@ -1,4 +1,5 @@
 """Native Bash selection admission and GPU/CPU dispatch order with CPU fixtures."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -42,14 +43,14 @@ if name=='ljspeech_generate.py' and os.environ.get('MUTATE_SELECTION')=='1':
 if '--out' in args:
  output=pathlib.Path(args[args.index('--out')+1]);output.parent.mkdir(parents=True,exist_ok=True);output.write_text('{}')
 ''')
-        self.env = dict(os.environ, PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
+        self.env = dict(get_isolated_git_environment(), PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
                         FIXTURE_CALLS=str(self.root / 'calls'))
         self.write('ab_test_runtime/second_english_voices.txt', 'alpha|data/alpha|0.555\nbeta|data/beta|0.781\n')
         for arguments in (('init', '-q', '-b', 'main'), ('config', 'user.name', 'Fixture'),
                           ('config', 'user.email', 'fixture@example.com'),
                           ('config', 'core.hooksPath', str(self.root / 'no-hooks')),
                           ('add', '.'), ('commit', '-qm', 'baseline')):
-            subprocess.run(['git', '-C', str(self.root), *arguments], check=True, capture_output=True)
+            subprocess.run(['git', '-C', str(self.root), *arguments], check=True, capture_output=True, env=get_isolated_git_environment())
 
     def write(self, relative, text):
         path = self.root / relative
@@ -60,8 +61,8 @@ if '--out' in args:
     def run_chain(self, selection=None):
         if selection is not None:
             self.write('ab_test_runtime/second_english_voices.txt', selection)
-            subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True)
-            subprocess.run(['git', '-C', str(self.root), 'commit', '-qm', 'selection'], capture_output=True)
+            subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True, env=get_isolated_git_environment())
+            subprocess.run(['git', '-C', str(self.root), 'commit', '-qm', 'selection'], capture_output=True, env=get_isolated_git_environment())
         result = subprocess.run(['bash', str(self.root / 'run_chains/second_english_eval_20260820.sh')],
                                 cwd=self.root, env=self.env, capture_output=True, text=True, timeout=15)
         calls = self.root / 'calls'
@@ -107,8 +108,8 @@ if '--out' in args:
     def test_failed_generation_does_not_score_stale_output(self):
         self.env['FAIL_GENERATION'] = '1'
         self.write('ab_test_runtime/experiments/second_english__alpha_generate.json', '{"stale":true}')
-        subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True)
-        subprocess.run(['git', '-C', str(self.root), 'commit', '-qm', 'old output'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.root), 'add', '.'], check=True, capture_output=True, env=get_isolated_git_environment())
+        subprocess.run(['git', '-C', str(self.root), 'commit', '-qm', 'old output'], check=True, capture_output=True, env=get_isolated_git_environment())
         result, calls = self.run_chain()
         self.assertNotEqual(0, result.returncode)
         self.assertEqual(2, sum(Path(args[0]).name == 'ljspeech_generate.py' for args in calls))

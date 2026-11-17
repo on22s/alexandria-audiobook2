@@ -13,6 +13,7 @@ Snakemake raises IncompleteFilesException and makes you pass
 --rerun-incomplete; Spark expects readers to check _SUCCESS rather than the
 data files. This is the same contract with a --allow-partial escape.
 """
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import os
 import subprocess
@@ -86,7 +87,7 @@ class RefusalTest(unittest.TestCase):
 
     def _run(self, *args):
         return subprocess.run([sys.executable, SCRIPT, *args],
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, timeout=120, env=get_isolated_git_environment())
 
     def test_a_partial_arm_is_refused_by_default(self):
         r = self._run(self.partial, "--baseline", self.baseline)
@@ -123,6 +124,7 @@ class SharedCompletenessTest(unittest.TestCase):
         from experiments import manifest
         self.assertIs(pair_e_row.completeness, manifest.completeness)
 
+    @isolate_git_environment()
     def test_the_audit_records_completeness_for_every_row(self):
         """A null would be a fourth state no reader handles - including the
         rows that bail early on an unreadable file."""
@@ -134,10 +136,10 @@ class SharedCompletenessTest(unittest.TestCase):
             with open(os.path.join(tmp, "part.json"), "w") as fh:
                 json.dump({"results": [1], "candidates_considered": 9}, fh)
             subprocess.run(["git", "init", "-q", tmp], check=True,
-                           capture_output=True, timeout=10)
+                           capture_output=True, timeout=10, env=get_isolated_git_environment())
             subprocess.run(["git", "-C", tmp, "add", "--", "broken.json",
                             "listy.json", "part.json"], check=True,
-                           capture_output=True, timeout=10)
+                           capture_output=True, timeout=10, env=get_isolated_git_environment())
             with patch.object(audit, "REPO", tmp):
                 rows = audit.build_audit(tmp)["artifacts"]
         by_name = {r["artifact"]: r for r in rows}
