@@ -16204,6 +16204,7 @@
     "tests.test_ui_i18n_app_core_literals.AppCoreLiteralTests.test_app_core_js_has_no_bare_english_messages"
     , "tests.test_ui_i18n_app_core_literals.AppCoreLiteralTests.test_every_allowlist_entry_is_still_needed_and_says_why"
     , "tests.test_ui_i18n_app_core_literals.ScannerFixtureTests.test_a_bare_literal_in_each_helper_is_reported"
+    , "tests.test_ui_i18n_app_core_literals.ScannerFixtureTests.test_a_bare_recovery_argument_is_reported_even_when_the_action_is_translated"
     , "tests.test_ui_i18n_app_core_literals.ScannerFixtureTests.test_a_text_content_assignment_is_reported"
     , "tests.test_ui_i18n_app_core_literals.ScannerFixtureTests.test_an_untranslated_template_with_interpolation_is_reported"
     , "tests.test_ui_i18n_app_core_literals.ScannerFixtureTests.test_comments_and_nested_templates_do_not_desync_the_scan"

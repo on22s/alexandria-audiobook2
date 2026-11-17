@@ -203,6 +203,33 @@ def _translated_template(source, index, raw):
     return source[index] == '`' and TRANSLATED.search(raw) is not None
 
 
+# Helpers whose RECOVERY argument (the third, after the error object) is also
+# shown to the user; the scan checks it as well as the first argument (#2017).
+RECOVERY_HELPERS = ('showActionError', 'getActionErrorMessage')
+
+
+def argument_starts(text, index):
+    """Start offsets of each top-level argument of the call whose '(' ends at index."""
+    starts = [index]
+    depth = 0
+    position = index
+    while position < len(text):
+        char = text[position]
+        if char in QUOTES:
+            _raw, position = read_literal(text, position)
+            continue
+        if char in '([{':
+            depth += 1
+        elif char in ')]}':
+            if depth == 0:
+                return starts
+            depth -= 1
+        elif char == ',' and depth == 0:
+            starts.append(position + 1)
+        position += 1
+    return starts
+
+
 def line_of(text, index):
     return text.count(NEWLINE, 0, index) + 1
 
@@ -223,6 +250,21 @@ def scan(source):
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
                 findings.append((line_of(source, match.start()), name, raw))
+    for name in RECOVERY_HELPERS:
+        for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
+            if not mask[match.start()]:
+                continue
+            starts = argument_starts(source, match.end())
+            if len(starts) < 3:
+                continue
+            index = starts[2]
+            while index < len(source) and source[index].isspace():
+                index += 1
+            if index >= len(source) or source[index] not in QUOTES:
+                continue
+            raw, _end = read_literal(source, index)
+            if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
+                findings.append((line_of(source, match.start()), name + ' recovery', raw))
     for target in TEXT_TARGETS:
         for match in re.finditer(r'\.\s*' + target + r'\s*=(?!=)\s*', source):
             if not mask[match.start()]:
@@ -254,7 +296,18 @@ class ScannerFixtureTests(unittest.TestCase):
         self.assertIn(('showActionError', 'Hardware detection failed'), found)
         self.assertIn(('getActionErrorMessage', 'Could not save'), found)
         self.assertIn(('confirmIfRemote', 'Send this book?'), found)
-        self.assertEqual(4, len(found))
+        self.assertIn(('showActionError recovery', 'Recovery text.'), found)
+        self.assertIn(('getActionErrorMessage recovery', 'Recovery.'), found)
+        self.assertEqual(6, len(found))
+
+    def test_a_bare_recovery_argument_is_reported_even_when_the_action_is_translated(self):
+        source = ("showActionError(t('core.save.failed', 'Could not save'), err, 'Try again later.');\n"
+                  "getActionErrorMessage(t('core.load.failed', 'Could not load'), err, `Reload ${name} first.`);\n"
+                  "showActionError(t('a', 'A'), fn(x, y), t('b', 'Translated recovery.'));\n"
+                  "showActionError(t('a', 'A'), err);\n")
+        found = [(site, raw) for _line, site, raw in scan(source)]
+        self.assertEqual([('showActionError recovery', 'Try again later.'),
+                          ('getActionErrorMessage recovery', 'Reload ${name} first.')], found)
 
     def test_translated_and_passed_through_text_is_not_reported(self):
         source = ("showToast(t('core.saved', 'Saved the thing.'));\n"

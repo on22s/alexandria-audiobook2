@@ -10132,7 +10132,7 @@
                 const params = chapterExportParams();
                 await getChapterExportPreview(params);
                 if (book !== currentBookFilename || JSON.stringify(params) !== JSON.stringify(chapterExportParams())) {
-                    throw new Error('The book or chapter settings changed. Preview the current selection before exporting.');
+                    throw new Error(t('audio.chapters.export.settings-changed', 'The book or chapter settings changed. Preview the current selection before exporting.'));
                 }
                 statusEl.textContent = params.changed_only
                     ? t('audio.chapters.exporting-changed-only', 'Checking saved files and exporting selected chapters with Changed only enabled…')

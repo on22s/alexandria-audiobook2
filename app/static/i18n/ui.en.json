@@ -123,6 +123,7 @@
   "audio.chapters.export": "Export",
   "audio.chapters.export-chapters": "Export chapters",
   "audio.chapters.export-unconfirmed": "Chapter export start is unconfirmed",
+  "audio.chapters.export.settings-changed": "The book or chapter settings changed. Preview the current selection before exporting.",
   "audio.chapters.exporting": "Checking saved files and exporting selected chapters…",
   "audio.chapters.exporting-changed-only": "Checking saved files and exporting selected chapters with Changed only enabled…",
   "audio.chapters.fields-help": "Fields: {chapter_number} {chapter_name} {book_name} {series_name} {volume_number}. The extension is added for you.",
