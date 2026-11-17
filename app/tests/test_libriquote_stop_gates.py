@@ -1,4 +1,5 @@
 """Copied complete chains reject bad cached/fresh stop verdicts without inference."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -42,13 +43,13 @@ if name=='verify_adapter_stops.py':
 p.write_text('{}')
 '''
         for name in ('verify_adapter_stops.py','ljspeech_generate.py','prosody_fidelity.py','ljspeech_score.py'):(root/'app/experiments'/name).write_text(worker)
-        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True)
-        head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
-        env=dict(os.environ,FIXTURE_ROOT=str(root),PYTHON=sys.executable,CONFIG=str(config),FRESH=str(fresh).lower(),GATE_RC=str(rc))
+        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
+        head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True, env=get_isolated_git_environment()).strip()
+        env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(root),PYTHON=sys.executable,CONFIG=str(config),FRESH=str(fresh).lower(),GATE_RC=str(rc))
         before={p:p.read_bytes() for p in artifacts if p.exists()}
         result=subprocess.run(['bash',str(root/'run_chains'/f'libriquote_{reader}_20260913.sh')],cwd=root.parent,env=env,capture_output=True,text=True,timeout=15)
         calls=(root/'calls').read_text().splitlines() if (root/'calls').exists() else []
-        committed=subprocess.check_output(['git','-C',str(root),'diff','--name-only',head,'HEAD'],text=True).splitlines()
+        committed=subprocess.check_output(['git','-C',str(root),'diff','--name-only',head,'HEAD'],text=True, env=get_isolated_git_environment()).splitlines()
         return result,calls,artifacts,before,committed
 
     def test_failed_missing_malformed_and_boolean_like_verdicts_never_bypass_gate(self):

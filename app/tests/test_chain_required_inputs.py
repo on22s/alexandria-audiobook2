@@ -1,4 +1,5 @@
 """Run complete chains in a disposable Git checkout with CPU worker stand-ins."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -37,7 +38,7 @@ if name=='ljspeech_generate.py' and os.environ.get('FAIL_JA')=='1' and 'kokoro_e
 if '--out' in args:
  output=pathlib.Path(args[args.index('--out')+1]);output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps({'fixture':'current generation'}))
 ''')
-        self.env=dict(os.environ,PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'],
+        self.env=dict(get_isolated_git_environment(),PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'],
                       FIXTURE_CALLS=str(self.root/'calls'))
         for script in ('dialogue_map_compare.py','script_text_fidelity.py','retrofit_dialogue_map.py'):
             self.write('app/experiments/'+script,'# fixture dispatch')
@@ -53,7 +54,7 @@ if '--out' in args:
         for args in (('init','-q','-b','main'),('config','user.name','Fixture'),
                      ('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),
                      ('add','.'),('commit','-qm','fixture baseline')):
-            subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
+            subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
 
     def write(self, relative, text):
         path=self.root/relative;path.parent.mkdir(parents=True,exist_ok=True)
@@ -73,7 +74,7 @@ if '--out' in args:
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual([],calls)
         shell_root = subprocess.check_output([get_bash_executable(), '-c',
-            'cd -- "$1" && pwd', 'fixture', str(self.root)], text=True).strip()
+            'cd -- "$1" && pwd', 'fixture', str(self.root)], text=True, env=get_isolated_git_environment()).strip()
         expected = shell_root + '/' + missing.relative_to(self.root).as_posix()
         self.assertIn(expected, result.stdout + result.stderr)
         self.assertIn('missing or unreadable', result.stdout + result.stderr)

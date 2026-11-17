@@ -1,4 +1,5 @@
 """Copied time-split driver, PCM/PEFT caches and CPU producers under private Git."""
+from tests.test_support import get_isolated_git_environment
 import importlib.util
 import json
 import os
@@ -52,8 +53,8 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.write_text('{}')
 '''
         (self.root/'app/train_lora.py').write_text(worker)
         for name in ('library_eval_build.py','verify_adapter_stops.py','ljspeech_generate.py','prosody_fidelity.py'):(self.root/'app/experiments'/name).write_text(worker)
-        self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),PYTHON=sys.executable,CONFIG=str(config),PYTHONPATH=str(REPO/'app'))
-        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
+        self.env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(self.root),PYTHON=sys.executable,CONFIG=str(config),PYTHONPATH=str(REPO/'app'))
+        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
 
     def run_chain(self,**env):
         configured=dict(self.env,**env)
@@ -118,5 +119,5 @@ class ValidatedStageDependencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);checker=root/'checker';worker=root/'worker'
             body='source "$1"\nSTAGE_LOG_DIR="$2/logs"\nSTAGE_RESULT[earlier]=failed:7\nrun_validated_cached_stage later 0 bash -c \'touch "$1"\' check "$2/checker" -- --requires-ok earlier -- bash -c \'touch "$1"\' worker "$2/worker"\n'
-            result=subprocess.run(['bash','-c',body,'fixture',str(REPO/'run_chains/lib/stage.sh'),str(root)],capture_output=True,text=True,timeout=5)
+            result=subprocess.run(['bash','-c',body,'fixture',str(REPO/'run_chains/lib/stage.sh'),str(root)],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
             self.assertEqual(1,result.returncode,result.stdout+result.stderr);self.assertFalse(checker.exists());self.assertFalse(worker.exists())

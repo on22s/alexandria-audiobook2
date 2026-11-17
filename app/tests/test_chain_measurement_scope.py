@@ -1,4 +1,5 @@
 """Execute measurement chains with isolated CPU generator and audio fixtures."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -67,8 +68,8 @@ elif name=='measure_pauses.py':
         for args in (('init','-q','-b','main'),('config','user.name','Fixture'),
                      ('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),
                      ('add','fixture.txt'),('commit','-q','-m','fixture baseline')):
-            subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
-        self.env = dict(os.environ, PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
+            subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
+        self.env = dict(get_isolated_git_environment(), PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
                         FIXTURE_ROOT=str(self.root), SOURCE_REPO=str(REPO))
 
     def _write(self, relative, source):
@@ -79,9 +80,9 @@ elif name=='measure_pauses.py':
     def _run(self, name, expected_status=0):
         # Commit the private fixture sources; real preflight must see a clean tree.
         subprocess.run(['git', '-C', str(self.root), 'add', '--', '.', ':(exclude)ab_test_runtime'],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=get_isolated_git_environment())
         subprocess.run(['git', '-C', str(self.root), 'commit', '--allow-empty', '-qm', 'fixture sources'],
-                       check=True, capture_output=True)
+                       check=True, capture_output=True, env=get_isolated_git_environment())
         result = subprocess.run(['bash', str(self.root / 'run_chains' / name)],
                                 cwd=self.root, env=self.env, capture_output=True,
                                 text=True, timeout=20)

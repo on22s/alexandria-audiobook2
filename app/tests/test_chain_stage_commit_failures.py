@@ -1,4 +1,5 @@
 """Native Git/Bash failures must survive the chain's final summary."""
+from tests.test_support import get_isolated_git_environment
 import os
 from pathlib import Path
 import shlex
@@ -14,7 +15,7 @@ LIB = Path(os.environ.get('STAGE_LIB_SOURCE',str(Path(__file__).resolve().parent
 @requires_linux_queue_tools
 class StageCommitFailureTests(unittest.TestCase):
     def git(self,repo,*args):
-        return subprocess.run(['git','-C',str(repo),*args],capture_output=True,text=True,check=True).stdout.strip()
+        return subprocess.run(['git','-C',str(repo),*args],capture_output=True,text=True,check=True, env=get_isolated_git_environment()).stdout.strip()
 
     def test_add_commit_and_index_read_errors_survive_summary_and_preserve_unrelated_index(self):
         for failure,expected in [('add',128),('commit',1),('diff',2)]:
@@ -41,7 +42,7 @@ printf '%s\\n' "$?" > {shlex.quote(str(root/'commit-rc'))}
 run_stage independent 2s -- touch {shlex.quote(str(root/'continued'))}
 stage_summary fixture
 '''
-                result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=10)
+                result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
                 self.assertEqual(1,result.returncode,result.stdout+result.stderr)
                 self.assertEqual(str(expected)+'\n',(root/'commit-rc').read_text())
                 self.assertIn('artifacts:current = failed:'+str(expected),result.stdout)
@@ -60,7 +61,7 @@ STAGE_LOG_DIR={shlex.quote(tmp)}
 run_stage application 3s -- bash -c 'echo "timeout: sending signal INT to command" >&2; exit 124'
 stage_summary fixture
 '''
-            result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=5)
+            result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
             self.assertEqual(1,result.returncode,result.stdout+result.stderr)
             self.assertIn('FAIL  application rc=124',result.stdout)
             self.assertNotIn('TIMEOUT application',result.stdout)
@@ -77,7 +78,7 @@ STAGE_LOG_DIR={shlex.quote(tmp)}
 run_stage slow 1s -- {shlex.quote(sys.executable)} -c {shlex.quote(code)}
 stage_summary fixture
 '''
-            result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=5)
+            result=subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
             self.assertEqual(1,result.returncode,result.stdout+result.stderr)
             self.assertIn('TIMEOUT slow',result.stdout)
             self.assertIn('slow = failed:124',result.stdout)

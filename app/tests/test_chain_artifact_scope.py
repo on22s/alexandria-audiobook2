@@ -1,4 +1,5 @@
 """Native commits isolate explicitly selected files inside the shared directory."""
+from tests.test_support import get_isolated_git_environment
 import os
 from pathlib import Path
 import shlex
@@ -32,7 +33,7 @@ class ArtifactScopeTests(unittest.TestCase):
             self.assertNotIn(relative, self.git(root, "ls-tree", "-r", "--name-only", "HEAD"))
 
     def git(self,root,*args):
-        return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
+        return subprocess.check_output(['git','-C',str(root),*args],text=True, env=get_isolated_git_environment()).strip()
 
     def prepare(self,root):
         folder=root/'ab_test_runtime/experiments';folder.mkdir(parents=True)
@@ -46,7 +47,7 @@ class ArtifactScopeTests(unittest.TestCase):
 
     def run_commit(self,root,*paths):
         script='set -uo pipefail; source '+shlex.quote(str(LIB))+'; stage_commit_artifacts current '+shlex.quote(str(root))+' '+ ' '.join(shlex.quote(str(path)) for path in paths)+'; stage_summary fixture'
-        return subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=10)
+        return subprocess.run(['bash','-c',script],capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
 
     def test_current_literal_file_commits_without_other_sessions_same_folder_wip(self):
         with tempfile.TemporaryDirectory() as tmp:

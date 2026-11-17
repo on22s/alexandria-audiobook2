@@ -14,6 +14,7 @@ reported 6da598d1, same file, same bytes. #404 failed CI twice on that alone.
 These tests build the topology rather than describing it, because the bug is a
 property of the graph and nothing short of a real merge reproduces it.
 """
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import os
 import subprocess
 import tempfile
@@ -29,7 +30,7 @@ from experiments import replay_artifact
 
 def git(repo, *args):
     return subprocess.run(["git", *args], cwd=repo, capture_output=True,
-                          text=True, check=True).stdout.strip()
+                          text=True, check=True, env=get_isolated_git_environment()).stdout.strip()
 
 
 def build_squash_topology(root):
@@ -94,6 +95,7 @@ class AddedCommitDeterminismTests(unittest.TestCase):
         out = git(repo, "log", "--diff-filter=A", "--format=%H %as", "-1", "--", path)
         return out.partition(" ")[0] if out else None
 
+    @isolate_git_environment()
     def test_shipped_resolution_is_deterministic_on_discriminating_merge_topology(self):
         with tempfile.TemporaryDirectory() as root:
             repo, path, branch, merge = build_squash_topology(root)

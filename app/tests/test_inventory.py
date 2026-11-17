@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import importlib
 import json
 import os
@@ -62,7 +63,7 @@ def _tracked_test_modules(test_directory=None):
     try:
         result = subprocess.run(
             ["git", "ls-files", "-z", "--", "test*.py"],
-            cwd=get_test_directory(test_directory), capture_output=True, timeout=10)
+            cwd=get_test_directory(test_directory), capture_output=True, timeout=10, env=get_isolated_git_environment())
     except (OSError, subprocess.SubprocessError):
         return None
     if result.returncode != 0:
@@ -152,13 +153,15 @@ class TestInventoryTests(unittest.TestCase):
             shutil.copyfile(app.parent / 'gpu_stats.py', root.parent / 'gpu_stats.py')
             shutil.copyfile(app / 'loaded_module_code.py', root / 'loaded_module_code.py')
             shutil.copyfile(Path(__file__), root / 'tests/test_inventory.py')
+            shutil.copyfile(Path(__file__).with_name('test_support.py'), root / 'tests/test_support.py')
             (root / 'tests/test_small.py').write_text('import unittest\nclass Small(unittest.TestCase):\n def test_small(self): pass\n')
             (root / 'tests/test_heavy.py').write_text('import torch\n')
             inventory = root / 'tests/unit_test_inventory.json'
             inventory.write_text(json.dumps({'test_small':['before'], 'test_heavy':['preserved']}))
-            subprocess.run(['git','init','-q',str(root)], check=True, capture_output=True)
-            subprocess.run(['git','-C',str(root),'add','tests/test_small.py','tests/test_heavy.py'], check=True, capture_output=True)
-            environment = {key:value for key,value in os.environ.items() if not key.startswith(('GIT_', 'PYTHON'))}
+            subprocess.run(['git','init','-q',str(root)], check=True, capture_output=True, env=get_isolated_git_environment())
+            subprocess.run(['git','-C',str(root),'add','tests/test_small.py','tests/test_heavy.py'], check=True, capture_output=True, env=get_isolated_git_environment())
+            environment = {key:value for key,value in get_isolated_git_environment().items()
+                           if not key.startswith('PYTHON')}
             selected = subprocess.run([sys.executable,'-S','update_test_inventory.py','--module','test_small'],
                 cwd=root, env=environment, capture_output=True, text=True, encoding='utf-8', timeout=15)
             self.assertEqual(0, selected.returncode, selected.stdout + selected.stderr)
@@ -273,12 +276,12 @@ class InventoryFixtureTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.directory = self.root / "tests"
         self.directory.mkdir()
-        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, env=get_isolated_git_environment())
         (self.directory / "test_fixture.py").write_text(
             "import unittest\nclass Fixture(unittest.TestCase):\n"
             "    def test_tracked(self):\n        pass\n", encoding="utf-8")
         (self.directory / "test_api.py").write_text("raise RuntimeError('excluded')\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(self.root), "add", "tests/test_fixture.py", "tests/test_api.py"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "tests/test_fixture.py", "tests/test_api.py"], check=True, env=get_isolated_git_environment())
 
     def start_fixture_reader(self, directory=None, *, wait_file=None, git_available=True):
         directory = self.directory if directory is None else directory
@@ -293,7 +296,7 @@ class InventoryFixtureTests(unittest.TestCase):
                  "print(json.dumps({'inventory':inventory.get_unit_test_inventory(root),"
                  "'untracked':updater.find_untracked_test_modules(root),"
                  "'tracked':None if tracked is None else sorted(tracked)}))\n")
-        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        environment = get_isolated_git_environment()
         environment["PYTHONPATH"] = str(Path(__file__).parent.parent)
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         if not git_available:
@@ -397,7 +400,7 @@ class InventoryFixtureIsolationTests(InventoryFixtureTests):
                         f"Path({str(state)!r}).write_text(str(case.directory))\n"
                         "case.read_fixture=lambda:os._exit(23)\n"
                         f"case.{method_name}()\n")
-                environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+                environment = get_isolated_git_environment()
                 environment.update(PYTHONPATH=str(Path(__file__).parent.parent),
                                    PYTHONDONTWRITEBYTECODE="1", TMPDIR=str(self.root))
                 result = subprocess.run([sys.executable, "-c", code], cwd=self.root, env=environment,
@@ -445,6 +448,7 @@ class InventoryFixtureIsolationTests(InventoryFixtureTests):
 
 
 class InventoryCheckWarningTests(unittest.TestCase):
+    @isolate_git_environment()
     def test_check_warns_about_actual_untracked_tests_without_writing_inventory(self):
         import contextlib
         import io
@@ -456,11 +460,11 @@ class InventoryCheckWarningTests(unittest.TestCase):
             root=Path(tmp)
             tests=root/'app/tests'
             tests.mkdir(parents=True)
-            subprocess.run(['git','init','-q'],cwd=root,check=True)
+            subprocess.run(['git','init','-q'],cwd=root,check=True, env=get_isolated_git_environment())
             (tests/'test_tracked.py').write_text('# tracked fixture\n',encoding='utf-8')
             (tests/'test_new.py').write_text('# new local fixture\n',encoding='utf-8')
             (tests/'test_api.py').write_text('# explicitly excluded\n',encoding='utf-8')
-            subprocess.run(['git','add','app/tests/test_tracked.py'],cwd=root,check=True)
+            subprocess.run(['git','add','app/tests/test_tracked.py'],cwd=root,check=True, env=get_isolated_git_environment())
             path=tests/'unit_test_inventory.json'
             expected={'test_tracked':['tests.test_tracked.Example.test_one']}
             path.write_text(updater.format_inventory(expected),encoding='utf-8')
@@ -608,8 +612,7 @@ class CapabilityGateInventoryTests(unittest.TestCase):
             "                                    if getattr(case.__class__, '__unittest_skip__', False)\n"
             "                                    or getattr(case, '__unittest_skip__', False))}))\n"
         )
-        environment = {key: value for key, value in os.environ.items()
-                       if not key.startswith("GIT_")}
+        environment = get_isolated_git_environment()
         environment.update(PYTHONPATH=str(app), PYTHONDONTWRITEBYTECODE="1")
         return subprocess.run([sys.executable, "-c", code, module_name],
                               cwd=str(app), env=environment, capture_output=True,

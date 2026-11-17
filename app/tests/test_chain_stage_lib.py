@@ -9,6 +9,7 @@ loop body, so this is the language behaving as documented, not a surprise.
 These tests drive the real lib/stage.sh through bash rather than reimplementing
 its logic, because a reimplementation is the thing that drifts.
 """
+from tests.test_support import get_isolated_git_environment
 import os
 import subprocess
 import tempfile
@@ -33,7 +34,7 @@ class StageRunnerTest(unittest.TestCase):
                     script = f'source "{LIB}"; STAGE_LOG_DIR="{self.tmp.name}/logs"; {invocation} --requires-ok{value}'
                     try:
                         result = subprocess.run(["bash", "-c", script], capture_output=True,
-                                                text=True, timeout=1)
+                                                text=True, timeout=1, env=get_isolated_git_environment())
                     except subprocess.TimeoutExpired:
                         self.fail("Malformed --requires-ok looped instead of refusing")
                     self.assertNotEqual(0, result.returncode)
@@ -58,7 +59,7 @@ class StageRunnerTest(unittest.TestCase):
                 """))
         os.chmod(script, 0o755)
         return subprocess.run(["bash", script], capture_output=True, text=True,
-                              timeout=60)
+                              timeout=60, env=get_isolated_git_environment())
 
     @requires_linux_queue_tools
     def test_a_failing_stage_makes_the_chain_exit_non_zero(self):
@@ -145,33 +146,33 @@ class StageRunnerTest(unittest.TestCase):
     def test_artifact_commit_preserves_unrelated_staged_change(self):
         repo = os.path.join(self.tmp.name, "repo")
         os.makedirs(os.path.join(repo, "ab_test_runtime", "experiments"))
-        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True, env=get_isolated_git_environment())
         for key, value in (("user.email", "t@example.com"), ("user.name", "t")):
-            subprocess.run(["git", "-C", repo, "config", key, value], check=True)
+            subprocess.run(["git", "-C", repo, "config", key, value], check=True, env=get_isolated_git_environment())
         artifact = os.path.join(repo, "ab_test_runtime", "experiments", "a.json")
         unrelated = os.path.join(repo, "unrelated.txt")
         for path in (artifact, unrelated):
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write("base\n")
-        subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
-        subprocess.run(["git", "-C", repo, "commit", "-q", "-m", "base"], check=True)
+        subprocess.run(["git", "-C", repo, "add", "-A"], check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "-C", repo, "commit", "-q", "-m", "base"], check=True, env=get_isolated_git_environment())
         with open(artifact, "w", encoding="utf-8") as handle:
             handle.write("artifact\n")
         with open(unrelated, "w", encoding="utf-8") as handle:
             handle.write("unrelated\n")
-        subprocess.run(["git", "-C", repo, "add", "unrelated.txt"], check=True)
+        subprocess.run(["git", "-C", repo, "add", "unrelated.txt"], check=True, env=get_isolated_git_environment())
         command = (f'source "{LIB}"; STAGE_LOG_DIR="{self.tmp.name}/logs"; '
                    f'stage_commit_artifacts probe "{repo}" "{artifact}"')
         result = subprocess.run(["bash", "-c", command], capture_output=True,
-                                text=True, timeout=60)
+                                text=True, timeout=60, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         committed = subprocess.run(
             ["git", "-C", repo, "show", "--pretty=", "--name-only", "HEAD"],
-            capture_output=True, text=True, check=True).stdout.splitlines()
+            capture_output=True, text=True, check=True, env=get_isolated_git_environment()).stdout.splitlines()
         self.assertEqual(["ab_test_runtime/experiments/a.json"], committed)
         staged = subprocess.run(
             ["git", "-C", repo, "diff", "--cached", "--name-only"],
-            capture_output=True, text=True, check=True).stdout.splitlines()
+            capture_output=True, text=True, check=True, env=get_isolated_git_environment()).stdout.splitlines()
         self.assertEqual(["unrelated.txt"], staged)
 
     @requires_linux_queue_tools
@@ -224,7 +225,7 @@ run_stage independent 2s -- touch {shlex.quote(str(root / 'independent'))}
 printf '%s %s %s %s\\n' "$STAGE_TOTAL" "$STAGE_FAILURES" "${{STAGE_RESULT[child]}}" "${{STAGE_RESULT[grandchild]}}" > {shlex.quote(str(root / 'state'))}
 stage_summary dependency_probe
 """
-                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=10)
+                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=10, env=get_isolated_git_environment())
                 self.assertEqual(1, result.returncode, result.stdout + result.stderr)
                 self.assertEqual("3 2 skipped skipped\n", (root / 'state').read_text())
                 self.assertIn("1/3 stages ok", result.stdout)

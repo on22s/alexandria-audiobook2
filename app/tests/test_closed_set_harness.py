@@ -1,4 +1,5 @@
 """Run the closed-set harness with isolated CPU provider and corpus fixtures."""
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import contextlib
 import io
 import json
@@ -18,6 +19,9 @@ SOURCE = Path(__file__).resolve().parents[1] / 'experiments/closed_set.py'
 
 @requires_linux_queue_tools
 class ClosedSetHarnessTests(unittest.TestCase):
+    def setUp(self):
+        isolate_git_environment(self)
+
     def test_actual_harness_starts_scores_all_arms_and_writes_verified_rows(self):
         import openai
         with tempfile.TemporaryDirectory() as tmp:
@@ -43,10 +47,10 @@ class ClosedSetHarnessTests(unittest.TestCase):
             gold.write_text(json.dumps({'entries': [{'id': 'quote1', 'line': line, 'expected_speaker': 'ANNA'}], 'aliases': []}))
             experiments = root / 'ab_test_runtime/experiments'
             experiments.mkdir(parents=True)
-            subprocess.run(['git', 'init', '-q', '-b', 'main', str(root)], check=True)
-            subprocess.run(['git', '-C', str(root), 'add', '-A'], check=True)
+            subprocess.run(['git', 'init', '-q', '-b', 'main', str(root)], check=True, env=get_isolated_git_environment())
+            subprocess.run(['git', '-C', str(root), 'add', '-A'], check=True, env=get_isolated_git_environment())
             subprocess.run(['git', '-C', str(root), '-c', 'user.name=Fixture',
-                '-c', 'user.email=fixture@example.com', 'commit', '-q', '-m', 'CPU fixture'], check=True)
+                '-c', 'user.email=fixture@example.com', 'commit', '-q', '-m', 'CPU fixture'], check=True, env=get_isolated_git_environment())
             original = {p: p.read_bytes() for p in (source_path, checkpoint, gold)}
             calls = []
             def create(**request):

@@ -4,6 +4,7 @@ try:
 except ImportError:
     fcntl = None
 HAVE_FCNTL = globals().get('fcntl') is not None
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -112,12 +113,12 @@ raise SystemExit(4 if os.environ.get('FIXTURE_CLEANUP_FAIL') == '1' else 0)
         # Use a real disposable repository rather than hiding Git failures.
         marker=self.root/'ab_test_runtime/experiments/_fixture.txt'
         marker.write_text('fixture baseline\n')
-        subprocess.run(['git','init','-q','-b','main',str(self.root)],check=True)
+        subprocess.run(['git','init','-q','-b','main',str(self.root)],check=True, env=get_isolated_git_environment())
         for key,value in [('user.name','Fixture'),('user.email','fixture@example.com'),
                           ('core.hooksPath',str(self.root/'.git/no-hooks'))]:
-            subprocess.run(['git','-C',str(self.root),'config',key,value],check=True)
-        subprocess.run(['git','-C',str(self.root),'add','-f',str(marker)],check=True)
-        subprocess.run(['git','-C',str(self.root),'commit','-q','-m','fixture baseline'],check=True)
+            subprocess.run(['git','-C',str(self.root),'config',key,value],check=True, env=get_isolated_git_environment())
+        subprocess.run(['git','-C',str(self.root),'add','-f',str(marker)],check=True, env=get_isolated_git_environment())
+        subprocess.run(['git','-C',str(self.root),'commit','-q','-m','fixture baseline'],check=True, env=get_isolated_git_environment())
 
     def launch(self, chain, **extra):
         process = subprocess.Popen(['bash', str(self.root / 'run_chains' / chain)],

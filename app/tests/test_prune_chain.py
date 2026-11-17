@@ -1,4 +1,5 @@
 """Private checkout, real package/Git operations, CPU workers; no inference."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 import re
@@ -56,9 +57,9 @@ raise SystemExit(8 if os.environ.get('FIXTURE_FAIL')=='train' else 0)
         self.write('app/experiments/library_voice_fidelity.py', '''import os,pathlib,sys
 r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathlib.Path(a[a.index('--out')+1]).write_text('{"CPU_fixture":true}')
 ''')
-        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','base')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
+        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','base')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
         self.work=self.root/'ab_test_runtime/prune_retrain_20260913/voice'
-        self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),ADAPTER='voice')
+        self.env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(self.root),ADAPTER='voice')
         self.env.pop('PYTHON',None)
 
     def write(self,name,source):

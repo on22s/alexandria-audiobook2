@@ -6535,6 +6535,15 @@
     , "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_required_serving_adapter_proceeds_to_existing_client_boundary"
     , "tests.test_generation_required_adapter.RequiredGenerationAdapterTests.test_unconfigured_adapter_and_optional_probe_exception_keep_existing_behavior"
   ]
+  , "test_git_fixture_isolation": [
+    "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_benchmark_reader_leaves_hook_repository_byte_identical"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_chain_fixture_leaves_hook_repository_byte_identical"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_derived_fixture_leaves_hook_repository_byte_identical"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_environment_removes_repository_and_config_injection_without_mutating_parent"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_lifetime_scope_cleans_up_even_when_setup_fails"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_lifetime_scope_restores_parent_after_exception_and_allows_inner_overrides"
+    , "tests.test_git_fixture_isolation.GitFixtureIsolationTests.test_provenance_reader_leaves_hook_repository_byte_identical"
+  ]
   , "test_goal66_negative_controls": [
     "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_candidate_membership_audit_rejects_a_missing_artifact"
     , "tests.test_goal66_negative_controls.EmptyScopeRejectionTests.test_pdnc_context_audit_rejects_an_empty_corpus"

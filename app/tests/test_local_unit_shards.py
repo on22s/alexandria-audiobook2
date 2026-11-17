@@ -1,4 +1,5 @@
 """Local readiness keeps dirty-source fidelity, ownership and exact coverage."""
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import importlib
 import json
 import os
@@ -133,6 +134,7 @@ class LocalAggregationTests(unittest.TestCase):
 
 class LocalWorktreeTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         self.local = importlib.import_module('local_unit_shards')
         fixture_root = Path(tempfile.gettempdir()).resolve() / 'alexandria-local-units'
         fixture_root.mkdir(exist_ok=True)
@@ -172,7 +174,7 @@ class LocalWorktreeTests(unittest.TestCase):
 
     def git(self, *arguments):
         return subprocess.run(['git', *arguments], cwd=self.repo, check=True,
-                              capture_output=True, text=True, timeout=30).stdout
+                              capture_output=True, text=True, timeout=30, env=get_isolated_git_environment()).stdout
 
     def write_test(self, name, body):
         (self.repo / 'app/tests' / f'test_{name}.py').write_text(
@@ -220,7 +222,7 @@ class LocalWorktreeTests(unittest.TestCase):
             self.add_checkout(snapshot, checkout)
             self.assertEqual(b'next\n', (checkout / 'app/payload.txt').read_bytes())
             captured = subprocess.check_output(
-                ['git', 'show', snapshot['commit'] + ':app/payload.txt'], cwd=self.repo)
+                ['git', 'show', snapshot['commit'] + ':app/payload.txt'], cwd=self.repo, env=get_isolated_git_environment())
             self.assertEqual(b'next\n', captured)
         finally:
             self.remove_checkout(checkout)
@@ -242,7 +244,7 @@ class LocalWorktreeTests(unittest.TestCase):
                 options = dict(ownership=record['ownership'][0], manifest=manifest)
             self.local.add_snapshot_worktree(self.repo, snapshot, path, **options)
             record = json.loads(manifest.read_text(encoding='utf-8'))
-        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child = subprocess.Popen([sys.executable, '-c', 'pass'], env=get_isolated_git_environment())
         child.wait(timeout=10)
         record['owner_pid'] = child.pid
         manifest.write_text(json.dumps(record), encoding='utf-8')
@@ -339,7 +341,7 @@ class LocalWorktreeTests(unittest.TestCase):
     def test_stale_recovery_preserves_independent_repository_at_never_created_path(self):
         manifest, path, record = self.create_stale_run(created=False)
         path.mkdir(parents=True)
-        subprocess.run(['git', 'init', '-q', str(path)], check=True)
+        subprocess.run(['git', 'init', '-q', str(path)], check=True, env=get_isolated_git_environment())
         config = (path / '.git/config').read_bytes()
         marker = path / 'uncommitted'
         marker.write_bytes(b'foreign uncommitted data')
@@ -366,7 +368,7 @@ class LocalWorktreeTests(unittest.TestCase):
         self.git('add', '-f', 'private.txt')
         before = self.git_integrity()
         snapshot = self.local.create_working_tree_snapshot(self.repo, self.root / 'snapshot')
-        captured = subprocess.check_output(['git', 'show', snapshot['commit'] + ':private.txt'], cwd=self.repo)
+        captured = subprocess.check_output(['git', 'show', snapshot['commit'] + ':private.txt'], cwd=self.repo, env=get_isolated_git_environment())
         self.assertEqual(b'force-added source', captured)
         checkout = self.root / 'checkout'
         try:
@@ -386,7 +388,7 @@ class LocalWorktreeTests(unittest.TestCase):
         checkout = self.root / 'checkout'
         try:
             self.add_checkout(snapshot, checkout)
-            materialized = subprocess.check_output(['git', 'ls-files', '--stage', 'app/payload.txt'], cwd=checkout)
+            materialized = subprocess.check_output(['git', 'ls-files', '--stage', 'app/payload.txt'], cwd=checkout, env=get_isolated_git_environment())
             self.assertTrue(materialized.startswith(b'100755 '), materialized)
         finally:
             self.remove_checkout(checkout)
@@ -431,7 +433,7 @@ class LocalWorktreeTests(unittest.TestCase):
         marker.write_bytes(b'foreign uncommitted data')
         if sys.platform == 'win32':
             subprocess.run(['cmd', '/c', 'mklink', '/J', str(artifacts), str(target)],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, env=get_isolated_git_environment())
             self.addCleanup(artifacts.rmdir)
         else:
             artifacts.symlink_to(target, target_is_directory=True)
@@ -558,7 +560,7 @@ class LocalWorktreeTests(unittest.TestCase):
         unrelated.mkdir()
         marker = unrelated / 'keep'
         marker.touch()
-        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child = subprocess.Popen([sys.executable, '-c', 'pass'], env=get_isolated_git_environment())
         child.wait(timeout=10)
         manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 1)
         record = json.loads(manifest.read_text(encoding='utf-8'))
@@ -574,7 +576,7 @@ class LocalWorktreeTests(unittest.TestCase):
     def test_stale_manifest_before_first_checkout_keeps_unknown_counts_and_log_paths(self):
         artifacts = self.root / 'reports'
         artifacts.mkdir()
-        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child = subprocess.Popen([sys.executable, '-c', 'pass'], env=get_isolated_git_environment())
         child.wait(timeout=10)
         manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 2)
         record = json.loads(manifest.read_text(encoding='utf-8'))
@@ -603,7 +605,7 @@ class LocalWorktreeTests(unittest.TestCase):
         before, integrity = self.registered(), self.git_integrity()
         artifacts = self.root / 'reports'
         artifacts.mkdir()
-        child = subprocess.Popen([sys.executable, '-c', 'pass'])
+        child = subprocess.Popen([sys.executable, '-c', 'pass'], env=get_isolated_git_environment())
         child.wait(timeout=10)
         manifest = self.local.register_run(self.repo, artifacts, self.identifiers, 1)
         record = json.loads(manifest.read_text(encoding='utf-8'))
@@ -691,7 +693,7 @@ class LocalWorktreeTests(unittest.TestCase):
             self.add_checkout(snapshot, checkout)
             self.assertEqual(b'native\r\nsource\r\n', (checkout / 'native.log').read_bytes())
             self.assertEqual(b'long path\r\n', (checkout / long_name).read_bytes())
-            status = subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout)
+            status = subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout, env=get_isolated_git_environment())
             self.assertEqual(b'', status, 'faithful CRLF bytes must not appear spuriously dirty')
         finally:
             self.remove_checkout(checkout)
@@ -725,12 +727,12 @@ class LocalWorktreeTests(unittest.TestCase):
             self.assertEqual(before, config.read_bytes())
             independent = self.root / 'independent'
             independent.mkdir()
-            subprocess.run(['git', 'init', '-q', str(independent)], check=True)
+            subprocess.run(['git', 'init', '-q', str(independent)], check=True, env=get_isolated_git_environment())
             result = subprocess.run([get_bash_executable(), str(installer)], cwd=independent,
                                     env=environment, capture_output=True, text=True, timeout=15)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual(b'.githooks', subprocess.check_output(
-                ['git', 'config', '--get', 'core.hooksPath'], cwd=independent).strip())
+                ['git', 'config', '--get', 'core.hooksPath'], cwd=independent, env=get_isolated_git_environment()).strip())
             self.assertEqual(before, config.read_bytes())
             installed = (independent / '.git/config').read_bytes()
             installed_stat = (independent / '.git/config').stat()
@@ -749,7 +751,7 @@ class LocalWorktreeTests(unittest.TestCase):
         common = Path(self.git('rev-parse', '--path-format=absolute', '--git-common-dir').strip())
         ready = self.root / 'waiting'
         code = ("import sys;from pathlib import Path;import local_unit_shards as local;"
-                "Path(sys.argv[2]).touch();local.run_git(Path(sys.argv[1]),'worktree','prune','--dry-run')")
+                "Path(sys.argv[2]).touch();local.run_git(Path(sys.argv[1]),'worktree','list','--porcelain')")
         process = None
         try:
             with file_lock(common / 'alexandria-local-unit-git', timeout=10):
