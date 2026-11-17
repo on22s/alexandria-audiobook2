@@ -5365,6 +5365,7 @@
   "voice.suggest.none": "利用できる提案はありません。",
   "voice.suggest.none_state": "状態ごとの声の候補が見つかりませんでした。",
   "voice.suggest.override_alias": "{character} は {alias} として話します（別名）",
+  "voice.suggest.override_narrator": "{character} は「{strategy}」ナレーター戦略を使用しています",
   "voice.suggest.override_timeline": "{character} は声のタイムラインに従います",
   "voice.suggest.reused.many": "既存のキャスト {count} 人に再利用されています",
   "voice.suggest.reused.one": "既存のキャスト {count} 人に再利用されています",

@@ -52,6 +52,19 @@ else{assert.equal(c._voiceSuggestions.A.adapter_id,'submitted','cancel dropped t
 }
 ''')
 
+    def test_narrator_strategy_refusal_is_named_in_the_confirm(self):
+        # #2015: the confirm must say a narrator strategy is what keeps another
+        # voice in effect, not fall back to the timeline wording.
+        self.run_js(r'''
+run(core.slice(core.indexOf('function applySuggestionToCard('),core.indexOf('function updateSuggestionToolbar(')));c.updateSuggestionToolbar=()=>{};c._voiceSuggestionContext={isCurrent:()=>true};c.loadCastLibrary=async()=>{};c.loadVoices=async()=>{};
+c._voiceSuggestions={NARRATOR:{type:'lora',adapter_id:'submitted'}};const posts=[];let asked='';
+c.API.post=async(url,data)=>{posts.push(JSON.parse(JSON.stringify(data)));if(!data.clear_overrides){throw Object.assign(Error('overrides'),{status:409,detail:{code:'voice_overrides',overrides:[{character:'NARRATOR',alias_of:null,version_timeline:false,narrator_strategy:'character'}]}});}return {applied:['NARRATOR'],cleared_overrides:[]};};
+c.showConfirm=async(message)=>{asked=message;return true;};
+await c.applyVoiceSuggestion('NARRATOR');
+assert(asked.includes("NARRATOR narrates with the 'character' narrator strategy"),asked);
+assert.equal(posts.length,2);assert.equal(posts[1].clear_overrides,true);
+''')
+
     def test_bulk_cast_pending_failure_retry(self):
         self.run_js(r'''
 run(core.slice(core.indexOf('let castApplyBulkPending ='),core.indexOf('// Identity anchors that take over')));c._collectCastApplyMapping=()=>({A:'role'});c.setCastStatus=()=>{};c.getActionErrorMessage=(title,e)=>title+e.message;c.getCastApplyWarningsHtml=()=>'';c._selectedCast='cast';let count=0,gate=deferred();c.API.post=()=>{count++;return gate.promise;};const first=c.submitCastApplyBulk(['book']);await c.submitCastApplyBulk(['book']);assert.equal(count,1);assert(el('btn-cast-apply-bulk-submit').disabled);gate.reject(Error('offline'));await first;assert(!el('btn-cast-apply-bulk-submit').disabled);gate=deferred();const retry=c.submitCastApplyBulk(['book']);assert.equal(count,2);gate.resolve({results:[{name:'book',count:1}]});await retry;assert(el('cast-panel').innerHTML.includes('Applied to 1 book'));assert(!el('btn-cast-apply-bulk-submit').disabled);
