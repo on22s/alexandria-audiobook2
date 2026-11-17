@@ -14,6 +14,9 @@ ctx.window = ctx;
 ctx._voicesByName = {ARTHUR: {name: 'ARTHUR', persona_pending: false, persona_states_pending: true},
     BOB: {name: 'BOB', persona_pending: false, persona_states_pending: false}};
 vm.createContext(ctx);
+// The slices call t() now that their user-visible text is translated.
+ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
+ctx.escapeHtml=ctx.escapeHtml||(value=>value==null?'':String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;'));
 function load(start, end) {
     const a = source.indexOf(start), b = source.indexOf(end, a);
     assert(a >= 0 && b > a);

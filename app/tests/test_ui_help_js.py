@@ -70,6 +70,8 @@ context.translateUiMessage=context.t;
 context.formatUiSafetyText=(key,english,values={})=>context.t(key,english,values);
 context.tSafety=(key,english,values={})=>({primary:context.t(key,english,values),secondary:null});
 context.getIntlUiLocale=()=> 'en';
+context.pluralForm=(count)=>new Intl.PluralRules(context.getIntlUiLocale()).select(count)==='one'?'one':'many';
+context.escapeHtml=(value)=>value==null?'':String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 function load(){vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);}
 function helpFor(control){return context.getItemHelpText(control);}
 function mutation(record){observers[0].callback([record]);}

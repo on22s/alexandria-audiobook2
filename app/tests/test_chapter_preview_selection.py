@@ -86,7 +86,7 @@ const nodes=new Map(), node=id=>{if(!nodes.has(id)){nodes.set(id,{textContent:''
 let options={format:'wav',per_chunk_chapters:false,template:'{chapter_number} - {chapter_name}',padding:2,book_name:'Book',series_name:'Series',volume_number:'1',chapters:[0,2],changed_only:true};
 const context={document:{getElementById:node},chapterExportParams:()=>options,currentBookFilename:'fixture.txt',URLSearchParams,
  API:{get:async url=>{seen=new URL(url,'http://fixture');return{chapters:[]};}},escapeHtml:value=>value,showToast:message=>{throw Error(message);}};
-vm.createContext(context);
+vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
 vm.runInContext(source.slice(source.indexOf('function renderChapterList('),source.indexOf('async function loadChapterExports(')),context);
 vm.runInContext(source.slice(start,end),context);
 (async()=>{await handler();assert.deepStrictEqual(seen.searchParams.getAll('chapters'),['0','2']);assert.strictEqual(seen.searchParams.get('changed_only'),'true');assert(node('chapter-list').innerHTML.includes('No chapter files are currently planned.'));
