@@ -628,7 +628,7 @@ class VoiceCardScopeTests(unittest.TestCase):
     @staticmethod
     def _voice_card_body():
         lines = (_STATIC_DIR / "js" / "app-core.js").read_text(encoding="utf-8").split("\n")
-        start = next(i for i, l in enumerate(lines) if "function createVoiceCard(voice, index) {" in l)
+        start = next(i for i, l in enumerate(lines) if "function createVoiceCard(" in l)
         end = next(i for i in range(start + 1, len(lines)) if lines[i] == "        }")
         return start + 1, lines[start:end + 1]
 
