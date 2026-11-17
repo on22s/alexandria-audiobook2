@@ -37,7 +37,7 @@ run(source.slice(0,source.indexOf('// Persist on input changes')));
 '''+code+r'''
 })().catch(error=>{console.error(error);process.exitCode=1;});
 '''
-        result=subprocess.run(['node','-e',script,str(SOURCE),str(SOURCE.with_name('app-core.js')),json.dumps(payload)],capture_output=True,text=True,timeout=10)
+        result=subprocess.run(['node','-e',script,str(SOURCE),str(SOURCE.with_name('app-core.js')),json.dumps(payload)],capture_output=True,text=True,encoding='utf-8',timeout=10)
         self.assertEqual(0,result.returncode,result.stderr)
         return json.loads(result.stdout)
 
@@ -77,7 +77,7 @@ run(source.slice(0,source.indexOf('// Persist on input changes')));
         with DatasetBuilderOwnershipTests().fixture() as (_,builder,work,_,_,app),TestClient(app) as client:
             row={'text':'</textarea><img src=x onerror=bad>','emotion':'warm','seed':0,'status':'<script>bad</script>','audio_url':'/clip.wav?x=" onerror="bad'}
             path=work/'state.json';path.write_text(json.dumps({'samples':[row]}));before=path.read_bytes()
-            name='Voice " onerror="bad';directory=builder/name;directory.mkdir();(directory/'state.json').write_bytes(before)
+            name="Voice ' onerror='bad";directory=builder/name;directory.mkdir();(directory/'state.json').write_bytes(before)
             projects=client.get('/api/dataset_builder/list').json();self.assertIn(name,[p['name'] for p in projects])
             options=self.execute("context.API={get:async()=>payload};await context.dsbLoadProjects();console.log(JSON.stringify(elements['dsb-project-select'].innerHTML));",projects)
             parsed=self.assert_no_injected_elements(options);self.assertIn({'value':name},parsed.of('option'))

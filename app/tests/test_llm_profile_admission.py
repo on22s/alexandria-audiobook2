@@ -41,6 +41,11 @@ def get_config(profile):
                     'review_user_prompt': '{context}\nTARGET\n{batch}'}}
 
 
+def get_workflow_environment(import_paths):
+    paths = dict.fromkeys(os.path.normcase(os.path.abspath(path)) for path in import_paths)
+    return {**os.environ, 'PYTHONPATH': os.pathsep.join(paths)}
+
+
 def get_reply(messages):
     user = messages[-1]['content']
     if user.startswith('Continue this scene'):
@@ -243,13 +248,27 @@ class LlmProfileAdmissionTests(unittest.TestCase):
         self.assertGreater(result['sleep_calls'], 0)
         self.assertIsNone(result['aliases'])
 
+    def test_workflow_environment_bounds_duplicate_import_paths_without_losing_precedence(self):
+        first = str(Path(__file__).resolve().parent.parent)
+        second = str(Path(__file__).resolve().parents[2])
+        paths = [first, second] * 1000
+        self.assertGreater(len(os.pathsep.join(paths)), 32767)
+        before = os.environ.copy()
+        environment = get_workflow_environment(paths)
+        expected = [os.path.normcase(os.path.abspath(path)) for path in (first, second)]
+        self.assertEqual(expected, environment['PYTHONPATH'].split(os.pathsep))
+        self.assertLess(len(environment['PYTHONPATH']), 32767)
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(environment['PYTHONPATH'], os.environ['PYTHONPATH'])
+        self.assertEqual(before, dict(os.environ))
+
     def test_manual_native_review_and_nickname_queues_only_request_book_work(self):
         code = ('import faulthandler; faulthandler.dump_traceback_later(10, exit=True); '
                 'from tests.test_llm_profile_admission import LlmProfileAdmissionTests; '
                 'LlmProfileAdmissionTests()._run_manual_workflows()')
-        env = {**os.environ, 'PYTHONPATH': os.pathsep.join(os.path.abspath(path) for path in sys.path)}
+        env = get_workflow_environment(sys.path)
         result = subprocess.run([sys.executable, '-c', code], env=env,
-                                capture_output=True, text=True, timeout=12)
+                                capture_output=True, text=True, timeout=12, stdin=subprocess.DEVNULL)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def _run_manual_workflows(self):

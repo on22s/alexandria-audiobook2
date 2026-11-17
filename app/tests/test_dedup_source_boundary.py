@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 import dedup_benchmark as worker
+from tests.test_support import skip_unless_symlink
 
 
 class DedupSourceBoundaryTests(unittest.TestCase):
@@ -44,7 +45,14 @@ class DedupSourceBoundaryTests(unittest.TestCase):
         return SimpleNamespace(returncode=0, stdout='', stderr='')
 
     def test_outside_datasets_metadata_and_audio_refuse_before_dispatch(self):
-        for mode in ('dataset-absolute', 'dataset-parent', 'metadata-link', 'audio-link', 'audio-absolute', 'audio-parent'):
+        self.assert_outside_refused(('dataset-absolute', 'dataset-parent', 'audio-absolute', 'audio-parent'))
+
+    @skip_unless_symlink
+    def test_outside_symlink_metadata_and_audio_refuse_before_dispatch(self):
+        self.assert_outside_refused(('metadata-link', 'audio-link'))
+
+    def assert_outside_refused(self, modes):
+        for mode in modes:
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); dataset, entries, fixture = self.fixture(root)
                 original = (dataset / 'train/one.wav').read_bytes()
@@ -56,7 +64,8 @@ class DedupSourceBoundaryTests(unittest.TestCase):
                     (dataset / 'metadata.jsonl').unlink(); (dataset / 'metadata.jsonl').symlink_to(outside)
                 else:
                     outside = root / 'outside.wav'; outside.write_bytes(original)
-                    (dataset / 'link.wav').symlink_to(outside)
+                    if mode == 'audio-link':
+                        (dataset / 'link.wav').symlink_to(outside)
                     entries[0]['audio_filepath'] = {'audio-link': 'link.wav', 'audio-absolute': str(outside),
                                                     'audio-parent': '../outside.wav'}[mode]
                     self.metadata(dataset, entries, fixture)
@@ -71,19 +80,31 @@ class DedupSourceBoundaryTests(unittest.TestCase):
         for name in ('../dataset/train/one.wav', './train/one.wav', 'train//one.wav', 'C:one.wav', 'bad\\one.wav'):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); dataset, entries, fixture = self.fixture(root)
-                if name in ('C:one.wav', 'bad\\one.wav'):
-                    (dataset / name).write_bytes((dataset / 'train/one.wav').read_bytes())
-                entries[0]['audio_filepath'] = name; self.metadata(dataset, entries, fixture)
+                digest = fixture['audio_sha256'].pop(entries[0]['audio_filepath'])
+                entries[0]['audio_filepath'] = name
+                fixture['audio_sha256'][name] = digest
+                metadata = dataset / 'metadata.jsonl'
+                metadata.write_text(''.join(json.dumps(row) + '\n' for row in entries))
+                fixture['metadata_sha256'] = hashlib.sha256(metadata.read_bytes()).hexdigest()
                 with patch.object(worker.subprocess, 'run', side_effect=self.analysis) as dispatch:
                     with self.assertRaisesRegex(ValueError, 'unsafe dedup audio member'):
                         worker.execute_fixture(fixture, 'fixture-python', 'fixture-analysis')
                     dispatch.assert_not_called()
 
+    def test_safe_nested_audio_keeps_exact_archive_metadata(self):
+        self.assert_archive_metadata(use_symlink=False)
+
+    @skip_unless_symlink
     def test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata(self):
+        self.assert_archive_metadata(use_symlink=True)
+
+    def assert_archive_metadata(self, *, use_symlink):
         with tempfile.TemporaryDirectory() as tmp:
             dataset, entries, fixture = self.fixture(Path(tmp))
-            (dataset / 'inside.wav').symlink_to(dataset / 'train/one.wav')
-            entries[0]['audio_filepath'] = 'inside.wav'; self.metadata(dataset, entries, fixture)
+            if use_symlink:
+                (dataset / 'inside.wav').symlink_to(dataset / 'train/one.wav')
+                entries[0]['audio_filepath'] = 'inside.wav'
+            self.metadata(dataset, entries, fixture)
             before = copy.deepcopy(fixture)
             with patch.object(worker.subprocess, 'run', side_effect=self.analysis):
                 result = worker.execute_fixture(fixture, 'fixture-python', 'fixture-analysis')
