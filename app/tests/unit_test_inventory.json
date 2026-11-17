@@ -8438,6 +8438,7 @@
   , "test_manual_activity_js": [
     "tests.test_manual_activity_js.ManualActivityTests.test_paused_task_hides_model_wait_and_eta_until_resumed"
     , "tests.test_manual_activity_js.ManualActivityTests.test_pending_reply_is_announced_without_model_wait_or_running_eta"
+    , "tests.test_manual_activity_js.ManualActivityTests.test_speaker_merge_stage_replaces_the_finished_review_batch_count"
   ]
   , "test_manual_alias_validation": [
     "tests.test_manual_alias_validation.ManualAliasValidationTests.test_identity_case_fixes_chains_and_blank_editor_rows_keep_existing_contract"
@@ -11927,6 +11928,23 @@
     , "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_http_access_refuses_expired_and_invalid_timestamps_without_pruning"
     , "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_prune_aborts_unconsumed_preparation_before_expiry_deletion"
     , "tests.test_review_decision_recovery.ReviewSessionAgeTests.test_prune_cannot_delete_session_when_preparation_abort_fails"
+  ]
+  , "test_review_dedupe_progress": [
+    "tests.test_review_dedupe_progress.ComputeEtaMergeStageTests.test_batch_review_keeps_book_progress_and_its_eta"
+    , "tests.test_review_dedupe_progress.ComputeEtaMergeStageTests.test_batch_review_log_prefix_does_not_hide_the_merge_stage"
+    , "tests.test_review_dedupe_progress.ComputeEtaMergeStageTests.test_merge_marker_wins_over_the_finished_review_batch_count"
+    , "tests.test_review_dedupe_progress.ComputeEtaMergeStageTests.test_merge_stage_outcome_line_stays_current_progress"
+    , "tests.test_review_dedupe_progress.ComputeEtaMergeStageTests.test_review_still_in_its_batch_loop_is_unaffected"
+    , "tests.test_review_dedupe_progress.DedupeStageLoggingTests.test_exhausted_call_is_not_reported_as_an_empty_success"
+    , "tests.test_review_dedupe_progress.DedupeStageLoggingTests.test_no_duplicates_still_reports_the_outcome_and_duration"
+    , "tests.test_review_dedupe_progress.DedupeStageLoggingTests.test_one_label_prints_no_call_and_never_asks_the_model"
+    , "tests.test_review_dedupe_progress.DedupeStageLoggingTests.test_raising_call_reports_the_failure_and_falls_back_to_known_aliases"
+    , "tests.test_review_dedupe_progress.DedupeStageLoggingTests.test_stage_call_and_summary_lines_print_in_order_after_the_last_batch"
+    , "tests.test_review_dedupe_progress.FrontendActivityMarkerParityTests.test_activity_marker_literal_carries_the_python_marker"
+    , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_drops_the_review_batch_behind_the_merge_stage"
+    , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_picks_the_merge_line_over_the_finished_batch"
+    , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_recognises_the_merge_line_under_a_batch_log_prefix"
+    , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_still_prefers_the_review_batch_while_reviewing"
   ]
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"

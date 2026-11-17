@@ -1129,6 +1129,15 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     state["processes"] = []
 
 
+# The speaker alias-merge stage ("Merge duplicate character names", #2037).
+# review_script.dedupe_speakers prints one line per model call prefixed with
+# this marker, after the review's own last "Reviewing batch N/N" line - the
+# finished batch count that otherwise stays the newest progress marker for
+# the whole, potentially long, merge call. One definition, used by the
+# producers (review_script.py) and every reader (_compute_eta here,
+# routers/script.py's stage hint, static/js/app-core.js's ACTIVITY_MARKER).
+SPEAKER_MERGE_MARKER = "Merging duplicate names:"
+
 _PROGRESS_RE = re.compile(r'(\d+)\s*/\s*(\d+)')
 # The three-pass pipeline prints its own estimate after every finished unit
 # (three_pass_generate.RunProgress.eta_line): it knows the plan, the actual
@@ -1166,6 +1175,7 @@ def _compute_eta(state: dict) -> dict:
     sub_fraction = 0.0
     sub_progress = None
     pipeline_eta = None
+    merge_stage = False
     tail = state.get("logs", [])[-30:]
     # The pipeline's own line wins over any N/M marker after it ("chunk 5/5
     # done" would otherwise read as 100% between two ETA lines).
@@ -1188,6 +1198,18 @@ def _compute_eta(state: dict) -> dict:
             # N/M but describe book-level progress, not the current item's
             # sub-batch progress.
             continue
+        if SPEAKER_MERGE_MARKER in stripped:
+            # The alias-merge stage runs after the last review batch, so its
+            # own marker is what the run is doing now - not the frozen
+            # "Reviewing batch 5/5" behind it (#2037). It is one long model
+            # call whose own count is the stage's unit, so the whole line is
+            # the progress text and the review fraction stays complete.
+            # Batch review prefixes each book's lines ("[2] ..."), hence `in`
+            # rather than a prefix test.
+            merge_stage = True
+            sub_fraction = 1.0
+            sub_progress = stripped
+            break
         m = _PROGRESS_RE.search(line)
         if m:
             cur, tot = int(m.group(1)), int(m.group(2))
@@ -1236,8 +1258,14 @@ def _compute_eta(state: dict) -> dict:
         progress = sub_progress
 
     eta_seconds = None
-    if pipeline_eta is not None and not (tasks and idx is not None and idx >= 0):
+    single_item = not (tasks and idx is not None and idx >= 0)
+    if pipeline_eta is not None and single_item:
         eta_seconds = pipeline_eta
+    elif merge_stage and single_item:
+        # One model call of unknown length: a fraction of 1.0 would report
+        # "about 0s left" while it is still running, so report no estimate
+        # and let the activity row say it is waiting on the model.
+        eta_seconds = None
     elif fraction and fraction > 0.001:  # Avoid enormous ETAs at start
         eta_seconds = elapsed * (1 - fraction) / fraction
     return {"elapsed_seconds": elapsed, "eta_seconds": eta_seconds, "progress": progress, "fraction": fraction}
