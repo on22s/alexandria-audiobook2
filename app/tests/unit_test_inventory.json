@@ -4628,6 +4628,7 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_cpu_pairs_are_resumable_and_changed_inputs_or_audio_refuse_reuse"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_default_packages_use_independent_randomization"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_does_not_delete_a_replacement"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_reports_replacement_before_open"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_failed_collection_exits_nonzero"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_cannot_be_packaged_and_package_audio_tamper_is_detected"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_exits_nonzero_even_when_pairs_complete"
@@ -4636,8 +4637,10 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_cli_default_seed_is_random"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_requires_complete_passing_run_and_separate_concealed_key"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_tamper_and_duplicate_answers_are_rejected"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_cleanup_reports_all_failures_and_attempts_both_manifests"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_collision_preserves_foreign_output_directory"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_collision_preserves_foreign_public_file"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_partial_copy_is_owned_and_cleaned"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_recomputes_fidelity_and_refuses_stale_pass"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_refuses_manifest_that_omits_a_failed_pair"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_rejects_a_consistent_request_tamper"
@@ -5557,6 +5560,7 @@
   , "test_expected_prosody_fusion": []
   , "test_experiment_audio_cleanup": [
     "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_dataset_consistency_cleanup_on_success_missing_metadata_metric_error_and_exception"
+    , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_experiment_basename_expressions_handle_native_trailing_separators"
     , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_reference_match_cleanup_on_success_missing_metadata_metric_error_and_exception"
   ]
   , "test_experiment_conventions": [
@@ -17228,8 +17232,11 @@
   ]
   , "test_windows_native_ci": [
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_native_methods_on_windows"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_seven_native_dialogue_cleanup_checks_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_every_native_transaction_check_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_invalid_repin_arguments_refuse_before_registry_access"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_checks_refuse_wrong_host_before_application_imports"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_runner_rejects_incomplete_or_skipped_checks"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_transaction_checks_refuse_a_non_windows_host"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ]
