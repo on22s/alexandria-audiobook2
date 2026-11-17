@@ -430,7 +430,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("document.getElementById('llm-transport').value = p.transport", js)
         self.assertIn("async function renderManualRequest(status, taskName)", js)
         self.assertIn("if (activityId) { renderManualRequest(status, taskName); }", js)
-        self.assertIn("await copyToClipboard(manualPromptText(req), 'Prompt')", js)
+        self.assertIn("await copyToClipboard(manualPromptText(req), t('core.copy.subject-prompt', 'Prompt'))", js)
         self.assertIn("API.post('/api/manual_llm/response'", js)
 
     def test_voices_scope_control_drives_personas_and_suggestions(self):

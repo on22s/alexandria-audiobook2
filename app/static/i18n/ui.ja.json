@@ -6474,5 +6474,6 @@
   "voices.status.finished": "終了",
   "voices.status.running": "実行中…",
   "voices.status.running-advanced": "詳細モードを実行中…",
-  "audio.chapters.export.settings-changed": "本または章の設定が変更されました。エクスポートする前に、現在の選択をプレビューしてください。"
+  "audio.chapters.export.settings-changed": "本または章の設定が変更されました。エクスポートする前に、現在の選択をプレビューしてください。",
+  "core.copy.subject-persona-prompt": "ペルソナ用プロンプト"
 }

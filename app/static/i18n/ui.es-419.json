@@ -6474,5 +6474,6 @@
   "voices.status.finished": "Terminado",
   "voices.status.running": "En ejecución…",
   "voices.status.running-advanced": "Modo avanzado en ejecución…",
-  "audio.chapters.export.settings-changed": "La configuración del libro o de los capítulos cambió. Previsualiza la selección actual antes de exportar."
+  "audio.chapters.export.settings-changed": "La configuración del libro o de los capítulos cambió. Previsualiza la selección actual antes de exportar.",
+  "core.copy.subject-persona-prompt": "el prompt de personaje"
 }

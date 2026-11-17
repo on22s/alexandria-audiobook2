@@ -6474,5 +6474,6 @@
   "voices.status.finished": "已完成",
   "voices.status.running": "正在运行…",
   "voices.status.running-advanced": "高级模式运行中…",
-  "audio.chapters.export.settings-changed": "书籍或章节设置已更改。请先预览当前选择，再导出。"
+  "audio.chapters.export.settings-changed": "书籍或章节设置已更改。请先预览当前选择，再导出。",
+  "core.copy.subject-persona-prompt": "角色提示词"
 }

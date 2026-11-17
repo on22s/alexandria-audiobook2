@@ -34,9 +34,10 @@ from pathlib import Path
 JS = Path(__file__).resolve().parent.parent / 'static' / 'js'
 CORE = JS / 'app-core.js'
 TRAINING = JS / 'app-training.js'
+VOICELAB = JS / 'app-voicelab.js'
 # Every file this guard covers. A file added here is scanned by every test
 # below; that is the whole point of keeping the scanner parametrised.
-SOURCES = {'app-core.js': CORE, 'app-training.js': TRAINING}
+SOURCES = {'app-core.js': CORE, 'app-training.js': TRAINING, 'app-voicelab.js': VOICELAB}
 
 HELPERS = ('showToast', 'showActionError', 'getActionErrorMessage', 'confirmIfRemote')
 TEXT_TARGETS = ('textContent', 'innerText')
@@ -228,6 +229,12 @@ def _translated_template(source, index, raw):
 # shown to the user; the scan checks it as well as the first argument (#2017).
 RECOVERY_HELPERS = ('showActionError', 'getActionErrorMessage')
 
+# Every helper argument beyond the first that reaches the screen: name ->
+# (argument index, label). copyToClipboard's subject renders as
+# '<subject> copied to the clipboard.' (#2018).
+EXTRA_SHOWN_ARGS = {name: (2, 'recovery') for name in RECOVERY_HELPERS}
+EXTRA_SHOWN_ARGS['copyToClipboard'] = (1, 'subject')
+
 
 def argument_starts(text, index):
     """Start offsets of each top-level argument of the call whose '(' ends at index."""
@@ -342,21 +349,21 @@ def scan(source):
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
                 findings.append((line_of(source, match.start()), name, raw))
-    for name in RECOVERY_HELPERS:
+    for name, (position, label) in EXTRA_SHOWN_ARGS.items():
         for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
             if not mask[match.start()]:
                 continue
             starts = argument_starts(source, match.end())
-            if len(starts) < 3:
+            if len(starts) <= position:
                 continue
-            index = starts[2]
+            index = starts[position]
             while index < len(source) and source[index].isspace():
                 index += 1
             if index >= len(source) or source[index] not in QUOTES:
                 continue
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
-                findings.append((line_of(source, match.start()), name + ' recovery', raw))
+                findings.append((line_of(source, match.start()), name + ' ' + label, raw))
     # A message argument that is not itself a literal can still hold one: the
     # ternary `refused ? 'Dataset upload refused' : 'Upload error'` was exactly
     # that shape in app-training.js (#2019), and the first-token check above
@@ -368,13 +375,13 @@ def scan(source):
             starts = argument_starts(source, match.end())
             if starts:
                 findings.extend(arm_findings(source, starts[0], name))
-    for name in RECOVERY_HELPERS:
+    for name, (position, label) in EXTRA_SHOWN_ARGS.items():
         for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
             if not mask[match.start()]:
                 continue
             starts = argument_starts(source, match.end())
-            if len(starts) >= 3:
-                findings.extend(arm_findings(source, starts[2], name + ' recovery'))
+            if len(starts) > position:
+                findings.extend(arm_findings(source, starts[position], name + ' ' + label))
     for target in TEXT_TARGETS:
         for match in re.finditer(r'\.\s*' + target + r'\s*=(?!=)\s*', source):
             if not mask[match.start()]:
@@ -409,6 +416,13 @@ class ScannerFixtureTests(unittest.TestCase):
         self.assertIn(('showActionError recovery', 'Recovery text.'), found)
         self.assertIn(('getActionErrorMessage recovery', 'Recovery.'), found)
         self.assertEqual(6, len(found))
+
+    def test_a_bare_clipboard_subject_is_reported(self):
+        source = ("copyToClipboard(text, 'Persona prompt');\n"
+                  "copyToClipboard(text, t('core.copy.subject-prompt', 'Prompt'));\n"
+                  "copyToClipboard(text);\n")
+        found = [(site, raw) for _line, site, raw in scan(source)]
+        self.assertEqual([('copyToClipboard subject', 'Persona prompt')], found)
 
     def test_a_bare_recovery_argument_is_reported_even_when_the_action_is_translated(self):
         source = ("showActionError(t('core.save.failed', 'Could not save'), err, 'Try again later.');\n"
