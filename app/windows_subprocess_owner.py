@@ -17,6 +17,31 @@ from windows_subprocess_job import (WindowsSubprocessJob, get_windows_job_api,
                                     get_windows_job_active_process_count)
 
 
+WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS = 10.0
+WINDOWS_OWNER_RECOVERY_RETRY_SECONDS = 30.0
+# Access denied, invalid handle and invalid parameter cannot recover by waiting.
+# All other codes, including a missing code, retry within the same deadline:
+# an unknown error is not evidence of a permanent failure or a stopped tree.
+WINDOWS_OWNER_PERMANENT_ERRORS = frozenset({5, 6, 87})
+_retained_windows_owners = set()
+
+
+class WindowsOwnerCleanupError(OSError):
+    def __init__(self, owner, error, *, deadline_exceeded=False):
+        code = getattr(error, 'winerror', None) or error.errno
+        reason = 'deadline exceeded' if deadline_exceeded else 'failed without retry'
+        try:
+            members = ', '.join(str(pid) for pid in owner.job.get_process_ids(max_queries=8))
+            membership = f'Job member PIDs: {members or "none observed"}.'
+        except OSError:
+            membership = f'Job member PIDs unavailable; supervisor PID {owner.process.pid}.'
+        super().__init__(code, f'Windows owner cleanup {reason} (Win32 error {code}); '
+                         'owned process tree not proven dead; retaining ownership and task/GPU leases. '
+                         f'{membership} End the owned processes in Task Manager or restart the app. '
+                         'The retained locks release automatically once the job is confirmed empty.')
+        self.owner = owner
+
+
 def save_windows_owner_message(path, message):
     # Even escaped astral characters fit the bounded receipt. Keep a useful
     # error prefix rather than publishing a startup error the reader refuses.
@@ -54,9 +79,9 @@ def read_windows_owner_message(path):
 
 
 def _serialize_owner_close(method):
-    def guarded(self):
+    def guarded(self, *args, **kwargs):
         with self._close_lock:
-            return method(self)
+            return method(self, *args, **kwargs)
     return guarded
 
 
@@ -65,7 +90,10 @@ class WindowsOwnerControl:
         self.job = job
         self.process = process
         self.directory = directory
-        self._close_lock = threading.Lock()
+        self._close_lock = threading.RLock()
+        self.cleanup_error = None
+        self._cleanup_retry_at = 0
+        self.cancel_directory = None
         from subprocess_ownership import SUBPROCESS_TERMINATE_GRACE_SECONDS
         self.termination_grace = (SUBPROCESS_TERMINATE_GRACE_SECONDS if termination_grace is None
                                   else termination_grace)
@@ -79,24 +107,60 @@ class WindowsOwnerControl:
         self.job.terminate()
 
     @_serialize_owner_close
-    def close(self):
+    def retry_cleanup(self):
+        """Observe membership each time; serialize close and force retries on one schedule."""
+        if self.job.handle is None or self.cleanup_error is None:
+            return
+        active = self.job.get_active_process_count()
+        if (time.monotonic() < self._cleanup_retry_at
+                or (active and self.cleanup_error.errno == 5)):
+            return
+        self._cleanup_retry_at = time.monotonic() + WINDOWS_OWNER_RECOVERY_RETRY_SECONDS
+        if not active:
+            self.close(deadline=time.monotonic())
+            return
+        try:
+            self.job.terminate()
+        except OSError as error:
+            failure = WindowsOwnerCleanupError(self, error)
+            self.cleanup_error = failure
+            logging.error('%s', failure)
+            raise failure from error
+
+    @_serialize_owner_close
+    def close(self, *, deadline=None):
         if self.job.handle is None:
             return
-        # Never hand back the task slot while kernel membership is unknown/live.
-        # All API failures use the same policy: log, retain ownership, retry.
+        if deadline is None:
+            deadline = time.monotonic() + WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS
+        backoff = .05
         reported = False
         while True:
             try:
                 if self.job.get_active_process_count():
                     self.job.terminate()
-                    self.job.ensure_stopped()
+                    self.job.ensure_stopped(deadline=deadline)
                 self.job.close()
+                self.cleanup_error = None
+                _retained_windows_owners.discard(self)
                 break
-            except OSError:
+            except OSError as error:
                 if not reported:
                     logging.exception('Could not stop Windows job; retaining ownership')
                     reported = True
-                time.sleep(.05)
+                remaining = deadline - time.monotonic()
+                code = getattr(error, 'winerror', None) or error.errno
+                if code in WINDOWS_OWNER_PERMANENT_ERRORS or remaining <= 0:
+                    from review_startup import record_failure
+                    failure = WindowsOwnerCleanupError(self, error, deadline_exceeded=remaining <= 0)
+                    self.cleanup_error = failure
+                    self._cleanup_retry_at = time.monotonic() + WINDOWS_OWNER_RECOVERY_RETRY_SECONDS
+                    _retained_windows_owners.add(self)
+                    logging.error('%s', failure)
+                    record_failure('windows_owner_cleanup_failed', failure, task='subprocess_owner')
+                    raise failure from error
+                time.sleep(min(backoff, remaining))
+                backoff = min(backoff * 2, .5)
         try:
             self.directory.cleanup()
         except OSError:
@@ -104,6 +168,11 @@ class WindowsOwnerControl:
             # A blocked temporary receipt must not mask admission failure or
             # prevent the caller from waiting/closing its process and pipes.
             logging.exception('Could not remove Windows owner temporary files after job shutdown')
+        if self.cancel_directory is not None:
+            try:
+                self.cancel_directory.cleanup()
+            except OSError:
+                logging.exception('Could not remove Windows cancel files after job shutdown')
 
 
 def _inherited_windows_environment():

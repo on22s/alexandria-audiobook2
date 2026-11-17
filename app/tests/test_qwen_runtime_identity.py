@@ -44,6 +44,17 @@ class IdentityCaptureTests(unittest.TestCase):
         venv.EnvBuilder(with_pip=False, symlinks=os.name != "nt").create(root)
         return str(root / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
 
+    def test_identity_cleanup_failure_is_not_translated_to_value_error(self):
+        from types import SimpleNamespace
+        from windows_subprocess_owner import WindowsOwnerCleanupError
+        failure = WindowsOwnerCleanupError(
+            SimpleNamespace(job=SimpleNamespace(get_process_ids=lambda **kwargs: [9001]),
+                            process=SimpleNamespace(pid=9001)), OSError(5, 'denied'))
+        with patch.object(qr, 'run_owned_capture', side_effect=failure), \
+             self.assertRaises(WindowsOwnerCleanupError) as raised:
+            qr.get_qwen_runtime_identity(THIS_PY)
+        self.assertIs(failure, raised.exception)
+
     def test_capture_reports_real_interpreter_facts(self):
         facts = qr.get_qwen_runtime_identity(THIS_PY)
         # Execute the selected venv entry; only its executable bytes resolve.

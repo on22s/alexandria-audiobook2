@@ -1631,6 +1631,7 @@
     , "tests.test_benchmark_ui_js.BenchmarkUiJsTests.test_initial_status_failure_retries_without_duplicate_timers_and_stops_on_idle"
     , "tests.test_benchmark_ui_js.BenchmarkUiJsTests.test_manifest_object_contract_blocks_arrays_before_api_requests"
     , "tests.test_benchmark_ui_js.BenchmarkUiJsTests.test_pending_status_request_suppresses_interval_overlap_and_releases_after_error"
+    , "tests.test_benchmark_ui_js.BenchmarkUiJsTests.test_retained_failure_displays_recovery_and_keeps_start_blocked_until_release"
   ]
   , "test_benchmark_worker_identity": [
     "tests.test_benchmark_worker_identity.BenchmarkWorkerIdentityTests.test_cpu_fingerprint_separates_dirty_orchestrator_from_clean_worker"
@@ -10695,6 +10696,7 @@
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_rejected_pending_refresh_retries_latest_and_preserves_new_edit"
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_reset_discards_old_book_dirty_choices"
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_reset_refreshes_and_new_generation_can_complete"
+    , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_retained_failure_keeps_controls_and_diagnostic_until_shutdown"
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_stale_response_after_reset_ignored"
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_status_failure_preserves_reason_without_promising_chunk_success"
     , "tests.test_qwen_review_v2_repairs.JsHarnessTests.test_status_refreshes_queue_only_latest_book_without_overlapping_requests"
@@ -10801,6 +10803,7 @@
   , "test_qwen_runtime": [
     "tests.test_qwen_runtime.CapabilityTests.test_missing_imports_not_ready"
     , "tests.test_qwen_runtime.CapabilityTests.test_missing_model_not_ready"
+    , "tests.test_qwen_runtime.CapabilityTests.test_probe_cleanup_failure_is_not_downgraded_to_unavailable"
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_compile"
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_error_not_ready"
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_keeps_plain_reason_for_ascii_path_or_other_platform"
@@ -10824,6 +10827,7 @@
   , "test_qwen_runtime_identity": [
     "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_capture_is_stable"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_capture_reports_real_interpreter_facts"
+    , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_identity_cleanup_failure_is_not_translated_to_value_error"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_interpreter_swap_changes_identity"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_metadata_change_changes_identity"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_provider_digest_binds_runtime_not_strings"
@@ -11776,6 +11780,9 @@
   , "test_retained_task_lease": [
     "tests.test_retained_task_lease.RetainedTaskLeaseTests.test_killed_server_cpu_lease_survives_until_all_workers_are_reaped"
     , "tests.test_retained_task_lease.RetainedTaskLeaseTests.test_killed_server_lease_survives_in_paused_owner_until_all_workers_are_reaped"
+  ]
+  , "test_retained_task_status": [
+    "tests.test_retained_task_status.RetainedTaskStatusTests.test_discovery_detail_benchmark_dataset_and_eta_agree_on_failed_ownership"
   ]
   , "test_retrain_artifact_completion": [
     "tests.test_retrain_artifact_completion.RetrainArtifactTests.test_actual_producer_publishes_bound_full_vectors_and_reusable_artifacts"
@@ -14868,6 +14875,7 @@
     , "tests.test_task_reattachment.TaskDiscoveryTests.test_remote_persona_and_local_voicelab_are_permitted_by_native_admission"
     , "tests.test_task_reattachment.TaskReattachmentJsTests.test_every_current_registered_task_gets_a_restoration_or_activity_observer"
     , "tests.test_task_reattachment.TaskReattachmentJsTests.test_exports_and_builder_restore_exact_owner_and_missing_owner_is_visible"
+    , "tests.test_task_reattachment.TaskReattachmentJsTests.test_failed_owner_restores_diagnostics_and_keeps_controls_claimed_until_recovery"
     , "tests.test_task_reattachment.TaskReattachmentJsTests.test_one_failed_adapter_does_not_suppress_other_running_tasks"
     , "tests.test_task_reattachment.TaskReattachmentJsTests.test_outlier_reattachment_fetches_owner_identity_before_attaching"
     , "tests.test_task_reattachment.TaskReattachmentJsTests.test_reattached_mp3_completion_invalidates_the_export_evidence_view"
@@ -16963,6 +16971,7 @@
   , "test_voicelab_cpu_admission": [
     "tests.test_voicelab_cpu_admission.VoiceLabCpuAdmissionTests.test_actual_http_name_apply_finishes_without_claiming_gpu_while_audio_stays_owned"
     , "tests.test_voicelab_cpu_admission.VoiceLabCpuAdmissionTests.test_pending_name_claim_allows_reverse_gpu_admission_but_duplicate_and_mixed_stages_stay_blocked"
+    , "tests.test_voicelab_cpu_admission.VoiceLabCpuAdmissionTests.test_stage_cleanup_failure_during_cancel_retains_failed_ownership"
   ]
   , "test_voicelab_diagnostics": [
     "tests.test_voicelab_diagnostics.BundleTests.test_bundle_is_versioned_and_wraps_sections"
@@ -16992,6 +17001,7 @@
     , "tests.test_voicelab_health.VoiceLabHealthTests.test_idle_when_no_history_and_no_state"
     , "tests.test_voicelab_health.VoiceLabHealthTests.test_newest_of_each_kind_is_selected"
     , "tests.test_voicelab_health.VoiceLabHealthTests.test_recovery_required_takes_precedence_over_success"
+    , "tests.test_voicelab_health.VoiceLabHealthTests.test_retained_owner_is_failed_with_recovery_not_running_or_idle"
     , "tests.test_voicelab_health.VoiceLabHealthTests.test_running_reports_stage_and_nonnegative_elapsed"
     , "tests.test_voicelab_health.VoiceLabMpsProbeTests.test_actual_selected_interpreter_probe_and_backend_specific_admission"
     , "tests.test_voicelab_health.VoiceLabNamingInputTests.test_name_only_needs_no_dataset_but_data_stages_still_refuse"
@@ -17286,6 +17296,36 @@
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_runner_rejects_incomplete_or_skipped_checks"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_transaction_checks_refuse_a_non_windows_host"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
+  ]
+  , "test_windows_owner_close_deadline": [
+    "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_benchmark_cancel_cleanup_failure_retains_task_and_gpu_leases"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_benchmark_cancel_keeps_process_registered_when_close_fails"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_cancellable_client_preserves_cleanup_error_despite_cancel"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_cleanup_failure_names_members_and_manual_recovery"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_failure_exhausts_deadline_and_preserves_cause_and_ownership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_failure_marks_task_failed_and_retains_leases"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_codeless_termination_failure_retries_then_proves_zero_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_dataset_generation_never_masks_cleanup_failure_or_releases_leases"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_empty_retained_job_close_uses_the_shared_retry_interval"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failed_admission_retains_gpu_and_task_leases_until_confirmed_shutdown"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failed_task_retains_gpu_and_task_leases_until_confirmed_shutdown"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_failure_pid_diagnostics_bound_repeated_membership_resize"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_invalid_handle_query_failure_retains_unknown_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_invalid_parameter_is_not_retried"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_membership_query_failure_remains_actionable_without_claiming_dead"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_permanent_termination_failure_is_bounded_and_retains_ownership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_published_script_cleanup_failure_never_reports_success"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_reaper_retries_live_owner_and_releases_only_after_zero_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_retained_access_denied_never_retries_termination"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_retained_retry_can_fail_permanently_without_losing_cause"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_retained_retry_is_throttled_and_never_closes_live_job"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_run_process_propagates_cleanup_failure_before_training_cancel_fallback"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_successful_termination_without_zero_membership_is_also_bounded"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_failure_exhausts_deadline_with_backoff_and_retains_ownership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_failure_returns_within_real_wall_clock_deadline"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_transient_termination_failure_retries_then_proves_zero_membership"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_unknown_close_failure_gets_one_recovery_attempt_per_interval"
+    , "tests.test_windows_owner_close_deadline.WindowsOwnerCloseDeadlineTests.test_unrecognized_numeric_error_uses_bounded_retry"
   ]
   , "test_windows_owner_lifecycle": [
     "tests.test_windows_owner_lifecycle.WindowsOwnerAdmissionTests.test_completed_owner_receipt_survives_transient_sharing_denial"

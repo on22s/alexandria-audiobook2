@@ -8,6 +8,7 @@ import tempfile
 import sys
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import core
@@ -82,3 +83,32 @@ class VoiceLabCpuAdmissionTests(unittest.TestCase):
         self.assertEqual(audio,core._task_claims['audio']['id'])
         asyncio.run(tasks()) # Stale pending token must not start naming after release.
         self.assertTrue((self.models/'raw_a').exists())
+
+    def test_stage_cleanup_failure_during_cancel_retains_failed_ownership(self):
+        process = SimpleNamespace(pid=9001)
+        job = SimpleNamespace(handle=123, get_process_ids=lambda **kwargs: [9001, 9002])
+        owner = SimpleNamespace(job=job, process=process)
+        failure = core.WindowsOwnerCleanupError(owner, OSError(5, 'denied'))
+        request = voice_lab.VoiceLabRequest(stages=['quality'], preflight_id='fixture')
+        preflight = {'preflight_id': 'fixture', 'blockers': [], '_zips_dir': str(self.root), '_profiler_model': ''}
+        def stream(*args, **kwargs):
+            self.states['voicelab']['cancel'] = True
+            raise failure
+        try:
+            with patch.object(voice_lab, '_build_voicelab_preflight', return_value=preflight), \
+                 patch.object(voice_lab, '_voicelab_build_commands', return_value=[('quality', ['fixture'], str(self.root), {})]), \
+                 patch.object(voice_lab, '_stream_subprocess_to_logs', side_effect=stream):
+                tasks = BackgroundTasks()
+                asyncio.run(voice_lab.voicelab_start(request, tasks))
+                core._gpu_leases['voicelab'] = None
+                asyncio.run(tasks())
+            state = self.states['voicelab']
+            self.assertEqual('failed', state['status'], state['logs'])
+            self.assertFalse(state['running'])
+            self.assertTrue(state['_windows_cleanup_failed'])
+            self.assertIn(process, state['processes'])
+            self.assertEqual('cleanup_failed', core._task_claims['voicelab']['phase'])
+            self.assertFalse(core._task_claims['voicelab']['lease'].closed)
+            self.assertIn('Win32 error 5', '\n'.join(state['logs']))
+        finally:
+            job.handle = None

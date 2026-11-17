@@ -40,6 +40,7 @@ from voicelab_settings import get_voice_lab_script_path
 from functools import wraps
 from benchmark_execution import (BENCHMARK_STATE, BenchmarkCancelled,
                                  run_benchmark_subprocess, get_cancellable_benchmark_client)
+from windows_subprocess_owner import WindowsOwnerCleanupError
 import generate_personas
 from find_nicknames import find_nicknames
 
@@ -561,6 +562,9 @@ def run_benchmark_repetitions(manifest, environment, report_path, state, execute
                 state["tasks"][fixture_index]["status"] = "done"
         apply_benchmark_completion(state, report, manifest, report_path)
         return report
+    except WindowsOwnerCleanupError:
+        apply_benchmark_boundary_failure(state)
+        raise
     except BenchmarkCancelled:
         # Direct caller bookkeeping, like batch: cancellation if flagged,
         # otherwise the old failure fallback rather than a running state.
@@ -625,6 +629,9 @@ def run_benchmark_batch(manifest, environment, report_path, state, execute_batch
                             state["tasks"][index]["status"] = "done"
         apply_benchmark_completion(state, report, manifest, report_path)
         return report
+    except WindowsOwnerCleanupError:
+        apply_benchmark_boundary_failure(state)
+        raise
     except BenchmarkCancelled:
         # Direct shared-lifecycle callers (not only the stage wrapper)
         # depend on cancellation bookkeeping/publication here before the

@@ -407,6 +407,11 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/native_windows_transaction_checks.py
+      - name: Verify bounded Windows owner cleanup and task failure
+        env:
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest tests.test_windows_owner_close_deadline -v
 
   windows-portability:
     if: ${{ !inputs.linux_only }}

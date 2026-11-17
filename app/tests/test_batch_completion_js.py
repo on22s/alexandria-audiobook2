@@ -32,9 +32,10 @@ class BatchCompletionJsTests(unittest.TestCase):
 await startBatch();snapshot=[1,2,3,4,5,6].map(id=>chunk(id));
 let data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),false,'pending startup still belongs to running worker');assert.strictEqual(timers.size,0);
 snapshot=snapshot.map(c=>({...c,status:'done'}));data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),false,'done chunks alone do not end worker lifecycle');
+audio={running:false,status:'failed',ownership_unconfirmed:true};data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),false,'a failed worker holding processes is not a completed batch');assert.strictEqual(run('isRenderingAll'),true);
 audio={running:false};data=await poll.fetch();assert.strictEqual(poll.doneCheck(data),true);await poll.onDone(data);
 assert.deepStrictEqual(toasts,[{message:'Batch complete: 6 succeeded, 0 failed, 0 cancelled, 0 unfinished',tone:'success'}]);assert.deepStrictEqual(drifts,[[1,2,3,4,5,6]]);
-assert.deepStrictEqual(requests.map(url=>url.split('?')[0]),Array(3).fill(['/api/status/audio','/api/chunks/status']).flat());assert.strictEqual(timers.size,0);
+assert.deepStrictEqual(requests.map(url=>url.split('?')[0]),Array(4).fill(['/api/status/audio','/api/chunks/status']).flat());assert.strictEqual(timers.size,0);
 ''')
 
     def test_terminal_partial_results_count_pending_skipped_missing_and_cancelled(self):

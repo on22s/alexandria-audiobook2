@@ -470,7 +470,11 @@ tick(['first','second','third']);assert.strictEqual(el.scrollTop,200);assert.str
 tick(['first','second','third']);assert.strictEqual(appends,1);assert.strictEqual(replaces,1);
 tick(['second','third','fourth']);assert.strictEqual(text,'second\nthird\nfourth');assert.strictEqual(el.scrollTop,200);
 tick([]);assert.strictEqual(text,'','empty run logs clear stale text');
-run("dsbCurrentProject='Other';");tick(['old owner']);assert.strictEqual(text,'','stale owner cannot repaint logs');
+poll.onTick({running:false,ownership_unconfirmed:true,status:'failed',logs:['Win32 error 5; end PIDs 9001, 9002 in Task Manager'],samples:[]});
+assert.strictEqual(run('dsbBatchRunning'),true,'retained ownership must keep dataset edits blocked');
+assert.strictEqual(poll.doneCheck({running:false,ownership_unconfirmed:true}),false,'retained job is not complete');
+assert.match(text,/Task Manager/,'recovery instructions stay visible');
+const retainedText=text;run("dsbCurrentProject='Other';");tick(['old owner']);assert.strictEqual(text,retainedText,'stale owner cannot repaint logs');
 ''')
 
     def test_scenario_must_finish_its_awaited_assertions(self):

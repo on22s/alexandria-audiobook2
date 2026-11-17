@@ -37,7 +37,7 @@ from config_settings import load_app_config
 from core import (CONFIG_PATH, REPORTS_DIR, ROOT_DIR, SCRIPTS_DIR, UPLOADS_DIR,
                   _init_batch_state, _run_claimed_background_task, check_global_gpu_lock,
                   claim_gpu_task, reserve_background_task, register_claimed_background_task,
-                  release_gpu_task_claim, process_state)
+                  release_gpu_task_claim, process_state, get_task_lifecycle)
 
 
 router = APIRouter()
@@ -238,5 +238,6 @@ async def benchmark_cancel():
 @router.get("/api/benchmark/status")
 async def benchmark_status():
     state = process_state["benchmark"]
-    return {key: value for key, value in state.items()
-            if key not in {"process", "processes"}}
+    return {**{key: value for key, value in state.items()
+               if key not in {"process", "processes", "_windows_cleanup_failed"}},
+            **get_task_lifecycle('benchmark', states=process_state)}

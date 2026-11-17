@@ -14,6 +14,7 @@ const ctx={window:null,console,Date,document:{getElementById:element,querySelect
  _startPolling:(key,fetch,options)=>polls[key]={fetch,...options},syncPauseButton:(...args)=>pause.push(args),syncSnapshotButton:()=>{},renderManualRequest:(...args)=>manual.push(args),renderActivity:(...args)=>activity.push(args),
  _updateReviewBatchTotals:()=>{},notifyJobDone:()=>notices++,_showTaskRecoveryPanel:()=>{},loadSavedScripts:()=>{},loadVoices:async()=>{},showToast:()=>{},loadChunks:()=>{}};ctx.window=ctx;
 vm.createContext(ctx);const run=code=>vm.runInContext(code,ctx);
+ctx.t=(key,english,values={})=>Object.entries(values).reduce((text,[name,value])=>text.replace('{'+name+'}',value),english);
 function load(start,end){const a=source.indexOf(start);assert(a>=0);const b=end?source.indexOf(end,a):source.length;assert(b>a);run(source.slice(a,b));}
 load('const taskStartButtons =','// --- API Helpers ---');
 if(source.includes('function getTaskLogUpdate(')){load('function getTaskLogUpdate(', '// --- Setup Tab ---');}
@@ -21,6 +22,7 @@ load('function _pollScriptBatchLogs()', '// --- Single review');
 load('function pollReviewBatch()', '// --- Persona Generation ---');
 load('async function pollPersonaStatus()', '// --- Voices Tab ---');
 load('async function pollLogs(');
+load('function getTaskOwnershipMessage(', 'function renderActivity(');
 const cases=[['batch_script','script-logs',()=>ctx._pollScriptBatchLogs()],['batch_review','script-logs',()=>ctx.pollReviewBatch()],['persona','voices-logs',()=>ctx.pollPersonaStatus()],['logs:script','script-logs',()=>ctx.pollLogs('script','script-logs',null,'activity')]];
 '''
 
@@ -44,6 +46,7 @@ for(const [key,id,start] of cases){
  for(const current of [['same','new','newer'],['newer'],['corrected'],[]]){tick({run_id:'one',running:true,logs:current});assert.strictEqual(el.innerText,current.join('\n'));}
  tick({run_id:'two',running:true,logs:['new run']});assert.strictEqual(el.innerText,'new run');assert(!polls[key].doneCheck({running:true}));assert(polls[key].doneCheck({running:false}));
  await start();polls[key].onTick({start_time:3,running:true,logs:['reattached']});assert.strictEqual(el.innerText,'reattached');
+ if(key==='persona'){polls[key].onTick({running:false,status:'failed',ownership_unconfirmed:true,logs:['Win32 error 5; end PIDs 9001, 9002 in Task Manager']});assert.match(element('persona-status').innerText,/Failed.*still holding processes.*Task Manager/);}
 }
 ''')
 

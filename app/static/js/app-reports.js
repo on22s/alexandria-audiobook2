@@ -375,19 +375,19 @@
             try {
                 const s = await API.get('/api/benchmark/status');
                 if (revision !== _benchmarkRunRevision) { return; }
-                _benchmarkRunning = !!s.running;
+                _benchmarkRunning = !!(s.running || s.ownership_unconfirmed);
                 _applyBenchmarkStartButton();
                 const done = (s.tasks || []).filter(t => t.status === 'done').length;
-                status.textContent = s.running
+                status.textContent = s.ownership_unconfirmed ? getTaskOwnershipMessage(s) : s.running
                     ? t('reports.benchmark.running-count', 'running · {done}/{total} fixtures', {done, total: (s.tasks || []).length})
                     : (s.status && s.status !== 'idle' ? s.status : t('reports.benchmark.idle', 'idle'));
                 cancelBtn.style.display = s.running ? '' : 'none';
                 if (s.running || (s.logs || []).length) {
                     out.textContent = (s.logs || []).slice(-40).join('\n');
                 }
-                if (s.running && !_benchmarkPoll) {
+                if ((s.running || s.ownership_unconfirmed) && !_benchmarkPoll) {
                     _startBenchmarkStatusPolling();
-                } else if (!s.running && _benchmarkPoll) {
+                } else if (!s.running && !s.ownership_unconfirmed && _benchmarkPoll) {
                     _benchmarkPoll();
                     _benchmarkPoll = null;
                 }

@@ -13,6 +13,7 @@ vm.runInContext(fs.readFileSync(process.argv[1].replace('app-workspace.js','app-
 Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
 const visibilityListeners=[];document.addEventListener=(name,fn)=>{if(name==='visibilitychange'){visibilityListeners.push(fn);}};
 Element.prototype.append=function(...nodes){for(const node of nodes){this.appendChild(node);}};
+Element.prototype.querySelector=function(selector){return this.querySelectorAll(selector)[0]||null;};
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}this.append(...nodes);};
 Element.prototype.focus=function(){document.activeElement=this;};
 for(const id of ['workspace-book-name','workspace-next-reason','workspace-continue','workspace-stages',
@@ -236,11 +237,20 @@ finished=true;
     def test_monitor_keeps_disclosure_nodes_and_withholds_eta_for_paused_manual_and_cancel(self):
         self.run_js(r'''
 (async()=>{
- responses['/api/status']={script:{running:true},new_task:{running:true}};
+ responses['/api/status']={script:{running:true,ownership_unconfirmed:false},new_task:{running:true,ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};
  responses['/api/status/new_task']={running:true,logs:['<img onerror=bad()>']};
+ responses['/api/status/failed_owner']={running:false,status:'failed',ownership_unconfirmed:true,cancel:true,logs:['Win32 error 5; end PIDs 9001 and 9002 in Task Manager or restart the app.']};
  for(const flags of [{paused:true},{manual_request:{id:'one'}},{cancel:true}]){
   responses['/api/status/script']={running:true,logs:['Step 2 (speakers): 2/4','Retrying... 2 of 3'],eta:{eta_seconds:999,elapsed_seconds:30},...flags};
   await context.refreshWorkspaceMonitor();
+  assert(requests.includes('/api/status/failed_owner'));assert(vm.runInContext('workspaceTaskViews.has("failed_owner")',context));
+  const retained=vm.runInContext('workspaceTaskViews.get("failed_owner")',context);
+  assert(retained.activity.textContent.includes('Failed — still holding processes'));
+  assert(retained.activity.textContent.includes('9001 and 9002'));
+  assert(retained.activity.textContent.includes('Task Manager'));
+  assert(retained.card.querySelector('details').open);
+  assert(elements('workspace-monitor-feedback').textContent.includes('still holding processes'));
+  assert(!elements('workspace-monitor-feedback').textContent.includes('No tasks'));
   const view=vm.runInContext('workspaceTaskViews.get("script")',context);
   assert(!view.activity.textContent.includes('999'));assert(view.timing.textContent.includes('withheld'));
   if(!flags.cancel){assert(view.activity.textContent.includes('Retrying'));}

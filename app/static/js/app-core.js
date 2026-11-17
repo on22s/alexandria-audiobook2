@@ -3008,7 +3008,7 @@
             while (Date.now() - started < maxMs) {
                 let status;
                 try { status = await API.get('/api/status/script'); } catch (e) { return false; }
-                if (!status.running) { return true; }
+                if (!status.running && !status.ownership_unconfirmed) { return true; }
                 await new Promise(r => setTimeout(r, 500));
             }
             return false;
@@ -3022,7 +3022,10 @@
             const batch = !!document.getElementById('script-batch-mode')?.checked;
             const isCurrent = () => book === currentBookFilename && batch === !!document.getElementById('script-batch-mode')?.checked;
             let running = false;
-            try { running = !!(await API.get('/api/status/script')).running; }
+            try {
+                const state = await API.get('/api/status/script');
+                running = !!(state.running || state.ownership_unconfirmed);
+            }
             catch (e) {
                 console.error('Could not check Script status before starting over:', e);
                 showToast('Script status could not be checked. Check that Alexandria is running, then try Start over again.', 'warning');
@@ -4956,7 +4959,8 @@
                 onTick: status => {
                     const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
                     renderManualRequest(status, 'persona');
-                    statusSpan.innerText = status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
+                    statusSpan.innerText = status.ownership_unconfirmed ? getTaskOwnershipMessage(status)
+                        : status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
                     if (cancelButton) {
                         cancelButton.style.display = status.running ? '' : 'none';
                     }
@@ -9626,7 +9630,7 @@
                     return { audio, chunks };
                 }, {
                     intervalMs: 2000,
-                    doneCheck: updated => !isRenderingAll || !updated.audio.running,
+                    doneCheck: updated => !isRenderingAll || (!updated.audio.running && !updated.audio.ownership_unconfirmed),
                     onDone: async (updated) => {
                         if (!isRenderingAll) { return; }
                         document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
@@ -10112,7 +10116,7 @@
                     if (myGen !== _pollGen[key]) { return; }
                     consecutiveErrors = 0;
                     if (onTick) { await onTick(data); }
-                    if (doneCheck(data)) {
+                    if (!data?.ownership_unconfirmed && doneCheck(data)) {
                         if (onDone) { onDone(data); }
                         return;
                     }
@@ -10175,8 +10179,18 @@
         // grew says how long. Client-side only (#588).
         const ACTIVITY_MARKER = /Step \d \([a-z]+\): |Retrying\.\.\.|Reviewing batch \d+\/\d+|Progress: \d+\/\d+/;
         const ACTIVITY_QUIET_MS = 10000;
+        function getTaskOwnershipMessage(state) {
+            const logs = Array.isArray(state.logs) ? state.logs.filter(line => typeof line === 'string') : [];
+            const detail = logs.at(-1) || t('core.task.ownership-recovery', 'End the owned processes in Task Manager or restart the app. Locks release automatically after shutdown is confirmed.');
+            return t('core.task.ownership-retained', 'Failed — still holding processes. {detail}', {detail});
+        }
         function renderActivity(el, status, track) {
             if (!el) { return; }
+            if (status.ownership_unconfirmed) {
+                el.hidden = false;
+                el.textContent = getTaskOwnershipMessage(status);
+                return;
+            }
             if (!status.running) { el.hidden = true; return; }
             const logs = status.logs || [];
             const now = Date.now();
