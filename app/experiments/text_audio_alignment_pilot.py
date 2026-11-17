@@ -248,7 +248,7 @@ def main():
                 "clustering audio.",
         "epub": os.path.basename(args.epub),
         "decoy_epub": os.path.basename(args.decoy_epub),
-        "source_dir": os.path.basename(args.source_dir.rstrip("/")),
+        "source_dir": os.path.basename(os.path.normpath(args.source_dir)),
         "real": real,
         "decoy": decoy,
         "sweep": sweep,

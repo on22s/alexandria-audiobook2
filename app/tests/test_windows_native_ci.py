@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'app/tests/native_windows_owner_checks.py'
 TRANSACTION_SCRIPT = ROOT / 'app/tests/native_windows_transaction_checks.py'
+DIALOGUE_SCRIPT = ROOT / 'app/tests/native_windows_dialogue_cleanup_checks.py'
 ALIAS_SCRIPT = ROOT / 'app/tests/native_windows_sound_temp_root_checks.py'
 SKIP_REGISTRY = ROOT / 'app/tests/windows_only_skip_baseline.txt'
 WORKFLOW = ROOT / '.github/workflows/sound-assets.yml'
@@ -4218,6 +4220,69 @@ def _assert_class_attribute_alias_controls(case):
 
 
 class NativeWindowsCiTests(unittest.TestCase):
+    def test_ci_runs_all_seven_native_dialogue_cleanup_checks_without_skips(self):
+        source = DIALOGUE_SCRIPT.read_text(encoding='utf-8')
+        tree = ast.parse(source)
+        case = next(node for node in tree.body if isinstance(node, ast.ClassDef))
+        self.assertEqual('NativeWindowsDialogueCleanupTests', case.name)
+        self.assertEqual({
+            'test_windows_cleanup_preserves_swapped_in_file',
+            'test_windows_cleanup_preserves_swapped_in_nonempty_directory',
+            'test_windows_cleanup_preserves_replaced_owned_directory',
+            'test_windows_cleanup_refuses_unadmitted_child',
+            'test_windows_directory_refusal_still_removes_both_manifests',
+            'test_windows_cleanup_readonly_file_refuses_releases_handles_and_retries',
+            'test_windows_cleanup_locked_file_refuses_releases_handles_and_retries',
+        }, {node.name for node in case.body if isinstance(node, ast.FunctionDef)
+            and node.name.startswith('test_')})
+        self.assertIn('NATIVE_TEST_COUNT = 7', source)
+        self.assertNotIn('skipUnless', source)
+        self.assertNotIn('skipIf', source)
+        workflow = (ROOT / '.github/workflows/tests.yml').read_text().split(
+            '  windows-owner:', 1)[1].split('\n  windows-portability:', 1)[0]
+        self.assertIn('run: python tests/native_windows_dialogue_cleanup_checks.py', workflow)
+        self.assertNotIn('continue-on-error:', workflow)
+
+    def test_native_dialogue_runner_rejects_incomplete_or_skipped_checks(self):
+        import tests as test_package
+        fixture = types.ModuleType('tests.test_dialogue_continuity_eval')
+        fixture.DialogueContinuityFixture = unittest.TestCase
+        fixture.ev = object()
+        for successful, count, skipped, expected in (
+                (True, 7, [], 0), (False, 7, [], 1), (True, 6, [], 1),
+                (True, 0, [], 1), (True, 7, [('native check', 'obstructed')], 1)):
+            with self.subTest(successful=successful, count=count, skipped=skipped):
+                result = types.SimpleNamespace(testsRun=count, skipped=skipped,
+                                               wasSuccessful=lambda: successful)
+                with mock.patch.object(sys, 'platform', 'win32'), \
+                     mock.patch.dict(sys.modules, {fixture.__name__: fixture}), \
+                     mock.patch.object(test_package, 'test_dialogue_continuity_eval',
+                                       fixture, create=True), \
+                     mock.patch.object(unittest, 'TextTestRunner') as runner:
+                    runner.return_value.run.return_value = result
+                    with self.assertRaises(SystemExit) as caught:
+                        runpy.run_path(str(DIALOGUE_SCRIPT), run_name='__main__')
+                    self.assertEqual(expected, caught.exception.code)
+                    self.assertEqual(7, runner.return_value.run.call_args.args[0].countTestCases())
+
+    def test_native_dialogue_checks_refuse_wrong_host_before_application_imports(self):
+        probe = (
+            "import builtins,runpy,sys\n"
+            "original_import=builtins.__import__\n"
+            "stdlib=set(sys.stdlib_module_names)|set(sys.builtin_module_names)\n"
+            "def guarded_import(name,globals=None,locals=None,fromlist=(),level=0):\n"
+            "    if level == 0 and name.split('.',1)[0] not in stdlib:\n"
+            "        raise AssertionError('application imported before host refusal')\n"
+            "    return original_import(name,globals,locals,fromlist,level)\n"
+            "builtins.__import__=guarded_import\n"
+            "sys.platform='darwin'\n"
+            "runpy.run_path(sys.argv[1],run_name='__main__')\n")
+        result = subprocess.run([sys.executable, '-B', '-c', probe, str(DIALOGUE_SCRIPT)],
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn('nothing was verified', result.stderr)
+        self.assertNotIn('application imported', result.stderr)
+
     def test_invalid_repin_arguments_refuse_before_registry_access(self):
         module = sys.modules[__name__]
         invalid_arguments = (
