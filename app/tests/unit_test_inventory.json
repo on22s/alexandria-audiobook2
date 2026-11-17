@@ -16200,6 +16200,15 @@
     , "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_ensemble_members_and_state_editor_translate"
     , "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_voice_card_paints_each_locale_and_restores_english"
   ]
+  , "test_ui_i18n_app_voicelab_literals": [
+    "tests.test_ui_i18n_app_voicelab_literals.CheckerFixtureTests.test_a_bare_display_literal_is_reported"
+    , "tests.test_ui_i18n_app_voicelab_literals.CheckerFixtureTests.test_a_keyed_call_and_its_english_argument_are_not_reported"
+    , "tests.test_ui_i18n_app_voicelab_literals.CheckerFixtureTests.test_every_argument_of_a_multi_argument_call_is_checked"
+    , "tests.test_ui_i18n_app_voicelab_literals.CheckerFixtureTests.test_variables_types_and_non_copy_literals_are_not_reported"
+    , "tests.test_ui_i18n_app_voicelab_literals.RealFileTests.test_every_key_the_file_uses_exists_in_all_four_catalogs"
+    , "tests.test_ui_i18n_app_voicelab_literals.RealFileTests.test_the_2018_failure_and_recovery_keys_are_used_and_translated"
+    , "tests.test_ui_i18n_app_voicelab_literals.RealFileTests.test_the_voice_lab_sinks_carry_no_bare_display_literal"
+  ]
   , "test_ui_i18n_editor_audio_reports": [
     "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_each_module_keys_its_safety_confirms"
     , "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_panes_are_keyed"
