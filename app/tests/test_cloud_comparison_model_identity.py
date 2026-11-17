@@ -1,5 +1,5 @@
 """Known immutable snapshots and actual comparison artifacts with CPU-only SDKs."""
-from tests.test_support import get_isolated_git_environment, isolate_git_environment
+from tests.test_support import get_isolated_git_environment, isolate_git_environment, use_private_cpu_fixture_lock
 import contextlib
 import importlib.util
 from importlib import metadata
@@ -16,6 +16,7 @@ import types
 import unittest
 from unittest.mock import patch
 import wave
+from experiments import gpu_guard
 
 REPO=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('cloud_comparison_provenance',REPO/'run_chains/cloud_comparison_provenance.py')
@@ -101,7 +102,7 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         (source/'untracked.py').write_text('unrecorded source\n')
         with self.assertRaises(ValueError):helper.get_comparison_source_commit(source)
 
-    def compare(self, kind, gpu_probe=None):
+    def compare(self, kind, gpu_probe=None, owner_verified=True):
         scripts=self.root/'run_chains';scripts.mkdir();builddir=self.root/'ab_test_runtime/reference_spread';builddir.mkdir(parents=True)
         (builddir/'build_spread3.json').write_text(json.dumps({'ref_sample':'ref.wav','ref_text':'Reference speech'}))
         (self.root/'ref.wav').write_bytes(b'known reference fixture')
@@ -121,18 +122,39 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         modules={'torch':fake_torch,'soundfile':types.SimpleNamespace(write=save),
                  'qwen_tts':types.SimpleNamespace(Qwen3TTSModel=klass),'torchaudio':types.SimpleNamespace(save=save),
                  'chatterbox':types.ModuleType('chatterbox'),'chatterbox.mtl_tts':types.SimpleNamespace(ChatterboxMultilingualTTS=klass)}
-        out=self.root/'out';out.mkdir();env=dict(ROOT=str(self.root),OUT=str(out),SRC=str(source),ALEXANDRIA_GPU_LOCK_HELD='1',
+        out=self.root/'out';out.mkdir();env=dict(ROOT=str(self.root),OUT=str(out),SRC=str(source),
+                                               ALEXANDRIA_GPU_LOCK_HELD='1', ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()),
                                                QWEN_MODEL_REVISION=self.commit,CHATTERBOX_MODEL_REVISION=self.commit)
         original=subprocess.check_output
+        actual_run=subprocess.run
+        owner_probes=[]
+        def run_owned_fixture(command, **kwargs):
+            if command == ['bash', str(wrapper), '--check-lock-owner', str(os.getpid())]:
+                owner_probes.append(command)
+                self.assertTrue(gpu_guard.gpu_is_busy(str(lock)))
+                return subprocess.CompletedProcess(command, 0 if owner_verified else 1)
+            return actual_run(command, **kwargs)
         def capture(argv,*args,**kwargs):
             if argv[0]=='nvidia-smi':
                 return gpu_probe(kwargs) if gpu_probe else 'fixture gpu'
             return original(argv,*args,**kwargs)
-        with patch.dict(sys.modules,modules),patch.dict(os.environ,env),patch.object(metadata,'version',return_value='1.2.3'), \
-             patch.object(subprocess,'check_output',side_effect=capture),contextlib.redirect_stdout(io.StringIO()):
+        with use_private_cpu_fixture_lock() as lock, contextlib.ExitStack() as stack, \
+             patch.dict(sys.modules,modules),patch.dict(os.environ,env),patch.object(metadata,'version',return_value='1.2.3'), \
+             patch.object(subprocess,'check_output',side_effect=capture), \
+             patch.object(subprocess,'run',side_effect=run_owned_fixture),contextlib.redirect_stdout(io.StringIO()):
+            with patch.dict(os.environ, {'ALEXANDRIA_GPU_LOCK_HELD': '0'}):
+                lease=gpu_guard.acquire_gpu_lock(str(lock))
+            stack.callback(gpu_guard.release_gpu_lock,lease)
             if kind=='qwen':
                 path=Path('/tmp/cloud_qwen_before300.py') if os.environ.get('CLOUD_IDENTITY_BASELINE') else REPO/'run_chains/cloud_tts_qwen_compare_20260824.py'
-                script=scripts/'compare.py';script.write_text(path.read_text());runpy.run_path(str(script),run_name='__main__')
+                script=scripts/'compare.py';script.write_text(path.read_text())
+                try:
+                    runpy.run_path(str(script),run_name='__main__')
+                except SystemExit:
+                    self.assertEqual(1,len(owner_probes));self.assertEqual([],calls)
+                    self.assertFalse((out/'result.json').exists())
+                    raise
+                self.assertEqual(1,len(owner_probes))
             else:
                 path=Path('/tmp/cloud_chatterbox_before299.sh') if os.environ.get('CLOUD_IDENTITY_BASELINE') else REPO/'run_chains/cloud_tts_chatterbox_compare_20260824.sh'
                 program=path.read_text().split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]
@@ -145,6 +167,10 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         self.assertEqual(20260824,document['seed']);self.assertEqual(1,document['audio_seconds'])
         if kind=='chatterbox':self.assertEqual(helper.get_comparison_source_commit(source),document['source_commit'])
         return document
+
+    def test_unverified_owner_refuses_before_cpu_model_fixture_loads(self):
+        with self.assertRaisesRegex(SystemExit,'Cannot verify inherited GPU lock ownership'):
+            self.compare('qwen',owner_verified=False)
 
     def test_actual_qwen_result_records_loaded_snapshot_and_package_version(self):self.compare('qwen')
     def test_actual_chatterbox_heredoc_records_loaded_snapshot_source_and_package(self):self.compare('chatterbox')

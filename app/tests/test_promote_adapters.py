@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import promote_adapters
-from tests.test_support import write_test_adapter
+from tests.test_support import write_test_adapter, skip_unless_symlink, assert_directory_payload_names
 
 
 class FinitePromotionScoreTests(unittest.TestCase):
@@ -506,8 +506,9 @@ class EcapaPairPathTest(unittest.TestCase):
         self.assertTrue(all(os.path.isabs(p) for p in sent[0]), sent)
 
     def test_absolute_pairs_are_unchanged(self):
-        pair = ["/abs/a.wav", "/abs/b.wav"]
-        self.assertEqual(pair, self._sent([pair], "/repo")[0])
+        pair = [str(Path("/abs/a.wav").resolve()), str(Path("/abs/b.wav").resolve())]
+        self.assertEqual([Path(path) for path in pair],
+                         [Path(path) for path in self._sent([pair], str(Path("/repo").resolve()))[0]])
 
     def test_no_pairs_still_returns_a_reason_not_a_silent_empty(self):
         # A metric that quietly measures nothing is the failure this whole
@@ -520,6 +521,13 @@ class EcapaPairPathTest(unittest.TestCase):
 
 class GatedAdapterIdentityTests(unittest.TestCase):
     def test_unusable_explicit_gate_source_never_falls_back_to_same_name(self):
+        self.assert_unusable_gate_source(use_symlink=False)
+
+    @skip_unless_symlink
+    def test_symlinked_explicit_gate_source_never_falls_back_to_same_name(self):
+        self.assert_unusable_gate_source(use_symlink=True)
+
+    def assert_unusable_gate_source(self, *, use_symlink):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             legacy = tmp / 'legacy'
@@ -533,8 +541,9 @@ class GatedAdapterIdentityTests(unittest.TestCase):
             not_directory = legacy / 'file'
             not_directory.write_bytes(b'file')
             escaped = legacy / 'linked'
-            escaped.symlink_to(outside, target_is_directory=True)
-            for gated in (missing, outside, not_directory, escaped):
+            if use_symlink:
+                escaped.symlink_to(outside, target_is_directory=True)
+            for gated in ((escaped,) if use_symlink else (missing, outside, not_directory)):
                 with self.subTest(gated=gated), \
                      patch.object(promote_adapters, 'SOURCE', str(legacy)), \
                      patch.object(promote_adapters, 'retrain_sources', return_value=(str(legacy), str(alternate))), \
@@ -630,8 +639,11 @@ class UnreadablePromotionEvidenceTests(unittest.TestCase):
                          contextlib.redirect_stderr(diagnostics):
                         self.assertEqual(1, promote_adapters.promote(['voice'], 'refused', False))
                     self.assertIn('evidence', diagnostics.getvalue())
-                    self.assertEqual({**snapshot, Path('models/manifest.json.lock'): b''},
-                                     {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()})
+                    assert_directory_payload_names(self, models, ['manifest.json', 'voice'],
+                                                   lock_targets=[manifest])
+                    self.assertEqual(snapshot,
+                                     {p.relative_to(root): p.read_bytes() for p in root.rglob('*')
+                                      if p.is_file() and p != Path(str(manifest) + '.lock')})
                     self.assertFalse((root / 'backups').exists())
 
     def test_gate_documents_must_be_objects(self):

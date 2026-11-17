@@ -117,12 +117,26 @@ class JudgeReasonLogTests(unittest.TestCase):
                 apv.record_judge_reasons(FROZEN, NAMED)
                 old = run._handle
                 with storage.file_lock(path):
-                    path.rename(Path(tmp) / 'prior')
-                    path.write_text('')
+                    if os.name == 'nt':
+                        before = path.read_bytes()
+                        with self.assertRaises(PermissionError) as refused:
+                            path.rename(Path(tmp) / 'prior')
+                        self.assertEqual(32, refused.exception.winerror)
+                        self.assertEqual(before, path.read_bytes())
+                        self.assertFalse((Path(tmp) / 'prior').exists())
+                    else:
+                        path.rename(Path(tmp) / 'prior')
+                        path.write_text('')
                 apv.record_judge_reasons(FROZEN, NAMED)
-                self.assertTrue(old.closed)
-                self.assertEqual(1, len(path.read_text().splitlines()))
-                self.assertEqual(1, len((Path(tmp) / 'prior').read_text().splitlines()))
+                if os.name == 'nt':
+                    self.assertIs(old, run._handle)
+                    self.assertFalse(old.closed)
+                    self.assertEqual(2, len(path.read_text().splitlines()))
+                else:
+                    self.assertTrue(old.closed)
+                    self.assertEqual(1, len(path.read_text().splitlines()))
+                    self.assertEqual(1, len((Path(tmp) / 'prior').read_text().splitlines()))
+            self.assertTrue(old.closed)
 
     def test_native_concurrent_processes_preserve_complete_batch_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -140,7 +154,7 @@ class JudgeReasonLogTests(unittest.TestCase):
                     if worker.is_alive():
                         worker.terminate()
                     worker.join()
-            rows = [json.loads(line) for line in Path(path).read_text().splitlines()]
+            rows = [json.loads(line) for line in Path(path).read_text(encoding='utf-8').splitlines()]
             self.assertEqual(72, len(rows))
             self.assertEqual(72, len({row['text'] for row in rows}))
             identities = {}

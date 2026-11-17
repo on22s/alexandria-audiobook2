@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -23,7 +24,7 @@ class ThreePassProfileAssetTests(unittest.TestCase):
                 with self.subTest(raw=raw):
                     if raw is not None:
                         path.write_bytes(raw)
-                    with self.assertRaisesRegex(ValueError, str(path)):
+                    with self.assertRaisesRegex(ValueError, re.escape(str(path))):
                         tp.load_default_model_profiles(str(path))
 
     def test_cli_stops_before_model_healing_or_client_creation(self):

@@ -70,9 +70,9 @@ class VoiceDriftScoringTests(unittest.TestCase):
         by_uid = {r["uid"]: r for r in report["results"]}
         # clone -> its ref_audio, lora -> adapter ref_sample, design -> earliest done chunk
         pairs = seen["pairs"]
-        self.assertTrue(pairs[0][1].endswith("clone_voices/holo.wav"))
-        self.assertTrue(pairs[2][1].endswith("lora_models/lawrence/ref_sample.wav"))
-        self.assertTrue(pairs[3][1].endswith("voicelines/d.mp3"))
+        self.assertEqual(Path(pairs[0][1]).parts[-2:], ("clone_voices", "holo.wav"))
+        self.assertEqual(Path(pairs[2][1]).parts[-3:], ("lora_models", "lawrence", "ref_sample.wav"))
+        self.assertEqual(Path(pairs[3][1]).parts[-2:], ("voicelines", "d.mp3"))
         self.assertEqual(by_uid["u0"]["reference"], "clone:HOLO")
         self.assertEqual(by_uid["u2"]["reference"], "lora:LAWRENCE")
         self.assertEqual(by_uid["u3"], {"index": 3, "uid": "u3", "score": None,
