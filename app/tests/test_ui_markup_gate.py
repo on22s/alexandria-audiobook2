@@ -154,6 +154,13 @@ KEEP_ENGLISH = frozenset({
 # app-help.js's 75 counts two attribute-name literals in the tooltip refresh;
 # its 700+ help strings are catalog sources (excluded by help_map_spans, and
 # test_ui_help_i18n.py proves every one is keyed in all three locales).
+# #2019 lowered app-training.js 249 -> 217: the eighteen showActionError /
+# getActionErrorMessage failure paths and their recovery sentences are now
+# training.* keys (measured 246 before the change, so the old ceiling was also
+# three over its file). What is left there is template HTML, element ids, CSS
+# classes and two caught 'list is malformed' diagnostics that never reach the
+# screen. test_ui_i18n_app_training_literals.py is the guard for the part the
+# counter treats as one string: the keyed English of the t() calls above.
 MARKUP_BASELINE = {
     'index.html': {
         'audio': 0, 'casting': 0, 'dataset-builder': 0, 'designer': 0,
@@ -207,7 +214,7 @@ JS_BASELINE = {
     'app-single-voice.js': 18, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
     'app-sound-mix-cover.js': 4, 'app-sound-mixes.js': 34, 'app-sound-renditions.js': 50,
     'app-speaker-review.js': 37, 'app-speech-verification.js': 14,
-    'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 249,
+    'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 217,
     'app-translated-edition.js': 9, 'app-tts-capabilities.js': 28,
     'app-tts-diagnostics.js': 11, 'app-voicelab.js': 128, 'app-word-timing.js': 23,
     'app-workbench.js': 282, 'app-workspace.js': 86,

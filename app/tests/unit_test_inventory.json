@@ -16200,6 +16200,18 @@
     , "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_ensemble_members_and_state_editor_translate"
     , "tests.test_ui_i18n_app_core.VoiceCardRenderTests.test_the_real_voice_card_paints_each_locale_and_restores_english"
   ]
+  , "test_ui_i18n_app_training_literals": [
+    "tests.test_ui_i18n_app_training_literals.AppTrainingLiteralTests.test_a_reintroduced_literal_in_the_real_file_is_caught"
+    , "tests.test_ui_i18n_app_training_literals.AppTrainingLiteralTests.test_every_converted_recovery_string_is_a_catalog_key"
+    , "tests.test_ui_i18n_app_training_literals.AppTrainingLiteralTests.test_the_file_hands_no_bare_english_to_a_message_sink"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_bare_action_and_recovery_are_both_reported"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_key_that_reads_like_copy_is_not_reported"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_keyed_call_is_accepted"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_ternary_of_keyed_calls_is_accepted"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_textContent_literal_is_reported_but_a_keyed_one_is_not"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_a_variable_empty_string_and_numeric_template_are_accepted"
+    , "tests.test_ui_i18n_app_training_literals.ScannerFixtureTests.test_both_arms_of_a_literal_ternary_are_reported"
+  ]
   , "test_ui_i18n_editor_audio_reports": [
     "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_each_module_keys_its_safety_confirms"
     , "tests.test_ui_i18n_editor_audio_reports.EditorAudioKeyingTests.test_panes_are_keyed"
