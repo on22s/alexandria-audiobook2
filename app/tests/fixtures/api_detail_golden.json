@@ -493,6 +493,8 @@
     "'The initiating request is no longer active'",
     "'The line text or selected occurrence changed. Remove stale rules and choose fresh matches.'",
     "'The local TTS engine is still in use. Wait for it to finish before starting GPU work.'",
+    "'The manual LLM request file manual_llm/pending.json in the data directory is corrupt. Cancel the manual request (or restart the app), then delete or rename this file before trying again.'",
+    "'The pending manual LLM request could not be read. Try again.'",
     "'The recommended candidate changed; refresh and confirm it again'",
     "'The run has not written a checkpoint yet.'",
     "'The saved book changed after the collection overview was shown; show it again before loading.'",
