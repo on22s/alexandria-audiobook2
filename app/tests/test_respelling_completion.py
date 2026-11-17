@@ -1,4 +1,5 @@
 """Reject forged completion markers and prove actual required-stage outcomes."""
+from tests.test_support import get_bash_path, run_bash_fixture
 import json
 from pathlib import Path
 import subprocess
@@ -79,6 +80,6 @@ class SiblingGuardTests(unittest.TestCase):
                 if name=='e_row_replication_20260818.sh':cases.append((800,800,1))
                 for actual,rows,expected in cases:
                     path.write_text(json.dumps({'status':'complete','candidates_considered':actual,'results':[{'term':'term'+str(i)} for i in range(rows)]}))
-                    body='set -uo pipefail\nREPO='+shlex.quote(str(root))+'\npython='+shlex.quote(sys.executable)+'\nout='+shlex.quote(str(path))+'\nLIMIT='+str(count)+'\nlimit='+str(count)+'\n'+source[a:b]+'\n'+call+'\n'
-                    result=subprocess.run(['bash','-c',body],capture_output=True,text=True,timeout=5)
+                    body='set -uo pipefail\nREPO='+shlex.quote(get_bash_path(root))+'\npython='+shlex.quote(get_bash_path(sys.executable))+'\nout='+shlex.quote(get_bash_path(path))+'\nLIMIT='+str(count)+'\nlimit='+str(count)+'\n'+source[a:b]+'\n'+call+'\n'
+                    result=run_bash_fixture(['-c',body],capture_output=True,text=True,timeout=5)
                     self.assertEqual(expected,result.returncode,result.stdout+result.stderr)

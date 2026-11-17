@@ -1,4 +1,5 @@
 """Native Bash checks of the research queue's pause boundary; no GPU jobs."""
+from tests.test_support import run_bash_fixture, write_bash_fixture
 import os
 from pathlib import Path
 import subprocess
@@ -27,14 +28,14 @@ class ResearchChainPauseTests(unittest.TestCase):
             source = (REPO / "run_chains/remaining_gpu_research.sh").read_text()
             prefix = source.split('pilot_out=', 1)[0]
             script = root / "run_chains/probe.sh"
-            script.write_text(prefix + '\nstage fixture true\nexit $?\n')
+            write_bash_fixture(script, prefix + '\nstage fixture true\nexit $?\n')
             worker = root / "gpu_job.sh"
-            worker.write_text('#!/bin/bash\ntouch "$FIXTURE_MARKER"\n')
+            write_bash_fixture(worker, '#!/bin/bash\ntouch "$FIXTURE_MARKER"\n')
             worker.chmod(0o755)
             bin_dir = root / "bin"
             bin_dir.mkdir()
             sleeper = bin_dir / "sleep"
-            sleeper.write_text('#!/bin/bash\n'
+            write_bash_fixture(sleeper, '#!/bin/bash\n'
                 'if [ -e "$FIXTURE_MARKER" ]; then exit 9; fi\n'
                 'echo WAITED\nrm -- "$FIXTURE_FLAG"\n')
             sleeper.chmod(0o755)
@@ -43,7 +44,7 @@ class ResearchChainPauseTests(unittest.TestCase):
             env.pop("GPU_PAUSE_FLAG", None)
             if override:
                 env["GPU_PAUSE_FLAG"] = str(custom_flag)
-            result = subprocess.run(["bash", str(script)], env=env,
+            result = run_bash_fixture([str(script)], env=env,
                                     capture_output=True, text=True, timeout=5)
             return result, marker.exists(), flag.exists() if flag else False
 

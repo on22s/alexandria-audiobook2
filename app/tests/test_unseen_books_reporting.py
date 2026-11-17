@@ -5,7 +5,10 @@ retries"), wrote no output, and the chain printed UNSEEN BOOKS DONE and exited
 0 - so gpu_job.sh logged OK and the driver counted the stage as a pass. One of
 four books produced nothing and every layer above it said success.
 """
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 import os
+import signal
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -63,12 +66,12 @@ class UnseenBooksReportingTest(unittest.TestCase):
 
         script = "\n".join([
             "set -uo pipefail",
-            "OUT=%r; L=%r; IN=%r; PY=python3" % (out_dir, log_dir, self.tmp.name),
+            "OUT=%s; L=%s; IN=%s; PY=python3" % tuple(shlex.quote(get_bash_path(path)) for path in (out_dir, log_dir, self.tmp.name)),
             block("book_complete", "book_complete() {"),
             # Stub the generator: writes a complete book, an empty one, or fails.
             "generate() { case $1 in %s esac; }" % " ".join(
                 "%s) %s;;" % (book, {
-                    "ok": "PYTHONPATH=" + shlex.quote(os.path.join(REPO,'app')) + " python3 " + shlex.quote(producer) + ' "$2" "$IN/$1.txt"; return 0',
+                    "ok": "PYTHONPATH=" + shlex.quote(get_bash_path(os.path.join(REPO,'app'))) + " python3 " + shlex.quote(get_bash_path(producer)) + ' "$2" "$IN/$1.txt"; return 0',
                     "fail": "return 1",
                     "empty": "return 0",
                 }[state]) for book, state in outcomes.items()),
@@ -77,7 +80,7 @@ class UnseenBooksReportingTest(unittest.TestCase):
                 '        --output "$OUT/$book.json" > "$L/unseen_$book.log" 2>&1',
                 'generate "$book" "$OUT/$book.json" > "$L/unseen_$book.log" 2>&1'),
         ])
-        result = subprocess.run(["bash", "-c", script], capture_output=True,
+        result = run_bash_fixture(["-c", script], capture_output=True,
                                 text=True, timeout=120)
         return result
 
@@ -116,6 +119,8 @@ class UnseenBooksReportingTest(unittest.TestCase):
 
 
 class UnseenTimeoutBackstopTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, 'killpg') and hasattr(os, 'getpgrp') and hasattr(signal, 'SIGKILL') and shutil.which('timeout'),
+                         'requires POSIX process groups, SIGKILL, and GNU timeout escalation')
     def test_actual_timeout_options_kill_an_owned_child_ignoring_term(self):
         from pathlib import Path
         import shlex
@@ -186,24 +191,24 @@ class UnseenCheckoutPathsTests(unittest.TestCase):
             if match:
                 original_checkout = match.group(1)
                 source = source.replace('REPO=' + original_checkout,
-                                        'REPO=' + shlex.quote(str(initial_root)))
+                                        'REPO=' + shlex.quote(get_bash_path(initial_root)))
                 source = source.replace(original_checkout + '/app/config.json',
                                         str(decoy / 'app/config.json'))
             chain = checkout / 'run_chains/unseen_books_20260819b.sh'
-            chain.write_text(source)
+            write_bash_fixture(chain, source)
             chain.chmod(0o755)
             wrapper = checkout / 'gpu_job.sh'
-            wrapper.write_text('#!/bin/bash\nset -eu\nprintf "%s\\n" "$1" >> "$(dirname "$0")/wrapper_calls"\nif [ "$1" = --check-lock-owner ]; then exit 0; fi\nshift\nexec "$@"\n')
+            write_bash_fixture(wrapper, '#!/bin/bash\nset -eu\nprintf "%s\\n" "$1" >> "$(dirname "$0")/wrapper_calls"\nif [ "$1" = --check-lock-owner ]; then exit 0; fi\nshift\nexec "$@"\n')
             wrapper.chmod(0o755)
             wrong_wrapper = decoy / 'gpu_job.sh'
-            wrong_wrapper.write_text('#!/bin/bash\nprintf wrong > "$(dirname "$0")/wrong_root"\nexit 91\n')
+            write_bash_fixture(wrong_wrapper, '#!/bin/bash\nprintf wrong > "$(dirname "$0")/wrong_root"\nexit 91\n')
             wrong_wrapper.chmod(0o755)
             library=checkout/'run_chains/lib';library.mkdir()
-            (library/'config_backup.sh').write_bytes(Path(REPO,'run_chains/lib/config_backup.sh').read_bytes())
+            copy_bash_fixture(Path(REPO,'run_chains/lib/config_backup.sh'), library/'config_backup.sh')
             copy_completion_dependencies(app, REPO)
-            (app / 'env/bin/python').symlink_to(sys.executable)
+            write_bash_fixture(app / 'env/bin/python', '#!/bin/sh\nexec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"\n')
             curl = binaries / 'curl'
-            curl.write_text('#!/bin/bash\nprintf qwen3\n')
+            write_bash_fixture(curl, '#!/bin/bash\nprintf qwen3\n')
             curl.chmod(0o755)
             books = ('mushoku18', 'grimgar06', 'mushoku23', 'arc4_volume10wn')
             for book in books:
@@ -224,7 +229,7 @@ print('Got 60 entries')
             env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'],
                        FAILED_BOOK=failed_book)
             env.pop('ALEXANDRIA_GPU_LOCK_HELD', None)
-            result = subprocess.run(['bash', str(chain)], cwd=base, env=env,
+            result = run_bash_fixture([str(chain)], cwd=base, env=env,
                                     capture_output=True, text=True, timeout=15)
             diagnostic = result.stdout + result.stderr
             self.assertEqual(1 if failed_book else 0, result.returncode, diagnostic)
@@ -234,10 +239,10 @@ print('Got 60 entries')
             self.assertEqual(config, (decoy / 'app/config.json').read_bytes())
             self.assertFalse((logs / 'config.json.unseen_backup').exists())
             observations = [json.loads(line) for line in (checkout / 'observations').read_text().splitlines()]
-            self.assertEqual(4, len(observations))
+            self.assertEqual(4, len(observations), diagnostic)
             for book, observation in zip(books, observations):
                 self.assertEqual(str(inputs / (book + '.txt')), observation['source'])
-                self.assertEqual(str(output / (book + '.json')), observation['out'])
+                self.assertEqual(output / (book + '.json'), Path(observation['out']))
                 self.assertEqual(17, observation['config']['keep'])
                 self.assertEqual('source for ' + book, (inputs / (book + '.txt')).read_text())
                 artifact = output / (book + '.json')
@@ -252,7 +257,7 @@ print('Got 60 entries')
                     self.assertEqual({book}, {entry['text'] for entry in entries})
             if not failed_book:
                 artifact_bytes = {book: (output / (book + '.json')).read_bytes() for book in books}
-                rerun = subprocess.run(['bash', str(chain)], cwd=base, env=env,
+                rerun = run_bash_fixture([str(chain)], cwd=base, env=env,
                                        capture_output=True, text=True, timeout=15)
                 self.assertEqual(0, rerun.returncode, rerun.stdout + rerun.stderr)
                 self.assertIn('4 already present', rerun.stdout)
@@ -310,9 +315,9 @@ pathlib.Path(a.output).write_text(json.dumps({'entries':[{'book':book,'i':i} for
 print('Got 60 entries')
 """)
                 script = 'set -uo pipefail\n' + '\n'.join(
-                    name + '=' + shlex.quote(str(value)) for name, value in
+                    name + '=' + shlex.quote(get_bash_path(value)) for name, value in
                     (('PY', sys.executable), ('IN', inputs), ('OUT', output), ('L', logs))) + '\n' + body
-                result = subprocess.run(['bash', '-c', script], cwd=app,
+                result = run_bash_fixture(['-c', script], cwd=app,
                                         capture_output=True, text=True, timeout=10)
                 failed = [book for book in books if statuses[book]]
                 self.assertEqual(1 if failed else 0, result.returncode, result.stdout + result.stderr)

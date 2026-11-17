@@ -1,5 +1,7 @@
 """Copied time-split driver, PCM/PEFT caches and CPU producers under private Git."""
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 from tests.test_support import get_isolated_git_environment
+from tests.test_support import requires_linux_queue_tools
 import importlib.util
 import json
 import os
@@ -14,7 +16,7 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 from experiments import ljspeech_completion as completion
-from tests.test_support import requires_linux_queue_tools, write_test_adapter
+from tests.test_support import write_test_adapter
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -40,10 +42,10 @@ class TimeSplitChainTests(unittest.TestCase):
             wav=self.work/('held__'+arm+'.wav');sf.write(wav,audio,24000);row[arm+'_wav']=str(wav.relative_to(self.root))
         self.gen_doc={'arms':['lora','clone'],'seed':1234,'rows':[row],'failures':[]};self.generated.write_text(json.dumps(self.gen_doc));(self.root/'generation-template.json').write_text(json.dumps(self.gen_doc))
         (self.root/'run_chains/lib').mkdir(parents=True);(self.root/'app/experiments').mkdir(parents=True)
-        for relative in ('run_chains/lib/stage.sh','run_chains/lib/server_cleanup.sh','run_chains/lib/queue.sh','app/experiments/ljspeech_completion.py','app/experiments/stop_gate_completion.py','app/adapter_artifacts.py'):shutil.copyfile(REPO/relative,self.root/relative)
-        source=Path(os.environ.get('TIME_SPLIT_SOURCE',str(REPO/'run_chains/private_narrator_time_split_20260913.sh')));shutil.copyfile(source,self.root/'run_chains/chain.sh')
+        for relative in ('run_chains/lib/stage.sh','run_chains/lib/server_cleanup.sh','run_chains/lib/queue.sh','app/experiments/ljspeech_completion.py','app/experiments/stop_gate_completion.py','app/adapter_artifacts.py'):copy_bash_fixture(REPO/relative,self.root/relative)
+        source=Path(os.environ.get('TIME_SPLIT_SOURCE',str(REPO/'run_chains/private_narrator_time_split_20260913.sh')));copy_bash_fixture(source,self.root/'run_chains/chain.sh')
         config=self.root/'app/config.json';config.write_text('{"fixture":true}')
-        queue=self.root/'gpu_job.sh';queue.write_text('#!/bin/bash\nshift\nexec "$@"\n');queue.chmod(0o755)
+        queue=self.root/'gpu_job.sh';write_bash_fixture(queue, '#!/bin/bash\nshift\nexec "$@"\n');queue.chmod(0o755)
         worker='''import json,os,pathlib,sys
 r=pathlib.Path(os.environ['FIXTURE_ROOT']);name=pathlib.Path(__file__).name
 with (r/'calls').open('a') as f:f.write(name+'\\n')
@@ -59,7 +61,7 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.write_text('{}')
     def run_chain(self,**env):
         configured=dict(self.env,**env)
         configured={key:value for key,value in configured.items() if value is not None}
-        result=subprocess.run(['bash',str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=configured,capture_output=True,text=True,timeout=30)
+        result=run_bash_fixture([str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=configured,capture_output=True,text=True,timeout=30)
         marker=self.root/'calls';return result,marker.read_text().splitlines() if marker.exists() else []
 
     def test_bad_explicit_environment_refuses_before_any_worker(self):
@@ -73,7 +75,7 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.write_text('{}')
     def test_unset_environment_uses_checkout_defaults(self):
         import shlex
         interpreter=self.root/'app/env/bin/python';interpreter.parent.mkdir(parents=True)
-        interpreter.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' "$@"\n');interpreter.chmod(0o755)
+        write_bash_fixture(interpreter, '#!/bin/sh\nexec '+shlex.quote(get_bash_path(sys.executable))+' "$@"\n');interpreter.chmod(0o755)
         result,calls=self.run_chain(PYTHON=None,CONFIG=None)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual(['prosody_fidelity.py'],calls)
@@ -119,5 +121,5 @@ class ValidatedStageDependencyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);checker=root/'checker';worker=root/'worker'
             body='source "$1"\nSTAGE_LOG_DIR="$2/logs"\nSTAGE_RESULT[earlier]=failed:7\nrun_validated_cached_stage later 0 bash -c \'touch "$1"\' check "$2/checker" -- --requires-ok earlier -- bash -c \'touch "$1"\' worker "$2/worker"\n'
-            result=subprocess.run(['bash','-c',body,'fixture',str(REPO/'run_chains/lib/stage.sh'),str(root)],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
+            result=run_bash_fixture(['-c',body,'fixture',str(REPO/'run_chains/lib/stage.sh'),str(root)],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
             self.assertEqual(1,result.returncode,result.stdout+result.stderr);self.assertFalse(checker.exists());self.assertFalse(worker.exists())

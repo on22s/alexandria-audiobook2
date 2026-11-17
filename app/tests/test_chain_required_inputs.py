@@ -1,5 +1,7 @@
 """Run complete chains in a disposable Git checkout with CPU worker stand-ins."""
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 from tests.test_support import get_isolated_git_environment
+from tests.test_support import requires_linux_queue_tools
 import json
 import os
 from pathlib import Path
@@ -8,7 +10,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools, get_bash_executable
 
 REPO=Path(__file__).resolve().parents[2]
 PUBLIC=('TheGambler','TheSignOfTheFour','TheMysteriousAffairAtStyles','AHandfulOfDust')
@@ -23,8 +24,8 @@ class ChainRequiredInputsTests(unittest.TestCase):
                           'bin','ab_test_runtime/experiments'):
             (self.root/directory).mkdir(parents=True)
         for relative in ('run_chains/dialogue_map_5_3_20260826.sh','run_chains/longref_arm_20260826.sh',
-                         'run_chains/lib/stage.sh','run_chains/lib/server_cleanup.sh'):
-            shutil.copyfile(REPO/relative,self.root/relative)
+                         'run_chains/lib/stage.sh','run_chains/lib/server_cleanup.sh','run_chains/lib/queue.sh'):
+            copy_bash_fixture(REPO/relative,self.root/relative)
         self.write('gpu_job.sh','#!/bin/bash\nshift\nexec "$@"\n')
         self.write('bin/pgrep','#!/bin/sh\nexit 1\n')
         self.write('app/env/bin/python','#!'+sys.executable+'\n'+r'''
@@ -58,11 +59,11 @@ if '--out' in args:
 
     def write(self, relative, text):
         path=self.root/relative;path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text(text);path.chmod(0o755)
+        write_bash_fixture(path, text);path.chmod(0o755)
         return path
 
     def run_chain(self, name):
-        result=subprocess.run([get_bash_executable(),str(self.root/'run_chains'/name)],env=self.env,cwd=self.root,
+        result=run_bash_fixture([str(self.root/'run_chains'/name)],env=self.env,cwd=self.root,
                               capture_output=True,text=True,timeout=15)
         calls=self.root/'calls'
         return result,[json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
@@ -73,8 +74,8 @@ if '--out' in args:
         result,calls=self.run_chain('dialogue_map_5_3_20260826.sh')
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual([],calls)
-        shell_root = subprocess.check_output([get_bash_executable(), '-c',
-            'cd -- "$1" && pwd', 'fixture', str(self.root)], text=True, env=get_isolated_git_environment()).strip()
+        shell_root = run_bash_fixture(['-c', 'cd -- "$1" && pwd', 'fixture', str(self.root)],
+            capture_output=True, text=True, check=True).stdout.strip()
         expected = shell_root + '/' + missing.relative_to(self.root).as_posix()
         self.assertIn(expected, result.stdout + result.stderr)
         self.assertIn('missing or unreadable', result.stdout + result.stderr)
@@ -113,7 +114,7 @@ if '--out' in args:
         stale=self.root/'ab_test_runtime/experiments/longref__ja_generate.json';before=stale.read_bytes()
         result,calls=self.run_chain('longref_arm_20260826.sh')
         self.assertNotEqual(0,result.returncode,result.stdout+result.stderr);self.assertEqual([],calls)
-        self.assertIn(str(missing),result.stdout+result.stderr);self.assertEqual(before,stale.read_bytes())
+        self.assertIn(get_bash_path(missing),result.stdout+result.stderr);self.assertEqual(before,stale.read_bytes())
 
     @requires_linux_queue_tools
     def test_failed_longref_generation_cannot_score_old_manifest_or_return_success(self):

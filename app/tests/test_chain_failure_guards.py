@@ -11,9 +11,11 @@ the pattern SPREADING: a chain written from today on either aggregates its
 failures or is listed below as a known-legacy exception, which makes the
 exception a decision rather than an oversight.
 """
+from tests.test_support import copy_bash_fixture, get_bash_executable, get_bash_path, run_bash_fixture, write_bash_fixture
 from tests.test_support import get_isolated_git_environment
 import os
 import re
+import shlex
 import pathlib
 import subprocess
 import tempfile
@@ -62,7 +64,7 @@ def prepare_artifact_commit_fixture(root):
     library = root / 'run_chains/lib'
     library.mkdir(parents=True, exist_ok=True)
     for name in ('stage.sh', 'server_cleanup.sh'):
-        shutil.copyfile(pathlib.Path(CHAINS, 'lib', name), library / name)
+        copy_bash_fixture(pathlib.Path(CHAINS, 'lib', name), library / name)
     for args in (('init', '-q', '-b', 'main'), ('config', 'user.name', 'Fixture'),
                  ('config', 'user.email', 'fixture@example.com'),
                  ('config', 'core.hooksPath', str(root / 'no-hooks')),
@@ -199,18 +201,18 @@ class FallbackChainConfigPreservationTests(unittest.TestCase):
                 bins = root/'bin'
                 bins.mkdir()
                 curl = bins/'curl'
-                curl.write_text('#!/bin/sh\n' + ('echo qwen3\n' if ready else 'exit 1\n'))
+                write_bash_fixture(curl, '#!/bin/sh\n' + ('echo qwen3\n' if ready else 'exit 1\n'))
                 curl.chmod(0o755)
                 gpu_job = root/'gpu_job.sh'
-                gpu_job.write_text('#!/bin/sh\nprintf concurrent-config > "'+str(config)+'"\nprintf dispatched > "'+str(root/'dispatched')+'"\n')
+                write_bash_fixture(gpu_job, '#!/bin/sh\nprintf concurrent-config > "'+get_bash_path(config)+'"\nprintf dispatched > "'+get_bash_path(root/'dispatched')+'"\n')
                 gpu_job.chmod(0o755)
                 chain = root/'fallback.sh'
-                chain.write_text(source.replace(
+                write_bash_fixture(chain, source.replace(
                     'REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git',
-                    'REPO="'+str(root)+'"'))
+                    'REPO="'+get_bash_path(root)+'"'))
                 env = get_isolated_git_environment()
                 env['PATH'] = str(bins)+os.pathsep+env['PATH']
-                result = subprocess.run(['bash', str(chain)], env=env,
+                result = run_bash_fixture([str(chain)], env=env,
                                         capture_output=True, text=True, timeout=10)
                 self.assertEqual(0 if ready else 1, result.returncode, result.stderr)
                 self.assertEqual(b'concurrent-config' if ready else b'current user configuration',
@@ -228,7 +230,7 @@ class ChainFooterExitTests(unittest.TestCase):
             for failures in (0,1,3):
                 with self.subTest(chain=name,failures=failures):
                     code='set -uo pipefail\nsource "$1"\nSTAGE_FAILURES=$2\nSTAGE_TOTAL=3\n'+footer
-                    result=subprocess.run(['bash','-c',code,'fixture',
+                    result=run_bash_fixture(['-c',code,'fixture',
                         str(pathlib.Path(CHAINS,'lib/stage.sh')),str(failures)],
                         capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
                     self.assertEqual(1 if failures else 0,result.returncode,result.stdout+result.stderr)
@@ -254,7 +256,7 @@ class RegateDiagnosticExitTests(unittest.TestCase):
                 experiments = gate.parent
                 python = root/'app/env/bin/python'
                 python.parent.mkdir(parents=True)
-                python.symlink_to(sys.executable)
+                write_bash_fixture(python, '#!/bin/sh\nexec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"\n')
                 copy_campaign_cli(root)
                 write_campaign_worker(root, f'sys.exit(2) if {fail!r} else None\n')
                 text=source.read_text(encoding='utf-8')
@@ -272,7 +274,7 @@ class RegateDiagnosticExitTests(unittest.TestCase):
                 subprocess.run(['git','-C',str(root),'add',str(unrelated)],check=True, env=get_isolated_git_environment())
                 untracked = experiments / 'untracked-session.json'
                 untracked.write_text('untracked WIP\n')
-                result=run_owned_cpu_chain(['bash',str(script)],root,capture_output=True,text=True)
+                result=run_owned_cpu_chain([get_bash_executable(),str(script)],root,capture_output=True,text=True)
                 self.assertEqual(1 if fail else 0,result.returncode,result.stderr)
                 measured=json.loads(gate.read_text(encoding='utf-8'))
                 self.assertEqual('staged WIP\n',unrelated.read_text())
@@ -326,9 +328,9 @@ class AdapterQueueFailureStatusTests(unittest.TestCase):
                 prefix = 'set -euo pipefail\n'
                 values={'ROOT':str(root),'TRAINER':str(trainer),'MODEL':str(root/'model'),
                         'SUFFIX':'fixture','QUANT':'','COMMIT':'fixture-commit','STATUS':str(root/'status')}
-                prefix += ''.join(f'{key}={shlex.quote(value)}\n' for key,value in values.items())
+                prefix += ''.join(f'{key}={shlex.quote(get_bash_path(value))}\n' for key,value in values.items())
                 script.write_text(prefix+recipe_and_dispatch,encoding='utf-8')
-                result = subprocess.run(['bash',str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
+                result = run_bash_fixture([str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
                 self.assertEqual(code,result.returncode,result.stderr)
                 status = (root/'status').read_text(encoding='utf-8')
                 calls = [json.loads(line) for line in (root/'calls.jsonl').read_text().splitlines()]
@@ -345,7 +347,7 @@ class AdapterQueueFailureStatusTests(unittest.TestCase):
                     self.assertIn(f'CPU fixture worker rc={code}',(root/'logs/qwen35_fixture_author_heldout_balanced.log').read_text())
                 else:
                     self.assertIn('COMPLETE qwen35_fixture all recipes',status)
-                    repeat = subprocess.run(['bash',str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
+                    repeat = run_bash_fixture([str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
                     self.assertEqual(0,repeat.returncode,repeat.stderr)
                     self.assertEqual(3,len((root/'calls.jsonl').read_text().splitlines()))
 
@@ -360,7 +362,6 @@ class ExitStatusGuardPatternTests(unittest.TestCase):
             self.assertIsNone(AGGREGATES.search(code))
 
 
-@requires_linux_queue_tools
 class QueueRepositoryInspectionTests(unittest.TestCase):
     def test_git_status_failure_refuses_instead_of_reporting_a_clean_tree(self):
         helper = pathlib.Path(REPO) / "run_chains/lib/queue.sh"
@@ -376,7 +377,7 @@ class QueueRepositoryInspectionTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(valid), "-c", "user.name=fixture", "-c",
                             "user.email=fixture@example.test", "commit", "-qm", "fixture"], check=True, env=get_isolated_git_environment())
             def inspect(repo, env=None):
-                return subprocess.run(["bash", "-c", 'set -euo pipefail; source "$1"; refuse_if_dirty "$2"',
+                return run_bash_fixture(["-c", 'set -euo pipefail; source "$1"; refuse_if_dirty "$2"',
                                        "fixture", str(helper), str(repo)], capture_output=True, text=True, env=env)
             self.assertEqual(0, inspect(valid).returncode)
             (valid / "ab_test_runtime").mkdir()
@@ -401,7 +402,7 @@ class QueueRepositoryInspectionTests(unittest.TestCase):
             shim = root / "bin"
             shim.mkdir()
             fake_git = shim / "git"
-            fake_git.write_text('#!/bin/sh\nprintf " M source.py\\n"\nexit 7\n')
+            write_bash_fixture(fake_git, '#!/bin/sh\nprintf " M source.py\\n"\nexit 7\n')
             fake_git.chmod(0o755)
             env = dict(get_isolated_git_environment(), PATH=str(shim) + os.pathsep + os.environ["PATH"])
             result = inspect(valid, env)
@@ -444,7 +445,7 @@ class ResumeArtifactShapeTests(unittest.TestCase):
                 if not missing:
                     artifact.write_text("{" if data == "malformed-json" else json.dumps(data))
                     before = artifact.read_bytes()
-                result = subprocess.run(["bash", str(script), "space", "2"],
+                result = run_bash_fixture([str(script), "space", "2"],
                                         capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
                 if not missing:
@@ -456,7 +457,6 @@ class ResumeArtifactShapeTests(unittest.TestCase):
                     self.assertIn("REFUSING: could not determine", result.stderr)
 
 
-@requires_linux_queue_tools
 class StageDependencyReclamationTests(unittest.TestCase):
     def test_skipped_dependencies_do_not_stop_a_server_or_dispatch_work(self):
         helper = pathlib.Path(REPO) / "run_chains/lib/stage.sh"
@@ -479,7 +479,7 @@ if [ "$4" != none ]; then STAGE_RESULT[second]="$4"; args+=(--requires-ok second
 run_stage child 2s "${args[@]}" -- bash -c 'touch "$1"' fixture "$2/dispatched"
 printf '%s %s %s\n' "${STAGE_RESULT[child]}" "$STAGE_TOTAL" "$STAGE_FAILURES" > "$2/state"
 '''
-                result = subprocess.run(["bash", "-c", program, "fixture", str(helper), str(root),
+                result = run_bash_fixture(["-c", program, "fixture", str(helper), str(root),
                     predecessor or "missing", second or "none"], capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertFalse((root / "stopped").exists(), result.stdout)
@@ -502,26 +502,26 @@ class KnownIdentityGateContractTests(unittest.TestCase):
                 (root / "app").mkdir()
                 calls = root / "calls.jsonl"
                 wrapper = root / "gpu_job.sh"
-                wrapper.write_text('#!/usr/bin/env python3\nimport os,sys,json\n'
+                write_bash_fixture(wrapper, '#!/usr/bin/env python3\nimport os,sys,json\n'
                     'from pathlib import Path\n'
                     'with open(os.environ["FIXTURE_CALLS"],"a") as f: f.write(json.dumps(sys.argv[1:])+"\\n")\n'
                     'sys.exit(int(os.environ["FIXTURE_GOOD" if sys.argv[1]=="gate_known_good" else "FIXTURE_BAD"]))\n')
                 wrapper.chmod(0o755)
                 original = wrapper.read_bytes()
                 script = root / "verify.sh"
-                script.write_text('set -uo pipefail\nREPO=' + shlex.quote(str(root)) + '\n' + body)
+                write_bash_fixture(script, 'set -uo pipefail\nREPO=' + shlex.quote(get_bash_path(root)) + '\n' + body)
                 before = script.read_bytes()
                 env = dict(get_isolated_git_environment(), FIXTURE_CALLS=str(calls), FIXTURE_GOOD=str(good), FIXTURE_BAD=str(bad))
-                result = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
+                result = run_bash_fixture([str(script)], capture_output=True, text=True, env=env)
                 self.assertEqual(0 if (good, bad) == (0, 3) else 1,
                                  result.returncode, result.stdout + result.stderr)
                 requests = [json.loads(line) for line in calls.read_text().splitlines()]
                 self.assertEqual(["gate_known_good", "gate_known_bad"], [row[0] for row in requests])
                 for row, relative in zip(requests, ("ab_test_runtime/retrain_honest/husky_baritone_20s_m_anime/adapter",
                                                    "lora_models/husky_baritone_20s_m_anime")):
-                    self.assertEqual(str(root / relative), row[row.index("--adapter") + 1])
-                    self.assertEqual(str(root / "ab_test_runtime/retrain_honest/husky_baritone_20s_m_anime/data"),
-                                     row[row.index("--dataset") + 1])
+                    self.assertEqual(root / relative, pathlib.Path(row[row.index("--adapter") + 1]))
+                    self.assertEqual(root / "ab_test_runtime/retrain_honest/husky_baritone_20s_m_anime/data",
+                                     pathlib.Path(row[row.index("--dataset") + 1]))
                     self.assertEqual("5", row[row.index("--lines") + 1])
                 self.assertEqual(before, script.read_bytes())
                 self.assertEqual(original, wrapper.read_bytes())
@@ -554,19 +554,19 @@ class RegateQueueConstructionTests(unittest.TestCase):
                 python = root / 'app/env/bin/python'
                 python.parent.mkdir(parents=True)
                 if failure != 'missing_interpreter':
-                    python.symlink_to(sys.executable)
+                    write_bash_fixture(python, '#!/bin/sh\nexec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"\n')
                 worker = root / 'app/experiments/verify_adapter_identity.py'
                 worker.parent.mkdir(parents=True)
-                worker.write_text('from pathlib import Path\n'
+                write_bash_fixture(worker, 'from pathlib import Path\n'
                     'Path("unexpected_dispatch").write_text("called")\n')
                 queue = root / 'queue.tsv'
                 queue.write_text('stale queue from earlier run\n')
                 script = root / 'regate.sh'
-                script.write_text(source.replace(
+                write_bash_fixture(script, source.replace(
                     'REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git',
                     'REPO="' + str(root) + '"').replace('/tmp/regate_queue.tsv', str(queue)))
                 prepare_artifact_commit_fixture(root)
-                result = run_owned_cpu_chain(['bash', str(script)], root,
+                result = run_owned_cpu_chain([get_bash_executable(), str(script)], root,
                     env={**get_isolated_git_environment(), 'TMPDIR': str(root)},
                     capture_output=True, text=True, timeout=10)
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
@@ -615,7 +615,7 @@ class AdapterRecheckRosterTests(unittest.TestCase):
                 gate = root / 'app/experiments/verify_adapter_identity.py'
                 gate.parent.mkdir(parents=True)
                 import shutil
-                shutil.copyfile(Path(REPO, 'app/experiments/recheck_result.py'), gate.parent / 'recheck_result.py')
+                copy_bash_fixture(Path(REPO, 'app/experiments/recheck_result.py'), gate.parent / 'recheck_result.py')
                 gate.write_text('import json,sys\nfrom pathlib import Path\n'
                     'args=sys.argv\nname=Path(args[args.index("--adapter")+1]).name\n'
                     'if name=="failed":sys.exit(2)\n'
@@ -623,17 +623,17 @@ class AdapterRecheckRosterTests(unittest.TestCase):
                     'out.write_text(json.dumps({"adapter":str(Path(args[args.index("--adapter")+1]).relative_to(Path(__file__).parents[2])),"median_ecapa":0.2 if name=="below" else 0.8,"lines":1,"passed":name!="below"}))\n'
                     'sys.exit(3 if name=="below" else 0)\n')
                 wrapper = root / 'gpu_job.sh'
-                wrapper.write_text('#!/bin/bash\nprintf "%s\n" "$1" >> "$DISPATCH_LOG"\nshift\nexec "$@"\n')
+                write_bash_fixture(wrapper, '#!/bin/bash\nprintf "%s\n" "$1" >> "$DISPATCH_LOG"\nshift\nexec "$@"\n')
                 wrapper.chmod(0o755)
                 script = root / 'recheck.sh'
-                script.write_text('set -uo pipefail\nsource ' + shlex.quote(str(Path(CHAINS, 'lib/stage.sh'))) + '\n' +
-                    'REPO=' + shlex.quote(str(root)) + '\nruntime=' + shlex.quote(str(runtime)) + '\n' +
-                    'python=' + shlex.quote(sys.executable) + '\nSTAGE_LOG_DIR=' + shlex.quote(str(logs)) + '\n' +
-                    'FAILED_LIST=' + shlex.quote(str(roster)) + '\n' + functions + caller + '\n' +
-                    'printf "%s\\n" "${recheck_artifacts[@]}" > ' + shlex.quote(str(root / 'owned_paths')) + '\n' +
+                write_bash_fixture(script, 'set -uo pipefail\nsource ' + shlex.quote(get_bash_path(Path(CHAINS, 'lib/stage.sh'))) + '\n' +
+                    'REPO=' + shlex.quote(get_bash_path(root)) + '\nruntime=' + shlex.quote(get_bash_path(runtime)) + '\n' +
+                    'python=' + shlex.quote(get_bash_path(sys.executable)) + '\nSTAGE_LOG_DIR=' + shlex.quote(get_bash_path(logs)) + '\n' +
+                    'FAILED_LIST=' + shlex.quote(get_bash_path(roster)) + '\n' + functions + caller + '\n' +
+                    'printf "%s\\n" "${recheck_artifacts[@]}" > ' + shlex.quote(get_bash_path(root / 'owned_paths')) + '\n' +
                     'stage_summary recheck_fixture\n')
                 dispatch_log = root / 'dispatch.log'
-                result = subprocess.run(['bash', str(script)],
+                result = run_bash_fixture([str(script)],
                     env=dict(get_isolated_git_environment(), DISPATCH_LOG=str(dispatch_log)),
                     capture_output=True, text=True, timeout=10)
                 output = result.stdout + result.stderr
@@ -684,7 +684,7 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
                     (bins / command).symlink_to(executable)
                 (bins / 'python3').symlink_to(sys.executable)
                 server = bins / 'llama-server'
-                server.write_text('#!' + sys.executable + '\nimport os,signal,sys\nfrom pathlib import Path\n'
+                write_bash_fixture(server, '#!' + sys.executable + '\nimport os,signal,sys\nfrom pathlib import Path\n'
                     'Path(os.environ["SERVER_PID_PATH"]).write_text(str(os.getpid()))\n'
                     'signal.signal(signal.SIGTERM,lambda *_:sys.exit(0))\n'
                     'import http.server\nport=int(sys.argv[sys.argv.index("--port")+1])\n'
@@ -693,7 +693,7 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
                 server.chmod(0o755)
                 if probe != 'missing':
                     gpu = bins / 'nvidia-smi'
-                    gpu.write_text('#!' + sys.executable + '\nimport sys\n' +
+                    write_bash_fixture(gpu, '#!' + sys.executable + '\nimport sys\n' +
                         ('print("Fixture GPU, 24576 MiB")\n' if probe == 'success' else
                          'print("fixture driver unavailable",file=sys.stderr)\nsys.exit(9)\n'))
                     gpu.chmod(0o755)
@@ -715,10 +715,10 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
                 text=text.replace('PORT=8090','PORT='+str(port))
                 library=script.parent/'lib';library.mkdir()
                 for name in ('managed_server.sh','llm_campaign.sh','server_cleanup.sh'):
-                    shutil.copyfile(Path(CHAINS,'lib',name),library/name)
+                    copy_bash_fixture(Path(CHAINS,'lib',name),library/name)
                 for name in ('llama_server_process.py','subprocess_ownership.py'):
-                    shutil.copyfile(Path(REPO,'app',name),root/'app'/name)
-                script.write_text(text)
+                    copy_bash_fixture(Path(REPO,'app',name),root/'app'/name)
+                write_bash_fixture(script, text)
                 pid_path = root / 'server.pid'
                 evaluation_path = root / 'evaluated.json'
                 from tests.test_gpu_lock_owner import run_owned_cpu_chain
@@ -748,6 +748,7 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
 class RemainingGoalGateStatusTests(unittest.TestCase):
     def test_failed_rank_two_gate_count_controls_actual_chain_exit_and_completion_message(self):
         import json
+        import shlex
         import sys
         from pathlib import Path
         source = Path(CHAINS, 'remaining_goal_work.sh').read_text()
@@ -778,7 +779,7 @@ class RemainingGoalGateStatusTests(unittest.TestCase):
                     original = {p: p.read_bytes() for p in runtime.rglob('*') if p.is_file()}
                     python = root / 'app/env/bin/python'
                     python.parent.mkdir(parents=True)
-                    python.symlink_to(sys.executable)
+                    write_bash_fixture(python, '#!/bin/sh\nexec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"\n')
                     worker = ('import json,os,sys\nfrom pathlib import Path\n'
                         'out=Path(sys.argv[sys.argv.index("--out")+1])\n'
                         'if "--check-artifact" in sys.argv:\n'
@@ -797,15 +798,15 @@ class RemainingGoalGateStatusTests(unittest.TestCase):
                     for script_name in ('verify_adapter_identity.py', 'retrain_honest.py', 'asr_backends.py'):
                         script = root / 'app/experiments' / script_name
                         script.parent.mkdir(parents=True, exist_ok=True)
-                        script.write_text(worker)
+                        write_bash_fixture(script, worker)
                     wrapper = root / 'gpu_job.sh'
-                    wrapper.write_text('#!/bin/bash\nprintf "%s\n" "$1" >> "$DISPATCH_LOG"\nshift\nexec "$@"\n')
+                    write_bash_fixture(wrapper, '#!/bin/bash\nprintf "%s\n" "$1" >> "$DISPATCH_LOG"\nshift\nexec "$@"\n')
                     wrapper.chmod(0o755)
                     script = root / 'run_chains/remaining_goal_work.sh'
                     script.parent.mkdir()
-                    script.write_text(source)
+                    write_bash_fixture(script, source)
                     dispatch = root / 'dispatch.log'
-                    result = subprocess.run(['bash', str(script)], cwd=root,
+                    result = run_bash_fixture([str(script)], cwd=root,
                         env=dict(get_isolated_git_environment(), FAILED_GATES=json.dumps(names[:failures]), DISPATCH_LOG=str(dispatch)),
                         capture_output=True, text=True, timeout=10)
                     output = result.stdout + result.stderr
@@ -847,7 +848,7 @@ class ReplayListFailureTests(unittest.TestCase):
                 audit = root / 'ab_test_runtime/audit/artifact_structural_audit.json'
                 for folder in (experiments, data, audit.parent, root / 'app/env/bin'):
                     folder.mkdir(parents=True, exist_ok=True)
-                (root / 'app/env/bin/python').symlink_to(sys.executable)
+                write_bash_fixture(root / 'app/env/bin/python', '#!/bin/sh\nexec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"\n')
                 (experiments / '__init__.py').write_text('')
                 if case != 'missing_module':
                     (experiments / 'replay_artifact.py').write_text(replay_source)
@@ -870,11 +871,11 @@ class ReplayListFailureTests(unittest.TestCase):
                 replay_list = root / 'remaining.txt'
                 replay_list.write_text('old list must never be reused\n')
                 source = production.replace('REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git',
-                                            'REPO=' + shlex.quote(str(root)))
+                                            'REPO=' + shlex.quote(get_bash_path(root)))
                 # A legacy list must survive; new lists use private TMPDIR names.
-                source = source.replace('/tmp/replay_rest.txt', shlex.quote(str(replay_list)))
+                source = source.replace('/tmp/replay_rest.txt', shlex.quote(get_bash_path(replay_list)))
                 chain = root / 'chain.sh'
-                chain.write_text(source)
+                write_bash_fixture(chain, source)
                 env = dict(get_isolated_git_environment(), ALEXANDRIA_GPU_LOCK_HELD='1')
                 temporary = root / 'private-lists'
                 temporary.mkdir()
@@ -882,7 +883,7 @@ class ReplayListFailureTests(unittest.TestCase):
                 env.pop('PYTHONPATH', None)
                 before = {name: (data / name).read_bytes() for name in ('valid.json', 'broken.json')}
                 prepare_artifact_commit_fixture(root)
-                result = run_owned_cpu_chain(['bash', str(chain)], root, env=env, cwd=root,
+                result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env, cwd=root,
                                         capture_output=True, text=True, timeout=10)
                 output = result.stdout + result.stderr
                 failed = case not in ('empty', 'valid')
@@ -926,11 +927,11 @@ class RegressionChainExitTests(unittest.TestCase):
                 prior = b'{"llm":{"model_name":"prior"},"llm_local":{"model_name":"prior"}}'
                 config.write_bytes(prior)
                 curl = binary / "curl"
-                curl.write_text('#!/bin/sh\nprintf qwen3\n')
+                write_bash_fixture(curl, '#!/bin/sh\nprintf qwen3\n')
                 curl.chmod(0o755)
                 python = app / "env/bin/python"
-                python.write_text('#!/bin/bash\n'
-                    'if [ "$1" = "-" ]; then exec ' + shlex.quote(sys.executable) + ' "$@"; fi\n'
+                write_bash_fixture(python, '#!/bin/bash\n'
+                    'if [ "$1" = "-" ]; then exec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"; fi\n'
                     '[ "$2" = generate_script.py ] || exit 2\n'
                     'printf "Split into 1 chunk\\nGot 1 entries\\n"\n'
                     'if [ "$GENERATOR_EXIT" = 0 ]; then printf "[]" > "$5"; fi\n'
@@ -940,11 +941,11 @@ class RegressionChainExitTests(unittest.TestCase):
                 match = re.search(r'(?m)^REPO=(/[^\n ]+)$', source)
                 adapted = source.replace(match.group(1), str(root)) if match else source
                 chain = root / "regression.sh"
-                chain.write_text(adapted)
+                write_bash_fixture(chain, adapted)
                 chain.chmod(0o755)
                 env = {**get_isolated_git_environment(), "PATH": str(binary) + os.pathsep + os.environ["PATH"],
                        "GENERATOR_EXIT": str(returncode)}
-                result = run_owned_cpu_chain(["bash", str(chain)], root, env=env,
+                result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env,
                                             capture_output=True, text=True, timeout=10)
                 self.assertEqual(returncode, result.returncode, result.stdout + result.stderr)
                 self.assertIn(f"rc={returncode}", result.stdout)
@@ -976,17 +977,17 @@ class IndependentChainSummaryTests(unittest.TestCase):
                     for path in (app / "env/bin", logs, binary, chains / "lib"):
                         path.mkdir(parents=True)
                     for name in ("stage.sh", "server_cleanup.sh"):
-                        shutil.copyfile(pathlib.Path(CHAINS, "lib", name), chains / "lib" / name)
+                        copy_bash_fixture(pathlib.Path(CHAINS, "lib", name), chains / "lib" / name)
                     config = app / "config.json"
                     prior = b'{"llm":{"model_name":"prior"},"llm_local":{"model_name":"prior"}}'
                     config.write_bytes(prior)
                     curl = binary / "curl"
-                    curl.write_text('#!/bin/sh\nprintf qwen3\n')
+                    write_bash_fixture(curl, '#!/bin/sh\nprintf qwen3\n')
                     curl.chmod(0o755)
                     calls = root / "calls"
                     python = app / "env/bin/python"
-                    python.write_text('#!/bin/bash\n'
-                        'if [ "$1" = "-" ]; then exec ' + shlex.quote(sys.executable) + ' "$@"; fi\n'
+                    write_bash_fixture(python, '#!/bin/bash\n'
+                        'if [ "$1" = "-" ]; then exec ' + shlex.quote(get_bash_path(sys.executable)) + ' "$@"; fi\n'
                         'printf "%s\\n" "$*" >> "$CALLS_PATH"\n'
                         'printf "Split into 1 chunk\\n"\n'
                         'if [ "$FAIL_MODE" = all ] || { [ "$FAIL_MODE" = first ] && '
@@ -998,17 +999,17 @@ class IndependentChainSummaryTests(unittest.TestCase):
                     source = pathlib.Path(CHAINS, filename).read_text()
                     chain = chains / filename
                     match = re.search(r'(?m)^REPO=(/[^\n ]+)$', source)
-                    chain.write_text(source.replace(match.group(1), str(root)) if match else source)
+                    write_bash_fixture(chain, source.replace(match.group(1), str(root)) if match else source)
                     env = {**get_isolated_git_environment(), "PATH": str(binary) + os.pathsep + os.environ["PATH"],
                            "CALLS_PATH": str(calls), "FAIL_MODE": mode}
                     if count == 3:
-                        result = run_owned_cpu_chain(["bash", str(chain)], root, env=env,
+                        result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env,
                                                     capture_output=True, text=True, timeout=10)
                     else:
                         wrapper = root / "gpu_job.sh"
-                        wrapper.write_text('#!/bin/bash\nshift\nexec "$@"\n')
+                        write_bash_fixture(wrapper, '#!/bin/bash\nshift\nexec "$@"\n')
                         wrapper.chmod(0o755)
-                        result = subprocess.run(["bash", str(chain)], env=env,
+                        result = run_bash_fixture([str(chain)], env=env,
                                                 capture_output=True, text=True, timeout=10)
                     output = result.stdout + result.stderr
                     failures = 0 if mode == "none" else 1 if mode == "first" else count
@@ -1036,16 +1037,16 @@ class IndependentChainSummaryTests(unittest.TestCase):
             marker = root / "worker-ran"
             artifact = root / "artifact"
             library = pathlib.Path(CHAINS, "lib/stage.sh")
-            setup = 'set -uo pipefail\nsource ' + shlex.quote(str(library)) + '\nnote() { echo "$*"; }\n' + function
+            setup = 'set -uo pipefail\nsource ' + shlex.quote(get_bash_path(library)) + '\nnote() { echo "$*"; }\n' + function
             for exists in (False, True):
                 with self.subTest(existing_artifact=exists):
                     if marker.exists():
                         marker.unlink()
                     if exists:
                         artifact.write_text("prior bytes")
-                    command = setup + '\nattempt probe ' + shlex.quote(str(artifact)) + ' bash -c ' + shlex.quote(
-                        'printf ran > ' + shlex.quote(str(marker)) + '; exit 7') + '\nrc=$?\nprintf "rc=%s total=%s failures=%s\\n" "$rc" "$STAGE_TOTAL" "$STAGE_FAILURES"\nexit "$rc"\n'
-                    result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=5, env=get_isolated_git_environment())
+                    command = setup + '\nattempt probe ' + shlex.quote(get_bash_path(artifact)) + ' bash -c ' + shlex.quote(
+                        'printf ran > ' + shlex.quote(get_bash_path(marker)) + '; exit 7') + '\nrc=$?\nprintf "rc=%s total=%s failures=%s\\n" "$rc" "$STAGE_TOTAL" "$STAGE_FAILURES"\nexit "$rc"\n'
+                    result = run_bash_fixture(["-c", command], capture_output=True, text=True, timeout=5, env=get_isolated_git_environment())
                     self.assertEqual(0 if exists else 7, result.returncode, result.stdout + result.stderr)
                     self.assertIn("rc=0 total=0 failures=0" if exists else "rc=7 total=1 failures=1", result.stdout)
                     if exists:

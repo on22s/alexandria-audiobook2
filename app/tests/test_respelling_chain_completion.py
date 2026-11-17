@@ -1,4 +1,5 @@
 """Real chain guard expressions share counts and preserve unreadable refusal."""
+from tests.test_support import get_bash_path, run_bash_fixture
 import json
 import os
 from pathlib import Path
@@ -28,8 +29,8 @@ class RespellingChainCompletionTests(unittest.TestCase):
                     with self.subTest(chain=name,count=actual,rows=rows):
                         path.write_text(json.dumps({'status':'complete','candidates_considered':actual,'results':[{'term':'term'+str(i)} for i in range(rows)]}))
                         before=path.read_bytes()
-                        body='set -uo pipefail\nrepo='+shlex.quote(str(REPO))+'\nREPO="$repo"\npython='+shlex.quote(sys.executable)+'\nout='+shlex.quote(str(path))+'\nlimit=800\n'+guard
-                        result=subprocess.run(['bash','-c',body],capture_output=True,text=True,timeout=5)
+                        body='set -uo pipefail\nrepo='+shlex.quote(get_bash_path(REPO))+'\nREPO="$repo"\npython='+shlex.quote(get_bash_path(sys.executable))+'\nout='+shlex.quote(get_bash_path(path))+'\nlimit=800\n'+guard
+                        result=run_bash_fixture(['-c',body],capture_output=True,text=True,timeout=5)
                         self.assertEqual(expected,result.returncode,result.stdout+result.stderr)
                         self.assertEqual(before,path.read_bytes())
 
@@ -57,8 +58,8 @@ class RespellingChainCompletionTests(unittest.TestCase):
             for document,dispatch in (({'status':'complete'},True),({'status':'complete','candidates_considered':1,'results':[{'term':'A'}]},True),({'status':'complete','candidates_considered':2,'results':[{'term':'A'},{'term':'B'}]},False)):
                 with self.subTest(document=document):
                     path.write_text(json.dumps(document));before=path.read_bytes()
-                    body='REPO='+shlex.quote(str(REPO))+'\npython='+shlex.quote(sys.executable)+'\nout='+shlex.quote(str(path))+'\nLIMIT=2\nSEP=space\n'+source[a:b]+'\necho dispatch\n'
-                    result=subprocess.run(['bash','-c',body],capture_output=True,text=True,timeout=5)
+                    body='REPO='+shlex.quote(get_bash_path(REPO))+'\npython='+shlex.quote(get_bash_path(sys.executable))+'\nout='+shlex.quote(get_bash_path(path))+'\nLIMIT=2\nSEP=space\n'+source[a:b]+'\necho dispatch\n'
+                    result=run_bash_fixture(['-c',body],capture_output=True,text=True,timeout=5)
                     self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                     self.assertEqual(dispatch,'dispatch' in result.stdout,result.stdout+result.stderr)
                     self.assertEqual(before,path.read_bytes())
