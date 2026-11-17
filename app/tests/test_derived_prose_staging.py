@@ -1,7 +1,7 @@
 """Actual staging callers must preserve the human-owned GOALS index/blob."""
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import (copy_bash_fixture, get_bash_path,
+                                get_isolated_git_environment, run_bash_fixture)
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -21,7 +21,7 @@ class DerivedProseStagingTests(unittest.TestCase):
         for name in ("tools/regen_derived_commit.sh", ".githooks/pre-commit"):
             target = root / name
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / name, target)
+            copy_bash_fixture(ROOT / name, target)
         (root / "app/tests/test_fixture.py").write_text("# tracked fixture\n")
         (root / "GOALS.md").write_text("original human prose\n")
         self.git(root, "config", "core.hooksPath", "no-hooks")
@@ -31,10 +31,10 @@ class DerivedProseStagingTests(unittest.TestCase):
     def run_caller(self, root, caller):
         environment = test_derived_metadata.fixture_environment()
         environment.pop("ALEXANDRIA_REGEN_HOOK", None)
-        command = ["bash", str(root / ".githooks/pre-commit")] if caller == "pre-commit" else [
-            "bash", str(root / "tools/regen_derived_commit.sh"), caller]
-        result = subprocess.run(command, cwd=root, env=environment, capture_output=True,
-                                text=True, timeout=10)
+        command = [get_bash_path(root / ".githooks/pre-commit")] if caller == "pre-commit" else [
+            get_bash_path(root / "tools/regen_derived_commit.sh"), caller]
+        result = run_bash_fixture(command, cwd=root, env=environment, capture_output=True,
+                                  text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         return result
 

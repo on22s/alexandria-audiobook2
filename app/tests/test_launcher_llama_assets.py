@@ -1,5 +1,6 @@
 """Launcher descriptors execute their real prerequisite expressions in Node."""
-from tests.test_support import get_isolated_git_environment, isolate_git_environment
+from tests.test_support import (get_isolated_git_environment, isolate_git_environment,
+                               run_bash_fixture, write_bash_fixture)
 import json
 import hashlib
 import importlib.util
@@ -75,13 +76,13 @@ class LauncherLlamaAssetTests(unittest.TestCase):
         for platform,gpu,flag in (('linux','amd','HIP'),('linux','nvidia','CUDA'),('darwin','apple','METAL'),('linux','cpu',None)):
             with self.subTest(platform=platform,gpu=gpu),tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);binary=root/'bin';binary.mkdir()
-                uv=binary/'uv';uv.write_text('#!'+sys.executable+'\nimport json,os,sys;print(json.dumps({"args":sys.argv[1:],"cmake":os.environ.get("CMAKE_ARGS"),"uv_constraint":os.environ.get("UV_CONSTRAINT"),"pip_constraint":os.environ.get("PIP_CONSTRAINT")}))\n');uv.chmod(0o700)
-                rocminfo=binary/'rocminfo';rocminfo.write_text('#!/bin/sh\nprintf "Name: gfx1201\\nName: gfx1100\\n"\n');rocminfo.chmod(0o700)
+                uv=binary/'uv';write_bash_fixture(uv,'#!'+sys.executable+'\nimport json,os,sys;print(json.dumps({"args":sys.argv[1:],"cmake":os.environ.get("CMAKE_ARGS"),"uv_constraint":os.environ.get("UV_CONSTRAINT"),"pip_constraint":os.environ.get("PIP_CONSTRAINT")}))\n')
+                rocminfo=binary/'rocminfo';write_bash_fixture(rocminfo,'#!/bin/sh\nprintf "Name: gfx1201\\nName: gfx1100\\n"\n')
                 script="const d=require(process.argv[1]),platform=process.argv[2],gpu=process.argv[3];process.stdout.write(JSON.stringify(d.run.find(s=>eval(s.when.slice(2,-2))).params));"
                 selected=json.loads(subprocess.check_output(['node','-e',script,str(ROOT/'llama_cpp.js'),platform,gpu],text=True))
                 env=dict(os.environ,PATH=str(binary)+os.pathsep+os.environ['PATH'])
                 env.update({k:v.replace('{{args.constraints}}','retained-constraints.txt') for k,v in selected['env'].items()})
-                result=subprocess.run(['bash','-c',selected['message']],cwd=root,env=env,capture_output=True,text=True,check=True)
+                result=run_bash_fixture(['-c',selected['message']],cwd=root,env=env,capture_output=True,text=True,check=True)
                 captured=json.loads(result.stdout)
                 self.assertEqual(['pip','install','llama-cpp-python[server]==0.3.23','--no-binary','llama-cpp-python'],captured['args'])
                 self.assertEqual('retained-constraints.txt',captured['uv_constraint']);self.assertEqual(captured['uv_constraint'],captured['pip_constraint'])
@@ -157,7 +158,10 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         helper=self.root/'tools/verify_whisper_assets.py';helper.parent.mkdir();shutil.copy2(ROOT/'tools/verify_whisper_assets.py',helper)
         (self.root/'app').mkdir()
         # The owner's platform modules load lazily; macOS needs these two as well.
-        for name in ('subprocess_ownership.py','macos_subprocess_owner.py','macos_subprocess_kernel.py'):
+        # The owner's platform modules load lazily; macOS and Windows each need
+        # their own pair, and the Windows pair pulls two more in-repo modules.
+        for name in ('subprocess_ownership.py','macos_subprocess_owner.py','macos_subprocess_kernel.py',
+                     'windows_subprocess_owner.py','windows_subprocess_job.py','json_metadata.py'):
             shutil.copy2(ROOT/'app'/name,self.root/'app'/name)
         self.model.write_bytes(self.content)
         result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True, env=get_isolated_git_environment())
