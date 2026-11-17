@@ -7,7 +7,6 @@ import random
 import sys
 from contextlib import redirect_stdout
 import io
-import multiprocessing
 import os
 from pathlib import Path
 import pickle
@@ -21,6 +20,7 @@ import zipfile
 import numpy as np
 from scipy.spatial.distance import pdist, squareform, cdist
 from voice_analysis_cache import get_voice_analysis_stage_identity
+from tests.test_support import get_fixture_process_context
 
 
 SOURCE = Path(__file__).resolve().parent.parent.parent / "tools/voice_lab/voice_analysis.py"
@@ -58,6 +58,36 @@ def load_analysis_functions():
                  "extract_prosody": Mock(return_value={"duration": 0.001})}
     exec(compile(ast.Module(body=functions, type_ignores=[]), str(SOURCE), "exec"), namespace)
     return namespace
+
+
+def _atomic_writer_worker(value, delay, path_string, paused, release, ready, publish, outcomes):
+    """Spawn-safe writer: pause a partial pickle and its atomic publication."""
+    ns = load_analysis_functions()
+    original_dump, original_replace = pickle.dump, os.replace
+    try:
+        if delay:
+            def dump(value, handle):
+                data = pickle.dumps(value)
+                split = len(data) // 2
+                handle.write(data[:split]); handle.flush()
+                paused.set()
+                if not release.wait(5):
+                    raise RuntimeError('test did not release serializer')
+                handle.write(data[split:])
+            def replace(source, destination):
+                ready.set()
+                if not publish.wait(5):
+                    raise RuntimeError('test did not release publication')
+                original_replace(source, destination)
+            pickle.dump = dump
+            os.replace = replace
+        ns['_atomic_pickle_dump'](value, Path(path_string))
+        outcomes.put((value['writer'], None))
+    except BaseException as error:
+        outcomes.put((value['writer'], type(error).__name__ + ': ' + str(error)))
+    finally:
+        pickle.dump = original_dump
+        os.replace = original_replace
 
 
 class VoiceAnalysisCacheTests(unittest.TestCase):
@@ -225,13 +255,11 @@ class PipelineSummaryCorruptCacheTests(unittest.TestCase):
 
 class AtomicPickleWriterTests(unittest.TestCase):
     def test_overlapping_processes_publish_whole_snapshots_and_keep_staging_private(self):
-        ns = load_analysis_functions()
-        context = multiprocessing.get_context('fork')
+        context = get_fixture_process_context()
         paused, release, ready, publish = [context.Event() for _ in range(4)]
         outcomes = context.Queue()
         first = {'writer':'first','rows':list(range(2000))}
         second = {'writer':'second','rows':['different snapshot'] * 1000}
-        original_dump, original_replace = pickle.dump, os.replace
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'embeddings_cache.pkl')
             old = pickle.dumps({'writer':'previous','rows':[]})
@@ -239,34 +267,10 @@ class AtomicPickleWriterTests(unittest.TestCase):
             unrelated = Path(tmp, 'unrelated.tmp')
             unrelated.write_bytes(b'not owned by either writer')
 
-            def worker(value, delay):
-                try:
-                    if delay:
-                        def dump(value, handle):
-                            data = pickle.dumps(value)
-                            split = len(data) // 2
-                            handle.write(data[:split]); handle.flush()
-                            paused.set()
-                            if not release.wait(5):
-                                raise RuntimeError('test did not release serializer')
-                            handle.write(data[split:])
-                        def replace(source, destination):
-                            ready.set()
-                            if not publish.wait(5):
-                                raise RuntimeError('test did not release publication')
-                            original_replace(source,destination)
-                        pickle.dump = dump
-                        os.replace = replace
-                    ns['_atomic_pickle_dump'](value,path)
-                    outcomes.put((value['writer'],None))
-                except BaseException as error:
-                    outcomes.put((value['writer'],type(error).__name__ + ': ' + str(error)))
-                finally:
-                    pickle.dump = original_dump
-                    os.replace = original_replace
-
-            a = context.Process(target=worker,args=(first,True))
-            b = context.Process(target=worker,args=(second,False))
+            a = context.Process(target=_atomic_writer_worker,
+                                args=(first, True, str(path), paused, release, ready, publish, outcomes))
+            b = context.Process(target=_atomic_writer_worker,
+                                args=(second, False, str(path), paused, release, ready, publish, outcomes))
             a.start()
             try:
                 self.assertTrue(paused.wait(5),'first writer must pause after partial serialization')

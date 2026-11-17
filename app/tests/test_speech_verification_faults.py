@@ -14,6 +14,10 @@ from experiments.speech_verification_faults import (make_fault, get_cases, get_r
 from experiments.speech_verification_faults import (_validate_result_row, _verify,
                                                      get_runtime_identity)
 
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
+
 CLEAR = 'no_content_candidate'
 RUNTIME = {'primary': {'content': 'primary-bytes'}, 'confirmation': {'content': 'confirmation-bytes'}}
 
@@ -131,30 +135,33 @@ class GetCasesTests(unittest.TestCase):
             self.assertTrue(np.array_equal(pcm, make_fault(np.full(2400, 7, dtype=np.int16), 'tail_cut')))
             self.assertEqual(again['source_sha256'], get_sha256(Path(root) / 'alice' / 'wav' / 'a1.wav'))
             self.assertNotEqual(again['input_sha256'], tail['input_sha256'])
-            # OS/user aliases in ancestors are canonicalized; the evidence entry
-            # itself must still be plain (macOS /var has this shape).
-            ancestor = Path(root) / 'ancestor'
-            ancestor.symlink_to(Path(root), target_is_directory=True)
-            alias_derived = ancestor / 'alias-derived'
-            aliased = get_cases(ancestor, alias_derived, {1}, ('alice',))
-            publish_cases(aliased, alias_derived)
-            self.assertTrue(all(Path(c['wav']).is_file() for c in aliased))
-            linked_derived = Path(root) / 'linked-derived'
-            linked_derived.symlink_to(derived, target_is_directory=True)
-            with self.assertRaises(ValueError):
-                publish_cases(cases, linked_derived)
-            # Canonical spelling must not launder a control symlink, even when
-            # its target is the very WAV named by the matching proof.
-            rows_path = Path(root) / 'alice' / 'rows.json'
-            original_rows = rows_path.read_text()
-            linked_control = Path(root) / 'alice' / 'linked.wav'
-            linked_control.symlink_to(Path(root) / 'alice' / 'wav' / 'a1.wav')
-            linked_rows = json.loads(original_rows)
-            linked_rows['rows'][0]['wav'] = str(linked_control)
-            rows_path.write_text(json.dumps(linked_rows))
-            with self.assertRaisesRegex(ValueError, 'inside its pilot run'):
-                get_cases(root, derived, {1}, ('alice',))
-            rows_path.write_text(original_rows)
+            with self.subTest('symlink aliases and controls'):
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
+                # OS/user aliases in ancestors are canonicalized; the evidence entry
+                # itself must still be plain (macOS /var has this shape).
+                ancestor = Path(root) / 'ancestor'
+                ancestor.symlink_to(Path(root), target_is_directory=True)
+                alias_derived = ancestor / 'alias-derived'
+                aliased = get_cases(ancestor, alias_derived, {1}, ('alice',))
+                publish_cases(aliased, alias_derived)
+                self.assertTrue(all(Path(c['wav']).is_file() for c in aliased))
+                linked_derived = Path(root) / 'linked-derived'
+                linked_derived.symlink_to(derived, target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    publish_cases(cases, linked_derived)
+                # Canonical spelling must not launder a control symlink, even when
+                # its target is the very WAV named by the matching proof.
+                rows_path = Path(root) / 'alice' / 'rows.json'
+                original_rows = rows_path.read_text()
+                linked_control = Path(root) / 'alice' / 'linked.wav'
+                linked_control.symlink_to(Path(root) / 'alice' / 'wav' / 'a1.wav')
+                linked_rows = json.loads(original_rows)
+                linked_rows['rows'][0]['wav'] = str(linked_control)
+                rows_path.write_text(json.dumps(linked_rows))
+                with self.assertRaisesRegex(ValueError, 'inside its pilot run'):
+                    get_cases(root, derived, {1}, ('alice',))
+                rows_path.write_text(original_rows)
             # Reject an oversized designed WAV before creating its staged file.
             with patch('word_timing.MAX_AUDIO_BYTES', 200), \
                  patch.object(harness.tempfile, 'TemporaryDirectory',
@@ -335,14 +342,17 @@ class GetCasesTests(unittest.TestCase):
                 outside.write_bytes(Path(completed['wav']).read_bytes())
                 Path(completed['wav']).unlink()
                 for alias in ('symbolic', 'hard'):
-                    if alias == 'symbolic':
-                        Path(completed['wav']).symlink_to(outside)
-                    else:
-                        os.link(outside, completed['wav'])
-                    with self.assertRaises(ValueError):
-                        publish_cases(planned, derived, {(completed['run'], completed['case_id'])})
-                    self.assertEqual(Path(pending['wav']).read_bytes(), b'pending evidence')
-                    Path(completed['wav']).unlink()
+                    with self.subTest(alias=alias):
+                        if alias == 'symbolic':
+                            if not can_symlink():
+                                self.skipTest(_SYMLINK_SKIP_REASON)
+                            Path(completed['wav']).symlink_to(outside)
+                        else:
+                            os.link(outside, completed['wav'])
+                        with self.assertRaises(ValueError):
+                            publish_cases(planned, derived, {(completed['run'], completed['case_id'])})
+                        self.assertEqual(Path(pending['wav']).read_bytes(), b'pending evidence')
+                        Path(completed['wav']).unlink()
             # The archived 334 rows keep their schema; they predate input/runtime binding.
             archive = Path(__file__).resolve().parent.parent.parent / 'docs' / 'benchmarks' / 'raw' / \
                 'speech-verification-1434-20261024' / 'results.jsonl'

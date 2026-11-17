@@ -12,6 +12,9 @@ from unittest.mock import patch
 import wave
 import benchmark_runner as runner
 import tts_benchmark as worker
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class PcmEngine:
@@ -39,7 +42,11 @@ class TtsAssetBoundaryTests(unittest.TestCase):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); fixtures = root / 'fixtures'; fixtures.mkdir()
                 reference = root / 'private.wav'; reference.write_bytes(b'reference')
-                (fixtures / 'link.wav').symlink_to(reference)
+                symlink_available = can_symlink()
+                if symlink_available:
+                    (fixtures / 'link.wav').symlink_to(reference)
+                if mode == 'symlink' and not symlink_available:
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 name = {'absolute': str(reference), 'parent': '../private.wav', 'symlink': 'link.wav'}[mode]
                 fixture = self.clone_fixture(name); before = copy.deepcopy(fixture)
                 with patch.object(worker, 'get_file_sha256', wraps=worker.get_file_sha256) as read, \
@@ -56,7 +63,12 @@ class TtsAssetBoundaryTests(unittest.TestCase):
                 root = Path(tmp); fixtures = root / 'fixtures'; fixtures.mkdir(); adapter = fixtures / 'adapter'; adapter.mkdir()
                 outside = root / 'outside'; outside.mkdir(); (outside / 'training_meta.json').write_text('{}')
                 (adapter / 'training_meta.json').write_text('{}')
-                secret = fixtures / 'private'; secret.write_bytes(b'weights'); (adapter / 'link').symlink_to(secret)
+                secret = fixtures / 'private'; secret.write_bytes(b'weights')
+                symlink_available = can_symlink()
+                if symlink_available:
+                    (adapter / 'link').symlink_to(secret)
+                if mode == 'artifact-link' and not symlink_available:
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 name = {'artifact-parent': '../private', 'artifact-absolute': str(secret), 'artifact-link': 'link'}.get(mode)
                 fixture = {'text': 'Hello', 'seed': 1, 'adapter_path':
                     str(outside) if mode == 'adapter-absolute' else '../outside' if mode == 'adapter-parent' else 'adapter',

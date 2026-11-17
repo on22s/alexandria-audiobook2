@@ -12,6 +12,9 @@ from fastapi.testclient import TestClient
 from routers import voice_design
 from utils import file_lock
 from tests import test_voice_reference_import as fixtures
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class VoiceAssetFailurePathTests(unittest.TestCase):
@@ -63,7 +66,10 @@ class VoiceAssetFailurePathTests(unittest.TestCase):
             root = Path(root); assets = root / 'voices'; assets.mkdir()
             outside = root / 'outside.wav'; outside.write_bytes(b'unrelated')
             local = assets / 'local.wav'; local.write_bytes(b'local')
-            link = assets / 'escape.wav'; link.symlink_to(outside)
+            symlink_available = can_symlink()
+            link = assets / 'escape.wav'
+            if symlink_available:
+                link.symlink_to(outside)
             manifest = assets / 'manifest.json'
             app = FastAPI(); app.include_router(voice_design.router)
             with patch.object(voice_design, 'DESIGNED_VOICES_DIR', str(assets)), \
@@ -73,6 +79,8 @@ class VoiceAssetFailurePathTests(unittest.TestCase):
                 for name in ('../outside.wav', str(outside), 'escape.wav', '', None, 42):
                     for route in ('/api/voice_design/bad', '/api/clone_voices/bad'):
                         with self.subTest(name=name, route=route):
+                            if name == 'escape.wav' and not symlink_available:
+                                self.skipTest(_SYMLINK_SKIP_REASON)
                             manifest.write_text(json.dumps([{'id': 'bad', 'filename': name}, {'id': 'good', 'filename': 'local.wav'}]))
                             before = manifest.read_bytes()
                             response = client.delete(route)
@@ -80,7 +88,8 @@ class VoiceAssetFailurePathTests(unittest.TestCase):
                             self.assertEqual(before, manifest.read_bytes())
                             self.assertEqual(b'unrelated', outside.read_bytes())
                             self.assertEqual(b'local', local.read_bytes())
-                            self.assertTrue(link.is_symlink())
+                            if symlink_available:
+                                self.assertTrue(link.is_symlink())
 
     def test_valid_delete_removes_only_requested_voice_and_unknown_voice_is_404(self):
         for route in ('/api/voice_design/one', '/api/clone_voices/one'):

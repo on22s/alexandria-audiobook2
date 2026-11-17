@@ -1860,9 +1860,17 @@ class MissingBulkBookTests(unittest.TestCase):
                     'valid.voice_config.json.lock', 'empty.voice_config.json.lock',
                     'missing.json.lock', 'valid.json.lock', 'directory.json.lock', 'empty.json.lock',
                     '.active_book_transaction.json.lock'}})
-            self.assertEqual(b'', (scripts / '.active_book_transaction.json.lock').read_bytes())
+            # A released Windows byte-range lease leaves one NUL byte in the lock
+            # sidecar; POSIX leaves it empty. Neither is user-data mutation.
+            transaction_lock = (scripts / '.active_book_transaction.json.lock').read_bytes()
+            if transaction_lock == b'\x00':
+                transaction_lock = b''
+            self.assertEqual(b'', transaction_lock)
             for name in ('missing', 'valid', 'directory', 'empty'):
-                self.assertEqual(b'', (scripts / f'{name}.json.lock').read_bytes())
+                sidecar = (scripts / f'{name}.json.lock').read_bytes()
+                if sidecar == b'\x00':
+                    sidecar = b''
+                self.assertEqual(b'', sidecar)
             from tests.test_support import assert_file_lock_released
             for name in ('valid.voice_config.json', 'empty.voice_config.json'):
                 assert_file_lock_released(str(scripts / name))

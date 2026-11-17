@@ -9,6 +9,7 @@ from unittest.mock import Mock,patch
 import numpy as np
 import soundfile as sf
 import tts
+from tests.test_support import skip_unless_symlink
 
 
 class TTSAssetPathTests(unittest.TestCase):
@@ -26,6 +27,7 @@ class TTSAssetPathTests(unittest.TestCase):
                 with self.subTest(value=value),self.assertRaisesRegex(ValueError,'relative asset'):
                     tts._resolve_asset_path(value)
 
+    @skip_unless_symlink
     def test_symlink_escape_is_refused_even_with_a_safe_lexical_name(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);runtime=root/'runtime';runtime.mkdir();outside=root/'outside';outside.mkdir()

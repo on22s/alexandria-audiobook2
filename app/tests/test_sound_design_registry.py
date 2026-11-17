@@ -18,7 +18,10 @@ from sound_design_registry import (ACTIVE_CUES, MAX_REGISTRY_BYTES, get_saved_so
     get_sound_design_registry, get_sound_design_registry_bytes)
 from tests.test_sound_design_cues import recipe
 from tests import test_saved_book_publication as saved_publication
-from tests.test_support import book_publication_mutations, intercept_book_publications
+from tests.test_support import (book_publication_mutations, intercept_book_publications,
+                               can_symlink, skip_unless_symlink)
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 from routers import scripts_library, script
 
 
@@ -438,8 +441,11 @@ run()
             self.assertEqual(b'{invalid', (root / ACTIVE_CUES).read_bytes())
 
     def test_active_alias_hardlink_fifo_and_oversize_refuse_before_saved_family_changes(self):
+        symlink_available = can_symlink()
         for kind in ('symlink', 'hardlink', 'fifo', 'oversize'):
             with self.subTest(kind=kind), self.fixture() as (root, api), TestClient(api) as client:
+                if kind == 'symlink' and not symlink_available:
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 active = root / ACTIVE_CUES
                 target = root / 'protected.json'; raw = get_sound_design_registry_bytes(registry())
                 target.write_bytes(raw)
@@ -459,6 +465,7 @@ run()
                 self.assertEqual(before, saved_publication.SavedBookPublicationTests().artifacts(root))
                 self.assertEqual(raw, target.read_bytes())
 
+    @skip_unless_symlink
     def test_destination_alias_refuses_without_overwriting_either_named_book(self):
         with self.fixture() as (root, api), TestClient(api) as client:
             self.write_active(root)

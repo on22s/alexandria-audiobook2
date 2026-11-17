@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 from sound_design_candidates import list_sound_candidates, discard_sound_candidate
 from sound_design_staging import DIRECTORY
+from tests.test_support import skip_unless_symlink
 
 
 class SoundCandidateRecoveryTests(unittest.TestCase):
@@ -36,6 +37,7 @@ class SoundCandidateRecoveryTests(unittest.TestCase):
         self.assertEqual(b'keep',(neighbor/'keep').read_bytes())
         self.assertEqual(b'original',self.source.read_bytes())
 
+    @skip_unless_symlink
     def test_alias_refuses_inventory_and_discard_without_touching_source(self):
         row = list_sound_candidates(self.root)['candidates'][0]
         (self.stage/'alias').symlink_to(self.source)
