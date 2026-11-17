@@ -14191,7 +14191,8 @@
     "tests.test_state_persona_cards_js.StatePersonaCardTests.test_real_cards_and_actions_keep_version_and_book_identity"
   ]
   , "test_state_persona_review_regressions": [
-    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_base_edits_preserve_an_unchanged_stale_timeline"
+    "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_approval_can_clear_each_side_on_base_and_state_without_changing_other_fields"
+    , "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_base_edits_preserve_an_unchanged_stale_timeline"
     , "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_clone_state_autosave_preserves_identity_styles_and_seeds"
     , "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_every_full_save_refuses_wrong_boundaries_and_applied_version_deletion"
     , "tests.test_state_persona_review_regressions.StatePersonaReviewRegressions.test_generic_version_save_preserves_generated_provenance_and_manual_ids"
@@ -16850,6 +16851,13 @@
     , "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_cast_selection_changes_do_not_delete_or_clear_the_new_selection"
     , "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_designed_delete_refreshes_cards_only_after_successful_acknowledgment"
     , "tests.test_voice_removal_safeguards_js.VoiceRemovalSafeguardsJsTests.test_native_removal_guards"
+  ]
+  , "test_voice_review_buttons_js": [
+    "tests.test_voice_review_buttons_js.VoiceReviewButtonsJsTests.test_each_action_toggles_and_clears_without_changing_ready_or_other_side"
+    , "tests.test_voice_review_buttons_js.VoiceReviewButtonsJsTests.test_exclusivity_state_version_scope_and_failure_preserve_saved_state"
+    , "tests.test_voice_review_buttons_js.VoiceReviewButtonsJsTests.test_global_visibility_survives_reload_and_storage_refusal"
+    , "tests.test_voice_review_buttons_js.VoiceReviewButtonsJsTests.test_row_major_order_and_accessible_default_labels"
+    , "tests.test_voice_review_buttons_js.VoiceReviewButtonsJsTests.test_state_labels_are_translated_in_every_catalog"
   ]
   , "test_voice_roster_dropdowns_js": [
     "tests.test_voice_roster_dropdowns_js.VoiceRosterDropdownTests.test_alias_save_without_opening_and_self_exclusion"

@@ -32,6 +32,37 @@ class PreviewEngine:
 class StatePersonaReviewRegressions(unittest.TestCase):
     fixture = state_persona_tests.StateVoiceApiTests.fixture
 
+    def test_approval_can_clear_each_side_on_base_and_state_without_changing_other_fields(self):
+        for state in (False, True):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+                client, path, targets = self.fixture(directory, stack)
+                snapshot = client.get('/api/voice_config/snapshot').json()
+                scope = {'book_token': snapshot['book_token']}
+                if state:
+                    scope['version_id'] = targets[0]['version_id']
+                before = json.loads(path.read_text())
+                endpoint = '/api/voices/ARTHUR/approval'
+                for field in ('persona_status', 'voice_status'):
+                    for status in ('approved', 'reviewed', 'rejected'):
+                        result = client.post(endpoint, json={**scope, field: status})
+                        self.assertEqual(200, result.status_code, result.text)
+                        saved = json.loads(path.read_text())
+                        entry = saved['ARTHUR']['versions'][scope['version_id']] if state else saved['ARTHUR']
+                        self.assertEqual(status, entry[field])
+                        result = client.post(endpoint, json={**scope, field: 'unreviewed'})
+                        self.assertEqual(200, result.status_code, result.text)
+                        cleared = json.loads(path.read_text())
+                        entry = cleared['ARTHUR']['versions'][scope['version_id']] if state else cleared['ARTHUR']
+                        self.assertEqual('unreviewed', entry[field])
+                        expected = copy.deepcopy(saved)
+                        expected_entry = expected['ARTHUR']['versions'][scope['version_id']] if state else expected['ARTHUR']
+                        expected_entry[field] = 'unreviewed'
+                        self.assertEqual(expected, cleared)
+                after = json.loads(path.read_text())
+                entry = after['ARTHUR']['versions'][scope['version_id']] if state else after['ARTHUR']
+                del entry['persona_status'], entry['voice_status']
+                self.assertEqual(before, after)
+
     def test_every_full_save_refuses_wrong_boundaries_and_applied_version_deletion(self):
         for endpoint in ('/api/voice_config/save', '/api/save_voice_config'):
             for action in ('wrong_boundary', 'remove_timeline_version', 'remove_active_version'):

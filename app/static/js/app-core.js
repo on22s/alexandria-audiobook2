@@ -1099,6 +1099,7 @@
             let saved = 'light';
             try { saved = localStorage.getItem('alex-theme') || 'light'; } catch (e) { /* storage blocked */ }
             applyTheme(saved);
+            restoreVoiceReviewVisibility();
         })();
 
         function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {}, guardAmbiguous = false }) {
@@ -5220,6 +5221,36 @@
         }
 
 
+        function setVoiceReviewVisibility(shown, persist = true) {
+            document.getElementById('voices-tab')?.classList.toggle('voice-reviews-hidden', !shown);
+            const toggle = document.getElementById('voices-show-reviews');
+            if (toggle) { toggle.checked = shown; }
+            if (persist) {
+                try { localStorage.setItem('alex-voice-reviews-shown', String(shown)); } catch (error) {}
+            }
+        }
+
+        function restoreVoiceReviewVisibility() {
+            let shown = true;
+            try { shown = localStorage.getItem('alex-voice-reviews-shown') !== 'false'; } catch (error) {}
+            setVoiceReviewVisibility(shown, false);
+        }
+
+        function getVoiceReviewButtonsMarkup(config) {
+            const actions = [
+                ['approved', uiMessageMarkup('voice.card.approve-persona', 'Approve persona'), uiMessageMarkup('voice.card.approve-voice', 'Approve voice'), uiMessageMarkup('voice.card.persona-approved', 'Persona approved'), uiMessageMarkup('voice.card.voice-approved', 'Voice approved')],
+                ['reviewed', uiMessageMarkup('voice.card.review-persona', 'Review persona'), uiMessageMarkup('voice.card.review-voice', 'Review voice'), uiMessageMarkup('voice.card.persona-reviewed', 'Persona reviewed'), uiMessageMarkup('voice.card.voice-reviewed', 'Voice reviewed')],
+                ['rejected', uiMessageMarkup('voice.card.reject-persona', 'Reject persona'), uiMessageMarkup('voice.card.reject-voice', 'Reject voice'), uiMessageMarkup('voice.card.persona-rejected', 'Persona rejected'), uiMessageMarkup('voice.card.voice-rejected', 'Voice rejected')],
+            ];
+            return actions.map(([status, personaLabel, voiceLabel, personaState, voiceState]) =>
+                ['persona', 'voice'].map((side, index) => {
+                    const pressed = config[`${side}_status`] === status;
+                    const label = pressed ? [personaState, voiceState][index] : [personaLabel, voiceLabel][index];
+                    return `<button class="btn btn-sm voice-review-button" type="button" data-review-status="${status}" data-review-side="${side}" aria-pressed="${pressed}" onclick="setVoiceApproval(this, '${side}_status', '${status}')">${label}</button>`;
+                }).join('')
+            ).join('');
+        }
+
         function getVoiceReviewStatusLabel(status) {
             if (status === 'unreviewed') { return t('voice.card.review-unreviewed', 'unreviewed'); }
             if (status === 'unassigned') { return t('voice.card.review-unassigned', 'unassigned'); }
@@ -5266,10 +5297,11 @@
             for (const node of document.querySelectorAll('.voice-state-needs-generation')) {
                 node.textContent = t('voice.card.state-needs-generation', 'State persona needs generation for the current script.');
             }
-            for (const node of document.querySelectorAll('.voice-review-labels')) {
+            for (const node of document.querySelectorAll('.voice-review-actions')) {
                 const persona = node.getAttribute('data-persona-status');
                 const voice = node.getAttribute('data-voice-status');
-                node.textContent = getVoiceReviewText(persona, voice);
+                node.setAttribute('aria-label', t('voice.card.approval-group', 'Approval status'));
+                node.setAttribute('aria-description', getVoiceReviewText(persona, voice));
                 node.title = getVoiceReviewSupportText(persona, voice);
             }
             for (const node of document.querySelectorAll('.voice-line-count')) {
@@ -5414,16 +5446,9 @@
                                 </div>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${uiMessageMarkup('voice.card.recover', 'Recover persona')}</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${uiMessageMarkup('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
-                                <div class="small text-muted">${voice.version_id && voice.state_stale ? `<span class="voice-state-needs-generation">${uiMessageMarkup('voice.card.state-needs-generation', 'State persona needs generation for the current script.')}</span> ` : ''}<span class="voice-review-labels" data-persona-status="${escapeHtml(config.persona_status || 'unreviewed')}" data-voice-status="${escapeHtml(config.voice_status || 'unassigned')}" title="${escapeHtml(getVoiceReviewSupportText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}">${escapeHtml(getVoiceReviewText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}</span></div>
+                                ${voice.version_id && voice.state_stale ? `<div class="small text-muted voice-state-needs-generation">${uiMessageMarkup('voice.card.state-needs-generation', 'State persona needs generation for the current script.')}</div>` : ''}
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${uiMessageMarkup('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')})} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${uiMessageMarkup('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
-                                <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help">
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${uiMessageMarkup('voice.card.approve-persona', 'Approve persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-persona', 'Mark persona reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">${uiMessageMarkup('voice.card.reject-persona', 'Reject persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">${uiMessageMarkup('voice.card.approve-voice', 'Approve voice')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-voice', 'Mark voice reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">${uiMessageMarkup('voice.card.reject-voice', 'Reject voice')}</button>
-                                </div>
+                                <div class="voice-review-actions mt-1 mb-2" data-persona-status="${escapeHtml(config.persona_status || 'unreviewed')}" data-voice-status="${escapeHtml(config.voice_status || 'unassigned')}" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help" aria-description="${escapeHtml(getVoiceReviewText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}" title="${escapeHtml(getVoiceReviewSupportText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}">${getVoiceReviewButtonsMarkup(config)}</div>
                                 <div class="input-group input-group-sm mt-2" ${voice.version_id ? 'hidden' : ''}>
                                     <select class="form-select voice-version-select" aria-label="${escapeHtml(t('voice.card.version-aria', 'Voice version for {name}', {name: label}))}" onchange="selectVoiceVersion(this)">
                                         <option value="" disabled data-i18n="voice.card.version-empty" data-i18n-source="Choose a saved version">${t('voice.card.version-empty', 'Choose a saved version')}</option>
@@ -6325,12 +6350,18 @@
         };
 
         window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
-            const speaker = button.closest('.voice-card')?.dataset.voice;
+            if (button.disabled) { return; }
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            if (!speaker) { return; }
+            const nextStatus = getVoiceCardMetadata(card)[field] === status ? 'unreviewed' : status;
+            button.disabled = true;
             try {
-                await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
+                await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: nextStatus});
                 await loadVoices();
-                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} marked ${status} for ${speaker}.`, 'success');
-            } catch (e) { showActionError('Approval update failed', e, 'Reload Voices to check the current approval before trying again. Your voice assignments remain available.'); }
+                showToast(t('voice.review.saved', 'Review status saved for {speaker}.', {speaker}), 'success');
+            } catch (e) { showActionError(t('voice.review.save-error', 'Approval update failed'), e, t('voice.review.save-recovery', 'Reload Voices to check the current approval before trying again. Your voice assignments remain available.')); }
+            finally { button.disabled = false; }
         };
 
         window.editPersonaVoiceAudit = async function editPersonaVoiceAudit(button) {
