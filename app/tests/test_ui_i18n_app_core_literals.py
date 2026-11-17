@@ -1,12 +1,18 @@
-"""app-core.js must never show the user a bare English literal (issue #2017).
+"""The scanned UI modules must never show the user a bare English literal.
 
 What this verifies, precisely: for every call to ``showToast``,
 ``showActionError``, ``getActionErrorMessage`` and ``confirmIfRemote`` in
-``app/static/js/app-core.js``, and for every ``.textContent =`` / ``.innerText
-=`` assignment, the user-visible text is not written as a raw string literal.
-User-facing English lives in ``t('<key>', '<English>', {...})`` so that
-``app/static/i18n/ui.*.json`` can translate it; a raw literal is shown to every
-locale exactly as typed.
+``app/static/js/app-core.js`` and ``app/static/js/app-training.js``, and for
+every ``.textContent =`` / ``.innerText =`` assignment, the user-visible text is
+not written as a raw string literal. User-facing English lives in
+``t('<key>', '<English>', {...})`` so that ``app/static/i18n/ui.*.json`` can
+translate it; a raw literal is shown to every locale exactly as typed.
+
+#2017 wrote this for app-core.js. #2019 found the same bug in the Training tab
+and converted its eighteen failure paths, so the scanner is parametrised by
+file (SOURCES) rather than copied: one scanner, one rule set, every file that
+adopts it listed there. #2018's app-voicelab.js belongs here too when it lands;
+the alternative is a second and then a third copy that drift apart (Rule 15).
 
 What it does not cover: HTML assembled with ``.innerHTML =`` (a template that
 calls ``t()`` inside is invisible to a text scan) and labels set through other
@@ -25,7 +31,12 @@ import re
 import unittest
 from pathlib import Path
 
-CORE = Path(__file__).resolve().parent.parent / 'static' / 'js' / 'app-core.js'
+JS = Path(__file__).resolve().parent.parent / 'static' / 'js'
+CORE = JS / 'app-core.js'
+TRAINING = JS / 'app-training.js'
+# Every file this guard covers. A file added here is scanned by every test
+# below; that is the whole point of keeping the scanner parametrised.
+SOURCES = {'app-core.js': CORE, 'app-training.js': TRAINING}
 
 HELPERS = ('showToast', 'showActionError', 'getActionErrorMessage', 'confirmIfRemote')
 TEXT_TARGETS = ('textContent', 'innerText')
@@ -37,6 +48,10 @@ ALLOWED = {
 
 PROSE = re.compile(r'[A-Za-z]{2,}')
 TRANSLATED = re.compile(r'\bt\(')
+INTERPOLATION = re.compile(r'\$\{[^}]*\}')
+# A ternary arm handed straight to a message sink (#2019: `refused ? 'Dataset
+# upload refused' : 'Upload error'`). The quote after the arm's '?' or ':'.
+ARM = re.compile(r'[?:]\s*([\'"`])')
 TAG = re.compile(r'<[^>]*>')
 ENTITY = re.compile(r'&[a-zA-Z]{2,8};')
 NEWLINE = chr(10)
@@ -189,8 +204,14 @@ def visible_text(raw):
 
 
 def has_prose(raw):
-    """True when a literal carries words, not just a symbol or a value."""
-    text = visible_text(raw).strip()
+    """True when a literal carries words, not just a symbol or a value.
+
+    An interpolation is a VALUE, not copy, so it is replaced by one non-word
+    character before the prose test: `'${epoch}/${maxEpoch}'` is a progress
+    ratio and has no words to translate, while `'${count} files'` and
+    `'Reload ${name} first.'` still carry their own English and are reported.
+    """
+    text = visible_text(INTERPOLATION.sub('*', raw)).strip()
     if not text:
         return False
     if re.fullmatch(r'[a-z0-9_/#.-]+', text) and '..' not in text and not text.endswith('.'):
@@ -230,6 +251,77 @@ def argument_starts(text, index):
     return starts
 
 
+def argument_end(text, index):
+    """Offset of the ',', ';' or ')' that ends the expression at index.
+
+    ';' matters for the .textContent assignments, which are statements rather
+    than call arguments: stopping only at ')' let one assignment's scan run on
+    into the next statement and read that statement's ternary as its own.
+    """
+    depth = 0
+    position = index
+    while position < len(text):
+        char = text[position]
+        if char in QUOTES:
+            _raw, position = read_literal(text, position)
+            continue
+        if char in '([{':
+            depth += 1
+        elif char in ')]}':
+            if depth == 0:
+                return position
+            depth -= 1
+        elif char in ',;' and depth == 0:
+            return position
+        position += 1
+    return position
+
+
+def top_level_arms(text, start, end):
+    """Quote offsets after a '?' or ':' at the argument's own nesting level.
+
+    Only depth zero counts, so a translated call that builds the message still
+    passes: inside ``t('k', 'v', {tone: flag ? 'Error' : 'Info'})`` the '?' sits
+    one level in and its arms are values of the message, not the message.
+    """
+    depth = 0
+    position = start
+    while position < end:
+        char = text[position]
+        if char in QUOTES:
+            _raw, position = read_literal(text, position)
+            continue
+        if char in '([{':
+            depth += 1
+        elif char in ')]}':
+            depth -= 1
+        elif char in '?:' and depth == 0:
+            arm = ARM.match(text, position)
+            if arm is not None:
+                yield arm.start(1)
+                # Step over the whole arm literal, not just its opening quote:
+                # resuming inside it would read the closing quote as an opener
+                # and swallow the ':' that introduces the other arm.
+                _raw, position = read_literal(text, arm.start(1))
+                continue
+        position += 1
+
+
+def arm_findings(source, start, site):
+    """Bare English in the top-level arms of a message argument."""
+    index = start
+    while index < len(source) and source[index].isspace():
+        index += 1
+    if index >= len(source) or source[index] in QUOTES:
+        return []
+    findings = []
+    for quote in top_level_arms(source, index, argument_end(source, index)):
+        raw, _end = read_literal(source, quote)
+        if raw is not None and has_prose(raw) and not _translated_template(source, quote, raw):
+            findings.append((line_of(source, quote), site + ' arm', raw))
+    return findings
+
+
 def line_of(text, index):
     return text.count(NEWLINE, 0, index) + 1
 
@@ -265,22 +357,40 @@ def scan(source):
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
                 findings.append((line_of(source, match.start()), name + ' recovery', raw))
+    # A message argument that is not itself a literal can still hold one: the
+    # ternary `refused ? 'Dataset upload refused' : 'Upload error'` was exactly
+    # that shape in app-training.js (#2019), and the first-token check above
+    # would have passed it. Both arms are checked.
+    for name in HELPERS:
+        for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
+            if not mask[match.start()]:
+                continue
+            starts = argument_starts(source, match.end())
+            if starts:
+                findings.extend(arm_findings(source, starts[0], name))
+    for name in RECOVERY_HELPERS:
+        for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
+            if not mask[match.start()]:
+                continue
+            starts = argument_starts(source, match.end())
+            if len(starts) >= 3:
+                findings.extend(arm_findings(source, starts[2], name + ' recovery'))
     for target in TEXT_TARGETS:
         for match in re.finditer(r'\.\s*' + target + r'\s*=(?!=)\s*', source):
             if not mask[match.start()]:
                 continue
             index = match.end()
+            findings.extend(arm_findings(source, index, '.' + target))
             if index >= len(source) or source[index] not in QUOTES:
                 continue
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
                 findings.append((line_of(source, match.start()), '.' + target, raw))
-    findings.sort()
-    return findings
+    return sorted(set(findings))
 
 
-def core_source():
-    return CORE.read_text(encoding='utf-8')
+def source_of(path):
+    return path.read_text(encoding='utf-8')
 
 
 class ScannerFixtureTests(unittest.TestCase):
@@ -342,17 +452,48 @@ class ScannerFixtureTests(unittest.TestCase):
         found = [raw for _line, _site, raw in scan(source)]
         self.assertEqual(['Real literal after the nested template.'], found)
 
+    def test_both_arms_of_a_literal_ternary_are_reported(self):
+        found = [(site, raw) for _line, site, raw in scan(
+            "showActionError(refused ? 'Dataset upload refused' : 'Upload error', e, recovery());\n")]
+        self.assertEqual([('showActionError arm', 'Dataset upload refused'),
+                          ('showActionError arm', 'Upload error')], found)
+        self.assertEqual([], scan(
+            "showActionError(refused ? t('up.refused', 'Dataset upload refused') "
+            ": t('up.error', 'Upload error'), e, recovery());\n"))
 
-class AppCoreLiteralTests(unittest.TestCase):
-    def test_app_core_js_has_no_bare_english_messages(self):
-        findings = scan(core_source())
-        unexplained = [row for row in findings if row[2] not in ALLOWED]
-        self.assertEqual([], unexplained,
-                         'app-core.js shows raw English instead of t(<key>, <English>): '
-                         + repr(unexplained[:20]))
+    def test_a_ternary_arm_inside_a_translated_message_is_a_value(self):
+        self.assertEqual([], scan(
+            "showToast(t('k.tone', 'Saved {tone}.', {tone: failed ? 'Error' : 'Info'}));\n"))
+
+    def test_an_interpolation_is_a_value_not_prose(self):
+        self.assertEqual([], scan("progress.innerText = `${epoch}/${maxEpoch}`;\n"))
+        self.assertEqual(['${count} files'], [raw for _line, _site, raw in scan(
+            "progress.innerText = `${count} files`;\n")])
+
+
+class SourceLiteralTests(unittest.TestCase):
+    def test_the_scanned_files_show_no_bare_english_messages(self):
+        for name, path in SOURCES.items():
+            with self.subTest(file=name):
+                findings = scan(source_of(path))
+                unexplained = [row for row in findings if row[2] not in ALLOWED]
+                self.assertEqual([], unexplained,
+                                 name + ' shows raw English instead of t(<key>, <English>): '
+                                 + repr(unexplained[:20]))
+
+    def test_the_guard_actually_reads_app_training_js(self):
+        """#2019: a converted site put back must fail every scanned file's scan."""
+        source = source_of(TRAINING)
+        keyed = "t('training.train.cancel-failed', 'Failed to cancel training')"
+        self.assertIn(keyed, source)
+        self.assertEqual([('showActionError', 'Failed to cancel training')],
+                         [(site, raw) for _line, site, raw in
+                          scan(source.replace(keyed, "'Failed to cancel training'"))])
 
     def test_every_allowlist_entry_is_still_needed_and_says_why(self):
-        findings = {raw for _line, _site, raw in scan(core_source())}
+        findings = set()
+        for path in SOURCES.values():
+            findings |= {raw for _line, _site, raw in scan(source_of(path))}
         for literal, reason in ALLOWED.items():
             with self.subTest(literal=literal):
                 self.assertTrue(reason.strip(), 'an allowlist entry must state its reason')
