@@ -11,6 +11,9 @@ import tempfile
 import unittest
 
 from experiments import pdnc_context_evidence as context
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 REPO = Path(__file__).resolve().parents[2]
 CHAIN = REPO / 'run_chains/pdnc_context_evidence.sh'
@@ -23,9 +26,10 @@ class ContextCompletionTests(unittest.TestCase):
         self.root = Path(temporary.name)
         (self.root / 'pdnc_inputs').mkdir()
         (self.root / 'app/env/bin').mkdir(parents=True)
-        (self.root / 'app/env/bin/python').symlink_to(sys.executable)
         (self.root / 'app/experiments').mkdir()
-        (self.root / 'app/experiments/pdnc_context_evidence.py').symlink_to(REPO / 'app/experiments/pdnc_context_evidence.py')
+        if can_symlink():
+            (self.root / 'app/env/bin/python').symlink_to(sys.executable)
+            (self.root / 'app/experiments/pdnc_context_evidence.py').symlink_to(REPO / 'app/experiments/pdnc_context_evidence.py')
         self.path = self.root / 'result.json'
         self.make_fixture('evidence')
 
@@ -106,6 +110,8 @@ class ContextCompletionTests(unittest.TestCase):
                 with self.assertRaises(ValueError): self.validate()
 
     def run_tail(self, cached, generated=None, worker_code=0):
+        if not can_symlink():
+            self.skipTest(_SYMLINK_SKIP_REASON)
         if cached is None: self.path.unlink(missing_ok=True)
         else: self.path.write_bytes(cached)
         generated_path = self.root / 'generated.json'

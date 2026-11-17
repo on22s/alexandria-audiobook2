@@ -19,6 +19,9 @@ import three_pass_generate as tp
 import llm_provider as lp
 from lmstudio_settings import get_active_llm_config
 from experiments import three_pass_vs_single as harness
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 ROOT=Path(__file__).resolve().parents[2]
 TEXT='The patient gardener carefully watered the tall flowers beside the old stone wall.'
@@ -162,7 +165,10 @@ class GenerationModelBindingTests(unittest.TestCase):
             ({'data':MODEL},1),([MODEL],1),('not-json',1)]
         for payload,expected in replies:
             with self.subTest(payload=payload),tempfile.TemporaryDirectory() as tmp:
-                root=Path(tmp);app=root/'app';(app/'env/bin').mkdir(parents=True);(app/'env/bin/python').symlink_to(sys.executable)
+                root=Path(tmp);app=root/'app';(app/'env/bin').mkdir(parents=True)
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
+                (app/'env/bin/python').symlink_to(sys.executable)
                 logs=root/'ab_test_runtime/logs';logs.mkdir(parents=True)
                 (app/'config.json').write_text('current user config');(logs/'config.json.pre_qwen3_backup').write_text('stale backup')
                 bin_dir=root/'bin';bin_dir.mkdir();reply=root/'reply';reply.write_text(payload if isinstance(payload,str) else json.dumps(payload))
