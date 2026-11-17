@@ -11968,9 +11968,17 @@
     , "tests.test_review_labels_only.ReviewLabelsTests.test_source_role_hints_do_not_lock_review_labels"
   ]
   , "test_review_labels_only_toggle": [
-    "tests.test_review_labels_only_toggle.LabelsOnlyMarkupTests.test_all_four_catalogs_carry_both_keys_in_the_page_language"
+    "tests.test_review_labels_only_toggle.LabelsOnlyHelpAccuracyTests.test_the_reviewer_really_replaces_both_custom_prompts_in_labels_only_mode"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyHelpAccuracyTests.test_the_switch_help_and_tooltip_say_custom_review_prompts_are_ignored"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyMarkupTests.test_all_four_catalogs_carry_both_keys_in_the_page_language"
     , "tests.test_review_labels_only_toggle.LabelsOnlyMarkupTests.test_the_switch_is_one_bootstrap_form_switch_with_label_and_help"
     , "tests.test_review_labels_only_toggle.LabelsOnlyMarkupTests.test_the_switch_sits_in_the_review_prompt_group_and_stays_expert_only"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyPointerMarkupTests.test_the_pointer_and_its_help_are_in_every_catalog"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyPointerMarkupTests.test_the_pointer_is_one_script_tab_button_next_to_the_review_toggles"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyPointerNavigationTests.test_a_field_that_cannot_be_shown_is_not_revealed_or_focused"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyPointerNavigationTests.test_activating_the_pointer_reveals_and_focuses_the_original_switch"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyPointerNavigationTests.test_every_tab_activation_comes_from_the_one_jump_helper"
+    , "tests.test_review_labels_only_toggle.LabelsOnlyRoundTripTests.test_a_save_updates_the_script_tab_pointer"
     , "tests.test_review_labels_only_toggle.LabelsOnlyRoundTripTests.test_real_load_config_sets_the_switch_both_ways"
     , "tests.test_review_labels_only_toggle.LabelsOnlyRoundTripTests.test_real_save_payload_carries_the_switch_both_ways"
     , "tests.test_review_labels_only_toggle.LabelsOnlyRoundTripTests.test_reset_to_defaults_returns_the_switch_to_the_server_default"

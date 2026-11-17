@@ -2306,7 +2306,7 @@
                             <div class="mb-3 form-check form-switch">
                                 <input class="form-check-input" type="checkbox" role="switch" id="review-labels-only" aria-describedby="review-labels-only-help">
                                 <label data-i18n="setup.prompts.review-labels-only.label" class="form-check-label" for="review-labels-only">Labels-only review</label>
-                                <div data-i18n="setup.prompts.review-labels-only.help" class="form-text" id="review-labels-only-help">The review pass only corrects the speaker and delivery labels of each line and never rewrites the script text. This setting is part of a completed review's identity, so turning it on or off makes an already-reviewed book review again. Useful when the model keeps rewriting text, or with the manual LLM to keep replies short.</div>
+                                <div data-i18n="setup.prompts.review-labels-only.help" class="form-text" id="review-labels-only-help">The review pass only corrects the speaker and delivery labels of each line and never rewrites the script text. In this mode your custom Review System Prompt and Review User Prompt Template are ignored: review always uses its own label prompt, which asks only for a speaker and delivery instruction per line. This setting is part of a completed review's identity, so turning it on or off makes an already-reviewed book review again. Useful when the model keeps rewriting text, or with the manual LLM to keep replies short.</div>
                             </div>
                             <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-system-prompt.label" class="form-label" for="review-system-prompt">Review System Prompt</label>
@@ -2706,6 +2706,10 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="review-force-rerun">
                             <label data-i18n="script.review.force-rerun" class="form-check-label small" for="review-force-rerun">Review again even if nothing changed since the completed review.</label>
+                        </div>
+
+                        <div class="small mb-2">
+                            <button type="button" class="btn btn-link btn-sm p-0 text-start" id="btn-review-labels-only" data-help-key="reviewLabelsOnlyPointer" onclick="openSetupSetting('review-labels-only')"><span data-i18n-skip class="text-muted" id="review-labels-only-pointer">Labels-only review: off — change in Setup → Prompt studio</span></button>
                         </div>
 
                         <!-- Single review -->

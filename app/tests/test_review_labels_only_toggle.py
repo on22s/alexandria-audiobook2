@@ -32,6 +32,10 @@ LOCALES = ('en', 'zh-CN', 'ja', 'es-419')
 LABEL_KEY = 'setup.prompts.review-labels-only.label'
 HELP_KEY = 'setup.prompts.review-labels-only.help'
 FIELD_HELP_KEY = 'help.field.review-labels-only.what'
+POINTER_KEY = 'script.review.labels-only.pointer'
+POINTER_ON_KEY = 'script.review.labels-only.state.on'
+POINTER_OFF_KEY = 'script.review.labels-only.state.off'
+POINTER_HELP_KEY = 'help.action.reviewlabelsonlypointer'
 PROFILE = {'base_url': 'http://127.0.0.1:1234/v1', 'api_key': 'k', 'model_name': 'm'}
 
 
@@ -48,6 +52,87 @@ class SwitchInventory(HTMLParser):
             self.labels.append(attrs)
         if tag == 'div' and attrs.get('id') == 'review-labels-only-help':
             self.help_blocks.append(attrs)
+
+
+class PointerInventory(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.buttons, self.pointers = [], []
+
+    def handle_starttag(self, tag, attributes):
+        attrs = dict(attributes)
+        if tag == 'button' and attrs.get('id') == 'btn-review-labels-only':
+            self.buttons.append(attrs)
+        if attrs.get('id') == 'review-labels-only-pointer':
+            self.pointers.append((tag, attrs))
+
+
+class LabelsOnlyPointerMarkupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.html = (STATIC / 'index.html').read_text(encoding='utf-8')
+        cls.parser = PointerInventory()
+        cls.parser.feed(cls.html)
+
+    def test_the_pointer_is_one_script_tab_button_next_to_the_review_toggles(self):
+        self.assertEqual(1, len(self.parser.buttons), 'exactly one labels-only pointer')
+        self.assertEqual(1, len(self.parser.pointers), 'one dynamic text node')
+        button = self.parser.buttons[0]
+        self.assertEqual('button', button['type'])
+        self.assertIn('btn-link', button.get('class', '').split())
+        self.assertEqual('openSetupSetting(\'review-labels-only\')', button.get('onclick'))
+        self.assertEqual('reviewLabelsOnlyPointer', button.get('data-help-key'))
+        tag, pointer = self.parser.pointers[0]
+        self.assertEqual('span', tag)
+        self.assertIn('data-i18n-skip', pointer, 'JS paints the value, so the catalog is not a second source')
+        script_tab = self.html.index('id="script-tab"')
+        force_rerun = self.html.index('id="review-force-rerun"')
+        toggle = self.html.index('id="btn-review-labels-only"')
+        review_start = self.html.index('id="btn-review-script"')
+        self.assertLess(script_tab, force_rerun)
+        self.assertLess(force_rerun, toggle)
+        self.assertLess(toggle, review_start, 'the pointer sits with the other review toggles')
+
+    def test_the_pointer_and_its_help_are_in_every_catalog(self):
+        english = json.loads((I18N / 'ui.en.json').read_text(encoding='utf-8'))
+        self.assertEqual('Labels-only review: {state} — change in Setup → Prompt studio', english[POINTER_KEY])
+        self.assertEqual('on', english[POINTER_ON_KEY])
+        self.assertEqual('off', english[POINTER_OFF_KEY])
+        self.assertIn('Setup', english[POINTER_HELP_KEY])
+        for locale in LOCALES:
+            catalog = json.loads((I18N / f'ui.{locale}.json').read_text(encoding='utf-8'))
+            with self.subTest(locale=locale):
+                for key in (POINTER_KEY, POINTER_ON_KEY, POINTER_OFF_KEY, POINTER_HELP_KEY):
+                    self.assertIn(key, catalog)
+                    self.assertTrue(catalog[key].strip())
+                self.assertIn('{state}', catalog[POINTER_KEY])
+                if locale != 'en':
+                    self.assertNotEqual(english[POINTER_KEY], catalog[POINTER_KEY],
+                                        f'{locale} must translate the pointer')
+
+
+class LabelsOnlyHelpAccuracyTests(unittest.TestCase):
+    """Labels-only mode replaces both custom review prompts (review_script.py:1594)."""
+
+    def test_the_switch_help_and_tooltip_say_custom_review_prompts_are_ignored(self):
+        english = json.loads((I18N / 'ui.en.json').read_text(encoding='utf-8'))
+        self.assertIn('Review System Prompt', english[HELP_KEY])
+        self.assertIn('Review User Prompt Template', english[HELP_KEY])
+        self.assertIn('ignored', english[HELP_KEY])
+        self.assertIn('ignored', english[FIELD_HELP_KEY])
+        self.assertLessEqual(len(english[FIELD_HELP_KEY]), 300, 'the tooltip has a length cap')
+        for locale in LOCALES[1:]:
+            catalog = json.loads((I18N / f'ui.{locale}.json').read_text(encoding='utf-8'))
+            with self.subTest(locale=locale):
+                self.assertNotEqual(english[HELP_KEY], catalog[HELP_KEY])
+                self.assertNotEqual(english[FIELD_HELP_KEY], catalog[FIELD_HELP_KEY])
+                self.assertGreater(len(catalog[HELP_KEY]), 60, 'the whole switch help is translated')
+
+    def test_the_reviewer_really_replaces_both_custom_prompts_in_labels_only_mode(self):
+        source = (Path(__file__).resolve().parent.parent / 'review_script.py').read_text(encoding='utf-8')
+        block = source[source.index('if params.review_labels_only:', source.index('usr_template = params.user_prompt_template')):]
+        self.assertIn('sys_prompt = REVIEW_LABEL_SYSTEM', block[:400])
+        self.assertIn('user_prompt = context', block[:400])
 
 
 class LabelsOnlyMarkupTests(unittest.TestCase):
@@ -86,6 +171,7 @@ class LabelsOnlyMarkupTests(unittest.TestCase):
         self.assertEqual('Labels-only review', english[LABEL_KEY])
         self.assertIn('never rewrites the script text', english[HELP_KEY])
         self.assertIn('review again', english[HELP_KEY])
+        self.assertIn('own label prompt', english[HELP_KEY])
         self.assertIn('labels', english[FIELD_HELP_KEY].lower())
         self.assertIn('never rewritten', english[FIELD_HELP_KEY])
         for locale in LOCALES:
@@ -116,11 +202,17 @@ const context={window:{},document:{getElementById:element},API:{get:async()=>con
  currentBookFilename:'',
  passPromptDefaults:{pass1:{system_prompt:'s',user_prompt:'u'},pass3:{system_prompt:'s',user_prompt:'u'},
   cast:{whole_book_prompt:'w',incremental_prompt:'i'}}};
+context.t=(key,english,values=Object())=>Object.keys(values).reduce(
+ (text,name)=>text.split('{'+name+'}').join(String(values[name])),String(english));
 vm.createContext(context);
 const start=source.indexOf('async function loadConfig() {');
 const end=source.indexOf('// Reset prompts and generation settings',start);
 assert(start>=0&&end>start,'loadConfig boundaries must exist in source order');
 vm.runInContext(source.slice(start,end),context);
+const pointerStart=source.indexOf('function renderReviewLabelsOnlyPointer(');
+const pointerEnd=source.indexOf('// The whole payload in one place',pointerStart);
+assert(pointerStart>=0&&pointerEnd>pointerStart,'renderer boundaries must exist in source order');
+vm.runInContext(source.slice(pointerStart,pointerEnd),context);
 function fixture(reviewLabelsOnly){
  const prompts={review_system_prompt:'review S',review_user_prompt:'review U',
   persona_system_prompt:'persona S',persona_user_prompt:'persona U',persona_advanced_prompt:'advanced'};
@@ -133,9 +225,14 @@ function fixture(reviewLabelsOnly){
  for(const [value,expected] of [[true,true],[false,false]]){
   element('review-labels-only').checked=!expected;config=fixture(value);await context.loadConfig();
   assert.strictEqual(element('review-labels-only').checked,expected,'config '+value+' must set the switch');
+  assert.strictEqual(element('review-labels-only-pointer').textContent,
+   'Labels-only review: '+(expected?'on':'off')+' — change in Setup → Prompt studio',
+   'the Script-tab pointer must follow the loaded value');
  }
  element('review-labels-only').checked=true;config=fixture(undefined);await context.loadConfig();
  assert.strictEqual(element('review-labels-only').checked,false,'a config without the key means off');
+ assert(element('review-labels-only-pointer').textContent.includes('off'),
+  'a config without the key leaves the pointer saying off');
 })().catch(error=>{console.error(error);process.exitCode=1;});
 '''
 
@@ -154,6 +251,20 @@ element('review-labels-only').checked=false;
 assert.strictEqual(context.buildConfigPayload(2).prompts.review_labels_only,false,'off must save false');
 ''')
 
+    def test_a_save_updates_the_script_tab_pointer(self):
+        fixtures.PromptPresetTransactionTests().run_case(r'''
+mode='success';
+assert.strictEqual(element('review-labels-only-pointer').textContent,'Labels-only review: off — change in Setup → Prompt studio');
+element('review-labels-only').checked=true;
+await context.saveConfigPayload(context.buildConfigPayload(2));
+assert.strictEqual(posts.at(-1).prompts.review_labels_only,true);
+assert.strictEqual(element('review-labels-only-pointer').textContent,'Labels-only review: on — change in Setup → Prompt studio','the pointer follows the saved value');
+element('review-labels-only').checked=false;
+await context.saveConfigPayload(context.buildConfigPayload(2));
+assert.strictEqual(posts.at(-1).prompts.review_labels_only,false);
+assert.strictEqual(element('review-labels-only-pointer').textContent,'Labels-only review: off — change in Setup → Prompt studio');
+''')
+
     def test_reset_to_defaults_returns_the_switch_to_the_server_default(self):
         app = FastAPI(); app.include_router(system.router)
         with TestClient(app) as client:
@@ -169,13 +280,103 @@ const resetStart=source.indexOf('window.resetPrompts =');
 const resetEnd=source.indexOf('function buildConfigPayload(',resetStart);
 assert(resetStart>=0&&resetEnd>resetStart);
 run(source.slice(resetStart,resetEnd));
+run(source.slice(source.indexOf('function renderReviewLabelsOnlyPointer('),source.indexOf('// The whole payload in one place')));
 context.API.get=async()=>defaults;
 element('review-labels-only').checked=true;
 await context.window.resetPrompts();
 assert.strictEqual(element('review-labels-only').checked,false,'restore defaults must switch it off');
 assert.strictEqual(toasts.length,1,'the reset must finish without a swallowed error');
+assert(element('review-labels-only-pointer').textContent.includes('off'),'the pointer follows the reset');
 assert.strictEqual(toasts[0][1],'success');
 ''')
+
+
+POINTER_SETUP = r'''
+Element.prototype.replaceChildren=function(){for(const child of [...this.children]){child.remove();}};
+Element.prototype.focus=function(){document.activeElement=this;};
+Element.prototype.scrollIntoView=function(){this.scrolled=true;};
+context.getComputedStyle=node=>({display:node.style.display||'block'});
+const form=body.appendChild(new Element('form',{id:'config-form'}));
+const category=body.appendChild(new Element('select',{id:'setup-settings-category'}));
+const search=body.appendChild(new Element('input',{id:'setup-settings-search'}));search.value='';
+body.appendChild(new Element('button',{id:'setup-settings-clear'}));
+const results=body.appendChild(new Element('div',{id:'setup-settings-results',hidden:''}));
+body.appendChild(new Element('div',{id:'setup-settings-search-status'}));
+const expert=body.appendChild(new Element('input',{id:'setup-expert-toggle',type:'checkbox'}));
+const connection=form.appendChild(new Element('section',{'data-settings-section':'Connection',id:'settings-llm'}));
+connection.appendChild(new Element('h5'));
+const prompts=form.appendChild(new Element('section',{'data-settings-section':'Prompt studio',id:'settings-prompts','data-setup-advanced-section':'',hidden:''}));
+prompts.appendChild(new Element('h5'));
+const details=prompts.appendChild(new Element('details'));details.open=false;
+const reviewPrompt=details.appendChild(new Element('textarea',{id:'review-system-prompt'}));
+reviewPrompt.value='custom review prompt';
+const label=details.appendChild(new Element('label',{for:'review-labels-only'}));
+const toggle=details.appendChild(new Element('input',{id:'review-labels-only',type:'checkbox'}));
+toggle.labels=[label];toggle.checked=false;
+const stored=new Map();context.localStorage={getItem:key=>stored.has(key)?stored.get(key):null,setItem:(key,value)=>stored.set(key,value)};
+let activated=[];context.activateTab=(name,updateHistory)=>{activated.push([name,updateHistory]);};
+const routed=document.querySelectorAll.bind(document);
+document.querySelectorAll=selector=>selector==='#config-form [data-settings-section]'
+ ? form.querySelectorAll('[data-settings-section]') : routed(selector);
+const core=fs.readFileSync(process.argv[2],'utf8');
+const fieldStart=core.indexOf('function openConfigField('),fieldEnd=core.indexOf('function showConfigValidationError(',fieldStart);
+assert(fieldStart>=0&&fieldEnd>fieldStart,'openConfigField boundaries must exist in source order');
+vm.runInContext(core.slice(fieldStart,fieldEnd),context);
+const workbench=fs.readFileSync(process.argv[3],'utf8');
+const statusStart=workbench.indexOf('function applySystemStatusText(');
+assert(statusStart>=0,'applySystemStatusText must exist in app-workbench.js');
+vm.runInContext(workbench.slice(statusStart,workbench.indexOf('\n        }',statusStart)+10),context);
+load();
+'''
+
+
+class LabelsOnlyPointerNavigationTests(unittest.TestCase):
+    """The Script-tab pointer navigates through the one existing jump helper."""
+
+    def run_js(self, script):
+        from tests.test_ui_help_js import DOM_FIXTURE
+        result = subprocess.run(['node', '-e', "eval(require('fs').readFileSync(0,'utf8'));",
+                                 str(STATIC / 'js' / 'app-settings.js'), str(SOURCE),
+                                 str(STATIC / 'js' / 'app-workbench.js')],
+                                input=DOM_FIXTURE + POINTER_SETUP + script,
+                                capture_output=True, text=True, encoding='utf-8', timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_activating_the_pointer_reveals_and_focuses_the_original_switch(self):
+        self.run_js(r'''
+context.openSetupSetting('review-labels-only');
+assert.deepStrictEqual(activated,[['setup',true]],'it must open the Setup tab');
+assert(expert.checked,'expert settings must be revealed');
+assert(!stored.has('alexandria.setupExpert'),'revealing must not save the reader preference');
+assert.strictEqual(prompts.hidden,false,'the Prompt studio section must be shown');
+assert.strictEqual(connection.hidden,true,'only the target section is shown');
+assert.strictEqual(category.value,'settings-prompts');
+assert.strictEqual(details.open,true,'the collapsed disclosure must be opened');
+assert.strictEqual(document.activeElement,toggle,'focus must land on the switch');
+assert.strictEqual(toggle.scrolled,true,'the switch must be scrolled into view');
+assert.strictEqual(toggle.checked,false,'navigating must not change the setting');
+assert.strictEqual(reviewPrompt.value,'custom review prompt','edits must be untouched');
+assert.strictEqual(results.hidden,true);
+''')
+
+    def test_a_field_that_cannot_be_shown_is_not_revealed_or_focused(self):
+        self.run_js(r'''
+toggle.setAttribute('disabled','');
+context.openSetupSetting('review-labels-only');
+assert.strictEqual(document.activeElement,undefined,'a disabled switch must not take focus');
+assert.strictEqual(details.open,false,'and its disclosure must stay closed');
+context.openSetupSetting('not-a-control');
+assert.strictEqual(details.open,false,'an unknown id must not open anything');
+''')
+
+    def test_every_tab_activation_comes_from_the_one_jump_helper(self):
+        source = (STATIC / 'js' / 'app-settings.js').read_text(encoding='utf-8')
+        self.assertEqual(1, source.count("activateTab('setup'"), 'one jump path, not a second copy')
+        markup = (STATIC / 'index.html').read_text(encoding='utf-8')
+        button = markup[markup.index('id="btn-review-labels-only"') - 260:
+                        markup.index('id="btn-review-labels-only"') + 260]
+        self.assertIn("onclick=\"openSetupSetting('review-labels-only')\"", button)
+        self.assertNotIn('activateTab(', button, 'the pointer must not navigate by hand')
 
 
 class LabelsOnlyServerTests(unittest.TestCase):
