@@ -12,6 +12,9 @@ import wave
 
 import voice_drift
 from project import ProjectManager
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 if os.environ.get('VOICE_DRIFT_BOUNDARY_BASELINE'):
     baseline = Path(os.environ['VOICE_DRIFT_BOUNDARY_BASELINE'])
@@ -28,6 +31,8 @@ class VoiceDriftBoundaryTests(unittest.TestCase):
     def test_configured_and_fallback_references_cannot_decode_outside_root(self):
         for kind in ('clone', 'lora', 'builtin_lora', 'fallback', 'clone_symlink', 'lora_ref_symlink'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
+                if kind in ('clone_symlink', 'lora_ref_symlink') and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 base = Path(tmp)
                 root = base / 'project'
                 outside = base / 'foreign/ref_sample.wav'

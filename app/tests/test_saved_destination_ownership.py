@@ -16,6 +16,7 @@ import core
 from routers import script, scripts_library as library
 from review_script import _checkpoint_path
 from tests import test_saved_book_publication as saved_publication
+from tests.test_support import skip_unless_symlink
 
 
 CLEAN = ['Review complete: 1 -> 1 entries', 'Total changes: 0']
@@ -191,6 +192,7 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
             states['batch_review']['tasks'] = [{'status': 'running'}]
             self.assertEqual(409, client.post('/api/scripts/save', json={'name': 'other'}).status_code)
 
+    @skip_unless_symlink
     def test_claim_scope_is_copied_canonical_and_retired_with_its_exact_owner(self):
         with self.fixture() as (root, client, states, helper):
             alias = root / 'alias'
