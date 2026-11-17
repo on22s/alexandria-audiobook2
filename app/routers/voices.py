@@ -185,8 +185,9 @@ class VoiceSuggestionApplyRequest(BaseModel):
     character: str
     cast: Optional[str] = None
     suggestion: Dict
-    # Confirmed after a 409 "voice_overrides": clear the alias and version
-    # timeline that would keep another voice effective (#1800).
+    # Confirmed after a 409 "voice_overrides": clear the alias, version
+    # timeline and narrator strategy that would keep another voice effective
+    # (#1800, #2015).
     clear_overrides: bool = False
 
 class VoiceSuggestionApplyBulkRequest(BaseModel):
@@ -1772,6 +1773,66 @@ def _voice_asset_summary(config):
             "narrator_strategy": data.get("narrator_strategy") or "global"}
 
 
+def get_masking_voice_overrides(character, entry):
+    """-> the settings on `entry` that would keep a voice other than its base
+    asset effective, or None when the base asset is what renders (#1800, #2015).
+
+    THE one answer for both apply paths (Rule 15): this project's single-voice
+    apply (build_single_voice_proposal) and a voice-suggestion apply
+    (_apply_voice_suggestions). It reads the effective values through
+    _voice_asset_summary, so an alias the runtime ignores (blank/non-string) is
+    not a mask (DS3039). Keys are present only when they are set:
+
+      alias_of          the EFFECTIVE alias (alias_of or the legacy alias)
+      version_timeline  a per-chunk version timeline (any stored shape)
+      narrator_strategy the strategy when it is not "global"; it masks because
+                        tts.resolve_narrator_voice_config routes a narration
+                        chunk with focus_speaker to the focus voice (#2015)
+
+    Not masks, by design — each is a marker or history, not another voice:
+
+      active_version   only `version_timeline` is read at render time
+                       (tts.active_version_id), and selecting a version bakes
+                       its fields into the entry itself
+                       (select_voice_version's entry.update), so the key alone
+                       changes nothing audible
+      active_candidate a UI marker with no audible effect of its own
+      ready            approval state
+      versions         history the runtime reaches only through the keys above
+
+    build_single_voice_proposal still DISCLOSES those keys being cleared (its
+    patch clears them); that is a statement about the stored bytes, not about
+    masking, so it stays beside this verdict rather than inside it. Pure: the
+    caller's entry is never mutated, a new dict is built (Rule 17).
+    """
+    summary = _voice_asset_summary(entry)
+    overrides = {"character": character, "alias_of": summary["alias_of"],
+                 "version_timeline": bool(summary["version_timeline"])}
+    if summary["narrator_strategy"] != "global":
+        overrides["narrator_strategy"] = summary["narrator_strategy"]
+    if not (overrides["alias_of"] or overrides["version_timeline"]
+            or overrides.get("narrator_strategy")):
+        return None
+    return overrides
+
+
+def get_masking_override_changes(overrides):
+    """-> the clearing disclosures for a get_masking_voice_overrides verdict.
+
+    The sentences are the single-voice apply's own, reused by the suggestion
+    apply so a reset is reported with one wording everywhere (Rule 15).
+    """
+    overrides = overrides or {}
+    changes = []
+    if overrides.get("alias_of"):
+        changes.append("alias cleared")
+    if overrides.get("version_timeline"):
+        changes.append("version timeline/active version cleared")
+    if overrides.get("narrator_strategy"):
+        changes.append("narrator strategy reset to global")
+    return changes
+
+
 def build_single_voice_proposal(voices, script, source_speaker):
     """Build patch-only proposals for the ACTIVE script speakers, read-only.
 
@@ -1872,15 +1933,20 @@ def build_single_voice_proposal(voices, script, source_speaker):
         voice_changed = before_summary != after_summary
         if voice_changed:
             changes.append("voice changed")
+        # The patch clears these stored keys, so clearing them is disclosed
+        # even where the runtime ignores the value (a whitespace alias,
+        # DS3039) or where the key is a marker rather than a mask (an
+        # active_version alone). This is the stored-bytes view; the audible
+        # verdict is the one shared helper below, and the approval reset and
+        # the suggestion apply both read it (Rule 15).
+        masking = get_masking_voice_overrides(name, before)
         if isinstance(before, dict) and (before.get("alias_of") or before.get("alias")):
             changes.append("alias cleared")
         if isinstance(before, dict) and (before.get("version_timeline") or before.get("active_version")):
             changes.append("version timeline/active version cleared")
-        # Effective strategy via the canonical summary (None/""/"global"
-        # all normalize to "global" there): only a real dynamic override
-        # is disclosed as a reset, never a legacy empty spelling.
-        if isinstance(before, dict) and before_summary["narrator_strategy"] != "global":
-            changes.append("narrator strategy reset to global")
+        for change in get_masking_override_changes(masking):
+            if change not in changes:
+                changes.append(change)
         if isinstance(before, dict) and before.get("active_candidate"):
             # UI-only marker: the saved candidate no longer names the
             # applied voice. Disclosed in the preview; clearing it does
@@ -1888,15 +1954,13 @@ def build_single_voice_proposal(voices, script, source_speaker):
             changes.append("active candidate cleared (saved candidates kept)")
         if isinstance(before, dict) and bool(before.get("ready")):
             changes.append("ready reset (needs new listening approval)")
-        # Reset stale voice approval exactly where the effective voice or
-        # active overrides change; otherwise preserve (omit the key). An
+        # Reset stale voice approval exactly where the effective voice or a
+        # masking override changes; otherwise preserve (omit the key). An
         # alias the runtime ignores (whitespace/non-string) does not make
         # the effective voice change, even though its raw key is cleared
-        # and disclosed above (DS3039). Reuse the normalized summary's
-        # alias instead of re-deriving it from the raw entry.
-        effective_changed = voice_changed or ("alias cleared" in changes and before_summary["alias_of"]
-            or "version timeline/active version cleared" in changes
-            or "narrator strategy reset to global" in changes)
+        # and disclosed above (DS3039) — which is why this is the shared
+        # verdict, not "was anything disclosed".
+        effective_changed = voice_changed or bool(masking)
         if effective_changed:
             patch["voice_status"] = "unassigned"
             if isinstance(before, dict) and before.get("voice_status"):
@@ -2663,20 +2727,6 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             "heuristic_characters": heuristic_characters}
 
 
-
-
-def get_suggestion_overrides(character, entry):
-    """-> the override on `entry` that would keep a voice other than its base
-    effective (#1800), or None. Uses the same effective-alias and timeline
-    reading as the single-voice apply (_voice_asset_summary), so an alias the
-    runtime ignores (blank/non-string) is not an override."""
-    summary = _voice_asset_summary(entry)
-    timeline = bool(summary["version_timeline"])
-    if not summary["alias_of"] and not timeline:
-        return None
-    return {"character": character, "alias_of": summary["alias_of"], "version_timeline": timeline}
-
-
 def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[str],
                              clear_overrides: bool = False) -> dict:
     if any(value.get("state_version") for value in suggestions.values()):
@@ -2700,6 +2750,7 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 raise HTTPException(status_code=404, detail=f"Cast '{cast_name}' not found.")
             applied = []
             blocked = []
+            cleared = []
             def update(current_config):
                 voice_config = copy.deepcopy(current_config)
                 usage = get_cast_adapter_usage(lib, cast_name, identities)
@@ -2720,16 +2771,24 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                         raise HTTPException(status_code=400, detail=f"Unknown or unavailable LoRA adapter: {adapter_id}")
                     style = (suggestion.get("character_style") or "").strip()[:500]
                     cfg = dict(voice_config.get(character) or {})
-                    override = get_suggestion_overrides(character, cfg)
+                    override = get_masking_voice_overrides(character, cfg)
                     if override:
                         if not clear_overrides:
                             blocked.append(override)
                             continue
                         # Confirmed: make the suggestion effective. Saved
                         # versions stay as history; only what selects
-                        # another voice is cleared.
-                        for key in ("alias_of", "alias", "version_timeline"):
+                        # another voice is cleared (the one shared verdict
+                        # above). A narrator strategy is RESET, not dropped:
+                        # "global" is the stored spelling the single-voice
+                        # apply writes, and the reset is reported below with
+                        # that path's own wording.
+                        for key in ("alias_of", "alias", "version_timeline", "active_version"):
                             cfg.pop(key, None)
+                        if override.get("narrator_strategy"):
+                            cfg["narrator_strategy"] = "global"
+                        cleared.append({"character": character,
+                                        "changes": get_masking_override_changes(override)})
                     cfg.pop("active_candidate", None)
                     cfg.pop("active_version", None)
                     # DS3010: a genuine adapter replacement clears the
@@ -2786,7 +2845,8 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                     names = ", ".join(item["character"] for item in blocked)
                     raise HTTPException(status_code=409, detail={
                         "code": "voice_overrides", "overrides": blocked,
-                        "message": (f"An alias or voice timeline keeps another voice in effect for {names}. "
+                        "message": (f"An alias, voice timeline or narrator strategy keeps another voice "
+                                    f"in effect for {names}. "
                                     "Confirm to clear it so the suggested voice is used.")})
                 if cast_name:
                     try:
@@ -2799,8 +2859,9 @@ def _apply_voice_suggestions(suggestions: Dict[str, dict], cast_name: Optional[s
                 atomic_json_write_pair(updated, path, lib, VOICE_LIBRARY_PATH)
 
             _apply_book_voice_update(update, publish=publish_pair if cast_name else None)
-    return {"applied": applied, "count": len(applied), "cast": cast_name,
-            "book_id": book_id, "adapter_usage": get_cast_adapter_usage(lib, cast_name, identities)}
+    return {"applied": applied, "count": len(applied), "cleared_overrides": cleared,
+            "cast": cast_name, "book_id": book_id,
+            "adapter_usage": get_cast_adapter_usage(lib, cast_name, identities)}
 
 
 @router.post("/api/suggest_voices/apply")
