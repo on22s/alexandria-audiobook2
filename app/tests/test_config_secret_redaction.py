@@ -1,3 +1,5 @@
+import copy
+import json
 import unittest
 
 from config_settings import AppConfig, LLMConfig, TTSConfig
@@ -38,6 +40,74 @@ class ConfigSecretRedactionTests(unittest.TestCase):
 
 
 
+class ProviderHeaderRedactionTests(unittest.TestCase):
+    """#2006: provider_headers reach the provider as the OpenAI client's default
+    headers, so `Authorization: Bearer ...` and `x-api-key` are credentials that
+    must not come back from GET /api/config."""
+
+    def headers_config(self):
+        return {
+            "llm": {"api_key": "llm-key",
+                    "provider_headers": {"Authorization": "Bearer llm-secret",
+                                         "x-api-key": "llm-api-secret"}},
+            "llm_local": {"api_key": "local-key",
+                          "provider_headers": {"X-Acme-Token": "local-secret"}},
+            "llm_remote": {"api_key": "remote-key",
+                           "provider_headers": {"Authorization": "Bearer remote-secret"}},
+            "tts": {"api_key": "tts-key"},
+        }
+
+    def test_every_profile_header_value_is_masked_and_every_name_is_kept(self):
+        config = self.headers_config()
+        safe = _redact_config_secrets(config)
+
+        for section in ("llm", "llm_local", "llm_remote"):
+            self.assertEqual(set(config[section]["provider_headers"]),
+                             set(safe[section]["provider_headers"]))
+            self.assertEqual({"[REDACTED]"},
+                             set(safe[section]["provider_headers"].values()))
+        serialized = json.dumps(safe)
+        for secret in ("Bearer llm-secret", "llm-api-secret", "local-secret",
+                       "Bearer remote-secret"):
+            self.assertNotIn(secret, serialized)
+
+    def test_redaction_leaves_the_input_config_unchanged(self):
+        config = self.headers_config()
+        original = copy.deepcopy(config)
+        _redact_config_secrets(config)
+        self.assertEqual(original, config)
+
+    def test_echoed_sentinel_keeps_changed_value_is_replaced_and_removed_stays_removed(self):
+        saved = {"llm_local": {"base_url": "http://127.0.0.1:1234/v1", "api_key": "local-key",
+                               "provider_headers": {"Authorization": "Bearer stored",
+                                                    "X-Remove-Me": "stored-2"}}}
+        incoming = LLMConfig(base_url="http://127.0.0.1:1234/v1", api_key="local-key",
+                             model_name="model",
+                             provider_headers={"Authorization": "[REDACTED]",
+                                               "X-Changed": "typed-new"})
+        config = AppConfig(llm=incoming, llm_local=incoming, tts=TTSConfig())
+        restored = _restore_redacted_secrets(config, saved)
+
+        self.assertEqual({"Authorization": "Bearer stored", "X-Changed": "typed-new"},
+                         restored.llm_local.provider_headers)
+        # Rule 17: the config handed in is unchanged.
+        self.assertEqual({"Authorization": "[REDACTED]", "X-Changed": "typed-new"},
+                         config.llm_local.provider_headers)
+
+    def test_sentinel_with_no_stored_header_is_dropped_not_persisted(self):
+        saved = {"llm": {"base_url": "http://127.0.0.1:1234/v1", "api_key": "k",
+                          "provider_headers": {"Authorization": "Bearer stored"}}}
+        incoming = LLMConfig(base_url="http://127.0.0.1:1234/v1", api_key="k",
+                             model_name="model",
+                             provider_headers={"Authorization": "[REDACTED]",
+                                               "X-Unknown": "[REDACTED]"})
+        config = AppConfig(llm=incoming, tts=TTSConfig())
+        restored = _restore_redacted_secrets(config, saved)
+
+        self.assertEqual({"Authorization": "Bearer stored"}, restored.llm.provider_headers)
+        self.assertNotIn("[REDACTED]", json.dumps(restored.llm.provider_headers))
+
+
 class RedactedKeyResolutionTests(unittest.TestCase):
     """The Test / Load-models buttons send the key field as-is, which after
     the GET redaction is the sentinel; it must map back to the stored key."""
@@ -55,6 +125,32 @@ class RedactedKeyResolutionTests(unittest.TestCase):
             _resolve_redacted_api_key("[REDACTED]", "https://other/v1", existing)
         # a real key typed by the user passes through untouched
         self.assertEqual("sk-typed", _resolve_redacted_api_key("sk-typed", "https://api.example.com/v1", existing))
+
+
+class RedactedHeaderResolutionTests(unittest.TestCase):
+    """The Test / Load-models buttons send the header editor as-is, which after
+    the GET redaction is one sentinel per stored header; they must still send
+    the real credential, and never the literal placeholder."""
+
+    EXISTING = {"llm_local": {"base_url": "http://127.0.0.1:8090/v1",
+                              "api_key": "local",
+                              "provider_headers": {"Authorization": "Bearer stored"}}}
+
+    def test_sentinels_resolve_from_the_profile_at_the_same_endpoint(self):
+        from routers.system import _resolve_redacted_provider_headers
+        resolved = _resolve_redacted_provider_headers(
+            {"Authorization": "[REDACTED]", "X-Changed": "typed"},
+            "http://127.0.0.1:8090/v1", self.EXISTING)
+        self.assertEqual({"Authorization": "Bearer stored", "X-Changed": "typed"}, resolved)
+
+    def test_unmatched_endpoint_and_unknown_headers_never_send_the_sentinel(self):
+        from routers.system import _resolve_redacted_provider_headers
+        self.assertEqual({}, _resolve_redacted_provider_headers(
+            {"Authorization": "[REDACTED]"}, "https://other.invalid/v1", self.EXISTING))
+        self.assertEqual({"Authorization": "Bearer stored"},
+                         _resolve_redacted_provider_headers(
+                             {"Authorization": "[REDACTED]", "X-Unknown": "[REDACTED]"},
+                             "http://127.0.0.1:8090/v1", self.EXISTING))
 
 
 class RedactionKeepsNonJsonObjects(unittest.TestCase):

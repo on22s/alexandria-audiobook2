@@ -229,3 +229,84 @@ class ConfigSecretEndpointBindingTests(unittest.TestCase):
                     self.assertEqual(.37, saved['generation']['temperature'])
                     self.assertEqual('fixture-host', saved['llm_remote_ssh']); self.assertTrue(saved['llm_failover'])
                     provider.assert_not_called()
+
+
+class ProviderHeaderEndpointTests(unittest.TestCase):
+    """#2006 through the real route: no configured provider header VALUE may
+    appear in GET /api/config, and Save must keep it without the browser ever
+    holding the plaintext."""
+
+    SECRETS = {'llm': 'Bearer llm-header-fixture', 'llm_local': 'local-header-fixture',
+               'llm_remote': 'remote-header-fixture'}
+
+    def config(self):
+        local = LLMConfig(base_url='http://127.0.0.1:1234/v1', api_key='local-key', model_name='local',
+                          provider_headers={'Authorization': self.SECRETS['llm_local']})
+        remote = LLMConfig(base_url='http://127.0.0.1:1236/v1', api_key='remote-key', model_name='remote',
+                           provider_headers={'x-api-key': self.SECRETS['llm_remote']})
+        mirror = local.model_copy(update={'provider_headers': {'X-Acme-Token': self.SECRETS['llm']}})
+        return AppConfig(llm=mirror, llm_local=local, llm_remote=remote, tts=TTSConfig())
+
+    def test_get_config_response_carries_no_header_value_from_any_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'config.json')
+            path.write_text(json.dumps(self.config().model_dump()))
+            application = FastAPI(); application.include_router(system.router)
+            with patch.object(system, 'CONFIG_PATH', str(path)), patch.object(system, 'DATA_DIR', tmp), \
+                    patch.object(system, 'project_manager', Mock()), TestClient(application) as client:
+                response = client.get('/api/config')
+            self.assertEqual(200, response.status_code)
+            for secret in self.SECRETS.values():
+                self.assertNotIn(secret, response.text)
+            body = response.json()
+            self.assertEqual({'X-Acme-Token'}, set(body['llm']['provider_headers']))
+            self.assertEqual({'Authorization'}, set(body['llm_local']['provider_headers']))
+            self.assertEqual({'x-api-key'}, set(body['llm_remote']['provider_headers']))
+            self.assertEqual({'Authorization': '[REDACTED]'}, body['llm_local']['provider_headers'])
+
+    def test_models_route_sends_the_stored_header_not_the_sentinel(self):
+        existing = {'llm_local': {'base_url': 'http://127.0.0.1:1234/v1', 'api_key': 'fixture-secret',
+                                  'provider_headers': {'Authorization': 'Bearer stored'}}}
+        application = FastAPI(); application.include_router(system.router)
+        request = LLMConfig(base_url='http://127.0.0.1:1234/v1', api_key='[REDACTED]', model_name='fixture',
+                            provider_headers={'Authorization': '[REDACTED]', 'X-Unknown': '[REDACTED]'}).model_dump()
+        fake = Mock(); fake.models.list.return_value = Mock(data=[])
+        seen = []
+        with patch.object(system, 'load_app_config', return_value=existing), \
+             patch('llm_provider.make_llm_client',
+                   side_effect=lambda profile, **kwargs: seen.append(profile) or fake), \
+             TestClient(application) as client:
+            response = client.post('/api/llm/models', json=request)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({'Authorization': 'Bearer stored'}, seen[0]['provider_headers'])
+        self.assertNotIn('[REDACTED]', response.text)
+
+    def test_save_echoing_sentinels_keeps_stored_values_and_applies_header_edits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'config.json')
+            config = self.config()
+            path.write_text(json.dumps(config.model_dump()))
+            application = FastAPI(); application.include_router(system.router)
+            with patch.object(system, 'CONFIG_PATH', str(path)), patch.object(system, 'DATA_DIR', tmp), \
+                    patch.object(system, 'project_manager', Mock()), TestClient(application) as client:
+                echoed = client.get('/api/config').json()
+                self.assertEqual(200, client.post('/api/config', json=echoed).status_code)
+                saved = json.loads(path.read_text())
+                self.assertEqual(config.llm_local.provider_headers,
+                                 saved['llm_local']['provider_headers'])
+                self.assertEqual(config.llm_remote.provider_headers,
+                                 saved['llm_remote']['provider_headers'])
+                # `llm` is the mirror of the active (local) profile on save.
+                self.assertEqual(saved['llm_local'], saved['llm'])
+                self.assertNotIn('[REDACTED]', path.read_text())
+
+                edited = client.get('/api/config').json()
+                edited['llm_local']['provider_headers'] = {'Authorization': 'Bearer typed-new',
+                                                           'X-Unknown': '[REDACTED]'}
+                edited['llm_remote']['provider_headers'] = {}
+                self.assertEqual(200, client.post('/api/config', json=edited).status_code)
+            reloaded = json.loads(path.read_text())
+            self.assertEqual({'Authorization': 'Bearer typed-new'},
+                             reloaded['llm_local']['provider_headers'])
+            self.assertEqual({}, reloaded['llm_remote']['provider_headers'])
+            self.assertNotIn('[REDACTED]', path.read_text())

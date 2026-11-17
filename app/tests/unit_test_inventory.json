@@ -3800,10 +3800,19 @@
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_repeated_get_save_keeps_unused_blank_profiles_and_never_contacts_a_provider"
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_save_rejects_url_change_without_overwriting_config_and_allows_explicit_key"
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_test_and_models_routes_reject_unmatched_key_before_client_or_claim"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_get_config_response_carries_no_header_value_from_any_profile"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_models_route_sends_the_stored_header_not_the_sentinel"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_save_echoing_sentinels_keeps_stored_values_and_applies_header_edits"
   ]
   , "test_config_secret_redaction": [
     "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_get_shape_masks_credentials_without_mutating_input"
     , "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_sentinel_round_trip_preserves_saved_secret"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_echoed_sentinel_keeps_changed_value_is_replaced_and_removed_stays_removed"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_every_profile_header_value_is_masked_and_every_name_is_kept"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_redaction_leaves_the_input_config_unchanged"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_sentinel_with_no_stored_header_is_dropped_not_persisted"
+    , "tests.test_config_secret_redaction.RedactedHeaderResolutionTests.test_sentinels_resolve_from_the_profile_at_the_same_endpoint"
+    , "tests.test_config_secret_redaction.RedactedHeaderResolutionTests.test_unmatched_endpoint_and_unknown_headers_never_send_the_sentinel"
     , "tests.test_config_secret_redaction.RedactedKeyResolutionTests.test_sentinel_resolves_to_the_matching_profile_key"
     , "tests.test_config_secret_redaction.RedactionKeepsNonJsonObjects.test_pydantic_values_survive_redaction"
   ]
