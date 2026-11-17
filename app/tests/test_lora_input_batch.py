@@ -8,6 +8,7 @@ from fastapi import FastAPI
 import httpx
 from routers import lora
 from tests.test_upload_event_loop import archive_bytes,wav_bytes
+from tests.test_support import skip_unless_symlink
 
 
 class LoraAudioInputTests(unittest.IsolatedAsyncioTestCase):
@@ -83,6 +84,7 @@ class LoraRequestBoundsTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(200,(await client.post('/test',json={'adapter_id':'voice','text':'x'*5000,'instruct':'x'*400})).status_code)
 
 class LoraRecoveryPathTests(unittest.TestCase):
+    @skip_unless_symlink
     def test_recovery_scan_refuses_symlink_escape_before_journal_read(self):
         from fastapi import HTTPException
         with tempfile.TemporaryDirectory() as tmp,tempfile.TemporaryDirectory() as outside:

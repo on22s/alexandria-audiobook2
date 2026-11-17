@@ -7,6 +7,10 @@ from unittest.mock import patch
 
 import benchmark_runner as runner
 from benchmark_fixtures import _hash_entries
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
+_LINKED_NAMES = frozenset(('linked', '../adapter/linked'))
 
 
 class BenchmarkAdapterContainmentTests(unittest.TestCase):
@@ -25,10 +29,14 @@ class BenchmarkAdapterContainmentTests(unittest.TestCase):
             adapter.mkdir()
             outside = root / 'outside'
             outside.write_bytes(b'weights')
-            (adapter / 'linked').symlink_to(outside)
+            symlink_available = can_symlink()
+            if symlink_available:
+                (adapter / 'linked').symlink_to(outside)
             for name in ('../outside', str(outside), 'linked', '../adapter/linked',
                          '..\\outside'):
                 with self.subTest(name=name):
+                    if name in _LINKED_NAMES and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     fixture = self.make_fixture(name)
                     original = copy.deepcopy(fixture)
                     with patch.object(runner, 'get_file_sha256') as read:
@@ -47,11 +55,15 @@ class BenchmarkAdapterContainmentTests(unittest.TestCase):
             adapter = Path(tmp, 'adapter')
             adapter.mkdir()
             (adapter / 'weights').write_bytes(b'weights')
-            (adapter / 'linked').symlink_to(adapter / 'weights')
+            symlink_available = can_symlink()
+            if symlink_available:
+                (adapter / 'linked').symlink_to(adapter / 'weights')
             (adapter / 'nested').mkdir()
             (adapter / 'nested' / 'weights').write_bytes(b'weights')
             for name in ('weights', 'linked', 'nested/weights'):
                 with self.subTest(name=name):
+                    if name == 'linked' and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     fixture = self.make_fixture(name)
                     original = copy.deepcopy(fixture)
                     runner._validate_tts_fixture(fixture, tmp)
