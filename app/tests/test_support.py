@@ -229,6 +229,10 @@ def assert_fixture_process_stopped(case, pid):
     """Use the native birth-identity probe, never Windows os.kill(pid, 0)."""
     from local_unit_shards import get_process_start_time
     case.assertIsNone(get_process_start_time(pid), f'Fixture PID {pid} is still live')
+    if os.name != 'nt':
+        # POSIX reports a zombie as having no start time; require it reaped too.
+        with case.assertRaises(ProcessLookupError, msg=f'Fixture PID {pid} was not reaped'):
+            os.kill(pid, 0)
 
 
 def read_fixture_pipe(process, stream, reader, *, timeout=10):
