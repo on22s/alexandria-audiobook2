@@ -407,13 +407,23 @@ def start_adapter_fixture_process(target, *args, startup_timeout=60):
 
 
 def write_python_bash_launcher(path, *arguments):
-    """Launch the host Python without MSYS guessing Unicode or metacharacter paths."""
+    """Launch the host Python with MSYS conversion replaced by explicit mapping.
+
+    An argument that names an existing path in the MSYS mount view is mapped
+    to its native form, because a shell script that derives its directory from
+    `pwd` holds `/tmp/...`-style text that the host interpreter cannot open.
+    Every other argument is transported verbatim, so a remote or foreign POSIX
+    name that is only data is never rewritten by a path heuristic.
+    """
     import shlex
     path = Path(path)
     prefix = '#!/bin/sh\n'
     if os.name == 'nt':
         prefix += ('for argument do\n'
-                   '  case "$argument" in /[a-zA-Z]/*) argument=$(cygpath -m -- "$argument") || exit;; esac\n'
+                   '  case "$argument" in\n'
+                   '    /[a-zA-Z]/*) argument=$(cygpath -m -- "$argument") || exit;;\n'
+                   '    /*) if [ -e "$argument" ]; then argument=$(cygpath -m -- "$argument") || exit; fi;;\n'
+                   '  esac\n'
                    '  shift\n  set -- "$@" "$argument"\ndone\n'
                    'export MSYS2_ARG_CONV_EXCL="*"\n')
     command = ' '.join(shlex.quote(Path(argument).as_posix())
