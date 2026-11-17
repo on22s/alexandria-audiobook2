@@ -1,6 +1,6 @@
-from tests.test_support import assert_file_lock_released, use_private_cpu_fixture_lock
+from tests.test_support import (assert_file_lock_released, use_private_cpu_fixture_lock,
+                                start_adapter_fixture_process)
 import asyncio
-import multiprocessing
 import os
 import adapter_checkpoint_transaction as checkpoint_transaction
 import json
@@ -49,13 +49,16 @@ def _crash_http_checkpoint(models, operation, point):
     def recorded(root,data):
         journal(root,data)
         if point=='committed' and data['phase']=='committed':os._exit(87)
-    with patch.object(checkpoint_transaction,'_move',side_effect=moved),patch.object(checkpoint_transaction,'_save_journal',side_effect=recorded):
+    # A spawn child does not inherit LoraCandidatePromotionTests.setUp's patch.
+    with patch.object(lora,'_require_current_candidate_evidence'), \
+            patch.object(checkpoint_transaction,'_move',side_effect=moved), \
+            patch.object(checkpoint_transaction,'_save_journal',side_effect=recorded):
         getattr(lora,operation)('voice',str(models),str(Path(models)/'manifest.json'))
 
 
 def _run_crash(test,models,operation,point):
-    child=multiprocessing.get_context('fork').Process(target=_crash_http_checkpoint,args=(models,operation,point))
-    child.start();child.join(10)
+    child=start_adapter_fixture_process(_crash_http_checkpoint,models,operation,point)
+    child.join(10)
     if child.is_alive():child.terminate();child.join(5);test.fail('owned HTTP checkpoint child did not finish')
     test.assertEqual(87,child.exitcode)
 
@@ -526,7 +529,12 @@ class AlteredComparisonSpecTests(unittest.TestCase):
                 lora._get_lora_candidate_comparison('voice', str(models), str(manifest))
             self.assertEqual(409, raised.exception.status_code)
             self.assertIn('specification', raised.exception.detail)
-            self.assertEqual({**before,models/'manifest.json.lock':b''}, {p: p.read_bytes() for p in models.rglob('*') if p.is_file()})
+            actual={p: p.read_bytes() for p in models.rglob('*') if p.is_file()}
+            # A released Windows lease leaves one NUL byte in the sidecar; POSIX leaves it empty.
+            lock=models/'manifest.json.lock'
+            if actual.get(lock) == b'\x00':
+                actual[lock]=b''
+            self.assertEqual({**before,lock:b''}, actual)
 
 
 class PromotionCleanupFailureTests(unittest.TestCase):

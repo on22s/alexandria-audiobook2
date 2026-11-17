@@ -8,6 +8,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.audit import audit_experiment_artifacts as audit
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class ArtifactUnreadableMetadataTests(unittest.TestCase):
@@ -22,9 +25,13 @@ class ArtifactUnreadableMetadataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             missing = Path(directory) / "missing.json"
             dangling = Path(directory) / "dangling.json"
-            dangling.symlink_to(missing)
+            symlink_available = can_symlink()
+            if symlink_available:
+                dangling.symlink_to(missing)
             for path in (missing, dangling):
                 with self.subTest(path=path.name):
+                    if path is dangling and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     row = audit.classify_artifact(str(path))
                     self.assert_unknown(row, path.name, "FileNotFoundError")
                     self.assertIsNone(row["bytes"])

@@ -126,11 +126,13 @@ class AudioMasteringTests(unittest.TestCase):
                 state['audio']['running']=True;self.assertEqual([],get().json()['reports']);state['audio']['running']=False
                 output.write_bytes(b'changed');self.assertEqual([],get().json()['reports'])
                 output.unlink();self.assertEqual([],get().json()['reports'])
+                target=Path(outside)/'private.wav';target.write_bytes(b'outside')
                 with self.subTest('symlink escape'):
                     if not can_symlink():
                         self.skipTest(_SYMLINK_SKIP_REASON)
-                    target=Path(outside)/'private.wav';target.write_bytes(b'outside');output.symlink_to(target)
+                    output.symlink_to(target)
                     report['sha256']=mastering.get_audio_sha256(target);self.assertEqual([],get().json()['reports'])
+                with self.subTest('parent traversal'):
                     report['file']='../outside.wav';self.assertEqual([],get().json()['reports'])
                     self.assertEqual(b'outside',target.read_bytes())
                 self.assertEqual(409,client.get('/api/export_mastering',params={'expected_book_token':'f'*64}).status_code)

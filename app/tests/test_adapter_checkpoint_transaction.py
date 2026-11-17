@@ -18,9 +18,11 @@ from adapter_checkpoint_transaction import (apply_adapter_checkpoint_locked, ens
 from adapter_publication import CLI_PUBLICATION_JOURNAL, NAMING_PUBLICATION_JOURNAL
 from lora_evidence import get_file_sha256
 from utils import file_lock
-from tests.test_support import write_test_adapter, assert_file_lock_released, start_adapter_fixture_process
+from tests.test_support import (write_test_adapter, assert_file_lock_released,
+                                start_adapter_fixture_process, can_symlink, skip_unless_symlink)
 
 SCRIPT=Path(__file__).resolve().parent.parent/'adapter_checkpoint_transaction.py'
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def _write(path, value=2):
@@ -104,6 +106,8 @@ class AdapterCheckpointTransactionTests(unittest.TestCase):
     def test_failed_or_incomplete_staging_preserves_original_bundle_bytes(self):
         for kind in ('writer','weights','meta','reference','link'):
             with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
+                if kind == 'link' and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 adapter=self.fixture(Path(tmp));before=_files(adapter)
                 def writer(path):
                     path=Path(path)
@@ -217,6 +221,8 @@ class CheckpointGenerationFamilyAdmissionTests(unittest.TestCase):
         from utils import file_lock
         for mode in ('valid', 'malformed', 'symlink', 'wrong_identity'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                if mode == 'symlink' and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 models=Path(tmp);first=models/'first';second=models/'second'
                 _write(first);_write(second);manifest=models/'manifest.json';manifest.write_text('[]')
                 journal=get_adapter_checkpoint_journal(first)
@@ -376,6 +382,7 @@ class CheckpointManifestTransactionTests(unittest.TestCase):
                 self.assertEqual([{'id':'voice','generation':2}],entries)
                 self.assertFalse(get_adapter_checkpoint_journal(adapter).exists())
 
+    @skip_unless_symlink
     def test_broken_own_generation_journal_is_not_treated_as_absent(self):
         with tempfile.TemporaryDirectory() as tmp:
             adapter,manifest,old,old_manifest=self.fixture(Path(tmp));journal=get_adapter_checkpoint_journal(adapter)
