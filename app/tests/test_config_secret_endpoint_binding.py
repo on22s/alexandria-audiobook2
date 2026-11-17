@@ -281,6 +281,81 @@ class ProviderHeaderEndpointTests(unittest.TestCase):
         self.assertEqual({'Authorization': 'Bearer stored'}, seen[0]['provider_headers'])
         self.assertNotIn('[REDACTED]', response.text)
 
+    def test_save_never_restores_a_header_from_a_different_endpoint(self):
+        """A credential saved for endpoint A must not be written onto a profile
+        now pointing at endpoint B (#2006 review finding 1). The api_key is a
+        reference here, so the api_key guard does not fire and the header
+        branch is the only thing standing between A's secret and B."""
+        saved = {'llm_local': {'base_url': 'http://127.0.0.1:1234/v1',
+                               'api_key': 'env:SAVED_REFERENCE',
+                               'provider_headers': {'Authorization': 'Bearer saved-endpoint-only'}}}
+        incoming = LLMConfig(base_url='http://127.0.0.1:1235/v1', api_key='env:SAVED_REFERENCE',
+                             model_name='fixture',
+                             provider_headers={'Authorization': '[REDACTED]', 'X-New': 'typed'})
+        config = AppConfig(llm=incoming, llm_local=incoming, tts=TTSConfig())
+
+        restored = system._restore_redacted_secrets(config, saved)
+
+        self.assertEqual({'X-New': 'typed'}, restored.llm_local.provider_headers)
+        self.assertNotIn('saved-endpoint-only', json.dumps(restored.model_dump()))
+        self.assertNotIn('[REDACTED]', json.dumps(restored.model_dump()))
+        # The same header at the same endpoint is still restored.
+        same = incoming.model_copy(update={'base_url': 'http://127.0.0.1:1234/v1'})
+        restored_same = system._restore_redacted_secrets(
+            AppConfig(llm=same, llm_local=same, tts=TTSConfig()), saved)
+        self.assertEqual({'Authorization': 'Bearer saved-endpoint-only', 'X-New': 'typed'},
+                         restored_same.llm_local.provider_headers)
+
+    def test_save_route_does_not_carry_a_header_to_a_changed_endpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'config.json')
+            local = LLMConfig(base_url='http://127.0.0.1:1234/v1', api_key='env:SAVED_REFERENCE',
+                              model_name='local',
+                              provider_headers={'Authorization': 'Bearer saved-endpoint-only'})
+            path.write_text(json.dumps(AppConfig(llm=local, llm_local=local,
+                                                 tts=TTSConfig()).model_dump()))
+            application = FastAPI(); application.include_router(system.router)
+            with patch.object(system, 'CONFIG_PATH', str(path)), \
+                    patch.object(system, 'DATA_DIR', tmp), \
+                    patch.object(system, 'project_manager', Mock()), TestClient(application) as client:
+                echoed = client.get('/api/config').json()
+                self.assertEqual({'Authorization': '[REDACTED]'},
+                                 echoed['llm_local']['provider_headers'])
+                for section in ('llm', 'llm_local'):
+                    echoed[section]['base_url'] = 'http://127.0.0.1:1235/v1'
+                response = client.post('/api/config', json=echoed)
+                self.assertEqual(200, response.status_code, response.text)
+            self.assertNotIn('saved-endpoint-only', path.read_text())
+            persisted = json.loads(path.read_text())
+            self.assertEqual({}, persisted['llm_local']['provider_headers'])
+            self.assertEqual({}, persisted['llm']['provider_headers'])
+
+    def test_save_matches_a_renamed_case_header_and_keeps_the_stored_value(self):
+        """HTTP header names are case-insensitive, so an editor that echoed
+        `authorization` for a stored `Authorization` must not lose the value
+        (#2006 review finding 2)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'config.json')
+            local = LLMConfig(base_url='http://127.0.0.1:1234/v1', api_key='local-key',
+                              model_name='local',
+                              provider_headers={'Authorization': 'Bearer stored-case'})
+            path.write_text(json.dumps(AppConfig(llm=local, llm_local=local,
+                                                 tts=TTSConfig()).model_dump()))
+            application = FastAPI(); application.include_router(system.router)
+            with patch.object(system, 'CONFIG_PATH', str(path)), \
+                    patch.object(system, 'DATA_DIR', tmp), \
+                    patch.object(system, 'project_manager', Mock()), TestClient(application) as client:
+                echoed = client.get('/api/config').json()
+                for section in ('llm', 'llm_local'):
+                    echoed[section]['provider_headers'] = {'authorization': '[REDACTED]'}
+                response = client.post('/api/config', json=echoed)
+                self.assertEqual(200, response.status_code, response.text)
+            persisted = json.loads(path.read_text())
+            self.assertEqual({'Authorization': 'Bearer stored-case'},
+                             persisted['llm_local']['provider_headers'])
+            self.assertEqual(persisted['llm_local']['provider_headers'],
+                             persisted['llm']['provider_headers'])
+
     def test_save_echoing_sentinels_keeps_stored_values_and_applies_header_edits(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'config.json')
@@ -310,3 +385,95 @@ class ProviderHeaderEndpointTests(unittest.TestCase):
                              reloaded['llm_local']['provider_headers'])
             self.assertEqual({}, reloaded['llm_remote']['provider_headers'])
             self.assertNotIn('[REDACTED]', path.read_text())
+
+
+class ProviderHeaderResolutionBindingTests(unittest.TestCase):
+    """The Test / Load-models resolvers: case-insensitive names, one endpoint
+    normalisation function, and no guessing when two profiles share an endpoint
+    (#2006 review findings 2 and 3)."""
+
+    URL = 'http://127.0.0.1:1234/v1'
+
+    def resolve(self, headers, url=None, existing=None):
+        return system._resolve_redacted_provider_headers(headers, url or self.URL, existing)
+
+    def test_headers_resolve_through_a_case_changed_name(self):
+        existing = {'llm_local': {'base_url': self.URL, 'api_key': 'local-key',
+                                  'provider_headers': {'Authorization': 'Bearer stored'}}}
+        self.assertEqual({'Authorization': 'Bearer stored'},
+                         self.resolve({'authorization': '[REDACTED]'}, existing=existing))
+        # A typed value under the other spelling also lands on the stored name,
+        # so one header cannot gain a second differently-cased copy. (No
+        # sentinel in the editor means nothing to resolve and the editor is
+        # forwarded untouched, so this goes through the restore helper.)
+        self.assertEqual({'Authorization': 'Bearer typed'},
+                         system._restore_provider_headers(
+                             {'AUTHORIZATION': 'Bearer typed'}, existing['llm_local']['provider_headers']))
+
+    def test_two_saved_names_differing_only_by_case_resolve_the_same_way_every_time(self):
+        existing = {'llm_local': {'base_url': self.URL, 'api_key': 'local-key',
+                                  'provider_headers': {'Authorization': 'first',
+                                                       'authorization': 'second'}}}
+        resolved = self.resolve({'AUTHORIZATION': '[REDACTED]'}, existing=existing)
+        self.assertEqual({'Authorization': 'first'}, resolved)
+        self.assertEqual(resolved, self.resolve({'AUTHORIZATION': '[REDACTED]'}, existing=existing))
+
+    def test_a_shared_endpoint_between_profiles_refuses_to_guess_and_leaks_nothing(self):
+        shared = 'http://127.0.0.1:1234/v1'
+        existing = {'llm_mode': 'remote',
+                    'llm_local': {'base_url': shared, 'api_key': 'LOCAL-KEY',
+                                  'provider_headers': {'X-Tenant': 'LOCAL'}},
+                    'llm_remote': {'base_url': shared, 'api_key': 'REMOTE-KEY',
+                                   'provider_headers': {'X-Tenant': 'REMOTE'}}}
+        existing['llm'] = dict(existing['llm_remote'])
+        # The request cannot say which profile it is for, so neither credential
+        # may be handed over: headers drop, the key asks for one explicitly.
+        self.assertEqual({}, self.resolve({'X-Tenant': '[REDACTED]'}, existing=existing))
+        with self.assertRaises(HTTPException) as error:
+            system._resolve_redacted_api_key('[REDACTED]', shared, existing)
+        self.assertEqual(400, error.exception.status_code)
+        self.assertNotIn('LOCAL', error.exception.detail)
+        self.assertNotIn('REMOTE', error.exception.detail)
+
+    def test_a_saved_url_without_v1_matches_the_posted_normalised_url(self):
+        existing = {'llm_local': {'base_url': 'http://127.0.0.1:1234', 'api_key': 'stored-key',
+                                  'provider_headers': {'Authorization': 'Bearer stored'}}}
+        url = 'http://127.0.0.1:1234/v1'
+        self.assertEqual('stored-key', system._resolve_redacted_api_key('[REDACTED]', url, existing))
+        self.assertEqual({'Authorization': 'Bearer stored'},
+                         self.resolve({'Authorization': '[REDACTED]'}, url=url, existing=existing))
+        # And the browser side is normalised the same way, not only the saved one.
+        self.assertEqual({'Authorization': 'Bearer stored'},
+                         self.resolve({'Authorization': '[REDACTED]'},
+                                      url='http://127.0.0.1:1234/', existing=existing))
+
+    def test_the_active_mirror_is_not_a_second_profile(self):
+        existing = {'llm_mode': 'local',
+                    'llm_local': {'base_url': self.URL, 'api_key': 'local-key',
+                                  'provider_headers': {'Authorization': 'Bearer local'}},
+                    'llm_remote': {'base_url': 'http://127.0.0.1:1236/v1', 'api_key': 'remote-key'}}
+        existing['llm'] = dict(existing['llm_local'])
+        self.assertEqual('local-key', system._resolve_redacted_api_key('[REDACTED]', self.URL, existing))
+        self.assertEqual({'Authorization': 'Bearer local'},
+                         self.resolve({'Authorization': '[REDACTED]'}, existing=existing))
+
+    def test_models_route_does_not_use_another_profile_credentials_on_a_tie(self):
+        shared = 'http://127.0.0.1:1234/v1'
+        existing = {'llm_mode': 'remote',
+                    'llm_local': {'base_url': shared, 'api_key': 'LOCAL-KEY',
+                                  'provider_headers': {'X-Tenant': 'LOCAL'}},
+                    'llm_remote': {'base_url': shared, 'api_key': 'REMOTE-KEY',
+                                   'provider_headers': {'X-Tenant': 'REMOTE'}}}
+        application = FastAPI(); application.include_router(system.router)
+        request = LLMConfig(base_url=shared, api_key='[REDACTED]', model_name='fixture',
+                            provider_headers={'X-Tenant': '[REDACTED]'}).model_dump()
+        with patch.object(system, 'load_app_config', return_value=existing), \
+             patch('llm_provider.make_llm_client') as client_factory, \
+             TestClient(application) as client:
+            response = client.post('/api/llm/models', json=request)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([], response.json()['models'])
+        self.assertIn('changed endpoint', response.json()['error'])
+        self.assertNotIn('LOCAL', response.text)
+        self.assertNotIn('REMOTE', response.text)
+        client_factory.assert_not_called()
