@@ -9,7 +9,7 @@ class NarratorStrategyQueueJsTests(unittest.TestCase):
     def test_writes_are_ordered_and_bound_to_the_starting_book(self):
         code = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
-const posts=[],toasts=[],errors=[];const c={window:null,currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64),revision:'0'.repeat(64)},updateNarratorPreviewFields(){},flushVoiceSaves:async()=>{},API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},showToast:(...args)=>toasts.push(args),showActionError:(...args)=>errors.push(args)};c.window=c;vm.createContext(c);
+const posts=[],toasts=[],errors=[];const c={window:null,currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64),revision:'0'.repeat(64)},updateNarratorPreviewFields(){},flushVoiceSaves:async()=>{},API:{post:(path,body)=>new Promise((resolve,reject)=>posts.push({path,body,resolve,reject}))},showToast:(...args)=>toasts.push(args),showActionError:(...args)=>errors.push(args)};c.window=c;vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
 const a=source.indexOf('window.saveNarratorStrategy =');vm.runInContext(source.slice(a,source.indexOf('window.updateNarratorPreviewFields =',a)),c);
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
