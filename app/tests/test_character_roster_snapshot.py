@@ -12,6 +12,9 @@ from character_roster_snapshot import (get_character_roster_snapshot, get_charac
 from project_scope_admission import ensure_scope_admission
 from project_scope_source import get_scope_source_snapshot
 from tests.test_character_roster import SOURCE1, SOURCE2, A, B, entry, decision, proposal
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class CharacterRosterSnapshotTests(unittest.TestCase):
@@ -126,10 +129,13 @@ class CharacterRosterSnapshotTests(unittest.TestCase):
             get_roster_json_bytes({'large': 'x' * (MAX_ROSTER_BYTES + 1)})
         with self.admission():
             preview = get_character_roster_preview(self.root, self.proposal)
-            path = self.root / preview['snapshot']['paths']['cast']; path.parent.mkdir()
-            path.symlink_to(self.source)
-            with self.assertRaises(ValueError):
-                get_character_roster_snapshot(self.root)
+            with self.subTest('symlink cast'):
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
+                path = self.root / preview['snapshot']['paths']['cast']; path.parent.mkdir()
+                path.symlink_to(self.source)
+                with self.assertRaises(ValueError):
+                    get_character_roster_snapshot(self.root)
 
 
 if __name__ == '__main__':

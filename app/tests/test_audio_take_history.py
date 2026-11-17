@@ -15,6 +15,9 @@ import soundfile as sf
 from audio_take_history import AudioTakeHistory
 from speech_verification_receipt import get_audio_file_version, get_speech_verification_receipt
 from tests.test_speech_verification_receipt import get_report
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class AudioTakeHistoryTests(unittest.TestCase):
@@ -171,17 +174,25 @@ else:h.capture(Path(sys.argv[1])/'selected.wav','a'*64,'stable-uid',{'take':3})
         payload = self.history.directory / (row['version'] + '.wav'); payload.write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'bytes changed'): self.history.open(row['version'], row['sha256'])
         with self.assertRaisesRegex(ValueError, 'bytes changed'): self.capture()
-        payload.unlink(); payload.symlink_to(self.source)
-        with self.assertRaisesRegex(ValueError, 'aliases'): self.history.open(row['version'], row['sha256'])
+        with self.subTest('payload symlink alias'):
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
+            payload.unlink(); payload.symlink_to(self.source)
+            with self.assertRaisesRegex(ValueError, 'aliases'): self.history.open(row['version'], row['sha256'])
         payload.unlink(); payload.write_bytes(self.before)
         unknown = self.history.directory / 'foreign.wav'; unknown.write_bytes(self.before)
         with self.assertRaisesRegex(ValueError, 'Unknown'): self.change(row, 'delete')
         self.assertEqual(unknown.read_bytes(), self.before)
 
     def test_source_alias_hardlink_nonfinite_and_oversize_refuse(self):
-        alias = self.root / 'alias.wav'; alias.symlink_to(self.source)
-        with self.assertRaisesRegex(ValueError, 'aliases'): self.history.capture(alias, self.book, self.uid, self.captured)
-        alias.unlink(); os.link(self.source, alias)
+        alias = self.root / 'alias.wav'
+        with self.subTest('source symlink alias'):
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
+            alias.symlink_to(self.source)
+            with self.assertRaisesRegex(ValueError, 'aliases'): self.history.capture(alias, self.book, self.uid, self.captured)
+            alias.unlink()
+        os.link(self.source, alias)
         with self.assertRaisesRegex(ValueError, 'hard links'): self.capture()
         alias.unlink()
         with patch('audio_take_history.MAX_AUDIO_BYTES', 1):

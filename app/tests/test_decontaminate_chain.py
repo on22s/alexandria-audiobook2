@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, skip_unless_symlink
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(os.environ.get('DECONTAMINATE_SOURCE', REPO/'run_chains/decontaminate_library.sh'))
@@ -77,6 +77,7 @@ Path(a.out).write_text(json.dumps({'complete':True,'results':[{'adapter':n,'new_
         self.assertIn('INCOMPLETE',result.stdout)
         self.assertNotIn('DECONTAMINATION DONE',result.stdout)
 
+    @skip_unless_symlink
     def test_selected_checkout_summary_ignores_stale_extra_batch_and_resume_keeps_bytes(self):
         extra = self.root/'ab_test_runtime/experiments/decontaminate_batch99.json'
         extra.write_text(json.dumps({'results':[{'adapter':'unrequested','new_ecapa_heldout':0.99}]}))
@@ -95,6 +96,7 @@ Path(a.out).write_text(json.dumps({'complete':True,'results':[{'adapter':n,'new_
         self.assertEqual(2,len([r for r in calls if r['check_artifact']]))
         self.assertTrue(all(r['resume'] for r in calls))
 
+    @skip_unless_symlink
     def test_lists_filter_comments_and_blanks_and_invalid_inputs_fail_before_training(self):
         self.list.write_text('  # header\n\n  adapter_0  \n\t\nadapter_1\n')
         result = self.run_chain()
@@ -110,6 +112,7 @@ Path(a.out).write_text(json.dumps({'complete':True,'results':[{'adapter':n,'new_
                 self.assertIn('Invalid adapter list',result.stderr)
                 self.assertFalse(self.dispatched())
 
+    @skip_unless_symlink
     def test_zero_exit_incomplete_artifact_and_summary_failure_are_fatal(self):
         result = self.run_chain(FORGE_BATCH='decontaminate_batch1')
         self.assertEqual(1,result.returncode,result.stdout+result.stderr)

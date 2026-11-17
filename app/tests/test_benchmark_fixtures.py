@@ -19,6 +19,9 @@ from benchmark_fixtures import (build_script_generation_manifest,
                                 build_voicelab_naming_manifest,
                                 build_voicelab_preparer_manifest)
 from benchmark_runner import _load_review_fixture, _load_text_fixture
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class BenchmarkFixtureTests(unittest.TestCase):
@@ -43,10 +46,15 @@ class BenchmarkFixtureTests(unittest.TestCase):
                 self.assertEqual(str(dataset / name), get_benchmark_training_audio_path(str(dataset), name))
             outside = root / 'outside.wav'
             outside.write_bytes((dataset / 'clip.wav').read_bytes())
-            (dataset / 'escape.wav').symlink_to(outside)
+            symlink_available = can_symlink()
+            if symlink_available:
+                (dataset / 'escape.wav').symlink_to(outside)
             for name in ('../outside.wav', str(outside), 'escape.wav', '..'):
-                with self.assertRaisesRegex(ValueError, 'unsafe training audio path'):
-                    get_benchmark_training_audio_path(str(dataset), name)
+                with self.subTest(name=name):
+                    if name == 'escape.wav' and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
+                    with self.assertRaisesRegex(ValueError, 'unsafe training audio path'):
+                        get_benchmark_training_audio_path(str(dataset), name)
 
     def test_same_basename_sources_have_distinct_stable_valid_fixture_ids(self):
         import json

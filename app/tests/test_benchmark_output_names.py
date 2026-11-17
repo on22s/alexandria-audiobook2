@@ -7,6 +7,7 @@ import wave
 
 import tts_benchmark
 from benchmark_validation import get_benchmark_artifact_name, get_benchmark_output_path
+from tests.test_support import skip_unless_symlink
 
 
 class BenchmarkOutputNameTests(unittest.TestCase):
@@ -21,6 +22,7 @@ class BenchmarkOutputNameTests(unittest.TestCase):
                 self.assertEqual(get_benchmark_output_path(tmp, name), str(Path(tmp, name)))
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
+    @skip_unless_symlink
     def test_tts_refuses_inside_outside_and_dangling_output_links_before_generation(self):
         for target_kind in ('inside', 'outside', 'dangling'):
             with self.subTest(target=target_kind), tempfile.TemporaryDirectory() as tmp:

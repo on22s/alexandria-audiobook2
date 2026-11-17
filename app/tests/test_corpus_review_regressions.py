@@ -13,6 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import torch
 from tests.test_preparer_run_state import preparer
+from tests.test_support import skip_unless_symlink
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('corpus_review_report', ROOT / 'corpus_run_report.py')
@@ -60,6 +61,7 @@ class CorpusReviewRegressions(unittest.TestCase):
                 self.assertEqual('en', language)
                 self.assertEqual([str(position) for position in positions], [row['word'] for row in rows])
 
+    @skip_unless_symlink
     def test_actual_corpus_dispatch_completes_and_rechecks_every_volume(self):
         from tests.test_corpus_dispatch_identity import CorpusDispatchIdentityTests
         from tests.corpus_fixture_support import WORKER

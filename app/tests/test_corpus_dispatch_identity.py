@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from tests.corpus_fixture_support import copy_report_driver, WORKER
+from tests.test_support import skip_unless_symlink
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -52,6 +53,7 @@ class CorpusDispatchIdentityTests(unittest.TestCase):
         self.assertEqual('source content', (root / 'source/book.txt').read_text())
         return outputs
 
+    @skip_unless_symlink
     def test_same_stem_audio_dispatches_distinct_datasets_and_repeats_stably(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -65,6 +67,7 @@ class CorpusDispatchIdentityTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual(first, self.assert_distinct_outputs(root, output))
 
+    @skip_unless_symlink
     def test_apostrophes_in_repository_and_output_survive_plan_run_and_aggregate(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -80,6 +83,7 @@ class CorpusDispatchIdentityTests(unittest.TestCase):
             self.assertEqual({str(p) for p in (root / 'audio').iterdir()}, {p['audio'] for p in pairs})
             self.assertIn('Total segments emitted: **6**', (output / 'aggregated_report.md').read_text())
 
+    @skip_unless_symlink
     def test_python_source_in_repository_path_is_inert_data(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

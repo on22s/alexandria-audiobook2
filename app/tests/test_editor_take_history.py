@@ -13,6 +13,9 @@ from fastapi.testclient import TestClient
 from book_state_transaction import get_book_operation_token
 from project import ProjectManager
 from routers import editor
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class EditorTakeHistoryTests(unittest.TestCase):
@@ -77,11 +80,14 @@ class EditorTakeHistoryTests(unittest.TestCase):
             manager._update_chunk_fields_by_uid('line', audio_path=f"take_history/{row['version']}.wav")
             response = client.post('/api/take_snapshots/action', json=dict(expected_book_token=request['expected_book_token'], version=row['version'], sha256=row['sha256'], source_book_token=row['book_token'], expected_uid=row['uid'], action='delete'))
             self.assertEqual(response.status_code, 409, response.text)
-            alias = root/'voicelines/alias.wav'; alias.symlink_to(root/'voicelines/line.wav')
-            manager._update_chunk_fields_by_uid('line', audio_path='voicelines/alias.wav')
-            response = client.post('/api/chunks/0/take_snapshots', json=request)
-            self.assertEqual(response.status_code, 409, response.text)
-            self.assertIn('aliases', response.text)
+            with self.subTest('alias source'):
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
+                alias = root/'voicelines/alias.wav'; alias.symlink_to(root/'voicelines/line.wav')
+                manager._update_chunk_fields_by_uid('line', audio_path='voicelines/alias.wav')
+                response = client.post('/api/chunks/0/take_snapshots', json=request)
+                self.assertEqual(response.status_code, 409, response.text)
+                self.assertIn('aliases', response.text)
 
     def test_corrupt_audio_and_invalid_route_action_boundaries(self):
         with self.fixture() as (root, manager, client, request):
