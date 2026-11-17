@@ -7,19 +7,21 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-HARNESS = '''import sys
+HARNESS = '''import sys, threading
 from pathlib import Path
 import run_stage6_listening as runner
 root=Path(sys.argv[1]);mode=sys.argv[2]
 runner.STATUS=str(root/'nested/status.json')
 runner._load_document=lambda *args: {}
+def hold():
+    if not sys.stdin.readline():threading.Event().wait()
 def scene():
     with (root/'events').open('a') as handle:handle.write('scene\\n')
     print('SCENE_ENTERED',flush=True)
-    if mode=='hold':sys.stdin.readline()
+    if mode=='hold':hold()
 def check(*args):
     print('FINAL_CHECK_ENTERED',flush=True)
-    if mode=='hold':sys.stdin.readline()
+    if mode=='hold':hold()
 runner.ensure_scene=scene
 runner.ensure_instruction=lambda:None
 runner.ensure_casting=lambda:None
@@ -69,6 +71,7 @@ class Stage6RunOwnershipTests(unittest.TestCase):
                 self.assertEqual('SCENE_ENTERED',owner.stdout.readline().strip())
                 status=root/'nested/status.json';before=status.read_bytes()
                 owner.kill();owner.communicate(timeout=5)
+                self.assertEqual('running',json.loads(status.read_bytes())['status'])
                 retry=self.start(root,'once');out,err=retry.communicate(timeout=10)
                 self.assertNotEqual(0,retry.returncode)
                 self.assertIn('unfinished status requires inspection',err)
@@ -78,3 +81,24 @@ class Stage6RunOwnershipTests(unittest.TestCase):
                 self.assertEqual('scene\n',(root/'events').read_text())
             finally:
                 if owner.poll() is None:owner.kill();owner.communicate(timeout=5)
+
+    def test_closing_owner_stdin_cannot_finish_the_run_before_the_owner_is_dead(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);owner=self.start(root,'hold')
+            try:
+                self.assertEqual('SCENE_ENTERED',owner.stdout.readline().strip())
+                status=root/'nested/status.json';before=status.read_bytes()
+                owner.stdin.close()
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    owner.wait(timeout=2)
+                self.assertEqual(before,status.read_bytes())
+                self.assertEqual('scene\n',(root/'events').read_text())
+                owner.kill();owner.wait(timeout=5)
+                self.assertNotIn('FINAL_CHECK_ENTERED',owner.stdout.read())
+                retry=self.start(root,'once');out,err=retry.communicate(timeout=10)
+                self.assertNotEqual(0,retry.returncode)
+                self.assertIn('unfinished status requires inspection',err)
+                self.assertEqual(before,status.read_bytes())
+                self.assertEqual('scene\n',(root/'events').read_text())
+            finally:
+                if owner.poll() is None:owner.kill();owner.wait(timeout=5)
