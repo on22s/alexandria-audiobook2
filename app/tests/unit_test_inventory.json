@@ -2811,7 +2811,12 @@
     , "tests.test_chain_stage_commit_failures.StageCommitFailureTests.test_real_timer_expiry_stops_worker_and_keeps_original_timeout_policy"
   ]
   , "test_chain_stage_lib": [
-    "tests.test_chain_stage_lib.StageDependencyAccountingTests.test_missing_failed_and_skipped_dependencies_make_summary_incomplete"
+    "tests.test_chain_stage_lib.BashFixtureTransportTests.test_caller_tool_precedes_system_tools_and_caller_git_is_not_inherited"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_native_resolver_rejects_missing_shell_instead_of_running_a_fallback"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_nested_bash_does_not_inherit_a_wrappers_errexit"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_paths_and_arguments_round_trip_through_real_python_launcher"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_shell_reads_existing_file_and_refuses_missing_file_with_spaces"
+    , "tests.test_chain_stage_lib.StageDependencyAccountingTests.test_missing_failed_and_skipped_dependencies_make_summary_incomplete"
     , "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero"
     , "tests.test_chain_stage_lib.StageRunnerTest.test_a_later_stage_still_runs_after_an_unrelated_failure"
     , "tests.test_chain_stage_lib.StageRunnerTest.test_a_timeout_is_reported_as_a_timeout_not_a_generic_failure"
@@ -12018,7 +12023,18 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
   , "test_review_source_binding": [
-    "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_rebinds_annotations_against_original_batch"
+    "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_cli_publishes_the_new_speaker_split_with_its_explicit_annotations"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_explicit_annotations_do_not_inherit_the_previous_speakers_traits"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_explicit_values_still_win_over_a_known_speaker_donor"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_invalid_supplied_annotations_are_still_refused"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_invented_punctuation_only_entry_without_the_source_mark_is_rejected"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_is_accepted_in_index_review_without_a_warning"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_still_rejects_changed_dropped_duplicated_and_reordered_text"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_with_explicit_annotations_is_accepted_without_a_warning"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_published_split_entries_match_what_the_old_speaker_policy_produced"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_punctuation_only_split_pieces_are_accepted_only_when_the_text_matches"
+    , "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_rebinds_annotations_against_original_batch"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_recombination_restores_original_pause_boundary"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_ambiguous_repeated_word_sequences_reject_punctuation_recovery"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_annotationless_correction_does_not_claim_attributes_were_cleared"
