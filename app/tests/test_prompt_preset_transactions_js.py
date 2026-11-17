@@ -15,6 +15,7 @@ context.window={...context.window};vm.createContext(context),context.t=context.t
 run(fs.readFileSync(require('path').join(require('path').dirname(process.argv.at(-1)),'app-i18n.js'),'utf8'));
 run(source.slice(source.indexOf('function showActionError('),source.indexOf('function showConfirm(')));
 run(source.slice(source.indexOf('let promptPresets ='),source.indexOf('window.previewAttributionPrompt =')));
+run(source.slice(source.indexOf('function renderReviewLabelsOnlyPointer('),source.indexOf('// The whole payload in one place')));
 run(source.slice(source.indexOf('function getNumFieldValue('),source.indexOf('// --- Desktop notifications ---')));
 run(source.slice(source.indexOf('function buildConfigPayload('),source.indexOf("document.getElementById('config-form').addEventListener")));
 run(source.slice(source.indexOf('function getOnThisGpuInput('),source.indexOf('// Reflects the last-SAVED')));

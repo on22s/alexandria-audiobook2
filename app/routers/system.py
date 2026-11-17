@@ -1113,6 +1113,7 @@ async def get_default_prompts():
         "generation": GenerationConfig().model_dump(),
         "persona_reference_chars": PromptConfig().persona_reference_chars,
         "persona_allow_unknown_network_context": PromptConfig().persona_allow_unknown_network_context,
+        "review_labels_only": PromptConfig().review_labels_only,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "cast_whole_book_prompt": cast_whole_book_prompt,

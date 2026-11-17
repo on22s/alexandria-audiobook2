@@ -1037,7 +1037,7 @@
             const button = document.getElementById('llm-key-toggle');
             const visible = input.type === 'password';
             input.type = visible ? 'text' : 'password';
-            button.textContent = visible ? t('setup.llm.key.hide', 'Hide key') : t('setup.llm.key.show', 'Show key');
+            button.textContent = visible ? t('setup.llm.key.hide', 'Hide key') : t('setup.llm.llm-key-toggle.button', 'Show key');
             button.setAttribute('aria-pressed', String(visible));
         }
 
@@ -1399,18 +1399,29 @@
 
         async function autoConfigureSettings() {
             const btn = document.getElementById('btn-auto-configure');
+            // The authored icon and the data-i18n span are never replaced: the
+            // span's key switches to the busy label and back, so applyUiCatalog
+            // can repaint the button in whatever locale is active afterwards
+            // (#2016). Same helper every other keyed node uses (Rule 15).
+            const label = btn.querySelector('[data-i18n]');
+            const icon = btn.querySelector('i');
+            // Capture the authored icon once per button: a request that starts
+            // while an older one is still detecting would otherwise record the
+            // spinner as the class to restore.
+            const iconClass = btn._autoConfigureIconClass ?? (btn._autoConfigureIconClass = icon ? icon.className : '');
             const request = {};
             btn._autoConfigureRequest = request;
             const snapshot = getAutoSettingsSnapshot();
             const isCurrent = () => btn._autoConfigureRequest === request;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
+            if (icon) { icon.className = 'fas fa-spinner fa-spin me-1'; }
+            if (label) { setUiMessage(label, 'setup.auto-config.detecting', 'Detecting…'); }
 
             try {
                 const stats = await API.get('/api/system/stats');
                 if (!isCurrent()) { return; }
                 if (getAutoSettingsSnapshot() !== snapshot) {
-                    showToast('The TTS settings changed during detection. Your edits were kept; review them before running Auto-Configure again.', 'warning');
+                    showToast(t('setup.auto-config.settings-changed', 'The TTS settings changed during detection. Your edits were kept; review them before running Auto-Configure again.'), 'warning');
                     return;
                 }
                 const { settings, summary } = _computeAutoSettings(stats);
@@ -1418,15 +1429,21 @@
 
                 const banner = document.getElementById('auto-config-banner');
                 document.getElementById('auto-config-msg').innerHTML =
-                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Suggested settings:</strong> ${escapeHtml(summary)}.${settings.ttsMode === 'external' ? ' External TTS selected: start a compatible TTS server and enter its URL below before generating audio.' : ''} Review the TTS settings below, then click Save to apply.`;
+                    '<i class="fas fa-check-circle me-1 text-success"></i>' + (settings.ttsMode === 'external'
+                        ? uiMessageMarkup('setup.auto-config.suggested-external', 'Suggested settings: {summary}. External TTS selected: start a compatible TTS server and enter its URL below before generating audio. Review the TTS settings below, then click Save to apply.', {summary})
+                        : uiMessageMarkup('setup.auto-config.suggested', 'Suggested settings: {summary}. Review the TTS settings below, then click Save to apply.', {summary}));
                 banner.style.display = '';
                 banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
-                if (isCurrent()) { showActionError('Hardware detection failed', e, 'Review the hardware details and TTS settings before trying Auto-Configure again.'); }
+                if (isCurrent()) {
+                    showActionError(t('setup.auto-config.failed', 'Hardware detection failed'), e,
+                        t('setup.auto-config.failed-recovery', 'Review the hardware details and TTS settings before trying Auto-Configure again.'));
+                }
             } finally {
                 if (isCurrent()) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
+                    if (icon) { icon.className = iconClass; }
+                    if (label) { setUiMessage(label, 'setup.header.auto-configure', 'Auto-Configure'); }
                 }
             }
         }
@@ -1864,6 +1881,7 @@
             try {
                 await API.post('/api/config', payload);
                 if (status) { status.textContent = t('setup.config.saved', 'Configuration saved.'); }
+                renderReviewLabelsOnlyPointer();
                 try {
                     if (onSaved) { await onSaved(); }
                 } catch (error) {
@@ -2491,6 +2509,8 @@
                     if (config.prompts.review_user_prompt) {
                         document.getElementById('review-user-prompt').value = config.prompts.review_user_prompt;
                     }
+                    document.getElementById('review-labels-only').checked = config.prompts.review_labels_only === true;
+                    renderReviewLabelsOnlyPointer();
                     if (config.prompts.persona_system_prompt) {
                         document.getElementById('persona-system-prompt').value = config.prompts.persona_system_prompt;
                     }
@@ -2586,6 +2606,8 @@
                 }
                 document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
                 document.getElementById('persona-unknown-network-context').checked = defaults.persona_allow_unknown_network_context ?? false;
+                document.getElementById('review-labels-only').checked = defaults.review_labels_only === true;
+                renderReviewLabelsOnlyPointer();
                 applyGenerationSettings(g);
                 showToast(t('setup.prompts.defaults-on-form', 'Default prompts and generation settings are on this form. Click Save Configuration to keep them.'), 'success');
             } catch (e) {
@@ -2593,6 +2615,23 @@
                 showToast(t('setup.prompts.defaults-failed-toast', 'Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.'), 'error');
             }
         };
+
+        // The switch is saved Setup config, so it stays in Prompt studio, but the
+        // Script tab is where the other review toggles are looked for (#2045).
+        // This line names the current value and points at the original control;
+        // openSetupSetting() does the navigating, so there is one jump path.
+        function renderReviewLabelsOnlyPointer() {
+            const pointer = document.getElementById('review-labels-only-pointer');
+            const control = document.getElementById('review-labels-only');
+            if (!pointer || !control) { return; }
+            const state = control.checked
+                ? t('script.review.labels-only.state.on', 'on')
+                : t('script.review.labels-only.state.off', 'off');
+            pointer.textContent = t('script.review.labels-only.pointer',
+                'Labels-only review: {state} — change in Setup → Prompt studio', {state});
+        }
+        window.renderReviewLabelsOnlyPointer = renderReviewLabelsOnlyPointer;
+        renderReviewLabelsOnlyPointer();
 
         // The whole payload in one place, so a bad field (a non-numeric rescue
         // window, malformed JSON) throws here and is shown, not swallowed.
@@ -2651,6 +2690,7 @@
                     attribution_preset: presetPayload.active,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
                     review_user_prompt: document.getElementById('review-user-prompt').value,
+                    review_labels_only: document.getElementById('review-labels-only').checked,
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,
@@ -9399,7 +9439,7 @@
 
             const btn = document.getElementById('btn-play-seq');
             if (btn) {
-                btn.innerHTML = `<i class="fas fa-play me-1"></i>${escapeHtml(t('editor.sequence.play', 'Play Sequence'))}`;
+                btn.innerHTML = `<i class="fas fa-play me-1"></i>${escapeHtml(t('editor.toolbar.play-sequence', 'Play Sequence'))}`;
                 btn.onclick = playSequence;
                 btn.classList.replace('btn-danger', 'btn-primary');
             }
