@@ -21,6 +21,7 @@ import alexandria_zip_publication as publication
 import alexandria_batch_processor as batch
 import corpus_run_report as corpus
 from tools.voice_lab import batch_train_lora as training
+from tests.test_support import skip_unless_symlink
 
 
 class VolumePublicationTests(unittest.TestCase):
@@ -258,7 +259,14 @@ preparer._create_zip_dataset(json.loads(sys.argv[4]),sys.argv[2],zip_max_files=1
         self.assertEqual(sorted(own + [str(other)]), batch.get_output_volumes(str(self.output)))
 
     def test_recovery_validates_all_evidence_before_any_mutation(self):
-        for fault in ('edited', 'missing', 'symlink', 'malformed', 'duplicate'):
+        self.run_recovery_faults(('edited', 'missing', 'malformed', 'duplicate'))
+
+    @skip_unless_symlink
+    def test_recovery_rejects_symlink_evidence_before_any_mutation(self):
+        self.run_recovery_faults(('symlink',))
+
+    def run_recovery_faults(self, faults):
+        for fault in faults:
             with self.subTest(fault=fault):
                 self.crash()
                 journal = Path(str(self.output) + publication.JOURNAL_SUFFIX)
@@ -327,6 +335,9 @@ preparer._create_zip_dataset(json.loads(sys.argv[4]),sys.argv[2],zip_max_files=1
             with publication.apply_zip_volume_set(self.root / 'dataset_vol01.zip', ['dataset_vol01.zip']):
                 self.fail('Must refuse before staging or modifying another manifest family')
         self.assert_old()
+
+    @skip_unless_symlink
+    def test_symlink_cannot_be_replaced(self):
         target = self.root / 'dataset_vol02.zip'
         target.unlink()
         target.symlink_to(self.root / 'dataset_vol01.zip')
@@ -593,6 +604,7 @@ preparer._create_zip_dataset(json.loads(sys.argv[4]),sys.argv[2],zip_max_files=1
         self.assertFalse((self.root / 'models').exists())
 
     def test_staged_progress_rechecks_full_scratch_and_stops_actual_child_before_publication(self):
+        from subprocess_ownership import start_owned_subprocess
         from tests.batch_mock_support import adapt_owner_fixture
         adapt_owner_fixture(self)
         audio = self.root / 'book.wav'
@@ -603,7 +615,7 @@ preparer._create_zip_dataset(json.loads(sys.argv[4]),sys.argv[2],zip_max_files=1
         code = 'import time\nprint("Volume 1 staged: fixture (staged_bytes=805306368)",flush=True)\ntime.sleep(30)\n'
         children = []
         def launch(*args, **kwargs):
-            process = subprocess.Popen([sys.executable, '-u', '-c', code], **kwargs)
+            process = start_owned_subprocess([sys.executable, '-u', '-c', code], **kwargs)
             children.append(process)
             return process
         try:

@@ -18,9 +18,9 @@ import re
 import selectors
 import subprocess
 import sys
-import time
 import unittest
 from pathlib import Path
+from tests.test_support import read_fixture_pipe
 
 START_JS = Path(__file__).resolve().parent.parent.parent / "start.js"
 
@@ -67,23 +67,17 @@ def _supervise(lines, success_re, failure_re):
     return ("exited", None)
 
 
-def _read_bind_announcement(stream, timeout=10):
-    """Read raw pipe bytes so buffered lines cannot escape FD readiness checks."""
-    selector = selectors.DefaultSelector()
-    selector.register(stream, selectors.EVENT_READ)
-    lines = []
-    pending = b""
-    try:
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            remaining = max(0, deadline - time.monotonic())
-            if not selector.select(timeout=min(0.1, remaining)):
-                continue
+def _read_bind_announcement(process, timeout=10):
+    """Read raw pipe bytes without applying socket selectors to Windows pipes."""
+    def read(stream):
+        lines = []
+        pending = b""
+        while True:
             block = os.read(stream.fileno(), 4096)
             if not block:
                 if pending:
                     lines.append(pending.decode("utf-8", errors="replace"))
-                break
+                return lines
             pending += block
             while b"\n" in pending:
                 line, pending = pending.split(b"\n", 1)
@@ -91,9 +85,7 @@ def _read_bind_announcement(stream, timeout=10):
                 lines.append(line)
                 if "Uvicorn running on " in line:
                     return lines
-    finally:
-        selector.close()
-    return lines
+    return read_fixture_pipe(process, process.stdout, read, timeout=timeout)
 
 
 HEALTHY_STARTUP = (
@@ -153,7 +145,7 @@ uvicorn.run(app, host='127.0.0.1', port=0, lifespan='off', access_log=False, use
         process = subprocess.Popen([sys.executable, '-u', '-c', script], stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, bufsize=0)
         try:
-            lines = _read_bind_announcement(process.stdout, timeout=10)
+            lines = _read_bind_announcement(process, timeout=10)
             outcome, url = self._supervise(lines)
             self.assertEqual('url', outcome, lines)
             self.assertTrue(url.startswith('http://127.0.0.1:'), url)
@@ -197,20 +189,22 @@ for (const line of JSON.parse(process.argv[2])) {
                                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE, text=text,
                                            bufsize=-1 if text else 0)
-                selector = selectors.DefaultSelector()
+                selector = selectors.DefaultSelector() if os.name != 'nt' else None
                 try:
-                    selector.register(process.stderr, selectors.EVENT_READ)
-                    self.assertTrue(selector.select(timeout=3), "child did not write its burst")
-                    self.assertEqual('ready\n' if text else b'ready\n', process.stderr.readline())
-                    selector.unregister(process.stderr)
-                    selector.register(process.stdout, selectors.EVENT_READ)
+                    ready = read_fixture_pipe(process, process.stderr, lambda stream: stream.readline(), timeout=3)
+                    self.assertEqual('ready\n' if text else b'ready\n', ready)
+                    if selector is not None:
+                        selector.register(process.stdout, selectors.EVENT_READ)
                     if text:
-                        self.assertTrue(selector.select(timeout=0))
-                        first = process.stdout.readline()
+                        if selector is not None:
+                            self.assertTrue(selector.select(timeout=0))
+                        first = read_fixture_pipe(process, process.stdout, lambda stream: stream.readline())
                         # The old reader next waits here although TextIO holds the URL.
-                        self.assertFalse(selector.select(timeout=0))
+                        if selector is not None:
+                            self.assertFalse(selector.select(timeout=0))
                         self.assertEqual(('exited', None), self._supervise([first]))
-                        buffered = [process.stdout.readline(), process.stdout.readline()]
+                        buffered = read_fixture_pipe(process, process.stdout,
+                            lambda stream: [stream.readline(), stream.readline()])
                         self.assertEqual(('url', 'http://127.0.0.1:53411'), self._supervise(buffered))
                     else:
                         native_read = os.read
@@ -220,14 +214,15 @@ for (const line of JSON.parse(process.argv[2])) {
                             blocks.append(block)
                             return block
                         with patch('os.read', side_effect=read_partial):
-                            lines = _read_bind_announcement(process.stdout, timeout=10)
+                            lines = _read_bind_announcement(process, timeout=10)
                         self.assertEqual(burst.splitlines(keepends=True), lines)
                         self.assertEqual(('url', 'http://127.0.0.1:53411'), self._supervise(lines))
                         self.assertGreater(len(blocks), 3)
                         self.assertTrue(any(block and not block.endswith(b'\n') for block in blocks))
                     self.assertIsNone(process.poll(), "fixture must remain alive after its burst")
                 finally:
-                    selector.close()
+                    if selector is not None:
+                        selector.close()
                     process.terminate()
                     try:
                         process.wait(timeout=5)

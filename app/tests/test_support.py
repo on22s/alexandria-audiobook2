@@ -16,11 +16,13 @@ import inspect
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from unittest.mock import patch
 
 
@@ -173,6 +175,88 @@ def get_bash_executable():
     if executable is None:
         raise RuntimeError(detail)
     return executable
+
+
+class RemoteFilesystemFixture:
+    """Back synthetic POSIX remote names with a private native directory."""
+
+    def __init__(self, root):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.created = set()
+
+    def get_path(self, remote):
+        parts = PurePosixPath(remote).relative_to('/tmp').parts
+        if not parts or '..' in parts:
+            raise ValueError('Remote fixture path must stay below /tmp')
+        return self.root.joinpath(*parts)
+
+    def create_directory(self, prefix):
+        remote = prefix + '.' + uuid.uuid4().hex[:10]
+        self.get_path(remote).mkdir(mode=0o700)
+        self.created.add(remote)
+        return remote
+
+    def remove_directory(self, remote):
+        if remote not in self.created:
+            raise AssertionError('Refusing to remove an unowned remote fixture')
+        shutil.rmtree(self.get_path(remote))
+        self.created.remove(remote)
+
+    def run(self, command, *, transfer_failure=False, **kwargs):
+        import shlex
+        from types import SimpleNamespace
+        if command[0] == 'scp':
+            target = command[-1].split(':', 1)[1]
+            shutil.copyfile(command[1], self.get_path(target))
+            return SimpleNamespace(returncode=int(transfer_failure), stderr='transfer refused')
+        if command[0] != 'ssh':
+            raise AssertionError(f'Unexpected fixture transport: {command}')
+        arguments = shlex.split(command[2])
+        if arguments[:3] == ['mkdir', '-p', '--'] and len(arguments) == 4:
+            if not any(arguments[3] == root or arguments[3].startswith(root + '/')
+                       for root in self.created):
+                raise AssertionError('Refusing to create an unowned remote fixture')
+            self.get_path(arguments[3]).mkdir(parents=True, exist_ok=True)
+            return SimpleNamespace(returncode=0, stdout='', stderr='')
+        if arguments[:2] != ['mktemp', '-d'] or not arguments[2].endswith('.XXXXXXXXXX'):
+            raise AssertionError(f'Unexpected fixture command: {arguments}')
+        remote = self.create_directory(arguments[2][:-11])
+        return SimpleNamespace(returncode=0, stdout='SSH banner\n' + remote + '\n', stderr='')
+
+
+def assert_fixture_process_stopped(case, pid):
+    """Use the native birth-identity probe, never Windows os.kill(pid, 0)."""
+    from local_unit_shards import get_process_start_time
+    case.assertIsNone(get_process_start_time(pid), f'Fixture PID {pid} is still live')
+
+
+def read_fixture_pipe(process, stream, reader, *, timeout=10):
+    """Bound a pipe reader and reap the child before joining a stalled reader."""
+    import queue
+    import threading
+    results = queue.Queue()
+
+    def read():
+        try:
+            results.put((True, reader(stream)))
+        except BaseException as error:
+            results.put((False, error))
+
+    thread = threading.Thread(target=read)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        process.kill()
+        process.wait(timeout=5)
+        thread.join(5)
+        if thread.is_alive():
+            raise AssertionError('Fixture pipe reader survived child reap')
+        raise AssertionError('Fixture pipe reader timed out')
+    success, value = results.get_nowait()
+    if not success:
+        raise value
+    return value
 
 
 def snapshot_fixture_files(root, *, lock_files=()):
@@ -715,6 +799,44 @@ def create_test_symlink_or_skip(link, target, target_is_directory=False):
         if os.name == 'nt' and getattr(exc, 'winerror', None) == 1314:
             raise unittest.SkipTest('Windows symlink creation requires privileges (WinError 1314)') from exc
         raise
+
+
+class RemoteFilesystemFixtureTests(unittest.TestCase):
+    def test_staging_and_cleanup_preserve_foreign_files_and_posix_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            transport = RemoteFilesystemFixture(tmp)
+            foreign = Path(tmp) / 'foreign'
+            foreign.write_bytes(b'keep')
+            result = transport.run(['ssh', 'fixture-host', 'mktemp -d /tmp/owned.XXXXXXXXXX'])
+            remote = result.stdout.splitlines()[-1]
+            self.assertTrue(remote.startswith('/tmp/owned.'))
+            self.assertNotIn('\\', remote)
+            copied = transport.run(['scp', str(foreign), 'fixture-host:' + remote + '/payload'],
+                                   transfer_failure=True)
+            self.assertEqual(1, copied.returncode)
+            self.assertEqual(b'keep', transport.get_path(remote + '/payload').read_bytes())
+            transport.remove_directory(remote)
+            self.assertFalse(transport.get_path(remote).exists())
+            self.assertEqual(b'keep', foreign.read_bytes())
+            with self.assertRaisesRegex(AssertionError, 'unowned'):
+                transport.remove_directory(remote)
+
+    def test_remote_escape_and_unknown_commands_fail_before_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            transport = RemoteFilesystemFixture(tmp)
+            for remote in ('/elsewhere', '/tmp', '/tmp/../foreign', '/tmp/owned/../foreign'):
+                with self.subTest(remote=remote), self.assertRaises(ValueError):
+                    transport.get_path(remote)
+            with self.assertRaisesRegex(AssertionError, 'Unexpected'):
+                transport.run(['ssh', 'fixture-host', 'rm -rf /tmp'])
+            self.assertEqual([], list(Path(tmp).iterdir()))
+
+    def test_pipe_timeout_reaps_child_and_joins_reader(self):
+        with subprocess.Popen([sys.executable, '-u', '-c', 'import time;time.sleep(30)'],
+                              stdout=subprocess.PIPE) as process:
+            with self.assertRaisesRegex(AssertionError, 'pipe reader timed out'):
+                read_fixture_pipe(process, process.stdout, lambda stream: stream.read(), timeout=.1)
+            self.assertIsNotNone(process.poll())
 
 
 class FixtureCapabilityTests(unittest.TestCase):

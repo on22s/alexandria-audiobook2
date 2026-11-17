@@ -35,13 +35,12 @@ REAL_CASES = [
 
 class TranscriptionFailureTests(unittest.TestCase):
     def run_transcription(self, exit_code):
+        from tests.test_support import write_python_cli_fixture
         with tempfile.TemporaryDirectory() as directory:
             binary = os.path.join(directory, "synthetic-whisper")
-            with open(binary, "w", encoding="utf-8") as handle:
-                handle.write("#!/bin/sh\nprintf 'known   answer\\n'\nexit "
-                             + str(exit_code) + "\n")
-            os.chmod(binary, 0o700)
-            return measure.transcribe("synthetic.wav", binary, "synthetic-model")
+            binary = write_python_cli_fixture(binary,
+                "import sys\nprint('known   answer')\nsys.exit(" + str(exit_code) + ")\n")
+            return measure.transcribe("synthetic.wav", str(binary), "synthetic-model")
 
     def test_successful_child_output_is_normalized(self):
         self.assertEqual("known answer", self.run_transcription(0))
