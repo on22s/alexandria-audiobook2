@@ -482,7 +482,7 @@ class SourceLiteralTests(unittest.TestCase):
                                  + repr(unexplained[:20]))
 
     def test_the_guard_actually_reads_app_training_js(self):
-        """#2019: a converted site put back must fail every scanned file's scan."""
+        """#2019: a converted training site put back must fail app-training.js's scan."""
         source = source_of(TRAINING)
         keyed = "t('training.train.cancel-failed', 'Failed to cancel training')"
         self.assertIn(keyed, source)

@@ -159,7 +159,7 @@ KEEP_ENGLISH = frozenset({
 # training.* keys (measured 246 before the change, so the old ceiling was also
 # three over its file). What is left there is template HTML, element ids, CSS
 # classes and two caught 'list is malformed' diagnostics that never reach the
-# screen. test_ui_i18n_app_training_literals.py is the guard for the part the
+# screen. test_ui_i18n_app_core_literals.py is the guard for the part the
 # counter treats as one string: the keyed English of the t() calls above.
 MARKUP_BASELINE = {
     'index.html': {
