@@ -17,6 +17,13 @@ CURRENT = ContextVar('review_startup_trace', default=None)
 MAX_BYTES = 256 * 1024
 ENV_ID = 'ALEXANDRIA_REVIEW_STARTUP_ID'
 ENV_PATH = 'ALEXANDRIA_REVIEW_STARTUP_PATH'
+# The codec a child script's stdout pipe speaks. core's launcher passes the
+# same constant to Popen, so the writer (worker_environment, below) and the
+# reader cannot disagree: a Windows child defaults to the ANSI code page for a
+# pipe, and one print() of any other character — U+2770 in a review's diff
+# preview, or any CJK text — raised UnicodeEncodeError after the work was
+# already done (#2062).
+WORKER_STDIO_ENCODING = 'utf-8'
 _failure_limits = {}
 _failure_limit_lock = threading.Lock()
 
@@ -116,8 +123,16 @@ def event(stage, **options):
 
 
 def worker_environment(env):
+    """Copy the environment a child script runs with.
+
+    The parent reads the child's stdout pipe as WORKER_STDIO_ENCODING, so the
+    child is told to write it in that encoding rather than inheriting the
+    console code page (cp1252 on native Windows; #2062). An explicit value in
+    `env` is overridden on purpose — agreeing with the reader is the point.
+    """
     trace = CURRENT.get()
     result = dict(os.environ if env is None else env)
+    result['PYTHONIOENCODING'] = WORKER_STDIO_ENCODING
     if trace is not None:
         result.update({ENV_ID: trace.correlation, ENV_PATH: str(trace.path)})
     return result

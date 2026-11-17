@@ -1881,6 +1881,19 @@ def ensure_review_not_cancelled():
         raise SystemExit(0)
 
 
+def _emit_json_marker(marker, payload):
+    """Print one machine-read '<MARKER>: {json}' line for the parent to parse.
+
+    ensure_ascii stays at its default so the line is pure ASCII: core reads it
+    back with json.loads, which restores every character exactly, while an
+    ASCII line cannot fail to print on a stdout whose encoding is not UTF-8 —
+    a Windows child's pipe defaults to the ANSI code page (cp1252), where
+    U+2770 or any CJK text raised UnicodeEncodeError after a finished review
+    (#2062).
+    """
+    print(f"{marker}: {json.dumps(payload)}")
+
+
 def main():
     ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
@@ -2566,7 +2579,7 @@ def main():
             print("Cleared old chunks.json")
 
     accounting_unverified = accounting['metadata']['inherited_unverified']
-    print('REVIEW_ACCOUNTING_JSON: ' + json.dumps({'inherited_unverified': accounting_unverified}))
+    _emit_json_marker('REVIEW_ACCOUNTING_JSON', {'inherited_unverified': accounting_unverified})
     warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})
     if warning:
         print('WARNING: ' + warning)
@@ -2606,7 +2619,7 @@ def main():
             "checkpoint_retained": os.path.exists(_checkpoint_path(output_path)),
             "retry_from_batch": min(section["batch"] for section in failed_sections),
         }
-        print(f"FAILED_SECTIONS_JSON: {json.dumps(failure_details, ensure_ascii=False)}")
+        _emit_json_marker('FAILED_SECTIONS_JSON', failure_details)
 
     # Emit a compact JSON line with the most notable before/after examples so the
     # web UI can show a "diff preview" without re-diffing the whole script.
@@ -2615,7 +2628,7 @@ def main():
         "speaker_changes": highlight_pool["speaker"][:5],
     }
     if diff_highlights["text_rewrites"] or diff_highlights["speaker_changes"]:
-        print(f"DIFF_PREVIEW_JSON: {json.dumps(diff_highlights, ensure_ascii=False)}")
+        _emit_json_marker('DIFF_PREVIEW_JSON', diff_highlights)
 
     if vram_aborted:
         print("Stopped early: GPU VRAM stayed too high to safely continue.")
