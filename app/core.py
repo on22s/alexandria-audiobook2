@@ -659,14 +659,14 @@ def is_llm_on_this_gpu(config) -> bool:
     """The active LLM profile's `on_this_gpu`, or - when unset - whether its
     endpoint is local to this machine. Conservative on any failure: True."""
     try:
-        from lmstudio_settings import get_active_llm_config, is_remote_llm
+        from lmstudio_settings import get_active_llm_config, is_active_llm_remote
         llm = get_active_llm_config(config) or {}
         if llm.get("transport") == "manual":
             return False   # the user is the model; no GPU involved
         explicit = llm.get("on_this_gpu")
         if explicit is not None:
             return bool(explicit)
-        return not is_remote_llm(config.get("llm_mode", "local"), llm.get("base_url", ""))
+        return not is_active_llm_remote(config)
     except Exception as error:
         record_failure('gpu_policy_read_failed', error, task='gpu_lock', rate_limit_seconds=300)
         return True

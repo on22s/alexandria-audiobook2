@@ -68,7 +68,9 @@ class BookPreflightOwnershipTests(unittest.TestCase):
                     core.claim_gpu_task('audio')
             finally:
                 states['script']['cancel'] = True
-                release.set(); thread.join(10)
+                from windows_subprocess_owner import WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS
+                release.set()
+                thread.join(core.CANCEL_TERMINATE_GRACE_SECONDS + WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS + 5)
             self.assertFalse(thread.is_alive())
             self.assertEqual([], errors)
             self.assertIsNotNone(seen['process'].poll())

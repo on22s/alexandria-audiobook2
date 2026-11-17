@@ -9875,11 +9875,13 @@
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_other_managed_family_and_symlink_cannot_be_replaced"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_owned_process_death_at_publication_phases_is_fenced_and_recovers_old_set"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_partial_committed_cleanup_error_preserves_new_set_and_retires_on_retry"
+    , "tests.test_preparer_volume_publication.VolumePublicationTests.test_recovery_rejects_symlink_evidence_before_any_mutation"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_recovery_validates_all_evidence_before_any_mutation"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_second_zip_write_retains_entire_old_family"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_staged_fsync_requires_write_access_without_truncation_and_keeps_faults_visible"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_staged_progress_rechecks_full_scratch_and_stops_actual_child_before_publication"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_stale_volume_removal_fault_restores_every_old_zip_and_manifest"
+    , "tests.test_preparer_volume_publication.VolumePublicationTests.test_symlink_cannot_be_replaced"
     , "tests.test_preparer_volume_publication.VolumePublicationTests.test_unchanged_names_publish_new_metadata_and_preserve_unrelated_outputs"
   ]
   , "test_preset_editor_modal_js": [
@@ -11458,12 +11460,22 @@
     "tests.test_remote_tts_asset_cleanup.RemoteTtsAssetCleanupTests.test_cleanup_failure_is_visible_without_masking_primary_cancel_or_failure"
     , "tests.test_remote_tts_asset_cleanup.RemoteTtsAssetCleanupTests.test_partial_transfer_failure_cleans_created_directory"
     , "tests.test_remote_tts_asset_cleanup.RemoteTtsAssetCleanupTests.test_unknown_roots_never_trigger_deletion"
+    , "tests.test_remote_tts_asset_cleanup.RemoteTtsAssetCleanupTests.test_worker_cleanup_never_follows_foreign_directory_symlink"
     , "tests.test_remote_tts_asset_cleanup.RemoteTtsAssetCleanupTests.test_worker_success_error_timeout_and_cancel_remove_only_owned_assets"
   ]
   , "test_remote_tts_asset_staging": [
     "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_bad_or_missing_remote_directory_output_refuses_before_any_scp"
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_creation_failure_and_no_asset_payload_do_not_transfer"
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_native_mktemp_is_private_unique_and_ignores_a_precreated_fixed_directory_symlink"
+  ]
+  , "test_remote_warning_active_profile": [
+    "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_garbage_config_is_local_rather_than_an_exception"
+    , "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_the_mirror_never_decides_the_classification"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_hosted_mirror_cannot_invent_a_remote_run"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_local_mirror_cannot_hide_a_hosted_active_profile"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_remote_mode_reports_remote"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_the_resolver_sees_the_real_config_and_redaction_still_applies"
+    , "tests.test_remote_warning_active_profile.SupportSummaryTests.test_the_voicelab_summary_classifies_the_active_profile"
   ]
   , "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
@@ -14478,6 +14490,9 @@
     , "tests.test_support.FixtureCapabilityTests.test_temp_cleanup_failure_is_not_a_capability_skip"
     , "tests.test_support.FixtureCapabilityTests.test_temp_setup_failure_is_not_a_capability_skip"
     , "tests.test_support.FixtureCapabilityTests.test_unexpected_probe_failure_is_not_a_skip"
+    , "tests.test_support.RemoteFilesystemFixtureTests.test_pipe_timeout_reaps_child_and_joins_reader"
+    , "tests.test_support.RemoteFilesystemFixtureTests.test_remote_escape_and_unknown_commands_fail_before_mutation"
+    , "tests.test_support.RemoteFilesystemFixtureTests.test_staging_and_cleanup_preserve_foreign_files_and_posix_names"
   ]
   , "test_synthesis_audio": [
     "tests.test_synthesis_audio.SynthesisAudioTests.test_adaptive_gap_tops_up_and_trims_actual_quiet_frames_with_a_cap"

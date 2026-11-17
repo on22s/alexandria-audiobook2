@@ -60,7 +60,7 @@ class BatchDiskAdmissionTests(unittest.TestCase):
         with patch.object(batch.shutil, 'disk_usage', return_value=SimpleNamespace(free=1024 ** 3)), \
              self.assertLogs(batch.logger, level='ERROR') as log:
             self.assertFalse(batch.check_disk_space('/output', 2, 1))
-        self.assertIn('/output', log.output[0])
+        self.assertIn(str(Path('/output').resolve()), log.output[0])
         self.assertIn('1073741824 more bytes', log.output[0])
 
     def test_metadata_duration_is_bounded_and_invalid_values_keep_floor(self):
@@ -150,9 +150,10 @@ class BatchDiskAdmissionTests(unittest.TestCase):
                   ' z.writestr("train/clip.wav", b"fixture")\n'
                   'print("Volume 1 saved: fixture",flush=True)\n'
                   'time.sleep(30)\n')
-            children=[];native_popen=subprocess.Popen
+            from subprocess_ownership import start_owned_subprocess
+            children=[]
             def launch(*args,**kwargs):
-                child=native_popen([sys.executable,'-u','-c',code],**kwargs);children.append(child);return child
+                child=start_owned_subprocess([sys.executable,'-u','-c',code],**kwargs);children.append(child);return child
             try:
                 start=time.monotonic()
                 with patch.object(batch,'get_output_name',return_value=str(output)), \

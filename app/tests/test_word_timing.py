@@ -60,8 +60,8 @@ class WordTimingTests(unittest.TestCase):
             script = 'import os,pathlib,time;pathlib.Path(' + repr(str(pid)) + ').write_text(str(os.getpid()));time.sleep(30)'
             with self.assertRaisesRegex(ValueError, 'cancelled'):
                 run_timing_command([sys.executable, '-c', script], pid.exists, 10)
-            with self.assertRaises(ProcessLookupError):
-                os.kill(int(pid.read_text()), 0)
+            from tests.test_support import assert_fixture_process_stopped
+            assert_fixture_process_stopped(self, int(pid.read_text()))
             with self.assertRaisesRegex(ValueError, 'timed out'):
                 run_timing_command([sys.executable, '-c', 'import time;time.sleep(30)'], lambda: False, .1)
 

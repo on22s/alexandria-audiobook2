@@ -47,9 +47,8 @@ class BuildWhisperTests(unittest.TestCase):
         self.assertEqual([str(binary), '--help'], probe.call_args.args[0])
         self.assertTrue(self.marker.exists())
 
-    @unittest.skipIf(os.name == 'nt', 'uses a POSIX executable fixture')
     def test_corrupt_executable_does_not_clear_pending_state(self):
-        binary = self.root / 'whisper.cpp/build/bin/whisper-cli'
+        binary = self.root / ('whisper.cpp/build/bin/Release/whisper-cli.exe' if os.name == 'nt' else 'whisper.cpp/build/bin/whisper-cli')
         binary.parent.mkdir(parents=True)
         binary.write_text('not an executable')
         binary.chmod(0o700)

@@ -3,38 +3,45 @@ import hashlib
 import json
 from pathlib import Path
 import shlex
-import shutil
 import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
-import uuid
 import benchmark_runner as runner
 from benchmark_execution import BENCHMARK_STATE, BenchmarkCancelled
+from tests.test_support import RemoteFilesystemFixture, skip_unless_symlink
 
 
 class RemoteTtsAssetCleanupTests(unittest.TestCase):
     @contextlib.contextmanager
     def owned_root(self):
-        root = Path('/tmp') / ('alexandria-tts-benchmark-assets.' + uuid.uuid4().hex[:10])
-        root.mkdir(mode=0o700)
-        try: yield root
-        finally: shutil.rmtree(root, ignore_errors=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            transport = RemoteFilesystemFixture(tmp)
+            remote = transport.create_directory('/tmp/alexandria-tts-benchmark-assets')
+            yield transport, remote, transport.get_path(remote)
 
     def test_worker_success_error_timeout_and_cancel_remove_only_owned_assets(self):
-        native_run = subprocess.run
+        self.run_owned_asset_cases(include_symlink=False)
+
+    @skip_unless_symlink
+    def test_worker_cleanup_never_follows_foreign_directory_symlink(self):
+        self.run_owned_asset_cases(include_symlink=True)
+
+    def run_owned_asset_cases(self, *, include_symlink):
         for mode in ('success', 'error', 'timeout', 'cancel', 'bad-json'):
-            with self.subTest(mode=mode), self.owned_root() as assets, tempfile.TemporaryDirectory() as tmp:
+            with self.subTest(mode=mode), self.owned_root() as (transport, remote, assets), tempfile.TemporaryDirectory() as tmp:
                 foreign = Path(tmp) / 'foreign'; foreign.mkdir(); (foreign / 'keep').write_bytes(b'keep')
                 (assets / 'reference.wav').write_bytes(b'owned')
-                (assets / 'external').symlink_to(foreign, target_is_directory=True)
+                if include_symlink:
+                    (assets / 'external').symlink_to(foreign, target_is_directory=True)
                 calls = []
                 def cleanup(command, **kwargs):
                     args = shlex.split(command[2]); calls.append(args)
-                    self.assertEqual(['rm', '-rf', '--', str(assets)], args)
+                    self.assertEqual(['rm', '-rf', '--', remote], args)
                     self.assertEqual(30, kwargs['timeout']); self.assertTrue(assets.exists())
-                    return native_run(args, **kwargs)
+                    transport.remove_directory(args[3])
+                    return SimpleNamespace(returncode=0)
                 failure = {'error': RuntimeError('worker failed'), 'timeout': subprocess.TimeoutExpired('worker', 1),
                            'cancel': BenchmarkCancelled('cancel requested')}.get(mode)
                 def worker(*args, **kwargs):
@@ -43,7 +50,7 @@ class RemoteTtsAssetCleanupTests(unittest.TestCase):
                     return SimpleNamespace(returncode=0, stdout='TTS_BENCHMARK_RESULT=' + ('invalid' if mode == 'bad-json' else '[]'), stderr='')
                 state = {'cancel': mode == 'cancel', 'logs': []}; token = BENCHMARK_STATE.set(state)
                 try:
-                    with patch.object(runner, '_stage_remote_tts_assets', return_value={'fixtures': [], '_asset_root': str(assets)}), \
+                    with patch.object(runner, '_stage_remote_tts_assets', return_value={'fixtures': [], '_asset_root': remote}), \
                             patch.object(runner, 'run_benchmark_subprocess', side_effect=worker), \
                             patch.object(runner.subprocess, 'run', side_effect=cleanup):
                         if mode == 'success':
@@ -57,8 +64,7 @@ class RemoteTtsAssetCleanupTests(unittest.TestCase):
                 self.assertEqual(b'keep', (foreign / 'keep').read_bytes())
 
     def test_partial_transfer_failure_cleans_created_directory(self):
-        native_run = subprocess.run
-        with self.owned_root() as assets, tempfile.TemporaryDirectory() as tmp:
+        with self.owned_root() as (transport, remote, assets), tempfile.TemporaryDirectory() as tmp:
             reference = Path(tmp) / 'reference.wav'; reference.write_bytes(b'reference')
             payload = {'fixtures': [{'voice_type': 'clone', 'ref_audio': reference.name,
                                     'ref_audio_sha256': hashlib.sha256(b'reference').hexdigest()}]}
@@ -66,9 +72,14 @@ class RemoteTtsAssetCleanupTests(unittest.TestCase):
                 if command[0] == 'scp':
                     (assets / 'partial.wav').write_bytes(b'partial')
                     return SimpleNamespace(returncode=1, stdout='', stderr='transfer failed')
-                return SimpleNamespace(returncode=0, stdout='banner\n' + str(assets) + '\n', stderr='')
+                return SimpleNamespace(returncode=0, stdout='banner\n' + remote + '\n', stderr='')
+            def remove(command, **kwargs):
+                self.assertEqual(['rm', '-rf', '--', remote], shlex.split(command[2]))
+                self.assertEqual(30, kwargs['timeout'])
+                transport.remove_directory(remote)
+                return SimpleNamespace(returncode=0)
             with patch.object(runner, 'run_benchmark_subprocess', side_effect=transfer), \
-                    patch.object(runner.subprocess, 'run', side_effect=lambda command, **kw: native_run(shlex.split(command[2]), **kw)) as cleanup:
+                    patch.object(runner.subprocess, 'run', side_effect=remove) as cleanup:
                 with self.assertRaisesRegex(RuntimeError, 'transfer failed'):
                     runner._stage_remote_tts_assets(payload, tmp, 'fixture-host')
             cleanup.assert_called_once(); self.assertFalse(assets.exists())

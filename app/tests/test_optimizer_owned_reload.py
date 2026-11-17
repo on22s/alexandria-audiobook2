@@ -17,6 +17,7 @@ import core
 import lmstudio_settings as settings
 from experiments.gpu_guard import acquire_gpu_lock, gpu_is_busy
 from routers import system
+from tests.test_support import write_python_cli_fixture
 
 
 class OptimizerOwnershipTests(unittest.TestCase):
@@ -53,14 +54,13 @@ class OptimizerOwnershipTests(unittest.TestCase):
         root = Path(directory)
         changes, release, lock = root/'changes.jsonl', root/'release', root/'gpu.lock'
         cli = root/'lms'
-        cli.write_text('#!'+sys.executable+'\n'+
+        cli = write_python_cli_fixture(cli,
             'import json,pathlib,sys,time\n'+
             'changes=pathlib.Path('+repr(str(changes))+')\n'+
             'with changes.open("a") as output:output.write(json.dumps(sys.argv[1:])+"\\n")\n'+
             'release=pathlib.Path('+repr(str(release))+')\n'+
             'if sys.argv[1]=="load":\n'+
             ' while not release.exists():time.sleep(.01)\n')
-        cli.chmod(0o755)
         state = copy.deepcopy(core.process_state)
         for value in state.values():
             value['running'] = False

@@ -244,6 +244,24 @@ def get_failover_llm_config(config):
     return get_inherited_profile_limits(block, config.get("generation") or {})
 
 
+def is_active_llm_remote(config):
+    """Single source of truth for "will this config's runs go to a remote
+    (billed) endpoint?".
+
+    `is_remote_llm` answers "is THIS endpoint remote?", which still leaves the
+    caller to have chosen the right endpoint - and choosing the wrong one is
+    how the Setup page's cost warning came to be computed from the stale `llm`
+    mirror (#2007): with llm_mode=local, a mirror still pointing at localhost
+    while the active `llm_local` was a billed hosted endpoint, the prompt was
+    skipped and the run then dialled the billed endpoint through
+    `get_active_llm_config`. Resolving the active profile here means a caller
+    cannot pass the mirror by accident.
+    """
+    config = config if isinstance(config, dict) else {}
+    return is_remote_llm(config.get("llm_mode") or "local",
+                         get_active_llm_config(config).get("base_url", ""))
+
+
 def find_lms_binary():
     """Return the path to the `lms` CLI, or None if it isn't available."""
     return shutil.which("lms")

@@ -589,7 +589,7 @@ class RemoteTrainingCleanupTests(unittest.TestCase):
         import subprocess
         from types import SimpleNamespace
         from benchmark_execution import BenchmarkCancelled
-        actual_run=subprocess.run
+        from tests.test_support import RemoteFilesystemFixture
         created=[]
         for mode in ('success','transfer','worker','timeout','cancel'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
@@ -597,22 +597,17 @@ class RemoteTrainingCleanupTests(unittest.TestCase):
                 (dataset/'metadata.jsonl').write_text('synthetic metadata')
                 fixture={'sha256':'a'*64,'dataset_path':'dataset','audio_sha256':{}}
                 original=copy.deepcopy(fixture);paths=[];cleanup=[]
+                transport=RemoteFilesystemFixture(root/"remote")
                 def stage(command,**kwargs):
-                    if command[0]=='scp':
-                        target=command[-1].split(':',1)[1]
-                        shutil.copyfile(command[1],target)
-                        return SimpleNamespace(returncode=int(mode=='transfer'),stderr='transfer refused')
-                    args=shlex.split(command[2])
-                    result=actual_run(args,capture_output=True,text=True,check=True)
-                    if args[0]=='mktemp':
-                        path=result.stdout.strip();created.append(path);paths.append(path)
-                        result.stdout='SSH banner\n'+result.stdout
+                    result=transport.run(command,transfer_failure=mode=='transfer',**kwargs)
+                    if command[0]=='ssh' and result.stdout:
+                        path=result.stdout.splitlines()[-1];created.append(path);paths.append(path)
                     return result
                 def remove(command,**kwargs):
                     args=shlex.split(command[2]);self.assertEqual(['rm','-rf','--'],args[:3])
                     self.assertEqual(paths[0],args[3]);self.assertEqual(30,kwargs['timeout'])
-                    self.assertTrue(Path(args[3],'metadata.jsonl').exists())
-                    cleanup.append(args[3]);shutil.rmtree(args[3])
+                    self.assertTrue((transport.get_path(args[3])/'metadata.jsonl').exists())
+                    cleanup.append(args[3]);transport.remove_directory(args[3])
                     return SimpleNamespace(returncode=0)
                 failures={'transfer':RuntimeError,'worker':ValueError,'timeout':subprocess.TimeoutExpired,'cancel':BenchmarkCancelled}
                 error={'worker':ValueError('worker refused'),'timeout':subprocess.TimeoutExpired('worker',7200),
@@ -630,11 +625,11 @@ class RemoteTrainingCleanupTests(unittest.TestCase):
                             if error is not None:self.assertIs(error,caught.exception)
                         if mode=='transfer':worker.assert_not_called()
                     self.assertEqual(paths,cleanup)
-                    self.assertFalse(Path(paths[0]).exists())
+                    self.assertFalse(transport.get_path(paths[0]).exists())
                     self.assertEqual(original,fixture)
                 finally:
                     for path in paths:
-                        if Path(path).exists():shutil.rmtree(path)
+                        if transport.get_path(path).exists():transport.remove_directory(path)
         self.assertEqual(len(created),len(set(created)))
 
     def test_cleanup_errors_do_not_replace_primary_failure_and_are_reported(self):
