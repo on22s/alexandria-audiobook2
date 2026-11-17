@@ -99,6 +99,7 @@ from core import (
     get_active_book_id,
     BASE_DIR,
     _compute_eta,
+    SPEAKER_MERGE_MARKER,
     CHARACTER_ALIASES_PATH,
     CONFIG_PATH,
     DATA_DIR,
@@ -4809,7 +4810,10 @@ async def get_status(task_name: str, include_health: bool = False):
     return state
 
 
-_STAGE_HINT_RE = re.compile(r"^(Step \d \([a-z]+\): .*|Reviewing batch(?:es)? \d.*|Retrying\.\.\..*|Warning: .*)$")
+_BATCH_LOG_PREFIX_RE = re.compile(r"^\[\d+\] ")
+_STAGE_HINT_RE = re.compile(r"^(Step \d \([a-z]+\): .*|Reviewing batch(?:es)? \d.*|"
+                            + re.escape(SPEAKER_MERGE_MARKER) +
+                            r" .*|Retrying\.\.\..*|Warning: .*)$")
 
 
 def _stage_hint(logs):
@@ -4818,9 +4822,13 @@ def _stage_hint(logs):
     'Step 2 (speakers): window 2 of 4 · Retrying... (attempt 2 of 4)'."""
     hints = []
     for line in reversed(logs[-40:]):
-        if _STAGE_HINT_RE.match(line.strip()):
-            hints.append(line.strip())
-            if line.strip().startswith(("Step", "Reviewing batch")):
+        # Batch review prefixes each book's output with "[2] "; strip it so a
+        # per-book stage (including the alias-merge stage, #2037) is still
+        # recognised in the batch task's log.
+        text = _BATCH_LOG_PREFIX_RE.sub("", line.strip())
+        if _STAGE_HINT_RE.match(text):
+            hints.append(text)
+            if text.startswith(("Step", "Reviewing batch", SPEAKER_MERGE_MARKER)):
                 break
     return " · ".join(reversed(hints))
 
