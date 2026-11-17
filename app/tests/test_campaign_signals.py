@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import time
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import get_bash_executable, get_bash_path, requires_linux_queue_tools
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -59,7 +59,8 @@ class CampaignSignalTests(unittest.TestCase):
                 + 'touch "$REPO/ready"\n'
                 + 'while [ ! -f "$REPO/release" ]; do sleep 0.02; done\n'
                 + 'touch "$REPO/continued"\nexit 0\n', encoding="utf-8")
-            process = subprocess.Popen(["bash", str(fixture), str(root), str(backup)],
+            process = subprocess.Popen([get_bash_executable(), get_bash_path(fixture),
+                                        get_bash_path(root), get_bash_path(backup)],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                        text=True, start_new_session=True)
             child_pid = None

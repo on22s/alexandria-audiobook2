@@ -20,6 +20,19 @@ from unittest.mock import patch
 from experiments.gpu_guard import (acquire_gpu_lock, gpu_is_busy,
                                    release_gpu_lock, require_free_gpu)
 from tests.test_support import requires_linux_queue_tools, get_bash_executable
+from tests.test_support import get_bash_path
+
+
+def wait_for_fixture_lock_release(lock_path, timeout=10):
+    """Wait until no process holds the fixture's lock.
+
+    A killed fixture's byte-range lease is released as its process exits, and
+    Windows refuses to unlink a file that still has an open handle, so the
+    temporary directory cannot be removed until the release is observable.
+    """
+    deadline = time.monotonic() + timeout
+    while gpu_is_busy(lock_path) and time.monotonic() < deadline:
+        time.sleep(0.02)
 
 
 class GpuGuardTest(unittest.TestCase):
@@ -52,6 +65,7 @@ class GpuGuardTest(unittest.TestCase):
                 proc.stdout.close()
             if proc.stderr:
                 proc.stderr.close()
+            wait_for_fixture_lock_release(self.lock)
         self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:
@@ -310,7 +324,8 @@ class LockPathAgreementTest(unittest.TestCase):
         repo = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))
         shared = subprocess.run(
-            ["bash", os.path.join(repo, "gpu_job.sh"), "--print-lock"],
+            [get_bash_executable(), get_bash_path(os.path.join(repo, "gpu_job.sh")),
+             "--print-lock"],
             capture_output=True, text=True, timeout=60).stdout.strip()
         runtime = os.path.join(repo, "ab_test_runtime")
         wrong = []
@@ -391,6 +406,7 @@ class StaleSentinelTest(unittest.TestCase):
                 proc.stdout.close()
             if proc.stderr:
                 proc.stderr.close()
+            wait_for_fixture_lock_release(self.lock)
         self.addCleanup(cleanup)
         deadline = time.time() + 20
         while time.time() < deadline:

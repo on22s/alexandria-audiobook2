@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 from pathlib import PurePosixPath
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -116,6 +117,31 @@ def can_fork():
     """Return whether multiprocessing offers the fork start method."""
     import multiprocessing
     return 'fork' in multiprocessing.get_all_start_methods()
+
+
+@functools.lru_cache(maxsize=1)
+def _probe_full_write_device():
+    """Probe a device whose open succeeds and whose write then fails.
+
+    Reaching a queue-log WRITE failure needs /dev/full: a directory, a
+    read-only file or a missing parent all fail at open instead, which is a
+    different code path. No native Windows device refuses a write after a
+    successful open, so that case is skipped there by this probe's reason.
+    """
+    if os.path.exists('/dev/full'):
+        return True, ''
+    return False, 'write failures after a successful open need /dev/full, which this host lacks'
+
+
+def can_fail_write_after_open():
+    """Return the cached result of the full-write-device probe."""
+    return _probe_full_write_device()[0]
+
+
+def skip_unless_full_write_device(test):
+    """Skip a write-failure fixture with the probe's explicit reason."""
+    supported, reason = _probe_full_write_device()
+    return unittest.skipUnless(supported, reason)(test)
 
 
 def get_fixture_process_context(*, require_fork=False):
@@ -291,6 +317,11 @@ def run_bash_fixture(arguments, **kwargs):
                 handle = tempfile.NamedTemporaryFile(prefix='bash transport ', delete=False)
                 outputs[name] = (Path(handle.name), handle)
                 kwargs[name] = handle
+        if os.name != 'nt':
+            # Its own session makes the shell a process-group leader, so a
+            # timed-out fixture can be killed as a GROUP rather than leaving
+            # grandchildren holding its pipes and files open.
+            kwargs.setdefault('start_new_session', True)
         try:
             process = subprocess.Popen(command, env=environment, **kwargs)
         finally:
@@ -332,7 +363,12 @@ def remove_bash_fixture_outputs(outputs):
 
 
 def stop_bash_fixture_tree(process):
-    """Kill a timed-out fixture's tree so no descendant outlives the test."""
+    """Kill a timed-out fixture's tree so no descendant outlives the test.
+
+    Windows kills the native job tree. POSIX kills the fixture's process GROUP,
+    which is the session run_bash_fixture starts it in; a plain kill would leave
+    a backgrounded grandchild running with the fixture's working files open.
+    """
     if os.name == 'nt':
         from subprocess_ownership import terminate_windows_process_tree
         try:
@@ -340,7 +376,12 @@ def stop_bash_fixture_tree(process):
         except OSError:
             process.kill()
     else:
-        process.kill()
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            process.kill()
     try:
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:

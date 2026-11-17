@@ -6,7 +6,8 @@ import threading
 import time
 import unittest
 import uuid
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import get_bash_executable, get_bash_path, requires_linux_queue_tools
+from tests.test_support import run_bash_fixture
 
 
 LIB = Path(__file__).resolve().parent.parent.parent / 'run_chains/lib/queue.sh'
@@ -37,29 +38,30 @@ class QueueProcessTests(unittest.TestCase):
         return child
 
     def check(self, helper=LIB):
-        return subprocess.run(['bash','-c','source "$1"; chain_running "$2"',
+        return run_bash_fixture(['-c','source "$1"; chain_running "$2"',
             'fixture',str(helper),self.name],capture_output=True,text=True,timeout=5)
 
     @requires_linux_queue_tools
     def test_mentions_in_other_programs_command_strings_and_stale_suffixes_are_not_chains(self):
         self.start([os.sys.executable,'-c', 'import pathlib,sys;pathlib.Path(sys.argv[-1]).write_text("ready");input()',str(self.script)])
-        self.start(['bash','-c','printf ready > "${@: -1}"; read -r finish','fixture',str(self.script)])
+        self.start([get_bash_executable(),'-c','printf ready > "${@: -1}"; read -r finish',
+                    'fixture',str(self.script)])
         stale = Path(str(self.script)+'.old'); stale.write_text(self.script.read_text())
-        self.start(['bash',str(stale)])
+        self.start([get_bash_executable(),str(stale)])
         self.assertEqual(1, self.check().returncode)
 
     @requires_linux_queue_tools
     def test_actual_shell_script_with_options_and_spaces_is_detected_until_exit(self):
         self.root = self.root/'directory with spaces'; (self.root/'run_chains').mkdir(parents=True)
         self.script = self.root/'run_chains'/self.name; self.script.write_text('printf ready > "$1"\nread -r finish\n')
-        child = self.start(['bash','--norc','-o','pipefail','-e',str(self.script)])
+        child = self.start([get_bash_executable(),'--norc','-o','pipefail','-e',str(self.script)])
         self.assertEqual(0,self.check().returncode)
         child.communicate('finish\n',timeout=3)
         self.assertEqual(1,self.check().returncode)
 
     @requires_linux_queue_tools
     def test_waiter_rechecks_actual_process_using_five_second_poll_contract(self):
-        child = self.start(['bash',str(self.script)])
+        child = self.start([get_bash_executable(),str(self.script)])
         polls = self.root/'polls'
         def release_after_poll():
             deadline = time.monotonic()+4
@@ -67,7 +69,7 @@ class QueueProcessTests(unittest.TestCase):
             child.communicate('finish\n',timeout=3)
         release = threading.Thread(target=release_after_poll);release.start()
         try:
-            result = subprocess.run(['bash','-c',
+            result = run_bash_fixture(['-c',
                 'set -euo pipefail; source "$1"; poll_log="$3"; sleep() { printf "%s\\n" "$1" >> "$poll_log"; command sleep .02; }; wait_for_chain "$2"',
                 'fixture',str(LIB),self.name,str(polls)],capture_output=True,text=True,timeout=5)
         finally: release.join(timeout=4)
@@ -77,7 +79,7 @@ class QueueProcessTests(unittest.TestCase):
         self.assertTrue(all(line=='5' for line in polls.read_text().splitlines()))
 
     def test_invalid_identity_is_error_not_finished(self):
-        result = subprocess.run(['bash','-c','source "$1"; wait_for_chain "bad/name"',
+        result = run_bash_fixture(['-c','source "$1"; wait_for_chain "bad/name"',
             'fixture',str(LIB)],capture_output=True,text=True,timeout=5)
         self.assertEqual(2,result.returncode)
         self.assertNotIn('continuing',result.stdout)
@@ -111,15 +113,15 @@ class LegacyChainPredicateTests(unittest.TestCase):
                 self.script.write_text('printf ready > "$1"\nread -r finish\n')
                 def check():
                     command = wiring + "\n" + match[0] + "\n" + match[1] + ' "$2"'
-                    return subprocess.run(
-                        ["bash", "-c", command, "fixture", str(repo), target],
+                    return run_bash_fixture(
+                        ["-c", command, "fixture", str(repo), target],
                         env={**os.environ, "REPO": str(repo)},
                         capture_output=True, text=True, timeout=5)
                 mention = self.start([os.sys.executable, "-c",
                     'import pathlib,sys;pathlib.Path(sys.argv[-1]).write_text("ready");input()',
                     str(self.script)])
                 self.assertEqual(1, check().returncode)
-                actual = self.start(["bash", "--norc", "-o", "pipefail", str(self.script)])
+                actual = self.start([get_bash_executable(), "--norc", "-o", "pipefail", str(self.script)])
                 self.assertEqual(0, check().returncode)
                 actual.communicate("finish\n", timeout=3)
                 self.assertEqual(1, check().returncode)

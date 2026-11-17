@@ -2811,11 +2811,13 @@
     , "tests.test_chain_stage_commit_failures.StageCommitFailureTests.test_real_timer_expiry_stops_worker_and_keeps_original_timeout_policy"
   ]
   , "test_chain_stage_lib": [
-    "tests.test_chain_stage_lib.BashFixtureTransportTests.test_caller_tool_precedes_system_tools_and_caller_git_is_not_inherited"
+    "tests.test_chain_stage_lib.BashFixtureTransportTests.test_a_timed_out_fixture_takes_its_grandchild_with_it"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_caller_tool_precedes_system_tools_and_caller_git_is_not_inherited"
     , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_native_resolver_rejects_missing_shell_instead_of_running_a_fallback"
     , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_nested_bash_does_not_inherit_a_wrappers_errexit"
     , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_paths_and_arguments_round_trip_through_real_python_launcher"
     , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_shell_reads_existing_file_and_refuses_missing_file_with_spaces"
+    , "tests.test_chain_stage_lib.BashFixtureTransportTests.test_windows_drive_and_unc_paths_are_rewritten_for_the_shell"
     , "tests.test_chain_stage_lib.StageDependencyAccountingTests.test_missing_failed_and_skipped_dependencies_make_summary_incomplete"
     , "tests.test_chain_stage_lib.StageRunnerTest.test_a_failing_stage_makes_the_chain_exit_non_zero"
     , "tests.test_chain_stage_lib.StageRunnerTest.test_a_later_stage_still_runs_after_an_unrelated_failure"
@@ -6824,7 +6826,8 @@
     , "tests.test_gpu_progress.GpuProgressTests.test_wrong_invocation_pid_or_birth_identity_is_rejected"
   ]
   , "test_gpu_queue_io": [
-    "tests.test_gpu_queue_io.QueueIoFailureTest.test_pending_directory_failure_never_launches_worker"
+    "tests.test_gpu_queue_io.QueueIoFailureTest.test_initial_log_that_fails_the_write_never_launches_worker"
+    , "tests.test_gpu_queue_io.QueueIoFailureTest.test_pending_directory_failure_never_launches_worker"
     , "tests.test_gpu_queue_io.QueueIoFailureTest.test_pending_filename_failure_never_launches_worker"
     , "tests.test_gpu_queue_io.QueueIoFailureTest.test_pending_write_failure_removes_partial_marker"
     , "tests.test_gpu_queue_io.QueueIoFailureTest.test_start_record_failure_never_launches_worker"

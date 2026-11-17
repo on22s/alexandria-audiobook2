@@ -16,9 +16,10 @@ present in it would report a running job as finished, which is worse.
 """
 import os
 import re
-import subprocess
 import tempfile
 import unittest
+
+from tests.test_support import run_bash_fixture
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 JOB = os.path.join(REPO, "gpu_job.sh")
@@ -55,7 +56,7 @@ def markers_cleared():
             with open(qlog, 'w', encoding='utf-8') as handle:
                 handle.write('2099-01-01T00:00:00Z START job owner_pid=123\n')
                 handle.write(f'2099-01-01T00:00:01Z {marker} job owner_pid=123\n')
-            result = subprocess.run(['bash', '-c',
+            result = run_bash_fixture(['-c',
                 'source "$1/run_chains/lib/gpu_queue_log.sh"; QLOG="$2"; get_queue_active_start',
                 'probe', REPO, qlog], capture_output=True, text=True, check=True)
             if not result.stdout.strip():
