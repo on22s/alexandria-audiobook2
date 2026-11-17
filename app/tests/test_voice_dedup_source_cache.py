@@ -35,7 +35,7 @@ class VoiceDedupSourceCacheTests(unittest.TestCase):
         self.ns.update(sf=sf, shutil=shutil, DEDUP_SAMPLES=150, DEDUP_THRESHOLD=0.45,
             _EMBEDDING_MODEL_ID='fixture-ecapa', get_file_sha256=get_file_sha256,
             atomic_json_write=atomic_json_write, get_deduped_zip_name=get_deduped_zip_name)
-        tree = ast.parse(SOURCE.read_text())
+        tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
         nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef)
                  and node.name in ('run_dedup', 'load_wav_from_zip')]
         exec(compile(ast.Module(body=nodes, type_ignores=[]), str(SOURCE), 'exec'), self.ns)
