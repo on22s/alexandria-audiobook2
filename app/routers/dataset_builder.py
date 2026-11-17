@@ -22,7 +22,7 @@ from core import (
     check_global_gpu_lock,
     claim_gpu_task, reserve_background_task, start_claimed_task_thread,
     release_gpu_task_claim,
-    process_state, is_task_running,
+    process_state, is_task_running, get_task_lifecycle,
     project_manager,
 )
 from dataset_publication import apply_dataset_publication
@@ -80,16 +80,21 @@ def get_builder_activity(name):
     with _builder_task_lock:
         task = process_state["dataset_builder"]
         busy = is_task_running("dataset_builder", states=process_state)
+        lifecycle = get_task_lifecycle('dataset_builder', states=process_state)
         owner = task.get("dataset_name")
         matches = owner is not None and _get_builder_project_key(owner) == _get_builder_project_key(name)
-        return {"running": bool(busy and matches),
+        return {**(lifecycle if matches else get_task_lifecycle('', states={})),
+                "running": bool(lifecycle['running'] and matches),
+                "busy": bool(busy and matches), "global_busy": busy,
                 "logs": list(task.get("logs", [])) if matches else [],
-                "global_running": busy, "active_dataset_name": owner if busy else None}
+                "global_running": lifecycle['running'],
+                "global_ownership_unconfirmed": lifecycle['ownership_unconfirmed'],
+                "active_dataset_name": owner if busy else None}
 
 
 def _require_builder_idle(name, detail):
     activity = get_builder_activity(name)
-    if activity["global_running"] and (activity["running"] or activity["active_dataset_name"] is None):
+    if activity["global_busy"] and (activity["busy"] or activity["active_dataset_name"] is None):
         raise HTTPException(status_code=409, detail=detail)
 
 
@@ -569,7 +574,7 @@ async def dataset_builder_cancel(name: Optional[str] = None):
     safe_name = _require_safe_filename(name, "Invalid dataset name") if name is not None else None
     with _builder_task_lock:
         activity = get_builder_activity(safe_name) if safe_name is not None else None
-        busy = activity["running"] if activity is not None else is_task_running("dataset_builder", states=process_state)
+        busy = activity["busy"] if activity is not None else is_task_running("dataset_builder", states=process_state)
         if busy:
             process_state["dataset_builder"]["cancel"] = True
             return {"status": "cancelling"}

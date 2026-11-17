@@ -7,8 +7,25 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-reports.js"
 
 
 class BenchmarkUiJsTests(unittest.TestCase):
+    def test_retained_failure_displays_recovery_and_keeps_start_blocked_until_release(self):
+        self.run_js(r"""
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync(process.argv[1],'utf8'),code=source.slice(source.indexOf('let _benchmarkPreflightId ='));
+const status={},out={},cancel={style:{}},start={disabled:false},timers=[];
+let response={running:false,status:'failed',ownership_unconfirmed:true,logs:['Win32 error 5; end PIDs 9001, 9002 in Task Manager']};
+const context={t:(key,english,values={})=>Object.entries(values).reduce((value,[name,replacement])=>value.replace('{'+name+'}',replacement),english),document:{getElementById:id=>({'benchmark-status':status,'benchmark-output':out,'btn-benchmark-cancel':cancel,'btn-benchmark-start':start}[id])},API:{get:async()=>response},setTimeout:callback=>{timers.push(callback);return 1;},clearTimeout:()=>{}};
+vm.runInNewContext(code,context);
+let finished=false;process.on('beforeExit',()=>assert(finished,'retained benchmark assertions must finish'));
+(async()=>{
+ await context.refreshBenchmarkStatus();assert.strictEqual(start.disabled,true);assert.match(status.textContent,/Failed.*still holding processes.*Task Manager/);
+ assert.strictEqual(timers.length,1);assert.notStrictEqual(vm.runInNewContext('_benchmarkPoll',context),null);
+ response={running:false,status:'failed',logs:[]};await timers[0]();
+ assert.strictEqual(vm.runInNewContext('_benchmarkRunning',context),false);assert.strictEqual(vm.runInNewContext('_benchmarkPoll',context),null);finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+""")
+
     def run_js(self, script):
-        setup = "const sharedSource = require('fs').readFileSync(process.argv[2], 'utf8'); const sharedPollingCode = 'function restoreTab() {}\\n' + sharedSource.slice(sharedSource.indexOf('function showActionError('),sharedSource.indexOf('function showConfirm(')) + sharedSource.slice(sharedSource.indexOf('const _pollGen ='), sharedSource.indexOf('// A run can pause ITSELF'));\n"
+        setup = "const sharedSource = require('fs').readFileSync(process.argv[2], 'utf8'); const sharedPollingCode = 'function restoreTab() {}\\n' + sharedSource.slice(sharedSource.indexOf('function showActionError('),sharedSource.indexOf('function showConfirm(')) + sharedSource.slice(sharedSource.indexOf('const _pollGen ='), sharedSource.indexOf('// A run can pause ITSELF')) + sharedSource.slice(sharedSource.indexOf('function getTaskOwnershipMessage('), sharedSource.indexOf('function renderActivity('));\n"
         script = setup + script.replace('vm.runInNewContext(code,context)', 'vm.runInNewContext(sharedPollingCode + code,context)').replace("vm.runInContext(source.slice(source.indexOf('let _benchmarkPreflightId =')),ctx)", "vm.runInContext(sharedPollingCode + source.slice(source.indexOf('let _benchmarkPreflightId =')),ctx)")
         result = subprocess.run(["node", "-e", script, str(SOURCE), str(SOURCE.parent / 'app-core.js')], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)

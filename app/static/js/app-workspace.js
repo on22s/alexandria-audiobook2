@@ -457,13 +457,14 @@ function renderWorkspaceTask(name, state, stale = false) {
     if (identity != null && identity !== view.identity) { view.identity = identity; view.track = {}; }
     const logs = Array.isArray(state.logs) ? state.logs.filter(line => typeof line === 'string').slice(-40).map(line => line.slice(0, 2000)) : [];
     renderActivity(view.activity, {...state, logs}, view.track);
-    if (!state.running) { view.activity.hidden = false; view.activity.textContent = t('home.workspace.task.finished', 'No longer running; refreshing the task list.'); }
-    if (state.cancel) { view.activity.textContent = t('home.workspace.task.cancelling', 'Cancellation requested; waiting for the worker to stop.'); }
+    if (state.ownership_unconfirmed) { view.card.querySelector('details').open = true; }
+    else if (!state.running) { view.activity.hidden = false; view.activity.textContent = t('home.workspace.task.finished', 'No longer running; refreshing the task list.'); }
+    if (state.cancel && !state.ownership_unconfirmed) { view.activity.textContent = t('home.workspace.task.cancelling', 'Cancellation requested; waiting for the worker to stop.'); }
     const eta = state.eta || {};
     const timing = [];
     if (eta.progress) { timing.push(t('home.workspace.task.progress', 'Progress: {progress}', {progress: eta.progress})); }
     if (eta.elapsed_seconds != null) { timing.push(t('home.workspace.task.elapsed', 'Elapsed {duration}', {duration: formatDuration(eta.elapsed_seconds)})); }
-    timing.push(state.paused || state.manual_request || state.cancel ? t('home.workspace.task.eta-withheld', 'ETA withheld while waiting or stopping.') : eta.eta_seconds != null ? t('home.workspace.task.eta-estimated', 'ETA estimated from current progress.') : t('home.workspace.task.eta-unknown', 'Not enough progress for an ETA yet.'));
+    timing.push(state.ownership_unconfirmed || state.paused || state.manual_request || state.cancel ? t('home.workspace.task.eta-withheld', 'ETA withheld while waiting or stopping.') : eta.eta_seconds != null ? t('home.workspace.task.eta-estimated', 'ETA estimated from current progress.') : t('home.workspace.task.eta-unknown', 'Not enough progress for an ETA yet.'));
     view.timing.textContent = timing.join(' · ');
     const text = logs.join('\n');
     if (view.logs.textContent !== text) { view.logs.textContent = text; }
@@ -477,7 +478,7 @@ async function refreshWorkspaceMonitor() {
         const registry = await API.get('/api/status');
         if (!registry || typeof registry !== 'object' || Array.isArray(registry)
                 || !Object.values(registry).every(state => state && typeof state.running === 'boolean')) { throw new Error('Invalid task registry'); }
-        const names = Object.entries(registry).filter(([, state]) => state?.running).map(([name]) => name);
+        const names = Object.entries(registry).filter(([, state]) => state?.running || state?.ownership_unconfirmed).map(([name]) => name);
         const results = await Promise.allSettled(names.map(name => API.get(`/api/status/${encodeURIComponent(name)}`)));
         if (!isWorkspaceVisible() || epoch !== workspaceMonitorEpoch) { return; }
         for (const [name, view] of workspaceTaskViews) {
@@ -487,7 +488,8 @@ async function refreshWorkspaceMonitor() {
             const state = result.status === 'fulfilled' ? result.value : null;
             renderWorkspaceTask(names[index], state, !state || typeof state.running !== 'boolean');
         });
-        applySystemStatusText('workspace-monitor-feedback', names.length ? (names.length === 1
+        const retained = names.some(name => registry[name].ownership_unconfirmed);
+        applySystemStatusText('workspace-monitor-feedback', retained ? t('home.workspace.task.retained', 'Failed tasks are still holding processes. Read their recovery instructions below; starting conflicting work remains blocked.') : names.length ? (names.length === 1
             ? t('home.workspace.task.running.one', '{count} task reported running. Open a task screen to see its available controls.', {count: names.length})
             : t('home.workspace.task.running.many', '{count} tasks reported running. Open a task screen to see its available controls.', {count: names.length})) : t('home.workspace.task.none', 'No tasks reported running at the last check.'));
         if (workspacePreviousRunning && !names.length) { refreshBookWorkspace(); }

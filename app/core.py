@@ -726,6 +726,16 @@ def is_task_cpu_only(task_name):
     return bool(_task_claims.get(task_name, {}).get("cpu_only"))
 
 
+def get_task_lifecycle(task_name, states=None):
+    """Public execution status is terminal even while failed ownership blocks admission."""
+    states = process_state if states is None else states
+    state = states.get(task_name, {})
+    retained = bool(state.get('_windows_cleanup_failed'))
+    running = is_task_running(task_name, states=states) and not retained
+    return {'running': running, 'ownership_unconfirmed': retained,
+            'status': 'failed' if retained else state.get('status') or ('running' if running else 'idle')}
+
+
 def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
     """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
 
@@ -812,10 +822,7 @@ def _reap_gpu_leases():
         for name, claim_id, state in failed:
             try:
                 for control in _get_retained_windows_controls(state):
-                    if control.job.get_active_process_count() == 0:
-                        control.close()
-                    else:
-                        control.retry_termination()
+                    control.retry_cleanup()
                 release_gpu_task_claim(name, claim_id)
             except OSError as error:
                 record_failure('windows_owner_recovery_failed', error, task=name, rate_limit_seconds=300)

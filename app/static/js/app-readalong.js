@@ -283,6 +283,13 @@
         renderUiSafety(statusEl(channel), 'safety.readalong.book-changed', 'The book changed during this build. Nothing was downloaded; build again for the current book.');
         return;
       }
+      if (status.ownership_unconfirmed) {
+        setBusy(channel, true);
+        statusEl(channel).textContent = getTaskOwnershipMessage(status);
+        channel.timer = setTimeout(function () { poll(channel, taskId, pollCount + 1, 0); },
+          pollCount < FAST_POLLS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
+        return;
+      }
       var logs = Array.isArray(status.logs) ? status.logs : [];
       var last = logs.length ? String(logs[logs.length - 1]) : '';
       var result = status.result;

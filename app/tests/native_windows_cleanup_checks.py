@@ -6,6 +6,7 @@ if sys.platform != 'win32':
     raise SystemExit(2)
 
 import contextlib
+import ctypes
 import json
 import logging
 import os
@@ -316,6 +317,67 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
         finally:
             self._close_owned(process)
 
+    def test_empty_protected_job_close_retries_on_schedule_then_releases_leases(self):
+        import core
+        import windows_subprocess_owner as owner
+        from unittest.mock import Mock
+        process = self._start_owned_sleep()
+        control = process._alexandria_windows_owner
+        handle = control.job.handle
+        api = ctypes.WinDLL('kernel32', use_last_error=True)
+        api.SetHandleInformation.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32]
+        api.SetHandleInformation.restype = ctypes.c_int
+        def protect(enabled):
+            if not api.SetHandleInformation(handle, 2, 2 if enabled else 0):
+                raise ctypes.WinError(ctypes.get_last_error())
+        clock, attempts = [0], []
+        state = dict(running=False, status='failed', processes=[process], logs=[])
+        lease, gpu = Mock(), object()
+        claims = {'benchmark': {'id': 'protected-close', 'phase': 'cleanup_failed', 'lease': lease}}
+        real_close = control.job.close
+        def close():
+            attempts.append(clock[0])
+            return real_close()
+        def tick(delay):
+            self.assertEqual(.1, delay)
+            self.assertLess(clock[0], 65, 'retained cleanup did not complete')
+            lease.close.assert_not_called()
+            release.assert_not_called()
+            self.assertIsNotNone(control.job.handle)
+            self.assertTrue(core.is_task_running('benchmark'))
+            self.assertEqual(1 if clock[0] < 30 else 2, len(attempts))
+            if clock[0] == 30:
+                protect(False)
+            clock[0] += 5
+        try:
+            control.job.terminate()
+            control.job.ensure_stopped()
+            self.assertEqual(0, control.job.get_active_process_count())
+            protect(True)
+            with patch.object(owner.time, 'monotonic', side_effect=lambda: clock[0]), \
+                 patch.object(core.time, 'sleep', side_effect=tick), \
+                 patch.object(control.job, 'close', side_effect=close), \
+                 patch.object(control.job, 'get_active_process_count', wraps=control.job.get_active_process_count) as membership, \
+                 patch.object(core, 'process_state', {'benchmark': state}), \
+                 patch.object(core, '_task_claims', claims), \
+                 patch.object(core, '_gpu_leases', {'benchmark': gpu}), \
+                 patch.object(core, 'release_gpu_lock') as release:
+                with self.assertRaisesRegex(owner.WindowsOwnerCleanupError, 'Win32 error 6') as raised:
+                    control.close()
+                core._retain_windows_owner_failure(state, raised.exception)
+                core._reap_gpu_leases()
+                self.assertGreater(membership.call_count, len(attempts))
+                self.assertEqual([0, 30, 60], attempts)
+                self.assertEqual({}, claims)
+                self.assertFalse(state.get('_windows_cleanup_failed'))
+                lease.close.assert_called_once_with()
+                release.assert_called_once_with(gpu)
+            self.assertIsNone(control.job.handle)
+        finally:
+            if control.job.handle is not None:
+                protect(False)
+            self._close_owned(process)
+
     def test_cancelled_benchmark_permanent_cleanup_failure_retains_real_leases(self):
         import core
         import benchmark_execution as execution
@@ -387,7 +449,8 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                         self.assertFalse(Path(report_path).exists(), 'cleanup failure became a cancelled report')
                         real_terminate()
                         control.job.ensure_stopped(deadline=time.monotonic() + 5)
-                        core._reap_gpu_leases()
+                        with patch.object(owner.time, 'monotonic', return_value=control._cleanup_retry_at):
+                            core._reap_gpu_leases()
                         self.assertEqual({}, claims)
                         self.assertEqual({}, leases)
                         self.assertTrue(gpu_lease.closed)
@@ -609,7 +672,7 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
 def main():
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WindowsHeadlessCleanupEscalationTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    return 0 if result.wasSuccessful() and result.testsRun == 12 and not result.skipped else 1
+    return 0 if result.wasSuccessful() and result.testsRun == 13 and not result.skipped else 1
 
 
 if __name__ == '__main__':

@@ -331,26 +331,71 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
             self.control.close()
         original = self.control.cleanup_error
         self.api.fail = None
-        self.control.retry_termination()
+        self.control.retry_cleanup()
         self.assertEqual(1, sum(call[0] == 'terminate' for call in self.api.calls))
         self.clock += 30
-        self.control.retry_termination()
-        self.control.retry_termination()
+        self.control.retry_cleanup()
+        self.control.retry_cleanup()
         self.assertEqual(2, sum(call[0] == 'terminate' for call in self.api.calls))
         self.assertIs(original, self.control.cleanup_error)
         self.assertIsNotNone(self.job.handle)
         self.directory.cleanup.assert_not_called()
         self.clock += 30
-        self.control.retry_termination()
+        self.control.retry_cleanup()
         self.assertEqual(3, sum(call[0] == 'terminate' for call in self.api.calls))
 
     def test_retained_access_denied_never_retries_termination(self):
         with patch.object(owner.logging, 'exception'), self.assertRaises(owner.WindowsOwnerCleanupError):
             self.control.close()
         self.clock += 60
-        self.control.retry_termination()
+        self.control.retry_cleanup()
         self.assertEqual(1, sum(call[0] == 'terminate' for call in self.api.calls))
         self.assertIsNotNone(self.job.handle)
+
+    def test_empty_retained_job_close_uses_the_shared_retry_interval(self):
+        self.api.counts = [0]
+        self.api.fail = None
+        failure = OSError(6, 'protected job handle')
+        failure.winerror = 6
+        real_close = self.job.close
+        with patch.object(self.job, 'close', side_effect=failure) as close, \
+             patch.object(owner.logging, 'exception'):
+            with self.assertRaises(owner.WindowsOwnerCleanupError):
+                self.control.close()
+            self.control.retry_cleanup()
+            self.clock = 29
+            self.control.retry_cleanup()
+            self.assertEqual(1, close.call_count)
+            self.clock = 30
+            with self.assertRaises(owner.WindowsOwnerCleanupError):
+                self.control.retry_cleanup()
+            self.assertEqual(2, close.call_count)
+            close.side_effect = real_close
+            self.clock = 59
+            self.control.retry_cleanup()
+            self.assertEqual(2, close.call_count)
+            self.assertIsNotNone(self.job.handle)
+            self.directory.cleanup.assert_not_called()
+            self.clock = 60
+            self.control.retry_cleanup()
+        self.assertIsNone(self.job.handle)
+        self.directory.cleanup.assert_called_once_with()
+
+    def test_unknown_close_failure_gets_one_recovery_attempt_per_interval(self):
+        self.api.counts = [0]
+        self.api.fail = None
+        with patch.object(self.job, 'close', side_effect=OSError('unknown close failure')) as close, \
+             patch.object(owner, 'WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS', 0), \
+             patch.object(owner.logging, 'exception'):
+            with self.assertRaises(owner.WindowsOwnerCleanupError):
+                self.control.close()
+            self.clock = 30
+            with self.assertRaises(owner.WindowsOwnerCleanupError):
+                self.control.retry_cleanup()
+            self.control.retry_cleanup()
+            self.assertEqual(2, close.call_count)
+            self.assertEqual([], self.delays)
+            self.assertIsNotNone(self.job.handle)
 
     def test_retained_retry_can_fail_permanently_without_losing_cause(self):
         with patch.object(jobs.ctypes, 'get_last_error', return_value=170), \
@@ -360,11 +405,11 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
         self.clock += 30
         with patch.object(jobs.ctypes, 'get_last_error', return_value=5), \
              self.assertRaises(owner.WindowsOwnerCleanupError) as raised:
-            self.control.retry_termination()
+            self.control.retry_cleanup()
         self.assertEqual(5, raised.exception.__cause__.errno)
         self.assertIs(raised.exception, self.control.cleanup_error)
         self.clock += 30
-        self.control.retry_termination()
+        self.control.retry_cleanup()
         self.assertEqual(2, sum(call[0] == 'terminate' for call in self.api.calls))
 
     def test_reaper_retries_live_owner_and_releases_only_after_zero_membership(self):
@@ -382,11 +427,12 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
             self.assertIsNotNone(self.job.handle)
             self.api.fail = None
             self.api.counts = [0]
+            self.control.close()
         with patch.object(core, 'process_state', {'benchmark': state}), \
              patch.object(core, '_task_claims', claims), \
              patch.object(core, '_gpu_leases', {'benchmark': gpu}), \
              patch.object(core, 'release_gpu_lock') as release, \
-             patch.object(self.control, 'retry_termination', side_effect=recover, create=True):
+             patch.object(self.control, 'retry_cleanup', side_effect=recover):
             core._reap_gpu_leases()
         self.assertEqual([1], observations)
         self.assertEqual({}, claims)
@@ -490,6 +536,7 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
             self.assertFalse(core.release_gpu_task_claim(task_name, 'synthetic-owner'))
             self.api.fail = None
             self.api.counts = [0]
+            self.clock = self.control._cleanup_retry_at
             core._reap_gpu_leases()
             self.assertNotIn(task_name, claims)
             self.assertIsNone(task['process'])

@@ -79,9 +79,9 @@ def read_windows_owner_message(path):
 
 
 def _serialize_owner_close(method):
-    def guarded(self):
+    def guarded(self, *args, **kwargs):
         with self._close_lock:
-            return method(self)
+            return method(self, *args, **kwargs)
     return guarded
 
 
@@ -90,7 +90,7 @@ class WindowsOwnerControl:
         self.job = job
         self.process = process
         self.directory = directory
-        self._close_lock = threading.Lock()
+        self._close_lock = threading.RLock()
         self.cleanup_error = None
         self._cleanup_retry_at = 0
         self.cancel_directory = None
@@ -107,12 +107,18 @@ class WindowsOwnerControl:
         self.job.terminate()
 
     @_serialize_owner_close
-    def retry_termination(self):
-        """Attempt retained cleanup at most once per interval; access denied needs operator recovery."""
-        if (self.job.handle is None or self.cleanup_error is None
-                or self.cleanup_error.errno == 5 or time.monotonic() < self._cleanup_retry_at):
+    def retry_cleanup(self):
+        """Observe membership each time; serialize close and force retries on one schedule."""
+        if self.job.handle is None or self.cleanup_error is None:
+            return
+        active = self.job.get_active_process_count()
+        if (time.monotonic() < self._cleanup_retry_at
+                or (active and self.cleanup_error.errno == 5)):
             return
         self._cleanup_retry_at = time.monotonic() + WINDOWS_OWNER_RECOVERY_RETRY_SECONDS
+        if not active:
+            self.close(deadline=time.monotonic())
+            return
         try:
             self.job.terminate()
         except OSError as error:
@@ -122,10 +128,11 @@ class WindowsOwnerControl:
             raise failure from error
 
     @_serialize_owner_close
-    def close(self):
+    def close(self, *, deadline=None):
         if self.job.handle is None:
             return
-        deadline = time.monotonic() + WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS
+        if deadline is None:
+            deadline = time.monotonic() + WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS
         backoff = .05
         reported = False
         while True:
