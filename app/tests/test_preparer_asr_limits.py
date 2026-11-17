@@ -74,6 +74,7 @@ class PreparerAsrLimitTests(unittest.TestCase):
                       '--diarize' if mode in ('explicit','unlimited') else '--auto-detect-speakers']
                 if mode!='unlimited':argv.extend(['--limit','1'])
                 previous=Path.cwd()
+                existing_handlers=list(preparer.logger.handlers)
                 try:
                     os.chdir(root)
                     with patch.object(sys,'argv',argv),patch.object(preparer,'acquire_run_lock',side_effect=acquire), \
@@ -93,6 +94,10 @@ class PreparerAsrLimitTests(unittest.TestCase):
                 finally:
                     os.chdir(previous)
                     for fd in lock_fds:os.close(fd)
+                    for handler in list(preparer.logger.handlers):
+                        if handler not in existing_handlers:
+                            preparer.logger.removeHandler(handler)
+                            handler.close()
                 wanted=60 if mode=='unlimited' else 30
                 self.assertTrue(spans)
                 self.assertTrue(all(duration==wanted for _name,duration,_hint in spans),spans)
