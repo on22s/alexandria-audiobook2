@@ -1,25 +1,29 @@
 """The scanned UI modules must never show the user a bare English literal.
 
-What this verifies, precisely: for every call to ``showToast``,
-``showActionError``, ``getActionErrorMessage`` and ``confirmIfRemote`` in
-``app/static/js/app-core.js`` and ``app/static/js/app-training.js``, and for
-every ``.textContent =`` / ``.innerText =`` assignment, the user-visible text is
-not written as a raw string literal. User-facing English lives in
+What this verifies, precisely: in every file listed in SOURCES
+(``app-core.js``, ``app-training.js``, ``app-voicelab.js``), the first argument of
+``showToast``, ``showActionError``, ``getActionErrorMessage`` and
+``confirmIfRemote``, the extra shown arguments in EXTRA_SHOWN_ARGS (the recovery
+text of ``showActionError`` / ``getActionErrorMessage`` and the subject of
+``copyToClipboard``), and every ``.textContent =`` / ``.innerText =`` assignment
+are not written as raw string literals. Other arguments are not scanned; add an
+entry to EXTRA_SHOWN_ARGS when another argument reaches the screen. User-facing English lives in
 ``t('<key>', '<English>', {...})`` so that ``app/static/i18n/ui.*.json`` can
 translate it; a raw literal is shown to every locale exactly as typed.
 
 #2017 wrote this for app-core.js. #2019 found the same bug in the Training tab
 and converted its eighteen failure paths, so the scanner is parametrised by
 file (SOURCES) rather than copied: one scanner, one rule set, every file that
-adopts it listed there. #2018's app-voicelab.js belongs here too when it lands;
-the alternative is a second and then a third copy that drift apart (Rule 15).
+adopts it listed there. #2018 added app-voicelab.js the same way, and the
+clipboard-subject check, which found two subjects #2017 had missed. The
+alternative is a second and then a third copy that drift apart (Rule 15).
 
 What it does not cover: HTML assembled with ``.innerHTML =`` (a template that
 calls ``t()`` inside is invisible to a text scan) and labels set through other
 helpers. Those shapes were converted in the same change, but a guard over them
 would have to re-implement the template grammar to stay honest, so it is out of
-scope here. This guard pins the two shapes that held 175 of the 258 literals
-measured on origin/main.
+scope here. In app-core.js those two shapes held 175 of the 258 literals #2017
+measured.
 
 The allowlist is the honest part. It is empty: #2017 converted every literal it
 found, and the last two (inside ``autoConfigureSettings()``) were converted by
