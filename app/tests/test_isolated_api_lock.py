@@ -164,6 +164,8 @@ print('NATIVE_PRIVATE_LEASE_AND_BOTH_404_VERIFIED')
                     return actual_start(command, **kwargs)
 
                 def run_probe(command, **kwargs):
+                    if '--url' not in command:
+                        return actual_run(command, **kwargs)
                     url = command[command.index('--url') + 1]
                     result = actual_run([sys.executable, '-c', probe], cwd=kwargs['cwd'],
                                         env=dict(kwargs['env'], FIXTURE_URL=url,

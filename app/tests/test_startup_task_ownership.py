@@ -104,7 +104,7 @@ class StartupTaskOwnershipTests(unittest.TestCase):
         process=self.owner()
         process.kill()
         process.communicate(timeout=5)
-        self.assertEqual(-signal.SIGKILL,process.returncode)
+        self.assertEqual(1 if os.name == "nt" else -signal.SIGKILL,process.returncode)
         self.startup()
         chunks=self.manager.load_chunks()
         self.assertEqual(['pending','done'],[item['status'] for item in chunks])

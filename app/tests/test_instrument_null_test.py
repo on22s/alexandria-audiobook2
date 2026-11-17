@@ -137,7 +137,7 @@ class ReferenceAuditTest(unittest.TestCase):
             target = os.path.join(real, "sub", "a.wav")
             open(target, "wb").close()
             self.m.ROOTS[:] = [empty, real]
-            self.assertEqual(target, self.m.resolve("sub/a.wav"))
+            self.assertEqual(Path(target), Path(self.m.resolve("sub/a.wav")))
 
     def test_resolve_returns_none_when_no_root_has_it(self):
         with tempfile.TemporaryDirectory() as empty:

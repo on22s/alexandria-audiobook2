@@ -2,6 +2,7 @@ from tests.test_support import get_isolated_git_environment, isolate_git_environ
 import contextlib
 import io
 import json
+import locale
 import os
 import re
 import unittest
@@ -352,12 +353,21 @@ class ReleaseVerifierTests(unittest.TestCase):
             root = Path(tmp)
             subprocess.run(["git", "init", "-q", str(root)], check=True, env=get_isolated_git_environment())
             subprocess.run(["git", "-C", str(root), "config", "core.quotePath", "true"], check=True, env=get_isolated_git_environment())
-            names = ("café.py", "two\nlines.py", "untracked_日本語.py")
+            names = ("café.py", "two lines.py" if os.name == "nt" else "two\nlines.py", "untracked_日本語.py")
             for name in names:
                 (root / name).write_text("VALUE = 1\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "--", *names[:2]], check=True, env=get_isolated_git_environment())
             self.assertEqual(sorted(root / name for name in names), verify_release.get_python_paths(root))
             verify_release.compile_python_files(root)
+
+    def test_git_nul_delimited_names_preserve_foreign_newlines_and_quotes(self):
+        names = ('café.py', 'two\nlines.py', 'quoted"name.py')
+        output = b'\0'.join(os.fsencode(name) for name in names) + b'\0'
+        with patch.object(verify_release, 'run_owned_capture',
+                return_value=subprocess.CompletedProcess([], 0, stdout=output)) as capture:
+            paths = verify_release.get_python_paths(Path('fixture'))
+        self.assertEqual([Path('fixture') / name for name in sorted(names)], paths)
+        self.assertIn('-z', capture.call_args.args[0])
 
     @isolate_git_environment()
     def test_python_compilation_includes_nonignored_untracked_files(self):
@@ -432,17 +442,21 @@ class ReleaseVerifierTests(unittest.TestCase):
 
     def test_non_utf8_child_output_is_shown_not_fatal(self):
         """A child that writes a raw byte to the shared pipe must not abort
-        the verifier: the byte is escaped into the log so its origin can be
-        found, and a clean exit still counts as passing."""
+        the verifier: the byte reaches the log so its origin can be found
+        (escaped where the host decoder cannot map it), and a clean exit still
+        counts as passing."""
         code = (
             "import sys; sys.stdout.buffer.write(b'test_x ... \\xa1 ok\\n'); "
             "sys.stdout.flush(); print('done')"
         )
+        # run_command reads the child with text=True, so the byte is escaped only
+        # when the host decoder cannot map it; a single-byte locale keeps its character.
+        shown = b"\xa1".decode(locale.getpreferredencoding(False), "backslashreplace")
         with contextlib.redirect_stdout(io.StringIO()) as captured:
             combined = verify_release.run_command("raw bytes", [sys.executable, "-c", code], ".")
-        self.assertIn("\\xa1", combined)
+        self.assertIn(shown, combined)
         self.assertIn("done", combined)
-        self.assertIn("\\xa1", captured.getvalue())
+        self.assertIn(shown, captured.getvalue())
 
     def test_keyboard_interrupt_stops_child_group_before_propagating(self):
         class InterruptingOutput:

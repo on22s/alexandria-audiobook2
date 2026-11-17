@@ -385,13 +385,14 @@ class ConfigTests(unittest.TestCase):
                         old_backup.unlink()
                     config_path.write_bytes(damaged)
                     config_path.chmod(0o640)
+                    source_mode = config_path.stat().st_mode & 0o777
                     with patch.object(system_module, "CONFIG_PATH", str(config_path)):
                         asyncio.run(system_module.save_config(config))
 
                     backups = list(config_path.parent.glob("config.json.damaged-*.bak"))
                     self.assertEqual(1, len(backups))
                     self.assertEqual(damaged, backups[0].read_bytes())
-                    self.assertEqual(0o640, backups[0].stat().st_mode & 0o777)
+                    self.assertEqual(source_mode, backups[0].stat().st_mode & 0o777)
                     self.assertIsInstance(json.loads(config_path.read_text()), dict)
 
     def test_config_save_does_not_back_up_valid_partial_source(self):
@@ -453,7 +454,7 @@ class ConfigTests(unittest.TestCase):
                 from tts_capabilities import get_tts_capability_modes
                 self.assertEqual({"pause_resume": False, "tts_modes": get_tts_capability_modes()}, config["capabilities"])
                 config = asyncio.run(system_module.get_config())
-                self.assertIs(True, config["capabilities"]["pause_resume"])
+                self.assertIs(system_module.pause_resume_supported(), config["capabilities"]["pause_resume"])
                 profile = system_module.LLMConfig(
                     base_url="http://localhost:1234/v1", api_key="x", model_name="m")
                 payload = system_module.AppConfig(

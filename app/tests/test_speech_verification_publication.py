@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import unittest
 import struct
+from types import SimpleNamespace
 import wave
 import numpy as np
 from unittest.mock import patch
@@ -15,7 +16,7 @@ from audio_generation_owner import (AudioGenerationOwner, AudioGenerationCancell
 from book_state_transaction import get_book_operation_token
 from chunk_status_journal import ChunkStatusJournal
 from speech_verification_receipt import (get_speech_verification_receipt,
-    get_current_speech_verification_receipt)
+    get_current_speech_verification_receipt, get_historical_speech_verification_receipt)
 from tests import test_audio_generation_cancellation as audio_fixture
 from tests import test_synthesis_window_dispatch as window_fixture
 from tests.test_speech_verification_receipt import get_report
@@ -164,6 +165,19 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
                 self.assertFalse(self.generate(manager,'single'))
             self.assert_prior(root,manager,before,prior)
 
+    def assert_saved_receipt_policy(self, root, manager, updated):
+        token = get_book_operation_token(root)
+        current = get_current_speech_verification_receipt(updated, token,
+            resolve_audio=manager.get_chunk_audio_path)
+        historical = get_historical_speech_verification_receipt(updated, token,
+            resolve_audio=manager.get_chunk_audio_path)
+        if os.name == 'nt':
+            self.assertIsNone(current)
+            self.assertEqual(updated['speech_verification'], historical)
+        else:
+            self.assertEqual(updated['speech_verification'], current)
+            self.assertIsNone(historical)
+
     def test_large_valid_audio_records_unavailable_without_exceeding_hash_bound(self):
         from audio_validation import validate_generated_audio
         from word_timing import MAX_AUDIO_BYTES
@@ -191,8 +205,7 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
                     speech_verification=receipt)
             self.assertIsNotNone(updated)
             self.assertEqual(5,len(updated['speech_verification']['audio_file_version']))
-            self.assertIsNotNone(get_current_speech_verification_receipt(updated,
-                get_book_operation_token(root),resolve_audio=manager.get_chunk_audio_path))
+            self.assert_saved_receipt_policy(root, manager, updated)
 
     def test_publication_without_take_receipt_hashes_and_rejects_wrong_speech_evidence(self):
         with self.fixture() as (root,manager,before,prior,flags):
@@ -201,13 +214,35 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
             updated=manager._update_chunk_fields_by_uid(before['uid'],audio_source=str(source),
                 status='done',audio_revision=receipt['audio_revision'],speech_verification=receipt)
             self.assertIsNotNone(updated)
-            self.assertIsNotNone(get_current_speech_verification_receipt(updated,
-                get_book_operation_token(root),resolve_audio=manager.get_chunk_audio_path))
+            self.assert_saved_receipt_policy(root, manager, updated)
             bad_source=root/'bad.wav';bad_source.write_bytes((root/updated['audio_path']).read_bytes())
             bad=copy.deepcopy(receipt);bad['audio']={'sha256':'f'*64,'size':receipt['audio']['size']}
             with self.assertRaisesRegex(ValueError,'differs from the published audio'):
                 manager._update_chunk_fields_by_uid(updated['uid'],audio_source=str(bad_source),
                     status='done',audio_revision=bad['audio_revision'],speech_verification=bad)
+            from editor_speech_verification import recheck_editor_speech
+            request = SimpleNamespace(expected_book_token=get_book_operation_token(root),
+                expected_uid=updated['uid'], expected_audio_revision=updated['audio_revision'])
+            def check_identity(index, token, uid):
+                self.assertEqual(0, index)
+                self.assertEqual(get_book_operation_token(root), token)
+                self.assertEqual(manager.load_chunks()[index]['uid'], uid)
+            path = Path(manager.get_chunk_audio_path(updated['audio_path']))
+            prior_audio = path.read_bytes()
+            with patch('editor_speech_verification.verify_finished_speech',
+                    side_effect=lambda audio, text, *args, **kwargs: get_report(audio, text)) as verifier:
+                result = recheck_editor_speech(manager, 0, request, {}, {}, check_identity)
+            verifier.assert_called_once()
+            self.assertEqual(receipt['audio'], result['receipt']['audio'])
+            self.assertEqual(prior_audio, path.read_bytes())
+            self.assert_saved_receipt_policy(root, manager, manager.load_chunks()[0])
+            info = path.stat()
+            changed = bytearray(prior_audio); changed[-1] ^= 1; path.write_bytes(changed)
+            os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
+            with patch('editor_speech_verification.verify_finished_speech') as verifier:
+                with self.assertRaisesRegex(ValueError, 'selected audio bytes changed'):
+                    recheck_editor_speech(manager, 0, request, {}, {}, check_identity)
+                verifier.assert_not_called()
 
     def test_unrepresentable_comparison_records_unavailable_and_can_publish_audio(self):
         for text in ('word '*2049,'The name q\u0323 was spoken clearly.'):
