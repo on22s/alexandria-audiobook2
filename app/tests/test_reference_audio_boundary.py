@@ -6,6 +6,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import voice_reference as reference
+from tests.test_support import can_symlink, skip_unless_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class ReferenceAudioBoundaryTests(unittest.TestCase):
@@ -20,9 +23,13 @@ class ReferenceAudioBoundaryTests(unittest.TestCase):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp);dataset=root/'dataset';dataset.mkdir();paths=self.paths(dataset)
                 secret=root/'outside.wav';secret.write_bytes(b'outside fixture')
-                (dataset/'link.wav').symlink_to(secret)
+                symlink_available = can_symlink()
+                if symlink_available:
+                    (dataset/'link.wav').symlink_to(secret)
                 bad={'absolute':str(secret),'parent':'../outside.wav','symlink':str(dataset/'link.wav')}[mode]
                 paths[1]=bad;before=paths.copy()
+                if mode == 'symlink' and not symlink_available:
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 with patch.object(reference,'_speaker_similarities',return_value=[.9]*3) as model:
                     with self.assertRaises(ValueError): reference.rank_reference_samples(paths,dataset_root=str(dataset))
                     model.assert_not_called()
@@ -39,6 +46,7 @@ class ReferenceAudioBoundaryTests(unittest.TestCase):
                 process.assert_not_called()
             self.assertEqual(before,pairs)
 
+    @skip_unless_symlink
     def test_missing_and_directory_entries_preserve_original_indices_and_internal_links(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);paths=self.paths(root);(root/'inside.wav').symlink_to(root/'0.wav')

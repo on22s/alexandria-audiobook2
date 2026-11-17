@@ -9,9 +9,13 @@ import sys
 import tempfile
 import unittest
 
+from tests.test_support import can_symlink, skip_unless_symlink
+
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = Path(os.environ.get('REPLAY_HELPER_SOURCE', ROOT / 'app/experiments/replay_artifact.py'))
 CHAIN = Path(os.environ.get('REPLAY_CHAIN_SOURCE', ROOT / 'run_chains/replay_dirty_evidence_20260817.sh'))
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class ReplayArgumentSafetyTests(unittest.TestCase):
@@ -52,9 +56,13 @@ class ReplayArgumentSafetyTests(unittest.TestCase):
             helper, experiments, data = self.prepare(root)
             outside = root / 'outside.py'
             outside.write_text('raise RuntimeError("must never execute")\n')
-            (experiments / 'escape.py').symlink_to(outside)
+            symlink_available = can_symlink()
+            if symlink_available:
+                (experiments / 'escape.py').symlink_to(outside)
             for name in ('../../outside.py', str(outside), 'escape.py'):
                 with self.subTest(name=name):
+                    if name == 'escape.py' and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     artifact = data / 'input.json'
                     artifact.write_text(json.dumps({'provenance': {'script': name, 'args': {}}}))
                     result = subprocess.run([sys.executable, str(helper), str(artifact)],
@@ -76,6 +84,7 @@ class ReplayArgumentSafetyTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertEqual(b'', result.stdout)
 
+    @skip_unless_symlink
     def test_concurrent_native_chains_preserve_legacy_symlink_and_clean_unique_lists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

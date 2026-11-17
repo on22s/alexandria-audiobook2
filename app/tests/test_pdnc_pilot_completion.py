@@ -11,6 +11,9 @@ import unittest
 
 from experiments import pdnc_context_evidence as context
 from tests.test_pdnc_campaign_guards import make_pilot_fixture
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -89,6 +92,8 @@ class ResearchPilotBoundaryTests(unittest.TestCase):
             payload = root / "payload.json"
             payload.write_text(json.dumps(generated) if generated_kind == "valid" else '{}')
             (root / "app/experiments").mkdir(parents=True)
+            if not can_symlink():
+                self.skipTest(_SYMLINK_SKIP_REASON)
             (root / "app/experiments/pdnc_context_evidence.py").symlink_to(
                 REPO / "app/experiments/pdnc_context_evidence.py")
             (root / "run_chains").mkdir()
