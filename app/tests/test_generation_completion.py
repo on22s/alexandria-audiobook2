@@ -4,6 +4,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from generation_completion import get_file_sha256,get_generation_completion_error
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class GenerationCompletionTests(unittest.TestCase):
@@ -132,10 +135,15 @@ class GenerationSourceCollisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); source = root / 'source.txt'
             source.write_text('Synthetic source stays readable.', encoding='utf-8')
-            symlink = root / 'source-link.json'; symlink.symlink_to(source)
+            symlink_available = can_symlink()
+            symlink = root / 'source-link.json'
+            if symlink_available:
+                symlink.symlink_to(source)
             hardlink = root / 'source-hardlink.json'; os.link(source, hardlink)
             for output in (source, root / '.' / 'source.txt', symlink, hardlink):
                 with self.subTest(output=str(output)):
+                    if output is symlink and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     before = source.read_bytes(); quality = Path(get_generation_quality_path(str(output)))
                     quality.write_text('{"status":"previous"}', encoding='utf-8'); previous = quality.read_bytes()
                     with self.assertRaisesRegex(ValueError, 'source'):

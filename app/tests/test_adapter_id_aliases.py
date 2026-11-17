@@ -3,6 +3,7 @@ import copy
 import os
 import unittest
 from voice_manifest import get_adapter_id_alias_map,get_resolved_adapter_id
+from tests.test_support import skip_unless_symlink
 
 
 class AdapterIdAliasTests(unittest.TestCase):
@@ -408,6 +409,7 @@ class AdapterIdAliasTests(unittest.TestCase):
                     resolve()
             self.assertEqual('{}',(root/NAMING_PUBLICATION_JOURNAL).read_text())
 
+    @skip_unless_symlink
     def test_alias_target_symlink_remains_rejected_by_snapshot_admission(self):
         import json
         from pathlib import Path

@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from attribution_adapter import (AdapterError, adapter_config, check_adapter,
                                  describe)
+from tests.test_support import skip_unless_symlink
 
 CFG = {"llm_mode": "local",
        "llm_local": {"base_url": "http://x/v1",
@@ -110,6 +111,7 @@ class ServingTest(unittest.TestCase):
         self.assertIn('/m/adapter_mixed.gguf',message)
         self.assertIn('/opt/models/adapter_mixed.gguf',message)
 
+    @skip_unless_symlink
     def test_remote_endpoint_uses_its_configured_server_path_without_local_alias_resolution(self):
         import tempfile
         from pathlib import Path

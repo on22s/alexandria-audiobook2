@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from tests import test_corpus_dispatch_identity as fixture
+from tests.test_support import skip_unless_symlink
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -54,6 +55,7 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
         with patch.dict(os.environ, PRESCAN_FIXTURE_MODE=mode):
             return fixture.CorpusDispatchIdentityTests.invoke(self, root, output, '--dry-run', base)
 
+    @skip_unless_symlink
     def test_actual_shell_measures_both_pairs_without_dataset_generation(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -79,6 +81,7 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
             self.assertEqual('matched source content', (root / 'source/book.txt').read_text())
             self.assertEqual({b'input.wav', b'input.mp3'}, {p.read_bytes() for p in (root / 'audio').iterdir()})
 
+    @skip_unless_symlink
     def test_failed_missing_stale_and_invalid_reports_fail_but_attempt_independent_pairs(self):
         for mode in ('failed', 'missing', 'stale', 'wrong-settings', 'invalid', 'nan', 'bad-version', 'undersampled'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +100,7 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
                 self.assertEqual('measured', measured['status'])
                 self.assertIn('failed:', (output / 'dry_run_report.md').read_text())
 
+    @skip_unless_symlink
     def test_prior_reports_cannot_turn_missing_new_report_into_success(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -113,6 +117,7 @@ write_json_atomic({'version':True if mode=='bad-version' and audio.suffix=='.mp3
             for path, before in original_reports.items():
                 self.assertEqual(before, path.read_bytes())
 
+    @skip_unless_symlink
     def test_no_matched_pairs_refuse_without_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

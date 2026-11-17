@@ -14,6 +14,9 @@ import numpy as np
 import soundfile as sf
 
 from experiments import ljspeech_score as scorer
+from tests.test_support import can_symlink, skip_unless_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def write_audio(root, name, seconds, value, rate=8000):
@@ -133,6 +136,8 @@ class AnchorMaterialTests(unittest.TestCase):
     def test_target_source_aliases_are_excluded_even_with_different_ids(self):
         for kind in ("same path", "normalized path", "copy", "symlink", "hardlink"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                if kind == "symlink" and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 root = Path(directory)
                 rows = rows_for(root, [4, 4, 4])
                 target, alias = root / "human0.wav", root / "alias.wav"
@@ -213,6 +218,8 @@ class AnchorMaterialTests(unittest.TestCase):
     def test_cache_destination_cannot_replace_or_alias_any_input_source(self):
         for kind in ("same path", "symlink", "hardlink", "other source"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                if kind in ("symlink", "other source") and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 root = Path(directory)
                 rows = rows_for(root, [4, 4, 4])
                 cache = root / "cache"
@@ -230,6 +237,7 @@ class AnchorMaterialTests(unittest.TestCase):
                 self.assertIsNone(self.build(root, rows))
                 self.assertEqual(originals, {path: path.read_bytes() for path in originals})
 
+    @skip_unless_symlink
     def test_main_refuses_cache_alias_before_submitting_a_self_pair(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -249,6 +257,7 @@ class AnchorMaterialTests(unittest.TestCase):
             self.assertEqual(10, len(calls))
             self.assertFalse(any(Path(b).name == "anchor_00001.wav" for _, b in pairs))
 
+    @skip_unless_symlink
     def test_main_preserves_generated_inputs_when_cache_aliases_an_admitted_arm(self):
         for kind in ("clone target", "clone other row", "lora target"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:

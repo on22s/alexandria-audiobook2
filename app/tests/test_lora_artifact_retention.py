@@ -7,6 +7,7 @@ import numpy as np
 import soundfile as sf
 from routers import lora
 from tests.test_lora_candidate_promotion import _write_real_checkpoint
+from tests.test_support import skip_unless_symlink
 
 
 class LoraArtifactRetentionTests(unittest.TestCase):
@@ -48,6 +49,7 @@ class LoraArtifactRetentionTests(unittest.TestCase):
             self.assertTrue((adapter/('test_voice_24_'+f'{24:032x}'+'.wav')).exists())
             self.assertEqual(original,{name:(adapter/name).read_bytes() for name in protected})
 
+    @skip_unless_symlink
     def test_legacy_generated_names_are_pruned_but_symlink_targets_are_untouched(self):
         with tempfile.TemporaryDirectory() as tmp,tempfile.TemporaryDirectory() as outside:
             root=Path(tmp);adapter=root/'voice';adapter.mkdir()

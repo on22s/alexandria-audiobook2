@@ -1,5 +1,4 @@
 """Source-backed transformations and malformed-prose recovery stay guarded."""
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +6,9 @@ from pathlib import Path
 from apostrophe_repair import restore_stripped_apostrophes
 from chunk_quality import validate_chunk_quality
 from utils import extract_json_object, is_path_inside
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class DeepSeekTextHelperTests(unittest.TestCase):
@@ -53,7 +55,9 @@ class DeepSeekTextHelperTests(unittest.TestCase):
             self.assertTrue(is_path_inside(base / 'child', base))
             self.assertFalse(is_path_inside(Path(tmp) / 'base-other', base))
             self.assertFalse(is_path_inside(base / '..' / 'escape', base))
-            if hasattr(os, 'symlink'):
+            with self.subTest('symlink escape'):
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 outside = Path(tmp) / 'outside'
                 outside.mkdir()
                 (base / 'link').symlink_to(outside, target_is_directory=True)

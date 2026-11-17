@@ -6,6 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lora_training_benchmark import execute_fixture
+from tests.test_support import can_symlink, skip_unless_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class LoraTrainingBenchmarkTests(unittest.TestCase):
@@ -13,6 +16,8 @@ class LoraTrainingBenchmarkTests(unittest.TestCase):
         import subprocess
         for mode in ('metadata', 'adapter'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                if not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 fixture = self._fixture(tmp)
                 outside_adapter = Path(tmp, 'outside-adapter')
                 outside_adapter.write_bytes(b'outside weights')
@@ -40,6 +45,7 @@ class LoraTrainingBenchmarkTests(unittest.TestCase):
                 dispatch.assert_called_once()
                 self.assertEqual((outside_adapter.read_bytes(), outside_metadata.read_bytes()), before)
 
+    @skip_unless_symlink
     def test_existing_output_symlink_cannot_redirect_training_outside_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = self._fixture(tmp)
@@ -60,6 +66,8 @@ class LoraTrainingBenchmarkTests(unittest.TestCase):
     def test_worker_refuses_outside_dataset_and_metadata_before_dispatch_or_output(self):
         for mode in ('absolute-dataset', 'parent-dataset', 'metadata-link'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                if mode == 'metadata-link' and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 fixture = self._fixture(tmp)
                 dataset = Path(tmp, 'dataset')
                 if mode == 'metadata-link':
