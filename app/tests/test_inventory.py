@@ -3,6 +3,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+import skip_registry
 import subprocess
 import sys
 import tempfile
@@ -152,6 +153,7 @@ class TestInventoryTests(unittest.TestCase):
             shutil.copyfile(app / 'utils.py', root / 'utils.py')
             shutil.copyfile(app.parent / 'gpu_stats.py', root.parent / 'gpu_stats.py')
             shutil.copyfile(app / 'loaded_module_code.py', root / 'loaded_module_code.py')
+            shutil.copyfile(app / 'skip_registry.py', root / 'skip_registry.py')
             shutil.copyfile(Path(__file__), root / 'tests/test_inventory.py')
             shutil.copyfile(Path(__file__).with_name('test_support.py'), root / 'tests/test_support.py')
             (root / 'tests/test_small.py').write_text('import unittest\nclass Small(unittest.TestCase):\n def test_small(self): pass\n')
@@ -585,9 +587,9 @@ class CapabilityGateInventoryTests(unittest.TestCase):
         """The reviewed capability rows, read from the registry itself."""
         registry = Path(__file__).with_name("windows_only_skip_baseline.txt")
         gated = {}
-        for line in registry.read_text(encoding="utf-8").splitlines():
-            location, separator, declaration = line.partition(" = ")
-            if not separator or "predicate=not HAVE_FCNTL" not in declaration:
+        for location, (_digest, declaration) in skip_registry.parse_skip_registry(
+                registry.read_text(encoding="utf-8")).items():
+            if "predicate=not HAVE_FCNTL" not in declaration:
                 continue
             module_file, qualname, _index = location.split(":")
             gated.setdefault(module_file, set()).add(qualname)

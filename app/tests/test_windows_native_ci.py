@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import skip_registry
 import subprocess
 import sys
 import tempfile
@@ -1541,20 +1542,11 @@ def _scan_sources(root):
 
 
 def _parse_registry(text):
-    rows = {}
-    for number, line in enumerate(text.splitlines(), 1):
-        if not line.strip():
-            continue
-        location, separator, rest = line.partition(' = ')
-        if not separator:
-            raise AssertionError(f'Registry line {number} is not "<location> = <digest>  # <declaration>"')
-        digest, marker, declaration = rest.partition('  # ')
-        if not marker or not declaration.strip():
-            raise AssertionError(f'Registry line {number} lacks a reviewed declaration')
-        if location in rows:
-            raise AssertionError(f'Registry line {number} repeats location {location}')
-        rows[location] = (digest.strip(), declaration.strip())
-    return rows
+    """The one registry parser, shared with the runtime skip verdict."""
+    try:
+        return skip_registry.parse_skip_registry(text)
+    except ValueError as error:
+        raise AssertionError(str(error)) from error
 
 
 def _verify_registry(result, rows):

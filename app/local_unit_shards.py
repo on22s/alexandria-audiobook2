@@ -19,6 +19,7 @@ import uuid
 
 from check_shard_reports import get_shard_report_errors
 from diagnostics import get_redacted_credentials
+from skip_registry import get_shard_verdict
 from subprocess_ownership import (get_owned_exit_result, run_owned_capture,
                                  start_owned_subprocess, stop_owned_subprocess)
 from unit_test_sharding import get_module_durations, get_test_shards
@@ -573,8 +574,16 @@ def cleanup_stale_runs(repo):
     return recovered
 
 
-def aggregate_unit_reports(reports, expected_ids, shard_count):
+def aggregate_unit_reports(reports, expected_ids, shard_count, *, platform=None,
+                          registered_locations=None):
+    """Aggregate shard reports; `platform` defaults to this host's `sys.platform`.
+
+    The pass rule for each shard is `skip_registry.get_shard_verdict`, shared
+    with the worker that wrote the receipt. `registered_locations` is input
+    only: the reviewed registry the Windows rule checks skips against.
+    """
     totals = {key: 0 for key in COUNT_FIELDS}
+    skips_by_registration = dict(registered_skips=0, unregistered_skips=0)
     problems, envelopes, identifiers = [], [], []
     complete = len(reports) == shard_count
     for report in reports:
@@ -599,12 +608,18 @@ def aggregate_unit_reports(reports, expected_ids, shard_count):
         complete = complete and done
         if not done:
             problems.append(f"{report.get('shard')}: counts are incomplete")
-        passed = (done and report.get('status') == 'passed'
-                  and type(report.get('exit_code')) is int and report['exit_code'] == 0
-                  and not any(report.get(key) for key in
-                              ('failures', 'errors', 'skips', 'unexpected_successes')))
+        verdict = get_shard_verdict(platform, tests_ran=report.get('tests_ran'),
+                                    complete=done, exit_code=report.get('exit_code'),
+                                    failures=report.get('failures'), errors=report.get('errors'),
+                                    unexpected_successes=report.get('unexpected_successes'),
+                                    skips=report.get('skips'), skip_ids=report.get('skip_ids'),
+                                    locations=registered_locations)
+        skips_by_registration['registered_skips'] += verdict['registered_skips']
+        skips_by_registration['unregistered_skips'] += verdict['unregistered_skips']
+        passed = done and report.get('status') == 'passed' and verdict['passed']
         if not passed:
             problems.append(f"{report.get('shard')}: shard did not pass ({report.get('status')})")
+            problems.extend(f"{report.get('shard')}: {problem}" for problem in verdict['problems'])
         envelopes.append(dict(shard=report.get('shard'), status='passed' if passed else 'failed',
                               gates=[dict(name='unit_tests', status='passed' if passed else 'failed',
                                           result=dict(tests_ran=report.get('tests_ran'), test_ids=ids))]))
@@ -614,7 +629,7 @@ def aggregate_unit_reports(reports, expected_ids, shard_count):
     complete = (complete and len(identifiers) == len(expected_ids)
                 and set(identifiers) == set(expected_ids))
     return dict(schema_version=1, status='failed' if problems else 'passed',
-                **totals, counts_complete=complete, test_ids=identifiers,
+                **totals, **skips_by_registration, counts_complete=complete, test_ids=identifiers,
                 problems=problems, shards=reports)
 
 
@@ -634,7 +649,8 @@ def get_worker_report(job):
                   log_path=str(job['log_path']), receipt_path=str(job['receipt']),
                   worktree=str(job['worktree']) if job['worktree'] else None,
                   active_test=receipt.get('active_test'),
-                  failure_ids=receipt.get('failure_ids', []), error_ids=receipt.get('error_ids', []))
+                  failure_ids=receipt.get('failure_ids', []), error_ids=receipt.get('error_ids', []),
+                  skip_ids=receipt.get('skip_ids'))
     report['owner_exit_code'] = job['process'].returncode
     if job['process'].returncode != 0 and report['exit_code'] == 0:
         report['status'] = 'crashed'
@@ -860,7 +876,8 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
         with file_lock(get_common_directory(repo) / 'alexandria-local-unit-git', timeout=120):
             manifest.unlink()
     print(f"Ran {result['tests_ran']} tests in {result['duration_seconds']:.3f}s; "
-          f"failures={result['failures']}, errors={result['errors']}, skips={result['skips']}; "
+          f"failures={result['failures']}, errors={result['errors']}, skips={result['skips']} "
+          f"(registered={result['registered_skips']}, unregistered={result['unregistered_skips']}); "
           f"unexpected_successes={result['unexpected_successes']}; "
           f"counts_complete={result['counts_complete']}; {result['status']}; report: {artifacts / 'aggregate.json'}", flush=True)
     if interrupted is not None:

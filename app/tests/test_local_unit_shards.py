@@ -132,6 +132,125 @@ class LocalAggregationTests(unittest.TestCase):
             self.assertFalse(result['counts_complete'])
 
 
+class RegisteredWindowsSkipTests(unittest.TestCase):
+    """A native Windows shard passes on skips only when the registry names them.
+
+    Measured 2026-11-17 on a clean native Windows run of this tree: 14,498
+    tests, 2 failures, 0 errors, 1,064 skips, and all six shards reported
+    'failed' - five of them with 0 failures, 0 errors and exit code 0. These
+    controls pin the rule both shard layers now share.
+    """
+
+    def setUp(self):
+        self.local = importlib.import_module('local_unit_shards')
+        self.registry = importlib.import_module('skip_registry')
+        self.identifiers = ['tests.test_first.Example.test_value',
+                            'tests.test_second.Example.test_value']
+
+    def aggregate(self, reports, platform='win32', locations=()):
+        return self.local.aggregate_unit_reports(
+            reports, self.identifiers, 2, platform=platform,
+            registered_locations=set(locations))
+
+    def test_registry_rows_cover_a_whole_class_or_one_whole_name(self):
+        """A class row covers its methods; a name matches only at a dot boundary."""
+        locations = {'test_first.py:Example:0', 'test_second.py:Example.test_value:0'}
+        self.assertTrue(self.registry.is_registered_skip(self.identifiers[0], locations))
+        self.assertTrue(self.registry.is_registered_skip(self.identifiers[1], locations))
+        method_only = {'test_second.py:Example.test_value:0'}
+        self.assertFalse(self.registry.is_registered_skip(
+            'tests.test_second.Example.test_value_other', method_only))
+        self.assertFalse(self.registry.is_registered_skip(
+            'tests.test_second.ExampleOther.test_value', method_only))
+        self.assertFalse(self.registry.is_registered_skip(
+            'tests.test_third.Example.test_value', locations))
+
+    def test_native_windows_passes_when_every_skip_is_registered(self):
+        """A class row and a method row both authorize a skip; counts stay intact."""
+        reports = [receipt('1/2', self.identifiers[:1], skips=1, skip_ids=self.identifiers[:1]),
+                   receipt('2/2', self.identifiers[1:], skips=1, skip_ids=self.identifiers[1:])]
+        result = self.aggregate(reports, locations={'test_first.py:Example:0',
+                                                    'test_second.py:Example.test_value:0'})
+        self.assertEqual('passed', result['status'], result['problems'])
+        self.assertEqual((2, 2, 0), (result['skips'], result['registered_skips'],
+                                     result['unregistered_skips']))
+        self.assertTrue(result['counts_complete'])
+        self.assertEqual(self.identifiers, result['test_ids'])
+
+    def test_native_windows_fails_and_names_an_unregistered_skip(self):
+        """One unregistered skip fails the shard and the problem carries its id."""
+        reports = [receipt('1/2', self.identifiers[:1], skips=1, skip_ids=self.identifiers[:1]),
+                   receipt('2/2', self.identifiers[1:], skips=1, skip_ids=self.identifiers[1:],
+                           status='failed')]
+        result = self.aggregate(reports, locations={'test_first.py:Example:0'})
+        self.assertEqual('failed', result['status'])
+        self.assertEqual((1, 1), (result['registered_skips'], result['unregistered_skips']))
+        self.assertTrue(any(f'unregistered skip: {self.identifiers[1]}' in problem
+                            for problem in result['problems']))
+
+    def test_other_platforms_still_fail_on_a_registered_skip(self):
+        """Linux keeps the original rule: any skip fails, registered or not."""
+        reports = [receipt('1/2', self.identifiers[:1], skips=1, skip_ids=self.identifiers[:1],
+                           status='failed'),
+                   receipt('2/2', self.identifiers[1:])]
+        result = self.aggregate(reports, platform='linux',
+                                locations={'test_first.py:Example:0'})
+        self.assertEqual('failed', result['status'])
+        self.assertEqual((1, 0, 1), (result['skips'], result['registered_skips'],
+                                     result['unregistered_skips']))
+
+    def test_native_windows_failure_error_or_unexpected_success_still_fails(self):
+        """Registered skips excuse skips only, never a failure, error or surprise pass."""
+        for changes in (dict(status='failed', exit_code=1, failures=1),
+                        dict(status='failed', exit_code=1, errors=1),
+                        dict(status='failed', unexpected_successes=1)):
+            with self.subTest(changes=changes):
+                reports = [receipt('1/2', self.identifiers[:1], skips=1,
+                                   skip_ids=self.identifiers[:1], **changes),
+                           receipt('2/2', self.identifiers[1:])]
+                result = self.aggregate(reports, locations={'test_first.py:Example:0'})
+                self.assertEqual('failed', result['status'])
+                self.assertTrue(result['problems'])
+
+    def test_worker_receipt_records_each_skipped_test_id(self):
+        """A real ci_env run writes skip_ids and reasons for a skipped test.
+
+        The suite is synthetic and lives in a temporary package, so no skip
+        site enters this repository's census; the id it produces is
+        deliberately unregistered, which also shows the worker refuses an
+        unregistered skip on either platform while unittest itself exits 0.
+        """
+        app = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / 'tests'
+            package.mkdir()
+            (package / '__init__.py').write_text('', encoding='utf-8')
+            (package / 'test_ci_env_skip_receipt.py').write_text(
+                "import unittest\n\n\n"
+                "class Example(unittest.TestCase):\n"
+                "    @unittest.skip('synthetic registered-skip receipt probe')\n"
+                "    def test_skipped(self):\n"
+                "        pass\n\n"
+                "    def test_runs(self):\n"
+                "        self.assertTrue(True)\n", encoding='utf-8')
+            receipt_path = root / 'tests.json'
+            environment = get_isolated_git_environment()
+            environment.update(PYTHONPATH=str(app), PYTHONUTF8='1')
+            result = subprocess.run(
+                [sys.executable, '-m', 'ci_env', 'discover', '-s', '.', '-p', 'test_*.py',
+                 '-v', '--test-report', str(receipt_path)],
+                cwd=str(root), env=environment, capture_output=True, text=True, timeout=300)
+            payload = json.loads(receipt_path.read_text(encoding='utf-8'))
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        skipped_id = 'tests.test_ci_env_skip_receipt.Example.test_skipped'
+        self.assertEqual(1, payload['skips'])
+        self.assertEqual([skipped_id], payload['skip_ids'])
+        self.assertIn('synthetic registered-skip receipt probe', payload['skip_reasons'][skipped_id])
+        self.assertEqual('failed', payload['status'],
+                         'an unregistered skip must not pass a shard')
+
+
 class LocalWorktreeTests(unittest.TestCase):
     def setUp(self):
         isolate_git_environment(self)
@@ -151,7 +270,8 @@ class LocalWorktreeTests(unittest.TestCase):
         app = self.repo / 'app'
         tests = app / 'tests'
         tests.mkdir(parents=True)
-        for name in ('ci_env.py', 'unit_test_sharding.py', 'utils.py', 'loaded_module_code.py'):
+        for name in ('ci_env.py', 'skip_registry.py', 'unit_test_sharding.py', 'utils.py',
+                     'loaded_module_code.py'):
             shutil.copyfile(APP / name, app / name)
         shutil.copyfile(APP.parent / 'gpu_stats.py', self.repo / 'gpu_stats.py')
         (tests / '__init__.py').write_text('', encoding='utf-8')

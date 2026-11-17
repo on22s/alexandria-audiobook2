@@ -9,6 +9,7 @@ Keep BLOCKED_MODULES aligned with .github/workflows/tests.yml.
 import sys
 import time
 
+from skip_registry import get_shard_verdict
 from utils import atomic_json_write
 
 # CI now installs every ML import required for CPU structural checks.
@@ -94,11 +95,24 @@ def main(argv=None):
             return
         result = result_holder[0]
         successful = result is not None and result.wasSuccessful()
+        skipped = list(result.skipped) if result else []
+        skip_ids = [test.id() for test, _reason in skipped]
+        if status is None:
+            status = 'running'
+            if complete:
+                verdict = get_shard_verdict(
+                    complete=True,
+                    tests_ran=result.testsRun if result else 0,
+                    exit_code=0 if successful else 1,
+                    failures=len(result.failures) if result else 0,
+                    errors=len(result.errors) if result else 0,
+                    unexpected_successes=len(result.unexpectedSuccesses) if result else 0,
+                    skips=len(skipped), skip_ids=skip_ids)
+                status = 'passed' if verdict['passed'] else 'failed'
         payload = {
             'schema_version': 1,
             'shard': shard,
-            'status': status or ('passed' if complete and successful and result.testsRun
-                                 and not result.skipped else 'failed' if complete else 'running'),
+            'status': status,
             'complete': complete,
             'tests_ran': result.testsRun if result else 0,
             'tests_completed': completed,
@@ -110,6 +124,8 @@ def main(argv=None):
             'unexpected_successes': len(result.unexpectedSuccesses) if result else 0,
             'failure_ids': [test.id() for test, _ in result.failures] if result else [],
             'error_ids': [test.id() for test, _ in result.errors] if result else [],
+            'skip_ids': skip_ids,
+            'skip_reasons': {test.id(): str(reason) for test, reason in skipped},
             'active_test': active_test,
             'duration_seconds': round(clock() - started, 3),
         }
