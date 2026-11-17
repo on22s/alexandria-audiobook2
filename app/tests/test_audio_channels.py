@@ -207,8 +207,8 @@ class AudioChannelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cancelled'):
             run_preview_decode([sys.executable, '-c', script], lambda: pid_file.exists())
         self.assertLess(time.monotonic() - started, 10)
-        with self.assertRaises(ProcessLookupError):
-            os.kill(int(pid_file.read_text()), 0)
+        from tests.test_support import assert_fixture_process_stopped
+        assert_fixture_process_stopped(self, int(pid_file.read_text()))
 
     def test_stage_preview_and_clone_import_use_same_bytes_and_keep_provenance(self):
         from contextlib import ExitStack
