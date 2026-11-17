@@ -15031,6 +15031,7 @@
     , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_block_documents_one_texture_per_meaning"
     , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_bootstrap_bar_styles_are_gone"
     , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_component_names_no_literal_colour"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_halftone_edge_is_round_dots_shrinking_on_the_offset_lattice"
     , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_track_is_dim_ink_and_the_fill_is_solid_ink"
   ]
   , "test_textured_progress_js": [

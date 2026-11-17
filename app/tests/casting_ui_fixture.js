@@ -160,6 +160,13 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     eq(r.list.map(v => v.name), ['ABEL', 'AICHEL']);
     eq(r.index, 1);  // ABEL is already shortlisted
     ok(env.get('review-body').querySelectorAll('h3')[0].textContent === 'AICHEL');
+    // #2042: one of the two voices in scope is reviewed, and the shared
+    // renderer is what reports it (the old code wrote the track's width).
+    eq(env.get('review-progress').getAttribute('aria-valuenow'), '50');
+    eq(env.get('review-progress').getAttribute('aria-valuemin'), '0');
+    eq(env.get('review-progress').getAttribute('aria-valuemax'), '100');
+    eq(env.get('review-progress').ariaValueText, '50%');
+    eq(env.get('review-progress').ariaBusy, 'false');
     env.calls.length = 0;
     env.get('review-modal').dispatchEvent({type: 'keydown', key: 'r', preventDefault() {}}); await settle();
     eq(env.calls[0], ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/aichel_1', status: 'reject', expected_lifecycle: 'active'}]);
@@ -186,6 +193,7 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     // paints the element it was handed; the browser finds the .tp-fill child.)
     eq(env.get('review-progress').style.width, '100%');
     eq(env.get('review-progress').getAttribute('aria-valuenow'), '100');
+    eq(env.get('review-progress').ariaValueText, '100%');
 
     const duplicate = {...VOICES[0], id: 'persona/other/regenerated', name: '  abel  ', book_id: 'Other',
         description: ' ', ref_text: ' ', audio_present: false, tags: tags('Female', ['Adult', 'Teen', 'Teen'], [])};

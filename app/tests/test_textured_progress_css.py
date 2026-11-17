@@ -22,6 +22,19 @@ def component_block():
     return text[start:end]
 
 
+def dot_radii(declarations):
+    """Every dot radius in a `background-image` list, in layer order."""
+    return [float(radius) for radius in
+            re.findall(r'radial-gradient\(circle, var\(--tp-ink\) ([\d.]+)px', declarations)]
+
+
+def positions(declarations):
+    """The `background-position` list as (x, y) pixel pairs."""
+    body = re.search(r'background-position:\s*([^;]+);', declarations).group(1)
+    return [tuple(float(value[:-2] if value.endswith('px') else value) for value in part.split())
+            for part in body.split(',')]
+
+
 def rule(block, selector):
     """The declarations of the first rule whose selector list is exactly `selector`.
 
@@ -130,21 +143,77 @@ class TexturedProgressCssTests(unittest.TestCase):
         self.assertIn('rect x=\'0\' y=\'0\' width=\'2\' height=\'28\'',
                       rule(block, '.tp-dither .tp-lead'))
 
+        # Halftone dots are CIRCLES (a conic-gradient would make them squares)
+        # on the same offset lattice, and the fill edge is a 9px linear fade.
         halftone = rule(block, '.tp-halftone')
         self.assertEqual(2, halftone.count('radial-gradient(circle, #000 1.15px'))
         self.assertIn('/ 6px 6px', halftone)
         self.assertIn('3px 3px / 6px 6px', halftone, 'the lattice is offset, not square')
-        # Five shrinking dot columns plus a short soft blur off the fill edge.
-        lead2 = rule(block, '.tp-halftone .tp-lead2')
-        for radius in ('2.2px', '2px', '1.8px', '1.6px', '1.4px', '1.25px'):
-            with self.subTest(radius=radius):
-                self.assertIn('radial-gradient(circle, var(--tp-ink) %s' % radius, lead2)
-        self.assertIn('repeat-y', lead2)
+        self.assertNotIn('conic-gradient', halftone)
+        lead = rule(block, '.tp-halftone .tp-lead')
+        self.assertIn('width: 9px;', lead)
+        self.assertIn('linear-gradient(90deg, var(--tp-ink), transparent)', lead)
+        self.assertIn('radial-gradient(circle', rule(block, '.tp-halftone .tp-lead2'))
+        self.assertNotIn('conic-gradient', rule(block, '.tp-halftone .tp-lead2'))
 
         hatch = rule(block, '.tp-hatch')
         self.assertIn('repeating-linear-gradient(-55deg, #000 0 1.6px, transparent 1.6px 7px)',
                       hatch)
         self.assertIn('width: 8px;', rule(block, '.tp-hatch .tp-lead'))
+
+    def test_the_halftone_edge_is_round_dots_shrinking_on_the_offset_lattice(self):
+        """Rebuild the fill-edge dot lattice from the declarations and check it.
+
+        A radial-gradient dot sits at the centre of its 6px tile, so
+        position + tile centre gives every dot's centre. The stripes this
+        replaced put a band's two layers at the SAME x (two dots 3px apart
+        vertically, i.e. a column) and had one radius per column -- both
+        assertions below reject that: the x positions must step 3px, and one
+        radius may cover only one lattice period (two dots).
+        """
+        block = component_block()
+        lead2 = rule(block, '.tp-halftone .tp-lead2')
+        self.assertIn('background-size: 6px 6px;', lead2, 'one lattice period')
+        self.assertIn('background-repeat: repeat-y;', lead2)
+        period = 6.0
+        radii = dot_radii(lead2)
+        placed = positions(lead2)
+        self.assertEqual(len(radii), len(placed), 'one position per dot layer')
+        self.assertEqual(12, len(radii))
+        dots = sorted((round(x + period / 2, 2), round((y + period / 2) % period, 2), radius)
+                      for (x, y), radius in zip(placed, radii))
+
+        # One diagonal lattice: dots every 3px in x, alternating 3px in y.
+        self.assertEqual([3.0 + 3 * step for step in range(12)], [x for x, _, _ in dots],
+                         'dot columns must step 3px, never repeat the same x')
+        self.assertEqual([3.0 if index % 2 == 0 else 0.0 for index in range(12)],
+                         [y for _, y, _ in dots], 'the second dot of a band is offset 3px')
+
+        # Six radii, shrinking left to right, one lattice period (two dots) each.
+        self.assertEqual([1.85, 1.85, 1.71, 1.71, 1.57, 1.57,
+                          1.43, 1.43, 1.29, 1.29, 1.15, 1.15],
+                         [radius for _, _, radius in dots])
+        # Dots here are 4.24px apart, so a step above ~1.9px touches its
+        # neighbour and the merged pair renders as a solid slab -- the very
+        # columns these steps exist to avoid.
+        self.assertLess(max(radii), 4.24 / 2, 'steps must stay clear of each other')
+        ordered = sorted(set(radii), reverse=True)
+        self.assertEqual(6, len(ordered), 'five shrinking steps plus the track dot')
+        for radius in ordered:
+            with self.subTest(radius=radius):
+                self.assertEqual(2, radii.count(radius), 'one lattice period per radius')
+
+        # The ramp's first dot is large and its last is the track's own dot, so
+        # the two lattices meet in phase: same dots modulo one period.
+        track = rule(block, '.tp-halftone')
+        track_dots = set()
+        for x, y in re.findall(r'\)\s*(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s*/\s*6px 6px', track):
+            track_dots.add((round((float(x) + 3) % period, 2),
+                            round((float(y) + 3) % period, 2)))
+        self.assertEqual({(3.0, 3.0), (0.0, 0.0)}, track_dots)
+        self.assertEqual(track_dots, {(x % period, y % period) for x, y, _ in dots},
+                         "the ramp is the track's own lattice")
+        self.assertEqual(1.15, min(radii), "the ramp ends at the track's dot")
 
     def test_no_texture_needs_an_image_file_or_a_script(self):
         block = component_block()

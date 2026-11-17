@@ -1068,40 +1068,46 @@
             mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='28' shape-rendering='crispEdges'%3E%3Cg fill='%23000'%3E%3Crect x='0' y='0' width='2' height='28'/%3E%3Crect x='2' y='0' width='2' height='2'/%3E%3Crect x='2' y='4' width='2' height='2'/%3E%3Crect x='2' y='8' width='2' height='2'/%3E%3Crect x='2' y='12' width='2' height='2'/%3E%3Crect x='2' y='16' width='2' height='2'/%3E%3Crect x='2' y='20' width='2' height='2'/%3E%3Crect x='2' y='24' width='2' height='2'/%3E%3Crect x='5' y='2' width='3' height='3'/%3E%3Crect x='5' y='11' width='3' height='3'/%3E%3Crect x='5' y='20' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 10px 28px;
         }
 
-        /* halftone: round dots on an offset 6px lattice, a real dot ramp off
-           the fill (a short soft blur, then five shrinking dot columns). */
+        /* halftone: round dots on the offset 6px lattice. Off the fill edge the
+           texture stops and a 9px fade hands over to a dot ramp: six radii,
+           each held for exactly one lattice period (6px) and stepping down to
+           the track's own dot, so the edge reads as a halftone gradient. The
+           band's two lattice layers are 3px apart on both axes -- never the
+           same column twice, which is what turns the ramp into stripes. The
+           steps stop at 1.85px because on this lattice neighbouring dots are
+           4.24px apart: anything above ~1.9px touches its neighbour, and the
+           merged pair renders as a solid 6-12px slab with pinholes that reads
+           as a bar at full size (2.6/2.2/2.0px all did). */
         .tp-halftone {
             --tp-dim: var(--tp-dim-halftone);
             --tp-tex: radial-gradient(circle, #000 1.15px, transparent 1.5px) 0 0 / 6px 6px,
                       radial-gradient(circle, #000 1.15px, transparent 1.5px) 3px 3px / 6px 6px;
         }
         .tp-halftone .tp-lead {
-            width: 14px;
-            background-color: var(--tp-ink);
-            -webkit-mask: linear-gradient(90deg, #000 0 4px, rgba(0, 0, 0, .8) 8px, rgba(0, 0, 0, 0) 14px);
-            mask: linear-gradient(90deg, #000 0 4px, rgba(0, 0, 0, .8) 8px, rgba(0, 0, 0, 0) 14px);
+            width: 9px;
+            background-color: transparent;
+            background-image: linear-gradient(90deg, var(--tp-ink), transparent);
         }
         .tp-halftone .tp-lead2 {
-            width: 36px;
-            margin-left: 2px;
+            width: 39px;
             background-color: transparent;
             background-image:
-                radial-gradient(circle, var(--tp-ink) 2.2px, transparent 2.45px),
-                radial-gradient(circle, var(--tp-ink) 2.2px, transparent 2.45px),
-                radial-gradient(circle, var(--tp-ink) 2px, transparent 2.25px),
-                radial-gradient(circle, var(--tp-ink) 2px, transparent 2.25px),
-                radial-gradient(circle, var(--tp-ink) 1.8px, transparent 2.05px),
-                radial-gradient(circle, var(--tp-ink) 1.8px, transparent 2.05px),
-                radial-gradient(circle, var(--tp-ink) 1.6px, transparent 1.85px),
-                radial-gradient(circle, var(--tp-ink) 1.6px, transparent 1.85px),
-                radial-gradient(circle, var(--tp-ink) 1.4px, transparent 1.65px),
-                radial-gradient(circle, var(--tp-ink) 1.4px, transparent 1.65px),
-                radial-gradient(circle, var(--tp-ink) 1.25px, transparent 1.5px),
-                radial-gradient(circle, var(--tp-ink) 1.25px, transparent 1.5px);
+                radial-gradient(circle, var(--tp-ink) 1.85px, transparent 2.1px),
+                radial-gradient(circle, var(--tp-ink) 1.85px, transparent 2.1px),
+                radial-gradient(circle, var(--tp-ink) 1.71px, transparent 1.96px),
+                radial-gradient(circle, var(--tp-ink) 1.71px, transparent 1.96px),
+                radial-gradient(circle, var(--tp-ink) 1.57px, transparent 1.82px),
+                radial-gradient(circle, var(--tp-ink) 1.57px, transparent 1.82px),
+                radial-gradient(circle, var(--tp-ink) 1.43px, transparent 1.68px),
+                radial-gradient(circle, var(--tp-ink) 1.43px, transparent 1.68px),
+                radial-gradient(circle, var(--tp-ink) 1.29px, transparent 1.54px),
+                radial-gradient(circle, var(--tp-ink) 1.29px, transparent 1.54px),
+                radial-gradient(circle, var(--tp-ink) 1.15px, transparent 1.4px),
+                radial-gradient(circle, var(--tp-ink) 1.15px, transparent 1.4px);
             background-size: 6px 6px;
             background-repeat: repeat-y;
-            background-position: 0 0, 0 3px, 6px 0, 6px 3px, 12px 0, 12px 3px,
-                                 18px 0, 18px 3px, 24px 0, 24px 3px, 30px 0, 30px 3px;
+            background-position: 0 0, 3px 3px, 6px 0, 9px 3px, 12px 0, 15px 3px,
+                                 18px 0, 21px 3px, 24px 0, 27px 3px, 30px 0, 33px 3px;
         }
 
         /* hatch: 1.6px lines at about 55 degrees, a short dithered fray. */
