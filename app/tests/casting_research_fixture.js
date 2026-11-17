@@ -328,6 +328,12 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
     };
     browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-casting-labels.js'), 'utf8'));
+    // #2042: the review bar renders through the shared progress component.
+    const core = fs.readFileSync(path.join(root, 'app/static/js/app-core.js'), 'utf8');
+    const progressStart = core.indexOf('// --- Textured progress bars (#2042) ---');
+    const progressEnd = core.indexOf('// --- End textured progress bars ---');
+    assert(progressStart > 0 && progressEnd > progressStart, 'textured progress component missing');
+    browserWindow.eval(core.slice(progressStart, progressEnd));
     browserWindow.eval(research);
     browserWindow.eval(source);
     return env;

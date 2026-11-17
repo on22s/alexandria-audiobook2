@@ -148,21 +148,23 @@
         };
 
         function applyLoraProgress(progressBar, percentage, epoch, maxEpoch) {
-            progressBar.style.width = `${percentage}%`;
-            progressBar.innerText = `${percentage}%`;
-            progressBar.ariaValueMin = '0';
-            progressBar.ariaValueMax = '100';
-            progressBar.ariaValueNow = String(percentage);
-            progressBar.ariaValueText = Number.isFinite(maxEpoch) && maxEpoch > 0
-                ? t('training.progress.epoch-of', 'Epoch {epoch} of {epochs}', {epoch, epochs: maxEpoch}) : t('training.progress.unreported', 'Epoch progress has not been reported yet.');
+            // Halftone: the LoRA training texture (#2042). The shared renderer
+            // owns the fill width, the aria values and the clamping.
+            renderTexturedProgress(progressBar, {
+                fraction: Number(percentage) / 100,
+                label: '',
+                valueText: Number.isFinite(maxEpoch) && maxEpoch > 0
+                    ? t('training.progress.epoch-of', 'Epoch {epoch} of {epochs}', {epoch, epochs: maxEpoch}) : t('training.progress.unreported', 'Epoch progress has not been reported yet.'),
+            });
         }
 
         function applyLoraProgressState(progressBar, outcome) {
-            progressBar.classList.remove('bg-info', 'bg-success', 'bg-danger', 'bg-warning');
+            // The outcome tints the fill only; the track keeps the theme's dim
+            // ink, so the bar still reads as one object after a theme switch.
+            const fill = progressBar.querySelector?.('.tp-fill') || progressBar;
+            fill.classList.remove('bg-info', 'bg-success', 'bg-danger', 'bg-warning');
             const color = {running: 'bg-info', finished: 'bg-success', failed: 'bg-danger', stopped: 'bg-warning'}[outcome];
-            progressBar.classList.add(color);
-            if (outcome === 'running') { progressBar.classList.add('progress-bar-animated'); }
-            else { progressBar.classList.remove('progress-bar-animated'); }
+            fill.classList.add(color);
         }
 
         function pollLoraTraining(totalEpochs = null) {

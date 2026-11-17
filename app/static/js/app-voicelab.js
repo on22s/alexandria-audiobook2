@@ -422,6 +422,17 @@
                     }
                     if (s.zips_dir) { runDir = s.zips_dir; }
                     renderLogs(s);
+                    // Halftone: the training texture, shared with the Training
+                    // tab's LoRA bar (#2042). The status payload already
+                    // embeds the server's estimate.
+                    const progressWrap = document.getElementById('vl-progress');
+                    if (progressWrap) { progressWrap.style.display = ''; }
+                    const progressEta = s.eta || null;
+                    renderTexturedProgress(document.getElementById('vl-progress-bar'), {
+                        fraction: progressEta && Number.isFinite(progressEta.fraction) ? progressEta.fraction : null,
+                        label: getTaskLabel('voicelab'),
+                        task: getTaskLabel('voicelab'),
+                    });
                     if (s.tasks && s.tasks.length) {
                         progEl.style.display = 'flex';
                         progEl.innerHTML = s.tasks.map(task =>
@@ -434,6 +445,8 @@
                 },
                 onDone: s => {
                     _vlSetRunning(false);
+                    const progressWrap = document.getElementById('vl-progress');
+                    if (progressWrap) { progressWrap.style.display = 'none'; }
                     notifyJobDone('voicelab', '', 'finished', s);
                     const cls = s.status === 'done' ? 'text-success'
                               : s.status === 'cancelled' ? 'text-warning' : 'text-danger';

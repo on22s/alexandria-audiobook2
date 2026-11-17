@@ -18,7 +18,11 @@ for(const [id,value] of Object.entries({'vl-target-loss':'4.15','vl-max-epochs':
 vm.createContext(ctx);
 const core=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-core.js'),'utf8');
 const helper=core.slice(core.indexOf('        function getTaskLogUpdate('),core.indexOf('        // --- Setup Tab ---'));
-vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(helper,ctx);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+const progress=core.slice(core.indexOf('// --- Textured progress bars (#2042) ---'),core.indexOf('// --- End textured progress bars ---'));
+assert(progress.length>0,'textured progress component missing');
+const label=core.slice(core.indexOf('function getTaskLabel('),core.indexOf('function taskStatusLabel('));
+assert(label.length>0,'task label resolver missing');
+vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),ctx);vm.runInContext(helper,ctx);vm.runInContext(progress,ctx);vm.runInContext(label,ctx);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const flush=async()=>{for(let i=0;i<8;i++){await Promise.resolve();}};
 (async()=>{

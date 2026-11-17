@@ -537,6 +537,13 @@ vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function show
 vm.runInContext(core.slice(queueStart, queueEnd), context);
 const escapeStart=core.indexOf('function escapeHtml('),escapeEnd=core.indexOf('// Parse a numeric input',escapeStart);
 vm.runInContext(core.slice(escapeStart,escapeEnd),context);
+const progressStart=core.indexOf('// --- Textured progress bars (#2042) ---'),progressEnd=core.indexOf('// --- End textured progress bars ---');
+assert(progressStart>=0&&progressEnd>progressStart,'textured progress component missing');
+vm.runInContext(core.slice(progressStart,progressEnd),context);
+// The bar's label is the app's one translated task name.
+const labelStart=core.indexOf('function getTaskLabel('),labelEnd=core.indexOf('function taskStatusLabel(',labelStart);
+assert(labelStart>=0&&labelEnd>labelStart,'task label resolver missing');
+vm.runInContext(core.slice(labelStart,labelEnd),context);
 const failureStart=core.indexOf('function isTaskFailed(');vm.runInContext(core.slice(failureStart,core.indexOf('// --- Desktop notifications ---',failureStart)),context);
 const outcomeStart=core.indexOf('function getTaskCompletionOutcome(');vm.runInContext(core.slice(outcomeStart,core.indexOf('function notifyJobDone(',outcomeStart)),context);
 const logsStart=core.indexOf('function getTaskLogUpdate(');

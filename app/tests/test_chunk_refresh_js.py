@@ -65,7 +65,10 @@ assert.notStrictEqual(run('chunkSnapshotBook'),ctx.currentBookFilename);
 const progress=element('full-progress-bar');let written='';
 Object.defineProperty(progress,'innerText',{get:()=>'',set:value=>{written=value;}});
 ctx.API.get=async()=>[chunk(0),chunk(1)];await ctx.loadChunks(true);
-assert.equal(written,'0% (0/2)');assert.equal(progress.ariaValueText,'Rendered 0 of 2 lines (0%)');
+assert.equal(written,'Rendered 0 of 2 lines');assert.equal(progress.ariaValueText,'Rendered 0 of 2 lines (0%)');
+// The visible label and the spoken value are the same fact, and the fill's
+// width is the fraction - neither is read back from layout text.
+assert.equal(progress.style.width,'0%');
 ''')
 
     def test_rendered_text_delivery_and_pause_names_identify_each_line(self):
@@ -87,7 +90,7 @@ const progress=element('full-progress-bar');let snapshot=[chunk(0,'done'),chunk(
 ctx.API.get=async()=>snapshot;await ctx.loadChunks(true);assert.equal(progress.ariaValueNow,'33');assert.equal(progress.ariaValueText,'Rendered 1 of 3 lines (33%)');assert.equal(progress.ariaBusy,'false');
 snapshot=[chunk(0,'done'),chunk(1,'done'),chunk(2)];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'67');
 playing=true;snapshot=snapshot.map(row=>({...row,status:'done'}));await ctx.loadChunks();assert.equal(progress.ariaValueNow,'100');
-playing=false;snapshot=[];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'0');assert.equal(progress.style.width,'0%');assert.equal(progress.innerText,'0% (0/0)');
+playing=false;snapshot=[];await ctx.loadChunks();assert.equal(progress.ariaValueNow,'0');assert.equal(progress.style.width,'0%');assert.equal(progress.innerText,'Rendered 0 of 0 lines');
 ''')
 
     def test_cancel_reconciles_optimistic_rows_without_forcing_redraw_or_losing_controls(self):
@@ -138,7 +141,7 @@ const markup=body.innerHTML,pauseClass=markup.match(/class="(chunk-pause-row[^"]
 let pauseAudio=false,actionAudio='',progress={},button=null;const pauseLabel={textContent:'Pause after (ms):'};Object.defineProperty(pauseLabel,'outerHTML',{set:value=>{pauseAudio=value.includes('<audio');}});
 const noAudio={};Object.defineProperty(noAudio,'outerHTML',{set:value=>{actionAudio=value;}});
 const pause={classList:classes(pauseClass),querySelector:selector=>selector==='.text-muted'?pauseLabel:null};
-const action={classList:classes(actionClass),querySelector:selector=>selector==='button'?button:selector==='.progress'?progress:selector==='.text-muted'?noAudio:null,replaceChild(newNode,oldNode){assert.strictEqual(oldNode,progress);button=newNode;progress=null;}};
+const action={classList:classes(actionClass),querySelector:selector=>selector==='button'?button:selector==='.tp'?progress:selector==='.text-muted'?noAudio:null,replaceChild(newNode,oldNode){assert.strictEqual(oldNode,progress);button=newNode;progress=null;}};
 const badge={insertAdjacentHTML(){}};const row={classList:classes('chunk-row'),querySelector(selector){if(selector==='.badge'){return badge;}if(selector==='.drift-badge'){return null;}return[pause,action].find(node=>node.classList.contains(selector.slice(1)))||null;},querySelectorAll(selector){return selector==='.chunk-pause-row'?[pause]:[];}};
 ctx.document.querySelector=()=>row;if(expanded){ctx.toggleChunkExpand({closest:()=>row});assert(pause.classList.contains('d-flex'));}
 assert(ctx.updateChunkRow({...chunk(1,'done'),uid:'one',audio_path:'synthetic.wav'}));assert.strictEqual(badge.innerText,'done');assert(button&&button.innerHTML.includes('Gen'));assert.strictEqual(progress,null);assert(actionAudio.includes('src="/synthetic.wav?t='));assert.strictEqual(pauseAudio,false);assert.strictEqual(pauseLabel.textContent,'Pause after (ms):');

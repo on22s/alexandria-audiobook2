@@ -7,6 +7,13 @@ const html = fs.readFileSync(path.join(root, 'app/static/index.html'), 'utf8');
 const start = html.indexOf('<div id="casting-tab"'); assert(start > 0);
 const end = html.indexOf('<!-- Preparer Tab -->', start); assert(end > start);
 const source = fs.readFileSync(path.join(root, 'app/static/js/app-casting.js'), 'utf8');
+const progressComponent = (fs, path, root) => {
+    const core = fs.readFileSync(path.join(root, 'app/static/js/app-core.js'), 'utf8');
+    const start = core.indexOf('// --- Textured progress bars (#2042) ---');
+    const end = core.indexOf('// --- End textured progress bars ---');
+    assert(start > 0 && end > start, 'textured progress component missing');
+    return core.slice(start, end);
+};
 const settle = async () => { for (let i = 0; i < 8; i++) { await new Promise(resolve => setImmediate(resolve)); } };
 const TOKEN = 'a'.repeat(64);
 const tags = (gender, ages, tones, textures = []) => ({gender, ages, tones, textures});
@@ -59,6 +66,8 @@ function setup({snapshotVoices = [{name: 'ADAM'}, {name: 'EVE'}], confirm = true
     w.played = [];
     w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     w.eval(fs.readFileSync(path.join(root, 'app/static/js/app-casting-labels.js'), 'utf8'));
+    // #2042: the review bar renders through the shared progress component.
+    w.eval(progressComponent(fs, path, root));
     w.eval(source);
     return {w, calls, errors, toasts, get: id => w.document.getElementById('casting-' + id)};
 }
@@ -171,6 +180,12 @@ const input = (el, value) => { el.value = value; el.dispatchEvent({type: 'input'
     env.get('review-modal').dispatchEvent({type: 'keydown', key: 'c', preventDefault() {}}); await settle();
     eq(env.calls.at(-1), ['POST', '/api/casting/marks', {voice_id: 'persona/dh_1/abel_1', status: 'callback', expected_lifecycle: 'active'}]);
     eq(env.w.CastingLibrary.state().review.index, 1);  // marked, then advanced
+    // #2042: both voices of this book are now reviewed, and the shared renderer
+    // paints the component's fill (not the track's own width).
+    // (This dependency-free DOM resolves no class selector, so the renderer
+    // paints the element it was handed; the browser finds the .tp-fill child.)
+    eq(env.get('review-progress').style.width, '100%');
+    eq(env.get('review-progress').getAttribute('aria-valuenow'), '100');
 
     const duplicate = {...VOICES[0], id: 'persona/other/regenerated', name: '  abel  ', book_id: 'Other',
         description: ' ', ref_text: ' ', audio_present: false, tags: tags('Female', ['Adult', 'Teen', 'Teen'], [])};
