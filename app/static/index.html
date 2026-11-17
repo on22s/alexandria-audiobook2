@@ -1077,7 +1077,13 @@
            steps stop at 1.85px because on this lattice neighbouring dots are
            4.24px apart: anything above ~1.9px touches its neighbour, and the
            merged pair renders as a solid 6-12px slab with pinholes that reads
-           as a bar at full size (2.6/2.2/2.0px all did). */
+           as a bar at full size (2.6/2.2/2.0px all did).
+
+           The ramp overlaps the fade by one lattice period and fades out at
+           its far end, so both hand-overs are continuous: the first big dots
+           sit ON the fade (a ramp that starts after it leaves a pale column),
+           and the last small dots dim into the track's dimmed dots (ending on
+           a full-ink dot against them reads as a darker column). */
         .tp-halftone {
             --tp-dim: var(--tp-dim-halftone);
             --tp-tex: radial-gradient(circle, #000 1.15px, transparent 1.5px) 0 0 / 6px 6px,
@@ -1089,7 +1095,10 @@
             background-image: linear-gradient(90deg, var(--tp-ink), transparent);
         }
         .tp-halftone .tp-lead2 {
-            width: 39px;
+            /* One whole period back over the lead, so the lattice phase still
+               matches the track's and the reach is unchanged (9 + 45 - 6 = 48). */
+            width: 45px;
+            margin-left: -6px;
             background-color: transparent;
             background-image:
                 radial-gradient(circle, var(--tp-ink) 1.85px, transparent 2.1px),
@@ -1108,6 +1117,8 @@
             background-repeat: repeat-y;
             background-position: 0 0, 3px 3px, 6px 0, 9px 3px, 12px 0, 15px 3px,
                                  18px 0, 21px 3px, 24px 0, 27px 3px, 30px 0, 33px 3px;
+            -webkit-mask: linear-gradient(90deg, #000 0 18px, rgba(0, 0, 0, .75) 28px, rgba(0, 0, 0, 0) 39px);
+            mask: linear-gradient(90deg, #000 0 18px, rgba(0, 0, 0, .75) 28px, rgba(0, 0, 0, 0) 39px);
         }
 
         /* hatch: 1.6px lines at about 55 degrees, a short dithered fray. */

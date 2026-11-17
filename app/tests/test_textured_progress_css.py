@@ -35,6 +35,21 @@ def positions(declarations):
             for part in body.split(',')]
 
 
+def declarations(rule_text):
+    """A rule body as `{property: value}`, comments stripped, last value wins."""
+    pairs = {}
+    for chunk in re.sub(r'/\*.*?\*/', '', rule_text, flags=re.S).split(';'):
+        if ':' in chunk:
+            prop, value = chunk.split(':', 1)
+            pairs[prop.strip()] = value.strip()
+    return pairs
+
+
+def px(value):
+    """A CSS pixel length as a float."""
+    return float(value[:-2] if value.endswith('px') else value)
+
+
 def rule(block, selector):
     """The declarations of the first rule whose selector list is exactly `selector`.
 
@@ -214,6 +229,63 @@ class TexturedProgressCssTests(unittest.TestCase):
         self.assertEqual(track_dots, {(x % period, y % period) for x, y, _ in dots},
                          "the ramp is the track's own lattice")
         self.assertEqual(1.15, min(radii), "the ramp ends at the track's dot")
+
+    def test_the_halftone_ramp_overlaps_the_fade_and_fades_out_into_the_track(self):
+        """Both hand-overs must be continuous, not two textures butted together.
+
+        Two seams shipped in round 1b, and both are geometry that can be read
+        off the declarations:
+
+        * GAP -- the ramp began exactly where the lead's 9px fade reached zero,
+          and its first dot's left edge landed just past that, leaving a pale
+          column between the fade and the largest dots.
+        * DARK COLUMN -- the ramp's last dots were painted at full ink and then
+          ended abruptly against the track's dimmed dots, so the hand-over was
+          a darker, denser column and an interleaved full/dim dot row.
+        """
+        block = component_block()
+        lead2_text = rule(block, '.tp-halftone .tp-lead2')
+        lead = declarations(rule(block, '.tp-halftone .tp-lead'))
+        lead2 = declarations(lead2_text)
+        period = 6.0
+        fade = px(lead['width'])
+        width = px(lead2['width'])
+        shift = px(lead2.get('margin-left', '0px'))
+        radii = dot_radii(lead2_text)
+        placed = positions(lead2_text)
+
+        # Overlap: the ramp is pulled back over the fade, and by a WHOLE lattice
+        # period so the dots it paints are still the lattice the test above
+        # verified -- a half-period nudge would put them out of phase with the
+        # track and dot-on-dot brighter where they overlap.
+        self.assertLess(shift, 0, 'the ramp must start inside the fade: without a negative'
+                                  ' margin-left it restarts after it and leaves a pale column')
+        self.assertEqual(0.0, shift % period, 'the overlap is one whole lattice period')
+        start = fade + shift
+        first_dot_left = start + period / 2 - max(radii)
+        self.assertLess(start, fade, 'a ramp starting after the fade leaves a pale column')
+        self.assertGreater(first_dot_left, 0, 'the ramp must not paint back over the fill')
+        self.assertLess(first_dot_left, fade, "the first big dot must sit ON the fade")
+        # The overlap may not shorten the ramp: the reach is what it always was.
+        self.assertEqual(48.0, fade + width + shift, 'the overlap must not shorten the ramp')
+
+        # Fade-out: the ramp carries the mock-up's dot-opacity mask, so its last
+        # small dots dim into the track's dimmed dots instead of stopping dead.
+        self.assertIn('mask', list(lead2), 'the ramp needs a fade-out mask')
+        self.assertIn('-webkit-mask', list(lead2), 'and its -webkit- twin')
+        self.assertEqual(lead2['-webkit-mask'], lead2['mask'])
+        stops = [px(value) for value in re.findall(r'([\d.]+)px', lead2['mask'])]
+        self.assertEqual(3, len(stops), 'opaque, then 75%, then clear')
+        opaque, half, clear = stops
+        self.assertEqual(sorted(stops), stops, 'the mask must ramp down, never up')
+        self.assertGreaterEqual(opaque, period, 'the big dots stay fully opaque')
+        self.assertGreater(half, opaque)
+        self.assertLess(clear, width, 'a mask ending at the box edge leaves a full-ink dot last')
+        # The last dot's centre is inside the fading run, so it dims rather than
+        # ending the ramp on full ink (the darker-column seam).
+        last_centre = max(x + period / 2 for x, _ in placed)
+        self.assertGreater(last_centre, half)
+        self.assertLess(last_centre, clear)
 
     def test_no_texture_needs_an_image_file_or_a_script(self):
         block = component_block()
