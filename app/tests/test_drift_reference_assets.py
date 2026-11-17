@@ -11,6 +11,9 @@ import wave
 
 import tts
 import voice_drift
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def write_wav(path):
@@ -68,6 +71,8 @@ class DriftReferenceAssetTests(unittest.TestCase):
     def test_relocated_builtin_reference_is_scored_but_reference_symlink_escape_is_not(self):
         for escaped in (False,True):
             with self.subTest(escaped=escaped),tempfile.TemporaryDirectory() as directory:
+                if escaped and not can_symlink():
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 base=Path(directory);installed=base/'installed';runtime=base/'runtime'
                 reference=installed/'builtin_lora/A/ref_sample.wav';write_wav(reference)
                 target=runtime/'voicelines/render.wav';write_wav(target)

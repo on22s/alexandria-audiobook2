@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from tests import test_corpus_dry_run
+from tests.test_support import skip_unless_symlink
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -14,6 +15,7 @@ corpus = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(corpus)
 
 class CorpusPrefixTests(unittest.TestCase):
+    @skip_unless_symlink
     def test_real_shell_dispatch_bounds_each_asr_request(self):
         helper = test_corpus_dry_run.CorpusDryRunTests()
         with tempfile.TemporaryDirectory() as tmp:

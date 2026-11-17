@@ -10,6 +10,8 @@ import tempfile
 import time
 import unittest
 
+from tests.test_support import skip_unless_symlink
+
 REPO=Path(__file__).resolve().parents[2]
 
 
@@ -54,6 +56,7 @@ raise SystemExit(4 if os.environ.get('FIXTURE_MODE')=='score_fail' else 0)
     def run_chain(self,name,**env):
         return subprocess.run(['bash',str(self.root/'run_chains'/name)],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
 
+    @skip_unless_symlink
     def test_widened_run_preserves_previous_measurement_and_resumes_each_scoped_sample(self):
         old={s:self.put('respelling_e_row__'+s+'.json',400).read_bytes() for s in ('e','ay','ei')}
         result=self.run_chain('e_row_arms_20260817.sh',E_ROW_LIMIT='800')
@@ -75,6 +78,7 @@ raise SystemExit(4 if os.environ.get('FIXTURE_MODE')=='score_fail' else 0)
         self.assertEqual(before,(self.root/'jobs').read_bytes())
         self.assertIn('legacy artifact covers requested limit',result.stdout)
 
+    @skip_unless_symlink
     def test_failed_or_incomplete_generation_never_scores_but_attempts_other_blocks(self):
         for mode in ('fail_full','partial','timeout','noop'):
             with self.subTest(mode=mode):
@@ -92,6 +96,7 @@ raise SystemExit(4 if os.environ.get('FIXTURE_MODE')=='score_fail' else 0)
                 self.assertIn('REPLICATION INCOMPLETE',result.stdout)
                 if mode=='timeout':self.assertIn('rc=124',result.stdout)
 
+    @skip_unless_symlink
     def test_only_complete_successful_blocks_score_and_scoring_failure_is_not_success(self):
         result=self.run_chain('e_row_replication_20260818.sh')
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
