@@ -1,6 +1,7 @@
 """Run CI's unit partitions in detached, byte-faithful local snapshots."""
 import contextlib
 import hashlib
+from importlib import metadata
 import json
 import math
 import os
@@ -34,6 +35,25 @@ OWNER_TOKEN_FILE = 'alexandria-local-unit-owner'
 
 def get_default_workers():
     return 2
+
+
+def get_unit_test_dependency_errors():
+    manifest = Path(__file__).with_name('requirements-test.txt')
+    errors = []
+    for line in manifest.read_text(encoding='utf-8').splitlines():
+        requirement = line.partition('#')[0].strip()
+        if not requirement:
+            continue
+        name, separator, expected = requirement.partition('==')
+        if not separator or not name or not expected:
+            raise ValueError(f'Unit test dependency must be version-pinned: {requirement}')
+        try:
+            installed = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            installed = 'missing'
+        if installed != expected:
+            errors.append(f'{requirement} (installed: {installed})')
+    return errors
 
 
 def get_git_environment():
@@ -636,6 +656,11 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
     if type(minimum_tests) is not int or minimum_tests < 1:
         raise ValueError('Unit discovery floor must be positive')
     repo = Path(repo).resolve()
+    dependency_errors = get_unit_test_dependency_errors()
+    if dependency_errors:
+        raise RuntimeError('Unit test dependencies unavailable: ' + ', '.join(dependency_errors)
+                           + f'. Install with: "{sys.executable}" -m pip install -r '
+                           + '"' + str(Path(__file__).with_name('requirements-test.txt')) + '"')
     artifacts = Path(os.path.abspath(report_dir)) if report_dir else get_artifact_root() / uuid.uuid4().hex
     validate_artifact_directory(repo, artifacts)
     if artifacts.exists() and any(artifacts.iterdir()):
@@ -693,7 +718,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                 raise ValueError('Unit inventory must contain nonempty, unique test identities')
             if timeout is None:
                 timeout = 3600 if workers else 7200
-            assignment = get_test_shards(inventory, durations, count)
+            assignment = get_test_shards([name for name, ids in inventory.items() if ids], durations, count)
             print(f'Local unit execution: workers={workers}, partitions={count}, GPU devices hidden', flush=True)
             protected_common = os.fsdecode(run_git(
                 repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).strip()
@@ -728,6 +753,8 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                         job['log'] = log_path.open('wb')
                         job['process'] = start_owned_subprocess(
                             command, cwd=app, env={**get_git_environment(), 'PYTHONPATH': str(app),
+                                                  'PATH': str(Path(sys.executable).parent) + os.pathsep
+                                                  + os.environ.get('PATH', ''),
                                                   'AA2_LOCAL_UNIT_COMMON_DIR': protected_common,
                                                   **CPU_DEVICE_MASK},
                             stdout=job['log'], stderr=subprocess.STDOUT, exit_notice_path=notice,
