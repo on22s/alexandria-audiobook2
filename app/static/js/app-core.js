@@ -1401,7 +1401,10 @@
             // (#2016). Same helper every other keyed node uses (Rule 15).
             const label = btn.querySelector('[data-i18n]');
             const icon = btn.querySelector('i');
-            const iconClass = icon ? icon.className : '';
+            // Capture the authored icon once per button: a request that starts
+            // while an older one is still detecting would otherwise record the
+            // spinner as the class to restore.
+            const iconClass = btn._autoConfigureIconClass ?? (btn._autoConfigureIconClass = icon ? icon.className : '');
             const request = {};
             btn._autoConfigureRequest = request;
             const snapshot = getAutoSettingsSnapshot();
