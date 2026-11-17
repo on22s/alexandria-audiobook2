@@ -6856,17 +6856,22 @@
             }};
         }
 
-        // An alias or voice timeline would keep another voice in effect (#1800):
-        // the server refuses with the overrides; ask, then retry clearing them.
+        // An alias, voice timeline or narrator strategy would keep another voice
+        // in effect (#1800, #2015): the server refuses with the overrides; ask,
+        // then retry clearing them.
         // -> the response, or null when the user keeps the overrides.
         async function postVoiceSuggestionApply(url, body) {
             try {
                 return await API.post(url, body);
             } catch (e) {
                 if (e.status !== 409 || !e.detail || e.detail.code !== 'voice_overrides') { throw e; }
-                const found = (e.detail.overrides || []).map(o => (o.alias_of
-                    ? t('voice.suggest.override_alias', '{character} speaks as {alias} (alias)', {character: o.character, alias: o.alias_of})
-                    : t('voice.suggest.override_timeline', '{character} follows a voice timeline', {character: o.character})));
+                const found = (e.detail.overrides || []).flatMap(o => {
+                    const parts = [];
+                    if (o.alias_of) { parts.push(t('voice.suggest.override_alias', '{character} speaks as {alias} (alias)', {character: o.character, alias: o.alias_of})); }
+                    if (o.version_timeline) { parts.push(t('voice.suggest.override_timeline', '{character} follows a voice timeline', {character: o.character})); }
+                    if (o.narrator_strategy) { parts.push(t('voice.suggest.override_narrator', "{character} narrates with the '{strategy}' narrator strategy", {character: o.character, strategy: o.narrator_strategy})); }
+                    return parts;
+                });
                 const ok = await showConfirm(formatUiSafetyText('safety.voice.clear_overrides', '{overrides}. Clear these so the suggested voice is used? Saved voice versions are kept.', {overrides: found.join('; ')}),
                     {title: t('voice.clear_overrides.title', 'Clear voice overrides?'), actionLabel: t('voice.clear_overrides.action', 'Clear and apply')});
                 if (!ok) { return null; }

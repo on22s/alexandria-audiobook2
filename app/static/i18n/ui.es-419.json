@@ -5371,6 +5371,7 @@
   "voice.suggest.none": "No hay sugerencias disponibles.",
   "voice.suggest.none_state": "No se encontraron candidatas de voz por estado.",
   "voice.suggest.override_alias": "{character} habla como {alias} (alias)",
+  "voice.suggest.override_narrator": "{character} narra con la estrategia de narrador «{strategy}»",
   "voice.suggest.override_timeline": "{character} sigue una línea de tiempo de voz",
   "voice.suggest.reused.many": "Reutilizada por {count} personajes del reparto existentes",
   "voice.suggest.reused.one": "Reutilizada por {count} personaje del reparto existente",

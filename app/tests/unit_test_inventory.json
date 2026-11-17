@@ -4351,6 +4351,7 @@
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_bulk_cast_pending_failure_retry"
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_confirmed_delete_refresh_error"
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_empty_ensemble_and_missing_prefill"
+    , "tests.test_deepseek_voice_ui.VoiceUiTests.test_narrator_strategy_refusal_is_named_in_the_confirm"
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_override_refusal_asks_then_retries_clearing_only_on_confirm"
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_panel_shared_ownership"
     , "tests.test_deepseek_voice_ui.VoiceUiTests.test_pending_single_ack_after_dismissal"
@@ -14499,6 +14500,14 @@
     , "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_collect_indexes_once_preserves_first_duplicate_and_refreshes_changed_library"
     , "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_large_ranked_pool_bounds_active_writes_and_reports_failure_without_dropping_rest"
     , "tests.test_suggestion_candidate_queue_js.SuggestionCandidateQueueTests.test_real_ranked_packets_persist_every_candidate_through_native_routes"
+  ]
+  , "test_suggestion_narrator_strategy": [
+    "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_a_dynamic_strategy_refuses_naming_it_then_resets_on_confirmation"
+    , "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_bulk_resets_a_strategy_per_book_and_leaves_clear_characters_alone"
+    , "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_global_or_absent_strategy_is_not_an_override"
+    , "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_the_helper_and_its_disclosures_are_pure"
+    , "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_the_resolver_hears_the_newly_applied_narrator_voice"
+    , "tests.test_suggestion_narrator_strategy.SuggestionNarratorStrategyTests.test_the_shared_helper_reports_the_verdict_the_single_voice_path_used"
   ]
   , "test_suite_imports_are_ci_installable": [
     "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_an_import_inside_a_test_is_allowed"
