@@ -638,7 +638,6 @@ b._move(Path(sys.argv[2]),Path(sys.argv[3]),exclusive=True,anchor=Path(sys.argv[
             self.assertEqual(b'original', get_book_original_slot(root).read_bytes())
             self.assertTrue((root / books.JOURNAL).exists())
 
-    @unittest.skipIf(os.name == 'nt', 'hardlink fixture requires POSIX link semantics')
     def test_hardlinked_replacement_is_preserved_for_inspection(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
