@@ -49,7 +49,7 @@ const HTML = `
   </div>
   <div id="casting-review-modal">
     <div id="casting-review-position"></div>
-    <div id="casting-review-progress"></div>
+    <div id="casting-review-progress" class="tp tp-ticks" role="progressbar" aria-label="Review progress" aria-valuemin="0" aria-valuemax="100"><div class="tp-fill" style="width:0%"></div><span class="tp-lead" aria-hidden="true"></span></div>
     <div id="casting-review-body"></div>
     <textarea id="casting-review-notes"></textarea>
     <button id="casting-review-save-notes" type="button"></button>
@@ -328,6 +328,12 @@ function setup({voices = VOICES, marks = INITIAL_MARKS, activity = [], confirm =
     };
     browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-i18n.js'), 'utf8'));
     browserWindow.eval(fs.readFileSync(path.join(root, 'app/static/js/app-casting-labels.js'), 'utf8'));
+    // #2042: the review bar renders through the shared progress component.
+    const core = fs.readFileSync(path.join(root, 'app/static/js/app-core.js'), 'utf8');
+    const progressStart = core.indexOf('// --- Textured progress bars (#2042) ---');
+    const progressEnd = core.indexOf('// --- End textured progress bars ---');
+    assert(progressStart > 0 && progressEnd > progressStart, 'textured progress component missing');
+    browserWindow.eval(core.slice(progressStart, progressEnd));
     browserWindow.eval(research);
     browserWindow.eval(source);
     return env;
@@ -1410,6 +1416,12 @@ const lifecycleCalls = env => env.calls.filter(call => call[1] === '/api/casting
         env.w.CastingLibrary.state().review = null;
         await click(env, $(env, 'review'));
         eq(env.w.CastingLibrary.state().review.list.map(voice => voice.id), ['persona/dh/echo'], 'review is scoped to trash mode');
+        // #2042: the review bar is the shared ticks component, and the renderer
+        // is what reports the fraction (ECHO is the only voice in scope and it
+        // is already reviewed).
+        eq($(env, 'review-progress').getAttribute('aria-valuenow'), '100', 'review bar reports its fraction');
+        eq($(env, 'review-progress').ariaValueText, '100%', 'review bar speaks its percentage');
+        eq($(env, 'review-progress').ariaBusy, 'false', 'a determinate review bar is not busy');
         env.w.CastingLibrary.state().review = null;
         const audiosBeforeTrashPlay = env.audios.length;
         await click(env, $(env, 'play-all'));

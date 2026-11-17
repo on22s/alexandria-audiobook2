@@ -15,7 +15,9 @@ const report={file:'<img src=x onerror=alert(1)>.mp3',status:'review',expected_f
 const rejection={task:'audio',status:'failed',stage:'decode',reason:'<script>alert(2)</script>',diagnostics:[{kind:'chapter',chapter:1,expected_start_seconds:1,expected_end_seconds:2,actual_start_seconds:3,actual_end_seconds:4}]};
 const result={book_token:'b'.repeat(64),reports:[report],rejected_attempts:[rejection],attempts:[{task:'audio',status:'failed',completed_files:0}],unavailable:2,reports_per_task_limit:32,rejections_per_task_limit:16,identity_check:'metadata_only'};
 context.API={get:async()=>result,post:async(url,data)=>{posts.push({url,data});return{};}};
-load();const core=fs.readFileSync(process.argv[2],'utf8');let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish'));(async()=>{
+load();const core=fs.readFileSync(process.argv[2],'utf8');
+// Editor render bars are the shared #2042 textured component.
+vm.runInContext(core.slice(core.indexOf('// --- Textured progress bars (#2042) ---'),core.indexOf('// --- End textured progress bars ---')),context);let finished=false;process.on('beforeExit',()=>assert(finished,'scenario must finish'));(async()=>{
 '''
 
 

@@ -6163,5 +6163,8 @@
   "voices.review.show-buttons": "Mostrar botones de revisión",
   "voice.review.saved": "Se guardó el estado de revisión de {speaker}.",
   "voice.review.save-error": "No se pudo actualizar la aprobación",
-  "voice.review.save-recovery": "Vuelve a cargar Voces para comprobar la aprobación actual antes de reintentar. Las asignaciones de voz siguen disponibles."
+  "voice.review.save-recovery": "Vuelve a cargar Voces para comprobar la aprobación actual antes de reintentar. Las asignaciones de voz siguen disponibles.",
+  "core.editor.render-progress-label": "Se renderizaron {completed} de {total} líneas",
+  "core.progress.indeterminate": "{task}: el progreso todavía no se ha informado",
+  "core.progress.value": "{task}: {percentage}% completado"
 }

@@ -17,6 +17,9 @@ vm.createContext(ctx);Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+
 const a=core.indexOf('const API = {'),b=core.indexOf('// --- Setup Tab ---',a);vm.runInContext(core.slice(a,b),ctx);
 const c=core.indexOf('function escapeHtml('),d=core.indexOf('// Parse a numeric input',c);vm.runInContext(core.slice(c,d),ctx);
 const outcomeStart=core.indexOf('function isTaskFailed('),outcomeEnd=core.indexOf('// Ask for permission only',outcomeStart);vm.runInContext(core.slice(outcomeStart,outcomeEnd),ctx);
+// The training bar is the shared #2042 textured component.
+const progressStart=core.indexOf('// --- Textured progress bars (#2042) ---'),progressEnd=core.indexOf('// --- End textured progress bars ---');
+assert(progressStart>=0&&progressEnd>progressStart,'textured progress component missing');vm.runInContext(core.slice(progressStart,progressEnd),ctx);
 vm.runInContext(source,ctx);
 (async()=>{
 """

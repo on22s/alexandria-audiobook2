@@ -6163,5 +6163,8 @@
   "voices.review.show-buttons": "確認ボタンを表示",
   "voice.review.saved": "{speaker} の確認状態を保存しました。",
   "voice.review.save-error": "承認状態の更新に失敗しました",
-  "voice.review.save-recovery": "音声画面を再読み込みし、現在の承認状態を確認してから再試行してください。音声の割り当ては引き続き利用できます。"
+  "voice.review.save-recovery": "音声画面を再読み込みし、現在の承認状態を確認してから再試行してください。音声の割り当ては引き続き利用できます。",
+  "core.editor.render-progress-label": "{completed} / {total} 行をレンダリング済み",
+  "core.progress.indeterminate": "{task}: 進捗はまだ報告されていません",
+  "core.progress.value": "{task}: {percentage}% 完了"
 }

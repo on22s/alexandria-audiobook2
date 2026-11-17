@@ -8353,15 +8353,16 @@
             const actionContainer = tr.querySelector('.chunk-actions');
             if (actionContainer) {
                 const existingBtn = actionContainer.querySelector('button');
-                const existingProgress = actionContainer.querySelector('.progress');
+                const existingProgress = actionContainer.querySelector('.tp');
 
                 if (chunk.status === 'generating') {
                     if (existingBtn && !existingProgress) {
+                        // Per-line bars are indeterminate by design: one line has
+                        // no fraction to report (dither, the audio texture).
                         const progressBar = document.createElement('div');
-                        progressBar.className = 'progress';
+                        progressBar.className = 'tp tp-dither tp-sm tp-indeterminate';
                         progressBar.style.width = '100px';
-                        progressBar.style.height = '20px';
-                        progressBar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="Generating audio">Generating…</div>';
+                        progressBar.innerHTML = '<span class="tp-label" role="status" aria-label="Generating audio">Generating…</span>';
                         actionContainer.replaceChild(progressBar, existingBtn);
                     }
                 } else {
@@ -8564,6 +8565,78 @@
                 ...(revision ? [] : [chunk.text, chunk.instruct, chunk.speaker])]);
         }
 
+        // --- Textured progress bars (#2042) ---
+        // The ONE renderer for every progress bar in the app (Rule 15). `el` is
+        // the `.tp` track; its `.tp-fill` child carries the fraction and the
+        // `.tp-lead`/`.tp-lead2` siblings are the texture's fill-edge
+        // transition. Every colour lives in index.html's component CSS, so a
+        // theme switch recolours a bar with no re-render.
+        //
+        // `fraction` is 0-1 (values outside that range are clamped) and `null`
+        // means the task has not reported one yet: indeterminate, so no fill,
+        // no aria-valuenow, and a slowly sliding track texture.
+        //
+        // Texture per bar, one texture for one meaning:
+        //   ticks    - Script Review, script generation, casting review
+        //   dither   - rendering audio (whole book and the per-line bars)
+        //   halftone - LoRA training and the Voice Lab pipeline
+        //   hatch    - dataset builder and dataset preparer
+        //
+        // `task` is the translated task name; passing it builds the spoken
+        // value here so no caller re-derives it.
+        function renderTexturedProgress(el, { fraction = null, label = '', valueText = null, task = '' } = {}) {
+            if (!el) { return; }
+            const indeterminate = fraction === null || fraction === undefined
+                || !Number.isFinite(Number(fraction));
+            const percentage = indeterminate
+                ? 0 : Math.round(Math.min(1, Math.max(0, Number(fraction))) * 100);
+            // Slice harnesses hand this function a bare element stub, so every
+            // child is optional: without them the element itself is painted.
+            const fill = el.querySelector?.('.tp-fill') || el;
+            const wrap = el.closest?.('.tp-wrap') || null;
+            const labelEl = wrap ? wrap.querySelector('.tp-label') : null;
+            const valueEl = wrap ? wrap.querySelector('.tp-value') : null;
+            // The bar's accessible NAME belongs to the markup: an aria-label, or
+            // an aria-labelledby pointing at the head-row label's id. This
+            // renderer never touches either attribute and never rewrites that
+            // id, so the name survives every render -- but for a labelledby bar
+            // the label's TEXT is the name, so an empty `label` must not blank
+            // it, or the bar would end up nameless.
+            const namedByLabel = !!labelEl && !!labelEl.id
+                && (el.getAttribute?.('aria-labelledby') || '')
+                    .split(/\s+/).includes(labelEl.id);
+            if (el.classList) {
+                if (indeterminate) { el.classList.add?.('tp-indeterminate'); }
+                else { el.classList.remove?.('tp-indeterminate'); }
+            }
+            fill.style.width = indeterminate ? '' : `${percentage}%`;
+            if (labelEl) {
+                if (label || !namedByLabel) { labelEl.textContent = label; }
+            } else { fill.innerText = label; }
+            if (valueEl) { valueEl.textContent = indeterminate ? '' : `${percentage}%`; }
+            el.ariaValueMin = '0';
+            el.ariaValueMax = '100';
+            // Both forms: the IDL property reflects to the attribute in a
+            // browser, and slice harnesses read one or the other off a stub.
+            if (indeterminate) {
+                el.removeAttribute?.('aria-valuenow');
+                el.ariaValueNow = null;
+            } else {
+                el.setAttribute?.('aria-valuenow', String(percentage));
+                el.ariaValueNow = String(percentage);
+            }
+            if (valueText === null) {
+                valueText = !task ? label
+                    : indeterminate
+                        ? t('core.progress.indeterminate', '{task}: progress is not reported yet', {task})
+                        : t('core.progress.value', '{task}: {percentage}%', {task, percentage});
+            }
+            el.ariaValueText = valueText;
+            el.ariaBusy = indeterminate ? 'true' : 'false';
+        }
+        window.renderTexturedProgress = renderTexturedProgress;
+        // --- End textured progress bars ---
+
         async function refreshChunkSnapshot(forceFullRedraw = false) {
             const refreshBook = currentBookFilename;
             // Cancel any pending poll so re-entrant calls don't stack up
@@ -8613,16 +8686,11 @@
             window.renderPendingCount?.(chunks);
             const total = chunks.length;
             const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-            const progressBar = document.getElementById('full-progress-bar');
-            if (progressBar) {
-                const valueText = `${percentage}% (${completed}/${total})`;
-                progressBar.style.width = `${percentage}%`;
-                progressBar.innerText = valueText;
-                progressBar.ariaValueNow = String(percentage);
-                progressBar.ariaValueText = t('core.editor.render-progress-value', 'Rendered {completed} of {total} lines ({percentage}%)', {completed, total, percentage});
-                progressBar.ariaBusy = 'false';
-                progressBar.classList?.remove('progress-bar-animated');
-            }
+            renderTexturedProgress(document.getElementById('full-progress-bar'), {
+                fraction: total > 0 ? completed / total : 0,
+                label: t('core.editor.render-progress-label', 'Rendered {completed} of {total} lines', {completed, total}),
+                valueText: t('core.editor.render-progress-value', 'Rendered {completed} of {total} lines ({percentage}%)', {completed, total, percentage}),
+            });
             if (chunks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
                 cachedChunks = [];
@@ -8720,9 +8788,7 @@
                             `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`;
 
                         const actionArea = chunk.status === 'generating' ?
-                            `<div class="progress" style="width: 100px; height: 20px;">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>
-                             </div>` :
+                            `<div class="tp tp-dither tp-sm tp-indeterminate" style="width: 100px;"><span class="tp-label" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</span></div>` :
                             `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
 
                         return `
@@ -9500,11 +9566,11 @@
                     const container = tr.querySelector('.d-flex');
                     const btn = container.querySelector('button');
                     if (btn) {
+                        // Same indeterminate per-line bar as updateChunkRow's.
                          const progressBar = document.createElement('div');
-                         progressBar.className = 'progress';
+                         progressBar.className = 'tp tp-dither tp-sm tp-indeterminate';
                          progressBar.style.width = '100px';
-                         progressBar.style.height = '20px';
-                         progressBar.innerHTML = `<div class="progress-bar progress-bar-striped progress-bar-animated bg-warning flex-grow-1" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</div>`;
+                         progressBar.innerHTML = `<span class="tp-label" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</span>`;
                          container.replaceChild(progressBar, btn);
                     }
                 }
@@ -10424,10 +10490,12 @@
                     syncPauseButton(taskName, status);
                     if (taskName === 'script') { syncSnapshotButton(status); }
                     renderActivity(activityEl, status, track);
+                    if (activityId === 'script-activity') { renderScriptTabProgress(status, taskName); }
                     if (activityId) { renderManualRequest(status, taskName); }
                 },
                 onDone: status => {
                     if (activityEl) { activityEl.hidden = true; }
+                    if (activityId === 'script-activity') { renderScriptTabProgress({ running: false }, taskName); }
                     if (activityId) { renderManualRequest({ running: false }, taskName); }
                     notifyJobDone(taskName, '', 'finished', status);
                     if (['script', 'review', 'cast_list'].includes(taskName) && currentTabName === 'script') { window.refreshScriptIngestFacts?.(); }
@@ -10446,5 +10514,43 @@
                         }
                     }
                 }
+            });
+        }
+
+        // --- Script tab progress (#2042) ---
+        // The Script tab's own bar, next to its activity row. It reads the
+        // fraction the server already embeds in the status payload (`eta`, the
+        // same estimate /api/status/eta serves) - no extra request, no new
+        // endpoint.
+        //
+        // Two cases have no fraction to draw and go indeterminate:
+        //   * the task has not reported one yet (eta.fraction is null);
+        //   * the speaker alias-merge stage, whose fraction is 1.0 (it runs
+        //     after the last review batch) but whose single model call has no
+        //     known length, so core._compute_eta withholds eta_seconds too
+        //     (#2037, core.SPEAKER_MERGE_MARKER).
+        //
+        // Which stage that is comes from the server: core._compute_eta's own
+        // tail scan puts the merge line into `eta.progress`. Deciding it here
+        // from `status.logs` as well would be a second implementation of the
+        // same call, and the two drift (Rule 15).
+        const SCRIPT_MERGE_STAGE_MARKER = 'Merging duplicate names:';
+        function isSpeakerMergeStage(eta) {
+            return String((eta && eta.progress) || '').includes(SCRIPT_MERGE_STAGE_MARKER);
+        }
+
+        function renderScriptTabProgress(status, taskName) {
+            const wrap = document.getElementById('script-progress');
+            if (!wrap) { return; }
+            const running = !!(status && status.running);
+            wrap.hidden = !running;
+            if (!running) { return; }
+            const eta = status.eta || null;
+            const indeterminate = isSpeakerMergeStage(eta)
+                || !eta || !Number.isFinite(eta.fraction);
+            renderTexturedProgress(document.getElementById('script-progress-bar'), {
+                fraction: indeterminate ? null : eta.fraction,
+                label: getTaskLabel(taskName),
+                task: getTaskLabel(taskName),
             });
         }

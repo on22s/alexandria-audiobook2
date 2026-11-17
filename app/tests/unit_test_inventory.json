@@ -12708,6 +12708,15 @@
     , "tests.test_script_preflight.ScriptPreflightTests.test_unicode_audit_reports_nfc_and_unsafe_characters"
     , "tests.test_script_preflight.ScriptPreflightTests.test_untransferable_empty_metadata_and_invalid_pause_are_not_discarded"
   ]
+  , "test_script_progress_js": [
+    "tests.test_script_progress_js.ScriptProgressTests.test_a_fraction_beside_a_non_merge_progress_label_stays_determinate"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_a_reported_fraction_drives_the_bar"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_finishing_hides_the_bar_and_clears_the_indeterminate_state"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_no_fraction_yet_is_indeterminate"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_only_the_script_activity_row_drives_the_script_bar"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_the_alias_merge_stage_is_indeterminate_even_at_fraction_one"
+    , "tests.test_script_progress_js.ScriptProgressTests.test_the_bar_is_hidden_until_the_script_task_runs"
+  ]
   , "test_script_publication_cancellation": [
     "tests.test_script_publication_cancellation.PublicationCancellationTests.test_already_published_cannot_be_reported_as_cancelled"
     , "tests.test_script_publication_cancellation.PublicationCancellationTests.test_cancel_waits_for_publication_transaction_and_reports_the_result"
@@ -15031,6 +15040,30 @@
     "tests.test_text_diff_reply_js.TextDiffReplyTests.test_book_edits_close_and_direct_merge_comparison_invalidate_pending_reply"
     , "tests.test_text_diff_reply_js.TextDiffReplyTests.test_current_failure_and_malformed_reply_remain_visible_errors"
     , "tests.test_text_diff_reply_js.TextDiffReplyTests.test_older_reply_or_error_cannot_replace_newer_comparison"
+  ]
+  , "test_textured_progress_css": [
+    "tests.test_textured_progress_css.TexturedProgressCssTests.test_each_texture_is_a_gradient_or_an_svg_mask"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_every_theme_defines_the_bar_ink_from_its_own_tokens"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_indeterminate_and_reduced_motion"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_no_texture_needs_an_image_file_or_a_script"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_bar_is_28px_tall_with_square_corners"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_block_documents_one_texture_per_meaning"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_bootstrap_bar_styles_are_gone"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_component_names_no_literal_colour"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_halftone_edge_is_round_dots_shrinking_on_the_offset_lattice"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_halftone_ramp_overlaps_the_fade_and_fades_out_into_the_track"
+    , "tests.test_textured_progress_css.TexturedProgressCssTests.test_the_track_is_dim_ink_and_the_fill_is_solid_ink"
+  ]
+  , "test_textured_progress_js": [
+    "tests.test_textured_progress_js.TexturedProgressTests.test_a_bare_element_still_gets_the_width_text_and_aria"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_a_fraction_drives_the_fill_the_head_label_and_the_aria_values"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_a_missing_element_is_a_no_op"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_a_missing_or_unusable_fraction_is_indeterminate"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_a_render_never_drops_the_accessible_name"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_every_bar_in_the_app_uses_the_shared_component"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_every_progress_bar_has_an_accessible_name"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_fractions_outside_the_unit_range_are_clamped"
+    , "tests.test_textured_progress_js.TexturedProgressTests.test_going_back_to_a_fraction_clears_the_indeterminate_state"
   ]
   , "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways"

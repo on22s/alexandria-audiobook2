@@ -361,7 +361,8 @@
 
             let actionHtml = '';
             if (row.status === 'generating') {
-                actionHtml = '<div class="progress" style="width:80px;height:20px;"><div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" style="width:100%"></div></div>';
+                // One sample has no fraction to report: indeterminate dither.
+                actionHtml = '<div class="tp tp-dither tp-sm tp-indeterminate" style="width:80px;" role="status" aria-label="' + escapeHtml(t('workbench.row.status.generating', 'generating')) + '"></div>';
             } else {
                 const genLabel = row.status === 'done' ? '<i class="fas fa-redo"></i>' : '<i class="fas fa-play"></i>';
                 actionHtml = getEscapedHtml`<button class="btn btn-sm btn-primary" ${disabled} onclick="dsbGenSample(${i})" title="${row.status === 'done' ? t('workbench.row.regenerate', 'Regenerate') : t('workbench.row.generate', 'Generate')}">` + genLabel + '</button>';
@@ -460,8 +461,11 @@
             const bar = document.getElementById('dsb-progress-bar');
             if (done > 0 || dsbBatchRunning) {
                 wrap.style.display = '';
-                bar.style.width = pct + '%';
-                bar.innerText = `${pct}% (${done}/${total})`;
+                // Hatch: the dataset-build texture (#2042).
+                renderTexturedProgress(bar, {
+                    fraction: total > 0 ? done / total : 0,
+                    label: `${pct}% (${done}/${total})`,
+                });
             } else {
                 wrap.style.display = 'none';
             }
@@ -1466,6 +1470,14 @@
                 onTick: state => {
                     if (prepActiveTask !== taskName) { return; }
                     renderLogs(state);
+                    // Hatch: the dataset-build texture, same as the builder's
+                    // (#2042). The server already embeds the estimate.
+                    const progress = state.eta || null;
+                    renderTexturedProgress(document.getElementById('preparer-progress-bar'), {
+                        fraction: progress && Number.isFinite(progress.fraction) ? progress.fraction : null,
+                        label: getTaskLabel(taskName),
+                        task: getTaskLabel(taskName),
+                    });
 
                     // Update batch queue status badges
                     if (taskName === 'batch_preparer' && state.tasks) {

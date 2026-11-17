@@ -12,8 +12,10 @@ const classes=new Set(['bg-danger']);const bar=element('lora-progress-bar');bar.
 ctx._startPolling=(key,fetch,options)=>ctx.poll={options};ctx.notifyJobDone=()=>{};ctx.loadLoraModels=()=>{};
 for(const [status,color] of [['failed','bg-danger'],['done','bg-success'],['cancelled','bg-warning'],['done','bg-success']]){
  element('lora-epoch-display').innerText='old';element('lora-loss-display').innerText='old';ctx.pollLoraTraining(8);
- assert(classes.has('bg-info'));assert(classes.has('progress-bar-animated'));assert(!classes.has('bg-danger'));assert(!classes.has('bg-success'));assert(!classes.has('bg-warning'));assert.strictEqual(bar.style.width,'0%');assert.strictEqual(element('lora-epoch-display').innerText,'');assert.strictEqual(element('lora-loss-display').innerText,'');
- ctx.poll.options.onDone({status,running:false,logs:[status==='done'?'[DONE]':status==='failed'?'[ERROR]':'cancelled']});assert(classes.has(color));assert(!classes.has('bg-info'));assert(!classes.has('progress-bar-animated'));assert.strictEqual([...classes].filter(n=>n.startsWith('bg-')).length,1);if(status==='done'){assert.strictEqual(bar.style.width,'100%');}
+ // #2042: the outcome tint now belongs to the component's fill, and the
+ // Bootstrap stripe animation is gone with Bootstrap's progress markup.
+ assert(classes.has('bg-info'));assert(!classes.has('bg-danger'));assert(!classes.has('bg-success'));assert(!classes.has('bg-warning'));assert.strictEqual(bar.style.width,'0%');assert.strictEqual(element('lora-epoch-display').innerText,'');assert.strictEqual(element('lora-loss-display').innerText,'');
+ ctx.poll.options.onDone({status,running:false,logs:[status==='done'?'[DONE]':status==='failed'?'[ERROR]':'cancelled']});assert(classes.has(color));assert(!classes.has('bg-info'));assert.strictEqual([...classes].filter(n=>n.startsWith('bg-')).length,1);if(status==='done'){assert.strictEqual(bar.style.width,'100%');}
 }
 ''')
 

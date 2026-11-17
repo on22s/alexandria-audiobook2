@@ -6163,5 +6163,8 @@
   "voices.review.show-buttons": "显示审核按钮",
   "voice.review.saved": "已保存 {speaker} 的审核状态。",
   "voice.review.save-error": "审核状态更新失败",
-  "voice.review.save-recovery": "重新加载声音页面，确认当前审核状态后再试。声音分配仍然可用。"
+  "voice.review.save-recovery": "重新加载声音页面，确认当前审核状态后再试。声音分配仍然可用。",
+  "core.editor.render-progress-label": "已渲染 {completed} / {total} 行",
+  "core.progress.indeterminate": "{task}：进度尚未报告",
+  "core.progress.value": "{task}：已完成 {percentage}%"
 }
