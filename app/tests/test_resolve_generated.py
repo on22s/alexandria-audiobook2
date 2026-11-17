@@ -8,7 +8,7 @@ evidence to it in Part I. Taking either side alone would have lost work.
 
 So the refusal is the load-bearing behaviour, and it is tested first.
 """
-from tests.test_support import get_isolated_git_environment
+from tests.test_support import get_bash_path, get_isolated_git_environment, run_bash_fixture
 import os
 import subprocess
 import tempfile
@@ -51,8 +51,9 @@ class ResolveGeneratedTest(unittest.TestCase):
         self.git("merge", "side", check=False)
 
     def run_script(self):
-        return subprocess.run(["bash", SCRIPT], cwd=self.repo,
-                              capture_output=True, text=True, timeout=120, env=get_isolated_git_environment())
+        return run_bash_fixture([get_bash_path(SCRIPT)], cwd=self.repo,
+                                capture_output=True, text=True, timeout=120,
+                                env=get_isolated_git_environment())
 
     def test_it_refuses_a_conflict_in_real_code(self):
         """The load-bearing case: regenerating would discard one side."""

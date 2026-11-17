@@ -59,7 +59,9 @@ if '--check-artifact' in args:
 phase=args[args.index('--phase')+1]
 with (r/'evaluators').open('a') as f: f.write(phase+'\\n')
 if os.environ.get('FIXTURE_EVALUATOR_BLOCK')=='1':
- (r/'blocked').write_text(json.dumps({'owner':int(os.environ['ALEXANDRIA_GPU_LOCK_PID']),'evaluator':os.getpid()}))
+ # Publish the marker by rename so the test never reads a partly written file.
+ (r/'blocked.tmp').write_text(json.dumps({'owner':int(os.environ['ALEXANDRIA_GPU_LOCK_PID']),'evaluator':os.getpid()}))
+ os.replace(r/'blocked.tmp', r/'blocked')
  while not (r/'release').exists(): time.sleep(.01)
 code=int(os.environ.get('FIXTURE_EVALUATOR_RC','0'))
 if code:raise SystemExit(code)
@@ -153,7 +155,17 @@ p=r/'ab_test_runtime/experiments'/('pdnc_evidence__'+phase+'__local-llamacpp.jso
             (self.root / 'server.pid').write_text(str(external.pid))
         process = self.launch(CHAIN, FIXTURE_EVALUATOR_BLOCK='1')
         self.wait_marker('blocked')
-        child = json.loads((self.root / 'blocked').read_text())['evaluator']
+        # wait_marker only proves the marker exists; the child may still be writing
+        # it. Re-read until it parses as a whole document, bounded like wait_marker.
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                child = json.loads((self.root / 'blocked').read_text())['evaluator']
+                break
+            except (OSError, ValueError):
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(.01)
         server = int((self.root / 'server.pid').read_text())
         if sent_signal is None:
             (self.root / 'release').touch()

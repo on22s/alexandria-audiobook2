@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 import re
 import shlex
-import subprocess
 import sys
 import tempfile
 import unittest
+
+from tests.test_support import get_bash_path, run_bash_fixture, write_bash_fixture
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -33,10 +34,10 @@ if os.environ.get('FAIL_SERIALIZE')=='1':
  json.dump=interrupt
 exec(compile(sys.stdin.read(),'actual campaign config editor','exec'))
 '''
-            wrapper.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' -c '+shlex.quote(bootstrap)+' "$@"\n');wrapper.chmod(0o755)
-            program='REPO='+shlex.quote(str(root))+'\nPY='+shlex.quote(str(wrapper))+'\n'+command+'\nprintf advanced > "$REPO/advanced"\n'
+            write_bash_fixture(wrapper,'#!/bin/sh\nexec '+shlex.quote(get_bash_path(sys.executable))+' -c '+shlex.quote(bootstrap)+' "$@"\n')
+            program='REPO='+shlex.quote(get_bash_path(root))+'\nPY='+shlex.quote(get_bash_path(wrapper))+'\n'+command+'\nprintf advanced > "$REPO/advanced"\n'
             env=dict(os.environ,PYTHONPATH=str(REPO/'app'),FAIL_SERIALIZE='1' if fail else '0')
-            result=subprocess.run(['bash','-c',program],env=env,cwd=root,capture_output=True,text=True,timeout=10)
+            result=run_bash_fixture(['-c',program],env=env,cwd=root,capture_output=True,text=True,timeout=10)
             return result,original,config.read_bytes(),(root/'advanced').exists(),list((root/'app').glob('.tmp_*'))
 
     def test_interrupted_serialization_preserves_original_valid_config(self):

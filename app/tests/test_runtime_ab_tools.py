@@ -1,12 +1,13 @@
 import importlib.util
 import json
 import os
-import stat
+import shlex
 import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import (get_bash_path, requires_linux_queue_tools,
+                                run_bash_fixture, write_bash_fixture)
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -55,9 +56,12 @@ class RuntimeAbAnalyzerTests(unittest.TestCase):
 
 class RuntimeAbRunnerTests(unittest.TestCase):
     def _write_executable(self, path, body):
-        with open(path, "w") as fh:
-            fh.write(body)
-        os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR)
+        return write_bash_fixture(path, body)
+
+    def _run(self, body, env):
+        """Source the real runner through the shared shell transport."""
+        return run_bash_fixture(["-c", f"source {shlex.quote(get_bash_path(RUNNER))}; {body}"],
+                                env=env, text=True, capture_output=True)
 
     def test_runtime_selection_fails_when_selected_alias_does_not_match(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,11 +72,9 @@ class RuntimeAbRunnerTests(unittest.TestCase):
             fake_lms = os.path.join(tmp, "lms")
             self._write_executable(fake_lms, "#!/bin/sh\n"
                                    "if [ \"$1 $2\" = \"runtime ls\" ]; then echo '✓ wrong-runtime'; fi\n")
-            command = f"source {RUNNER!r}; select_runtime wanted-runtime"
-            env = {**os.environ, "APP": app, "OUT": out, "LMS": fake_lms,
-                   "PY": sys.executable}
-            result = subprocess.run(["bash", "-c", command], env=env,
-                                    text=True, capture_output=True)
+            env = {**os.environ, "APP": get_bash_path(app), "OUT": get_bash_path(out),
+                   "LMS": get_bash_path(fake_lms), "PY": get_bash_path(sys.executable)}
+            result = self._run("select_runtime wanted-runtime", env)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("does not match", result.stderr)
 
@@ -85,11 +87,11 @@ class RuntimeAbRunnerTests(unittest.TestCase):
             with open(os.path.join(app, "config.json"), "w") as fh:
                 json.dump({"llm_mode": "local", "llm": {
                     "model_name": "old", "base_url": "http://127.0.0.1:1234/v1"}}, fh)
-            command = f"source {RUNNER!r}; set_model new-model"
-            env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
-                   "PY": sys.executable,
+            env = {**os.environ, "APP": get_bash_path(app), "OUT": get_bash_path(out),
+                   "LMS": "/bin/true", "PY": get_bash_path(sys.executable),
                    "PYTHONPATH": os.path.join(ROOT, "app")}
-            subprocess.run(["bash", "-c", command], env=env, check=True)
+            result = self._run("set_model new-model", env)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             with open(os.path.join(app, "config.json")) as fh:
                 config = json.load(fh)
         self.assertEqual("new-model", config["llm"]["model_name"])
@@ -101,14 +103,13 @@ class RuntimeAbRunnerTests(unittest.TestCase):
             with open(os.path.join(app, "config.json"), "w") as fh:
                 json.dump({"llm_mode": "remote", "llm": {
                     "model_name": "old", "base_url": "https://remote/v1"}}, fh)
-            env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
-                   "PY": sys.executable, "PYTHONPATH": os.path.join(ROOT, "app")}
-            result = subprocess.run(["bash", "-c", f"source {RUNNER!r}; set_model new"],
-                                    env=env, text=True, capture_output=True)
+            env = {**os.environ, "APP": get_bash_path(app), "OUT": get_bash_path(out),
+                   "LMS": "/bin/true", "PY": get_bash_path(sys.executable),
+                   "PYTHONPATH": os.path.join(ROOT, "app")}
+            result = self._run("set_model new", env)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("llm_mode=local", result.stderr)
 
-    @requires_linux_queue_tools
     def test_failed_arm_is_counted_for_nonzero_final_status(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = os.path.join(tmp, "app"); out = os.path.join(tmp, "out")
@@ -118,12 +119,12 @@ class RuntimeAbRunnerTests(unittest.TestCase):
                     "model_name": "old", "base_url": "http://127.0.0.1:1234/v1"}}, fh)
             wrapper = os.path.join(tmp, "python-wrapper")
             self._write_executable(wrapper, "#!/bin/sh\n"
-                                   f"if [ \"$1\" = - ]; then exec {sys.executable!r} \"$@\"; fi\n"
+                                   f"if [ \"$1\" = - ]; then exec {shlex.quote(get_bash_path(sys.executable))} \"$@\"; fi\n"
                                    "exit 7\n")
-            env = {**os.environ, "APP": app, "OUT": out, "LMS": "/bin/true",
-                   "PY": wrapper, "PYTHONPATH": os.path.join(ROOT, "app"), "REPEATS": "1"}
-            command = f"source {RUNNER!r}; run_arm test tag model; test \"$RUN_FAILURES\" -eq 1"
-            result = subprocess.run(["bash", "-c", command], env=env)
+            env = {**os.environ, "APP": get_bash_path(app), "OUT": get_bash_path(out),
+                   "LMS": "/bin/true", "PY": get_bash_path(wrapper),
+                   "PYTHONPATH": os.path.join(ROOT, "app"), "REPEATS": "1"}
+            result = self._run("run_arm test tag model; test \"$RUN_FAILURES\" -eq 1", env)
         self.assertEqual(0, result.returncode)
 
 

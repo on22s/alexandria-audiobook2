@@ -1,9 +1,10 @@
 """Actual chain rejects unsafe paths before creating directories or dispatch."""
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
+
+from tests.test_support import run_bash_fixture
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -15,7 +16,7 @@ class ResumeArmArgumentTests(unittest.TestCase):
             root=Path(tmp);chain=root/'run_chains/resume_partial_arm_20260826.sh';chain.parent.mkdir();chain.write_bytes(source.read_bytes())
             for sep,limit in (('../../escape','2'),('space','../../../../tmp/out'),('space','-1'),('space','1.5'),('SPACE','2'),('','2')):
                 with self.subTest(separator=sep,limit=limit):
-                    result=subprocess.run(['bash',str(chain),sep,limit],cwd=root,capture_output=True,text=True,timeout=5)
+                    result=run_bash_fixture([str(chain),sep,limit],cwd=root,capture_output=True,text=True,timeout=5)
                     self.assertEqual(2,result.returncode,result.stdout+result.stderr)
                     self.assertFalse((root/'ab_test_runtime').exists())
                     self.assertNotIn('No such file or directory',result.stderr)
@@ -27,6 +28,10 @@ class ResumeArmArgumentTests(unittest.TestCase):
         for sep in ('none','space','dot','hyphen'):
             for limit in ('0','2','1600'):
                 with self.subTest(separator=sep,limit=limit):
-                    result=subprocess.run(['bash','-c',prefix+'\necho admitted\n','fixture',sep,limit],capture_output=True,text=True,timeout=5)
+                    result=run_bash_fixture(['-c',prefix+'\necho admitted\n','fixture',sep,limit],capture_output=True,text=True,timeout=5)
                     self.assertEqual(0,result.returncode,result.stderr)
                     self.assertEqual('admitted\n',result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

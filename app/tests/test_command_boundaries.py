@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import lmstudio_settings as settings
+from tests.test_support import run_bash_fixture, write_bash_fixture
 from script_preflight import replacement_repair_hint
 
 
@@ -23,19 +24,27 @@ class CommandBoundaryTests(unittest.TestCase):
                 self.assertIn("& '" + executable + "' repair_source_encoding.py --apply -- '" + source.replace("'", "''") + "'", hint)
 
     def test_repair_hint_executes_literal_filename_not_extra_shell_statements(self):
+        """The emitted POSIX command must carry the name as one literal argument.
+
+        This executes the POSIX form, so the emitting branch is forced here: on
+        Windows the hint correctly renders a PowerShell command instead, which
+        is a different command language and is pinned as text by
+        test_windows_repair_hint_uses_current_interpreter_and_powershell_literals.
+        The names never become files, only argv, so no illegal native name is built.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);binary=root/'app/env/bin';binary.mkdir(parents=True)
             recorder=binary/'python'
-            recorder.write_text('#!'+sys.executable+'\nimport json,pathlib,sys\npathlib.Path("argv.json").write_text(json.dumps(sys.argv[1:]))\n')
-            recorder.chmod(0o755)
+            write_bash_fixture(recorder,'#!'+sys.executable+'\nimport json,pathlib,sys\npathlib.Path("argv.json").write_text(json.dumps(sys.argv[1:]))\n')
             sentinel=root/'injected'
             names=['ordinary name.txt',"quote'book.txt",'line\nbreak.txt','-book.txt',f'book; touch {sentinel}; #',f'book$(touch {sentinel}).txt',f'book`touch {sentinel}`.txt']
             for name in names:
                 with self.subTest(name=name):
-                    hint=replacement_repair_hint(name)
+                    with patch.object(sys,'platform','linux'):
+                        hint=replacement_repair_hint(name)
                     command=hint.split('it with\n',1)[1].split('\nwhich writes',1)[0].strip()
-                    result=subprocess.run(['bash','-c',command],cwd=root,capture_output=True,text=True,timeout=3)
-                    self.assertEqual(0,result.returncode,result.stderr)
+                    result=run_bash_fixture(['-c',command],cwd=root,capture_output=True,text=True,timeout=3)
+                    self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                     argv=json.loads((root/'app/argv.json').read_text())
                     self.assertEqual(['repair_source_encoding.py','--apply','--',name],argv)
                     self.assertFalse(sentinel.exists())
