@@ -359,14 +359,25 @@ class WindowsStageDirectory:
                 or _identity(info) != self.expected):
             raise StageDirectoryChanged('Admitted staging directory was replaced')
 
-    def remove_contents(self, retained_names):
+    def remove_contents(self, retained_names, *, admitted_children=None):
+        """When supplied, restrict deletion to creation-time child identity receipts."""
         if (type(retained_names) is not frozenset
                 or any(not _member(name) for name in retained_names)):
             raise ValueError('Invalid retained staging names')
+        if admitted_children is not None:
+            if type(admitted_children) is not dict:
+                raise ValueError('Invalid admitted staging children')
+            admitted_children = admitted_children.copy()
+            for names, identity in admitted_children.items():
+                if (type(names) is not tuple or not names
+                        or any(not _member(name) for name in names)
+                        or type(identity) is not tuple or len(identity) != 2
+                        or any(type(value) is not int or value < 0 for value in identity)):
+                    raise ValueError('Invalid admitted staging child identity')
         self.check()
         if self.has_recovery_guard():
             raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
-        self._remove_children(self.path, retained_names, 0)
+        self._remove_children(self.path, retained_names, 0, admitted_children)
 
     def open_owner_stream(self, *, create=False):
         self.check()
@@ -442,7 +453,7 @@ class WindowsStageDirectory:
                 or (opened.st_dev, opened.st_ino) != (named.st_dev, named.st_ino)):
             raise StageDirectoryChanged('Unsafe or replaced staging owner lock')
 
-    def _remove_children(self, path, retained_names, depth):
+    def _remove_children(self, path, retained_names, depth, admitted_children=None):
         if depth > 64:
             raise StageDirectoryChanged('Staging cleanup nesting limit exceeded')
         if depth:
@@ -469,14 +480,22 @@ class WindowsStageDirectory:
                 if entry.name == DIRECTORY:
                     raise StageDirectoryChanged('Nested export registry requires explicit recovery')
                 self.check()
-                before = os.stat(path / entry.name, follow_symlinks=False)
+                if admitted_children is None:
+                    before = os.stat(path / entry.name, follow_symlinks=False)
+                    expected = before.st_dev, before.st_ino
+                else:
+                    names = (path / entry.name).relative_to(self.path).parts
+                    expected = admitted_children.get(names)
+                    if expected is None:
+                        raise StageDirectoryChanged('Staging child was not admitted at creation')
                 child = _Handle(self.api, path / entry.name, delete=True)
                 try:
                     info = child.information()
-                    if _identity(info) != (before.st_dev, before.st_ino):
+                    if _identity(info) != expected:
                         raise StageDirectoryChanged('Staging child was replaced')
                     if info.attributes & 0x10 and not info.attributes & 0x400:
-                        self._remove_children(path / entry.name, frozenset(), depth + 1)
+                        self._remove_children(path / entry.name, frozenset(), depth + 1,
+                                              admitted_children)
                     child.delete()
                 finally:
                     child.close()

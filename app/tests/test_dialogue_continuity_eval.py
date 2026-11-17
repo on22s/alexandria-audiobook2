@@ -24,7 +24,7 @@ def write_wav(path, payload=b'fixture'):
         handle.writeframes((payload * 2000)[:4000])
 
 
-class DialogueContinuityEvaluationTests(unittest.TestCase):
+class DialogueContinuityFixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -44,6 +44,8 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
             cancel_check=cancel_check, source_root=ROOT,
             source_revision={'head': 'test', 'dirty': False})
 
+
+class DialogueContinuityEvaluationTests(DialogueContinuityFixture):
     def test_cpu_pairs_are_resumable_and_changed_inputs_or_audio_refuse_reuse(self):
         calls = []
         def renderer(*args):
@@ -477,6 +479,20 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         path.mkdir()
         (path / 'owned.txt').write_text('owned')
         identity = ev._path_identity(path)
+        admitted = {('owned.txt',): ev._path_identity(path / 'owned.txt')}
+        if os.name == 'nt':
+            from windows_export_staging_directory import WindowsStageDirectory
+            real_remove = WindowsStageDirectory.remove_contents
+            def attempt_swap(directory, retained_names, **kwargs):
+                with self.assertRaises(OSError):
+                    path.rename(self.root / 'moved-owned')
+                self.assertEqual(identity, ev._path_identity(path))
+                return real_remove(directory, retained_names, **kwargs)
+            with patch.object(WindowsStageDirectory, 'remove_contents', new=attempt_swap):
+                ev._remove_owned_dir(path, identity, admitted)
+            self.assertFalse((path / 'owned.txt').exists())
+            self.assertFalse((self.root / 'moved-owned').exists())
+            return
         real_clear = ev._clear_directory_fd
         def swap(fd):
             path.rename(self.root / 'moved-owned')
@@ -484,7 +500,7 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
             (path / 'foreign.txt').write_text('foreign')
             return real_clear(fd)
         with patch.object(ev, '_clear_directory_fd', side_effect=swap):
-            ev._remove_owned_dir(path, identity)
+            ev._remove_owned_dir(path, identity, admitted)
         self.assertEqual('foreign', (path / 'foreign.txt').read_text())
         self.assertFalse((self.root / 'moved-owned' / 'owned.txt').exists())
 
@@ -492,8 +508,29 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
         path = self.root / 'owned-staging'
         path.mkdir()
         (path / 'owned.txt').write_text('owned')
-        ev._remove_owned_dir(path, ev._path_identity(path))
+        nested = path / 'nested'
+        nested.mkdir()
+        (nested / 'audio.wav').write_bytes(b'owned audio')
+        admitted = {('owned.txt',): ev._path_identity(path / 'owned.txt'),
+                    ('nested',): ev._path_identity(nested),
+                    ('nested', 'audio.wav'): ev._path_identity(nested / 'audio.wav')}
+        ev._remove_owned_dir(path, ev._path_identity(path), admitted)
         self.assertFalse((path / 'owned.txt').exists())
+        self.assertEqual([], list(path.iterdir()))
+
+    def test_directory_cleanup_reports_replacement_before_open(self):
+        path = self.root / 'staging'
+        path.mkdir()
+        (path / 'owned.txt').write_text('owned')
+        identity = ev._path_identity(path)
+        moved = self.root / 'moved-owned'
+        path.rename(moved)
+        path.mkdir()
+        (path / 'foreign.txt').write_text('foreign')
+        with self.assertRaises(ev.ContinuityEvaluationError):
+            ev._remove_owned_dir(path, identity)
+        self.assertEqual('foreign', (path / 'foreign.txt').read_text())
+        self.assertEqual('owned', (moved / 'owned.txt').read_text())
 
     def test_packaging_collision_preserves_foreign_public_file(self):
         self.run_eval()
@@ -508,6 +545,47 @@ class DialogueContinuityEvaluationTests(unittest.TestCase):
                 ev.build_blind_package(self.root / 'run', self.root / 'public-collision-package',
                                        public, self.root / 'public-collision-key.json')
         self.assertEqual('foreign', public.read_text())
+
+    def test_packaging_cleanup_reports_all_failures_and_attempts_both_manifests(self):
+        self.run_eval(rows=(0,))
+        package = self.root / 'package'
+        directory_error = ev.ContinuityEvaluationError('owned staging cleanup refused')
+        attempted = []
+        original_unlink = Path.unlink
+        def refuse_manifest(path, *args, **kwargs):
+            if path.name.startswith(('key.json.building-', 'public.json.building-')):
+                attempted.append(path)
+                raise PermissionError(f'manifest cleanup refused: {path.name}')
+            return original_unlink(path, *args, **kwargs)
+        with patch.object(ev, 'move_source_upload_exclusively',
+                          side_effect=OSError('fixture publication failure')), \
+                patch.object(ev, '_remove_owned_dir', side_effect=directory_error), \
+                patch.object(Path, 'unlink', new=refuse_manifest):
+            with self.assertRaisesRegex(ev.ContinuityEvaluationError, 'package cleanup refused') as caught:
+                ev.build_blind_package(self.root / 'run', package,
+                                       self.root / 'public.json', self.root / 'key.json')
+        self.assertEqual(2, len(attempted))
+        self.assertEqual({'key.json', 'public.json'},
+                         {path.name.split('.building-')[0] for path in attempted})
+        self.assertIs(directory_error, caught.exception.__cause__)
+        self.assertEqual(3, len(caught.exception.cleanup_errors))
+        for path in attempted:
+            self.assertIn(path.name, str(caught.exception))
+
+    def test_packaging_partial_copy_is_owned_and_cleaned(self):
+        self.run_eval(rows=(0,))
+        copied = []
+        def fail_copy(source, destination):
+            Path(destination).write_bytes(b'partial owned audio')
+            copied.append(Path(destination))
+            raise RuntimeError('fixture partial copy failure')
+        with patch.object(ev.shutil, 'copy2', side_effect=fail_copy):
+            with self.assertRaisesRegex(RuntimeError, 'partial copy failure'):
+                ev.build_blind_package(self.root / 'run', self.root / 'package',
+                                       self.root / 'public.json', self.root / 'key.json')
+        self.assertEqual(1, len(copied))
+        self.assertFalse(copied[0].exists())
+        self.assertEqual([], list(copied[0].parent.iterdir()))
 
     def test_answers_are_bound_to_one_package_randomization(self):
         self.run_eval()

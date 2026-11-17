@@ -106,7 +106,7 @@ def main():
     print(f"  {'adapter':36}{'adapter':>9}{'ref vs own':>12}")
     print(f"  {'':36}{'ecapa':>9}{'training':>12}\n")
     for d in sorted(glob.glob(os.path.join(args.models, "*/"))):
-        name = os.path.basename(d.rstrip("/"))
+        name = os.path.basename(os.path.normpath(d))
         ref = os.path.join(d, "ref_sample.wav")
         meta_p = os.path.join(d, "training_meta.json")
         if not (os.path.exists(ref) and os.path.exists(meta_p)):

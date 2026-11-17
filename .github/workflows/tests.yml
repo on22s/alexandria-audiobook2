@@ -360,6 +360,12 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/native_windows_cleanup_checks.py
+      - name: Verify native Windows dialogue cleanup identity and refusal
+        env:
+          PYTHONPATH: .
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: utf-8
+        run: python tests/native_windows_dialogue_cleanup_checks.py
       - name: Install FFmpeg for native Windows transaction checks
         run: choco install ffmpeg --no-progress -y
       - name: Verify native Windows transaction codec executables
