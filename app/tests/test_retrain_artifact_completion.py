@@ -1,4 +1,5 @@
 """Bound retrain artifacts/resume and actual CPU fixture producer; no training."""
+from tests.test_support import copy_bash_fixture, run_bash_fixture
 import contextlib
 import copy
 import importlib.util
@@ -30,7 +31,7 @@ class RetrainArtifactTests(unittest.TestCase):
         (app / 'experiments').mkdir(parents=True)
         for rel in ('experiments/retrain_honest.py', 'train_lora.py', 'tts.py', 'voice_reference.py',
                     'experiments/generation.py', 'experiments/library_voice_fidelity.py'):
-            shutil.copyfile(REPO / 'app' / rel, app / rel)
+            copy_bash_fixture(REPO / 'app' / rel, app / rel)
         (app / 'experiments/voice_compare_view.py').write_text('# No view calls in fixture.\n')
         (app / 'config.json').write_text('{}')
         spec = importlib.util.spec_from_file_location('fixture_retrain', app / 'experiments/retrain_honest.py')
@@ -253,7 +254,7 @@ class RetrainChainTests(unittest.TestCase):
                   'adapter_out="$runtime/experiments/reference_rank1_pilot.json"\n'
                   'stage() { echo DISPATCH:$1; cp "$FIXTURE_PAYLOAD" "$FIXTURE_TARGET"; return "$FIXTURE_RC"; }\n'
                   + block + '\necho NEXT_STAGE\n')
-        return subprocess.run(['bash', '-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
+        return run_bash_fixture(['-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
             capture_output=True, text=True, timeout=15,
             env=dict(os.environ, PYTHONPATH=str(REPO/'app'), ALEXANDRIA_VOICE_ZIPS=self.args.zips,
                      FIXTURE_PAYLOAD=str(payload), FIXTURE_TARGET=self.args.out, FIXTURE_RC=str(worker_rc)))

@@ -4,12 +4,12 @@ import os
 import re
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 from tests.unseen_fixture_support import COMPLETION_FIXTURE_CODE, copy_completion_dependencies
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import (get_bash_path, requires_linux_queue_tools,
+                               run_bash_fixture, write_bash_fixture)
 
 ROOT=Path(__file__).resolve().parents[2]
 CHAINS=('overnight_2026_08_09c.sh','unseen_books.sh','unseen_books_20260819b.sh')
@@ -39,7 +39,7 @@ class ConfigBackupResumeTests(unittest.TestCase):
         config.write_bytes(original)
         backup=logs/('config.json.overnight_backup' if name.startswith('overnight') else 'config.json.unseen_backup')
         bin_dir=root/'bin';bin_dir.mkdir()
-        def executable(path, source): path.write_text(source);path.chmod(0o755)
+        def executable(path, source): write_bash_fixture(path, source)
         (root/'cpu_generation_fixture.py').write_text(
             COMPLETION_FIXTURE_CODE + 'import json,os,pathlib,sys\nsys.path.insert(0,str(pathlib.Path(__file__).parent/"app"))\n'
             'with open(os.environ["CALLS"],"a") as f:f.write("cpu work\\n")\n'
@@ -68,7 +68,7 @@ class ConfigBackupResumeTests(unittest.TestCase):
         return chains/name, config, backup, original, env
 
     def run_chain(self, script, env):
-        return subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=15)
+        return run_bash_fixture([str(script)],env=env,capture_output=True,text=True,timeout=15)
 
     def test_stale_backup_restored_before_capture_normal_exit_and_new_user_edit_survive_next_run(self):
         for name in CHAINS:
@@ -140,17 +140,18 @@ class ConfigRestorePublicationTests(unittest.TestCase):
             current=b'{"current":true}';saved=b'{"saved":true}'
             config.write_bytes(current);backup.write_bytes(saved)
             binaries=root/'bin';binaries.mkdir()
-            mv=binaries/'mv';mv.write_text('#!/bin/sh\necho fixture-publication-refused >&2\nexit 1\n');mv.chmod(0o755)
-            command=['bash','-c','source "$1"; restore_config_backup "$2" "$3"',
-                     'fixture',str(ROOT/'run_chains/lib/config_backup.sh'),str(backup),str(config)]
-            result=subprocess.run(command,env={**os.environ,'PATH':str(binaries)+os.pathsep+os.environ['PATH']},
-                                  capture_output=True,text=True,timeout=5)
+            mv=binaries/'mv';write_bash_fixture(mv,'#!/bin/sh\necho fixture-publication-refused >&2\nexit 1\n')
+            command=['-c','source "$1"; restore_config_backup "$2" "$3"',
+                     'fixture',get_bash_path(ROOT/'run_chains/lib/config_backup.sh'),
+                     get_bash_path(backup),get_bash_path(config)]
+            result=run_bash_fixture(command,env={**os.environ,'PATH':str(binaries)+os.pathsep+os.environ['PATH']},
+                                    capture_output=True,text=True,timeout=5)
             self.assertEqual(1,result.returncode,result.stdout+result.stderr)
             self.assertIn('recovery retained',result.stderr)
             self.assertEqual(current,config.read_bytes())
             self.assertEqual(saved,backup.read_bytes())
             self.assertFalse(list(root.glob('config.json.restore.*')))
-            result=subprocess.run(command,capture_output=True,text=True,timeout=5)
+            result=run_bash_fixture(command,capture_output=True,text=True,timeout=5)
             self.assertEqual(0,result.returncode,result.stdout+result.stderr)
             self.assertEqual(saved,config.read_bytes())
             self.assertFalse(backup.exists())

@@ -7,12 +7,14 @@ nobody. Four chains had each pasted the same GGUF literal inline to work
 around the same check (Rule 15).
 """
 import os
+import shlex
 import subprocess
 import sys
 import socket
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import (get_bash_path, requires_linux_queue_tools,
+                                run_bash_fixture)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.path.join(REPO, "ensure_llama_server.sh")
@@ -24,11 +26,13 @@ def read_model(env):
     It is sourced with a stubbed PATH so nothing is actually launched; the
     resolution happens in the first few lines.
     """
+    # A Windows checkout carries this script with CRLF line endings, so the
+    # sed output is stripped of CR before it is evaluated as shell text.
     probe = ('MODEL=""; DEFAULT_MODEL=""\n'
-             'eval "$(sed -n "/^DEFAULT_MODEL=/,/^MODEL=/p" %r)"\n'
-             'echo "$MODEL"' % SCRIPT)
-    return subprocess.run(["bash", "-c", probe], capture_output=True,
-                          text=True, timeout=60, env=env).stdout.strip()
+             "eval \"$(tr -d '\\r' < %s | sed -n '/^DEFAULT_MODEL=/,/^MODEL=/p')\"\n"
+             'echo "$MODEL"' % shlex.quote(get_bash_path(SCRIPT)))
+    return run_bash_fixture(["-c", probe], capture_output=True,
+                            text=True, timeout=60, env=env).stdout.strip()
 
 
 @unittest.skipUnless(os.path.exists(SCRIPT), "ensure_llama_server.sh missing")
@@ -70,8 +74,8 @@ class DefaultModelTest(unittest.TestCase):
             satisfied_binary = sys.executable
         with tempfile.TemporaryDirectory() as tmp:
             absent = os.path.join(tmp, "not-here.gguf")
-            result = subprocess.run(
-                ["bash", SCRIPT], capture_output=True, text=True, timeout=120,
+            result = run_bash_fixture(
+                [str(SCRIPT)], capture_output=True, text=True, timeout=120,
                 env=self._env(LLAMA_MODEL=absent, LLAMA_BIN=satisfied_binary))
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("no model file at", result.stderr)
@@ -83,20 +87,20 @@ class DefaultModelTest(unittest.TestCase):
         with open(SCRIPT, encoding="utf-8") as handle:
             self.assertIn("DEFAULT_MODEL=", handle.read())
 
-    @requires_linux_queue_tools
     def test_file_identity_changes_when_same_path_is_replaced(self):
         with tempfile.TemporaryDirectory() as root:
             target = os.path.join(root, "adapter.gguf")
             with open(target, "wb") as handle:
                 handle.write(b"old")
             snippet = ("source <(sed -n '/^file_identity()/,/^}/p' %s); "
-                       "file_identity %s" % (repr(SCRIPT), repr(target)))
-            first = subprocess.run(["bash", "-c", snippet], capture_output=True,
-                                   text=True, check=True).stdout
+                       "file_identity %s" % (shlex.quote(get_bash_path(SCRIPT)),
+                                             shlex.quote(get_bash_path(target))))
+            first = run_bash_fixture(["-c", snippet], capture_output=True,
+                                     text=True, check=True).stdout
             with open(target, "wb") as handle:
                 handle.write(b"replacement")
-            second = subprocess.run(["bash", "-c", snippet], capture_output=True,
-                                    text=True, check=True).stdout
+            second = run_bash_fixture(["-c", snippet], capture_output=True,
+                                      text=True, check=True).stdout
         self.assertNotEqual(first, second)
 
 

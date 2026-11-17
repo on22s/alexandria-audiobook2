@@ -5,11 +5,11 @@ import os
 from pathlib import Path
 import shutil
 import shlex
-import subprocess
 import sys
 import unittest
 
 from tests import test_asr_completion as fixtures
+from tests.test_support import get_bash_path, run_bash_fixture, write_bash_fixture
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -29,19 +29,19 @@ class JapaneseAsrCacheTests(unittest.TestCase):
         self.document=self.make_document()
         chain=self.root/'run_chains/japanese_asr_confirmation.sh';chain.parent.mkdir()
         source=Path(os.environ.get('JAPANESE_ASR_SOURCE',str(REPO/'run_chains'/chain.name))).read_text()
-        chain.write_text(source)
+        write_bash_fixture(chain,source)
         python=self.root/'app/env/bin/python';python.parent.mkdir(parents=True)
-        python.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' "$@"\n');python.chmod(0o755)
-        (self.root/'app/experiments/kokoro_ja_asr_set.py').write_text('import os,pathlib\npathlib.Path(os.environ["FIXTURE_ROOT"],"built").touch()\n')
-        queue=self.root/'gpu_job.sh';queue.write_text('#!/bin/bash\ntouch "$FIXTURE_ROOT/dispatched"\nexit 7\n');queue.chmod(0o755)
+        write_bash_fixture(python,'#!/bin/sh\nexec '+shlex.quote(get_bash_path(sys.executable))+' "$@"\n')
+        (self.root/'app/experiments/kokoro_ja_asr_set.py').write_text('import pathlib\npathlib.Path('+repr(str(self.root))+',"built").touch()\n')
+        write_bash_fixture(self.root/'gpu_job.sh','#!/bin/bash\ntouch "'+get_bash_path(self.root)+'/dispatched"\nexit 7\n')
         self.chain=chain
-        self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),JA_CONFIRM_CLIPS='10',PYTHONPATH=str(REPO/'app'))
+        self.env=dict(os.environ,FIXTURE_ROOT=get_bash_path(self.root),JA_CONFIRM_CLIPS='10',PYTHONPATH=str(REPO/'app'))
 
     def run_chain(self,clips='10'):
         for marker in ('built','dispatched'):
             p=self.root/marker
             if p.exists():p.unlink()
-        return subprocess.run(['bash',str(self.chain)],cwd=self.root.parent,env=dict(self.env,JA_CONFIRM_CLIPS=clips),capture_output=True,text=True,timeout=10)
+        return run_bash_fixture([str(self.chain)],cwd=self.root.parent,env=dict(self.env,JA_CONFIRM_CLIPS=clips),capture_output=True,text=True,timeout=10)
 
     def test_valid_real_format_good_and_poor_measurements_skip_without_model_or_generation(self):
         for poor in (False,True):

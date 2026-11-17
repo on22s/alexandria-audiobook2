@@ -1,4 +1,5 @@
 """Known PCM/score fixtures, actual producer and native cache CLI; no inference."""
+from tests.test_support import copy_bash_fixture, run_bash_fixture
 import contextlib
 import copy
 import importlib.util
@@ -33,7 +34,7 @@ class AsrCompletionTests(unittest.TestCase):
         self.root = Path(temporary.name)
         script = self.root / "app/experiments/asr_backends.py"
         script.parent.mkdir(parents=True)
-        shutil.copyfile(REPO / "app/experiments/asr_backends.py", script)
+        copy_bash_fixture(REPO / "app/experiments/asr_backends.py", script)
         package = self.root / "app/silero_vad"
         (package / "data").mkdir(parents=True)
         (package / "__init__.py").write_text('raise AssertionError("fixture model must never be loaded")\n')
@@ -220,7 +221,7 @@ class AsrCompletionTests(unittest.TestCase):
         script = ('set -uo pipefail\nrepo=$1; runtime=$2; python=$3\n'
             'stage() { echo DISPATCH; cp "$FIXTURE_PAYLOAD" "$asr_out"; return "$FIXTURE_RC"; }\n'
             + block + '\necho NEXT_STAGE\n')
-        return subprocess.run(['bash', '-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
+        return run_bash_fixture(['-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
             capture_output=True, text=True, timeout=10, env=dict(os.environ, PYTHONPATH=str(REPO / 'app'),
             FIXTURE_PAYLOAD=str(payload), FIXTURE_RC=str(worker_rc)))
 

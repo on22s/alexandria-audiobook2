@@ -7,15 +7,16 @@ in parentheses was the OLD score in every case. Anyone reading that log would
 have concluded eight adapters failed a retest - the claim that justifies
 rebuilding a dataset.
 """
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
 import time
 import unittest
-from tests.test_support import requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHAIN = os.path.join(REPO, "run_chains", "everything_20260818.sh")
@@ -54,7 +55,7 @@ class RecheckReportingTest(unittest.TestCase):
         os.makedirs(self.log_dir)
         helper_dir = os.path.join(self.tmp.name, 'app/experiments')
         os.makedirs(helper_dir)
-        shutil.copyfile(os.path.join(REPO, 'app/experiments/recheck_result.py'),
+        copy_bash_fixture(os.path.join(REPO, 'app/experiments/recheck_result.py'),
                         os.path.join(helper_dir, 'recheck_result.py'))
 
     def _run(self, adapters, exit_codes, write_artifact=True):
@@ -85,22 +86,25 @@ class RecheckReportingTest(unittest.TestCase):
                 "fi\n"
                 "exit ${rc:-0}\n"
                 % (codes,
-                   ("printf '{\"adapter\": \"adapter/%s\", \"median_ecapa\": %s, \"lines\": 1, \"passed\": %s}' \"$name\" \"$score\" \"$passed\" > \"$out\"")
+                   ('python3 -c ' + shlex.quote(
+                       'import json,os,sys; json.dump(dict(adapter=os.path.normpath("adapter/"+sys.argv[2]), '
+                       'median_ecapa=float(sys.argv[3]), lines=1, passed=sys.argv[4]=="true"), '
+                       'open(sys.argv[1],"w"))') + ' "$out" "$name" "$score" "$passed"')
                    if write_artifact else "true"))
         os.chmod(stub, 0o755)
 
         script = "\n".join([
             "set -uo pipefail",
-            "REPO=%r" % self.tmp.name,
-            "runtime=%r" % self.tmp.name,
+            "REPO=%s" % shlex.quote(get_bash_path(self.tmp.name)),
+            "runtime=%s" % shlex.quote(get_bash_path(self.tmp.name)),
             "python=%r" % "python3",
-            "STAGE_LOG_DIR=%r" % self.log_dir,
-            "FAILED_LIST=%r" % failed_list,
+            "STAGE_LOG_DIR=%s" % shlex.quote(get_bash_path(self.log_dir)),
+            "FAILED_LIST=%s" % shlex.quote(get_bash_path(failed_list)),
             "stage_note() { echo \"$*\"; }",
             extract(["recheck_one", "recheck_score", "recheck_failures"]),
             "recheck_failures; echo \"RETURN=$?\"",
         ])
-        return subprocess.run(["bash", "-c", script], capture_output=True,
+        return run_bash_fixture(["-c", script], capture_output=True,
                               text=True, timeout=120, cwd=self.tmp.name)
 
     def test_a_refused_job_is_not_called_a_failed_adapter(self):
@@ -112,7 +116,6 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("0 of 1 measured", result.stdout)
         self.assertIn("1 never ran", result.stdout)
 
-    @requires_linux_queue_tools
     def test_a_real_below_threshold_verdict_is_still_reported_as_one(self):
         """rc=3 means it DID measure. Losing that would be the opposite bug."""
         result = self._run([("beta", "0.0342")], {"beta": 3})
@@ -121,7 +124,6 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("1 of 1 measured", result.stdout)
         self.assertIn("1 below threshold", result.stdout)
 
-    @requires_linux_queue_tools
     def test_the_new_score_is_reported_not_the_old_one(self):
         result = self._run([("gamma", "0.0342")], {"gamma": 3})
         line = next(l for l in result.stdout.splitlines() if "gamma" in l)
@@ -146,7 +148,6 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("RETURN=1", result.stdout)
         self.assertIn("INCOMPLETE", result.stdout)
 
-    @requires_linux_queue_tools
     def test_the_stage_passes_when_every_adapter_was_measured(self):
         """Below-threshold on every adapter is a complete stage: it measured
         what it set out to measure."""
@@ -154,7 +155,6 @@ class RecheckReportingTest(unittest.TestCase):
         self.assertIn("RETURN=0", result.stdout)
         self.assertIn("2 of 2 measured", result.stdout)
 
-    @requires_linux_queue_tools
     def test_the_total_is_counted_not_hard_coded(self):
         """The tally said `of 8` regardless of how many rows it read."""
         result = self._run([("a", "0.1"), ("b", "0.2"), ("c", "0.3")],

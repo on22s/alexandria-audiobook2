@@ -14,6 +14,8 @@ import functools
 from http.server import BaseHTTPRequestHandler
 import inspect
 import json
+import locale
+import logging
 import os
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -21,9 +23,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 from unittest.mock import patch
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_isolated_git_environment(extra=None):
@@ -168,13 +174,177 @@ def assume_ample_free_disk(testcase):
     testcase.addCleanup(probe.stop)
 
 
+@functools.lru_cache(maxsize=1)
 def get_bash_executable():
-    """Resolve the same native Bash used by the production source probe."""
+    """Prefer Git-for-Windows usr/bin Bash; reject WSL during fallback probing."""
     from experiments.manifest import _source_probe_shell
+    if os.name == 'nt':
+        git = shutil.which('git')
+        if git:
+            probe = subprocess.run([git, '--exec-path'], capture_output=True,
+                                   text=True, timeout=10, env=get_isolated_git_environment())
+            roots = list(Path(git).parents)
+            if probe.returncode == 0:
+                roots = list(Path(probe.stdout.strip()).parents) + roots
+            for root in roots:
+                for relative in ('usr/bin/bash.exe', 'bin/bash.exe'):
+                    candidate = root / relative
+                    uname = candidate.parent / 'uname.exe'
+                    if not candidate.is_file() or not uname.is_file():
+                        continue
+                    result = subprocess.run([str(candidate), '-c', '"$1" -s', 'fixture',
+                                             get_bash_path(uname)], capture_output=True,
+                                            text=True, timeout=10)
+                    if result.returncode == 0 and result.stdout.upper().startswith(('MINGW', 'MSYS')):
+                        return str(candidate)
     executable, detail = _source_probe_shell()
     if executable is None:
         raise RuntimeError(detail)
     return executable
+
+
+def get_bash_path(path):
+    """Return a shell-facing path without exposing native backslash escapes."""
+    value = os.fspath(path)
+    if os.name != 'nt':
+        return value
+    value = value.replace('\\', '/')
+    if len(value) >= 3 and value[1:3] == ':/':
+        return '/' + value[0].lower() + value[2:]
+    return value
+
+
+def write_bash_fixture(path, source):
+    """Write LF shell text or a Python payload with a space-safe Bash launcher."""
+    path = Path(path)
+    first, _, body = source.partition('\n')
+    if first.startswith('#!') and 'python' in first.lower():
+        return write_python_bash_fixture(path, body)
+    path.write_text(source, encoding='utf-8', newline='\n')
+    path.chmod(0o755)
+    return path
+
+
+def copy_bash_fixture(source, destination):
+    """Copy shell fixtures as LF, retaining exact bytes for non-shell inputs."""
+    if Path(source).suffix == '.sh':
+        return write_bash_fixture(destination, Path(source).read_text(encoding='utf-8'))
+    return shutil.copyfile(source, destination)
+
+
+def run_bash_fixture(arguments, **kwargs):
+    """Run native Bash with isolated Git and host-Python command fixtures.
+
+    Shell snippets must quote get_bash_path() values themselves. Positional
+    arguments are transported as individual argv entries, never shell text.
+    Custom environment values retain their caller-selected host/shell contract.
+    """
+    supplied_environment = kwargs.pop('env', None)
+    environment = get_isolated_git_environment(supplied_environment)
+    if supplied_environment is not None:
+        environment = {name: value for name, value in environment.items()
+                       if name in supplied_environment or name == 'GIT_CONFIG_NOSYSTEM'}
+    with tempfile.TemporaryDirectory(prefix='bash transport ') as directory:
+        if os.name == 'nt':
+            for name in ('python', 'python3'):
+                write_python_bash_launcher(Path(directory) / name)
+            shell = Path(get_bash_executable())
+            path = environment.get('PATH', '')
+            inherited = os.environ.get('PATH', '')
+            prefix = path[:-len(inherited)].rstrip(os.pathsep) if inherited and path.endswith(inherited) else ''
+            paths = prefix.split(os.pathsep) if prefix else []
+            paths += [directory, str(shell.parent), str(shell.parent.parent / 'usr/bin')]
+            paths.extend((inherited if prefix else path).split(os.pathsep))
+            environment['PATH'] = ':'.join(get_bash_path(path) for path in paths if path)
+        command = [get_bash_executable()]
+        if os.name == 'nt':
+            command += ['-o', 'igncr']
+        for index, argument in enumerate(arguments):
+            value = os.fspath(argument)
+            snippet = index == 1 and arguments[0] == '-c'
+            native_absolute = len(value) >= 3 and value[1] == ':' and value[2] in '/\\'
+            if not snippet and (isinstance(argument, os.PathLike) or native_absolute
+                                or (index == 0 and value != '-c')):
+                value = get_bash_path(value)
+            command.append(value)
+        if os.name == 'nt':
+            quoted = []
+            for value in command:
+                argument = subprocess.list2cmdline([value])
+                if not argument.startswith('"'):
+                    trailing = len(value) - len(value.rstrip('\\'))
+                    argument = '"' + argument + '\\' * trailing + '"'
+                quoted.append(argument)
+            command = ' '.join(quoted)
+        timeout = kwargs.pop('timeout', None)
+        check = kwargs.pop('check', False)
+        capture = kwargs.pop('capture_output', False)
+        if capture and ('stdout' in kwargs or 'stderr' in kwargs):
+            raise ValueError('stdout and stderr arguments may not be used with capture_output.')
+        outputs = {}
+        if capture:
+            # Capture into files, never pipes: subprocess.run's reader threads
+            # block on a pipe that a surviving grandchild keeps open, so its
+            # timeout never returns on Windows.
+            encoding = kwargs.get('encoding') or locale.getpreferredencoding(False)
+            for name in ('stdout', 'stderr'):
+                handle = tempfile.NamedTemporaryFile(prefix='bash transport ', delete=False)
+                outputs[name] = (Path(handle.name), handle)
+                kwargs[name] = handle
+        try:
+            process = subprocess.Popen(command, env=environment, **kwargs)
+        finally:
+            for _, handle in outputs.values():
+                handle.close()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_bash_fixture_tree(process)
+            remove_bash_fixture_outputs(outputs)
+            raise
+        captured = {}
+        text = kwargs.get('text') or kwargs.get('universal_newlines')
+        for name, (path, _) in outputs.items():
+            captured[name] = (path.read_text(encoding=encoding, errors=kwargs.get('errors'))
+                              if text else path.read_bytes())
+        remove_bash_fixture_outputs(outputs)
+        completed = subprocess.CompletedProcess(command, process.returncode,
+                                                captured.get('stdout'), captured.get('stderr'))
+        if check:
+            completed.check_returncode()
+        return completed
+
+
+def remove_bash_fixture_outputs(outputs):
+    """Remove captured output files, retrying while a closing child holds one."""
+    for path, _ in outputs.values():
+        for attempt in range(10):
+            try:
+                path.unlink()
+                break
+            except FileNotFoundError:
+                break
+            except OSError as error:
+                if attempt == 9:
+                    logger.warning('could not remove fixture output %s: %s', path, error)
+                else:
+                    time.sleep(0.1)
+
+
+def stop_bash_fixture_tree(process):
+    """Kill a timed-out fixture's tree so no descendant outlives the test."""
+    if os.name == 'nt':
+        from subprocess_ownership import terminate_windows_process_tree
+        try:
+            terminate_windows_process_tree(process, force=True, timeout=10)
+        except OSError:
+            process.kill()
+    else:
+        process.kill()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 class RemoteFilesystemFixture:
@@ -324,16 +494,39 @@ def start_adapter_fixture_process(target, *args, startup_timeout=60):
     return process
 
 
+def write_python_bash_launcher(path, *arguments):
+    """Launch the host Python with MSYS conversion replaced by explicit mapping.
+
+    An argument that names an existing path in the MSYS mount view is mapped
+    to its native form, because a shell script that derives its directory from
+    `pwd` holds `/tmp/...`-style text that the host interpreter cannot open.
+    Every other argument is transported verbatim, so a remote or foreign POSIX
+    name that is only data is never rewritten by a path heuristic.
+    """
+    import shlex
+    path = Path(path)
+    prefix = '#!/bin/sh\n'
+    if os.name == 'nt':
+        prefix += ('for argument do\n'
+                   '  case "$argument" in\n'
+                   '    /[a-zA-Z]/*) argument=$(cygpath -m -- "$argument") || exit;;\n'
+                   '    /*) if [ -e "$argument" ]; then argument=$(cygpath -m -- "$argument") || exit; fi;;\n'
+                   '  esac\n'
+                   '  shift\n  set -- "$@" "$argument"\ndone\n'
+                   'export MSYS2_ARG_CONV_EXCL="*"\n')
+    command = ' '.join(shlex.quote(Path(argument).as_posix())
+                       for argument in (sys.executable, *arguments))
+    path.write_text(prefix + 'exec ' + command + ' "$@"\n', encoding='utf-8', newline='\n')
+    path.chmod(0o755)
+    return path
+
+
 def write_python_bash_fixture(path, source):
     """Write a Python payload with a launcher explicitly executed by native Bash."""
-    import shlex
     path = Path(path)
     payload = path.with_name(path.name + '.py')
     payload.write_text(source, encoding='utf-8')
-    path.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' '
-                    + shlex.quote(str(payload)) + ' "$@"\n', encoding='utf-8')
-    path.chmod(0o755)
-    return path
+    return write_python_bash_launcher(path, payload)
 
 
 def write_python_cli_fixture(path, source):

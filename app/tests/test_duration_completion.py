@@ -1,4 +1,5 @@
 """Native duration artifacts/CLI/Bash guards on known PCM pairs, without TTS."""
+from tests.test_support import copy_bash_fixture, run_bash_fixture
 import copy
 import importlib.util
 import json
@@ -31,7 +32,7 @@ class DurationCompletionTests(unittest.TestCase):
         app = self.root / "app"
         (app / "experiments").mkdir(parents=True)
         for rel in ("experiments/duration_length_intervention.py", "tts.py", "experiments/generation.py"):
-            shutil.copyfile(REPO / "app" / rel, app / rel)
+            copy_bash_fixture(REPO / "app" / rel, app / rel)
         (app / "config.json").write_text('{}')
         spec = importlib.util.spec_from_file_location("fixture_duration", app / "experiments/duration_length_intervention.py")
         self.duration = importlib.util.module_from_spec(spec)
@@ -188,7 +189,7 @@ class DurationCompletionTests(unittest.TestCase):
         script = ('set -uo pipefail\nrepo=$1; runtime=$2; python=$3\n'
                   'stage() { echo DISPATCH; cp "$FIXTURE_PAYLOAD" "$duration_out"; return "$FIXTURE_RC"; }\n'
                   + block + '\necho NEXT_STAGE\n')
-        return subprocess.run(['bash', '-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
+        return run_bash_fixture(['-c', script, 'fixture', str(self.root), str(self.runtime), sys.executable],
             capture_output=True, text=True, timeout=10,
             env=dict(os.environ, PYTHONPATH=str(REPO / 'app'), FIXTURE_PAYLOAD=str(payload),
                      FIXTURE_RC=str(worker_rc)))

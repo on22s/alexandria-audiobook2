@@ -1123,8 +1123,22 @@ def get_review_text_identity(text):
 REVIEW_SPEAKER_FIELDS = ('speaker_gender', 'speaker_age_group', 'speaker_ageless', 'spoken')
 
 
-def get_review_speaker_bound_entry(entry, original_entries, reference_entries, batch_entries):
-    """Rebind changed speaker annotations without moving source provenance."""
+def get_review_explicit_speaker_annotations(annotations):
+    """Return only the speaker annotations a reviewer explicitly supplied."""
+    # An explicit null is a request to clear, not evidence about the speaker.
+    return {key: value for key, value in (annotations or {}).items()
+            if key in REVIEW_SPEAKER_FIELDS and value is not None}
+
+
+def get_review_speaker_bound_entry(entry, original_entries, reference_entries, batch_entries,
+                                   explicit_annotations=None):
+    """Rebind changed speaker annotations without moving source provenance.
+
+    A corrected speaker with a known source row follows that row. A corrected
+    speaker with no known row keeps the annotations the reviewer supplied for it
+    (#2036): they are the model's evidence, so the unresolved warning is only
+    for a changed speaker that carries stale attributes and no explicit ones.
+    """
     target = entry['speaker'].strip().casefold()
     if all(str(original.get('speaker', '')).strip().casefold() == target
            for original in original_entries):
@@ -1136,11 +1150,15 @@ def get_review_speaker_bound_entry(entry, original_entries, reference_entries, b
     states = [{key: copy.deepcopy(row[key]) for key in REVIEW_SPEAKER_FIELDS if key in row}
               for row in donors]
     identities = {get_typed_metadata(state) for state in states}
+    explicit = get_review_explicit_speaker_annotations(explicit_annotations)
     # A nearby overlapping target entry is stronger evidence than a whole-batch
     # roster. Never choose between conflicting temporal states or invent traits.
     result = {key: value for key, value in entry.items() if key not in REVIEW_SPEAKER_FIELDS}
     if len(identities) == 1 and states[0]:
         result.update(states[0])
+        return result, None
+    if explicit:
+        result.update(copy.deepcopy(explicit))
         return result, None
     if not any(key in entry for key in REVIEW_SPEAKER_FIELDS):
         return result, None
@@ -1155,7 +1173,8 @@ def get_review_labelled_entries(batch_entries, ordered):
     for number, (original, labels) in enumerate(zip(batch_entries, ordered), 1):
         entry = {**copy.deepcopy(original), 'speaker': labels['speaker'],
                  'instruct': labels['instruct']}
-        entry, warning = get_review_speaker_bound_entry(entry, [original], [], batch_entries)
+        entry, warning = get_review_speaker_bound_entry(entry, [original], [], batch_entries,
+                                                       get_review_annotations(labels))
         bound.append(apply_review_annotations(entry, labels))
         if warning:
             warnings.append({**warning, 'entry_number': number})
@@ -1444,7 +1463,8 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                         fragment['changed'] |= left != start or right != stop
                 row, warning = get_review_speaker_bound_entry(row,
                     [original for _, _, original in group],
-                    [original for _, _, original in sources], batch_entries)
+                    [original for _, _, original in sources], batch_entries,
+                    get_review_annotations(entry))
                 row = apply_review_annotations(row, entry)
                 bound.append(row)
                 if 'source_span' in facts and len(group) == 1:

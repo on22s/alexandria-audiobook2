@@ -2,11 +2,11 @@ import json
 import os
 from pathlib import Path
 import shlex
-import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
+
+from tests.test_support import copy_bash_fixture, run_bash_fixture, write_bash_fixture
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -16,14 +16,14 @@ class CorpusPlanFailureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             script = root / "build_test_corpus.sh"
-            shutil.copy2(REPO / script.name, script)
+            copy_bash_fixture(REPO / script.name, script)
             interpreter = root / "app/env/bin/python"
             interpreter.parent.mkdir(parents=True)
             audio, source = root / "audio", root / "source"
             audio.mkdir(); source.mkdir()
             for mode in ("discovery-failed", "invalid-json", "display-failed", "empty"):
                 with self.subTest(mode=mode):
-                    interpreter.write_text("#!/bin/sh\n"
+                    write_bash_fixture(interpreter, "#!/bin/sh\n"
                         'printf "%s\\n" "$1" >> "$CALLS"\n'
                         'if [ "$1" = -c ]; then\n'
                         '  if [ "$CORPUS_PROBE_MODE" = discovery-failed ]; then exit 3; fi\n'
@@ -31,12 +31,11 @@ class CorpusPlanFailureTests(unittest.TestCase):
                         '  exit 0\nfi\n'
                         'if [ "$CORPUS_PROBE_MODE" = display-failed ]; then exit 4; fi\n'
                         'exec ' + shlex.quote(sys.executable) + ' "$@"\n')
-                    interpreter.chmod(0o700)
                     calls = root / (mode + ".calls")
                     output = root / mode
                     env = dict(os.environ, CORPUS_PROBE_MODE=mode, CALLS=str(calls), AUDIO_DIR=str(audio),
                                SOURCE_DIR=str(source), OUT_DIR=str(output))
-                    result = subprocess.run(["bash", str(script), "--plan"], env=env,
+                    result = run_bash_fixture([str(script), "--plan"], env=env,
                                             capture_output=True, text=True, timeout=10)
                     if mode == "empty":
                         self.assertEqual(0, result.returncode, result.stderr)
