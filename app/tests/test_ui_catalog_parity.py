@@ -340,6 +340,23 @@ class RealCatalogTests(unittest.TestCase):
             with self.subTest(locale=locale):
                 self.assertEqual([], validate(payload, self.english, locale))
 
+    def test_the_auto_configure_flow_keys_are_used_and_translated(self):
+        """#2016: the Setup header button and its status text are keyed everywhere."""
+        keys = ('setup.header.auto-configure', 'setup.auto-config.detecting',
+                'setup.auto-config.settings-changed', 'setup.auto-config.suggested',
+                'setup.auto-config.suggested-external', 'setup.auto-config.failed',
+                'setup.auto-config.failed-recovery')
+        core = (STATIC / 'js' / 'app-core.js').read_text(encoding='utf-8')
+        for key in keys:
+            with self.subTest(key=key):
+                self.assertIn(f"'{key}'", core, 'the Auto-Configure flow must use this key')
+                self.assertIn(key, self.english)
+                for locale, payload in self.catalogs.items():
+                    messages = messages_of(payload)
+                    self.assertIn(key, messages, f'{locale} is missing {key}')
+                    self.assertNotEqual(self.english[key], messages[key],
+                                        f'{locale} left {key} untranslated')
+
     def test_no_locale_claims_a_review_it_does_not_have(self):
         for locale, payload in self.catalogs.items():
             with self.subTest(locale=locale):
