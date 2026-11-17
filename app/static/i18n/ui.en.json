@@ -5745,6 +5745,7 @@
   "voice.suggest.none": "No suggestions available.",
   "voice.suggest.none_state": "No state voice candidates found.",
   "voice.suggest.override_alias": "{character} speaks as {alias} (alias)",
+  "voice.suggest.override_narrator": "{character} narrates with the '{strategy}' narrator strategy",
   "voice.suggest.override_timeline": "{character} follows a voice timeline",
   "voice.suggest.reused.many": "Reused by {count} existing cast characters",
   "voice.suggest.reused.one": "Reused by {count} existing cast character",

@@ -24,6 +24,10 @@ FIXTURES = os.path.join(REPO, "app", "fixtures")
 # `--books a b c \` possibly continued over further backslash-terminated lines.
 BOOKS = re.compile(r"--books\s+((?:[^\n\\]|\\\n)+)")
 
+# A copied chain dispatches native git commands per stage: measured well past
+# 10s on Windows under concurrent shards. Keep the Linux cap; give Windows room.
+CHAIN_TIMEOUT = 30 if os.name == 'nt' else 10
+
 
 def strip_comments(source):
     """Drop comment lines: this file's own explanation quotes a --books line."""
@@ -114,7 +118,7 @@ class ArchivedChainRootTests(unittest.TestCase):
                 env = dict(os.environ, PATH=str(wrappers) + os.pathsep + os.environ["PATH"],
                            CAPTURE=str(capture), GPU_LOCK=str(root / "ab_test_runtime/logs/test.lock"))
                 result = run_bash_fixture([str(chain)], cwd=tmp, env=env,
-                                        capture_output=True, text=True, timeout=10)
+                                        capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertTrue(capture.exists(), result.stdout + result.stderr)
                 commands = [json.loads(line) for line in capture.read_text().splitlines()]
                 self.assertEqual(expected_jobs, [row['argv'][0] for row in commands])
@@ -209,7 +213,7 @@ class ArchivedBatchInterpreterTests(unittest.TestCase):
                 if explicit:
                     env.update(PREP=str(prep), PY=str(interpreter))
                 result = run_bash_fixture([str(archive / "run_new_batch.sh")], cwd=tmp,
-                                        env=env, capture_output=True, text=True, timeout=10)
+                                        env=env, capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertTrue(capture.exists(), result.stdout + result.stderr)
                 commands = [json.loads(line) for line in capture.read_text().splitlines()]

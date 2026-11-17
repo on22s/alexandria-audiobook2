@@ -31,7 +31,7 @@ import textwrap
 import time
 import unittest
 from pathlib import Path
-from tests.test_support import get_bash_executable, requires_linux_queue_tools
+from tests.test_support import get_bash_executable, get_bash_path, run_bash_fixture, requires_linux_queue_tools
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GPU_JOB = os.path.join(REPO, "gpu_job.sh")
@@ -149,8 +149,13 @@ class GpuJobTest(unittest.TestCase):
                            GPU_QLOG=self.qlog, ALLOW_DIRTY_TREE=allow_dirty)
         if path_prefix:
             env["PATH"] = path_prefix + os.pathsep + env["PATH"]
-        return subprocess.run(["bash", GPU_JOB, *argv], env=env,
-                              capture_output=True, text=True, timeout=timeout)
+        # subprocess.run, not the transport: HarnessIsolationTest stubs
+        # run/Popen to prove every harness isolates its state, and a Popen the
+        # stub cannot see would slip past that check. The shell is still the
+        # shared native one and gpu_job.sh is committed LF, so it needs no
+        # CRLF handling.
+        return subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), *argv],
+                              env=env, capture_output=True, text=True, timeout=timeout)
 
     def log(self):
         if not os.path.exists(self.qlog):
@@ -318,10 +323,12 @@ class GpuJobTest(unittest.TestCase):
 
         first = second = None
         try:
-            first = subprocess.Popen(["bash", GPU_JOB, "j0", "bash", "-c", script],
+            first = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                      "j0", "bash", "-c", script],
                                      env=env, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL)
-            second = subprocess.Popen(["bash", GPU_JOB, "j1", "bash", "-c", script],
+            second = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                       "j1", "bash", "-c", script],
                                       env=env, stdout=subprocess.DEVNULL,
                                       stderr=subprocess.DEVNULL)
             self.wait_for(
@@ -362,14 +369,16 @@ class GpuJobTest(unittest.TestCase):
         slow_script = (f"touch {shlex.quote(slow_started)}; "
                        f"while [ ! -e {shlex.quote(release)} ]; do sleep .01; done")
         waiter_ran = os.path.join(self.tmp.name, "waiter_ran")
-        slow = subprocess.Popen(["bash", GPU_JOB, "slow", "bash", "-c", slow_script],
+        slow = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                 "slow", "bash", "-c", slow_script],
                                 env=env, stdout=subprocess.DEVNULL)
         waiter = None
         try:
             self.wait_for_log("START    slow", processes=(slow,))
             self.wait_for(lambda: os.path.exists(slow_started),
                           "slow job did not start its command", processes=(slow,))
-            waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "touch", waiter_ran],
+            waiter = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                       "waiter", "touch", waiter_ran],
                                       env=env, stdout=subprocess.DEVNULL,
                                       stderr=subprocess.DEVNULL)
             self.wait_for_lock(waiter)
@@ -404,14 +413,16 @@ class GpuJobTest(unittest.TestCase):
         holder_script = (f"touch {shlex.quote(holder_started)}; "
                          f"while [ ! -e {shlex.quote(release)} ]; do sleep .01; done")
         marker = os.path.join(self.tmp.name, "waiter_ran")
-        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "bash", "-c", holder_script],
+        holder = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                   "holder", "bash", "-c", holder_script],
                                   env=env, stdout=subprocess.DEVNULL)
         waiter = None
         try:
             self.wait_for_log("START    holder", processes=(holder,))
             self.wait_for(lambda: os.path.exists(holder_started),
                           "holder did not start its command", processes=(holder,))
-            waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "touch", marker],
+            waiter = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB),
+                                       "waiter", "touch", marker],
                                       env=env, stdout=subprocess.DEVNULL)
             self.wait_for_lock(waiter)
             self.assertIsNone(waiter.poll(), "waiter exited instead of waiting")
@@ -484,7 +495,8 @@ class GpuJobTest(unittest.TestCase):
         self.assertEqual(self.run_job("nameonly").returncode, 2)
 
     def test_no_name_is_rejected(self):
-        r = subprocess.run(["bash", GPU_JOB], capture_output=True, text=True,
+        r = subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB)],
+                           capture_output=True, text=True,
                            env=isolated_env(self.tmp.name, GPU_LOCK=self.lock,
                                             GPU_QLOG=self.qlog,
                                             ALLOW_DIRTY_TREE="1"))
@@ -680,7 +692,8 @@ class DirtyTreeGateTest(unittest.TestCase):
         env.pop("ALLOW_DIRTY_TREE", None)
         if allow_dirty is not None:
             env["ALLOW_DIRTY_TREE"] = allow_dirty
-        return subprocess.run(["bash", self.script, "probe", "true"],
+        return subprocess.run([get_bash_executable(), get_bash_path(self.script),
+                               "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=30)
 
     def _log(self):
@@ -772,8 +785,8 @@ class DirtyTreeGateTest(unittest.TestCase):
             os.path.abspath(__file__))))
         python_says_dirty = _git_state(repo_root)["dirty"]
 
-        result = subprocess.run(
-            ["bash", GPU_JOB, "--print-source-state", repo_root],
+        result = run_bash_fixture(
+            [GPU_JOB, "--print-source-state", repo_root],
             capture_output=True, timeout=30, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         state = result.stdout.split(b"\0")[0].decode("utf-8")
@@ -953,7 +966,7 @@ class LockInheritanceTest(unittest.TestCase):
         env = isolated_env(self.tmp.name, ALLOW_DIRTY_TREE="1",
                            GPU_NOTIFY="0")
         result = subprocess.run(
-            ["bash", GPU_JOB, "fdcheck", "bash", "-c",
+            [get_bash_executable(), get_bash_path(GPU_JOB), "fdcheck", "bash", "-c",
              'ls -l /proc/$$/fd 2>/dev/null | grep -c gpu.lock || true'],
             capture_output=True, text=True, timeout=180, env=env)
         held = [l for l in result.stdout.splitlines() if l.strip().isdigit()]
@@ -973,7 +986,7 @@ class LockInheritanceTest(unittest.TestCase):
                            GPU_NOTIFY="0")
         marker = os.path.join(self.tmp.name, "child_pid")
         job = subprocess.Popen(
-            ["bash", GPU_JOB, "orphan", "bash", "-c",
+            [get_bash_executable(), get_bash_path(GPU_JOB), "orphan", "bash", "-c",
              "echo $$ > %s; sleep 60" % marker],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
         self.addCleanup(lambda: job.stdout.close() if job.stdout else None)
@@ -1022,7 +1035,8 @@ class LlmPreflightGateTest(unittest.TestCase):
     def _run(self, **extra):
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1", **extra)
-        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+        return subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB),
+                               "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
     def _log(self):
@@ -1092,7 +1106,8 @@ class VramGateTest(unittest.TestCase):
     def _run(self, **extra):
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1", **extra)
-        return subprocess.run(["bash", GPU_JOB, "probe", "true"],
+        return subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB),
+                               "probe", "true"],
                               env=env, capture_output=True, text=True, timeout=60)
 
     def _log(self):
@@ -1253,7 +1268,7 @@ class PauseAndProcessGroupTest(unittest.TestCase):
             'while [ ! -e ' + shlex.quote(str(release)) + ' ]; do ' + real_sleep + ' .01; done\n')
         sleeper.chmod(0o755)
         env = self._env(PATH=str(binaries) + os.pathsep + os.environ['PATH'])
-        process = subprocess.Popen(["bash", GPU_JOB, "probe", "true"], env=env,
+        process = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "probe", "true"], env=env,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             self._wait_for(blocked.exists, process)
@@ -1277,7 +1292,7 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         self.assertNotIn("START", self._log())
 
     def test_releasing_the_flag_lets_the_job_run(self):
-        r = subprocess.run(["bash", GPU_JOB, "probe", "true"],
+        r = subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), "probe", "true"],
                            env=self._env(), capture_output=True, timeout=60)
         self.assertEqual(0, r.returncode)
         self.assertIn("START", self._log())
@@ -1285,7 +1300,7 @@ class PauseAndProcessGroupTest(unittest.TestCase):
     def test_exit_codes_survive_the_process_group_wrapper(self):
         # Running the job via setsid must not swallow its status - the whole
         # contract of this script is that a failure propagates.
-        r = subprocess.run(["bash", GPU_JOB, "probe", "bash", "-c", "exit 37"],
+        r = subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), "probe", "bash", "-c", "exit 37"],
                            env=self._env(), capture_output=True, timeout=60)
         self.assertEqual(37, r.returncode)
         self.assertIn("FAILED   probe rc=37", self._log())
@@ -1299,7 +1314,7 @@ class PauseAndProcessGroupTest(unittest.TestCase):
         script = ("bash -c " + shlex.quote('echo $$ > "$1"; while true; do sleep 60; done')
                   + ' fixture ' + shlex.quote(marker) + ' & wait')
         pidfds = ensure_pidfd_support()
-        process = subprocess.Popen(["bash", GPU_JOB, "probe", "bash", "-c", script],
+        process = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "probe", "bash", "-c", script],
                                    env=self._env(), stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL)
         descriptor = None
@@ -1441,7 +1456,7 @@ class TerminalMarkerTest(unittest.TestCase):
 
     def test_an_interrupted_job_still_records_a_terminal_line(self):
         """THE DEFECT, reproduced: signal the wrapper mid-run."""
-        proc = subprocess.Popen(["bash", GPU_JOB, "victim", "sleep", "30"],
+        proc = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "victim", "sleep", "30"],
                                 env=self._env(), stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL)
         # Wait for START rather than for a fixed delay. The gates ahead of it
@@ -1465,12 +1480,12 @@ class TerminalMarkerTest(unittest.TestCase):
     def test_a_normal_run_records_exactly_one_terminal_line(self):
         # The EXIT trap fires after the normal path has already logged, so the
         # guard against double-logging is as load-bearing as the trap itself.
-        subprocess.run(["bash", GPU_JOB, "fine", "true"], env=self._env(),
+        subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), "fine", "true"], env=self._env(),
                        capture_output=True, timeout=60)
         self.assertEqual(["OK"], [l.split()[1] for l in self._terminal_lines()])
 
     def test_a_failing_run_records_exactly_one_terminal_line(self):
-        subprocess.run(["bash", GPU_JOB, "bad", "bash", "-c", "exit 9"],
+        subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), "bad", "bash", "-c", "exit 9"],
                        env=self._env(), capture_output=True, timeout=60)
         lines = self._terminal_lines()
         self.assertEqual(1, len(lines), lines)
@@ -1497,8 +1512,8 @@ class PendingMarkerTest(unittest.TestCase):
     def _run(self, *argv, **extra):
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1", **extra)
-        return subprocess.run(["bash", GPU_JOB, *argv], env=env,
-                              capture_output=True, text=True, timeout=60)
+        return subprocess.run([get_bash_executable(), get_bash_path(GPU_JOB), *argv],
+                              env=env, capture_output=True, text=True, timeout=60)
 
     def test_a_finished_job_leaves_no_marker_behind(self):
         before = set(os.listdir(self.pending)) if os.path.isdir(self.pending) else set()
@@ -1528,7 +1543,7 @@ class PendingMarkerTest(unittest.TestCase):
         # feature, caused by the fixture. Same shape as the terminal-marker
         # test's first version, and the fix is the same: wait for the state
         # you need instead of assuming a duration.
-        holder = subprocess.Popen(["bash", GPU_JOB, "holder", "sleep", "120"],
+        holder = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "holder", "sleep", "120"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         # Start the waiter only once the holder actually holds the lock (its
@@ -1547,7 +1562,7 @@ class PendingMarkerTest(unittest.TestCase):
             if started:
                 break
             time.sleep(0.2)
-        waiter = subprocess.Popen(["bash", GPU_JOB, "waiter", "true"],
+        waiter = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "waiter", "true"],
                                   env=env, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL)
         try:
@@ -1706,7 +1721,7 @@ class PauseStatusTest(unittest.TestCase):
     def _status(self):
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            GPU_PAUSE_FLAG=os.path.join(self.tmp.name, "paused"))
-        return subprocess.run(["bash", GPU_PAUSE, "status"], env=env,
+        return subprocess.run([get_bash_executable(), get_bash_path(GPU_PAUSE), "status"], env=env,
                               capture_output=True, text=True, timeout=30).stdout
 
     @requires_linux_queue_tools
@@ -1728,7 +1743,7 @@ class PauseStatusTest(unittest.TestCase):
         """The other half: a real job must not be dismissed as stale."""
         env = isolated_env(self.tmp.name, GPU_QLOG=self.qlog,
                            ALLOW_DIRTY_TREE="1", REQUIRE_VRAM_GB="0")
-        proc = subprocess.Popen(["bash", GPU_JOB, "sleeper", "sleep", "20"],
+        proc = subprocess.Popen([get_bash_executable(), get_bash_path(GPU_JOB), "sleeper", "sleep", "20"],
                                 env=env, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL)
         try:
@@ -1788,7 +1803,7 @@ class PauseNowTest(unittest.TestCase):
     def test_now_ends_a_job_that_ignores_sigint_and_leaves_one_terminal_line(self):
         import signal
         proc = subprocess.Popen(
-            ["bash", GPU_JOB, "victim", "bash", "-c", "sleep 30; echo finished"],
+            [get_bash_executable(), get_bash_path(GPU_JOB), "victim", "bash", "-c", "sleep 30; echo finished"],
             env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             # The production condition: a chain started with nohup/& ignores
             # SIGINT, and so does everything it starts.
@@ -1799,7 +1814,7 @@ class PauseNowTest(unittest.TestCase):
         if "START    victim" not in self._log():
             proc.kill()
             self.skipTest("job never started; nothing to assert about stopping")
-        result = subprocess.run(["bash", GPU_PAUSE, "on", "--now"], env=self.env,
+        result = subprocess.run([get_bash_executable(), get_bash_path(GPU_PAUSE), "on", "--now"], env=self.env,
                                 capture_output=True, text=True, timeout=90)
         self.assertEqual(0, result.returncode, result.stderr)
         proc.wait(timeout=30)   # the wrapper is gone, not merely signalled

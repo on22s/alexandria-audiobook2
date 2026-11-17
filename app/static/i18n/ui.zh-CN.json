@@ -5372,6 +5372,7 @@
   "voice.suggest.none": "没有可用的建议。",
   "voice.suggest.none_state": "未找到状态声音候选。",
   "voice.suggest.override_alias": "{character} 以 {alias} 的身份说话（别名）",
+  "voice.suggest.override_narrator": "{character} 使用“{strategy}”旁白策略",
   "voice.suggest.override_timeline": "{character} 遵循声音时间线",
   "voice.suggest.reused.many": "已被 {count} 个现有声音阵容角色复用",
   "voice.suggest.reused.one": "已被 {count} 个现有声音阵容角色复用",

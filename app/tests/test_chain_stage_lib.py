@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import shlex
 import sys
+import time
 from unittest.mock import patch
 import subprocess
 import tempfile
@@ -284,6 +285,36 @@ class BashFixtureTransportTests(unittest.TestCase):
             result = run_bash_fixture(['-c', source], capture_output=True, text=True, timeout=5)
             self.assertNotEqual(0, result.returncode)
             self.assertNotIn('known payload', result.stdout)
+
+    def test_windows_drive_and_unc_paths_are_rewritten_for_the_shell(self):
+        """The transport's path map, exercised on every host rather than only
+        where the branch runs: a UNC share keeps its leading // and must not be
+        mistaken for a drive letter."""
+        from tests import test_support
+        for native, shell in ((r'\\server\share\x', '//server/share/x'),
+                              ('C:\\Users\\a b\\x', '/c/Users/a b/x')):
+            with self.subTest(native=native), patch.object(test_support.os, 'name', 'nt'):
+                self.assertEqual(shell, test_support.get_bash_path(native))
+
+    def test_a_timed_out_fixture_takes_its_grandchild_with_it(self):
+        """The tree-kill promise, measured: a backgrounded grandchild stops
+        writing the moment the timed-out fixture is stopped."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            heartbeat = root / 'heartbeat'
+            script = write_bash_fixture(
+                root / 'spawner',
+                '#!/bin/sh\n'
+                '( while :; do printf x >> "$1"; sleep 0.05; done ) &\n'
+                'wait\n')
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run_bash_fixture([str(script), str(heartbeat)],
+                                 capture_output=True, text=True, timeout=2)
+            beats = heartbeat.read_bytes()
+            self.assertGreater(len(beats), 0, 'the grandchild never started')
+            time.sleep(0.5)
+            self.assertEqual(beats, heartbeat.read_bytes(),
+                             'a grandchild outlived the fixture timeout')
 
     def test_native_resolver_rejects_missing_shell_instead_of_running_a_fallback(self):
         from tests.test_support import get_bash_executable
