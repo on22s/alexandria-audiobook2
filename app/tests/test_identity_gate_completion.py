@@ -1,4 +1,5 @@
 """Known scores, actual file hashes/WAVs and native Bash cache reuse; no models."""
+from tests.test_support import run_bash_fixture, write_bash_fixture
 import contextlib
 import copy
 import io
@@ -250,14 +251,14 @@ class IdentityChainCacheTests(unittest.TestCase):
             repaired = root / "repaired.json"
             repaired.write_text(json.dumps(measured_document(adapter, dataset)) if not corrupt_output
                                 else '{"passed": true}')
-            script.write_text('set -uo pipefail\n' +
+            write_bash_fixture(script, 'set -uo pipefail\n' +
                 'repo="$1"; runtime="$2"; python="$3"; worker_rc="$4"\n' +
                 'contaminated_adapters=(voice)\n' +
                 'stage() { echo DISPATCH; cp "$runtime/repaired.json" "$gate_out"; return "$worker_rc"; }\n' +
                 loop + '\necho "FAILURES=$gate_failures"\n')
-            result = subprocess.run(["bash", str(script), str(REPO), str(root), sys.executable,
+            result = run_bash_fixture([str(script), str(REPO), str(root), sys.executable,
                                      str(worker_rc)], capture_output=True, text=True, timeout=10,
-                                    env=dict(os.environ, PYTHONPATH=str(REPO) + ':' + str(REPO / 'app')))
+                                    env=dict(os.environ, PYTHONPATH=str(REPO) + os.pathsep + str(REPO / 'app')))
             return result
 
     def test_valid_pass_and_measured_failure_are_reused_without_dispatch(self):

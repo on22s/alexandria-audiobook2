@@ -1,4 +1,5 @@
 """Run the actual Bash completion function against partial and bound artifacts."""
+from tests.test_support import run_bash_fixture
 import os
 from pathlib import Path
 import subprocess
@@ -15,7 +16,7 @@ class UnseenCompletionEvidenceTests(unittest.TestCase):
         chain=Path(os.environ.get('UNSEEN_COMPLETION_CHAIN',str(ROOT/'run_chains/unseen_books_20260819b.sh'))).read_text()
         start=chain.index('book_complete() {');end=chain.index('\n}',start)+2
         script='PY="$1"\n'+chain[start:end]+'\nbook_complete "$2" "$3"\n'
-        return subprocess.run(['bash','-c',script,'fixture',sys.executable,str(output),str(source)],
+        return run_bash_fixture(['-c',script,'fixture',sys.executable,str(output),str(source)],
             cwd=ROOT/'app',capture_output=True,text=True,timeout=10)
 
     def test_partial_51_of_110_entries_without_completion_is_not_skipped(self):

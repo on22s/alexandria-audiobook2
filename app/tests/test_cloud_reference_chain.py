@@ -1,4 +1,5 @@
 """Run the real cloud reference chain with CPU-only artifact producers."""
+from tests.test_support import get_bash_path, run_bash_fixture, write_bash_fixture
 import json
 import os
 import re
@@ -86,11 +87,11 @@ class CloudReferenceChainTests(unittest.TestCase):
                     output = results / f"reference_spread__en_{stage}_arm{arm}.json"
                     output.write_text(json.dumps({"arm": arm, "old": True}))
                     prior[str(output)] = output.read_bytes()
-            producer = r"""import json, os, pathlib, re, sys
+            producer = r"""import json, os, pathlib, re, subprocess, sys
 root = pathlib.Path(__file__).resolve().parents[2]
 args = sys.argv[1:]
 if '--check-score' in args:
-    os.execv(sys.executable, [sys.executable, os.environ['REAL_COMPARE']] + args)
+    raise SystemExit(subprocess.call([sys.executable, os.environ['REAL_COMPARE']] + args))
 stage = pathlib.Path(__file__).stem.removeprefix('ljspeech_')
 if stage.startswith('reference_spread'):
     stage = 'compare'
@@ -136,12 +137,12 @@ output.write_text(json.dumps(doc))
             for variable, value in (('REPO', str(root)), ('PY', sys.executable)):
                 literal = re.search(r'(?m)^' + variable + r'="[^$\n]*"$', source)
                 if literal:
-                    source = source[:literal.start()] + variable + '=' + shlex.quote(value) + source[literal.end():]
+                    source = source[:literal.start()] + variable + '=' + shlex.quote(get_bash_path(value)) + source[literal.end():]
             script = root / "chain.sh"
-            script.write_text(source)
+            write_bash_fixture(script, source)
             environment = dict(os.environ, REAL_COMPARE=str(REPO / "app/experiments/reference_spread_compare.py"), FIXTURE_FAILED_STAGE=failed_stage or "",
                                FIXTURE_FAILED_ARM=str(failed_arm), FIXTURE_FAILURE_CODE=str(failure_code))
-            result = subprocess.run(["bash", str(script)], cwd=root, env=environment,
+            result = run_bash_fixture([str(script)], cwd=root, env=environment,
                                     capture_output=True, text=True, timeout=10)
             if repeat:
                 before_repeat = {path: Path(path).read_bytes() for path in prior}
@@ -150,7 +151,7 @@ output.write_text(json.dumps(doc))
                 elif damage == 'audio':
                     (work / 'arm3/line1__clone.wav').write_bytes(b'broken audio')
                 (root / 'calls.jsonl').unlink()
-                result = subprocess.run(["bash", str(script)], cwd=root, env=environment,
+                result = run_bash_fixture([str(script)], cwd=root, env=environment,
                                         capture_output=True, text=True, timeout=10)
                 if damage is None:
                     self.assertEqual(before_repeat, {path: Path(path).read_bytes() for path in prior})

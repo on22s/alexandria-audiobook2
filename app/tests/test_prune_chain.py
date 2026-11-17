@@ -1,5 +1,7 @@
 """Private checkout, real package/Git operations, CPU workers; no inference."""
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 from tests.test_support import get_isolated_git_environment
+from tests.test_support import requires_linux_queue_tools
 import json
 import os
 import re
@@ -10,7 +12,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -19,18 +20,18 @@ class PruneChainTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory(prefix='prune chain ');self.addCleanup(temp.cleanup);self.root=Path(temp.name)
         for folder in ('run_chains/lib','app/env/bin','app/experiments','tools/voice_lab','lora_models','ab_test_runtime/experiments'):(self.root/folder).mkdir(parents=True)
-        for name in ('stage.sh','server_cleanup.sh','queue.sh'):shutil.copyfile(REPO/'run_chains/lib'/name,self.root/'run_chains/lib'/name)
+        for name in ('stage.sh','server_cleanup.sh','queue.sh'):copy_bash_fixture(REPO/'run_chains/lib'/name,self.root/'run_chains/lib'/name)
         source=Path(os.environ.get('PRUNE_CHAIN_SOURCE',str(REPO/'run_chains/prune_retrain_20260913.sh'))).read_text()
         if os.environ.get('PRUNE_ISOLATE_BASELINE'):
             literal=re.search(r'(?m)^MAIN=(["\x27]?)([^$\n]+)\1$',source)
             self.assertIsNotNone(literal, 'baseline must expose its actual MAIN directory')
             source=source.replace(literal.group(2),str(self.root))
-            source=source.replace('MAIN='+str(self.root), 'MAIN='+shlex.quote(str(self.root)))
+            source=source.replace('MAIN='+str(self.root), 'MAIN='+shlex.quote(get_bash_path(self.root)))
         (self.root/'run_chains/prune_retrain_20260913.sh').write_text(source)
         archive=self.root/'source.zip';archive.write_bytes(b'CPU fixture control archive')
         (self.root/'lora_models/manifest.json').write_text(json.dumps([{'id':'voice','zip_source':str(archive)}]))
         self.write('gpu_job.sh','#!/bin/bash\necho "$1" >> "$FIXTURE_ROOT/jobs"\nshift\nexec "$@"\n')
-        self.write('app/env/bin/python','#!/bin/sh\nif [ "$1" = - ]; then shift; exec '+shlex.quote(sys.executable)+' "$FIXTURE_ROOT/read_manifest.py" "$@"; fi\nexec '+shlex.quote(sys.executable)+' "$@"\n')
+        self.write('app/env/bin/python','#!/bin/sh\nif [ "$1" = - ]; then shift; exec '+shlex.quote(get_bash_path(sys.executable))+' "$FIXTURE_ROOT/read_manifest.py" "$@"; fi\nexec '+shlex.quote(get_bash_path(sys.executable))+' "$@"\n')
         self.write('read_manifest.py', '''import os,pathlib,sys
 root=pathlib.Path(os.environ['FIXTURE_ROOT'])
 def inspect(event,args):
@@ -63,10 +64,10 @@ r=pathlib.Path(os.environ['FIXTURE_ROOT']);(r/'scored').touch();a=sys.argv;pathl
         self.env.pop('PYTHON',None)
 
     def write(self,name,source):
-        p=self.root/name;p.write_text(source);p.chmod(0o755)
+        p=self.root/name;write_bash_fixture(p, source);p.chmod(0o755)
 
     def run_chain(self,**env):
-        return subprocess.run(['bash',str(self.root/'run_chains/prune_retrain_20260913.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
+        return run_bash_fixture([str(self.root/'run_chains/prune_retrain_20260913.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
 
     @requires_linux_queue_tools
     def test_selected_checkout_manifest_and_whisper_paths_are_used(self):

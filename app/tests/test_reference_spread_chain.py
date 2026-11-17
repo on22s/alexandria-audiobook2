@@ -1,5 +1,7 @@
 """Native copied driver/Git/score reader with independent CPU arm producers."""
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 from tests.test_support import get_isolated_git_environment
+from tests.test_support import requires_linux_queue_tools
 import json
 import os
 from pathlib import Path
@@ -9,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from tests.test_support import requires_linux_queue_tools
 
 REPO=Path(__file__).resolve().parents[2]
 SOURCE=Path(os.environ.get('REFERENCE_SPREAD_SOURCE',str(REPO/'run_chains/reference_spread_20260821.sh')))
@@ -19,13 +20,13 @@ class ReferenceSpreadChainTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory(prefix='reference spread ');self.addCleanup(temp.cleanup);self.root=Path(temp.name)
         for folder in ('run_chains/lib','app/env/bin','app/experiments','ab_test_runtime/experiments','ab_test_runtime/ljspeech_eval/adapter','bin'):(self.root/folder).mkdir(parents=True)
-        for name in ('stage.sh','server_cleanup.sh'):shutil.copyfile(REPO/'run_chains/lib'/name,self.root/'run_chains/lib'/name)
-        shutil.copyfile(SOURCE,self.root/'run_chains/chain.sh')
+        for name in ('stage.sh','server_cleanup.sh'):copy_bash_fixture(REPO/'run_chains/lib'/name,self.root/'run_chains/lib'/name)
+        copy_bash_fixture(SOURCE,self.root/'run_chains/chain.sh')
         (self.root/'ab_test_runtime/ljspeech_eval/build.json').write_text('{}')
         for name,body in (('pkill','touch "$FIXTURE_ROOT/unsafe_stop"; exit 0'),('sleep','exit 0')):
-            p=self.root/'bin'/name;p.write_text('#!/bin/sh\n'+body+'\n');p.chmod(0o755)
-        p=self.root/'app/env/bin/python';p.write_text('#!/bin/sh\nexec '+shlex.quote(sys.executable)+' "$@"\n');p.chmod(0o755)
-        p=self.root/'gpu_job.sh';p.write_text('#!/bin/bash\necho "${GPU_RECLAIM_VRAM:-0} ${REQUIRE_VRAM_GB:-missing}" >> "$FIXTURE_ROOT/admission"\nshift\nexec "$@"\n');p.chmod(0o755)
+            p=self.root/'bin'/name;write_bash_fixture(p, '#!/bin/sh\n'+body+'\n');p.chmod(0o755)
+        p=self.root/'app/env/bin/python';write_bash_fixture(p, '#!/bin/sh\nexec '+shlex.quote(get_bash_path(sys.executable))+' "$@"\n');p.chmod(0o755)
+        p=self.root/'gpu_job.sh';write_bash_fixture(p, '#!/bin/bash\necho "${GPU_RECLAIM_VRAM:-0} ${REQUIRE_VRAM_GB:-missing}" >> "$FIXTURE_ROOT/admission"\nshift\nexec "$@"\n');p.chmod(0o755)
         worker='''import json,os,pathlib,sys
 r=pathlib.Path(os.environ['FIXTURE_ROOT']);name=pathlib.Path(__file__).name;args=sys.argv;mode=os.environ.get('FIXTURE_FAIL','')
 p=pathlib.Path(args[args.index('--out')+1]);p.parent.mkdir(parents=True,exist_ok=True)
@@ -56,7 +57,7 @@ runpy.run_path(os.environ['REAL_COMPARE'],run_name='__main__')
         for name in ('events','compared','admission'):
             p=self.root/name
             if p.exists():p.unlink()
-        return subprocess.run(['bash',str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
+        return run_bash_fixture([str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
 
     @requires_linux_queue_tools
     def test_all_generation_precedes_cpu_scoring_and_each_admission_requests_supervised_four_gb(self):

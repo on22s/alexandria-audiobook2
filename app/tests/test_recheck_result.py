@@ -8,11 +8,10 @@ import unittest
 
 from experiments.recheck_result import get_recheck_score
 from tests import test_recheck_reporting as reporting
-from tests.test_support import requires_linux_queue_tools
 
 
 def get_document():
-    return dict(adapter='adapter/alpha', median_ecapa=0.6612, lines=6, passed=True)
+    return dict(adapter=os.path.normpath('adapter/alpha'), median_ecapa=0.6612, lines=6, passed=True)
 
 
 class RecheckResultTests(unittest.TestCase):
@@ -69,7 +68,6 @@ class RecheckFreshnessTests(unittest.TestCase):
                 self.assertIn('RETURN=1', result.stdout)
                 self.assertFalse(Path(self.experiments, 'gate_recheck__alpha.json').exists())
 
-    @requires_linux_queue_tools
     def test_missing_first_verdict_does_not_prevent_next_independent_attempt(self):
         # A refused first job has no artifact; the second actual fixture writes one.
         result = self._run([('alpha', '0.03'), ('beta', '0.04')], {'alpha': 5, 'beta': 3})

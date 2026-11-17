@@ -11,6 +11,7 @@ The mistake costs a stage slot, not a wrong number, which is why nothing else
 here catches it: the run is refused, not corrupted. This file checks the two
 names line up before the card is committed.
 """
+from tests.test_support import copy_bash_fixture, get_bash_path, run_bash_fixture, write_bash_fixture
 import glob
 import os
 import re
@@ -94,7 +95,7 @@ class ArchivedChainRootTests(unittest.TestCase):
                 archive = root / "run_chains/archive"
                 archive.mkdir(parents=True)
                 chain = archive / name
-                chain.write_bytes(Path(REPO, "run_chains/archive", name).read_bytes())
+                copy_bash_fixture(Path(REPO, "run_chains/archive", name), chain)
                 (root / "app/env/bin").mkdir(parents=True)
                 (root / "whisper.cpp/models").mkdir(parents=True)
                 (root / "whisper.cpp/models/ggml-large-v3.bin").write_bytes(b"fake model marker")
@@ -103,16 +104,16 @@ class ArchivedChainRootTests(unittest.TestCase):
                 wrappers.mkdir()
                 capture = Path(tmp, "commands.jsonl")
                 job = root / "gpu_job.sh"
-                job.write_text("#!/usr/bin/env python3\nimport json,os,sys\nwith open(os.environ['CAPTURE'], 'a') as out:out.write(json.dumps({'cwd':os.getcwd(),'argv':sys.argv[1:]})+'\\n')\nprint('CPU stand-in refused inference')\nraise SystemExit(17)\n")
+                write_bash_fixture(job, "#!/usr/bin/env python3\nimport json,os,sys\nwith open(os.environ['CAPTURE'], 'a') as out:out.write(json.dumps({'cwd':os.getcwd(),'argv':sys.argv[1:]})+'\\n')\nprint('CPU stand-in refused inference')\nraise SystemExit(17)\n")
                 job.chmod(0o755)
                 for tool, body in (("sleep", "exit 0"), ("stat", "echo 3000000000"),
                                    ("pgrep", "exit 1")):
                     path = wrappers / tool
-                    path.write_text("#!/bin/bash\n" + body + "\n")
+                    write_bash_fixture(path, "#!/bin/bash\n" + body + "\n")
                     path.chmod(0o755)
                 env = dict(os.environ, PATH=str(wrappers) + os.pathsep + os.environ["PATH"],
                            CAPTURE=str(capture), GPU_LOCK=str(root / "ab_test_runtime/logs/test.lock"))
-                result = subprocess.run(["bash", str(chain)], cwd=tmp, env=env,
+                result = run_bash_fixture([str(chain)], cwd=tmp, env=env,
                                         capture_output=True, text=True, timeout=10)
                 self.assertTrue(capture.exists(), result.stdout + result.stderr)
                 commands = [json.loads(line) for line in capture.read_text().splitlines()]
@@ -124,15 +125,15 @@ class ArchivedChainRootTests(unittest.TestCase):
                 if name == "asr_large_chain.sh":
                     for row, book, language in zip(commands, ("ljspeech", "kokoro", "aishell3"), ("en", "ja", "zh")):
                         args = row['argv']
-                        self.assertIn(str(root / "app/env/bin/python"), args)
-                        self.assertEqual(str(root / f"ab_test_runtime/{book}_eval/build.json"), args[args.index('--build')+1])
+                        self.assertIn(root / "app/env/bin/python", [Path(argument) for argument in args])
+                        self.assertEqual(root / f"ab_test_runtime/{book}_eval/build.json", Path(args[args.index('--build')+1]))
                         self.assertEqual(language, args[args.index('--lang')+1])
-                        self.assertEqual(str(root / "whisper.cpp/models/ggml-large-v3.bin"), args[args.index('--whisper-cpp-model')+1])
+                        self.assertEqual(root / "whisper.cpp/models/ggml-large-v3.bin", Path(args[args.index('--whisper-cpp-model')+1]))
                 elif name == "extended_chain.sh":
-                    self.assertIn(str(root / "app/env/bin/python"), commands[0]['argv'])
+                    self.assertIn(root / "app/env/bin/python", [Path(argument) for argument in commands[0]['argv']])
                     self.assertIn("experiments/retrain_honest.py", commands[0]['argv'])
                 else:
-                    self.assertIn(str(root), commands[0]['argv'][-1])
+                    self.assertIn(get_bash_path(root), commands[0]['argv'][-1])
 
 
 class ArchivedQueueLockTests(unittest.TestCase):
@@ -146,22 +147,22 @@ class ArchivedQueueLockTests(unittest.TestCase):
             archive = root / "run_chains/archive"
             archive.mkdir(parents=True)
             wrapper = root / "gpu_job.sh"
-            wrapper.write_bytes(Path(REPO, "gpu_job.sh").read_bytes())
+            copy_bash_fixture(Path(REPO, "gpu_job.sh"), wrapper)
             (root / "alexandria_file_lock.py").write_bytes(Path(REPO, "alexandria_file_lock.py").read_bytes())
             wrapper.chmod(0o755)
             chain = archive / "tpvs2_chain.sh"
             original = Path(REPO, "run_chains/archive/tpvs2_chain.sh").read_text()
             # Run the real header, before any waiting, server or model work.
             prefix = original[:original.index('WAIT_PID=')]
-            chain.write_text(prefix + '\nexec "$REPO/gpu_job.sh" --print-lock\n')
+            write_bash_fixture(chain, prefix + '\nexec "$REPO/gpu_job.sh" --print-lock\n')
             base_env = {key:value for key,value in os.environ.items() if key != "GPU_LOCK"}
             for custom in (None, str(root / "operator.lock")):
                 env = dict(base_env)
                 if custom is not None:
                     env["GPU_LOCK"] = custom
-                expected = subprocess.run(["bash", str(wrapper), "--print-lock"], env=env,
+                expected = run_bash_fixture([str(wrapper), "--print-lock"], env=env,
                                           capture_output=True, text=True, timeout=5)
-                actual = subprocess.run(["bash", str(chain)], cwd=tmp, env=env,
+                actual = run_bash_fixture([str(chain)], cwd=tmp, env=env,
                                         capture_output=True, text=True, timeout=5)
                 self.assertEqual(0, expected.returncode, expected.stderr)
                 self.assertEqual(0, actual.returncode, actual.stderr)
@@ -185,16 +186,16 @@ class ArchivedBatchInterpreterTests(unittest.TestCase):
                 (root / "run_chains/lib").mkdir()
                 for relative in ("run_chains/archive/run_new_batch.sh", "run_chains/lib/queue.sh"):
                     target = root / relative
-                    target.write_bytes(Path(REPO, relative).read_bytes())
+                    copy_bash_fixture(Path(REPO, relative), target)
                 capture = root / "commands.jsonl"
                 wrappers = root / "bin"
                 wrappers.mkdir()
                 sleep = wrappers / "sleep"
-                sleep.write_text("#!/bin/sh\nexit 0\n")
+                write_bash_fixture(sleep, "#!/bin/sh\nexit 0\n")
                 sleep.chmod(0o755)
                 interpreter = root / ("custom interpreter" if explicit else "app/env/bin/python")
                 interpreter.parent.mkdir(parents=True, exist_ok=True)
-                interpreter.write_text("#!" + sys.executable + "\n"
+                write_bash_fixture(interpreter, "#!" + sys.executable + "\n"
                     "import json,os,sys\n"
                     "with open(os.environ['CAPTURE'], 'a') as f:"
                     "f.write(json.dumps({'argv':sys.argv[1:], 'pythonpath':os.environ['PYTHONPATH']})+'\\n')\n")
@@ -207,7 +208,7 @@ class ArchivedBatchInterpreterTests(unittest.TestCase):
                            PATH=str(wrappers) + os.pathsep + os.environ["PATH"])
                 if explicit:
                     env.update(PREP=str(prep), PY=str(interpreter))
-                result = subprocess.run(["bash", str(archive / "run_new_batch.sh")], cwd=tmp,
+                result = run_bash_fixture([str(archive / "run_new_batch.sh")], cwd=tmp,
                                         env=env, capture_output=True, text=True, timeout=10)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertTrue(capture.exists(), result.stdout + result.stderr)
@@ -215,10 +216,10 @@ class ArchivedBatchInterpreterTests(unittest.TestCase):
                 self.assertEqual(26, len(commands))
                 self.assertEqual(26, len({row['argv'][row['argv'].index('--audio')+1] for row in commands}))
                 for row in commands:
-                    self.assertEqual(str(prep), row['argv'][0])
-                    self.assertEqual(str(root) + ':existing-modules', row['pythonpath'])
+                    self.assertEqual(prep, Path(row['argv'][0]))
+                    self.assertEqual(get_bash_path(root) + ':existing-modules', row['pythonpath'])
                     args = row['argv']
                     self.assertNotIn('--resume', args)
-                    self.assertTrue(args[args.index('--audio')+1].startswith(env['NEW_DIR'] + '/'))
-                    self.assertTrue(args[args.index('--output')+1].startswith(env['OUT_BASE'] + '/'))
+                    self.assertTrue(Path(args[args.index('--audio')+1]).is_relative_to(Path(env['NEW_DIR'])))
+                    self.assertTrue(Path(args[args.index('--output')+1]).is_relative_to(Path(env['OUT_BASE'])))
                 self.assertFalse((archive / "outputs").exists())
