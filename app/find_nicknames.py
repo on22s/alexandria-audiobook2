@@ -22,7 +22,9 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
 from llm_provider import make_run_client
 from generate_script import LLMGenParams, call_llm_for_object, ensure_run_request_params
-from utils import safe_load_json, file_lock, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
+from utils import (safe_load_json, file_lock, atomic_json_write, extract_json_object,
+                   warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path,
+                   configure_cli_stdio)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, get_active_llm_config, TokenBudgetError
 
@@ -422,6 +424,7 @@ def save_discovered_aliases(path, aliases, roster=()):
 
 
 def main():
+    configure_cli_stdio()
     parser = argparse.ArgumentParser(description="Discover character nickname/alias mappings")
     parser.add_argument("--input", help="Script JSON to scan (default: ../annotated_script.json)")
     parser.add_argument("--aliases-file", help="Where to write the alias map (default: ../character_aliases.json)")

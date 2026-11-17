@@ -49,7 +49,8 @@ from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
 from lmstudio_settings import get_failover_llm_config
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_checkpoint_document
 from generation_checkpoint_shards import remove_generation_shard_checkpoint, get_generation_checkpoint_artifacts
-from utils import file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json, get_runtime_data_dir, get_app_config_path
+from utils import (file_lock, atomic_json_write, safe_load_json, run_rocm_smi_json,
+                   get_runtime_data_dir, get_app_config_path, configure_cli_stdio)
 from speaker_identity import (resolve_speaker_label, get_validated_alias_map,
                               is_group_speaker_label as _is_group_label,
                               is_speaker_merge_allowed, get_resolved_speaker_merge_map,
@@ -1882,6 +1883,7 @@ def ensure_review_not_cancelled():
 
 
 def main():
+    configure_cli_stdio()
     ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,

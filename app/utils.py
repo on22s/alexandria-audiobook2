@@ -300,6 +300,23 @@ def extract_json_object(text):
             search_from = start + 1
 
 
+def configure_cli_stdio() -> None:
+    """Make print() safe for non-ASCII LLM output on Windows.
+
+    CLI scripts launched by the web app have stdout redirected to a pipe.
+    CPython then uses the system ANSI code page (cp1252 on Western Windows)
+    instead of UTF-8, and print() of a character outside that code page
+    raises UnicodeEncodeError - killing an otherwise finished run. UTF-8
+    encodes every character; backslashreplace is a final net for stray
+    surrogates. The app's subprocess reader decodes stdout as UTF-8 to match.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass  # stream wrapper doesn't support reconfigure (e.g. StringIO)
+
+
 def warn_unparseable_llm_json(what: str, raw: str, fallback_action: str) -> None:
     """Print a consistent warning when extract_json_object found no JSON
     object in an LLM response, for CLI scripts (find_nicknames.py,

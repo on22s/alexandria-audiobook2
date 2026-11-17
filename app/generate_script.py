@@ -43,7 +43,7 @@ from script_preflight import (MAX_REPLACEMENT_SHARE, audit_script,
                               replacement_repair_hint)
 from utils import (atomic_json_write, extract_balanced, get_runtime_data_dir,
                    get_app_config_path, is_generic_speaker, safe_load_json, file_lock,
-                   is_path_inside)
+                   is_path_inside, configure_cli_stdio)
 
 
 def get_generation_checkpoint_path(output_path):
@@ -2176,6 +2176,7 @@ def _accept_near_miss(near_miss, chunk_num, total_chunks):
     return entries
 
 def main():
+    configure_cli_stdio()
     parser = argparse.ArgumentParser(description="Generate annotated script from a book file.")
     parser.add_argument("input_file", help="Path to the input text/epub file")
     parser.add_argument("--literal-source-preserving", action="store_true",

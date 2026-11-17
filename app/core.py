@@ -1623,11 +1623,19 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             cancel_directory = tempfile.TemporaryDirectory(prefix='alexandria-review-cancel-')
             subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE'] = os.path.join(cancel_directory.name, 'cancel')
         review_startup_event('subprocess_launch')
+        # Redirected stdio on Windows defaults to the ANSI code page (cp1252),
+        # which cannot encode characters returned by the LLM (e.g. U+2770).
+        # Force UTF-8 in the child and decode it as such here so a print() of
+        # such a character can't kill an otherwise completed run.
+        # Assignment (not setdefault): an inherited/injected cp1252 setting
+        # must not reintroduce the crash this fixes.
+        subprocess_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
         process = start_owned_subprocess(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
             errors="replace",
             cwd=cwd,
             env=subprocess_env,
