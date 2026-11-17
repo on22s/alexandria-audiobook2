@@ -1095,8 +1095,10 @@
             background-image: linear-gradient(90deg, var(--tp-ink), transparent);
         }
         .tp-halftone .tp-lead2 {
-            /* One whole period back over the lead, so the lattice phase still
-               matches the track's and the reach is unchanged (9 + 45 - 6 = 48). */
+            /* One whole 6px period back over the lead's fade, so the ramp keeps
+               its own offset lattice and the reach is unchanged (9 + 45 - 6 = 48).
+               It cannot share the track's phase at every fill position; the
+               fade-out mask below is what blends it into the track. */
             width: 45px;
             margin-left: -6px;
             background-color: transparent;
