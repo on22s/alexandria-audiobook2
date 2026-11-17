@@ -14,6 +14,10 @@ import unittest
 
 REPO=Path(__file__).resolve().parents[2]
 SOURCE=Path(os.environ.get('REFERENCE_SPREAD_SOURCE',str(REPO/'run_chains/reference_spread_20260821.sh')))
+# The copied chain runs 21 stages of native Git artifact commits: measured 12.4s
+# for the only_one run on Windows against ~3s on Linux, so the 15s Linux cap
+# flakes under concurrent shards. Keep the Linux cap; give native Windows room.
+CHAIN_TIMEOUT=60 if os.name=='nt' else 15
 
 
 class ReferenceSpreadChainTests(unittest.TestCase):
@@ -57,7 +61,7 @@ runpy.run_path(os.environ['REAL_COMPARE'],run_name='__main__')
         for name in ('events','compared','admission'):
             p=self.root/name
             if p.exists():p.unlink()
-        return run_bash_fixture([str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=15)
+        return run_bash_fixture([str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=CHAIN_TIMEOUT)
 
     @requires_linux_queue_tools
     def test_all_generation_precedes_cpu_scoring_and_each_admission_requests_supervised_four_gb(self):

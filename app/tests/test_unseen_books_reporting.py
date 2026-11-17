@@ -71,7 +71,7 @@ class UnseenBooksReportingTest(unittest.TestCase):
             # Stub the generator: writes a complete book, an empty one, or fails.
             "generate() { case $1 in %s esac; }" % " ".join(
                 "%s) %s;;" % (book, {
-                    "ok": "PYTHONPATH=" + shlex.quote(os.path.join(REPO,'app').replace('\\', '/')) + " python3 " + shlex.quote(get_bash_path(producer)) + ' "$2" "$IN/$1.txt"; return 0',
+                    "ok": "PYTHONPATH=" + shlex.quote(get_bash_path(os.path.join(REPO,'app'))) + " python3 " + shlex.quote(get_bash_path(producer)) + ' "$2" "$IN/$1.txt"; return 0',
                     "fail": "return 1",
                     "empty": "return 0",
                 }[state]) for book, state in outcomes.items()),

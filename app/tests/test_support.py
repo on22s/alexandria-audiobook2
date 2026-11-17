@@ -14,14 +14,20 @@ import functools
 from http.server import BaseHTTPRequestHandler
 import inspect
 import json
+import locale
+import logging
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_isolated_git_environment(extra=None):
@@ -268,7 +274,75 @@ def run_bash_fixture(arguments, **kwargs):
                     argument = '"' + argument + '\\' * trailing + '"'
                 quoted.append(argument)
             command = ' '.join(quoted)
-        return subprocess.run(command, env=environment, **kwargs)
+        timeout = kwargs.pop('timeout', None)
+        check = kwargs.pop('check', False)
+        capture = kwargs.pop('capture_output', False)
+        if capture and ('stdout' in kwargs or 'stderr' in kwargs):
+            raise ValueError('stdout and stderr arguments may not be used with capture_output.')
+        outputs = {}
+        if capture:
+            # Capture into files, never pipes: subprocess.run's reader threads
+            # block on a pipe that a surviving grandchild keeps open, so its
+            # timeout never returns on Windows.
+            encoding = kwargs.get('encoding') or locale.getpreferredencoding(False)
+            for name in ('stdout', 'stderr'):
+                handle = tempfile.NamedTemporaryFile(prefix='bash transport ', delete=False)
+                outputs[name] = (Path(handle.name), handle)
+                kwargs[name] = handle
+        try:
+            process = subprocess.Popen(command, env=environment, **kwargs)
+        finally:
+            for _, handle in outputs.values():
+                handle.close()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_bash_fixture_tree(process)
+            remove_bash_fixture_outputs(outputs)
+            raise
+        captured = {}
+        text = kwargs.get('text') or kwargs.get('universal_newlines')
+        for name, (path, _) in outputs.items():
+            captured[name] = (path.read_text(encoding=encoding, errors=kwargs.get('errors'))
+                              if text else path.read_bytes())
+        remove_bash_fixture_outputs(outputs)
+        completed = subprocess.CompletedProcess(command, process.returncode,
+                                                captured.get('stdout'), captured.get('stderr'))
+        if check:
+            completed.check_returncode()
+        return completed
+
+
+def remove_bash_fixture_outputs(outputs):
+    """Remove captured output files, retrying while a closing child holds one."""
+    for path, _ in outputs.values():
+        for attempt in range(10):
+            try:
+                path.unlink()
+                break
+            except FileNotFoundError:
+                break
+            except OSError as error:
+                if attempt == 9:
+                    logger.warning('could not remove fixture output %s: %s', path, error)
+                else:
+                    time.sleep(0.1)
+
+
+def stop_bash_fixture_tree(process):
+    """Kill a timed-out fixture's tree so no descendant outlives the test."""
+    if os.name == 'nt':
+        from subprocess_ownership import terminate_windows_process_tree
+        try:
+            terminate_windows_process_tree(process, force=True, timeout=10)
+        except OSError:
+            process.kill()
+    else:
+        process.kill()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 def snapshot_fixture_files(root, *, lock_files=()):
